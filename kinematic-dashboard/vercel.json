@@ -3,11 +3,5 @@
   "buildCommand": "npm run build",
   "outputDirectory": ".next",
   "installCommand": "npm install",
-  "regions": ["bom1"],
-  "env": {
-    "NEXT_PUBLIC_API_URL": "@kinematic-api-url",
-    "NEXT_PUBLIC_SUPABASE_URL": "@kinematic-supabase-url",
-    "NEXT_PUBLIC_SUPABASE_ANON_KEY": "@kinematic-supabase-anon-key",
-    "NEXTAUTH_SECRET": "@kinematic-nextauth-secret"
-  }
+  "regions": ["bom1"]
 }
