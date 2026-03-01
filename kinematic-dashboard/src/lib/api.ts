@@ -48,10 +48,10 @@ class ApiClient {
   }
 
   // ── Auth ──────────────────────────────────────────────────────────────────
-  login(email: string, password: string) {
+login(mobile: string, password: string) {
     return this.post<{ success: boolean; data: { user: object; access_token: string } }>(
       '/api/v1/auth/login',
-      { email, password }
+      { mobile, password }
     );
   }
 
