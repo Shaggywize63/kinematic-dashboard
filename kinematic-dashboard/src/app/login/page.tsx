@@ -5,23 +5,23 @@ import api from '@/lib/api';
 import { saveSession } from '@/lib/auth';
 
 export default function LoginPage() {
-  const [mobile, setMobile]     = useState('');
+  const [email, setEmail]       = useState('');
   const [password, setPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState('');
   const router = useRouter();
 
-  const validMobile = /^\d{10,15}$/.test(mobile.trim());
+  const validEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+/.test(email);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!validMobile)            { setError('Please enter a valid mobile number (10-15 digits).'); return; }
-    if (password.length < 4)     { setError('Password must be at least 4 characters.'); return; }
+    if (!validEmail)         { setError('Please enter a valid email address.'); return; }
+    if (password.length < 4) { setError('Password must be at least 4 characters.'); return; }
 
     setError(''); setLoading(true);
     try {
-      const res = await api.login(mobile.trim(), password) as {
+      const res = await api.login(email, password) as {
         success: boolean;
         data: {
           user: { id: string; name: string; role: string; org_id: string };
@@ -49,12 +49,10 @@ export default function LoginPage() {
       minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
       background: '#080B12', padding: '24px', fontFamily: "'DM Sans', sans-serif", position: 'relative', overflow: 'hidden',
     }}>
-      {/* Glows */}
       <div style={{ position:'absolute', top:-140, left:-140, width:500, height:500, borderRadius:'50%', background:'radial-gradient(circle,rgba(224,30,44,0.07) 0%,transparent 65%)', pointerEvents:'none' }}/>
       <div style={{ position:'absolute', bottom:-80, right:-80, width:400, height:400, borderRadius:'50%', background:'radial-gradient(circle,rgba(62,158,255,0.05) 0%,transparent 65%)', pointerEvents:'none' }}/>
 
       <div style={{ width:'100%', maxWidth:420, animation:'fadeIn 0.4s ease both' }}>
-        {/* Logo */}
         <div style={{ textAlign:'center', marginBottom:40 }}>
           <div style={{ width:76, height:76, background:'#E01E2C', borderRadius:24, display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 20px', boxShadow:'0 24px 70px rgba(224,30,44,0.38)' }}>
             <span style={{ fontFamily:"'Syne',sans-serif", fontSize:40, fontWeight:800, color:'#fff', lineHeight:1 }}>K</span>
@@ -63,25 +61,24 @@ export default function LoginPage() {
           <p style={{ fontSize:13, color:'#7A8BA0', margin:0, letterSpacing:'0.5px' }}>Field Force Management Platform</p>
         </div>
 
-        {/* Card */}
         <div style={{ background:'#0E1420', border:'1px solid #1E2D45', borderRadius:20, padding:32 }}>
           <h2 style={{ fontFamily:"'Syne',sans-serif", fontSize:22, fontWeight:700, margin:'0 0 6px' }}>Welcome back</h2>
           <p style={{ fontSize:13, color:'#7A8BA0', margin:'0 0 28px' }}>Sign in to your Kinematic account</p>
 
           <form onSubmit={handleSubmit} style={{ display:'flex', flexDirection:'column', gap:16 }}>
-            {/* Mobile */}
+            {/* Email */}
             <div>
               <label style={{ display:'block', fontSize:11, fontWeight:600, color:'#7A8BA0', letterSpacing:'0.8px', textTransform:'uppercase', marginBottom:8 }}>
-                Mobile Number
+                Email Address
               </label>
               <div style={{ position:'relative' }}>
                 <svg style={{ position:'absolute', left:13, top:'50%', transform:'translateY(-50%)', opacity:0.4 }} width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/>
-                  <line x1="12" y1="18" x2="12.01" y2="18"/>
+                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                  <polyline points="22,6 12,13 2,6"/>
                 </svg>
                 <input
-                  type="tel" value={mobile} onChange={e => { setMobile(e.target.value.replace(/\D/g, '').slice(0, 15)); setError(''); }}
-                  placeholder="Enter your mobile number" required
+                  type="email" value={email} onChange={e => { setEmail(e.target.value); setError(''); }}
+                  placeholder="admin@company.com" required
                   style={{ width:'100%', background:'#131B2A', border:'1.5px solid #1E2D45', color:'#E8EDF8', borderRadius:12, padding:'12px 14px 12px 38px', fontSize:14, outline:'none', transition:'border-color 0.18s', fontFamily:"'DM Sans',sans-serif" }}
                   onFocus={e => e.currentTarget.style.borderColor='#E01E2C'}
                   onBlur={e => e.currentTarget.style.borderColor='#1E2D45'}
@@ -125,7 +122,7 @@ export default function LoginPage() {
 
             {/* Error */}
             {error && (
-              <div style={{ background:'rgba(224,30,44,0.08)', border:'1px solid rgba(224,30,44,0.22)', borderRadius:10, padding:'10px 14px', display:'flex', alignItems:'center', gap:8, animation:'fadeIn 0.2s ease' }}>
+              <div style={{ background:'rgba(224,30,44,0.08)', border:'1px solid rgba(224,30,44,0.22)', borderRadius:10, padding:'10px 14px', display:'flex', alignItems:'center', gap:8 }}>
                 <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#E01E2C" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
                 </svg>
@@ -135,7 +132,7 @@ export default function LoginPage() {
 
             {/* Submit */}
             <button
-              type="submit" disabled={loading || !mobile || !password}
+              type="submit" disabled={loading || !email || !password}
               style={{ width:'100%', background: loading ? 'rgba(224,30,44,0.7)' : '#E01E2C', color:'#fff', border:'none', borderRadius:13, padding:'14px', fontSize:15, fontWeight:700, fontFamily:"'Syne',sans-serif", cursor: loading ? 'not-allowed' : 'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:10, transition:'all 0.18s', marginTop:4, boxShadow: loading ? 'none' : '0 8px 30px rgba(224,30,44,0.3)' }}
             >
               {loading
