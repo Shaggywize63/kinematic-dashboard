@@ -1,4 +1,3 @@
-
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 class ApiClient {
@@ -26,9 +25,8 @@ class ApiClient {
 
     const res = await fetch(`${this.baseUrl}${path}`, { ...options, headers });
 
-   if (res.status === 401) {
-  throw new Error('Unauthorized');
-
+    if (res.status === 401) {
+      throw new Error('Unauthorized');
     }
 
     const data = await res.json();
@@ -48,10 +46,10 @@ class ApiClient {
   }
 
   // ── Auth ──────────────────────────────────────────────────────────────────
-login(mobile: string, password: string) {
+  login(email: string, password: string) {
     return this.post<{ success: boolean; data: { user: object; access_token: string } }>(
       '/api/v1/auth/login',
-      { mobile, password }
+      { email, password }
     );
   }
 
