@@ -1,252 +1,159 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
-import { apiRequest } from '@/lib/api';
+import api from '@/lib/api';
 
 interface Submission {
   id: string;
-  form_id?: string;
-  form_name?: string;
-  user_id: string;
-  user_name?: string;
-  employee_id?: string;
-  zone?: string;
-  outlet_name?: string;
-  outlet_type?: string;
+  fe_name: string;
+  fe_id: string;
+  outlet_name: string;
+  outlet_type: string;
+  consumer_age: string;
+  gender: string;
+  product_shown: string;
+  consumer_reaction: string;
   is_ecc: boolean;
   submitted_at: string;
-  synced: boolean;
-  data?: Record<string, any>;
+  remarks?: string;
+  zone?: string;
 }
 
-interface Pagination {
-  page: number;
-  limit: number;
-  total: number;
-  pages: number;
-}
-
-function Icon({ d, size = 18, color = 'currentColor' }: { d: string; size?: number; color?: string }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color}
-      strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-      {d.split(' M ').map((p, i) => <path key={i} d={i === 0 ? p : 'M ' + p} />)}
-    </svg>
-  );
-}
-
-function Spinner() {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 60 }}>
-      <div style={{ width: 28, height: 28, border: '3px solid rgba(255,255,255,0.1)', borderTopColor: '#E01E2C', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
-    </div>
-  );
-}
-
-export default function Submissions() {
+export default function SubmissionsPage() {
   const [submissions, setSubmissions] = useState<Submission[]>([]);
-  const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: 25, total: 0, pages: 1 });
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [search, setSearch] = useState('');
-  const [eccFilter, setEccFilter] = useState<'all' | 'ecc' | 'non_ecc'>('all');
-  const [selected, setSelected] = useState<Submission | null>(null);
+  const [error, setError] = useState('');
   const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [filter, setFilter] = useState('all');
+  const [selected, setSelected] = useState<Submission | null>(null);
+  const limit = 20;
 
-  const fetchSubmissions = useCallback(async (p = 1) => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ page: String(p), limit: '25' });
-      if (eccFilter === 'ecc') params.set('is_ecc', 'true');
-      if (eccFilter === 'non_ecc') params.set('is_ecc', 'false');
-      if (search) params.set('search', search);
-      const res = await apiRequest(`/forms/admin/submissions?${params}`);
-      setSubmissions(res.data ?? res ?? []);
-      if (res.pagination) setPagination(res.pagination);
-      setError(null);
-    } catch (err: any) {
-      setError(err.message || 'Failed to load submissions');
+      const params: Record<string, string> = { page: String(page), limit: String(limit) };
+      if (filter === 'ecc') params.is_ecc = 'true';
+      if (filter === 'non_ecc') params.is_ecc = 'false';
+      const res = await api.get<any>('/api/v1/forms/admin/submissions?' + new URLSearchParams(params));
+      const d = res as any;
+      setSubmissions(d.data || d.submissions || d || []);
+      setTotal(d.total || d.count || 0);
+      setError('');
+    } catch (e: any) {
+      setError(e.message || 'Failed to load submissions');
     } finally {
       setLoading(false);
     }
-  }, [eccFilter, search]);
+  }, [page, filter]);
 
-  useEffect(() => {
-    const t = setTimeout(() => { setPage(1); fetchSubmissions(1); }, 300);
-    return () => clearTimeout(t);
-  }, [search, eccFilter]);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
-  useEffect(() => { fetchSubmissions(page); }, [page]);
-
-  const formatDate = (d: string) => {
-    try { return new Date(d).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true }); }
-    catch { return d; }
+  const stats = {
+    total,
+    ecc: submissions.filter(s => s.is_ecc).length,
+    non_ecc: submissions.filter(s => !s.is_ecc).length,
   };
 
-  const total = pagination.total || submissions.length;
-  const ecc = submissions.filter(s => s.is_ecc).length;
-
   return (
-    <div>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+    <div className="p-6 space-y-6">
+      <div className="flex items-center justify-between">
         <div>
-          <h2 style={{ fontFamily: "'Syne',sans-serif", fontSize: 22, fontWeight: 800, margin: 0 }}>CC Submissions</h2>
-          <p style={{ fontSize: 12, color: '#7A8BA0', marginTop: 4 }}>All consumer contact form submissions</p>
+          <h1 className="text-2xl font-bold text-gray-900">CC Submissions</h1>
+          <p className="text-sm text-gray-500 mt-1">Consumer contact form submissions</p>
         </div>
+        <button onClick={fetchData} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">Refresh</button>
       </div>
 
-      {error && (
-        <div style={{ background: 'rgba(224,30,44,0.1)', border: '1px solid rgba(224,30,44,0.3)', borderRadius: 12, padding: '14px 18px', marginBottom: 20, color: '#E01E2C', fontSize: 13 }}>
-          ⚠ {error}
-        </div>
-      )}
+      {error && <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700 text-sm">{error}</div>}
 
-      {/* Stats strip */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14, marginBottom: 24 }}>
+      <div className="grid grid-cols-3 gap-4">
         {[
-          { label: 'Total Submissions', value: total, color: '#3A9EFF' },
-          { label: 'Effective (ECC)', value: ecc, color: '#00D97E' },
-          { label: 'Non-ECC', value: total - ecc, color: '#FFC940' },
-        ].map(s => (
-          <div key={s.label} style={{ background: '#0E1420', border: '1px solid #1E2D45', borderRadius: 14, padding: '16px 20px' }}>
-            <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 28, fontWeight: 800, color: s.color }}>{s.value}</div>
-            <div style={{ fontSize: 12, color: '#7A8BA0', marginTop: 4 }}>{s.label}</div>
+          { label: 'Total Submissions', value: total, color: 'text-gray-900' },
+          { label: 'Effective (ECC)', value: stats.ecc, color: 'text-green-600' },
+          { label: 'Non-ECC', value: stats.non_ecc, color: 'text-red-600' },
+        ].map((s, i) => (
+          <div key={i} className="bg-white rounded-xl border border-gray-200 p-4">
+            <div className={`text-3xl font-bold ${s.color}`}>{s.value}</div>
+            <div className="text-sm text-gray-500 mt-1">{s.label}</div>
           </div>
         ))}
       </div>
 
-      {/* Filters */}
-      <div style={{ background: '#0E1420', border: '1px solid #1E2D45', borderRadius: 14, padding: 16, marginBottom: 20, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-        <input
-          placeholder="Search by FE name, outlet or zone…"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          style={{ flex: 1, minWidth: 220, background: '#131B2A', border: '1px solid #1E2D45', borderRadius: 9, padding: '9px 14px', color: '#E8EDF8', fontSize: 13, outline: 'none' }}
-        />
-        <div style={{ display: 'flex', gap: 8 }}>
-          {(['all', 'ecc', 'non_ecc'] as const).map(f => (
-            <button key={f} onClick={() => setEccFilter(f)}
-              style={{ padding: '8px 14px', borderRadius: 9, border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer', background: eccFilter === f ? '#E01E2C' : '#131B2A', color: eccFilter === f ? '#fff' : '#7A8BA0', transition: 'all 0.15s' }}>
-              {{ all: 'All', ecc: 'ECC Only', non_ecc: 'Non-ECC' }[f]}
+      <div className="bg-white rounded-xl border border-gray-200">
+        <div className="p-4 border-b border-gray-100 flex gap-3">
+          {['all', 'ecc', 'non_ecc'].map(f => (
+            <button key={f} onClick={() => { setFilter(f); setPage(1); }}
+              className={`px-3 py-2 rounded-lg text-sm font-medium ${filter === f ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+              {f === 'all' ? 'All' : f === 'ecc' ? 'ECC Only' : 'Non-ECC'}
             </button>
           ))}
         </div>
-      </div>
 
-      {/* Table */}
-      <div style={{ background: '#0E1420', border: '1px solid #1E2D45', borderRadius: 14, overflow: 'hidden' }}>
-        {loading ? <Spinner /> : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid #1E2D45' }}>
-                  {['Field Executive', 'Outlet', 'Zone', 'ECC', 'Submitted', 'Sync'].map(h => (
-                    <th key={h} style={{ padding: '13px 18px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: '#2E445E', letterSpacing: '0.8px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
-                  ))}
-                  <th style={{ padding: '13px 18px', width: 60 }} />
+        {loading ? (
+          <div className="p-12 text-center text-gray-400">Loading submissions...</div>
+        ) : submissions.length === 0 ? (
+          <div className="p-12 text-center text-gray-400">No submissions found</div>
+        ) : (
+          <table className="w-full">
+            <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
+              <tr>
+                <th className="px-4 py-3 text-left">FE Name</th>
+                <th className="px-4 py-3 text-left">Outlet</th>
+                <th className="px-4 py-3 text-left">Product</th>
+                <th className="px-4 py-3 text-left">Reaction</th>
+                <th className="px-4 py-3 text-left">ECC</th>
+                <th className="px-4 py-3 text-left">Time</th>
+                <th className="px-4 py-3 text-left">Details</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {submissions.map((s, i) => (
+                <tr key={i} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 font-medium text-gray-900">{s.fe_name}</td>
+                  <td className="px-4 py-3 text-gray-600">{s.outlet_name}</td>
+                  <td className="px-4 py-3 text-gray-600">{s.product_shown}</td>
+                  <td className="px-4 py-3 text-gray-600">{s.consumer_reaction}</td>
+                  <td className="px-4 py-3">
+                    <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${s.is_ecc ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
+                      {s.is_ecc ? 'ECC' : 'No'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-gray-500 text-sm">{new Date(s.submitted_at).toLocaleTimeString()}</td>
+                  <td className="px-4 py-3">
+                    <button onClick={() => setSelected(s)} className="text-blue-600 text-sm hover:underline">View</button>
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {submissions.length === 0 ? (
-                  <tr><td colSpan={7} style={{ padding: 48, textAlign: 'center', color: '#2E445E', fontSize: 14 }}>No submissions found</td></tr>
-                ) : submissions.map((s, i) => (
-                  <tr key={s.id} style={{ borderBottom: i < submissions.length - 1 ? '1px solid #131B2A' : 'none', transition: 'background 0.1s' }}
-                    onMouseEnter={e => (e.currentTarget.style.background = '#131B2A')}
-                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                  >
-                    <td style={{ padding: '14px 18px' }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: '#E8EDF8' }}>{s.user_name || s.user_id}</div>
-                      {s.employee_id && <div style={{ fontSize: 11, color: '#7A8BA0' }}>{s.employee_id}</div>}
-                    </td>
-                    <td style={{ padding: '14px 18px' }}>
-                      <div style={{ fontSize: 13, color: '#E8EDF8' }}>{s.outlet_name || '—'}</div>
-                      {s.outlet_type && <div style={{ fontSize: 11, color: '#7A8BA0' }}>{s.outlet_type}</div>}
-                    </td>
-                    <td style={{ padding: '14px 18px', fontSize: 13, color: '#7A8BA0' }}>{s.zone || '—'}</td>
-                    <td style={{ padding: '14px 18px' }}>
-                      <span style={{ display: 'inline-block', padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: s.is_ecc ? 'rgba(0,217,126,0.12)' : 'rgba(255,201,64,0.12)', color: s.is_ecc ? '#00D97E' : '#FFC940' }}>
-                        {s.is_ecc ? 'ECC' : 'Non-ECC'}
-                      </span>
-                    </td>
-                    <td style={{ padding: '14px 18px', fontSize: 13, color: '#7A8BA0', whiteSpace: 'nowrap' }}>{formatDate(s.submitted_at)}</td>
-                    <td style={{ padding: '14px 18px' }}>
-                      <span style={{ display: 'inline-block', padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: s.synced ? 'rgba(0,217,126,0.1)' : 'rgba(255,201,64,0.1)', color: s.synced ? '#00D97E' : '#FFC940' }}>
-                        {s.synced ? 'Synced' : 'Pending'}
-                      </span>
-                    </td>
-                    <td style={{ padding: '14px 18px' }}>
-                      <button onClick={() => setSelected(s)}
-                        style={{ background: '#131B2A', border: '1px solid #1E2D45', borderRadius: 8, padding: '6px 12px', color: '#7A8BA0', fontSize: 12, cursor: 'pointer' }}>
-                        View
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+              ))}
+            </tbody>
+          </table>
         )}
 
-        {/* Pagination */}
-        {pagination.pages > 1 && (
-          <div style={{ padding: '14px 18px', borderTop: '1px solid #131B2A', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 12, color: '#2E445E' }}>Page {page} of {pagination.pages} · {pagination.total} total</span>
-            <div style={{ display: 'flex', gap: 8 }}>
+        {total > limit && (
+          <div className="p-4 border-t border-gray-100 flex items-center justify-between">
+            <span className="text-sm text-gray-500">Page {page} · {total} total</span>
+            <div className="flex gap-2">
               <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
-                style={{ padding: '7px 14px', borderRadius: 8, border: '1px solid #1E2D45', background: '#131B2A', color: page === 1 ? '#2E445E' : '#7A8BA0', fontSize: 12, cursor: page === 1 ? 'not-allowed' : 'pointer' }}>
-                Previous
-              </button>
-              <button onClick={() => setPage(p => Math.min(pagination.pages, p + 1))} disabled={page === pagination.pages}
-                style={{ padding: '7px 14px', borderRadius: 8, border: '1px solid #1E2D45', background: '#131B2A', color: page === pagination.pages ? '#2E445E' : '#7A8BA0', fontSize: 12, cursor: page === pagination.pages ? 'not-allowed' : 'pointer' }}>
-                Next
-              </button>
+                className="px-3 py-1 border rounded text-sm disabled:opacity-40">Previous</button>
+              <button onClick={() => setPage(p => p + 1)} disabled={page * limit >= total}
+                className="px-3 py-1 border rounded text-sm disabled:opacity-40">Next</button>
             </div>
           </div>
         )}
       </div>
 
-      {/* Detail drawer */}
       {selected && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 300, display: 'flex', justifyContent: 'flex-end' }} onClick={() => setSelected(null)}>
-          <div style={{ width: 420, background: '#0E1420', borderLeft: '1px solid #1E2D45', height: '100%', overflowY: 'auto', padding: 28 }} onClick={e => e.stopPropagation()}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
-              <h3 style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 18, margin: 0 }}>Submission Detail</h3>
-              <button onClick={() => setSelected(null)} style={{ background: '#131B2A', border: '1px solid #1E2D45', borderRadius: 8, padding: '6px 10px', color: '#7A8BA0', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>×</button>
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl max-w-md w-full p-6 space-y-4">
+            <div className="flex justify-between items-start">
+              <h2 className="text-lg font-bold">Submission Details</h2>
+              <button onClick={() => setSelected(null)} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
             </div>
-
-            <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-              <span style={{ padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 700, background: selected.is_ecc ? 'rgba(0,217,126,0.12)' : 'rgba(255,201,64,0.12)', color: selected.is_ecc ? '#00D97E' : '#FFC940' }}>
-                {selected.is_ecc ? '✓ Effective Contact (ECC)' : 'Non-ECC'}
-              </span>
-            </div>
-
-            {[
-              { l: 'Field Executive', v: selected.user_name || selected.user_id },
-              { l: 'Employee ID', v: selected.employee_id },
-              { l: 'Zone', v: selected.zone },
-              { l: 'Outlet', v: selected.outlet_name },
-              { l: 'Outlet Type', v: selected.outlet_type },
-              { l: 'Submitted At', v: formatDate(selected.submitted_at) },
-              { l: 'Sync Status', v: selected.synced ? 'Synced' : 'Pending sync' },
-            ].map(r => r.v ? (
-              <div key={r.l} style={{ marginBottom: 14 }}>
-                <div style={{ fontSize: 11, color: '#2E445E', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 4 }}>{r.l}</div>
-                <div style={{ fontSize: 14, color: '#E8EDF8' }}>{r.v}</div>
+            {Object.entries(selected).map(([k, v]) => v && (
+              <div key={k} className="flex justify-between text-sm">
+                <span className="text-gray-500 capitalize">{k.replace(/_/g, ' ')}</span>
+                <span className="font-medium text-right">{String(v)}</span>
               </div>
-            ) : null)}
-
-            {selected.data && Object.keys(selected.data).length > 0 && (
-              <>
-                <div style={{ borderTop: '1px solid #1E2D45', margin: '20px 0' }} />
-                <div style={{ fontSize: 11, color: '#2E445E', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 14 }}>Form Fields</div>
-                {Object.entries(selected.data).map(([k, v]) => (
-                  <div key={k} style={{ marginBottom: 12, background: '#131B2A', borderRadius: 10, padding: '10px 14px' }}>
-                    <div style={{ fontSize: 11, color: '#7A8BA0', marginBottom: 3, textTransform: 'capitalize' }}>{k.replace(/_/g, ' ')}</div>
-                    <div style={{ fontSize: 13, color: '#E8EDF8' }}>{String(v)}</div>
-                  </div>
-                ))}
-              </>
-            )}
+            ))}
           </div>
         </div>
       )}
