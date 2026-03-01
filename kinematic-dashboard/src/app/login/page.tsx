@@ -1,4 +1,3 @@
-
 'use client';
 import { useState, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
@@ -6,28 +5,35 @@ import api from '@/lib/api';
 import { saveSession } from '@/lib/auth';
 
 export default function LoginPage() {
-  const [email, setEmail]       = useState('');
+  const [mobile, setMobile]     = useState('');
   const [password, setPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState('');
   const router = useRouter();
 
-  const validEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+/.test(email);
+  const validMobile = /^\d{10,15}$/.test(mobile.trim());
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!validEmail)       { setError('Please enter a valid email address.'); return; }
-    if (password.length < 4) { setError('Password must be at least 4 characters.'); return; }
+    if (!validMobile)            { setError('Please enter a valid mobile number (10-15 digits).'); return; }
+    if (password.length < 4)     { setError('Password must be at least 4 characters.'); return; }
 
     setError(''); setLoading(true);
     try {
-      const res = await api.login(email, password) as { success: boolean; data: { user: { id: string; name: string; email: string; role: string; org_id: string }; access_token: string } };
+      const res = await api.login(mobile.trim(), password) as {
+        success: boolean;
+        data: {
+          user: { id: string; name: string; role: string; org_id: string };
+          access_token: string;
+          expires_at: number;
+        };
+      };
       if (res.success && res.data) {
         saveSession({
           user: res.data.user as Parameters<typeof saveSession>[0]['user'],
           access_token: res.data.access_token,
-          expires_at: Math.floor(Date.now() / 1000) + 86400,
+          expires_at: res.data.expires_at ?? Math.floor(Date.now() / 1000) + 86400,
         });
         router.push('/dashboard');
       }
@@ -63,19 +69,19 @@ export default function LoginPage() {
           <p style={{ fontSize:13, color:'#7A8BA0', margin:'0 0 28px' }}>Sign in to your Kinematic account</p>
 
           <form onSubmit={handleSubmit} style={{ display:'flex', flexDirection:'column', gap:16 }}>
-            {/* Email */}
+            {/* Mobile */}
             <div>
               <label style={{ display:'block', fontSize:11, fontWeight:600, color:'#7A8BA0', letterSpacing:'0.8px', textTransform:'uppercase', marginBottom:8 }}>
-                Email Address
+                Mobile Number
               </label>
               <div style={{ position:'relative' }}>
                 <svg style={{ position:'absolute', left:13, top:'50%', transform:'translateY(-50%)', opacity:0.4 }} width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-                  <polyline points="22,6 12,13 2,6"/>
+                  <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/>
+                  <line x1="12" y1="18" x2="12.01" y2="18"/>
                 </svg>
                 <input
-                  type="email" value={email} onChange={e => { setEmail(e.target.value); setError(''); }}
-                  placeholder="admin@company.com" required
+                  type="tel" value={mobile} onChange={e => { setMobile(e.target.value.replace(/\D/g, '').slice(0, 15)); setError(''); }}
+                  placeholder="Enter your mobile number" required
                   style={{ width:'100%', background:'#131B2A', border:'1.5px solid #1E2D45', color:'#E8EDF8', borderRadius:12, padding:'12px 14px 12px 38px', fontSize:14, outline:'none', transition:'border-color 0.18s', fontFamily:"'DM Sans',sans-serif" }}
                   onFocus={e => e.currentTarget.style.borderColor='#E01E2C'}
                   onBlur={e => e.currentTarget.style.borderColor='#1E2D45'}
@@ -129,7 +135,7 @@ export default function LoginPage() {
 
             {/* Submit */}
             <button
-              type="submit" disabled={loading || !email || !password}
+              type="submit" disabled={loading || !mobile || !password}
               style={{ width:'100%', background: loading ? 'rgba(224,30,44,0.7)' : '#E01E2C', color:'#fff', border:'none', borderRadius:13, padding:'14px', fontSize:15, fontWeight:700, fontFamily:"'Syne',sans-serif", cursor: loading ? 'not-allowed' : 'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:10, transition:'all 0.18s', marginTop:4, boxShadow: loading ? 'none' : '0 8px 30px rgba(224,30,44,0.3)' }}
             >
               {loading
