@@ -26,11 +26,9 @@ class ApiClient {
 
     const res = await fetch(`${this.baseUrl}${path}`, { ...options, headers });
 
-    if (res.status === 401) {
-      localStorage.removeItem('kinematic_token');
-      localStorage.removeItem('kinematic_user');
-      window.location.href = '/login';
-      throw new Error('Session expired');
+   if (res.status === 401) {
+  throw new Error('Unauthorized');
+
     }
 
     const data = await res.json();
