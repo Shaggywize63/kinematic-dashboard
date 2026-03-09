@@ -87,7 +87,7 @@ class ApiClient {
   // FIXED: correct admin submissions endpoint is /api/v1/admin/submissions
   getAdminSubmissions(params?: Record<string, string>) {
     const qs = params ? '?' + new URLSearchParams(params).toString() : '';
-    return this.get(`/api/v1/admin/submissions${qs}`);
+    return this.get(`/api/v1/forms/admin/submissions${qs}`);
   }
   getSubmission(id: string) {
     return this.get(`/api/v1/forms/submissions/${id}`);
