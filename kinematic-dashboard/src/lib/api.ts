@@ -12,10 +12,7 @@ class ApiClient {
     return localStorage.getItem('kinematic_token');
   }
 
-  private async request<T>(
-    path: string,
-    options: RequestInit = {}
-  ): Promise<T> {
+  private async request<T>(path: string, options: RequestInit = {}): Promise<T> {
     const token = this.getToken();
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -25,12 +22,10 @@ class ApiClient {
 
     const res = await fetch(`${this.baseUrl}${path}`, { ...options, headers });
 
-    if (res.status === 401) {
-      throw new Error('Unauthorized');
-    }
+    if (res.status === 401) throw new Error('Unauthorized');
 
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Request failed');
+    if (!res.ok) throw new Error(data.error || data.message || 'Request failed');
     return data;
   }
 
@@ -40,6 +35,10 @@ class ApiClient {
   }
   put<T>(path: string, body: unknown) {
     return this.request<T>(path, { method: 'PUT', body: JSON.stringify(body) });
+  }
+  // ADDED: PATCH method (needed for grievances and other updates)
+  patch<T>(path: string, body: unknown) {
+    return this.request<T>(path, { method: 'PATCH', body: JSON.stringify(body) });
   }
   delete<T>(path: string) {
     return this.request<T>(path, { method: 'DELETE' });
@@ -53,57 +52,95 @@ class ApiClient {
     );
   }
 
-  // ── Dashboard ─────────────────────────────────────────────────────────────
-  getDashboardStats() {
-    return this.get('/api/v1/dashboard/stats');
+  // ── Analytics ─────────────────────────────────────────────────────────────
+  // FIXED: correct endpoints are /analytics/summary and /analytics/activity-feed
+  getAnalyticsSummary(period: string) {
+    return this.get(`/api/v1/analytics/summary?period=${period}`);
   }
-  getLiveActivity() {
-    return this.get('/api/v1/dashboard/live');
+  getActivityFeed() {
+    return this.get('/api/v1/analytics/activity-feed');
   }
 
   // ── Field Executives ──────────────────────────────────────────────────────
   getFieldExecutives(params?: Record<string, string>) {
     const qs = params ? '?' + new URLSearchParams(params).toString() : '';
-    return this.get(`/api/v1/field-executives${qs}`);
+    return this.get(`/api/v1/users${qs}`);
   }
   getFieldExecutive(id: string) {
-    return this.get(`/api/v1/field-executives/${id}`);
+    return this.get(`/api/v1/users/${id}`);
+  }
+  updateUser(id: string, data: object) {
+    return this.patch(`/api/v1/users/${id}`, data);
   }
 
   // ── Attendance ────────────────────────────────────────────────────────────
-  getAttendance(params?: Record<string, string>) {
+  getAttendanceTeam(params?: Record<string, string>) {
     const qs = params ? '?' + new URLSearchParams(params).toString() : '';
-    return this.get(`/api/v1/attendance${qs}`);
+    return this.get(`/api/v1/attendance/team${qs}`);
+  }
+  getAttendanceHistory(params?: Record<string, string>) {
+    const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+    return this.get(`/api/v1/attendance/history${qs}`);
   }
 
-  // ── Forms (CC) ────────────────────────────────────────────────────────────
-  getForms(params?: Record<string, string>) {
+  // ── Forms (CC Submissions) ────────────────────────────────────────────────
+  // FIXED: correct admin submissions endpoint is /api/v1/admin/submissions
+  getAdminSubmissions(params?: Record<string, string>) {
     const qs = params ? '?' + new URLSearchParams(params).toString() : '';
-    return this.get(`/api/v1/forms${qs}`);
+    return this.get(`/api/v1/admin/submissions${qs}`);
+  }
+  getSubmission(id: string) {
+    return this.get(`/api/v1/forms/submissions/${id}`);
+  }
+
+  // ── Grievances ────────────────────────────────────────────────────────────
+  // FIXED: correct endpoints — GET /grievances (admin), PATCH /grievances/:id
+  getGrievances() {
+    return this.get('/api/v1/grievances');
+  }
+  updateGrievance(id: string, data: { status: string; admin_remarks?: string }) {
+    return this.patch(`/api/v1/grievances/${id}`, data);
   }
 
   // ── Stock ─────────────────────────────────────────────────────────────────
-  getStock() { return this.get('/api/v1/stock'); }
   getStockAllocations(params?: Record<string, string>) {
     const qs = params ? '?' + new URLSearchParams(params).toString() : '';
     return this.get(`/api/v1/stock/allocations${qs}`);
   }
   allocateStock(feId: string, items: Array<{ item_id: string; qty: number }>) {
-    return this.post('/api/v1/stock/allocate', { fe_id: feId, items });
+    return this.post('/api/v1/stock/allocations', { fe_id: feId, items });
+  }
+  updateStockItem(id: string, data: object) {
+    return this.patch(`/api/v1/stock/items/${id}`, data);
   }
 
   // ── Broadcast ─────────────────────────────────────────────────────────────
   getBroadcast() { return this.get('/api/v1/broadcast'); }
   createBroadcast(data: object) { return this.post('/api/v1/broadcast', data); }
+  getBroadcastResponses(id: string) { return this.get(`/api/v1/broadcast/${id}/responses`); }
+  closeBroadcast(id: string) { return this.patch(`/api/v1/broadcast/${id}/close`, {}); }
 
   // ── Notifications ─────────────────────────────────────────────────────────
   getNotifications() { return this.get('/api/v1/notifications'); }
-  sendNotification(data: object) { return this.post('/api/v1/notifications/send', data); }
+  markNotificationsRead() { return this.patch('/api/v1/notifications/read', {}); }
 
-  // ── Analytics ─────────────────────────────────────────────────────────────
-  getAnalytics(period: string) {
-    return this.get(`/api/v1/analytics?period=${period}`);
+  // ── Leaderboard ───────────────────────────────────────────────────────────
+  getLeaderboard() { return this.get('/api/v1/leaderboard'); }
+
+  // ── SOS ───────────────────────────────────────────────────────────────────
+  getSOSAlerts() { return this.get('/api/v1/sos'); }
+  acknowledgeSOSAlert(id: string) { return this.patch(`/api/v1/sos/${id}/acknowledge`, {}); }
+  resolveSOSAlert(id: string) { return this.patch(`/api/v1/sos/${id}/resolve`, {}); }
+
+  // ── Visit Logs ────────────────────────────────────────────────────────────
+  getVisitLogs() { return this.get('/api/v1/visits'); }
+
+  // ── Users / Zones ─────────────────────────────────────────────────────────
+  getUsers(params?: Record<string, string>) {
+    const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+    return this.get(`/api/v1/users${qs}`);
   }
+  getZones() { return this.get('/api/v1/zones'); }
 }
 
 export const api = new ApiClient(API_URL);
