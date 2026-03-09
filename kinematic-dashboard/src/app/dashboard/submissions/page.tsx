@@ -2,20 +2,25 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '@/lib/api';
 
+const C = { red:'#E01E2C',green:'#00D97E',yellow:'#FFB800',blue:'#3E9EFF',purple:'#9B6EFF',gray:'#7A8BA0',grayd:'#2E445E',s2:'#131B2A',border:'#1E2D45' };
+
 interface Submission {
   id: string;
-  fe_name: string;
-  fe_id: string;
-  outlet_name: string;
-  outlet_type: string;
-  consumer_age: string;
-  gender: string;
-  product_shown: string;
-  consumer_reaction: string;
-  is_ecc: boolean;
   submitted_at: string;
-  remarks?: string;
-  zone?: string;
+  is_converted: boolean;
+  outlet_name?: string;
+  user_id: string;
+  activity_id?: string;
+  users?: { name: string; employee_id: string };
+  activities?: { name: string };
+  form_templates?: { name: string };
+}
+
+interface PaginatedResult {
+  data: Submission[];
+  total: number;
+  page: number;
+  limit: number;
 }
 
 export default function SubmissionsPage() {
@@ -34,9 +39,11 @@ export default function SubmissionsPage() {
       const params: Record<string, string> = { page: String(page), limit: String(limit) };
       if (filter === 'ecc') params.is_ecc = 'true';
       if (filter === 'non_ecc') params.is_ecc = 'false';
-      const res = await api.get<any>('/api/v1/forms/admin/submissions?' + new URLSearchParams(params));
+      // FIXED: correct endpoint is /api/v1/admin/submissions (not /api/v1/forms/admin/submissions)
+      const qs = new URLSearchParams(params).toString();
+      const res = await api.get<PaginatedResult>(`/api/v1/admin/submissions?${qs}`);
       const d = res as any;
-      setSubmissions(d.data || d.submissions || d || []);
+      setSubmissions(d.data || d.submissions || (Array.isArray(d) ? d : []));
       setTotal(d.total || d.count || 0);
       setError('');
     } catch (e: any) {
@@ -48,112 +55,143 @@ export default function SubmissionsPage() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  const stats = {
-    total,
-    ecc: submissions.filter(s => s.is_ecc).length,
-    non_ecc: submissions.filter(s => !s.is_ecc).length,
-  };
+  const ecc = submissions.filter(s => s.is_converted).length;
+  const nonEcc = submissions.filter(s => !s.is_converted).length;
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
+      {/* Header */}
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">CC Submissions</h1>
-          <p className="text-sm text-gray-500 mt-1">Consumer contact form submissions</p>
+          <div style={{ fontFamily:"'Syne',sans-serif", fontSize:22, fontWeight:800 }}>CC Submissions</div>
+          <div style={{ fontSize:13, color:C.gray, marginTop:3 }}>Consumer contact form submissions</div>
         </div>
-        <button onClick={fetchData} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">Refresh</button>
+        <button onClick={fetchData} style={{ padding:'9px 16px', background:C.red, color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
+          Refresh
+        </button>
       </div>
 
-      {error && <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700 text-sm">{error}</div>}
+      {error && (
+        <div style={{ background:'rgba(224,30,44,0.08)', border:'1px solid rgba(224,30,44,0.2)', borderRadius:12, padding:'12px 16px', fontSize:13, color:C.red }}>
+          {error}
+        </div>
+      )}
 
-      <div className="grid grid-cols-3 gap-4">
+      {/* Stats */}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:14 }}>
         {[
-          { label: 'Total Submissions', value: total, color: 'text-gray-900' },
-          { label: 'Effective (ECC)', value: stats.ecc, color: 'text-green-600' },
-          { label: 'Non-ECC', value: stats.non_ecc, color: 'text-red-600' },
+          { l:'Total Submissions', v:total, c:C.blue },
+          { l:'Effective (ECC)', v:ecc, c:C.green },
+          { l:'Non-ECC', v:nonEcc, c:C.gray },
         ].map((s, i) => (
-          <div key={i} className="bg-white rounded-xl border border-gray-200 p-4">
-            <div className={`text-3xl font-bold ${s.color}`}>{s.value}</div>
-            <div className="text-sm text-gray-500 mt-1">{s.label}</div>
+          <div key={i} style={{ background:'#0E1420', border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
+            <div style={{ fontFamily:"'Syne',sans-serif", fontSize:30, fontWeight:800, color:s.c }}>{s.v}</div>
+            <div style={{ fontSize:12, color:C.gray, marginTop:6 }}>{s.l}</div>
           </div>
         ))}
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200">
-        <div className="p-4 border-b border-gray-100 flex gap-3">
-          {['all', 'ecc', 'non_ecc'].map(f => (
+      {/* Table */}
+      <div style={{ background:'#0E1420', border:`1px solid ${C.border}`, borderRadius:16, overflow:'hidden' }}>
+        {/* Filters */}
+        <div style={{ padding:'14px 18px', borderBottom:`1px solid ${C.border}`, display:'flex', gap:8 }}>
+          {[['all','All'],['ecc','ECC Only'],['non_ecc','Non-ECC']].map(([f, l]) => (
             <button key={f} onClick={() => { setFilter(f); setPage(1); }}
-              className={`px-3 py-2 rounded-lg text-sm font-medium ${filter === f ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-              {f === 'all' ? 'All' : f === 'ecc' ? 'ECC Only' : 'Non-ECC'}
+              style={{ padding:'7px 14px', borderRadius:9, border:'1px solid', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", transition:'all 0.15s',
+                background: filter===f ? C.red : C.s2, borderColor: filter===f ? C.red : C.border, color: filter===f ? '#fff' : C.gray }}>
+              {l}
             </button>
           ))}
         </div>
 
         {loading ? (
-          <div className="p-12 text-center text-gray-400">Loading submissions...</div>
+          <div style={{ padding:48, textAlign:'center', color:C.grayd, fontSize:14 }}>Loading submissions...</div>
         ) : submissions.length === 0 ? (
-          <div className="p-12 text-center text-gray-400">No submissions found</div>
+          <div style={{ padding:48, textAlign:'center', color:C.grayd, fontSize:14 }}>No submissions found</div>
         ) : (
-          <table className="w-full">
-            <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
-              <tr>
-                <th className="px-4 py-3 text-left">FE Name</th>
-                <th className="px-4 py-3 text-left">Outlet</th>
-                <th className="px-4 py-3 text-left">Product</th>
-                <th className="px-4 py-3 text-left">Reaction</th>
-                <th className="px-4 py-3 text-left">ECC</th>
-                <th className="px-4 py-3 text-left">Time</th>
-                <th className="px-4 py-3 text-left">Details</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {submissions.map((s, i) => (
-                <tr key={i} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 font-medium text-gray-900">{s.fe_name}</td>
-                  <td className="px-4 py-3 text-gray-600">{s.outlet_name}</td>
-                  <td className="px-4 py-3 text-gray-600">{s.product_shown}</td>
-                  <td className="px-4 py-3 text-gray-600">{s.consumer_reaction}</td>
-                  <td className="px-4 py-3">
-                    <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${s.is_ecc ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
-                      {s.is_ecc ? 'ECC' : 'No'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-gray-500 text-sm">{new Date(s.submitted_at).toLocaleTimeString()}</td>
-                  <td className="px-4 py-3">
-                    <button onClick={() => setSelected(s)} className="text-blue-600 text-sm hover:underline">View</button>
-                  </td>
+          <div style={{ overflowX:'auto' }}>
+            <table style={{ width:'100%', borderCollapse:'collapse' }}>
+              <thead>
+                <tr style={{ borderBottom:`1px solid ${C.border}` }}>
+                  {['FE Name','Outlet','Template','Activity','ECC','Time','Details'].map(h => (
+                    <th key={h} style={{ padding:'10px 16px', textAlign:'left', fontSize:11, fontWeight:700, color:C.grayd, letterSpacing:'0.8px', textTransform:'uppercase' }}>{h}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {submissions.map((s, i) => (
+                  <tr key={i} style={{ borderBottom:`1px solid ${C.border}40` }}
+                    onMouseEnter={e => (e.currentTarget.style.background = C.s2)}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                    <td style={{ padding:'12px 16px', fontSize:13, fontWeight:600 }}>{s.users?.name || '—'}</td>
+                    <td style={{ padding:'12px 16px', fontSize:13, color:C.gray }}>{s.outlet_name || '—'}</td>
+                    <td style={{ padding:'12px 16px', fontSize:13, color:C.gray }}>{s.form_templates?.name || '—'}</td>
+                    <td style={{ padding:'12px 16px', fontSize:13, color:C.gray }}>{s.activities?.name || '—'}</td>
+                    <td style={{ padding:'12px 16px' }}>
+                      <span style={{ fontSize:10, fontWeight:700, padding:'3px 9px', borderRadius:20,
+                        background: s.is_converted ? 'rgba(0,217,126,0.12)' : 'rgba(122,139,160,0.1)',
+                        color: s.is_converted ? C.green : C.gray }}>
+                        {s.is_converted ? 'ECC' : 'No'}
+                      </span>
+                    </td>
+                    <td style={{ padding:'12px 16px', fontSize:12, color:C.grayd }}>
+                      {new Date(s.submitted_at).toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' })}
+                    </td>
+                    <td style={{ padding:'12px 16px' }}>
+                      <button onClick={() => setSelected(s)}
+                        style={{ fontSize:12, color:C.blue, background:'none', border:'none', cursor:'pointer', fontFamily:"'DM Sans',sans-serif", fontWeight:600 }}>
+                        View
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
 
+        {/* Pagination */}
         {total > limit && (
-          <div className="p-4 border-t border-gray-100 flex items-center justify-between">
-            <span className="text-sm text-gray-500">Page {page} · {total} total</span>
-            <div className="flex gap-2">
-              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
-                className="px-3 py-1 border rounded text-sm disabled:opacity-40">Previous</button>
-              <button onClick={() => setPage(p => p + 1)} disabled={page * limit >= total}
-                className="px-3 py-1 border rounded text-sm disabled:opacity-40">Next</button>
+          <div style={{ padding:'12px 18px', borderTop:`1px solid ${C.border}`, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+            <span style={{ fontSize:12, color:C.grayd }}>Page {page} · {total} total</span>
+            <div style={{ display:'flex', gap:8 }}>
+              <button onClick={() => setPage(p => Math.max(1, p-1))} disabled={page===1}
+                style={{ padding:'6px 12px', background:C.s2, border:`1px solid ${C.border}`, borderRadius:8, fontSize:12, color:C.gray, cursor:'pointer', opacity:page===1?0.4:1 }}>
+                Previous
+              </button>
+              <button onClick={() => setPage(p => p+1)} disabled={page*limit >= total}
+                style={{ padding:'6px 12px', background:C.s2, border:`1px solid ${C.border}`, borderRadius:8, fontSize:12, color:C.gray, cursor:'pointer', opacity:page*limit>=total?0.4:1 }}>
+                Next
+              </button>
             </div>
           </div>
         )}
       </div>
 
+      {/* Detail modal */}
       {selected && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl max-w-md w-full p-6 space-y-4">
-            <div className="flex justify-between items-start">
-              <h2 className="text-lg font-bold">Submission Details</h2>
-              <button onClick={() => setSelected(null)} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
+        <div onClick={e => { if (e.target === e.currentTarget) setSelected(null); }}
+          style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.75)', zIndex:300, display:'flex', alignItems:'center', justifyContent:'center', padding:24 }}>
+          <div style={{ background:'#0E1420', border:`1px solid ${C.border}`, borderRadius:22, width:'100%', maxWidth:480, padding:28, position:'relative' }}>
+            <button onClick={() => setSelected(null)}
+              style={{ position:'absolute', top:16, right:16, background:C.s2, border:`1px solid ${C.border}`, borderRadius:9, width:32, height:32, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', color:C.gray, fontSize:16 }}>✕</button>
+            <div style={{ fontFamily:"'Syne',sans-serif", fontSize:18, fontWeight:800, marginBottom:20 }}>Submission Details</div>
+            <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+              {[
+                ['FE', selected.users?.name],
+                ['Employee ID', selected.users?.employee_id],
+                ['Outlet', selected.outlet_name],
+                ['Template', selected.form_templates?.name],
+                ['Activity', selected.activities?.name],
+                ['ECC', selected.is_converted ? 'Yes' : 'No'],
+                ['Submitted', new Date(selected.submitted_at).toLocaleString('en-IN')],
+              ].filter(([,v]) => v).map(([k, v]) => (
+                <div key={String(k)} style={{ display:'flex', justifyContent:'space-between', fontSize:13, padding:'8px 0', borderBottom:`1px solid ${C.border}40` }}>
+                  <span style={{ color:C.gray }}>{k}</span>
+                  <span style={{ fontWeight:600 }}>{String(v)}</span>
+                </div>
+              ))}
             </div>
-            {Object.entries(selected).map(([k, v]) => v && (
-              <div key={k} className="flex justify-between text-sm">
-                <span className="text-gray-500 capitalize">{k.replace(/_/g, ' ')}</span>
-                <span className="font-medium text-right">{String(v)}</span>
-              </div>
-            ))}
           </div>
         </div>
       )}
