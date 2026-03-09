@@ -37,7 +37,7 @@ export default function FieldExecutivesPage() {
     setLoading(true);
     try {
       // Fetch all users with role=field_executive
-      const res = await api.get<any>('/api/v1/users?role=field_executive');
+      const res = await api.get<any>('/api/v1/users?role=executive');
       const d = res as any;
       const users = d.data || d.users || (Array.isArray(d) ? d : []);
       setFes(users);
