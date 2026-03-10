@@ -240,9 +240,10 @@ export default function AttendancePage() {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
         <div>
           <Label text="Date" req />
-          <input className="kinp" type="date" style={baseInp}
+          <input className="kinp" type="date"
+            style={{ ...baseInp, opacity: isEdit ? 0.6 : 1 }}
             value={form.date} onChange={e => setF('date', e.target.value)}
-            readOnly={isEdit} style={{ ...baseInp, opacity: isEdit ? 0.6 : 1 }}/>
+            readOnly={isEdit} />
         </div>
         <div>
           <Label text="Status" req />
