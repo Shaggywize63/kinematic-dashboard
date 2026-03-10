@@ -56,11 +56,16 @@ interface FormData {
   checkin_at: string;
   checkout_at: string;
   override_reason: string;
+  checkin_lat: string;
+  checkin_lng: string;
+  checkout_lat: string;
+  checkout_lng: string;
 }
 
 const BLANK: FormData = {
   user_id: '', date: new Date().toISOString().split('T')[0],
   status: 'checked_in', checkin_at: '', checkout_at: '', override_reason: '',
+  checkin_lat: '', checkin_lng: '', checkout_lat: '', checkout_lng: '',
 };
 
 /* ── helpers ── */
@@ -127,13 +132,35 @@ export default function AttendancePage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
+      // Fetch attendance + all users (no role filter — avoids mismatch between 'executive' vs 'field_executive')
       const [attRes, usersRes] = await Promise.all([
         api.get<any>(`/api/v1/attendance/team?date=${dateFilter}`),
-        api.get<any>('/api/v1/users?role=executive&limit=200'),
+        api.get<any>('/api/v1/users?limit=500'),
       ]);
-      const pick = (r: any) => (r as any)?.data ?? (Array.isArray(r) ? r : []);
-      setRecords(pick(attRes));
-      setUsers(pick(usersRes));
+
+      const pick = (r: any) => {
+        if (Array.isArray(r)) return r;
+        if (Array.isArray(r?.data)) return r.data;
+        if (Array.isArray(r?.data?.data)) return r.data.data;
+        return [];
+      };
+
+      const usersArr = pick(usersRes);
+      setUsers(usersArr);
+
+      // Build lookup map: id → user
+      const userMap: Record<string, any> = {};
+      usersArr.forEach((u: any) => { userMap[u.id] = u; });
+
+      // Enrich attendance records with user name if the join didn't come back
+      const attArr = pick(attRes).map((r: any) => {
+        if (r.users?.name) return r;
+        const u = userMap[r.user_id];
+        if (u) return { ...r, users: { name: u.name, employee_id: u.employee_id, zones: u.zones } };
+        return r;
+      });
+
+      setRecords(attArr);
       setErr('');
     } catch (e: any) {
       setErr(e.message || 'Failed to load attendance');
@@ -145,7 +172,6 @@ export default function AttendancePage() {
   /* ── CREATE (admin override) ── */
   const handleCreate = async () => {
     if (!form.user_id || !form.date || !form.status) { setFErr('Executive, date and status are required.'); return; }
-    if (!form.override_reason.trim()) { setFErr('Override reason is required for manual attendance.'); return; }
     setSaving(true); setFErr('');
     try {
       await api.post('/api/v1/attendance/override', {
@@ -154,7 +180,11 @@ export default function AttendancePage() {
         status:          form.status,
         checkin_at:      form.checkin_at  ? `${form.date}T${form.checkin_at}:00` : undefined,
         checkout_at:     form.checkout_at ? `${form.date}T${form.checkout_at}:00` : undefined,
-        override_reason: form.override_reason.trim(),
+        override_reason: form.override_reason.trim() || 'Manual override by admin',
+        checkin_lat:     form.checkin_lat  ? parseFloat(form.checkin_lat)  : undefined,
+        checkin_lng:     form.checkin_lng  ? parseFloat(form.checkin_lng)  : undefined,
+        checkout_lat:    form.checkout_lat ? parseFloat(form.checkout_lat) : undefined,
+        checkout_lng:    form.checkout_lng ? parseFloat(form.checkout_lng) : undefined,
       });
       setShowAdd(false); setForm(BLANK); load();
     } catch (e: any) { setFErr(e.message || 'Failed to create record'); }
@@ -171,19 +201,26 @@ export default function AttendancePage() {
       checkin_at:      r.checkin_at  ? new Date(r.checkin_at).toTimeString().slice(0,5)  : '',
       checkout_at:     r.checkout_at ? new Date(r.checkout_at).toTimeString().slice(0,5) : '',
       override_reason: r.override_reason || '',
+      checkin_lat:     r.checkin_lat  != null ? String(r.checkin_lat)  : '',
+      checkin_lng:     r.checkin_lng  != null ? String(r.checkin_lng)  : '',
+      checkout_lat:    r.checkout_lat != null ? String(r.checkout_lat) : '',
+      checkout_lng:    r.checkout_lng != null ? String(r.checkout_lng) : '',
     });
     setFErr('');
   };
   const handleUpdate = async () => {
     if (!editRec) return;
-    if (!form.override_reason.trim()) { setFErr('Please provide a reason for this change.'); return; }
     setSaving(true); setFErr('');
     try {
       await api.patch(`/api/v1/attendance/${editRec.id}/override`, {
         status:          form.status,
         checkin_at:      form.checkin_at  ? `${editRec.date}T${form.checkin_at}:00`  : undefined,
         checkout_at:     form.checkout_at ? `${editRec.date}T${form.checkout_at}:00` : undefined,
-        override_reason: form.override_reason.trim(),
+        override_reason: form.override_reason.trim() || 'Manual override by admin',
+        checkin_lat:     form.checkin_lat  ? parseFloat(form.checkin_lat)  : undefined,
+        checkin_lng:     form.checkin_lng  ? parseFloat(form.checkin_lng)  : undefined,
+        checkout_lat:    form.checkout_lat ? parseFloat(form.checkout_lat) : undefined,
+        checkout_lng:    form.checkout_lng ? parseFloat(form.checkout_lng) : undefined,
       });
       setEditRec(null); setDetail(null); load();
     } catch (e: any) { setFErr(e.message || 'Failed to update'); }
@@ -267,12 +304,45 @@ export default function AttendancePage() {
         </div>
       </div>
 
-      <Label text="Override Reason" req />
+      <Label text="Override Reason" />
       <textarea className="kinp" rows={3} style={{ ...baseInp, resize: 'none' as const, marginBottom: 6 }}
-        placeholder="Why is this being set manually?"
+        placeholder="Why is this being set manually? (optional)"
         value={form.override_reason} onChange={e => setF('override_reason', e.target.value)} />
       <div style={{ fontSize: 11, color: C.grayd, marginBottom: 16 }}>
-        This will be logged as an admin override with your user ID.
+        If left blank, "Manual override by admin" will be recorded.
+      </div>
+
+      <div style={{ fontSize: 11, fontWeight: 700, color: C.gray, letterSpacing: '0.7px', textTransform: 'uppercase' as const, marginBottom: 10 }}>
+        Location Coordinates <span style={{ color: C.grayd, fontWeight: 400, textTransform: 'none' as const, letterSpacing: 0 }}>(optional)</span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 6 }}>
+        <div>
+          <Label text="Check-in Lat" />
+          <input className="kinp" type="number" step="any" style={baseInp}
+            placeholder="e.g. 19.0760"
+            value={form.checkin_lat} onChange={e => setF('checkin_lat', e.target.value)} />
+        </div>
+        <div>
+          <Label text="Check-in Lng" />
+          <input className="kinp" type="number" step="any" style={baseInp}
+            placeholder="e.g. 72.8777"
+            value={form.checkin_lng} onChange={e => setF('checkin_lng', e.target.value)} />
+        </div>
+        <div>
+          <Label text="Check-out Lat" />
+          <input className="kinp" type="number" step="any" style={baseInp}
+            placeholder="e.g. 19.0760"
+            value={form.checkout_lat} onChange={e => setF('checkout_lat', e.target.value)} />
+        </div>
+        <div>
+          <Label text="Check-out Lng" />
+          <input className="kinp" type="number" step="any" style={baseInp}
+            placeholder="e.g. 72.8777"
+            value={form.checkout_lng} onChange={e => setF('checkout_lng', e.target.value)} />
+        </div>
+      </div>
+      <div style={{ fontSize: 11, color: C.grayd, marginBottom: 18 }}>
+        Coordinates are stored for audit purposes and map display.
       </div>
     </>
   );
