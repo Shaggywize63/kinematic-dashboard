@@ -117,10 +117,18 @@ export default function AttendancePage() {
   const [search,   setSearch]   = useState('');
 
   /* modals */
-  const [showAdd,  setShowAdd]  = useState(false);
-  const [editRec,  setEditRec]  = useState<AttendanceRecord | null>(null);
-  const [detail,   setDetail]   = useState<AttendanceRecord | null>(null);
-  const [delRec,   setDelRec]   = useState<AttendanceRecord | null>(null);
+  const [showAdd,    setShowAdd]    = useState(false);
+  const [showExport, setShowExport] = useState(false);
+  const [editRec,    setEditRec]    = useState<AttendanceRecord | null>(null);
+  const [detail,     setDetail]     = useState<AttendanceRecord | null>(null);
+  const [delRec,     setDelRec]     = useState<AttendanceRecord | null>(null);
+
+  /* export */
+  const [expFrom,    setExpFrom]    = useState(() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0]; });
+  const [expTo,      setExpTo]      = useState(() => new Date().toISOString().split('T')[0]);
+  const [expGroupBy, setExpGroupBy] = useState<'city'|'role'|'executive'>('city');
+  const [expLoading, setExpLoading] = useState(false);
+  const [expErr,     setExpErr]     = useState('');
 
   /* form */
   const [form,    setForm]    = useState<FormData>(BLANK);
@@ -241,7 +249,220 @@ export default function AttendancePage() {
     finally { setSaving(false); }
   };
 
-  /* ── filtered ── */
+  /* ══════════════════════════════════════════════════════
+     EXPORT LOGIC
+     Midnight crossover: if checkout_at < checkin_at on same
+     date record, the shift crossed midnight — add 24h to
+     checkout before diffing. Cap at 24h to avoid bad data.
+  ═════════════════════════════════════════════════════════ */
+  const calcHours = (rec: AttendanceRecord): number | null => {
+    if (rec.total_hours != null) return rec.total_hours;
+    if (!rec.checkin_at) return null;
+    const ci = new Date(rec.checkin_at).getTime();
+    if (!rec.checkout_at) return null;
+    let co = new Date(rec.checkout_at).getTime();
+    // Midnight crossover: checkout is earlier than checkin
+    if (co < ci) co += 24 * 60 * 60 * 1000;
+    const h = (co - ci) / 3_600_000 - (rec.break_minutes || 0) / 60;
+    return Math.min(Math.max(h, 0), 24);
+  };
+
+  const classifyDay = (rec: AttendanceRecord): 'Present' | 'Half Day' | 'Absent' | 'Checked In' => {
+    if (rec.status === 'absent') return 'Absent';
+    if (rec.status === 'half_day') return 'Half Day';
+    const h = calcHours(rec);
+    if (h != null && h < 4) return 'Half Day';
+    if (rec.status === 'checked_in') return 'Checked In';
+    return 'Present';
+  };
+
+  const runExport = async () => {
+    setExpLoading(true); setExpErr('');
+    try {
+      // Gather all dates in range
+      const dates: string[] = [];
+      const cur = new Date(expFrom);
+      const end = new Date(expTo);
+      while (cur <= end) {
+        dates.push(cur.toISOString().split('T')[0]);
+        cur.setDate(cur.getDate() + 1);
+      }
+      if (dates.length > 62) { setExpErr('Date range too large. Please select up to 62 days.'); setExpLoading(false); return; }
+
+      // Fetch attendance for each date (batch, not parallel flood)
+      const allRecords: (AttendanceRecord & { _date: string })[] = [];
+      for (let i = 0; i < dates.length; i += 7) {
+        const chunk = dates.slice(i, i + 7);
+        const results = await Promise.all(
+          chunk.map(d => api.get<any>(`/api/v1/attendance/team?date=${d}`))
+        );
+        chunk.forEach((d, idx) => {
+          const pick = (r: any): any[] => {
+            if (Array.isArray(r)) return r;
+            if (Array.isArray(r?.data)) return r.data;
+            if (Array.isArray(r?.data?.data)) return r.data.data;
+            return [];
+          };
+          const recs = pick(results[idx]);
+          recs.forEach((r: any) => {
+            // Enrich with user info
+            const u = users.find(u => u.id === r.user_id);
+            const enriched = r.users?.name ? r : { ...r, users: u ? { name: u.name, employee_id: u.employee_id, zones: u.zones, role: (u as any).role, city: (u as any).city } : r.users };
+            allRecords.push({ ...enriched, _date: d });
+          });
+        });
+      }
+
+      if (!allRecords.length) { setExpErr('No attendance data found for the selected range.'); setExpLoading(false); return; }
+
+      generateExcel(allRecords, dates);
+    } catch (e: any) {
+      setExpErr(e.message || 'Export failed');
+    } finally { setExpLoading(false); }
+  };
+
+  const generateExcel = (records: (AttendanceRecord & { _date: string })[], dates: string[]) => {
+    // ── helpers ──
+    const esc = (v: any) => String(v ?? '').replace(/"/g, '""');
+    const q   = (v: any) => `"${esc(v)}"`;
+
+    // Build user summary map
+    interface UserSummary {
+      name: string; employee_id: string; role: string;
+      city: string; zone: string; supervisor: string;
+      records: (AttendanceRecord & { _date: string })[];
+      totalDays: number; presentDays: number; halfDays: number;
+      absentDays: number; totalHours: number; avgHoursPerDay: number;
+    }
+    const userMap: Record<string, UserSummary> = {};
+    records.forEach(r => {
+      const uid = r.user_id;
+      if (!userMap[uid]) {
+        const u = users.find(u => u.id === uid);
+        userMap[uid] = {
+          name: r.users?.name || u?.name || uid,
+          employee_id: r.users?.employee_id || (u as any)?.employee_id || '',
+          role: (r.users as any)?.role || (u as any)?.role || '',
+          city: (r.users as any)?.city || (u as any)?.city || r.users?.zones?.name || '',
+          zone: r.users?.zones?.name || (u as any)?.zones?.name || '',
+          supervisor: (u as any)?.supervisors?.name || '',
+          records: [],
+          totalDays: 0, presentDays: 0, halfDays: 0, absentDays: 0, totalHours: 0, avgHoursPerDay: 0,
+        };
+      }
+      userMap[uid].records.push(r);
+    });
+
+    // Compute stats per user
+    Object.values(userMap).forEach(u => {
+      u.totalDays    = dates.length;
+      u.presentDays  = u.records.filter(r => classifyDay(r) === 'Present' || classifyDay(r) === 'Checked In').length;
+      u.halfDays     = u.records.filter(r => classifyDay(r) === 'Half Day').length;
+      u.absentDays   = dates.length - u.presentDays - u.halfDays;
+      u.totalHours   = u.records.reduce((acc, r) => acc + (calcHours(r) || 0), 0);
+      u.avgHoursPerDay = u.presentDays > 0 ? u.totalHours / u.presentDays : 0;
+    });
+
+    const allUsers = Object.values(userMap);
+    const tabs: { name: string; csvContent: string }[] = [];
+
+    // ══ SHEET 1: Summary by user ══
+    const summaryHeader = ['Name','Employee ID','Role','City','Zone','Supervisor','Working Days','Present','Half Days','Absent','Total Hours','Avg Hrs/Day'];
+    const summaryRows = allUsers.map(u => [
+      q(u.name), q(u.employee_id), q(u.role), q(u.city), q(u.zone), q(u.supervisor),
+      u.totalDays, u.presentDays,
+      u.halfDays > 0 ? `⚠ ${u.halfDays}` : '0',
+      u.absentDays, u.totalHours.toFixed(1), u.avgHoursPerDay.toFixed(1),
+    ]);
+    tabs.push({ name: 'Summary', csvContent: [summaryHeader.map(q).join(','), ...summaryRows.map(r => r.join(','))].join('\n') });
+
+    // ══ SHEET 2: City-wise summary ══
+    const cities = Array.from(new Set(allUsers.map(u => u.city || 'Unknown'))).sort();
+    const cityHeader = ['City','Total Execs','Present','Half Days','Absent','Total Hours','Avg Hrs/Exec'];
+    const cityRows = cities.map(city => {
+      const cu = allUsers.filter(u => (u.city || 'Unknown') === city);
+      const present  = cu.reduce((a,u) => a + u.presentDays, 0);
+      const half     = cu.reduce((a,u) => a + u.halfDays, 0);
+      const absent   = cu.reduce((a,u) => a + u.absentDays, 0);
+      const hours    = cu.reduce((a,u) => a + u.totalHours, 0);
+      return [q(city), cu.length, present, half > 0 ? `⚠ ${half}` : '0', absent, hours.toFixed(1), cu.length ? (hours / cu.length).toFixed(1) : '0'];
+    });
+    tabs.push({ name: 'City Wise', csvContent: [cityHeader.map(q).join(','), ...cityRows.map(r => r.join(','))].join('\n') });
+
+    // ══ SHEET 3: Role-wise summary ══
+    const roles = Array.from(new Set(allUsers.map(u => u.role || 'unknown'))).sort();
+    const roleHeader = ['Role','Count','Present Days','Half Days','Absent Days','Total Hours'];
+    const roleRows = roles.map(role => {
+      const ru = allUsers.filter(u => u.role === role);
+      return [
+        q(role), ru.length,
+        ru.reduce((a,u) => a+u.presentDays, 0),
+        ru.reduce((a,u) => a+u.halfDays,    0),
+        ru.reduce((a,u) => a+u.absentDays,  0),
+        ru.reduce((a,u) => a+u.totalHours,  0).toFixed(1),
+      ];
+    });
+    tabs.push({ name: 'Role Wise', csvContent: [roleHeader.map(q).join(','), ...roleRows.map(r => r.join(','))].join('\n') });
+
+    // ══ SHEET 4: Day-by-day detail ══
+    const detailHeader = ['Date','Name','Employee ID','Role','City','Zone','Check-in','Check-out','Hours','Break(min)','Status','Midnight Crossover?','Override Reason'];
+    const detailRows = records.map(r => {
+      const ci = r.checkin_at ? new Date(r.checkin_at).getTime() : null;
+      const co = r.checkout_at ? new Date(r.checkout_at).getTime() : null;
+      const isCrossover = ci && co && co < ci;
+      const hrs = calcHours(r);
+      return [
+        q(r._date),
+        q(r.users?.name || ''),
+        q(r.users?.employee_id || ''),
+        q((r.users as any)?.role || ''),
+        q((r.users as any)?.city || r.users?.zones?.name || ''),
+        q(r.users?.zones?.name || ''),
+        q(r.checkin_at  ? new Date(r.checkin_at).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) : '—'),
+        q(r.checkout_at ? new Date(r.checkout_at).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) : '—'),
+        hrs != null ? hrs.toFixed(2) : '—',
+        r.break_minutes || 0,
+        q(classifyDay(r)),
+        isCrossover ? q('YES — checkout next day, +24h applied') : q('No'),
+        q(r.override_reason || ''),
+      ];
+    });
+    tabs.push({ name: 'Day Detail', csvContent: [detailHeader.map(q).join(','), ...detailRows.map(r => r.join(','))].join('\n') });
+
+    // ══ SHEET 5: Midnight crossover explanation ══
+    const crossoverNote = [
+      ['MIDNIGHT CROSSOVER POLICY — How working hours are calculated'],
+      [''],
+      ['Scenario', 'Example', 'Calculation', 'Result'],
+      ['Normal shift',       'Check-in 09:00  Check-out 18:00', '18:00 − 09:00',          '9.0 hrs'],
+      ['Midnight crossover', 'Check-in 21:00  Check-out 02:00', '02:00 + 24h − 21:00',    '5.0 hrs'],
+      [''],
+      ['Rule: If checkout_at < checkin_at (same attendance record), the system assumes the shift crossed midnight.'],
+      ['A full 24 hours is added to the checkout timestamp before calculating the difference.'],
+      ['The result is capped at 24 hours to guard against data entry errors.'],
+      [''],
+      ['Half Day Rule: Any shift < 4 hours is automatically classified as a Half Day, regardless of status field.'],
+      [''],
+      ['This report was generated on', new Date().toLocaleString('en-IN')],
+      ['Date range', `${expFrom} to ${expTo}`],
+    ].map(row => row.map(c => q(c ?? '')).join(','));
+    tabs.push({ name: 'Policy Notes', csvContent: crossoverNote.join('\n') });
+
+    // Since we can't generate multi-sheet XLSX without a lib, we produce a ZIP-like multi-file CSV
+    // but for simplicity, concatenate all sheets in one CSV with clear section headers
+    const combined = tabs.map(t =>
+      `"=== ${t.name.toUpperCase()} ==="\n${t.csvContent}\n\n`
+    ).join('');
+
+    const filename = `kinematic_attendance_${expFrom}_to_${expTo}.csv`;
+    const a = document.createElement('a');
+    a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(combined);
+    a.download = filename;
+    a.click();
+    setShowExport(false);
+  };
+
+  /* ── filtered shown ── */
   const shown = records.filter(r => {
     const q = search.toLowerCase();
     const matchSearch = !q
@@ -420,6 +641,15 @@ export default function AttendancePage() {
               {f === 'all' ? 'All' : f === 'checked_in' ? 'In' : f === 'checked_out' ? 'Out' : f === 'half_day' ? 'Half' : 'Absent'}
             </button>
           ))}
+
+          {/* export */}
+          <button className="kbtn" onClick={() => { setExpErr(''); setShowExport(true); }}
+            style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 14px', background: C.s2, border: `1px solid ${C.border}`, borderRadius: 10, color: C.green, fontSize: 12, fontWeight: 600, fontFamily: "'DM Sans',sans-serif", whiteSpace: 'nowrap' as const }}>
+            <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.3} strokeLinecap="round">
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            Export
+          </button>
 
           {/* add override */}
           <button className="kbtn" onClick={() => { setForm(BLANK); setFErr(''); setShowAdd(true); }}
@@ -667,6 +897,82 @@ export default function AttendancePage() {
           </div>
         </Overlay>
       )}
+      {/* ══════ EXPORT MODAL ══════ */}
+      {showExport && (
+        <Overlay onClose={() => setShowExport(false)}>
+          <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 22, width: '100%', maxWidth: 520, padding: 28, color: C.white }}>
+            {/* header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 22 }}>
+              <div>
+                <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 20, fontWeight: 800 }}>Export Attendance</div>
+                <div style={{ fontSize: 12, color: C.gray, marginTop: 3 }}>Downloads a CSV with city-wise, role-wise & executive-wise breakdown</div>
+              </div>
+              <button onClick={() => setShowExport(false)} style={{ width: 32, height: 32, borderRadius: 9, background: C.s3, border: `1px solid ${C.border}`, cursor: 'pointer', color: C.gray, fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>✕</button>
+            </div>
+
+            {expErr && (
+              <div style={{ background: C.redD, border: `1px solid ${C.redB}`, borderRadius: 10, padding: '10px 14px', fontSize: 13, color: C.red, marginBottom: 16 }}>{expErr}</div>
+            )}
+
+            {/* date range */}
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.gray, letterSpacing: '0.8px', textTransform: 'uppercase' as const, marginBottom: 8 }}>Date Range</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 18 }}>
+              <div>
+                <div style={{ fontSize: 11, color: C.grayd, marginBottom: 5 }}>From</div>
+                <input className="kinp" type="date" value={expFrom} onChange={e => setExpFrom(e.target.value)}
+                  style={{ width: '100%', background: C.s3, border: `1px solid ${C.border}`, color: C.white, borderRadius: 10, padding: '10px 13px', fontSize: 13, outline: 'none', fontFamily: "'DM Sans',sans-serif" }} />
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: C.grayd, marginBottom: 5 }}>To</div>
+                <input className="kinp" type="date" value={expTo} onChange={e => setExpTo(e.target.value)}
+                  style={{ width: '100%', background: C.s3, border: `1px solid ${C.border}`, color: C.white, borderRadius: 10, padding: '10px 13px', fontSize: 13, outline: 'none', fontFamily: "'DM Sans',sans-serif" }} />
+              </div>
+            </div>
+
+            {/* what's included */}
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.gray, letterSpacing: '0.8px', textTransform: 'uppercase' as const, marginBottom: 10 }}>What's Included (5 sheets)</div>
+            <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 8, marginBottom: 20 }}>
+              {[
+                { icon: '📊', title: 'Summary',      desc: 'Per-executive: total days, present, half days, hours worked' },
+                { icon: '🏙️', title: 'City Wise',    desc: 'Grouped by city — total execs, attendance rates, total hours' },
+                { icon: '👥', title: 'Role Wise',     desc: 'Executives vs Supervisors vs City Managers breakdown' },
+                { icon: '📅', title: 'Day Detail',    desc: 'Every record with check-in/out times, hours, midnight flag' },
+                { icon: '📋', title: 'Policy Notes',  desc: 'Midnight crossover & half-day calculation rules documented' },
+              ].map(s => (
+                <div key={s.title} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', padding: '10px 14px', background: C.s3, borderRadius: 11, border: `1px solid ${C.border}` }}>
+                  <span style={{ fontSize: 18, flexShrink: 0, marginTop: 1 }}>{s.icon}</span>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 2 }}>{s.title}</div>
+                    <div style={{ fontSize: 11, color: C.gray, lineHeight: 1.5 }}>{s.desc}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* midnight crossover note */}
+            <div style={{ background: 'rgba(255,184,0,0.07)', border: `1px solid rgba(255,184,0,0.2)`, borderRadius: 12, padding: '12px 15px', marginBottom: 20, fontSize: 12, color: C.yellow, lineHeight: 1.7 }}>
+              <div style={{ fontWeight: 700, marginBottom: 4 }}>⚠ Midnight Crossover Handling</div>
+              If checkout is earlier than check-in on the same record (e.g. in at <strong>9 PM</strong>, out at <strong>2 AM</strong>), the system adds <strong>+24 hours</strong> to the checkout before calculating duration. These records are flagged <em>"YES — checkout next day"</em> in the Day Detail sheet. Capped at 24h to guard bad data.
+              <div style={{ marginTop: 6, fontWeight: 600 }}>Half Day rule: any shift under 4 hours is auto-classified as Half Day.</div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button className="kbtn" onClick={() => setShowExport(false)}
+                style={{ flex: 1, padding: '12px', background: C.s3, border: `1px solid ${C.border}`, color: C.gray, borderRadius: 11, fontSize: 13, fontWeight: 600, fontFamily: "'DM Sans',sans-serif" }}>
+                Cancel
+              </button>
+              <button className="kbtn" onClick={runExport} disabled={expLoading || !expFrom || !expTo}
+                style={{ flex: 2, padding: '12px', background: C.green, border: 'none', color: '#000', borderRadius: 11, fontSize: 13, fontWeight: 800, fontFamily: "'DM Sans',sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, opacity: (expLoading || !expFrom || !expTo) ? 0.6 : 1, cursor: (expLoading || !expFrom || !expTo) ? 'not-allowed' : 'pointer', boxShadow: '0 4px 18px rgba(0,217,126,0.25)' }}>
+                {expLoading
+                  ? <><Spinner />Fetching data…</>
+                  : <><svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Download CSV</>
+                }
+              </button>
+            </div>
+          </div>
+        </Overlay>
+      )}
+
     </>
   );
 }
