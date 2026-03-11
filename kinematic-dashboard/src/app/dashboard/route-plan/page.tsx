@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
-import { apiRequest } from '@/lib/api';
+import { api } from '@/lib/api';
 
 const C = {
   bg:'#070D18', s2:'#0E1420', s3:'#131B2A', s4:'#1A2438',
@@ -70,17 +70,11 @@ export default function RoutePlan() {
     setLoading(true);
     try {
       const [attendanceRes, stockRes] = await Promise.allSettled([
-        apiRequest('/attendance/team'),
-        apiRequest('/stock/team'),
+       api.getAttendanceTeam(),
+       api.getStockAllocations(),
       ]);
 
-      const attendance: TeamAttendance[] = attendanceRes.status === 'fulfilled'
-        ? (attendanceRes.value.data ?? attendanceRes.value ?? [])
-        : [];
-
-      const stockData: TeamStock[] = stockRes.status === 'fulfilled'
-        ? (stockRes.value.data ?? stockRes.value ?? [])
-        : [];
+            const attendance: TeamAttendance[] = attendanceRes.status === 'fulfilled'
 
       const merged: FEPlan[] = attendance.map(fe => {
         const stock = stockData.find(s => s.user_id === fe.user_id);
