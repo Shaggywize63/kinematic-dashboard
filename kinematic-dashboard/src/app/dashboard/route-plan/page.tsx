@@ -74,9 +74,15 @@ export default function RoutePlan() {
        api.getStockAllocations(),
       ]);
 
-            const attendance: TeamAttendance[] = attendanceRes.status === 'fulfilled'
+          const attendance: TeamAttendance[] = attendanceRes.status === 'fulfilled'
+            ? (attendanceRes.value as any)?.data ?? []
+            : [];
 
-      const merged: FEPlan[] = attendance.map(fe => {
+          const stockData: TeamStock[] = stockRes.status === 'fulfilled'
+          ? (stockRes.value as any)?.data ?? []
+          : [];
+
+        const merged: FEPlan[] = attendance.map(fe => {
         const stock = stockData.find(s => s.user_id === fe.user_id);
         return {
           ...fe,
