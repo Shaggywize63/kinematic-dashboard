@@ -155,7 +155,7 @@ export default function RoutePlan() {
           { label: 'Total Deployed', value: stats.total, color: C.blue, bg: C.blueD, icon: 'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 11a4 4 0 100-8 4 4 0 000 8z' },
           { label: 'Active in Field', value: stats.active, color: C.green, bg: C.greenD, icon: 'M20 6L9 17l-5-5' },
           { label: 'Stock Deployed', value: stats.stockReady, color: C.yellow, bg: C.yellowD, icon: 'M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8' },
-          { label: 'Zones Covered', value: stats.zones, color: C.purple, bg: C.purpleD, icon: 'M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z M15 11a3 3 0 11-6 0 3 3 0 016 0z' },
+          { label: 'Zones Covered', value: stats.zones, color: C.purple, bg: C.purpleD, icon: 'M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0zM15 11a3 3 0 11-6 0 3 3 0 016 0z' },
         ].map(s => (
           <div key={s.label} style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 14, padding: '18px 20px', display: 'flex', alignItems: 'center', gap: 14 }}>
             <div style={{ width: 44, height: 44, borderRadius: 12, background: s.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
