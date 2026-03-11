@@ -5,7 +5,7 @@ Admin dashboard for the Kinematic Field Force Management platform.
 ## Tech Stack
 - **Next.js 14** (App Router)
 - **TypeScript**
-- **Tailwind CSS**
+- **Tailwind CSS** 
 - **Supabase** (auth + database)
 
 ---
