@@ -206,7 +206,7 @@ export default function RoutePlan() {
                   onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                 >
                   <div style={{ width: 40, height: 40, borderRadius: 12, background: C.redD, border: `1px solid ${C.redB}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 16, color: C.red, flexShrink: 0 }}>
-                    {fe.name[0]}
+                    {fe.name[0] ?? '?'}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 14, fontWeight: 600, color: C.white }}>{fe.name}</div>
