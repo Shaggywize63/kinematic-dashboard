@@ -1,25 +1,67 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
-import api from '@/lib/api';
+import { apiRequest } from '@/lib/api';
 
-interface FEDeployment {
+const C = {
+  bg:'#070D18', s2:'#0E1420', s3:'#131B2A', s4:'#1A2438',
+  border:'#1E2D45', borderL:'#253650',
+  white:'#E8EDF8', gray:'#7A8BA0', grayd:'#2E445E', graydd:'#1A2738',
+  red:'#E01E2C', redD:'rgba(224,30,44,0.08)', redB:'rgba(224,30,44,0.2)',
+  green:'#00D97E', greenD:'rgba(0,217,126,0.08)',
+  blue:'#3E9EFF', blueD:'rgba(62,158,255,0.10)',
+  yellow:'#FFB800', yellowD:'rgba(255,184,0,0.08)',
+  purple:'#9B6EFF', purpleD:'rgba(155,110,255,0.08)',
+  teal:'#00C9B1', tealD:'rgba(0,201,177,0.08)',
+};
+
+interface TeamAttendance {
   user_id: string;
   name: string;
-  zone: string;
-  status: string;
-  location?: string;
-  stock_allocated?: number;
-  stock_consumed?: number;
-  stock_remaining?: number;
-  check_in_time?: string;
-  total_cc?: number;
-  total_ecc?: number;
+  employee_id?: string;
+  zone?: string;
+  city?: string;
+  checked_in: boolean;
+  on_break: boolean;
+  total_hours?: number;
 }
 
-export default function RoutePlanPage() {
-  const [deployments, setDeployments] = useState<FEDeployment[]>([]);
+interface TeamStock {
+  user_id: string;
+  items?: Array<{ name: string; qty: number; status: string }>;
+  total_allocated?: number;
+  total_accepted?: number;
+}
+
+interface FEPlan extends TeamAttendance {
+  stock_allocated?: number;
+  stock_accepted?: number;
+  stock_items?: Array<{ name: string; qty: number; status: string }>;
+}
+
+function Icon({ d, size = 18, color = 'currentColor' }: { d: string; size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color}
+      strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+      {d.split(' M ').map((p, i) => <path key={i} d={i === 0 ? p : 'M ' + p} />)}
+    </svg>
+  );
+}
+
+function Spinner() {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 80 }}>
+      <div style={{ width: 28, height: 28, border: `3px solid ${C.graydd}`, borderTopColor: C.red, borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
+    </div>
+  );
+}
+
+const statusColor = (fe: FEPlan) => fe.on_break ? C.yellow : fe.checked_in ? C.green : C.gray;
+const statusLabel = (fe: FEPlan) => fe.on_break ? 'On Break' : fe.checked_in ? 'Active' : 'Not Started';
+
+export default function RoutePlan() {
+  const [plans, setPlans] = useState<FEPlan[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [zoneFilter, setZoneFilter] = useState('all');
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -27,26 +69,34 @@ export default function RoutePlanPage() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [attendRes, stockRes] = await Promise.all([
-        api.get<any>('/api/v1/attendance/team'),
-        api.get<any>('/api/v1/stock/team').catch(() => ({ data: [] })),
+      const [attendanceRes, stockRes] = await Promise.allSettled([
+        apiRequest('/attendance/team'),
+        apiRequest('/stock/team'),
       ]);
-      const attendance = (attendRes as any).data || attendRes || [];
-      const stock = (stockRes as any).data || stockRes || [];
 
-      const merged = attendance.map((fe: any) => {
-        const feStock = stock.find((s: any) => s.user_id === fe.user_id || s.fe_id === fe.user_id);
+      const attendance: TeamAttendance[] = attendanceRes.status === 'fulfilled'
+        ? (attendanceRes.value.data ?? attendanceRes.value ?? [])
+        : [];
+
+      const stockData: TeamStock[] = stockRes.status === 'fulfilled'
+        ? (stockRes.value.data ?? stockRes.value ?? [])
+        : [];
+
+      const merged: FEPlan[] = attendance.map(fe => {
+        const stock = stockData.find(s => s.user_id === fe.user_id);
         return {
           ...fe,
-          stock_allocated: feStock?.allocated || feStock?.stock_allocated || 0,
-          stock_consumed: feStock?.consumed || feStock?.stock_consumed || 0,
-          stock_remaining: feStock?.remaining || feStock?.stock_remaining || 0,
+          stock_allocated: stock?.total_allocated ?? 0,
+          stock_accepted: stock?.total_accepted ?? 0,
+          stock_items: stock?.items ?? [],
         };
       });
-      setDeployments(merged);
-      setError('');
-    } catch (e: any) {
-      setError(e.message || 'Failed to load deployment data');
+
+      setPlans(merged);
+      setError(attendanceRes.status === 'rejected' && stockRes.status === 'rejected'
+        ? 'Failed to load team data. Check your connection.' : null);
+    } catch (err: any) {
+      setError(err.message || 'Failed to load route plan data');
     } finally {
       setLoading(false);
     }
@@ -54,105 +104,187 @@ export default function RoutePlanPage() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  const zones = ['all', ...Array.from(new Set(deployments.map(d => d.zone).filter(Boolean)))];
+  const zones = ['all', ...Array.from(new Set(plans.map(p => p.zone).filter(Boolean))) as string[]];
 
-  const filtered = deployments.filter(d => {
-    const matchesZone = zoneFilter === 'all' || d.zone === zoneFilter;
-    const matchesSearch = d.name?.toLowerCase().includes(search.toLowerCase()) ||
-      d.zone?.toLowerCase().includes(search.toLowerCase());
-    return matchesZone && matchesSearch;
+  const filtered = plans.filter(p => {
+    const matchSearch = !search ||
+      p.name.toLowerCase().includes(search.toLowerCase()) ||
+      p.employee_id?.toLowerCase().includes(search.toLowerCase());
+    const matchZone = zoneFilter === 'all' || p.zone === zoneFilter;
+    return matchSearch && matchZone;
   });
 
-  const statusColor: Record<string, string> = {
-    checked_in: 'bg-green-100 text-green-800',
-    on_break: 'bg-yellow-100 text-yellow-800',
-    checked_out: 'bg-gray-100 text-gray-800',
-    not_checked_in: 'bg-red-100 text-red-800',
+  const stats = {
+    total: plans.length,
+    active: plans.filter(p => p.checked_in && !p.on_break).length,
+    stockReady: plans.filter(p => (p.stock_accepted ?? 0) > 0).length,
+    zones: new Set(plans.map(p => p.zone).filter(Boolean)).size,
   };
 
+  if (loading) return <Spinner />;
+
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <div style={{ color: C.white }}>
+
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Route Plan</h1>
-          <p className="text-sm text-gray-500 mt-1">Field executive deployment overview</p>
+          <h2 style={{ fontFamily: "'Syne',sans-serif", fontSize: 22, fontWeight: 800, margin: 0, color: C.white }}>
+            Route Plan
+          </h2>
+          <p style={{ fontSize: 12, color: C.gray, marginTop: 4, margin: '4px 0 0' }}>
+            Today's field deployment — team status & stock
+          </p>
         </div>
-        <button onClick={fetchData} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">Refresh</button>
+        <button
+          onClick={() => fetchData()}
+          style={{ background: C.s3, border: `1px solid ${C.border}`, borderRadius: 10, padding: '9px 16px', color: C.gray, fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, transition: 'all 0.15s' }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = C.borderL; e.currentTarget.style.color = C.white; }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.gray; }}
+        >
+          <Icon d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" size={15} />
+          Refresh
+        </button>
       </div>
 
-      {error && <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700 text-sm">{error}</div>}
+      {/* Error */}
+      {error && (
+        <div style={{ background: C.redD, border: `1px solid ${C.redB}`, borderRadius: 12, padding: '14px 18px', marginBottom: 20, color: C.red, fontSize: 13 }}>
+          ⚠ {error}
+        </div>
+      )}
 
-      <div className="grid grid-cols-3 gap-4">
+      {/* Stats */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14, marginBottom: 24 }}>
         {[
-          { label: 'Total Deployed', value: deployments.length, color: 'text-gray-900' },
-          { label: 'Active in Field', value: deployments.filter(d => d.status === 'checked_in').length, color: 'text-green-600' },
-          { label: 'Zones Covered', value: new Set(deployments.map(d => d.zone)).size, color: 'text-blue-600' },
-        ].map((s, i) => (
-          <div key={i} className="bg-white rounded-xl border border-gray-200 p-4">
-            <div className={`text-3xl font-bold ${s.color}`}>{s.value}</div>
-            <div className="text-sm text-gray-500 mt-1">{s.label}</div>
+          { label: 'Total Deployed', value: stats.total, color: C.blue, bg: C.blueD, icon: 'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 11a4 4 0 100-8 4 4 0 000 8z' },
+          { label: 'Active in Field', value: stats.active, color: C.green, bg: C.greenD, icon: 'M20 6L9 17l-5-5' },
+          { label: 'Stock Deployed', value: stats.stockReady, color: C.yellow, bg: C.yellowD, icon: 'M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8' },
+          { label: 'Zones Covered', value: stats.zones, color: C.purple, bg: C.purpleD, icon: 'M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z M15 11a3 3 0 11-6 0 3 3 0 016 0z' },
+        ].map(s => (
+          <div key={s.label} style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 14, padding: '18px 20px', display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div style={{ width: 44, height: 44, borderRadius: 12, background: s.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <Icon d={s.icon} size={20} color={s.color} />
+            </div>
+            <div>
+              <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 26, fontWeight: 800, color: s.color, lineHeight: 1 }}>{s.value}</div>
+              <div style={{ fontSize: 12, color: C.gray, marginTop: 4 }}>{s.label}</div>
+            </div>
           </div>
         ))}
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200">
-        <div className="p-4 border-b border-gray-100 flex gap-3 flex-wrap">
-          <input type="text" placeholder="Search by name or zone..." value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="border border-gray-200 rounded-lg px-3 py-2 text-sm flex-1 min-w-48"/>
-          <select value={zoneFilter} onChange={e => setZoneFilter(e.target.value)}
-            className="border border-gray-200 rounded-lg px-3 py-2 text-sm">
-            {zones.map(z => <option key={z} value={z}>{z === 'all' ? 'All Zones' : z}</option>)}
-          </select>
+      {/* Filters */}
+      <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16, marginBottom: 20, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+        <input
+          placeholder="Search by name or employee ID…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          style={{ flex: 1, minWidth: 200, background: C.s3, border: `1px solid ${C.border}`, borderRadius: 9, padding: '9px 14px', color: C.white, fontSize: 13, outline: 'none', fontFamily: "'DM Sans',sans-serif" }}
+        />
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {zones.map(z => (
+            <button key={z} onClick={() => setZoneFilter(z)}
+              style={{ padding: '8px 14px', borderRadius: 9, border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", background: zoneFilter === z ? C.red : C.s3, color: zoneFilter === z ? '#fff' : C.gray, transition: 'all 0.15s' }}>
+              {z === 'all' ? 'All Zones' : z}
+            </button>
+          ))}
         </div>
+      </div>
 
-        {loading ? (
-          <div className="p-12 text-center text-gray-400">Loading deployment data...</div>
-        ) : filtered.length === 0 ? (
-          <div className="p-12 text-center text-gray-400">No deployments found</div>
-        ) : (
-          <div className="divide-y divide-gray-100">
-            {filtered.map((d, i) => (
-              <div key={i}>
-                <div className="p-4 flex items-center justify-between hover:bg-gray-50 cursor-pointer"
-                  onClick={() => setExpanded(expanded === d.user_id ? null : d.user_id)}>
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center font-bold text-blue-700">
-                      {d.name?.[0] || '?'}
-                    </div>
-                    <div>
-                      <div className="font-medium text-gray-900">{d.name}</div>
-                      <div className="text-sm text-gray-500">{d.zone} {d.location ? `· ${d.location}` : ''}</div>
+      {/* FE Cards */}
+      {filtered.length === 0 ? (
+        <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 14, padding: 48, textAlign: 'center', color: C.grayd, fontSize: 14 }}>
+          {plans.length === 0 ? 'No team data available' : 'No field executives match your filter'}
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {filtered.map(fe => {
+            const isExpanded = expanded === fe.user_id;
+            const sc = statusColor(fe);
+            return (
+              <div key={fe.user_id} style={{ background: C.s2, border: `1px solid ${isExpanded ? C.borderL : C.border}`, borderRadius: 14, overflow: 'hidden', transition: 'border-color 0.15s' }}>
+                {/* Row */}
+                <div
+                  style={{ padding: 18, display: 'flex', alignItems: 'center', gap: 16, cursor: 'pointer' }}
+                  onClick={() => setExpanded(isExpanded ? null : fe.user_id)}
+                  onMouseEnter={e => (e.currentTarget.style.background = C.s3)}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                >
+                  {/* Avatar */}
+                  <div style={{ width: 40, height: 40, borderRadius: 12, background: C.redD, border: `1px solid ${C.redB}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 16, color: C.red, flexShrink: 0 }}>
+                    {fe.name[0]}
+                  </div>
+
+                  {/* Name + zone */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: C.white }}>{fe.name}</div>
+                    <div style={{ fontSize: 12, color: C.gray, marginTop: 2 }}>
+                      {fe.employee_id && <span>{fe.employee_id} · </span>}
+                      {fe.zone || 'No zone'}{fe.city ? ` · ${fe.city}` : ''}
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${statusColor[d.status] || 'bg-gray-100 text-gray-600'}`}>
-                      {d.status?.replace('_', ' ') || 'Unknown'}
-                    </span>
-                    <span className="text-gray-400 text-sm">{expanded === d.user_id ? '▲' : '▼'}</span>
+
+                  {/* Status badge */}
+                  <span style={{ padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 700, background: `${sc}18`, color: sc, whiteSpace: 'nowrap', border: `1px solid ${sc}30` }}>
+                    {statusLabel(fe)}
+                  </span>
+
+                  {/* Hours */}
+                  <div style={{ textAlign: 'right', minWidth: 60 }}>
+                    <div style={{ fontSize: 16, fontWeight: 700, fontFamily: "'Syne',sans-serif", color: C.white }}>
+                      {fe.total_hours != null ? `${fe.total_hours.toFixed(1)}h` : '—'}
+                    </div>
+                    <div style={{ fontSize: 11, color: C.gray }}>today</div>
+                  </div>
+
+                  {/* Stock */}
+                  <div style={{ textAlign: 'right', minWidth: 70 }}>
+                    <div style={{ fontSize: 16, fontWeight: 700, fontFamily: "'Syne',sans-serif", color: C.yellow }}>
+                      {fe.stock_accepted ?? 0}/{fe.stock_allocated ?? 0}
+                    </div>
+                    <div style={{ fontSize: 11, color: C.gray }}>stock</div>
+                  </div>
+
+                  {/* Chevron */}
+                  <div style={{ color: C.grayd, transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
+                    <Icon d="M19 9l-7 7-7-7" size={16} color={C.grayd} />
                   </div>
                 </div>
-                {expanded === d.user_id && (
-                  <div className="px-4 pb-4 bg-gray-50 grid grid-cols-3 gap-4 text-sm">
-                    <div className="bg-white rounded-lg p-3 border border-gray-100">
-                      <div className="text-gray-500 mb-1">Check In</div>
-                      <div className="font-medium">{d.check_in_time || '—'}</div>
+
+                {/* Expanded stock detail */}
+                {isExpanded && (
+                  <div style={{ borderTop: `1px solid ${C.border}`, padding: '16px 18px', background: C.bg }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: C.grayd, letterSpacing: '0.8px', textTransform: 'uppercase', marginBottom: 12 }}>
+                      Stock Allocation
                     </div>
-                    <div className="bg-white rounded-lg p-3 border border-gray-100">
-                      <div className="text-gray-500 mb-1">CC / ECC</div>
-                      <div className="font-medium">{d.total_cc ?? 0} / {d.total_ecc ?? 0}</div>
-                    </div>
-                    <div className="bg-white rounded-lg p-3 border border-gray-100">
-                      <div className="text-gray-500 mb-1">Stock (Alloc/Used/Left)</div>
-                      <div className="font-medium">{d.stock_allocated} / {d.stock_consumed} / {d.stock_remaining}</div>
-                    </div>
+                    {!fe.stock_items || fe.stock_items.length === 0 ? (
+                      <div style={{ fontSize: 13, color: C.grayd }}>No stock allocated</div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {fe.stock_items.map((item, idx) => {
+                          const itemColor = item.status === 'accepted' ? C.green : item.status === 'rejected' ? C.red : C.yellow;
+                          return (
+                            <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: C.s2, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px' }}>
+                              <span style={{ fontSize: 13, color: C.white }}>{item.name}</span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                <span style={{ fontSize: 13, fontWeight: 700, color: C.white }}>{item.qty} units</span>
+                                <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: `${itemColor}18`, color: itemColor, border: `1px solid ${itemColor}30` }}>
+                                  {item.status}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
-            ))}
-          </div>
-        )}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
