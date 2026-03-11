@@ -49,6 +49,7 @@ interface AttendanceRecord {
   override_reason?: string;
   override_by?: string;
   is_regularised?: boolean;
+  _virtual?: boolean;
   users?: { name: string; employee_id?: string; zones?: { name: string } };
 }
 
@@ -208,7 +209,7 @@ export default function AttendancePage() {
       const userMap: Record<string, any> = {};
       usersArr.forEach((u: any) => { userMap[u.id] = u; });
 
-      // Enrich attendance records with user name if the join didn't come back
+      // Enrich attendance records with user info if join didn't come back
       const attArr = pick(attRes).map((r: any) => {
         if (r.users?.name) return r;
         const u = userMap[r.user_id];
@@ -216,7 +217,21 @@ export default function AttendancePage() {
         return r;
       });
 
-      setRecords(attArr);
+      // Add implicit absent rows for executives with no attendance record for this date
+      const coveredIds = new Set(attArr.map((r: any) => r.user_id));
+      const absentRows = usersArr
+        .filter((u: any) => u.role === 'executive' && u.is_active && !coveredIds.has(u.id))
+        .map((u: any) => ({
+          id: null,
+          user_id: u.id,
+          date: dateFilter,
+          status: 'absent' as const,
+          checkin_at: null, checkout_at: null, total_hours: null,
+          users: { name: u.name, employee_id: u.employee_id, zones: u.zones },
+          _virtual: true,
+        }));
+
+      setRecords([...attArr, ...absentRows]);
       setErr('');
     } catch (e: any) {
       setErr(e.message || 'Failed to load attendance');
@@ -274,10 +289,9 @@ export default function AttendancePage() {
 
   /* ── UPDATE ── */
   const openEdit = (r: AttendanceRecord) => {
-    setEditRec(r);
     const ciDate = r.checkin_at  ? new Date(r.checkin_at).toISOString().split('T')[0]  : r.date;
     const coDate = r.checkout_at ? new Date(r.checkout_at).toISOString().split('T')[0] : r.date;
-    setForm({
+    const f = {
       user_id:              r.user_id,
       date:                 r.date,
       status:               r.status,
@@ -293,8 +307,15 @@ export default function AttendancePage() {
       checkout_lat:         r.checkout_lat != null ? String(r.checkout_lat) : '',
       checkout_lng:         r.checkout_lng != null ? String(r.checkout_lng) : '',
       notes:                r.notes || '',
-    });
+    };
+    setForm(f);
     setFErr('');
+    // Virtual row (absent user, no DB record) → use Add modal which calls POST /override
+    if ((r as any)._virtual || !r.id) {
+      setShowAdd(true);
+    } else {
+      setEditRec(r);
+    }
   };
   const handleUpdate = async () => {
     if (!editRec) return;
