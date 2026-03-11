@@ -11,7 +11,6 @@ const C = {
   blue:'#3E9EFF', blueD:'rgba(62,158,255,0.10)',
   yellow:'#FFB800', yellowD:'rgba(255,184,0,0.08)',
   purple:'#9B6EFF', purpleD:'rgba(155,110,255,0.08)',
-  teal:'#00C9B1', tealD:'rgba(0,201,177,0.08)',
 };
 
 interface TeamAttendance {
@@ -70,20 +69,20 @@ export default function RoutePlan() {
     setLoading(true);
     try {
       const [attendanceRes, stockRes] = await Promise.allSettled([
-       api.getAttendanceTeam(),
-       api.getStockAllocations(),
+        api.getAttendanceTeam(),
+        api.getStockAllocations(),
       ]);
 
-          const attendance: TeamAttendance[] = attendanceRes.status === 'fulfilled'
-            ? (attendanceRes.value as any)?.data ?? []
-            : [];
+      const attendance: TeamAttendance[] = attendanceRes.status === 'fulfilled'
+        ? (attendanceRes.value as any)?.data ?? []
+        : [];
 
-          const stockData: TeamStock[] = stockRes.status === 'fulfilled'
-          ? (stockRes.value as any)?.data ?? []
-          : [];
+      const stockData: TeamStock[] = stockRes.status === 'fulfilled'
+        ? (stockRes.value as any)?.data ?? []
+        : [];
 
-        const merged: FEPlan[] = attendance.map(fe => {
-        const stock = stockData.find(s => s.user_id === fe.user_id);
+      const merged: FEPlan[] = attendance.map(fe => {
+        const stock = stockData.find((s: TeamStock) => s.user_id === fe.user_id);
         return {
           ...fe,
           stock_allocated: stock?.total_allocated ?? 0,
@@ -93,8 +92,11 @@ export default function RoutePlan() {
       });
 
       setPlans(merged);
-      setError(attendanceRes.status === 'rejected' && stockRes.status === 'rejected'
-        ? 'Failed to load team data. Check your connection.' : null);
+      setError(
+        attendanceRes.status === 'rejected' && stockRes.status === 'rejected'
+          ? 'Failed to load team data. Check your connection.'
+          : null
+      );
     } catch (err: any) {
       setError(err.message || 'Failed to load route plan data');
     } finally {
@@ -124,23 +126,20 @@ export default function RoutePlan() {
   if (loading) return <Spinner />;
 
   return (
-    <div style={{ color: C.white }}>
-
+    <div>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
         <div>
           <h2 style={{ fontFamily: "'Syne',sans-serif", fontSize: 22, fontWeight: 800, margin: 0, color: C.white }}>
             Route Plan
           </h2>
-          <p style={{ fontSize: 12, color: C.gray, marginTop: 4, margin: '4px 0 0' }}>
+          <p style={{ fontSize: 12, color: C.gray, marginTop: 4, marginBottom: 0 }}>
             Today's field deployment — team status & stock
           </p>
         </div>
         <button
           onClick={() => fetchData()}
-          style={{ background: C.s3, border: `1px solid ${C.border}`, borderRadius: 10, padding: '9px 16px', color: C.gray, fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, transition: 'all 0.15s' }}
-          onMouseEnter={e => { e.currentTarget.style.borderColor = C.borderL; e.currentTarget.style.color = C.white; }}
-          onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.gray; }}
+          style={{ background: C.s3, border: `1px solid ${C.border}`, borderRadius: 10, padding: '9px 16px', color: C.gray, fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}
         >
           <Icon d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" size={15} />
           Refresh
@@ -180,12 +179,12 @@ export default function RoutePlan() {
           placeholder="Search by name or employee ID…"
           value={search}
           onChange={e => setSearch(e.target.value)}
-          style={{ flex: 1, minWidth: 200, background: C.s3, border: `1px solid ${C.border}`, borderRadius: 9, padding: '9px 14px', color: C.white, fontSize: 13, outline: 'none', fontFamily: "'DM Sans',sans-serif" }}
+          style={{ flex: 1, minWidth: 200, background: C.s3, border: `1px solid ${C.border}`, borderRadius: 9, padding: '9px 14px', color: C.white, fontSize: 13, outline: 'none' }}
         />
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {zones.map(z => (
             <button key={z} onClick={() => setZoneFilter(z)}
-              style={{ padding: '8px 14px', borderRadius: 9, border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", background: zoneFilter === z ? C.red : C.s3, color: zoneFilter === z ? '#fff' : C.gray, transition: 'all 0.15s' }}>
+              style={{ padding: '8px 14px', borderRadius: 9, border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer', background: zoneFilter === z ? C.red : C.s3, color: zoneFilter === z ? '#fff' : C.gray }}>
               {z === 'all' ? 'All Zones' : z}
             </button>
           ))}
@@ -203,20 +202,16 @@ export default function RoutePlan() {
             const isExpanded = expanded === fe.user_id;
             const sc = statusColor(fe);
             return (
-              <div key={fe.user_id} style={{ background: C.s2, border: `1px solid ${isExpanded ? C.borderL : C.border}`, borderRadius: 14, overflow: 'hidden', transition: 'border-color 0.15s' }}>
-                {/* Row */}
+              <div key={fe.user_id} style={{ background: C.s2, border: `1px solid ${isExpanded ? C.borderL : C.border}`, borderRadius: 14, overflow: 'hidden' }}>
                 <div
                   style={{ padding: 18, display: 'flex', alignItems: 'center', gap: 16, cursor: 'pointer' }}
                   onClick={() => setExpanded(isExpanded ? null : fe.user_id)}
                   onMouseEnter={e => (e.currentTarget.style.background = C.s3)}
                   onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                 >
-                  {/* Avatar */}
                   <div style={{ width: 40, height: 40, borderRadius: 12, background: C.redD, border: `1px solid ${C.redB}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 16, color: C.red, flexShrink: 0 }}>
                     {fe.name[0]}
                   </div>
-
-                  {/* Name + zone */}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 14, fontWeight: 600, color: C.white }}>{fe.name}</div>
                     <div style={{ fontSize: 12, color: C.gray, marginTop: 2 }}>
@@ -224,35 +219,26 @@ export default function RoutePlan() {
                       {fe.zone || 'No zone'}{fe.city ? ` · ${fe.city}` : ''}
                     </div>
                   </div>
-
-                  {/* Status badge */}
                   <span style={{ padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 700, background: `${sc}18`, color: sc, whiteSpace: 'nowrap', border: `1px solid ${sc}30` }}>
                     {statusLabel(fe)}
                   </span>
-
-                  {/* Hours */}
                   <div style={{ textAlign: 'right', minWidth: 60 }}>
                     <div style={{ fontSize: 16, fontWeight: 700, fontFamily: "'Syne',sans-serif", color: C.white }}>
                       {fe.total_hours != null ? `${fe.total_hours.toFixed(1)}h` : '—'}
                     </div>
                     <div style={{ fontSize: 11, color: C.gray }}>today</div>
                   </div>
-
-                  {/* Stock */}
                   <div style={{ textAlign: 'right', minWidth: 70 }}>
                     <div style={{ fontSize: 16, fontWeight: 700, fontFamily: "'Syne',sans-serif", color: C.yellow }}>
                       {fe.stock_accepted ?? 0}/{fe.stock_allocated ?? 0}
                     </div>
                     <div style={{ fontSize: 11, color: C.gray }}>stock</div>
                   </div>
-
-                  {/* Chevron */}
                   <div style={{ color: C.grayd, transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
                     <Icon d="M19 9l-7 7-7-7" size={16} color={C.grayd} />
                   </div>
                 </div>
 
-                {/* Expanded stock detail */}
                 {isExpanded && (
                   <div style={{ borderTop: `1px solid ${C.border}`, padding: '16px 18px', background: C.bg }}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: C.grayd, letterSpacing: '0.8px', textTransform: 'uppercase', marginBottom: 12 }}>
@@ -263,13 +249,13 @@ export default function RoutePlan() {
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                         {fe.stock_items.map((item, idx) => {
-                          const itemColor = item.status === 'accepted' ? C.green : item.status === 'rejected' ? C.red : C.yellow;
+                          const ic = item.status === 'accepted' ? C.green : item.status === 'rejected' ? C.red : C.yellow;
                           return (
                             <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: C.s2, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px' }}>
                               <span style={{ fontSize: 13, color: C.white }}>{item.name}</span>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                                 <span style={{ fontSize: 13, fontWeight: 700, color: C.white }}>{item.qty} units</span>
-                                <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: `${itemColor}18`, color: itemColor, border: `1px solid ${itemColor}30` }}>
+                                <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: `${ic}18`, color: ic, border: `1px solid ${ic}30` }}>
                                   {item.status}
                                 </span>
                               </div>
