@@ -12,6 +12,7 @@ const C = {
   yellow:'#FFB800',yellowD:'rgba(255,184,0,0.08)',
   purple:'#9B6EFF',purpleD:'rgba(155,110,255,0.08)',
   teal:'#00C9B1',tealD:'rgba(0,201,177,0.08)',
+  orange:'#FF7A30'
 };
 
 interface Asset { id:string; name:string; asset_code?:string; category?:string; description?:string; quantity:number; unit?:string; is_active:boolean; }
