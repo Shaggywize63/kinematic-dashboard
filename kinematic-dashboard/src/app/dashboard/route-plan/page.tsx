@@ -1,9 +1,9 @@
-='use client';
+'use client';
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '@/lib/api';
 
 const C = {
-  bg:'#070D18', s2:'#0E1420', s3:'#131B2A', s4:'#1A2438',
+  bg:'#070D18', s2:'#0E1420', s3:'#131B2A',
   border:'#1E2D45', borderL:'#253650',
   white:'#E8EDF8', gray:'#7A8BA0', grayd:'#2E445E', graydd:'#1A2738',
   red:'#E01E2C', redD:'rgba(224,30,44,0.08)', redB:'rgba(224,30,44,0.2)',
@@ -37,14 +37,24 @@ interface FEPlan extends TeamAttendance {
   stock_items?: Array<{ name: string; qty: number; status: string }>;
 }
 
+// Icon component — uses | as path separator to avoid SVG parsing issues
 function Icon({ d, size = 18, color = 'currentColor' }: { d: string; size?: number; color?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color}
       strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-      {d.split(' M ').map((p, i) => <path key={i} d={i === 0 ? p : 'M ' + p} />)}
+      {d.split('|').map((p, i) => <path key={i} d={p.trim()} />)}
     </svg>
   );
 }
+
+const ICONS = {
+  users:   'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2|M9 11a4 4 0 100-8 4 4 0 000 8z',
+  check:   'M20 6L9 17l-5-5',
+  stock:   'M5 8h14|M5 8a2 2 0 110-4h14a2 2 0 110 4|M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8',
+  map:     'M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z|M15 11a3 3 0 11-6 0 3 3 0 016 0z',
+  refresh: 'M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15',
+  chevron: 'M19 9l-7 7-7-7',
+};
 
 function Spinner() {
   return (
@@ -66,39 +76,42 @@ export default function RoutePlan() {
   const [expanded, setExpanded] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
-  setLoading(true);
-  try {
-    let attendance: TeamAttendance[] = [];
-    let stockData: TeamStock[] = [];
-
+    setLoading(true);
     try {
-      const r = await api.getAttendanceTeam() as any;
-      attendance = r?.data ?? r ?? [];
-    } catch (_) {}
+      let attendance: TeamAttendance[] = [];
+      let stockData: TeamStock[] = [];
 
-    try {
-      const r = await api.getStockAllocations() as any;
-      stockData = r?.data ?? r ?? [];
-    } catch (_) {}
+      try {
+        const r = await api.getAttendanceTeam() as any;
+        attendance = Array.isArray(r) ? r : (r?.data ?? []);
+      } catch (_) {}
 
-    const merged: FEPlan[] = attendance.map(fe => {
-      const stock = stockData.find((s: TeamStock) => s.user_id === fe.user_id);
-      return {
-        ...fe,
-        stock_allocated: stock?.total_allocated ?? 0,
-        stock_accepted: stock?.total_accepted ?? 0,
-        stock_items: stock?.items ?? [],
-      };
-    });
+      try {
+        const r = await api.getStockAllocations() as any;
+        stockData = Array.isArray(r) ? r : (r?.data ?? []);
+      } catch (_) {}
 
-    setPlans(merged);
-    setError(null);
-  } catch (err: any) {
-    setError(err.message || 'Failed to load data');
-  } finally {
-    setLoading(false);
-  }
-}, []);
+      // Filter out any items without a valid user_id or name
+      const validAttendance = attendance.filter(fe => fe && fe.user_id && fe.name);
+
+      const merged: FEPlan[] = validAttendance.map(fe => {
+        const stock = stockData.find((s: TeamStock) => s.user_id === fe.user_id);
+        return {
+          ...fe,
+          stock_allocated: stock?.total_allocated ?? 0,
+          stock_accepted: stock?.total_accepted ?? 0,
+          stock_items: stock?.items ?? [],
+        };
+      });
+
+      setPlans(merged);
+      setError(null);
+    } catch (err: any) {
+      setError(err.message || 'Failed to load data');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -133,11 +146,9 @@ export default function RoutePlan() {
             Today's field deployment — team status & stock
           </p>
         </div>
-        <button
-          onClick={() => fetchData()}
-          style={{ background: C.s3, border: `1px solid ${C.border}`, borderRadius: 10, padding: '9px 16px', color: C.gray, fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}
-        >
-          <Icon d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" size={15} />
+        <button onClick={() => fetchData()}
+          style={{ background: C.s3, border: `1px solid ${C.border}`, borderRadius: 10, padding: '9px 16px', color: C.gray, fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Icon d={ICONS.refresh} size={15} color={C.gray} />
           Refresh
         </button>
       </div>
@@ -152,10 +163,10 @@ export default function RoutePlan() {
       {/* Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14, marginBottom: 24 }}>
         {[
-          { label: 'Total Deployed', value: stats.total, color: C.blue, bg: C.blueD, icon: 'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 11a4 4 0 100-8 4 4 0 000 8z' },
-          { label: 'Active in Field', value: stats.active, color: C.green, bg: C.greenD, icon: 'M20 6L9 17l-5-5' },
-          { label: 'Stock Deployed', value: stats.stockReady, color: C.yellow, bg: C.yellowD, icon: 'M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8' },
-          { label: 'Zones Covered', value: stats.zones, color: C.purple, bg: C.purpleD, icon: 'M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0zM15 11a3 3 0 11-6 0 3 3 0 016 0z' },
+          { label: 'Total Deployed', value: stats.total,     color: C.blue,   bg: C.blueD,   icon: ICONS.users  },
+          { label: 'Active in Field', value: stats.active,   color: C.green,  bg: C.greenD,  icon: ICONS.check  },
+          { label: 'Stock Deployed',  value: stats.stockReady, color: C.yellow, bg: C.yellowD, icon: ICONS.stock  },
+          { label: 'Zones Covered',   value: stats.zones,    color: C.purple, bg: C.purpleD, icon: ICONS.map    },
         ].map(s => (
           <div key={s.label} style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 14, padding: '18px 20px', display: 'flex', alignItems: 'center', gap: 14 }}>
             <div style={{ width: 44, height: 44, borderRadius: 12, background: s.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -197,6 +208,7 @@ export default function RoutePlan() {
           {filtered.map(fe => {
             const isExpanded = expanded === fe.user_id;
             const sc = statusColor(fe);
+            const initial = fe.name?.[0] ?? '?';
             return (
               <div key={fe.user_id} style={{ background: C.s2, border: `1px solid ${isExpanded ? C.borderL : C.border}`, borderRadius: 14, overflow: 'hidden' }}>
                 <div
@@ -206,10 +218,10 @@ export default function RoutePlan() {
                   onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                 >
                   <div style={{ width: 40, height: 40, borderRadius: 12, background: C.redD, border: `1px solid ${C.redB}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 16, color: C.red, flexShrink: 0 }}>
-                    {fe.name[0] ?? '?'}
+                    {initial}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: C.white }}>{fe.name}</div>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: C.white }}>{fe.name ?? 'Unknown'}</div>
                     <div style={{ fontSize: 12, color: C.gray, marginTop: 2 }}>
                       {fe.employee_id && <span>{fe.employee_id} · </span>}
                       {fe.zone || 'No zone'}{fe.city ? ` · ${fe.city}` : ''}
@@ -220,7 +232,7 @@ export default function RoutePlan() {
                   </span>
                   <div style={{ textAlign: 'right', minWidth: 60 }}>
                     <div style={{ fontSize: 16, fontWeight: 700, fontFamily: "'Syne',sans-serif", color: C.white }}>
-                      {fe.total_hours != null ? `${fe.total_hours.toFixed(1)}h` : '—'}
+                      {fe.total_hours != null ? `${Number(fe.total_hours).toFixed(1)}h` : '—'}
                     </div>
                     <div style={{ fontSize: 11, color: C.gray }}>today</div>
                   </div>
@@ -231,7 +243,7 @@ export default function RoutePlan() {
                     <div style={{ fontSize: 11, color: C.gray }}>stock</div>
                   </div>
                   <div style={{ color: C.grayd, transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
-                    <Icon d="M19 9l-7 7-7-7" size={16} color={C.grayd} />
+                    <Icon d={ICONS.chevron} size={16} color={C.grayd} />
                   </div>
                 </div>
 
