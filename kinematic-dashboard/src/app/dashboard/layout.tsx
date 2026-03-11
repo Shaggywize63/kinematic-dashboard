@@ -28,6 +28,7 @@ const MAIN_NAV = [
   { href: '/dashboard',                     label: 'Dashboard',       icon: 'M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z M9 22V12h6v10' },
   { href: '/dashboard/field-executives',    label: 'Field Execs',     icon: 'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 11a4 4 0 100-8 4 4 0 000 8z M23 21v-2a4 4 0 00-3-3.87 M16 3.13a4 4 0 010 7.75' },
   { href: '/dashboard/attendance-overview', label: 'Attendance',      icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
+  { href: '/dashboard/route-plan',          label: 'Route Plan',      icon: 'M17.657 16.657L13.414 20.9...' },
   { href: '/dashboard/analytics',           label: 'Analytics',       icon: 'M18 20V10 M12 20V4 M6 20v-6' },
   { href: '/dashboard/warehouse',           label: 'Warehouse',       icon: 'M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8' },
   { href: '/dashboard/broadcast',           label: 'Broadcast',       icon: 'M18 8a6 6 0 010 8M14 11.73A2 2 0 1112 15a2 2 0 002-3.27z M21.64 4.36a12 12 0 010 15.27' },
