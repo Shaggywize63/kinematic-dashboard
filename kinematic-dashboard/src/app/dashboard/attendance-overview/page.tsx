@@ -148,6 +148,42 @@ export default function AttendancePage() {
   const [saving,  setSaving]  = useState(false);
   const setF = (k: keyof FormData, v: string) => setForm(p => ({ ...p, [k]: v }));
 
+  /* ── selfie upload — direct to Supabase Storage ── */
+  const [uploading, setUploading] = useState<string | null>(null); // 'checkin' | 'checkout'
+
+  const uploadSelfie = async (field: 'checkin_selfie_url' | 'checkout_selfie_url', file: File) => {
+    const which = field === 'checkin_selfie_url' ? 'checkin' : 'checkout';
+    setUploading(which);
+    try {
+      const ext = file.name.split('.').pop() || 'jpg';
+      const path = `selfies/${Date.now()}_${which}.${ext}`;
+      const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+      const ANON_KEY    = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+
+      const uploadRes = await fetch(`${SUPABASE_URL}/storage/v1/object/attendance-selfies/${path}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${ANON_KEY}`,
+          'Content-Type': file.type || 'image/jpeg',
+          'x-upsert': 'true',
+        },
+        body: file,
+      });
+
+      if (!uploadRes.ok) {
+        const err = await uploadRes.json().catch(() => ({}));
+        throw new Error(err.message || 'Upload failed');
+      }
+
+      const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/attendance-selfies/${path}`;
+      setF(field, publicUrl);
+    } catch (e: any) {
+      alert('Upload failed: ' + (e?.message || 'Unknown error'));
+    } finally {
+      setUploading(null);
+    }
+  };
+
   /* ── fetch ── */
   const load = useCallback(async () => {
     setLoading(true);
@@ -189,12 +225,25 @@ export default function AttendancePage() {
 
   useEffect(() => { load(); }, [load]);
 
+  /* helper — merge a saved record back into the list, or prepend if new */
+  const mergeRecord = (saved: AttendanceRecord) => {
+    setRecords(prev => {
+      const idx = prev.findIndex(r => r.id === saved.id);
+      if (idx >= 0) {
+        const next = [...prev];
+        next[idx] = saved;
+        return next;
+      }
+      return [saved, ...prev];
+    });
+  };
+
   /* ── CREATE (admin override) ── */
   const handleCreate = async () => {
     if (!form.user_id || !form.date || !form.status) { setFErr('Executive, date and status are required.'); return; }
     setSaving(true); setFErr('');
     try {
-      await api.post('/api/v1/attendance/override', {
+      const res = await api.post<any>('/api/v1/attendance/override', {
         user_id:              form.user_id,
         date:                 form.date,
         status:               form.status,
@@ -209,7 +258,16 @@ export default function AttendancePage() {
         checkout_lng:         form.checkout_lng ? parseFloat(form.checkout_lng) : undefined,
         notes:                form.notes || undefined,
       });
-      setShowAdd(false); setForm(BLANK); load();
+      // Enrich saved record with user info so it renders correctly in the table
+      const saved = res?.data?.data ?? res?.data ?? res;
+      if (saved?.id) {
+        const u = users.find(u => u.id === saved.user_id);
+        if (u && !saved.users) saved.users = { name: u.name, employee_id: u.employee_id, zones: u.zones };
+        mergeRecord(saved);
+      }
+      // If the overridden date differs from the current date filter, switch to it so the row is visible
+      if (form.date !== dateFilter) setDate(form.date);
+      setShowAdd(false); setForm(BLANK);
     } catch (e: any) { setFErr(e.message || 'Failed to create record'); }
     finally { setSaving(false); }
   };
@@ -242,7 +300,7 @@ export default function AttendancePage() {
     if (!editRec) return;
     setSaving(true); setFErr('');
     try {
-      await api.patch(`/api/v1/attendance/${editRec.id}/override`, {
+      const res = await api.patch<any>(`/api/v1/attendance/${editRec.id}/override`, {
         status:               form.status,
         checkin_at:           form.checkin_at  ? `${form.checkin_date  || editRec.date}T${form.checkin_at}:00`  : undefined,
         checkin_selfie_url:   form.checkin_selfie_url  || undefined,
@@ -255,7 +313,15 @@ export default function AttendancePage() {
         checkout_lng:         form.checkout_lng ? parseFloat(form.checkout_lng) : undefined,
         notes:                form.notes || undefined,
       });
-      setEditRec(null); setDetail(null); load();
+      const saved = res?.data?.data ?? res?.data ?? res;
+      if (saved?.id) {
+        const u = users.find(u => u.id === saved.user_id);
+        if (u && !saved.users) saved.users = { name: u.name, employee_id: u.employee_id, zones: u.zones };
+        mergeRecord(saved);
+        // Update detail panel if it's open for this record
+        setDetail(d => d?.id === saved.id ? saved : d);
+      }
+      setEditRec(null);
     } catch (e: any) { setFErr(e.message || 'Failed to update'); }
     finally { setSaving(false); }
   };
@@ -545,15 +611,24 @@ export default function AttendancePage() {
               value={form.checkin_at} onChange={e => setF('checkin_at', e.target.value)} />
           </div>
         </div>
-        <Label text="Check-in Selfie URL" />
-        <input className="kinp" type="url" style={{ ...baseInp, marginBottom: form.checkin_selfie_url ? 8 : 10 }}
-          placeholder="https://… (paste selfie image URL)"
-          value={form.checkin_selfie_url} onChange={e => setF('checkin_selfie_url', e.target.value)} />
+        <Label text="Check-in Selfie" />
+        <div style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
+          <input className="kinp" type="url" style={{ ...baseInp, flex: 1, marginBottom: 0 }}
+            placeholder="Paste URL or upload →"
+            value={form.checkin_selfie_url} onChange={e => setF('checkin_selfie_url', e.target.value)} />
+          <label style={{ flexShrink: 0, padding: '0 14px', height: 38, background: C.s3, border: `1px solid ${C.border}`, borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.gray, whiteSpace: 'nowrap' as const }}>
+            {uploading === 'checkin' ? '⏳' : '📷 Upload'}
+            <input type="file" accept="image/*" style={{ display: 'none' }}
+              onChange={e => { const f = e.target.files?.[0]; if (f) uploadSelfie('checkin_selfie_url', f); e.target.value = ''; }} />
+          </label>
+        </div>
         {form.checkin_selfie_url && (
-          <div style={{ marginBottom: 10 }}>
+          <div style={{ marginBottom: 10, position: 'relative' }}>
             <img src={form.checkin_selfie_url} alt="Check-in selfie preview"
-              style={{ width: '100%', maxHeight: 140, objectFit: 'cover', borderRadius: 8, border: `1px solid ${C.border}` }}
+              style={{ width: '100%', maxHeight: 140, objectFit: 'cover', borderRadius: 8, border: `1px solid ${C.green}40` }}
               onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+            <button onClick={() => setF('checkin_selfie_url', '')}
+              style={{ position: 'absolute', top: 6, right: 6, background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: '50%', width: 22, height: 22, color: '#fff', cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
           </div>
         )}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
@@ -585,15 +660,24 @@ export default function AttendancePage() {
               value={form.checkout_at} onChange={e => setF('checkout_at', e.target.value)} />
           </div>
         </div>
-        <Label text="Check-out Selfie URL" />
-        <input className="kinp" type="url" style={{ ...baseInp, marginBottom: form.checkout_selfie_url ? 8 : 10 }}
-          placeholder="https://… (paste selfie image URL)"
-          value={form.checkout_selfie_url} onChange={e => setF('checkout_selfie_url', e.target.value)} />
+        <Label text="Check-out Selfie" />
+        <div style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
+          <input className="kinp" type="url" style={{ ...baseInp, flex: 1, marginBottom: 0 }}
+            placeholder="Paste URL or upload →"
+            value={form.checkout_selfie_url} onChange={e => setF('checkout_selfie_url', e.target.value)} />
+          <label style={{ flexShrink: 0, padding: '0 14px', height: 38, background: C.s3, border: `1px solid ${C.border}`, borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.gray, whiteSpace: 'nowrap' as const }}>
+            {uploading === 'checkout' ? '⏳' : '📷 Upload'}
+            <input type="file" accept="image/*" style={{ display: 'none' }}
+              onChange={e => { const f = e.target.files?.[0]; if (f) uploadSelfie('checkout_selfie_url', f); e.target.value = ''; }} />
+          </label>
+        </div>
         {form.checkout_selfie_url && (
-          <div style={{ marginBottom: 10 }}>
+          <div style={{ marginBottom: 10, position: 'relative' }}>
             <img src={form.checkout_selfie_url} alt="Check-out selfie preview"
-              style={{ width: '100%', maxHeight: 140, objectFit: 'cover', borderRadius: 8, border: `1px solid ${C.border}` }}
+              style={{ width: '100%', maxHeight: 140, objectFit: 'cover', borderRadius: 8, border: `1px solid ${C.blue}40` }}
               onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+            <button onClick={() => setF('checkout_selfie_url', '')}
+              style={{ position: 'absolute', top: 6, right: 6, background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: '50%', width: 22, height: 22, color: '#fff', cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
           </div>
         )}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
