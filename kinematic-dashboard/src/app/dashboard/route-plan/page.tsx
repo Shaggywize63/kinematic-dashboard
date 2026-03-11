@@ -1,4 +1,4 @@
-'use client';
+='use client';
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '@/lib/api';
 
@@ -66,43 +66,39 @@ export default function RoutePlan() {
   const [expanded, setExpanded] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
-    setLoading(true);
+  setLoading(true);
+  try {
+    let attendance: TeamAttendance[] = [];
+    let stockData: TeamStock[] = [];
+
     try {
-      const [attendanceRes, stockRes] = await Promise.allSettled([
-        api.getAttendanceTeam(),
-        api.getStockAllocations(),
-      ]);
+      const r = await api.getAttendanceTeam() as any;
+      attendance = r?.data ?? r ?? [];
+    } catch (_) {}
 
-      const attendance: TeamAttendance[] = attendanceRes.status === 'fulfilled'
-        ? (attendanceRes.value as any)?.data ?? []
-        : [];
+    try {
+      const r = await api.getStockAllocations() as any;
+      stockData = r?.data ?? r ?? [];
+    } catch (_) {}
 
-      const stockData: TeamStock[] = stockRes.status === 'fulfilled'
-        ? (stockRes.value as any)?.data ?? []
-        : [];
+    const merged: FEPlan[] = attendance.map(fe => {
+      const stock = stockData.find((s: TeamStock) => s.user_id === fe.user_id);
+      return {
+        ...fe,
+        stock_allocated: stock?.total_allocated ?? 0,
+        stock_accepted: stock?.total_accepted ?? 0,
+        stock_items: stock?.items ?? [],
+      };
+    });
 
-      const merged: FEPlan[] = attendance.map(fe => {
-        const stock = stockData.find((s: TeamStock) => s.user_id === fe.user_id);
-        return {
-          ...fe,
-          stock_allocated: stock?.total_allocated ?? 0,
-          stock_accepted: stock?.total_accepted ?? 0,
-          stock_items: stock?.items ?? [],
-        };
-      });
-
-      setPlans(merged);
-      setError(
-        attendanceRes.status === 'rejected' && stockRes.status === 'rejected'
-          ? 'Failed to load team data. Check your connection.'
-          : null
-      );
-    } catch (err: any) {
-      setError(err.message || 'Failed to load route plan data');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    setPlans(merged);
+    setError(null);
+  } catch (err: any) {
+    setError(err.message || 'Failed to load data');
+  } finally {
+    setLoading(false);
+  }
+}, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
