@@ -292,14 +292,53 @@ export default function RoutePlanPage() {
 
   /* ── CSV PARSE ─────────────────────────────────────────── */
   const parseCSV = (text: string) => {
-    const lines = text.trim().split('\n');
-    const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/\s+/g, '_'));
-    return lines.slice(1).map(line => {
-      const vals = line.split(',');
-      const obj: Record<string, string> = {};
-      headers.forEach((h, i) => { obj[h] = (vals[i] || '').trim(); });
-      return obj;
-    }).filter(r => Object.values(r).some(v => v));
+    const lines = text.trim().split("\n");
+    const headers = lines[0].split(",").map(h => h.trim().toLowerCase().replace(/\s+/g, "_").replace(/^#/, ""));
+    return lines.slice(1)
+      .filter(line => line.trim() && !line.trim().startsWith("#"))
+      .map(line => {
+        const vals = line.split(",");
+        const obj: Record<string, string> = {};
+        headers.forEach((h, i) => { obj[h] = (vals[i] || "").trim().replace(/^"|"$/g, ""); });
+        return obj;
+      })
+      .filter(r => r.fe_employee_id || r.store_code);
+  };
+
+  const downloadTemplate = async () => {
+    const [fesRes, storesRes] = await Promise.allSettled([
+      api.get('/api/v1/users?role=executive&limit=500') as Promise<any>,
+      api.get('/api/v1/stores') as Promise<any>,
+    ]);
+    const fes: any[]       = fesRes.status === 'fulfilled'    ? (Array.isArray(fesRes.value) ? fesRes.value : (fesRes.value?.data ?? [])) : [];
+    const storeList: any[] = storesRes.status === 'fulfilled' ? (Array.isArray(storesRes.value) ? storesRes.value : (storesRes.value?.data ?? [])) : [];
+
+    const lines: string[] = [
+      'fe_employee_id,store_code,target_type,target_notes,target_value,visit_order,planned_duration_min',
+      '# ---- EXAMPLE ROWS (delete these before uploading) ----',
+      `${fes[0]?.employee_id ?? 'FE-001'},${storeList[0]?.store_code ?? 'ST-001'},order_collection,"Take full order",5000,1,30`,
+      `${fes[0]?.employee_id ?? 'FE-001'},${storeList[1]?.store_code ?? 'ST-002'},stock_check,,0,2,20`,
+      `${fes[1]?.employee_id ?? 'FE-002'},${storeList[0]?.store_code ?? 'ST-001'},merchandising,"Display products",0,1,25`,
+      '',
+      '# ---- YOUR FIELD EXECUTIVES (fe_employee_id column) ----',
+      ...fes.map((f: any) => `# ${f.employee_id ?? '(no ID)'}  →  ${f.name ?? ''}`),
+      '',
+      '# ---- YOUR STORES (store_code column) ----',
+      ...(storeList.length > 0
+        ? storeList.map((s: any) => `# ${s.store_code ?? '(no code)'}  →  ${s.name ?? ''} (${s.store_type ?? ''})`)
+        : ['# No stores yet — add stores first in Other Management > Stores']),
+      '',
+      '# ---- VALID TARGET TYPES ----',
+      '# order_collection | stock_check | merchandising | scheme_communication | data_collection | display_check | general',
+    ];
+
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `route_plan_template_${importDate}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -822,6 +861,18 @@ export default function RoutePlanPage() {
                   FE-001, ST-102, stock_check, , , 2<br />
                   FE-002, ST-201, merchandising, "Shelf display", , 1
                 </div>
+              </div>
+
+              {/* Download template */}
+              <div style={{ background: C.greenD, border: `1px solid ${C.greenB}`, borderRadius: 12, padding: '14px 16px', marginBottom: 18, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: C.green, marginBottom: 3 }}>📥 Download Template</div>
+                  <div style={{ fontSize: 12, color: C.gray }}>Pre-filled CSV with your live FE IDs and store codes</div>
+                </div>
+                <button onClick={downloadTemplate}
+                  style={{ background: C.green, border: 'none', borderRadius: 9, padding: '9px 18px', color: C.bg, fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: "'Syne',sans-serif", flexShrink: 0 }}>
+                  ↓ Download CSV
+                </button>
               </div>
 
               {/* File input */}
