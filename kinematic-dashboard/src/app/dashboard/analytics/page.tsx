@@ -44,7 +44,7 @@ const HOURS = Array.from({ length: 24 }, (_, i) => i);
 function heatColor(value: number, max: number): string {
   if (max === 0) return C.s2;
   const ratio = value / max;
-  if (ratio === 0)    return C.s2;
+  if (ratio === 0)   return C.s2;
   if (ratio < 0.25)  return '#0d2e3e';
   if (ratio < 0.5)   return '#0a4a6e';
   if (ratio < 0.75)  return '#0e6ea8';
@@ -52,9 +52,13 @@ function heatColor(value: number, max: number): string {
 }
 
 function ContactActivityHeatmap({ data, loading }: { data: HeatmapResponse | null; loading: boolean }) {
-  const rows    = data?.rows || [];
-  const allVals = rows.flatMap(row => row.hours.map(h => h.count));
-  const maxVal  = Math.max(...allVals, 1);
+  const rows         = data?.rows || [];
+  const totalContacts = data?.summary?.total_contacts ?? 0;
+  const allVals      = rows.flatMap(row => row.hours.map(h => h.count));
+  const maxVal       = Math.max(...allVals, 1);
+
+  // TRUE empty = API returned rows but all counts are zero (no submissions yet)
+  const isEmpty = !loading && (rows.length === 0 || totalContacts === 0);
 
   return (
     <div style={{ background:'#0E1420', border:`1px solid ${C.border}`, borderRadius:16, padding:24 }}>
@@ -66,23 +70,29 @@ function ContactActivityHeatmap({ data, loading }: { data: HeatmapResponse | nul
           </div>
           <div style={{ fontSize:12, color:C.gray }}>Density by day &amp; hour — last 7 days</div>
         </div>
-        {/* Legend */}
-        <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-          <span style={{ fontSize:11, color:C.grayd }}>Low</span>
-          {['#0d2e3e','#0a4a6e','#0e6ea8','#3E9EFF'].map((col, i) => (
-            <div key={i} style={{ width:16, height:16, borderRadius:3, background:col }}/>
-          ))}
-          <span style={{ fontSize:11, color:C.grayd }}>High</span>
-        </div>
+        {/* Legend — hide when empty */}
+        {!isEmpty && !loading && (
+          <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+            <span style={{ fontSize:11, color:C.grayd }}>Low</span>
+            {['#0d2e3e','#0a4a6e','#0e6ea8','#3E9EFF'].map((col, i) => (
+              <div key={i} style={{ width:16, height:16, borderRadius:3, background:col }}/>
+            ))}
+            <span style={{ fontSize:11, color:C.grayd }}>High</span>
+          </div>
+        )}
       </div>
 
       {loading ? (
         <div style={{ height:180, display:'flex', alignItems:'center', justifyContent:'center', color:C.grayd, fontSize:13 }}>
           Loading heatmap...
         </div>
-      ) : rows.length === 0 ? (
-        <div style={{ height:180, display:'flex', alignItems:'center', justifyContent:'center', color:C.grayd, fontSize:13 }}>
-          No data available
+      ) : isEmpty ? (
+        <div style={{ height:180, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:10 }}>
+          <div style={{ fontSize:28 }}>📊</div>
+          <div style={{ fontSize:13, color:C.gray, fontWeight:600 }}>No contact activity yet</div>
+          <div style={{ fontSize:12, color:C.grayd, textAlign:'center', maxWidth:280 }}>
+            Data will appear here once field executives start submitting forms
+          </div>
         </div>
       ) : (
         <>
@@ -181,16 +191,16 @@ export default function AnalyticsPage() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  const monthly      = summary?.monthly_data    || [];
-  const maxCC        = monthly.length ? Math.max(...monthly.map(m => m.cc), 1) : 1;
-  const topPerformers = summary?.top_performers || [];
-  const zones        = summary?.zone_breakdown   || [];
+  const monthly       = summary?.monthly_data    || [];
+  const maxCC         = monthly.length ? Math.max(...monthly.map(m => m.cc), 1) : 1;
+  const topPerformers = summary?.top_performers  || [];
+  const zones         = summary?.zone_breakdown  || [];
 
   const kpis = [
-    { l:'Total CC',       v: summary?.total_cc?.toLocaleString()           ?? '—', delta:'+8.2%',  c:C.blue   },
-    { l:'Total ECC',      v: summary?.total_ecc?.toLocaleString()          ?? '—', delta:'+11.4%', c:C.green  },
-    { l:'Avg Attendance', v: summary?.avg_attendance ? `${summary.avg_attendance}%` : '—', delta:'+2.1%', c:C.yellow },
-    { l:'ECC Rate',       v: summary?.ecc_rate       ? `${summary.ecc_rate}%`       : '—', delta:'+3.5%', c:C.purple },
+    { l:'Total CC',       v: summary?.total_cc?.toLocaleString()                    ?? '—', delta:'+8.2%',  c:C.blue   },
+    { l:'Total ECC',      v: summary?.total_ecc?.toLocaleString()                   ?? '—', delta:'+11.4%', c:C.green  },
+    { l:'Avg Attendance', v: summary?.avg_attendance ? `${summary.avg_attendance}%` : '—', delta:'+2.1%',  c:C.yellow },
+    { l:'ECC Rate',       v: summary?.ecc_rate       ? `${summary.ecc_rate}%`       : '—', delta:'+3.5%',  c:C.purple },
   ];
 
   return (
