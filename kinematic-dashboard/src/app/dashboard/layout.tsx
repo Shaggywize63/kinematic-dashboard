@@ -1,238 +1,810 @@
-// ─── REPLACE src/app/dashboard/layout.tsx with this ───────────────────────────
 'use client';
-import { useState, useEffect } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
-import Link from 'next/link';
-import { getStoredUser, isSessionValid, clearSession, getRoleLabel } from '@/lib/auth';
-import { AuthUser } from '@/types';
+import { useState, useEffect, useCallback } from 'react';
+import api from '@/lib/api';
 
+/* ─── colour palette ─── */
 const C = {
-  bg: '#080B12', side: '#0E1420', border: '#1E2D45',
-  white: '#E8EDF8', gray: '#7A8BA0', grayd: '#2E445E',
-  red: '#E01E2C', redD: 'rgba(224,30,44,0.12)',
-  s3: '#131B2A',
+  bg:'#070D18', s2:'#0E1420', s3:'#131B2A', s4:'#1A2438',
+  border:'#1E2D45', borderL:'#253650',
+  white:'#E8EDF8', gray:'#7A8BA0', grayd:'#2E445E', graydd:'#1A2738',
+  red:'#E01E2C', redD:'rgba(224,30,44,0.08)', redB:'rgba(224,30,44,0.2)',
+  green:'#00D97E', greenD:'rgba(0,217,126,0.08)',
+  blue:'#3E9EFF', blueD:'rgba(62,158,255,0.10)',
+  yellow:'#FFB800', yellowD:'rgba(255,184,0,0.08)',
+  purple:'#9B6EFF', purpleD:'rgba(155,110,255,0.08)',
+  teal:'#00C9B1', tealD:'rgba(0,201,177,0.08)',
+  orange:'#FF7A30', orangeD:'rgba(255,122,48,0.08)',
 };
 
-// ─── Icon helper ───
-function Icon({ d, size = 18 }: { d: string; size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-      {d.split(' M ').map((p, i) => <path key={i} d={i === 0 ? p : 'M ' + p} />)}
-    </svg>
-  );
+/* ─── types ─── */
+interface Warehouse {
+  id: string; warehouse_code: string; name: string;
+  type: string; address?: string; city?: string; state?: string;
+  latitude?: number; longitude?: number; is_active: boolean;
+  created_at: string;
+  manager?: { id: string; name: string } | null;
+  stats?: { inbound: number; outbound: number; total_moves: number };
+}
+interface SKU   { id: string; sku_code: string; name: string; unit?: string; }
+interface Asset { id: string; asset_code: string; name: string; }
+interface Movement {
+  id: string; movement_type: string; quantity: number;
+  from_location?: string; to_location?: string; reference_no?: string;
+  notes?: string; moved_at: string;
+  sku?: { id: string; sku_code: string; name: string; unit?: string } | null;
+  performer?: { id: string; name: string; employee_id?: string } | null;
+  asset?: { id: string; name: string; asset_code?: string } | null;
+}
+interface Summary {
+  warehouses: Warehouse[]; total_warehouses: number; active_warehouses: number;
+  total_skus: number; total_assets: number; total_movements_30d: number;
 }
 
-// ─── Nav definitions ───
-const MAIN_NAV = [
-  { href: '/dashboard',                     label: 'Dashboard',       icon: 'M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z M9 22V12h6v10' },
-  { href: '/dashboard/field-executives',    label: 'Field Execs',     icon: 'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 11a4 4 0 100-8 4 4 0 000 8z M23 21v-2a4 4 0 00-3-3.87 M16 3.13a4 4 0 010 7.75' },
-  { href: '/dashboard/attendance-overview', label: 'Attendance',      icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
-  { href: '/dashboard/route-plan',          label: 'Route Plan',      icon: 'M17.657 16.657L13.414 20.9...' },
-  { href: '/dashboard/analytics',           label: 'Analytics',       icon: 'M18 20V10 M12 20V4 M6 20v-6' },
-  { href: '/dashboard/warehouse',           label: 'Warehouse',       icon: 'M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8' },
-  { href: '/dashboard/broadcast',           label: 'Broadcast',       icon: 'M18 8a6 6 0 010 8M14 11.73A2 2 0 1112 15a2 2 0 002-3.27z M21.64 4.36a12 12 0 010 15.27' },
-  { href: '/dashboard/hr',                  label: 'HR',              icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0z M12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' },
-  { href: '/dashboard/live-tracking',       label: 'Live Tracking',   icon: 'M12 22s-8-4.5-8-11.8A8 8 0 0112 2a8 8 0 018 8.2c0 7.3-8 11.8-8 11.8z M12 13a3 3 0 100-6 3 3 0 000 6z' },
-  { href: '/dashboard/notifications',       label: 'Notifications',   icon: 'M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9 M13.73 21a2 2 0 01-3.46 0' },
-  { href: '/dashboard/settings',            label: 'Settings',        icon: 'M12 15a3 3 0 100-6 3 3 0 000 6z M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z' },
-];
+const WH_TYPES: Record<string, { label: string; color: string }> = {
+  distribution_center: { label: 'Distribution Center', color: C.blue   },
+  fulfillment_center:  { label: 'Fulfillment Center',  color: C.purple },
+  dark_warehouse:      { label: 'Dark Warehouse',      color: C.gray   },
+  retail_storage:      { label: 'Retail Storage',      color: C.teal   },
+};
 
-const OTHER_NAV = [
-  { href: '/dashboard/other-management/cities',     label: 'City Management',     icon: 'M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z M9 22V12h6v10' },
-  { href: '/dashboard/other-management/zones',      label: 'Zone Management',     icon: 'M1 6l10.5 7L22 6M1 6v12a2 2 0 002 2h18a2 2 0 002-2V6 M1 6l10.5-4L22 6' },
-  { href: '/dashboard/other-management/stores',     label: 'Store Management',    icon: 'M3 3h18v4H3z M5 7v13h14V7 M9 7v13 M15 7v13' },
-  { href: '/dashboard/other-management/skus',       label: "SKU's Management",    icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10' },
-  { href: '/dashboard/other-management/activities', label: 'Activity Management', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 012-2h2a2 2 0 012 2 M9 12l2 2 4-4' },
-  { href: '/dashboard/other-management/assets',     label: 'Asset Management',    icon: 'M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8 M10 12h4' },
-];
+const MV_TYPES: Record<string, { label: string; color: string; sign: string }> = {
+  inbound:    { label: 'Inbound',    color: C.green,  sign: '+' },
+  outbound:   { label: 'Outbound',   color: C.red,    sign: '−' },
+  transfer:   { label: 'Transfer',   color: C.blue,   sign: '↔' },
+  adjustment: { label: 'Adjustment', color: C.yellow, sign: '±' },
+  damage:     { label: 'Damage',     color: C.orange, sign: '✕' },
+};
 
-const ALL_NAV = [...MAIN_NAV, ...OTHER_NAV];
-
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [collapsed, setCollapsed] = useState(false);
-  const [otherOpen, setOtherOpen] = useState(false);
-  const router = useRouter();
-  const pathname = usePathname();
-
-  useEffect(() => {
-    const u = getStoredUser();
-    if (!u || !isSessionValid()) { clearSession(); router.push('/login'); return; }
-    setUser(u);
-  }, [router]);
-
-  // Auto-expand Other Management when on those pages
-  useEffect(() => {
-    if (pathname.startsWith('/dashboard/other-management')) setOtherOpen(true);
-  }, [pathname]);
-
-  const logout = () => { clearSession(); router.push('/login'); };
-
-  if (!user) return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: C.bg }}>
-      <div style={{ width: 24, height: 24, border: '2.5px solid rgba(255,255,255,0.15)', borderTopColor: C.red, borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
-    </div>
+/* ─── helpers ─── */
+const Spinner = () => (
+  <div style={{ width:15, height:15, border:'2.5px solid rgba(255,255,255,0.18)',
+    borderTopColor:'#fff', borderRadius:'50%', animation:'kspin .65s linear infinite', flexShrink:0 }}/>
+);
+const Label = ({ text, req }: { text:string; req?:boolean }) => (
+  <div style={{ fontSize:11, fontWeight:700, color:C.gray, letterSpacing:'0.7px',
+    textTransform:'uppercase' as const, marginBottom:7 }}>
+    {text}{req && <span style={{ color:C.red }}> *</span>}
+  </div>
+);
+const baseInp: React.CSSProperties = {
+  width:'100%', background:C.s3, border:`1.5px solid ${C.border}`, color:C.white,
+  borderRadius:11, padding:'10px 13px', fontSize:13, outline:'none',
+  fontFamily:"'DM Sans',sans-serif", transition:'border-color .15s',
+};
+const Overlay = ({ onClose, children }: { onClose:()=>void; children:React.ReactNode }) => (
+  <div onClick={e=>{ if(e.target===e.currentTarget) onClose(); }}
+    style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.8)', zIndex:500,
+      display:'flex', alignItems:'center', justifyContent:'center', padding:20,
+      backdropFilter:'blur(6px)' }}>
+    {children}
+  </div>
+);
+const MovBadge = ({ type }: { type: string }) => {
+  const mt = MV_TYPES[type] || { label: type, color: C.gray, sign: '?' };
+  return (
+    <span style={{ fontSize:10, fontWeight:700, padding:'3px 8px', borderRadius:20,
+      background:`${mt.color}18`, color:mt.color }}>
+      {mt.sign} {mt.label}
+    </span>
   );
+};
+const fmtDate = (iso: string) =>
+  new Date(iso).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
 
-  const sideW = collapsed ? 72 : 240;
-  const isOnOther = pathname.startsWith('/dashboard/other-management');
+/* ═══════════════════════════════════════════════════════════ */
+export default function WarehousePage() {
 
-  const navItem = (item: typeof MAIN_NAV[0], indent = false) => {
-    const active = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
-    return (
-      <Link key={item.href} href={item.href} style={{ textDecoration: 'none' }}>
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 10, marginBottom: 2,
-          padding: indent ? '8px 12px 8px 18px' : '10px 12px',
-          borderRadius: 11,
-          background: active ? C.redD : 'transparent',
-          color: active ? C.red : C.gray,
-          transition: 'all 0.15s', whiteSpace: 'nowrap', overflow: 'hidden',
-        }}
-          onMouseEnter={e => { if (!active) { e.currentTarget.style.background = C.s3; e.currentTarget.style.color = C.white; } }}
-          onMouseLeave={e => { if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = C.gray; } }}
-        >
-          <Icon d={item.icon} size={indent ? 15 : 18} />
-          {!collapsed && <span style={{ fontSize: indent ? 12 : 13, fontWeight: active ? 700 : 500, flex: 1 }}>{item.label}</span>}
-          {active && !collapsed && <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.red, flexShrink: 0 }} />}
-        </div>
-      </Link>
-    );
+  const [summary,  setSummary]  = useState<Summary | null>(null);
+  const [selWh,    setSelWh]    = useState<Warehouse | null>(null);
+  const [movements,setMovements]= useState<Movement[]>([]);
+  const [skus,     setSkus]     = useState<SKU[]>([]);
+  const [assets,   setAssets]   = useState<Asset[]>([]);
+  const [loading,  setLoading]  = useState(true);
+  const [mvLoad,   setMvLoad]   = useState(false);
+  const [err,      setErr]      = useState('');
+  const [mvFilter, setMvFilter] = useState<string>('all');
+
+  /* modals */
+  const [showAddWh,  setShowAddWh]  = useState(false);
+  const [editWh,     setEditWh]     = useState<Warehouse | null>(null);
+  const [showAddMv,  setShowAddMv]  = useState(false);
+  const [deleteWh,   setDeleteWh]   = useState<Warehouse | null>(null);
+  const [saving,     setSaving]     = useState(false);
+  const [formErr,    setFormErr]    = useState('');
+
+  /* warehouse form */
+  const WH_BLANK = { warehouse_code:'', name:'', type:'distribution_center',
+    address:'', city:'', state:'', latitude:'', longitude:'', is_active: true };
+  const [whForm, setWhForm] = useState<any>(WH_BLANK);
+  const setWF = (k: string, v: any) => setWhForm((p: any) => ({ ...p, [k]: v }));
+
+  /* movement form */
+  const MV_BLANK = { movement_type:'inbound', sku_id:'', asset_id:'',
+    quantity:'', from_location:'', to_location:'', reference_no:'', notes:'', moved_at:'' };
+  const [mvForm, setMvForm] = useState<any>(MV_BLANK);
+  const setMF = (k: string, v: any) => setMvForm((p: any) => ({ ...p, [k]: v }));
+
+  /* ── fetch summary ── */
+  const loadSummary = useCallback(async () => {
+    setLoading(true); setErr('');
+    try {
+      const res = await api.get<any>('/api/v1/warehouses/summary');
+      const d: Summary = res?.data ?? res?.data?.data ?? res;
+      setSummary(d);
+      // auto-select first warehouse
+      if (!selWh && d.warehouses?.length > 0) setSelWh(d.warehouses[0]);
+    } catch (e: any) { setErr(e?.message || 'Failed to load'); }
+    finally { setLoading(false); }
+  }, []);
+
+  /* ── fetch movements for selected warehouse ── */
+  const loadMovements = useCallback(async (wh: Warehouse, type?: string) => {
+    setMvLoad(true);
+    try {
+      const q = type && type !== 'all' ? `?type=${type}` : '';
+      const res = await api.get<any>(`/api/v1/warehouses/${wh.id}/movements${q}`);
+      const mvData = res?.data ?? res?.data?.data ?? res; setMovements(Array.isArray(mvData) ? mvData : []);
+    } catch { setMovements([]); }
+    finally { setMvLoad(false); }
+  }, []);
+
+  /* ── fetch skus & assets for movement form ── */
+  const loadFormDeps = useCallback(async () => {
+    try {
+      const [sRes, aRes] = await Promise.all([
+        api.get<any>('/api/v1/skus'),
+        api.get<any>('/api/v1/assets'),
+      ]);
+      const skuArr = sRes?.data ?? sRes?.data?.data ?? sRes; setSkus(Array.isArray(skuArr) ? skuArr : []);
+      const assetArr = aRes?.data ?? aRes?.data?.data ?? aRes; setAssets(Array.isArray(assetArr) ? assetArr : []);
+    } catch { /* non-fatal */ }
+  }, []);
+
+  useEffect(() => { loadSummary(); loadFormDeps(); }, [loadSummary, loadFormDeps]);
+
+  useEffect(() => {
+    if (selWh) loadMovements(selWh, mvFilter === 'all' ? undefined : mvFilter);
+  }, [selWh, mvFilter, loadMovements]);
+
+  /* ── select warehouse ── */
+  const selectWh = (wh: Warehouse) => {
+    setSelWh(wh); setMvFilter('all');
   };
 
-  const currentLabel = ALL_NAV.find(n =>
-    n.href === pathname || (n.href !== '/dashboard' && pathname.startsWith(n.href))
-  )?.label || 'Dashboard';
+  /* ── CREATE warehouse ── */
+  const handleCreateWh = async () => {
+    if (!whForm.warehouse_code) { setFormErr('Warehouse code is required'); return; }
+    if (!whForm.name)           { setFormErr('Name is required'); return; }
+    setSaving(true); setFormErr('');
+    try {
+      const payload = { ...whForm,
+        latitude:  whForm.latitude  ? Number(whForm.latitude)  : null,
+        longitude: whForm.longitude ? Number(whForm.longitude) : null,
+      };
+      await api.post('/api/v1/warehouses', payload);
+      setShowAddWh(false); setWhForm(WH_BLANK); loadSummary();
+    } catch (e: any) { setFormErr(e?.message || 'Failed to create warehouse'); }
+    finally { setSaving(false); }
+  };
 
+  /* ── UPDATE warehouse ── */
+  const handleUpdateWh = async () => {
+    if (!editWh) return;
+    setSaving(true); setFormErr('');
+    try {
+      const payload = { ...whForm,
+        latitude:  whForm.latitude  ? Number(whForm.latitude)  : null,
+        longitude: whForm.longitude ? Number(whForm.longitude) : null,
+      };
+      const res = await api.patch<any>(`/api/v1/warehouses/${editWh.id}`, payload);
+      const updated: Warehouse = res?.data ?? res?.data?.data ?? res;
+      setEditWh(null);
+      // update summary list and selWh if same
+      setSummary(prev => {
+        if (!prev) return prev;
+        return { ...prev, warehouses: prev.warehouses.map(w => w.id === updated.id ? { ...w, ...updated } : w) };
+      });
+      if (selWh?.id === updated.id) setSelWh(prev => prev ? { ...prev, ...updated } : prev);
+    } catch (e: any) { setFormErr(e?.message || 'Failed to update'); }
+    finally { setSaving(false); }
+  };
+
+  const openEdit = (wh: Warehouse) => {
+    setEditWh(wh);
+    setWhForm({ warehouse_code: wh.warehouse_code, name: wh.name, type: wh.type,
+      address: wh.address || '', city: wh.city || '', state: wh.state || '',
+      latitude: wh.latitude || '', longitude: wh.longitude || '',
+      is_active: wh.is_active });
+    setFormErr('');
+  };
+
+  /* ── DELETE warehouse ── */
+  const handleDeleteWh = async () => {
+    if (!deleteWh) return;
+    setSaving(true);
+    try {
+      await api.delete(`/api/v1/warehouses/${deleteWh.id}`);
+      setDeleteWh(null);
+      if (selWh?.id === deleteWh.id) setSelWh(null);
+      loadSummary();
+    } catch (e: any) { setErr(e?.message || 'Failed to delete'); }
+    finally { setSaving(false); }
+  };
+
+  /* ── LOG movement ── */
+  const handleCreateMv = async () => {
+    if (!selWh) return;
+    if (!mvForm.movement_type) { setFormErr('Movement type is required'); return; }
+    if (!mvForm.quantity)      { setFormErr('Quantity is required'); return; }
+    setSaving(true); setFormErr('');
+    try {
+      const payload = { ...mvForm,
+        quantity: Number(mvForm.quantity),
+        sku_id:   mvForm.sku_id   || null,
+        asset_id: mvForm.asset_id || null,
+        moved_at: mvForm.moved_at || new Date().toISOString(),
+      };
+      await api.post(`/api/v1/warehouses/${selWh.id}/movements`, payload);
+      setShowAddMv(false); setMvForm(MV_BLANK);
+      loadMovements(selWh, mvFilter === 'all' ? undefined : mvFilter);
+    } catch (e: any) { setFormErr(e?.message || 'Failed to log movement'); }
+    finally { setSaving(false); }
+  };
+
+  const warehouses = summary?.warehouses ?? [];
+
+  /* ─── RENDER ─────────────────────────────────────── */
   return (
-    <div style={{ display: 'flex', height: '100vh', background: C.bg, overflow: 'hidden' }}>
+    <>
       <style>{`
-        @keyframes spin { to { transform: rotate(360deg); } }
-        @keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:0.4 } }
-        ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #1E2D45; border-radius: 4px; }
+        @keyframes kspin  { to { transform:rotate(360deg); } }
+        @keyframes kfade  { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+        .kcard { transition:background .14s, border-color .14s; }
+        .kcard:hover { background:${C.s3} !important; border-color:${C.borderL} !important; }
+        .kcard.active { background:${C.s3} !important; border-color:${C.blue}60 !important; }
+        .kinp:focus { border-color:${C.blue} !important; }
+        .kbtn { transition:opacity .13s, transform .13s; cursor:pointer; }
+        .kbtn:hover { opacity:.82; }
+        .kbtn:active { transform:scale(.96); }
+        .mvrow { transition:background .12s; }
+        .mvrow:hover { background:${C.s3} !important; }
       `}</style>
 
-      {/* ── Sidebar ── */}
-      <aside style={{ width: sideW, background: C.side, borderRight: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', transition: 'width 0.25s cubic-bezier(0.22,1,0.36,1)', flexShrink: 0, overflow: 'hidden' }}>
+      <div style={{ display:'flex', flexDirection:'column', gap:20, animation:'kfade .3s ease' }}>
 
-        {/* Logo */}
-        <div style={{ height: 64, display: 'flex', alignItems: 'center', padding: '0 16px', borderBottom: `1px solid ${C.border}`, gap: 12, flexShrink: 0 }}>
-          <div style={{ width: 36, height: 36, background: C.red, borderRadius: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <span style={{ fontFamily: "'Syne',sans-serif", fontSize: 18, fontWeight: 800, color: '#fff' }}>K</span>
+        {/* ── error banner ── */}
+        {err && (
+          <div style={{ background:C.redD, border:`1px solid ${C.redB}`, borderRadius:12,
+            padding:'11px 16px', fontSize:13, color:C.red, display:'flex', gap:9, alignItems:'center' }}>
+            ⚠ {err}
+            <button onClick={()=>setErr('')} style={{ marginLeft:'auto', background:'none', border:'none', color:C.red, cursor:'pointer', fontSize:16 }}>✕</button>
           </div>
-          {!collapsed && <span style={{ fontFamily: "'Syne',sans-serif", fontSize: 17, fontWeight: 800, whiteSpace: 'nowrap' }}>Kinematic</span>}
-        </div>
+        )}
 
-        {/* Nav scroll */}
-        <nav style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '10px 10px 0' }}>
-
-          {/* Main nav items */}
-          {MAIN_NAV.map(item => navItem(item))}
-
-          {/* ── Other Management Section ── */}
-          <div style={{ margin: '10px 0 4px' }}>
-            {/* Section divider */}
-            {!collapsed && (
-              <div style={{ padding: '4px 4px 6px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{ flex: 1, height: 1, background: C.border }} />
-                <span style={{ fontSize: 9, fontWeight: 700, color: C.grayd, letterSpacing: '1.2px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Other Management</span>
-                <div style={{ flex: 1, height: 1, background: C.border }} />
-              </div>
-            )}
-            {collapsed && <div style={{ height: 1, background: C.border, margin: '6px 4px' }} />}
-
-            {/* Collapsed: show icons directly */}
-            {collapsed && OTHER_NAV.map(item => navItem(item))}
-
-            {/* Expanded: collapsible group */}
-            {!collapsed && (
-              <>
-                {/* Group header button */}
-                <div
-                  onClick={() => setOtherOpen(o => !o)}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px',
-                    borderRadius: 11, marginBottom: 2, cursor: 'pointer',
-                    background: isOnOther ? C.redD : 'transparent',
-                    color: isOnOther ? C.red : C.gray,
-                    transition: 'all 0.15s',
-                  }}
-                  onMouseEnter={e => { if (!isOnOther) { e.currentTarget.style.background = C.s3; e.currentTarget.style.color = C.white; } }}
-                  onMouseLeave={e => { if (!isOnOther) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = C.gray; } }}
-                >
-                  <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-                    <rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" />
-                    <rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" />
-                  </svg>
-                  <span style={{ fontSize: 13, fontWeight: isOnOther ? 700 : 500, flex: 1 }}>Other Management</span>
-                  <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" style={{ flexShrink: 0, transition: 'transform 0.2s', transform: otherOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>
-                    <polyline points="6 9 12 15 18 9" />
-                  </svg>
-                </div>
-
-                {/* Sub-items */}
-                {otherOpen && (
-                  <div style={{ borderLeft: `2px solid ${C.border}`, marginLeft: 18, paddingLeft: 4, marginBottom: 4 }}>
-                    {OTHER_NAV.map(item => navItem(item, true))}
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        </nav>
-
-        {/* User + logout */}
-        <div style={{ padding: 12, borderTop: `1px solid ${C.border}`, flexShrink: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 11, overflow: 'hidden' }}>
-            <div style={{ width: 34, height: 34, borderRadius: 11, background: 'rgba(224,30,44,0.15)', border: '1.5px solid rgba(224,30,44,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <span style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 14, color: C.red }}>{user.name[0]}</span>
+        {/* ── page header ── */}
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-end' }}>
+          <div>
+            <div style={{ fontFamily:"'Syne',sans-serif", fontSize:22, fontWeight:800, color:C.white }}>
+              Warehouse Management
             </div>
-            {!collapsed && (
-              <div style={{ flex: 1, overflow: 'hidden' }}>
-                <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user.name}</div>
-                <div style={{ fontSize: 11, color: C.gray }}>{getRoleLabel(user.role)}</div>
-              </div>
-            )}
+            <div style={{ fontSize:12, color:C.gray, marginTop:3 }}>
+              Inventory movements · stock visibility · asset tracking
+            </div>
           </div>
-          <button onClick={logout} style={{ width: '100%', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 10, padding: '8px 12px', color: C.gray, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'flex-start', gap: 8, marginTop: 4, transition: 'all 0.15s', fontFamily: "'DM Sans',sans-serif" }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(224,30,44,0.4)'; e.currentTarget.style.color = C.red; }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.gray; }}
-          >
-            <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-              <path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+          <button className="kbtn" onClick={()=>{ setWhForm(WH_BLANK); setFormErr(''); setShowAddWh(true); }}
+            style={{ display:'flex', alignItems:'center', gap:7, padding:'9px 18px',
+              background:C.red, border:'none', borderRadius:10, color:'#fff',
+              fontSize:13, fontWeight:700, fontFamily:"'DM Sans',sans-serif",
+              boxShadow:'0 4px 18px rgba(224,30,44,0.28)' }}>
+            <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.8} strokeLinecap="round">
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
             </svg>
-            {!collapsed && 'Sign Out'}
+            Add Warehouse
           </button>
         </div>
-      </aside>
 
-      {/* Collapse toggle */}
-      <button onClick={() => setCollapsed(c => !c)} style={{ position: 'fixed', left: sideW - 14, top: 40, zIndex: 200, width: 28, height: 28, borderRadius: '50%', background: C.side, border: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'left 0.25s cubic-bezier(0.22,1,0.36,1)', color: C.gray }}>
-        <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round">
-          {collapsed ? <polyline points="9 18 15 12 9 6" /> : <polyline points="15 18 9 12 15 6" />}
-        </svg>
-      </button>
+        {/* ── summary stat cards ── */}
+        {loading ? (
+          <div style={{ padding:60, textAlign:'center', color:C.grayd, fontSize:14 }}>Loading…</div>
+        ) : (
+          <>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:12 }}>
+              {[
+                { l:'Warehouses',    v: summary?.total_warehouses   ?? 0, c:C.blue   },
+                { l:'Active',        v: summary?.active_warehouses  ?? 0, c:C.green  },
+                { l:'SKUs',          v: summary?.total_skus         ?? 0, c:C.purple },
+                { l:'Active Assets', v: summary?.total_assets       ?? 0, c:C.teal   },
+                { l:'Moves (30d)',   v: summary?.total_movements_30d ?? 0, c:C.yellow },
+              ].map(s => (
+                <div key={s.l} style={{ background:C.s2, border:`1px solid ${C.border}`,
+                  borderRadius:14, padding:'16px 18px', position:'relative', overflow:'hidden' }}>
+                  <div style={{ position:'absolute', top:0, left:0, bottom:0, width:3,
+                    borderRadius:'3px 0 0 3px', background:s.c, opacity:.5 }}/>
+                  <div style={{ fontFamily:"'Syne',sans-serif", fontSize:28, fontWeight:800, color:s.c, lineHeight:1 }}>{s.v}</div>
+                  <div style={{ fontSize:11, color:C.gray, marginTop:5 }}>{s.l}</div>
+                </div>
+              ))}
+            </div>
 
-      {/* Main content */}
-      <main style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <header style={{ height: 64, background: C.side, borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', padding: '0 28px', gap: 16, flexShrink: 0 }}>
-          <div style={{ flex: 1 }}>
-            <h1 style={{ fontFamily: "'Syne',sans-serif", fontSize: 17, fontWeight: 800, margin: 0 }}>{currentLabel}</h1>
+            {/* ── main layout: warehouse list + detail panel ── */}
+            <div style={{ display:'grid', gridTemplateColumns:'300px 1fr', gap:16, alignItems:'start' }}>
+
+              {/* ── Warehouse List ── */}
+              <div style={{ display:'flex', flexDirection:'column', gap:9 }}>
+                <div style={{ fontSize:11, fontWeight:700, color:C.grayd, letterSpacing:'0.7px',
+                  textTransform:'uppercase', marginBottom:2 }}>
+                  Warehouses ({warehouses.length})
+                </div>
+                {warehouses.length === 0 ? (
+                  <div style={{ background:C.s2, border:`1px solid ${C.border}`, borderRadius:14,
+                    padding:'28px 16px', textAlign:'center', color:C.grayd, fontSize:13 }}>
+                    No warehouses yet.<br/>Add your first one.
+                  </div>
+                ) : warehouses.map(wh => {
+                  const wt = WH_TYPES[wh.type] || { label: wh.type, color: C.gray };
+                  const isActive = selWh?.id === wh.id;
+                  return (
+                    <div key={wh.id}
+                      className={`kcard${isActive ? ' active' : ''}`}
+                      onClick={() => selectWh(wh)}
+                      style={{ background: isActive ? C.s3 : C.s2,
+                        border: `1px solid ${isActive ? C.blue+'60' : C.border}`,
+                        borderRadius:14, padding:14, cursor:'pointer' }}>
+                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8 }}>
+                        <div>
+                          <div style={{ fontSize:13, fontWeight:700, color:C.white }}>{wh.name}</div>
+                          <div style={{ fontSize:11, color:C.grayd, marginTop:2 }}>{wh.warehouse_code}</div>
+                        </div>
+                        <span style={{ fontSize:9, fontWeight:700, padding:'3px 8px', borderRadius:20, flexShrink:0,
+                          background: wh.is_active ? C.greenD : C.redD,
+                          color: wh.is_active ? C.green : C.red }}>
+                          {wh.is_active ? '● Active' : 'Inactive'}
+                        </span>
+                      </div>
+                      <div style={{ display:'flex', alignItems:'center', gap:7 }}>
+                        <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:20,
+                          background:`${wt.color}18`, color:wt.color }}>
+                          {wt.label}
+                        </span>
+                        {wh.city && (
+                          <span style={{ fontSize:10, color:C.grayd }}>📍 {wh.city}</span>
+                        )}
+                      </div>
+                      {wh.stats && wh.stats.total_moves > 0 && (
+                        <div style={{ display:'flex', gap:10, marginTop:9 }}>
+                          <div style={{ flex:1, background:C.s4, borderRadius:8, padding:'6px 8px', textAlign:'center' }}>
+                            <div style={{ fontFamily:"'Syne',sans-serif", fontSize:14, fontWeight:700, color:C.green }}>{wh.stats.inbound}</div>
+                            <div style={{ fontSize:9, color:C.grayd }}>In (30d)</div>
+                          </div>
+                          <div style={{ flex:1, background:C.s4, borderRadius:8, padding:'6px 8px', textAlign:'center' }}>
+                            <div style={{ fontFamily:"'Syne',sans-serif", fontSize:14, fontWeight:700, color:C.red }}>{wh.stats.outbound}</div>
+                            <div style={{ fontSize:9, color:C.grayd }}>Out (30d)</div>
+                          </div>
+                          <div style={{ flex:1, background:C.s4, borderRadius:8, padding:'6px 8px', textAlign:'center' }}>
+                            <div style={{ fontFamily:"'Syne',sans-serif", fontSize:14, fontWeight:700, color:C.blue }}>{wh.stats.total_moves}</div>
+                            <div style={{ fontSize:9, color:C.grayd }}>Moves</div>
+                          </div>
+                        </div>
+                      )}
+                      {/* mini action row */}
+                      <div style={{ display:'flex', gap:6, marginTop:9 }}
+                        onClick={e => e.stopPropagation()}>
+                        <button className="kbtn" onClick={() => openEdit(wh)}
+                          style={{ flex:1, padding:'6px 0', background:C.blueD,
+                            border:'1px solid rgba(62,158,255,0.15)', borderRadius:8,
+                            fontSize:11, fontWeight:600, color:C.blue,
+                            fontFamily:"'DM Sans',sans-serif" }}>
+                          Edit
+                        </button>
+                        <button className="kbtn" onClick={() => setDeleteWh(wh)}
+                          style={{ padding:'6px 10px', background:C.redD,
+                            border:'1px solid rgba(224,30,44,0.15)', borderRadius:8,
+                            fontSize:11, color:C.red, fontFamily:"'DM Sans',sans-serif" }}>
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* ── Warehouse Detail Panel ── */}
+              {selWh ? (
+                <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+
+                  {/* detail header */}
+                  <div style={{ background:C.s2, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:14 }}>
+                      <div>
+                        <div style={{ fontFamily:"'Syne',sans-serif", fontSize:18, fontWeight:800, color:C.white }}>
+                          {selWh.name}
+                        </div>
+                        <div style={{ fontSize:12, color:C.gray, marginTop:3 }}>
+                          {selWh.warehouse_code}
+                          {selWh.address && ` · ${selWh.address}`}
+                          {selWh.city && `, ${selWh.city}`}
+                          {selWh.state && `, ${selWh.state}`}
+                        </div>
+                      </div>
+                      <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                        {(() => { const wt = WH_TYPES[selWh.type] || { label:selWh.type, color:C.gray };
+                          return <span style={{ fontSize:11, fontWeight:700, padding:'4px 10px', borderRadius:20,
+                            background:`${wt.color}18`, color:wt.color }}>{wt.label}</span>; })()}
+                        <span style={{ fontSize:11, fontWeight:700, padding:'4px 10px', borderRadius:20,
+                          background:selWh.is_active ? C.greenD : C.redD,
+                          color:selWh.is_active ? C.green : C.red }}>
+                          {selWh.is_active ? '● Active' : 'Inactive'}
+                        </span>
+                      </div>
+                    </div>
+                    {selWh.manager && (
+                      <div style={{ fontSize:12, color:C.gray }}>
+                        Manager: <span style={{ color:C.white, fontWeight:600 }}>{selWh.manager.name}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* movements panel */}
+                  <div style={{ background:C.s2, border:`1px solid ${C.border}`, borderRadius:16, overflow:'hidden' }}>
+                    {/* panel header */}
+                    <div style={{ padding:'16px 20px', borderBottom:`1px solid ${C.border}`,
+                      display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                      <div style={{ fontFamily:"'Syne',sans-serif", fontSize:15, fontWeight:700, color:C.white }}>
+                        Inventory Movements
+                      </div>
+                      <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                        {/* filter pills */}
+                        <div style={{ display:'flex', gap:5 }}>
+                          {['all', ...Object.keys(MV_TYPES)].map(t => (
+                            <button key={t} className="kbtn" onClick={() => setMvFilter(t)}
+                              style={{ padding:'5px 10px', borderRadius:8,
+                                border:`1px solid ${mvFilter===t ? (MV_TYPES[t]?.color || C.blue) : C.border}`,
+                                background:mvFilter===t ? `${(MV_TYPES[t]?.color || C.blue)}18` : 'transparent',
+                                color:mvFilter===t ? (MV_TYPES[t]?.color || C.blue) : C.gray,
+                                fontSize:11, fontWeight:600, fontFamily:"'DM Sans',sans-serif" }}>
+                              {t === 'all' ? 'All' : MV_TYPES[t].label}
+                            </button>
+                          ))}
+                        </div>
+                        <button className="kbtn" onClick={() => { setMvForm(MV_BLANK); setFormErr(''); setShowAddMv(true); }}
+                          style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 14px',
+                            background:C.red, border:'none', borderRadius:9, color:'#fff',
+                            fontSize:12, fontWeight:700, fontFamily:"'DM Sans',sans-serif",
+                            boxShadow:'0 3px 12px rgba(224,30,44,0.25)' }}>
+                          <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.8} strokeLinecap="round">
+                            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                          </svg>
+                          Log Movement
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* movements table */}
+                    {mvLoad ? (
+                      <div style={{ padding:'40px 0', textAlign:'center', color:C.grayd, fontSize:13 }}>
+                        Loading movements…
+                      </div>
+                    ) : movements.length === 0 ? (
+                      <div style={{ padding:'48px 0', textAlign:'center', color:C.grayd, fontSize:13 }}>
+                        No movements logged{mvFilter !== 'all' ? ` of type "${MV_TYPES[mvFilter]?.label}"` : ''}.
+                        <br/>
+                        <span style={{ fontSize:12, color:C.graydd }}>Use "Log Movement" to record your first entry.</span>
+                      </div>
+                    ) : (
+                      <div style={{ overflowX:'auto' }}>
+                        <table style={{ width:'100%', borderCollapse:'collapse' }}>
+                          <thead>
+                            <tr style={{ borderBottom:`1px solid ${C.border}` }}>
+                              {['Type','SKU','Qty','From','To','Ref No.','Performed By','When'].map(h => (
+                                <th key={h} style={{ padding:'9px 16px', textAlign:'left', fontSize:10,
+                                  fontWeight:700, color:C.grayd, letterSpacing:'0.6px', textTransform:'uppercase',
+                                  whiteSpace:'nowrap' }}>
+                                  {h}
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {movements.map((mv, i) => {
+                              const mt = MV_TYPES[mv.movement_type] || { color:C.gray, sign:'?', label:mv.movement_type };
+                              return (
+                                <tr key={mv.id} className="mvrow"
+                                  style={{ borderBottom: i < movements.length-1 ? `1px solid ${C.border}` : 'none',
+                                    background:'transparent' }}>
+                                  <td style={{ padding:'11px 16px', whiteSpace:'nowrap' }}>
+                                    <MovBadge type={mv.movement_type}/>
+                                  </td>
+                                  <td style={{ padding:'11px 16px', fontSize:12 }}>
+                                    {mv.sku
+                                      ? <span style={{ color:C.white, fontWeight:600 }}>{mv.sku.name}</span>
+                                      : <span style={{ color:C.grayd }}>—</span>}
+                                    {mv.sku?.sku_code && <div style={{ fontSize:10, color:C.grayd }}>{mv.sku.sku_code}</div>}
+                                  </td>
+                                  <td style={{ padding:'11px 16px' }}>
+                                    <span style={{ fontFamily:"'Syne',sans-serif", fontSize:15, fontWeight:700, color:mt.color }}>
+                                      {mt.sign}{Math.abs(mv.quantity)}
+                                    </span>
+                                    {mv.sku?.unit && <span style={{ fontSize:10, color:C.grayd, marginLeft:3 }}>{mv.sku.unit}</span>}
+                                  </td>
+                                  <td style={{ padding:'11px 16px', fontSize:12, color:C.gray, maxWidth:140, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+                                    {mv.from_location || '—'}
+                                  </td>
+                                  <td style={{ padding:'11px 16px', fontSize:12, color:C.gray, maxWidth:140, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+                                    {mv.to_location || '—'}
+                                  </td>
+                                  <td style={{ padding:'11px 16px', fontSize:11, color:C.grayd, whiteSpace:'nowrap' }}>
+                                    {mv.reference_no || '—'}
+                                  </td>
+                                  <td style={{ padding:'11px 16px', fontSize:12 }}>
+                                    {mv.performer
+                                      ? <span style={{ color:C.white }}>{mv.performer.name}</span>
+                                      : <span style={{ color:C.grayd }}>—</span>}
+                                    {mv.performer?.employee_id && <div style={{ fontSize:10, color:C.grayd }}>{mv.performer.employee_id}</div>}
+                                  </td>
+                                  <td style={{ padding:'11px 16px', fontSize:11, color:C.grayd, whiteSpace:'nowrap' }}>
+                                    {fmtDate(mv.moved_at)}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div style={{ background:C.s2, border:`1px solid ${C.border}`, borderRadius:16,
+                  padding:'80px 0', textAlign:'center', color:C.grayd, fontSize:14 }}>
+                  Select a warehouse to view movements
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* ═══ ADD WAREHOUSE MODAL ═══ */}
+      {(showAddWh || editWh) && (
+        <Overlay onClose={() => { setShowAddWh(false); setEditWh(null); }}>
+          <div style={{ background:C.s2, border:`1px solid ${C.border}`, borderRadius:22,
+            width:'100%', maxWidth:540, padding:28, maxHeight:'90vh', overflowY:'auto' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:22 }}>
+              <div>
+                <div style={{ fontFamily:"'Syne',sans-serif", fontSize:20, fontWeight:800 }}>
+                  {editWh ? 'Edit Warehouse' : 'Add Warehouse'}
+                </div>
+                <div style={{ fontSize:12, color:C.gray, marginTop:3 }}>
+                  {editWh ? editWh.name : 'Create a new warehouse location'}
+                </div>
+              </div>
+              <button onClick={() => { setShowAddWh(false); setEditWh(null); }}
+                style={{ background:C.s3, border:`1px solid ${C.border}`, borderRadius:9, width:32, height:32,
+                  display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', color:C.gray, fontSize:15 }}>✕</button>
+            </div>
+
+            {formErr && (
+              <div style={{ background:C.redD, border:`1px solid ${C.redB}`, borderRadius:10,
+                padding:'10px 14px', fontSize:13, color:C.red, marginBottom:16 }}>
+                {formErr}
+              </div>
+            )}
+
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:12 }}>
+              <div>
+                <Label text="Warehouse Code" req/>
+                <input className="kinp" style={baseInp} placeholder="WH-DEL-01"
+                  value={whForm.warehouse_code} onChange={e=>setWF('warehouse_code',e.target.value)}/>
+              </div>
+              <div>
+                <Label text="Warehouse Name" req/>
+                <input className="kinp" style={baseInp} placeholder="Delhi DC"
+                  value={whForm.name} onChange={e=>setWF('name',e.target.value)}/>
+              </div>
+              <div style={{ gridColumn:'1/-1' }}>
+                <Label text="Type"/>
+                <select className="kinp" style={{ ...baseInp, appearance:'none' as const }}
+                  value={whForm.type} onChange={e=>setWF('type',e.target.value)}>
+                  {Object.entries(WH_TYPES).map(([k,v]) => <option key={k} value={k}>{v.label}</option>)}
+                </select>
+              </div>
+              <div style={{ gridColumn:'1/-1' }}>
+                <Label text="Address"/>
+                <input className="kinp" style={baseInp} placeholder="Building / Street"
+                  value={whForm.address} onChange={e=>setWF('address',e.target.value)}/>
+              </div>
+              <div>
+                <Label text="City"/>
+                <input className="kinp" style={baseInp} placeholder="Gurugram"
+                  value={whForm.city} onChange={e=>setWF('city',e.target.value)}/>
+              </div>
+              <div>
+                <Label text="State"/>
+                <input className="kinp" style={baseInp} placeholder="Haryana"
+                  value={whForm.state} onChange={e=>setWF('state',e.target.value)}/>
+              </div>
+              <div>
+                <Label text="Latitude"/>
+                <input className="kinp" style={baseInp} type="number" step="any" placeholder="28.4595"
+                  value={whForm.latitude} onChange={e=>setWF('latitude',e.target.value)}/>
+              </div>
+              <div>
+                <Label text="Longitude"/>
+                <input className="kinp" style={baseInp} type="number" step="any" placeholder="77.0266"
+                  value={whForm.longitude} onChange={e=>setWF('longitude',e.target.value)}/>
+              </div>
+            </div>
+
+            {/* active toggle (edit only) */}
+            {editWh && (
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between',
+                background:C.s3, border:`1px solid ${C.border}`, borderRadius:12, padding:'13px 15px', marginBottom:20 }}>
+                <div>
+                  <div style={{ fontSize:13, fontWeight:600 }}>Active</div>
+                  <div style={{ fontSize:11, color:C.gray, marginTop:2 }}>{whForm.is_active ? 'Operational' : 'Inactive / mothballed'}</div>
+                </div>
+                <div onClick={() => setWF('is_active', !whForm.is_active)}
+                  style={{ width:44, height:26, borderRadius:13, background:whForm.is_active?C.green:C.grayd,
+                    position:'relative', cursor:'pointer', transition:'background .2s', flexShrink:0 }}>
+                  <div style={{ position:'absolute', top:3, left:whForm.is_active?21:3, width:20, height:20,
+                    borderRadius:'50%', background:'#fff', transition:'left .2s', boxShadow:'0 1px 4px rgba(0,0,0,0.3)' }}/>
+                </div>
+              </div>
+            )}
+
+            <div style={{ display:'flex', gap:10, marginTop:8 }}>
+              <button className="kbtn" onClick={() => { setShowAddWh(false); setEditWh(null); }}
+                style={{ flex:1, padding:'11px', background:C.s3, border:`1px solid ${C.border}`, color:C.gray,
+                  borderRadius:11, fontSize:13, fontWeight:600, fontFamily:"'DM Sans',sans-serif" }}>
+                Cancel
+              </button>
+              <button className="kbtn" onClick={editWh ? handleUpdateWh : handleCreateWh} disabled={saving}
+                style={{ flex:2, padding:'11px', background:C.red, border:'none', color:'#fff', borderRadius:11,
+                  fontSize:13, fontWeight:700, fontFamily:"'DM Sans',sans-serif",
+                  display:'flex', alignItems:'center', justifyContent:'center', gap:8,
+                  opacity:saving?0.7:1, boxShadow:'0 4px 18px rgba(224,30,44,0.3)' }}>
+                {saving ? <><Spinner/>{editWh ? 'Saving…' : 'Creating…'}</> : (editWh ? 'Save Changes' : 'Create Warehouse')}
+              </button>
+            </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#00D97E', animation: 'pulse 2s infinite' }} />
-            <span style={{ fontSize: 12, color: C.gray }}>Live</span>
+        </Overlay>
+      )}
+
+      {/* ═══ DELETE CONFIRM MODAL ═══ */}
+      {deleteWh && (
+        <Overlay onClose={() => setDeleteWh(null)}>
+          <div style={{ background:C.s2, border:`1px solid ${C.redB}`, borderRadius:20,
+            width:'100%', maxWidth:420, padding:28 }}>
+            <div style={{ fontFamily:"'Syne',sans-serif", fontSize:20, fontWeight:800, marginBottom:10 }}>
+              Delete Warehouse?
+            </div>
+            <div style={{ fontSize:14, color:C.gray, marginBottom:22, lineHeight:1.6 }}>
+              Are you sure you want to delete <strong style={{ color:C.white }}>{deleteWh.name}</strong>?
+              This will also delete all its inventory movements and cannot be undone.
+            </div>
+            <div style={{ display:'flex', gap:10 }}>
+              <button className="kbtn" onClick={() => setDeleteWh(null)}
+                style={{ flex:1, padding:'11px', background:C.s3, border:`1px solid ${C.border}`, color:C.gray,
+                  borderRadius:11, fontSize:13, fontWeight:600, fontFamily:"'DM Sans',sans-serif" }}>
+                Cancel
+              </button>
+              <button className="kbtn" onClick={handleDeleteWh} disabled={saving}
+                style={{ flex:1, padding:'11px', background:C.red, border:'none', color:'#fff', borderRadius:11,
+                  fontSize:13, fontWeight:700, fontFamily:"'DM Sans',sans-serif",
+                  display:'flex', alignItems:'center', justifyContent:'center', gap:8, opacity:saving?0.7:1 }}>
+                {saving ? <><Spinner/>Deleting…</> : 'Yes, Delete'}
+              </button>
+            </div>
           </div>
-          <div style={{ fontSize: 12, color: C.grayd, borderLeft: `1px solid ${C.border}`, paddingLeft: 16 }}>
-            {new Date().toLocaleDateString('en-IN', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })}
+        </Overlay>
+      )}
+
+      {/* ═══ LOG MOVEMENT MODAL ═══ */}
+      {showAddMv && (
+        <Overlay onClose={() => setShowAddMv(false)}>
+          <div style={{ background:C.s2, border:`1px solid ${C.border}`, borderRadius:22,
+            width:'100%', maxWidth:520, padding:28, maxHeight:'90vh', overflowY:'auto' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:22 }}>
+              <div>
+                <div style={{ fontFamily:"'Syne',sans-serif", fontSize:20, fontWeight:800 }}>Log Movement</div>
+                <div style={{ fontSize:12, color:C.gray, marginTop:3 }}>
+                  {selWh?.name} · record an inventory movement
+                </div>
+              </div>
+              <button onClick={() => setShowAddMv(false)}
+                style={{ background:C.s3, border:`1px solid ${C.border}`, borderRadius:9, width:32, height:32,
+                  display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', color:C.gray, fontSize:15 }}>✕</button>
+            </div>
+
+            {formErr && (
+              <div style={{ background:C.redD, border:`1px solid ${C.redB}`, borderRadius:10,
+                padding:'10px 14px', fontSize:13, color:C.red, marginBottom:16 }}>
+                {formErr}
+              </div>
+            )}
+
+            {/* Movement type selector */}
+            <Label text="Movement Type" req/>
+            <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:14 }}>
+              {Object.entries(MV_TYPES).map(([k,v]) => (
+                <button key={k} className="kbtn" onClick={() => setMF('movement_type', k)}
+                  style={{ padding:'7px 12px', borderRadius:9,
+                    border:`1.5px solid ${mvForm.movement_type===k ? v.color : C.border}`,
+                    background:mvForm.movement_type===k ? `${v.color}18` : 'transparent',
+                    color:mvForm.movement_type===k ? v.color : C.gray,
+                    fontSize:12, fontWeight:600, fontFamily:"'DM Sans',sans-serif" }}>
+                  {v.sign} {v.label}
+                </button>
+              ))}
+            </div>
+
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:12 }}>
+              <div>
+                <Label text="SKU"/>
+                <select className="kinp" style={{ ...baseInp, appearance:'none' as const }}
+                  value={mvForm.sku_id} onChange={e=>setMF('sku_id',e.target.value)}>
+                  <option value="">No SKU</option>
+                  {skus.map(s => <option key={s.id} value={s.id}>{s.name} ({s.sku_code})</option>)}
+                </select>
+              </div>
+              <div>
+                <Label text="Quantity" req/>
+                <input className="kinp" style={baseInp} type="number" min="1" placeholder="e.g. 50"
+                  value={mvForm.quantity} onChange={e=>setMF('quantity',e.target.value)}/>
+              </div>
+              <div>
+                <Label text="From Location"/>
+                <input className="kinp" style={baseInp} placeholder="Zone A / Rack R3"
+                  value={mvForm.from_location} onChange={e=>setMF('from_location',e.target.value)}/>
+              </div>
+              <div>
+                <Label text="To Location"/>
+                <input className="kinp" style={baseInp} placeholder="Zone B / Bin B4"
+                  value={mvForm.to_location} onChange={e=>setMF('to_location',e.target.value)}/>
+              </div>
+              <div>
+                <Label text="Reference No."/>
+                <input className="kinp" style={baseInp} placeholder="PO-2026-001"
+                  value={mvForm.reference_no} onChange={e=>setMF('reference_no',e.target.value)}/>
+              </div>
+              <div>
+                <Label text="Asset Used"/>
+                <select className="kinp" style={{ ...baseInp, appearance:'none' as const }}
+                  value={mvForm.asset_id} onChange={e=>setMF('asset_id',e.target.value)}>
+                  <option value="">No asset</option>
+                  {assets.map(a => <option key={a.id} value={a.id}>{a.name} ({a.asset_code})</option>)}
+                </select>
+              </div>
+              <div style={{ gridColumn:'1/-1' }}>
+                <Label text="Notes"/>
+                <textarea className="kinp" style={{ ...baseInp, resize:'none' as const }} rows={2}
+                  placeholder="Optional remarks…"
+                  value={mvForm.notes} onChange={e=>setMF('notes',e.target.value)}/>
+              </div>
+              <div>
+                <Label text="Date & Time"/>
+                <input className="kinp" style={baseInp} type="datetime-local"
+                  value={mvForm.moved_at} onChange={e=>setMF('moved_at',e.target.value)}/>
+              </div>
+            </div>
+
+            <div style={{ display:'flex', gap:10, marginTop:8 }}>
+              <button className="kbtn" onClick={() => setShowAddMv(false)}
+                style={{ flex:1, padding:'11px', background:C.s3, border:`1px solid ${C.border}`, color:C.gray,
+                  borderRadius:11, fontSize:13, fontWeight:600, fontFamily:"'DM Sans',sans-serif" }}>
+                Cancel
+              </button>
+              <button className="kbtn" onClick={handleCreateMv} disabled={saving}
+                style={{ flex:2, padding:'11px', background:C.red, border:'none', color:'#fff', borderRadius:11,
+                  fontSize:13, fontWeight:700, fontFamily:"'DM Sans',sans-serif",
+                  display:'flex', alignItems:'center', justifyContent:'center', gap:8,
+                  opacity:saving?0.7:1, boxShadow:'0 4px 18px rgba(224,30,44,0.3)' }}>
+                {saving ? <><Spinner/>Logging…</> : 'Log Movement'}
+              </button>
+            </div>
           </div>
-        </header>
-        <div style={{ flex: 1, overflowY: 'auto', padding: 28 }}>
-          {children}
-        </div>
-      </main>
-    </div>
+        </Overlay>
+      )}
+    </>
   );
 }
