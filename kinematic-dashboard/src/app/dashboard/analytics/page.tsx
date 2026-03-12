@@ -21,46 +21,40 @@ interface ActivityItem {
   user?: string;
 }
 
-// ── Heatmap helpers ─────────────────────────────────────────────────────────
-const HOURS = Array.from({ length: 24 }, (_, i) => i);
-const DAYS_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
-/** Generate mock contact-activity data for last 7 days × 24 hours */
-function generateHeatmapData(): number[][] {
-  // rows = days (0=Sun … 6=Sat), cols = hours (0–23)
-  return DAYS_SHORT.map((_, dayIdx) =>
-    HOURS.map(hour => {
-      // Business hours 9-18 and weekdays get higher activity
-      const isWeekday = dayIdx >= 1 && dayIdx <= 5;
-      const isBusinessHour = hour >= 9 && hour <= 18;
-      const base = isWeekday && isBusinessHour ? Math.random() * 80 + 20 : Math.random() * 15;
-      return Math.round(base);
-    })
-  );
+// ── Heatmap types ─────────────────────────────────────────────────────────────
+interface HeatmapHour  { hour: number; count: number; }
+interface HeatmapRow   { date: string; day: string; hours: HeatmapHour[]; total: number; }
+interface HeatmapResponse {
+  days: number;
+  start_date: string | null;
+  end_date: string | null;
+  rows: HeatmapRow[];
+  summary: {
+    peak_hour: string;
+    peak_hour_count: number;
+    peak_day: string;
+    peak_day_count: number;
+    total_contacts: number;
+  };
 }
+
+// ── Heatmap helpers ───────────────────────────────────────────────────────────
+const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
 function heatColor(value: number, max: number): string {
   if (max === 0) return C.s2;
   const ratio = value / max;
-  if (ratio === 0) return C.s2;
-  if (ratio < 0.25) return '#0d2e3e';
-  if (ratio < 0.5)  return '#0a4a6e';
-  if (ratio < 0.75) return '#0e6ea8';
+  if (ratio === 0)    return C.s2;
+  if (ratio < 0.25)  return '#0d2e3e';
+  if (ratio < 0.5)   return '#0a4a6e';
+  if (ratio < 0.75)  return '#0e6ea8';
   return '#3E9EFF';
 }
 
-function ContactActivityHeatmap() {
-  const heatData = generateHeatmapData();
-  const allVals = heatData.flat();
-  const maxVal = Math.max(...allVals, 1);
-
-  // Get the last 7 days in order ending today
-  const today = new Date();
-  const last7Days = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(today);
-    d.setDate(today.getDate() - (6 - i));
-    return DAYS_SHORT[d.getDay()];
-  });
+function ContactActivityHeatmap({ data, loading }: { data: HeatmapResponse | null; loading: boolean }) {
+  const rows    = data?.rows || [];
+  const allVals = rows.flatMap(row => row.hours.map(h => h.count));
+  const maxVal  = Math.max(...allVals, 1);
 
   return (
     <div style={{ background:'#0E1420', border:`1px solid ${C.border}`, borderRadius:16, padding:24 }}>
@@ -82,98 +76,121 @@ function ContactActivityHeatmap() {
         </div>
       </div>
 
-      {/* Hour labels */}
-      <div style={{ display:'flex', marginLeft:36, marginBottom:6, gap:2 }}>
-        {HOURS.map(h => (
-          <div key={h} style={{ flex:1, textAlign:'center', fontSize:9, color:C.grayd, lineHeight:'1' }}>
-            {h % 3 === 0 ? `${h}h` : ''}
-          </div>
-        ))}
-      </div>
-
-      {/* Grid */}
-      {last7Days.map((dayLabel, rowIdx) => (
-        <div key={rowIdx} style={{ display:'flex', alignItems:'center', gap:2, marginBottom:3 }}>
-          <div style={{ width:32, fontSize:11, color:C.gray, textAlign:'right', paddingRight:6, flexShrink:0 }}>
-            {dayLabel}
-          </div>
-          {HOURS.map(hour => {
-            const val = heatData[rowIdx][hour];
-            return (
-              <div
-                key={hour}
-                title={`${dayLabel} ${hour}:00 — ${val} contacts`}
-                style={{
-                  flex: 1,
-                  height: 18,
-                  borderRadius: 3,
-                  background: heatColor(val, maxVal),
-                  cursor: 'default',
-                  transition: 'opacity 0.15s',
-                }}
-              />
-            );
-          })}
+      {loading ? (
+        <div style={{ height:180, display:'flex', alignItems:'center', justifyContent:'center', color:C.grayd, fontSize:13 }}>
+          Loading heatmap...
         </div>
-      ))}
-
-      {/* Footer stats */}
-      <div style={{ display:'flex', gap:24, marginTop:16, paddingTop:14, borderTop:`1px solid ${C.border}40` }}>
-        {[
-          { label:'Peak Hour', value: (() => { let mx=0,mh=0; HOURS.forEach(h => { const s = heatData.reduce((a,r)=>a+r[h],0); if(s>mx){mx=s;mh=h;} }); return `${mh}:00`; })() },
-          { label:'Peak Day',  value: (() => { let mx=0,md=''; last7Days.forEach((d,i) => { const s=heatData[i].reduce((a,b)=>a+b,0); if(s>mx){mx=s;md=d;} }); return md; })() },
-          { label:'Total Contacts', value: allVals.reduce((a,b)=>a+b,0).toLocaleString() },
-        ].map(stat => (
-          <div key={stat.label}>
-            <div style={{ fontSize:11, color:C.grayd, marginBottom:3 }}>{stat.label}</div>
-            <div style={{ fontFamily:"'Syne',sans-serif", fontSize:16, fontWeight:700, color:C.blue }}>{stat.value}</div>
+      ) : rows.length === 0 ? (
+        <div style={{ height:180, display:'flex', alignItems:'center', justifyContent:'center', color:C.grayd, fontSize:13 }}>
+          No data available
+        </div>
+      ) : (
+        <>
+          {/* Hour labels */}
+          <div style={{ display:'flex', marginLeft:36, marginBottom:6, gap:2 }}>
+            {HOURS.map(h => (
+              <div key={h} style={{ flex:1, textAlign:'center', fontSize:9, color:C.grayd, lineHeight:'1' }}>
+                {h % 3 === 0 ? `${h}h` : ''}
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+
+          {/* Grid rows */}
+          {rows.map(row => (
+            <div key={row.date} style={{ display:'flex', alignItems:'center', gap:2, marginBottom:3 }}>
+              <div style={{ width:32, fontSize:11, color:C.gray, textAlign:'right', paddingRight:6, flexShrink:0 }}>
+                {row.day}
+              </div>
+              {HOURS.map(hour => {
+                const val = row.hours[hour]?.count || 0;
+                return (
+                  <div
+                    key={hour}
+                    title={`${row.day} ${hour.toString().padStart(2,'0')}:00 — ${val} contacts`}
+                    style={{ flex:1, height:18, borderRadius:3, background:heatColor(val, maxVal), cursor:'default', transition:'opacity 0.15s' }}
+                  />
+                );
+              })}
+            </div>
+          ))}
+
+          {/* Footer stats */}
+          <div style={{ display:'flex', gap:24, marginTop:16, paddingTop:14, borderTop:`1px solid ${C.border}40` }}>
+            <div>
+              <div style={{ fontSize:11, color:C.grayd, marginBottom:3 }}>Peak Hour</div>
+              <div style={{ fontFamily:"'Syne',sans-serif", fontSize:16, fontWeight:700, color:C.blue }}>
+                {data?.summary?.peak_hour || '—'}
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize:11, color:C.grayd, marginBottom:3 }}>Peak Day</div>
+              <div style={{ fontFamily:"'Syne',sans-serif", fontSize:16, fontWeight:700, color:C.blue }}>
+                {data?.summary?.peak_day || '—'}
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize:11, color:C.grayd, marginBottom:3 }}>Total Contacts</div>
+              <div style={{ fontFamily:"'Syne',sans-serif", fontSize:16, fontWeight:700, color:C.blue }}>
+                {data?.summary?.total_contacts?.toLocaleString() ?? '—'}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
-// ── End Heatmap ──────────────────────────────────────────────────────────────
+// ── End Heatmap ───────────────────────────────────────────────────────────────
 
 export default function AnalyticsPage() {
-  const [period, setPeriod] = useState<'month'|'quarter'>('month');
-  const [summary, setSummary] = useState<SummaryData | null>(null);
-  const [activity, setActivity] = useState<ActivityItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [period,         setPeriod]         = useState<'month'|'quarter'>('month');
+  const [summary,        setSummary]        = useState<SummaryData | null>(null);
+  const [activity,       setActivity]       = useState<ActivityItem[]>([]);
+  const [heatmap,        setHeatmap]        = useState<HeatmapResponse | null>(null);
+  const [loading,        setLoading]        = useState(true);
+  const [heatmapLoading, setHeatmapLoading] = useState(true);
+  const [error,          setError]          = useState('');
 
   const fetchData = useCallback(async () => {
     setLoading(true);
+    setHeatmapLoading(true);
     try {
-      // FIXED: correct endpoints are /api/v1/analytics/summary and /api/v1/analytics/activity-feed
-      const [summaryRes, activityRes] = await Promise.all([
+      const [summaryRes, activityRes, heatmapRes] = await Promise.all([
         api.get<any>(`/api/v1/analytics/summary?period=${period}`),
         api.get<any>('/api/v1/analytics/activity-feed'),
+        api.get<any>('/api/v1/analytics/contact-heatmap?days=7'),
       ]);
+
       const s = summaryRes as any;
       setSummary(s.data || s);
+
       const a = activityRes as any;
       setActivity(a.data || a.feed || (Array.isArray(a) ? a : []));
+
+      const h = heatmapRes as any;
+      setHeatmap(h.data || h);
+
       setError('');
     } catch (e: any) {
       setError(e.message || 'Failed to load analytics');
     } finally {
       setLoading(false);
+      setHeatmapLoading(false);
     }
   }, [period]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  const monthly = summary?.monthly_data || [];
-  const maxCC = monthly.length ? Math.max(...monthly.map(m => m.cc), 1) : 1;
+  const monthly      = summary?.monthly_data    || [];
+  const maxCC        = monthly.length ? Math.max(...monthly.map(m => m.cc), 1) : 1;
   const topPerformers = summary?.top_performers || [];
-  const zones = summary?.zone_breakdown || [];
+  const zones        = summary?.zone_breakdown   || [];
 
   const kpis = [
-    { l:'Total CC', v: summary?.total_cc?.toLocaleString() ?? '—', delta:'+8.2%', c:C.blue },
-    { l:'Total ECC', v: summary?.total_ecc?.toLocaleString() ?? '—', delta:'+11.4%', c:C.green },
+    { l:'Total CC',       v: summary?.total_cc?.toLocaleString()           ?? '—', delta:'+8.2%',  c:C.blue   },
+    { l:'Total ECC',      v: summary?.total_ecc?.toLocaleString()          ?? '—', delta:'+11.4%', c:C.green  },
     { l:'Avg Attendance', v: summary?.avg_attendance ? `${summary.avg_attendance}%` : '—', delta:'+2.1%', c:C.yellow },
-    { l:'ECC Rate', v: summary?.ecc_rate ? `${summary.ecc_rate}%` : '—', delta:'+3.5%', c:C.purple },
+    { l:'ECC Rate',       v: summary?.ecc_rate       ? `${summary.ecc_rate}%`       : '—', delta:'+3.5%', c:C.purple },
   ];
 
   return (
@@ -212,7 +229,7 @@ export default function AnalyticsPage() {
         ))}
       </div>
 
-      {/* Chart */}
+      {/* Monthly chart */}
       <div style={{ background:'#0E1420', border:`1px solid ${C.border}`, borderRadius:16, padding:24 }}>
         <div style={{ fontFamily:"'Syne',sans-serif", fontSize:15, fontWeight:700, marginBottom:20 }}>Monthly CC vs ECC Trend</div>
         {loading ? (
@@ -224,7 +241,7 @@ export default function AnalyticsPage() {
             {monthly.map((m, i) => (
               <div key={i} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:6, height:'100%', justifyContent:'flex-end' }}>
                 <div style={{ display:'flex', gap:4, width:'100%', alignItems:'flex-end', height:'100%' }}>
-                  <div style={{ flex:1, background:C.blue, borderRadius:'5px 5px 0 0', height:`${(m.cc/maxCC)*100}%`, opacity:0.8, minHeight:4 }}/>
+                  <div style={{ flex:1, background:C.blue,  borderRadius:'5px 5px 0 0', height:`${(m.cc /maxCC)*100}%`, opacity:0.8, minHeight:4 }}/>
                   <div style={{ flex:1, background:C.green, borderRadius:'5px 5px 0 0', height:`${(m.ecc/maxCC)*100}%`, opacity:0.8, minHeight:4 }}/>
                 </div>
                 <span style={{ fontSize:11, color:C.grayd }}>{m.month}</span>
@@ -235,8 +252,7 @@ export default function AnalyticsPage() {
         <div style={{ display:'flex', gap:16, marginTop:14 }}>
           {[{c:C.blue,l:'CC'},{c:C.green,l:'ECC'}].map(l => (
             <div key={l.l} style={{ display:'flex', alignItems:'center', gap:6, fontSize:12, color:C.gray }}>
-              <div style={{ width:10, height:10, borderRadius:2, background:l.c }}/>
-              {l.l}
+              <div style={{ width:10, height:10, borderRadius:2, background:l.c }}/>{l.l}
             </div>
           ))}
         </div>
@@ -291,8 +307,8 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
-      {/* ── Contact Activity Heatmap ── */}
-      <ContactActivityHeatmap />
+      {/* ── Contact Activity Heatmap (live) ── */}
+      <ContactActivityHeatmap data={heatmap} loading={heatmapLoading} />
 
       {/* Activity feed */}
       {activity.length > 0 && (
