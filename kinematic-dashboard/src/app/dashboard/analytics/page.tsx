@@ -21,6 +21,120 @@ interface ActivityItem {
   user?: string;
 }
 
+// ── Heatmap helpers ─────────────────────────────────────────────────────────
+const HOURS = Array.from({ length: 24 }, (_, i) => i);
+const DAYS_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+/** Generate mock contact-activity data for last 7 days × 24 hours */
+function generateHeatmapData(): number[][] {
+  // rows = days (0=Sun … 6=Sat), cols = hours (0–23)
+  return DAYS_SHORT.map((_, dayIdx) =>
+    HOURS.map(hour => {
+      // Business hours 9-18 and weekdays get higher activity
+      const isWeekday = dayIdx >= 1 && dayIdx <= 5;
+      const isBusinessHour = hour >= 9 && hour <= 18;
+      const base = isWeekday && isBusinessHour ? Math.random() * 80 + 20 : Math.random() * 15;
+      return Math.round(base);
+    })
+  );
+}
+
+function heatColor(value: number, max: number): string {
+  if (max === 0) return C.s2;
+  const ratio = value / max;
+  if (ratio === 0) return C.s2;
+  if (ratio < 0.25) return '#0d2e3e';
+  if (ratio < 0.5)  return '#0a4a6e';
+  if (ratio < 0.75) return '#0e6ea8';
+  return '#3E9EFF';
+}
+
+function ContactActivityHeatmap() {
+  const heatData = generateHeatmapData();
+  const allVals = heatData.flat();
+  const maxVal = Math.max(...allVals, 1);
+
+  // Get the last 7 days in order ending today
+  const today = new Date();
+  const last7Days = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(today);
+    d.setDate(today.getDate() - (6 - i));
+    return DAYS_SHORT[d.getDay()];
+  });
+
+  return (
+    <div style={{ background:'#0E1420', border:`1px solid ${C.border}`, borderRadius:16, padding:24 }}>
+      {/* Header */}
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:20 }}>
+        <div>
+          <div style={{ fontFamily:"'Syne',sans-serif", fontSize:15, fontWeight:700, marginBottom:4 }}>
+            Contact Activity Heatmap
+          </div>
+          <div style={{ fontSize:12, color:C.gray }}>Density by day &amp; hour — last 7 days</div>
+        </div>
+        {/* Legend */}
+        <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+          <span style={{ fontSize:11, color:C.grayd }}>Low</span>
+          {['#0d2e3e','#0a4a6e','#0e6ea8','#3E9EFF'].map((col, i) => (
+            <div key={i} style={{ width:16, height:16, borderRadius:3, background:col }}/>
+          ))}
+          <span style={{ fontSize:11, color:C.grayd }}>High</span>
+        </div>
+      </div>
+
+      {/* Hour labels */}
+      <div style={{ display:'flex', marginLeft:36, marginBottom:6, gap:2 }}>
+        {HOURS.map(h => (
+          <div key={h} style={{ flex:1, textAlign:'center', fontSize:9, color:C.grayd, lineHeight:'1' }}>
+            {h % 3 === 0 ? `${h}h` : ''}
+          </div>
+        ))}
+      </div>
+
+      {/* Grid */}
+      {last7Days.map((dayLabel, rowIdx) => (
+        <div key={rowIdx} style={{ display:'flex', alignItems:'center', gap:2, marginBottom:3 }}>
+          <div style={{ width:32, fontSize:11, color:C.gray, textAlign:'right', paddingRight:6, flexShrink:0 }}>
+            {dayLabel}
+          </div>
+          {HOURS.map(hour => {
+            const val = heatData[rowIdx][hour];
+            return (
+              <div
+                key={hour}
+                title={`${dayLabel} ${hour}:00 — ${val} contacts`}
+                style={{
+                  flex: 1,
+                  height: 18,
+                  borderRadius: 3,
+                  background: heatColor(val, maxVal),
+                  cursor: 'default',
+                  transition: 'opacity 0.15s',
+                }}
+              />
+            );
+          })}
+        </div>
+      ))}
+
+      {/* Footer stats */}
+      <div style={{ display:'flex', gap:24, marginTop:16, paddingTop:14, borderTop:`1px solid ${C.border}40` }}>
+        {[
+          { label:'Peak Hour', value: (() => { let mx=0,mh=0; HOURS.forEach(h => { const s = heatData.reduce((a,r)=>a+r[h],0); if(s>mx){mx=s;mh=h;} }); return `${mh}:00`; })() },
+          { label:'Peak Day',  value: (() => { let mx=0,md=''; last7Days.forEach((d,i) => { const s=heatData[i].reduce((a,b)=>a+b,0); if(s>mx){mx=s;md=d;} }); return md; })() },
+          { label:'Total Contacts', value: allVals.reduce((a,b)=>a+b,0).toLocaleString() },
+        ].map(stat => (
+          <div key={stat.label}>
+            <div style={{ fontSize:11, color:C.grayd, marginBottom:3 }}>{stat.label}</div>
+            <div style={{ fontFamily:"'Syne',sans-serif", fontSize:16, fontWeight:700, color:C.blue }}>{stat.value}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+// ── End Heatmap ──────────────────────────────────────────────────────────────
+
 export default function AnalyticsPage() {
   const [period, setPeriod] = useState<'month'|'quarter'>('month');
   const [summary, setSummary] = useState<SummaryData | null>(null);
@@ -176,6 +290,9 @@ export default function AnalyticsPage() {
           })}
         </div>
       </div>
+
+      {/* ── Contact Activity Heatmap ── */}
+      <ContactActivityHeatmap />
 
       {/* Activity feed */}
       {activity.length > 0 && (
