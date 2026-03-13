@@ -124,8 +124,8 @@ export default function BroadcastPage() {
     setLoading(true);
     setError('');
     try {
-      const data = await api.get('/api/v1/broadcast/admin');
-      setQuestions(data || []);
+      const res = await api.get('/api/v1/broadcast/admin') as any;
+      setQuestions(Array.isArray(res) ? res : (res?.data ?? []));
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to load');
     } finally {
