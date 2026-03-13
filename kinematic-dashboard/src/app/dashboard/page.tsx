@@ -383,17 +383,17 @@ function HRSection() {
     finally { setSaving(false); }
   };
 
-  const toggleActive = async (u: HRUser) => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('kinematic_token') || '' : '';
-    try {
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/users/${u.id}`, {
-        method:'PATCH',
-        headers:{ Authorization:`Bearer ${token}`, 'Content-Type':'application/json' },
-        body: JSON.stringify({ is_active: !u.is_active }),
-      });
-      fetchAll();
-    } catch {}
-  };
+// const toggleActive = async (u: HRUser) => {
+  //   const token = typeof window !== 'undefined' ? localStorage.getItem('kinematic_token') || '' : '';
+  //   try {
+  //     await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/users/${u.id}`, {
+  //       method:'PATCH',
+  //       headers:{ Authorization:`Bearer ${token}`, 'Content-Type':'application/json' },
+  //       body: JSON.stringify({ is_active: !u.is_active }),
+  //     });
+  //     fetchAll();
+  //   } catch {}
+  // };
 
   const openEdit = (u: HRUser) => {
     setSelUser(u);
