@@ -21,33 +21,34 @@ function Icon({ d, size = 18 }: { d: string; size?: number }) {
 }
 
 const MAIN_NAV = [
-  { href: '/dashboard',                     label: 'Dashboard',       icon: 'M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z M9 22V12h6v10' },
-  { href: '/dashboard/field-executives',    label: 'Field Execs',     icon: 'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 11a4 4 0 100-8 4 4 0 000 8z M23 21v-2a4 4 0 00-3-3.87 M16 3.13a4 4 0 010 7.75' },
-  { href: '/dashboard/attendance-overview', label: 'Attendance',      icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
-  { href: '/dashboard/analytics',           label: 'Analytics',       icon: 'M18 20V10 M12 20V4 M6 20v-6' },
-  { href: '/dashboard/warehouse',           label: 'Warehouse',       icon: 'M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8' },
-  { href: '/dashboard/broadcast',           label: 'Broadcast',       icon: 'M18 8a6 6 0 010 8M14 11.73A2 2 0 1112 15a2 2 0 002-3.27z M21.64 4.36a12 12 0 010 15.27' },
-  { href: '/dashboard/hr',                  label: 'HR',              icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0z M12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' },
-  { href: '/dashboard/live-tracking',       label: 'Live Tracking',   icon: 'M12 22s-8-4.5-8-11.8A8 8 0 0112 2a8 8 0 018 8.2c0 7.3-8 11.8-8 11.8z M12 13a3 3 0 100-6 3 3 0 000 6z' },
-  { href: '/dashboard/notifications',       label: 'Notifications',   icon: 'M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9 M13.73 21a2 2 0 01-3.46 0' },
-  { href: '/dashboard/settings',            label: 'Settings',        icon: 'M12 15a3 3 0 100-6 3 3 0 000 6z M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z' },
+  { href: '/dashboard', label: 'Dashboard', icon: 'M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z M9 22V12h6v10' },
+  { href: '/dashboard/field-executives', label: 'Field Execs', icon: 'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 11a4 4 0 100-8 4 4 0 000 8z M23 21v-2a4 4 0 00-3-3.87 M16 3.13a4 4 0 010 7.75' },
+  { href: '/dashboard/attendance-overview', label: 'Attendance', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
+  { href: '/dashboard/route-plan', label: 'Route Plan', icon: 'M9 20l-5-5 5-5M20 20l-5-5 5-5M12 20V4' },
+  { href: '/dashboard/analytics', label: 'Analytics', icon: 'M18 20V10 M12 20V4 M6 20v-6' },
+  { href: '/dashboard/warehouse', label: 'Warehouse', icon: 'M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8' },
+  { href: '/dashboard/broadcast', label: 'Broadcast', icon: 'M18 8a6 6 0 010 8M14 11.73A2 2 0 1112 15a2 2 0 002-3.27z M21.64 4.36a12 12 0 010 15.27' },
+  { href: '/dashboard/hr', label: 'HR', icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0z M12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' },
+  { href: '/dashboard/live-tracking', label: 'Live Tracking', icon: 'M12 22s-8-4.5-8-11.8A8 8 0 0112 2a8 8 0 018 8.2c0 7.3-8 11.8-8 11.8z M12 13a3 3 0 100-6 3 3 0 000 6z' },
+  { href: '/dashboard/notifications', label: 'Notifications', icon: 'M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9 M13.73 21a2 2 0 01-3.46 0' },
+  { href: '/dashboard/settings', label: 'Settings', icon: 'M12 15a3 3 0 100-6 3 3 0 000 6z M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z' },
 ];
 
 const OTHER_NAV = [
-  { href: '/dashboard/other-management/cities',     label: 'City Management',     icon: 'M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z M9 22V12h6v10' },
-  { href: '/dashboard/other-management/zones',      label: 'Zone Management',     icon: 'M1 6l10.5 7L22 6M1 6v12a2 2 0 002 2h18a2 2 0 002-2V6 M1 6l10.5-4L22 6' },
-  { href: '/dashboard/other-management/stores',     label: 'Store Management',    icon: 'M3 3h18v4H3z M5 7v13h14V7 M9 7v13 M15 7v13' },
-  { href: '/dashboard/other-management/skus',       label: "SKU's Management",    icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10' },
+  { href: '/dashboard/other-management/cities', label: 'City Management', icon: 'M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z M9 22V12h6v10' },
+  { href: '/dashboard/other-management/zones', label: 'Zone Management', icon: 'M1 6l10.5 7L22 6M1 6v12a2 2 0 002 2h18a2 2 0 002-2V6 M1 6l10.5-4L22 6' },
+  { href: '/dashboard/other-management/stores', label: 'Store Management', icon: 'M3 3h18v4H3z M5 7v13h14V7 M9 7v13 M15 7v13' },
+  { href: '/dashboard/other-management/skus', label: "SKU's Management", icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10' },
   { href: '/dashboard/other-management/activities', label: 'Activity Management', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 012-2h2a2 2 0 012 2 M9 12l2 2 4-4' },
-  { href: '/dashboard/other-management/assets',     label: 'Asset Management',    icon: 'M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8 M10 12h4' },
+  { href: '/dashboard/other-management/assets', label: 'Asset Management', icon: 'M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8 M10 12h4' },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const [userName, setUserName]   = useState('');
-  const [userRole, setUserRole]   = useState('');
+  const [userName, setUserName] = useState('');
+  const [userRole, setUserRole] = useState('');
   const [collapsed, setCollapsed] = useState(false);
   const [otherOpen, setOtherOpen] = useState(false);
-  const router   = useRouter();
+  const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
@@ -59,8 +60,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
     setUserName(u.name || u.email || 'Admin');
     setUserRole(getRoleLabel(u.role || ''));
-
-    // auto-open Other Management section if on one of its pages
     if (pathname.startsWith('/dashboard/other-management')) {
       setOtherOpen(true);
     }
@@ -80,8 +79,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: C.bg, fontFamily: "'DM Sans', sans-serif" }}>
-
-      {/* ── Sidebar ── */}
       <aside style={{
         width: sideW, flexShrink: 0, background: C.side,
         borderRight: `1px solid ${C.border}`,
@@ -89,8 +86,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         position: 'fixed', top: 0, left: 0, bottom: 0, zIndex: 100,
         transition: 'width .2s cubic-bezier(.4,0,.2,1)', overflow: 'hidden',
       }}>
-
-        {/* Logo */}
         <div style={{ height: 60, display: 'flex', alignItems: 'center',
           padding: collapsed ? '0 16px' : '0 20px', gap: 10, flexShrink: 0,
           borderBottom: `1px solid ${C.border}` }}>
@@ -105,11 +100,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </span>
           )}
         </div>
-
-        {/* Nav items */}
         <nav style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '10px 0' }}>
-
-          {/* Main nav */}
           {MAIN_NAV.map(item => {
             const active = isActive(item.href);
             return (
@@ -134,8 +125,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </Link>
             );
           })}
-
-          {/* Other Management section */}
           {!collapsed && (
             <>
               <div
@@ -179,8 +168,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </>
           )}
         </nav>
-
-        {/* User + logout */}
         <div style={{ borderTop: `1px solid ${C.border}`, padding: collapsed ? '12px 10px' : '12px 14px',
           flexShrink: 0 }}>
           {!collapsed && (
@@ -205,8 +192,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             {!collapsed && 'Sign Out'}
           </button>
         </div>
-
-        {/* Collapse toggle */}
         <button onClick={() => setCollapsed(c => !c)} style={{
           position: 'absolute', bottom: 110, right: -12,
           width: 24, height: 24, borderRadius: '50%',
@@ -220,8 +205,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </svg>
         </button>
       </aside>
-
-      {/* ── Main content ── */}
       <main style={{
         marginLeft: sideW, flex: 1, minHeight: '100vh',
         padding: '28px 32px', transition: 'margin-left .2s cubic-bezier(.4,0,.2,1)',
