@@ -2,7 +2,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '@/lib/api';
 
-/* ── palette ─────────────────────────────────────────────── */
 const C = {
   bg:'#070D18', s2:'#0E1420', s3:'#131B2A', s4:'#1A2438',
   border:'#1E2D45', borderL:'#253650',
@@ -16,43 +15,43 @@ const C = {
   orange:'#FF7A30',
 };
 
-/* ── types ─────────────────────────────────────────────────── */
+/* ── types ── */
 interface HRUser {
-  id: string;
-  name: string;
-  role: string;
-  mobile?: string;
-  email?: string;
-  employee_id?: string;
-  city?: string;
-  zone_id?: string;
-  is_active?: boolean;
-  joined_date?: string;
+  id:string; name:string; role:string; mobile?:string; email?:string;
+  employee_id?:string; city?:string; zone_id?:string; is_active?:boolean; joined_date?:string;
 }
-interface Zone { id: string; name: string; city?: string; }
+interface Zone { id:string; name:string; city?:string; }
+interface Candidate {
+  id:string; name:string; mobile?:string; email?:string; applied_role:string;
+  city?:string; source?:string; stage:string; notes?:string; resume_url?:string;
+  interview_date?:string; selected_at?:string; onboarded_at?:string;
+  rejected_at?:string; rejection_reason?:string; converted_user_id?:string;
+  created_at:string; applied_zone?:string;
+}
+interface CandidateDoc {
+  id:string; candidate_id:string; doc_type:string; doc_label:string;
+  file_url?:string; file_name?:string; uploaded_at:string;
+}
 
-/* ── atoms ───────────────────────────────────────────────────── */
-const Shimmer = ({ w='100%', h=16, br=6 }: { w?: string|number; h?: number; br?: number }) => (
-  <div style={{ width:w, height:h, borderRadius:br, background:C.s3, overflow:'hidden', position:'relative' }}>
-    <div style={{ position:'absolute', inset:0, background:`linear-gradient(90deg,transparent 0%,${C.border} 50%,transparent 100%)`, animation:'km-shimmer 1.3s ease-in-out infinite' }}/>
-  </div>
-);
-
+/* ── atoms ── */
 const Spin = () => (
   <div style={{ width:18, height:18, border:`2px solid ${C.border}`, borderTopColor:C.blue, borderRadius:'50%', animation:'kspin .65s linear infinite', flexShrink:0 }}/>
 );
-
-const StatCard = ({ label, value, color, sub, loading }: { label:string; value:string|number; color:string; sub?:string; loading?:boolean }) => (
+const Shimmer = ({ w='100%', h=16, br=6 }:{ w?:string|number; h?:number; br?:number }) => (
+  <div style={{ width:w, height:h, borderRadius:br, background:C.s3, overflow:'hidden', position:'relative' }}>
+    <div style={{ position:'absolute', inset:0, background:`linear-gradient(90deg,transparent,${C.border},transparent)`, animation:'km-shimmer 1.3s ease-in-out infinite' }}/>
+  </div>
+);
+const StatCard = ({ label, value, color, sub, loading }:{ label:string; value:string|number; color:string; sub?:string; loading?:boolean }) => (
   <div style={{ background:C.s2, border:`1px solid ${C.border}`, borderRadius:16, padding:'18px 20px' }}>
     {loading ? <Shimmer h={28} br={5} w="55%"/> : (
       <div style={{ fontFamily:"'Syne',sans-serif", fontSize:30, fontWeight:800, color, lineHeight:1 }}>{value}</div>
     )}
-    <div style={{ fontSize:11, color:C.gray, marginTop:6, fontWeight:600, letterSpacing:'0.3px' }}>{label}</div>
+    <div style={{ fontSize:11, color:C.gray, marginTop:6, fontWeight:600 }}>{label}</div>
     {sub && <div style={{ fontSize:10, color:C.grayd, marginTop:2 }}>{sub}</div>}
   </div>
 );
-
-const Avatar = ({ name, size=32 }: { name:string; size?:number }) => {
+const Avatar = ({ name, size=32 }:{ name:string; size?:number }) => {
   const initials = name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
   const hue = name.split('').reduce((a,c)=>a+c.charCodeAt(0),0) % 360;
   return (
@@ -63,190 +62,718 @@ const Avatar = ({ name, size=32 }: { name:string; size?:number }) => {
     </div>
   );
 };
-
-const Card = ({ children, style }: { children:React.ReactNode; style?:React.CSSProperties }) => (
+const Card = ({ children, style }:{ children:React.ReactNode; style?:React.CSSProperties }) => (
   <div style={{ background:C.s2, border:`1px solid ${C.border}`, borderRadius:18, padding:'20px 22px', ...style }}>
     {children}
   </div>
 );
-
-const SectionHeader = ({ title, sub }: { title:string; sub?:string }) => (
+const SectionHeader = ({ title, sub }:{ title:string; sub?:string }) => (
   <div style={{ marginBottom:14 }}>
     <div style={{ fontFamily:"'Syne',sans-serif", fontSize:15, fontWeight:800, color:C.white }}>{title}</div>
     {sub && <div style={{ fontSize:11, color:C.gray, marginTop:2 }}>{sub}</div>}
   </div>
 );
 
-/* ── HR PAGE ─────────────────────────────────────────────────── */
-export default function HRPage() {
-  const [hrTab, setHrTab] = useState<'team'|'roles'|'training'>('team');
-  const [users, setUsers]   = useState<HRUser[]>([]);
-  const [zones, setZones]   = useState<Zone[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError]     = useState<string|null>(null);
-  const [search, setSearch]   = useState('');
-  const [roleFilter, setRoleFilter] = useState('all');
+/* ── ATS PIPELINE STAGES ── */
+const STAGES = [
+  { id:'applied',    label:'Applied',    color:C.blue   },
+  { id:'screening',  label:'Screening',  color:C.purple },
+  { id:'interview',  label:'Interview',  color:C.yellow },
+  { id:'selected',   label:'Selected',   color:C.teal   },
+  { id:'onboarded',  label:'Onboarded',  color:C.green  },
+  { id:'rejected',   label:'Rejected',   color:C.red    },
+];
 
-  // Modals
-  const [showAdd, setShowAdd]   = useState(false);
-  const [showEdit, setShowEdit] = useState(false);
-  const [showReset, setShowReset] = useState(false);
-  const [selUser, setSelUser]   = useState<HRUser|null>(null);
+const stageColor = (s:string) => STAGES.find(x=>x.id===s)?.color || C.gray;
 
-  const emptyForm = { name:'', mobile:'', email:'', role:'executive', employee_id:'', city:'', zone_id:'', password:'', joined_date:'' };
-  const [form, setForm]     = useState(emptyForm);
-  const [newPass, setNewPass] = useState('');
-  const [saving, setSaving]   = useState(false);
-  const [saveErr, setSaveErr] = useState<string|null>(null);
-  const [saveOk, setSaveOk]   = useState(false);
+/* ── DOC TYPES ── */
+const DEFAULT_DOC_TYPES = [
+  { type:'aadhaar',     label:'Aadhaar Card' },
+  { type:'pan',         label:'PAN Card' },
+  { type:'education',   label:'Educational Certificate' },
+  { type:'photo',       label:'Passport Photo' },
+  { type:'bank',        label:'Bank Passbook / Cancelled Cheque' },
+  { type:'resume',      label:'Resume / CV' },
+];
 
-  const fetchAll = useCallback(async () => {
-    setLoading(true); setError(null);
+/* ══════════════════════════════════════════════════
+   CANDIDATE DETAIL PANEL
+══════════════════════════════════════════════════ */
+function CandidateDetail({ candidate, zones, onClose, onRefresh, token }:{
+  candidate:Candidate; zones:Zone[]; onClose:()=>void; onRefresh:()=>void; token:string;
+}) {
+  const [docs, setDocs]         = useState<CandidateDoc[]>([]);
+  const [loadingDocs, setLD]    = useState(true);
+  const [stage, setStage]       = useState(candidate.stage);
+  const [saving, setSaving]     = useState(false);
+  const [notes, setNotes]       = useState(candidate.notes || '');
+  const [showConvert, setShowConvert] = useState(false);
+  const [showAddDoc, setShowAddDoc]   = useState(false);
+  const [customDocLabel, setCustomDocLabel] = useState('');
+  const [selectedDocType, setSelectedDocType] = useState('');
+  const [uploadingDoc, setUploadingDoc] = useState(false);
+  const [saveMsg, setSaveMsg]   = useState('');
+
+  // Convert form state
+  const emptyConvert = { employee_id:'', password:'', zone_id:'', joined_date:'' };
+  const [convertForm, setConvertForm] = useState(emptyConvert);
+  const [converting, setConverting]   = useState(false);
+  const [convertErr, setConvertErr]   = useState('');
+
+  const fetchDocs = useCallback(async () => {
+    setLD(true);
     try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('kinematic_token') || '' : '';
-      const headers = { Authorization:`Bearer ${token}` };
-      const [uRes, zRes] = await Promise.allSettled([
-        api.get<any>('/api/v1/users',  { headers }),
-        api.get<any>('/api/v1/zones', { headers }),
-      ]);
-      if (uRes.status === 'fulfilled') setUsers((uRes.value?.data ?? uRes.value) || []);
-      if (zRes.status === 'fulfilled') setZones((zRes.value?.data ?? zRes.value) || []);
-    } catch(e:any) {
-      setError(e?.message || 'Failed to load');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+      const r = await api.get<any>(`/api/v1/candidates/${candidate.id}/documents`, {
+        headers:{ Authorization:`Bearer ${token}` }
+      });
+      setDocs((r?.data ?? r) || []);
+    } catch { setDocs([]); } finally { setLD(false); }
+  }, [candidate.id, token]);
 
-  useEffect(() => { fetchAll(); }, [fetchAll]);
+  useEffect(() => { fetchDocs(); }, [fetchDocs]);
 
-  const executives  = users.filter(u => u.role === 'executive');
-  const admins      = users.filter(u => u.role === 'admin');
-  const supervisors = users.filter(u => u.role === 'supervisor');
-  const activeUsers = users.filter(u => u.is_active !== false);
-
-  const filtered = users.filter(u => {
-    const matchRole = roleFilter === 'all' || u.role === roleFilter;
-    const q = search.toLowerCase();
-    const matchSearch = !search
-      || u.name?.toLowerCase().includes(q)
-      || u.employee_id?.toLowerCase().includes(q)
-      || u.mobile?.includes(q)
-      || u.city?.toLowerCase().includes(q);
-    return matchRole && matchSearch;
-  });
-
-  const roleColor: Record<string,string> = {
-    executive:C.blue, admin:C.red, supervisor:C.teal,
-    program_manager:C.purple, city_manager:C.orange,
+  const saveStageNotes = async () => {
+    setSaving(true);
+    try {
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/candidates/${candidate.id}`, {
+        method:'PATCH',
+        headers:{ Authorization:`Bearer ${token}`, 'Content-Type':'application/json' },
+        body: JSON.stringify({ stage, notes }),
+      });
+      setSaveMsg('Saved!');
+      setTimeout(()=>setSaveMsg(''), 2000);
+      onRefresh();
+    } catch { setSaveMsg('Error saving'); }
+    finally { setSaving(false); }
   };
 
-  const doAdd = async () => {
-    setSaving(true); setSaveErr(null);
+  const doConvert = async () => {
+    if (!convertForm.employee_id || !convertForm.password) { setConvertErr('Employee ID and password required'); return; }
+    setConverting(true); setConvertErr('');
     try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('kinematic_token') || '' : '';
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/users`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/candidates/${candidate.id}/convert`, {
+        method:'POST',
+        headers:{ Authorization:`Bearer ${token}`, 'Content-Type':'application/json' },
+        body: JSON.stringify({
+          ...convertForm,
+          name: candidate.name,
+          mobile: candidate.mobile,
+          email: candidate.email,
+          role: candidate.applied_role,
+          city: candidate.city,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || json.message || 'Conversion failed');
+      setShowConvert(false);
+      onRefresh();
+      onClose();
+    } catch(e:any) { setConvertErr(e.message); }
+    finally { setConverting(false); }
+  };
+
+  const uploadDoc = async (docType:string, docLabel:string, file:File) => {
+    setUploadingDoc(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('doc_type', docType);
+      formData.append('doc_label', docLabel);
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/candidates/${candidate.id}/documents`, {
+        method:'POST',
+        headers:{ Authorization:`Bearer ${token}` },
+        body: formData,
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Upload failed');
+      fetchDocs();
+      setShowAddDoc(false);
+    } catch(e:any) { alert(e.message); }
+    finally { setUploadingDoc(false); }
+  };
+
+  const deleteDoc = async (docId:string) => {
+    if (!confirm('Delete this document?')) return;
+    try {
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/candidates/${candidate.id}/documents/${docId}`, {
+        method:'DELETE', headers:{ Authorization:`Bearer ${token}` },
+      });
+      fetchDocs();
+    } catch {}
+  };
+
+  const isSelected = stage === 'selected' || stage === 'onboarded';
+
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.78)', zIndex:300, display:'flex', alignItems:'flex-start', justifyContent:'flex-end' }}
+      onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div style={{ width:560, height:'100vh', background:C.s2, borderLeft:`1px solid ${C.borderL}`,
+        overflowY:'auto', animation:'km-slidein .25s ease', display:'flex', flexDirection:'column' }}>
+
+        {/* Header */}
+        <div style={{ padding:'20px 24px 16px', borderBottom:`1px solid ${C.border}`, flexShrink:0 }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+            <div style={{ display:'flex', gap:14, alignItems:'center' }}>
+              <Avatar name={candidate.name} size={46}/>
+              <div>
+                <div style={{ fontFamily:"'Syne',sans-serif", fontSize:18, fontWeight:800 }}>{candidate.name}</div>
+                <div style={{ fontSize:12, color:C.gray, marginTop:2 }}>{candidate.mobile} {candidate.email ? `· ${candidate.email}` : ''}</div>
+                <div style={{ display:'flex', gap:6, marginTop:6, alignItems:'center' }}>
+                  <span style={{ padding:'2px 10px', borderRadius:20, fontSize:11, fontWeight:700,
+                    background:`${stageColor(stage)}18`, color:stageColor(stage) }}>
+                    {STAGES.find(s=>s.id===stage)?.label}
+                  </span>
+                  <span style={{ fontSize:11, color:C.grayd }}>{candidate.applied_role} · {candidate.city||'—'}</span>
+                </div>
+              </div>
+            </div>
+            <button onClick={onClose} style={{ background:'transparent', border:`1px solid ${C.border}`, borderRadius:8,
+              width:30, height:30, cursor:'pointer', color:C.gray, fontSize:16 }}>×</button>
+          </div>
+        </div>
+
+        <div style={{ flex:1, padding:'20px 24px', display:'flex', flexDirection:'column', gap:20 }}>
+
+          {/* Stage changer */}
+          <Card style={{ padding:16 }}>
+            <div style={{ fontSize:12, color:C.gray, marginBottom:10, fontWeight:600 }}>HIRING STAGE</div>
+            <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:14 }}>
+              {STAGES.map(s=>(
+                <button key={s.id} onClick={()=>setStage(s.id)}
+                  style={{ padding:'5px 12px', borderRadius:8, border:`1px solid ${stage===s.id?s.color:C.border}`,
+                    background:stage===s.id?`${s.color}18`:'transparent', color:stage===s.id?s.color:C.gray,
+                    fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
+                  {s.label}
+                </button>
+              ))}
+            </div>
+            <div style={{ marginBottom:10 }}>
+              <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>Notes / Remarks</div>
+              <textarea value={notes} onChange={e=>setNotes(e.target.value)} rows={3}
+                style={{ width:'100%', padding:'9px 12px', borderRadius:10, border:`1.5px solid ${C.border}`,
+                  background:C.s3, color:C.white, fontSize:13, fontFamily:"'DM Sans',sans-serif",
+                  outline:'none', resize:'none', colorScheme:'dark' as any }}/>
+            </div>
+            <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+              <button onClick={saveStageNotes} disabled={saving}
+                style={{ padding:'8px 18px', background:C.red, border:'none', borderRadius:10,
+                  color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif",
+                  display:'flex', alignItems:'center', gap:6 }}>
+                {saving ? <Spin/> : '✓ Save'}
+              </button>
+              {saveMsg && <span style={{ fontSize:12, color:C.green }}>{saveMsg}</span>}
+            </div>
+          </Card>
+
+          {/* Convert to FE button */}
+          {isSelected && !candidate.converted_user_id && (
+            <div style={{ background:`${C.green}10`, border:`1px solid ${C.green}30`, borderRadius:14, padding:'14px 16px' }}>
+              <div style={{ fontFamily:"'Syne',sans-serif", fontSize:14, fontWeight:800, color:C.green, marginBottom:4 }}>
+                🎉 Candidate Selected
+              </div>
+              <div style={{ fontSize:12, color:C.gray, marginBottom:12 }}>
+                Convert this candidate to a Field Executive account in Rise Up.
+              </div>
+              <button onClick={()=>setShowConvert(true)}
+                style={{ padding:'9px 18px', background:C.green, border:'none', borderRadius:10,
+                  color:'#000', fontSize:12, fontWeight:800, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
+                → Convert to Field Executive
+              </button>
+            </div>
+          )}
+
+          {candidate.converted_user_id && (
+            <div style={{ background:C.greenD, border:`1px solid ${C.green}30`, borderRadius:14, padding:'12px 16px',
+              fontSize:13, color:C.green, fontWeight:700 }}>
+              ✓ Already onboarded as FE
+            </div>
+          )}
+
+          {/* Document Repository */}
+          <Card style={{ padding:0, overflow:'hidden' }}>
+            <div style={{ padding:'14px 18px', borderBottom:`1px solid ${C.border}`, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              <SectionHeader title="Document Repository" sub="Aadhaar, PAN, certificates & more"/>
+              <button onClick={()=>setShowAddDoc(true)}
+                style={{ padding:'6px 12px', background:C.red, border:'none', borderRadius:8,
+                  color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
+                + Upload
+              </button>
+            </div>
+
+            {/* Default doc type checklist */}
+            <div style={{ padding:'14px 18px', borderBottom:`1px solid ${C.border}` }}>
+              <div style={{ fontSize:10, color:C.grayd, fontWeight:700, letterSpacing:'0.7px', textTransform:'uppercase', marginBottom:10 }}>
+                Required Documents
+              </div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                {DEFAULT_DOC_TYPES.map(dt=>{
+                  const uploaded = docs.find(d=>d.doc_type===dt.type);
+                  return (
+                    <div key={dt.type} style={{ display:'flex', alignItems:'center', gap:8, padding:'8px 10px',
+                      borderRadius:10, background:C.s3, border:`1px solid ${uploaded?C.green+'40':C.border}` }}>
+                      <div style={{ width:20, height:20, borderRadius:'50%', flexShrink:0,
+                        background:uploaded?C.greenD:C.s4, border:`1.5px solid ${uploaded?C.green:C.grayd}`,
+                        display:'flex', alignItems:'center', justifyContent:'center', fontSize:11 }}>
+                        {uploaded ? '✓' : ''}
+                      </div>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ fontSize:12, fontWeight:600, color:uploaded?C.white:C.gray, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{dt.label}</div>
+                        {uploaded && <div style={{ fontSize:10, color:C.grayd, marginTop:1 }}>{uploaded.file_name||'Uploaded'}</div>}
+                      </div>
+                      {uploaded ? (
+                        <div style={{ display:'flex', gap:4 }}>
+                          {uploaded.file_url && (
+                            <a href={uploaded.file_url} target="_blank" rel="noreferrer"
+                              style={{ width:24, height:24, borderRadius:6, background:C.blueD, border:`1px solid ${C.blue}30`,
+                                display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, textDecoration:'none' }}>
+                              ↗
+                            </a>
+                          )}
+                          <button onClick={()=>deleteDoc(uploaded.id)}
+                            style={{ width:24, height:24, borderRadius:6, background:C.redD, border:`1px solid ${C.red}30`,
+                              cursor:'pointer', fontSize:12, color:C.red }}>
+                            ×
+                          </button>
+                        </div>
+                      ) : (
+                        <label style={{ cursor:'pointer' }}>
+                          <input type="file" style={{ display:'none' }} accept=".pdf,.jpg,.jpeg,.png"
+                            onChange={e=>{ const f=e.target.files?.[0]; if(f) uploadDoc(dt.type, dt.label, f); }}/>
+                          <span style={{ fontSize:10, color:C.blue, fontWeight:700, padding:'3px 8px',
+                            borderRadius:6, background:C.blueD, border:`1px solid ${C.blue}30` }}>
+                            Upload
+                          </span>
+                        </label>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Additional uploaded docs */}
+            {loadingDocs ? (
+              <div style={{ padding:16, display:'flex', justifyContent:'center' }}><Spin/></div>
+            ) : (
+              <>
+                {docs.filter(d=>!DEFAULT_DOC_TYPES.find(dt=>dt.type===d.doc_type)).length > 0 && (
+                  <div style={{ padding:'12px 18px' }}>
+                    <div style={{ fontSize:10, color:C.grayd, fontWeight:700, letterSpacing:'0.7px', textTransform:'uppercase', marginBottom:8 }}>
+                      Additional Documents
+                    </div>
+                    {docs.filter(d=>!DEFAULT_DOC_TYPES.find(dt=>dt.type===d.doc_type)).map(doc=>(
+                      <div key={doc.id} style={{ display:'flex', gap:12, padding:'10px 0', borderBottom:`1px solid ${C.border}`, alignItems:'center' }}>
+                        <div style={{ width:36, height:36, borderRadius:10, background:C.blueD, display:'flex', alignItems:'center', justifyContent:'center', fontSize:18 }}>📄</div>
+                        <div style={{ flex:1 }}>
+                          <div style={{ fontSize:13, fontWeight:700 }}>{doc.doc_label}</div>
+                          <div style={{ fontSize:10, color:C.grayd }}>{doc.file_name || 'Uploaded'} · {new Date(doc.uploaded_at).toLocaleDateString()}</div>
+                        </div>
+                        <div style={{ display:'flex', gap:4 }}>
+                          {doc.file_url && (
+                            <a href={doc.file_url} target="_blank" rel="noreferrer"
+                              style={{ padding:'4px 10px', borderRadius:7, background:C.blueD, border:`1px solid ${C.blue}30`,
+                                fontSize:11, color:C.blue, fontWeight:700, textDecoration:'none' }}>
+                              View
+                            </a>
+                          )}
+                          <button onClick={()=>deleteDoc(doc.id)}
+                            style={{ padding:'4px 10px', borderRadius:7, background:C.redD, border:`1px solid ${C.red}30`,
+                              fontSize:11, color:C.red, fontWeight:700, cursor:'pointer' }}>
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </Card>
+
+        </div>
+      </div>
+
+      {/* Convert to FE Modal */}
+      {showConvert && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.6)', zIndex:400,
+          display:'flex', alignItems:'center', justifyContent:'center', padding:24 }}>
+          <div style={{ background:C.s2, border:`1px solid ${C.borderL}`, borderRadius:20,
+            padding:28, width:'100%', maxWidth:480, boxShadow:'0 32px 80px rgba(0,0,0,.8)' }}>
+            <div style={{ fontFamily:"'Syne',sans-serif", fontSize:18, fontWeight:800, marginBottom:4 }}>
+              Convert to Field Executive
+            </div>
+            <div style={{ fontSize:12, color:C.gray, marginBottom:20 }}>
+              {candidate.name} will get a Rise Up app login immediately.
+            </div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:16 }}>
+              {[
+                { id:'employee_id', label:'Employee ID (e.g. FE-003)', type:'text' },
+                { id:'password',    label:'Initial Password', type:'password' },
+                { id:'joined_date', label:'Joining Date', type:'date' },
+              ].map(f=>(
+                <div key={f.id} style={{ gridColumn: f.id==='joined_date'?'1 / -1':'auto' }}>
+                  <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>{f.label}</div>
+                  <input type={f.type}
+                    style={{ width:'100%', padding:'9px 12px', borderRadius:10, border:`1.5px solid ${C.border}`,
+                      background:C.s3, color:C.white, fontSize:13, fontFamily:"'DM Sans',sans-serif",
+                      outline:'none', colorScheme:'dark' as any }}
+                    value={convertForm[f.id as keyof typeof convertForm]}
+                    onChange={e=>setConvertForm(p=>({...p,[f.id]:e.target.value}))}/>
+                </div>
+              ))}
+              <div style={{ gridColumn:'1 / -1' }}>
+                <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>Assign Zone</div>
+                <select style={{ width:'100%', padding:'9px 12px', borderRadius:10, border:`1.5px solid ${C.border}`,
+                  background:C.s3, color:C.white, fontSize:13, fontFamily:"'DM Sans',sans-serif",
+                  outline:'none', colorScheme:'dark' as any }}
+                  value={convertForm.zone_id} onChange={e=>setConvertForm(p=>({...p,zone_id:e.target.value}))}>
+                  <option value="">Select zone…</option>
+                  {zones.map(z=><option key={z.id} value={z.id}>{z.name}</option>)}
+                </select>
+              </div>
+            </div>
+            {convertErr && <div style={{ marginBottom:12, padding:'10px 14px', background:C.redD, border:`1px solid ${C.redB}`, borderRadius:10, fontSize:13, color:C.red }}>{convertErr}</div>}
+            <div style={{ display:'flex', gap:10 }}>
+              <button onClick={()=>setShowConvert(false)}
+                style={{ flex:1, padding:'10px', borderRadius:11, border:`1px solid ${C.border}`, background:'transparent', color:C.gray, fontWeight:600, fontSize:13, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
+                Cancel
+              </button>
+              <button onClick={doConvert} disabled={converting}
+                style={{ flex:1, padding:'10px', borderRadius:11, border:'none', background:C.green, color:'#000', fontWeight:800, fontSize:13, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
+                {converting ? <Spin/> : '→ Create FE Account'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Custom Doc Modal */}
+      {showAddDoc && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.6)', zIndex:400,
+          display:'flex', alignItems:'center', justifyContent:'center', padding:24 }}>
+          <div style={{ background:C.s2, border:`1px solid ${C.borderL}`, borderRadius:20,
+            padding:28, width:'100%', maxWidth:420, boxShadow:'0 32px 80px rgba(0,0,0,.8)' }}>
+            <div style={{ fontFamily:"'Syne',sans-serif", fontSize:18, fontWeight:800, marginBottom:16 }}>Upload Additional Document</div>
+            <div style={{ marginBottom:12 }}>
+              <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>Document Name</div>
+              <input placeholder="e.g. Medical Certificate, Police Verification…"
+                style={{ width:'100%', padding:'9px 12px', borderRadius:10, border:`1.5px solid ${C.border}`,
+                  background:C.s3, color:C.white, fontSize:13, fontFamily:"'DM Sans',sans-serif", outline:'none', colorScheme:'dark' as any }}
+                value={customDocLabel} onChange={e=>setCustomDocLabel(e.target.value)}/>
+            </div>
+            <div style={{ marginBottom:20 }}>
+              <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>File (PDF, JPG, PNG)</div>
+              <label style={{ display:'block', padding:'24px', border:`1.5px dashed ${C.border}`, borderRadius:12,
+                textAlign:'center', cursor:'pointer', color:C.gray, fontSize:13 }}>
+                <input type="file" style={{ display:'none' }} accept=".pdf,.jpg,.jpeg,.png"
+                  onChange={e=>{
+                    const f=e.target.files?.[0];
+                    if(f && customDocLabel) {
+                      uploadDoc('custom_'+Date.now(), customDocLabel, f);
+                    } else if(!customDocLabel) alert('Please enter a document name first.');
+                  }}/>
+                {uploadingDoc ? <Spin/> : '📎 Click to select file'}
+              </label>
+            </div>
+            <button onClick={()=>setShowAddDoc(false)}
+              style={{ width:'100%', padding:'10px', borderRadius:11, border:`1px solid ${C.border}`, background:'transparent', color:C.gray, fontWeight:600, fontSize:13, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════
+   ATS SECTION
+══════════════════════════════════════════════════ */
+function ATSSection({ token, zones }:{ token:string; zones:Zone[] }) {
+  const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [loading, setLoading]       = useState(true);
+  const [selected, setSelected]     = useState<Candidate|null>(null);
+  const [stageFilter, setStageFilter] = useState('all');
+  const [search, setSearch]         = useState('');
+  const [showAdd, setShowAdd]       = useState(false);
+  const [saving, setSaving]         = useState(false);
+  const [saveErr, setSaveErr]       = useState('');
+
+  const emptyForm = { name:'', mobile:'', email:'', applied_role:'executive', city:'', source:'', applied_zone:'' };
+  const [form, setForm] = useState(emptyForm);
+
+  const fetchCandidates = useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await api.get<any>('/api/v1/candidates', { headers:{ Authorization:`Bearer ${token}` } });
+      setCandidates((r?.data ?? r) || []);
+    } catch { setCandidates([]); } finally { setLoading(false); }
+  }, [token]);
+
+  useEffect(() => { fetchCandidates(); }, [fetchCandidates]);
+
+  const stageCounts = STAGES.reduce((acc,s)=>{ acc[s.id]=candidates.filter(c=>c.stage===s.id).length; return acc; }, {} as Record<string,number>);
+
+  const filtered = candidates.filter(c=>{
+    const matchStage = stageFilter==='all' || c.stage===stageFilter;
+    const q = search.toLowerCase();
+    const matchSearch = !search || c.name?.toLowerCase().includes(q) || c.mobile?.includes(q) || c.city?.toLowerCase().includes(q);
+    return matchStage && matchSearch;
+  });
+
+  const doAdd = async () => {
+    if (!form.name || !form.mobile) { setSaveErr('Name and mobile required'); return; }
+    setSaving(true); setSaveErr('');
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/candidates`, {
         method:'POST',
         headers:{ Authorization:`Bearer ${token}`, 'Content-Type':'application/json' },
         body: JSON.stringify(form),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || json.message || 'Failed to create user');
-      setSaveOk(true);
-      setTimeout(() => { setSaveOk(false); setShowAdd(false); setForm(emptyForm); fetchAll(); }, 1400);
+      if (!res.ok) throw new Error(json.error || json.message || 'Failed');
+      setShowAdd(false); setForm(emptyForm); fetchCandidates();
     } catch(e:any) { setSaveErr(e.message); }
     finally { setSaving(false); }
+  };
+
+  const inputStyle: React.CSSProperties = {
+    width:'100%', padding:'9px 12px', borderRadius:10, border:`1.5px solid ${C.border}`,
+    background:C.s3, color:C.white, fontSize:13, fontFamily:"'DM Sans',sans-serif",
+    outline:'none', colorScheme:'dark' as any,
+  };
+
+  return (
+    <>
+      {/* Pipeline overview */}
+      <div style={{ display:'flex', gap:8, overflowX:'auto', paddingBottom:4 }}>
+        {STAGES.map(s=>(
+          <div key={s.id} onClick={()=>setStageFilter(stageFilter===s.id?'all':s.id)}
+            style={{ flexShrink:0, padding:'12px 16px', borderRadius:14, cursor:'pointer',
+              background:stageFilter===s.id?`${s.color}18`:C.s2,
+              border:`1px solid ${stageFilter===s.id?s.color:C.border}`,
+              textAlign:'center', minWidth:100, transition:'all .15s' }}>
+            <div style={{ fontFamily:"'Syne',sans-serif", fontSize:24, fontWeight:800, color:s.color }}>{stageCounts[s.id]||0}</div>
+            <div style={{ fontSize:11, color:C.gray, marginTop:2 }}>{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Toolbar */}
+      <div style={{ display:'flex', gap:10 }}>
+        <div style={{ position:'relative', flex:1 }}>
+          <span style={{ position:'absolute', left:11, top:'50%', transform:'translateY(-50%)', fontSize:13, color:C.grayd }}>🔍</span>
+          <input placeholder="Search candidates…" value={search} onChange={e=>setSearch(e.target.value)}
+            style={{ ...inputStyle, paddingLeft:32 }}/>
+        </div>
+        <button onClick={()=>{ setForm(emptyForm); setSaveErr(''); setShowAdd(true); }}
+          style={{ padding:'8px 16px', background:C.red, border:'none', borderRadius:10,
+            color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif",
+            display:'flex', alignItems:'center', gap:6, boxShadow:`0 4px 16px ${C.redB}`, flexShrink:0 }}>
+          + Add Candidate
+        </button>
+      </div>
+
+      {/* Candidate list */}
+      {loading ? (
+        <div style={{ display:'flex', justifyContent:'center', padding:'40px 0' }}><Spin/></div>
+      ) : filtered.length === 0 ? (
+        <Card><div style={{ textAlign:'center', padding:'32px 0', color:C.grayd, fontSize:13 }}>
+          No candidates{stageFilter!=='all'?` in ${stageFilter}`:''}{search?` matching "${search}"`:''}</div></Card>
+      ) : (
+        <Card style={{ padding:0, overflow:'hidden' }}>
+          <div style={{ display:'grid', gridTemplateColumns:'2fr 1fr 1fr 1.2fr 1fr 80px',
+            gap:8, padding:'10px 18px', borderBottom:`1px solid ${C.border}`,
+            fontSize:10, color:C.grayd, fontWeight:700, letterSpacing:'0.7px', textTransform:'uppercase' }}>
+            {['Candidate','Role','City','Source','Stage','Docs'].map(h=><span key={h}>{h}</span>)}
+          </div>
+          {filtered.map((c,i)=>(
+            <div key={c.id} className="km-tr" onClick={()=>setSelected(c)}
+              style={{ display:'grid', gridTemplateColumns:'2fr 1fr 1fr 1.2fr 1fr 80px',
+                gap:8, padding:'13px 18px', alignItems:'center', cursor:'pointer',
+                borderBottom:i<filtered.length-1?`1px solid ${C.border}`:'none', transition:'background .13s' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                <Avatar name={c.name} size={30}/>
+                <div>
+                  <div style={{ fontSize:13, fontWeight:700 }}>{c.name}</div>
+                  <div style={{ fontSize:10, color:C.grayd, marginTop:1 }}>{c.mobile||'—'}</div>
+                </div>
+              </div>
+              <span style={{ fontSize:12, color:C.gray, textTransform:'capitalize' }}>{c.applied_role}</span>
+              <span style={{ fontSize:12, color:C.gray }}>{c.city||'—'}</span>
+              <span style={{ fontSize:12, color:C.gray }}>{c.source||'—'}</span>
+              <span style={{ display:'inline-flex', padding:'3px 10px', borderRadius:20, fontSize:11, fontWeight:700,
+                background:`${stageColor(c.stage)}15`, color:stageColor(c.stage) }}>
+                {STAGES.find(s=>s.id===c.stage)?.label}
+              </span>
+              <span style={{ fontSize:11, color:C.blue, fontWeight:700 }}>View →</span>
+            </div>
+          ))}
+        </Card>
+      )}
+      <div style={{ fontSize:12, color:C.grayd, textAlign:'right' }}>{filtered.length} of {candidates.length} candidates</div>
+
+      {/* Add Candidate Modal */}
+      {showAdd && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.72)', zIndex:200,
+          display:'flex', alignItems:'center', justifyContent:'center', padding:24 }}>
+          <div style={{ background:C.s2, border:`1px solid ${C.borderL}`, borderRadius:20, padding:28,
+            width:'100%', maxWidth:520, boxShadow:'0 32px 80px rgba(0,0,0,.8)', animation:'km-fadein .2s ease' }}>
+            <div style={{ fontFamily:"'Syne',sans-serif", fontSize:18, fontWeight:800, marginBottom:20 }}>Add Candidate</div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:16 }}>
+              {[
+                { id:'name',   label:'Full Name',   type:'text' },
+                { id:'mobile', label:'Mobile',      type:'tel'  },
+                { id:'email',  label:'Email',       type:'email'},
+                { id:'city',   label:'City',        type:'text' },
+                { id:'source', label:'Source (e.g. Referral, Walk-in)', type:'text' },
+              ].map(f=>(
+                <div key={f.id}>
+                  <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>{f.label}</div>
+                  <input type={f.type} style={inputStyle} placeholder={f.label}
+                    value={form[f.id as keyof typeof form]} onChange={e=>setForm(p=>({...p,[f.id]:e.target.value}))}/>
+                </div>
+              ))}
+              <div>
+                <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>Applying For</div>
+                <select style={inputStyle} value={form.applied_role} onChange={e=>setForm(p=>({...p,applied_role:e.target.value}))}>
+                  <option value="executive">Field Executive</option>
+                  <option value="supervisor">Supervisor</option>
+                </select>
+              </div>
+              <div style={{ gridColumn:'1 / -1' }}>
+                <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>Preferred Zone</div>
+                <select style={inputStyle} value={form.applied_zone} onChange={e=>setForm(p=>({...p,applied_zone:e.target.value}))}>
+                  <option value="">Select zone…</option>
+                  {zones.map(z=><option key={z.id} value={z.id}>{z.name}</option>)}
+                </select>
+              </div>
+            </div>
+            {saveErr && <div style={{ marginBottom:12, padding:'10px 14px', background:C.redD, border:`1px solid ${C.redB}`, borderRadius:10, fontSize:13, color:C.red }}>{saveErr}</div>}
+            <div style={{ display:'flex', gap:10 }}>
+              <button onClick={()=>setShowAdd(false)}
+                style={{ flex:1, padding:'10px', borderRadius:11, border:`1px solid ${C.border}`, background:'transparent', color:C.gray, fontWeight:600, fontSize:13, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
+                Cancel
+              </button>
+              <button onClick={doAdd} disabled={saving}
+                style={{ flex:1, padding:'10px', borderRadius:11, border:'none', background:C.red, color:'#fff', fontWeight:700, fontSize:13, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
+                {saving ? <Spin/> : '+ Add Candidate'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Candidate detail panel */}
+      {selected && (
+        <CandidateDetail
+          candidate={selected}
+          zones={zones}
+          token={token}
+          onClose={()=>setSelected(null)}
+          onRefresh={fetchCandidates}
+        />
+      )}
+    </>
+  );
+}
+
+/* ══════════════════════════════════════════════════
+   TEAM SECTION (users)
+══════════════════════════════════════════════════ */
+function TeamSection({ users, zones, loading, error, onRefresh, token }:{
+  users:HRUser[]; zones:Zone[]; loading:boolean; error:string|null; onRefresh:()=>void; token:string;
+}) {
+  const [search, setSearch]     = useState('');
+  const [roleFilter, setRoleFilter] = useState('all');
+  const [showAdd, setShowAdd]   = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
+  const [showReset, setShowReset] = useState(false);
+  const [selUser, setSelUser]   = useState<HRUser|null>(null);
+  const emptyForm = { name:'', mobile:'', email:'', role:'executive', employee_id:'', city:'', zone_id:'', password:'', joined_date:'' };
+  const [form, setForm] = useState(emptyForm);
+  const [newPass, setNewPass]   = useState('');
+  const [saving, setSaving]     = useState(false);
+  const [saveErr, setSaveErr]   = useState<string|null>(null);
+  const [saveOk, setSaveOk]     = useState(false);
+
+  const roleColor: Record<string,string> = { executive:C.blue, admin:C.red, supervisor:C.teal, program_manager:C.purple, city_manager:C.orange };
+
+  const filtered = users.filter(u=>{
+    const matchRole = roleFilter==='all' || u.role===roleFilter;
+    const q = search.toLowerCase();
+    const matchSearch = !search || u.name?.toLowerCase().includes(q) || u.employee_id?.toLowerCase().includes(q) || u.mobile?.includes(q);
+    return matchRole && matchSearch;
+  });
+
+  const inputStyle: React.CSSProperties = {
+    width:'100%', padding:'9px 12px', borderRadius:10, border:`1.5px solid ${C.border}`,
+    background:C.s3, color:C.white, fontSize:13, fontFamily:"'DM Sans',sans-serif",
+    outline:'none', colorScheme:'dark' as any,
+  };
+
+  const doAdd = async () => {
+    setSaving(true); setSaveErr(null);
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/users`, {
+        method:'POST', headers:{ Authorization:`Bearer ${token}`, 'Content-Type':'application/json' },
+        body: JSON.stringify(form),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || json.message || 'Failed');
+      setSaveOk(true);
+      setTimeout(()=>{ setSaveOk(false); setShowAdd(false); setForm(emptyForm); onRefresh(); }, 1400);
+    } catch(e:any) { setSaveErr(e.message); } finally { setSaving(false); }
   };
 
   const doEdit = async () => {
     if (!selUser) return;
     setSaving(true); setSaveErr(null);
     try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('kinematic_token') || '' : '';
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/users/${selUser.id}`, {
-        method:'PATCH',
-        headers:{ Authorization:`Bearer ${token}`, 'Content-Type':'application/json' },
+        method:'PATCH', headers:{ Authorization:`Bearer ${token}`, 'Content-Type':'application/json' },
         body: JSON.stringify(form),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || json.message || 'Failed to save');
+      if (!res.ok) throw new Error(json.error || json.message || 'Failed');
       setSaveOk(true);
-      setTimeout(() => { setSaveOk(false); setShowEdit(false); setSelUser(null); fetchAll(); }, 1400);
-    } catch(e:any) { setSaveErr(e.message); }
-    finally { setSaving(false); }
+      setTimeout(()=>{ setSaveOk(false); setShowEdit(false); setSelUser(null); onRefresh(); }, 1400);
+    } catch(e:any) { setSaveErr(e.message); } finally { setSaving(false); }
   };
 
   const doReset = async () => {
-    if (!selUser || newPass.length < 6) { setSaveErr('Password must be at least 6 characters'); return; }
+    if (!selUser || newPass.length < 6) { setSaveErr('Min 6 characters'); return; }
     setSaving(true); setSaveErr(null);
     try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('kinematic_token') || '' : '';
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/users/${selUser.id}/reset-password`, {
-        method:'POST',
-        headers:{ Authorization:`Bearer ${token}`, 'Content-Type':'application/json' },
+        method:'POST', headers:{ Authorization:`Bearer ${token}`, 'Content-Type':'application/json' },
         body: JSON.stringify({ password: newPass }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || json.message || 'Reset failed');
+      if (!res.ok) throw new Error(json.error || json.message || 'Failed');
       setSaveOk(true);
-      setTimeout(() => { setSaveOk(false); setShowReset(false); }, 1400);
-    } catch(e:any) { setSaveErr(e.message); }
-    finally { setSaving(false); }
+      setTimeout(()=>{ setSaveOk(false); setShowReset(false); }, 1400);
+    } catch(e:any) { setSaveErr(e.message); } finally { setSaving(false); }
   };
 
-  const toggleActive = async (u: HRUser) => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('kinematic_token') || '' : '';
+  const toggleActive = async (u:HRUser) => {
     try {
       await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/users/${u.id}`, {
-        method:'PATCH',
-        headers:{ Authorization:`Bearer ${token}`, 'Content-Type':'application/json' },
+        method:'PATCH', headers:{ Authorization:`Bearer ${token}`, 'Content-Type':'application/json' },
         body: JSON.stringify({ is_active: !u.is_active }),
       });
-      fetchAll();
+      onRefresh();
     } catch {}
   };
 
-  const openEdit = (u: HRUser) => {
+  const openEdit = (u:HRUser) => {
     setSelUser(u);
     setForm({ name:u.name||'', mobile:u.mobile||'', email:u.email||'', role:u.role||'executive',
       employee_id:u.employee_id||'', city:u.city||'', zone_id:u.zone_id||'', password:'', joined_date:u.joined_date||'' });
     setSaveErr(null); setSaveOk(false); setShowEdit(true);
   };
 
-  /* shared styles */
-  const inputStyle: React.CSSProperties = {
-    width:'100%', padding:'9px 12px', borderRadius:10,
-    border:`1.5px solid ${C.border}`, background:C.s3,
-    color:C.white, fontSize:13, fontFamily:"'DM Sans',sans-serif",
-    outline:'none', colorScheme:'dark' as any,
-  };
-  const modalOverlay: React.CSSProperties = {
-    position:'fixed', inset:0, background:'rgba(0,0,0,.72)', zIndex:200,
-    display:'flex', alignItems:'center', justifyContent:'center', padding:24,
-  };
-  const modalBox: React.CSSProperties = {
-    background:C.s2, border:`1px solid ${C.borderL}`, borderRadius:20,
-    padding:28, width:'100%', maxWidth:540,
-    maxHeight:'85vh', overflowY:'auto',
-    boxShadow:'0 32px 80px rgba(0,0,0,.8)',
-    animation:'km-fadein .2s ease',
-  };
-  const btnPrimary: React.CSSProperties = {
-    flex:1, padding:'10px 0', borderRadius:11, border:'none',
-    background:C.red, color:'#fff', fontWeight:700, fontSize:13,
-    fontFamily:"'DM Sans',sans-serif", cursor:'pointer',
-    display:'flex', alignItems:'center', justifyContent:'center', gap:6,
-  };
-  const btnSecondary: React.CSSProperties = {
-    flex:1, padding:'10px 0', borderRadius:11,
-    border:`1px solid ${C.border}`, background:'transparent',
-    color:C.gray, fontWeight:600, fontSize:13,
-    fontFamily:"'DM Sans',sans-serif", cursor:'pointer',
-    display:'flex', alignItems:'center', justifyContent:'center',
-  };
-
-  // Reusable form field renderer
-  const FField = (id: keyof typeof emptyForm, label: string, type='text', opts?: {v:string;l:string}[]) => (
+  const FField = (id:keyof typeof emptyForm, label:string, type='text', opts?:{v:string;l:string}[]) => (
     <div key={id}>
       <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>{label}</div>
       {opts ? (
@@ -261,12 +788,398 @@ export default function HRPage() {
     </div>
   );
 
+  const modalOverlay: React.CSSProperties = { position:'fixed', inset:0, background:'rgba(0,0,0,.72)', zIndex:200, display:'flex', alignItems:'center', justifyContent:'center', padding:24 };
+  const modalBox: React.CSSProperties = { background:C.s2, border:`1px solid ${C.borderL}`, borderRadius:20, padding:28, width:'100%', maxWidth:540, maxHeight:'85vh', overflowY:'auto', boxShadow:'0 32px 80px rgba(0,0,0,.8)', animation:'km-fadein .2s ease' };
+  const btnPrimary: React.CSSProperties = { flex:1, padding:'10px 0', borderRadius:11, border:'none', background:C.red, color:'#fff', fontWeight:700, fontSize:13, fontFamily:"'DM Sans',sans-serif", cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:6 };
+  const btnSecondary: React.CSSProperties = { flex:1, padding:'10px 0', borderRadius:11, border:`1px solid ${C.border}`, background:'transparent', color:C.gray, fontWeight:600, fontSize:13, fontFamily:"'DM Sans',sans-serif", cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' };
+
+  return (
+    <>
+      <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
+        <div style={{ position:'relative', flex:1, minWidth:200 }}>
+          <span style={{ position:'absolute', left:11, top:'50%', transform:'translateY(-50%)', fontSize:13, color:C.grayd }}>🔍</span>
+          <input placeholder="Search by name, ID, mobile…" value={search} onChange={e=>setSearch(e.target.value)}
+            style={{ ...inputStyle, paddingLeft:32 }}/>
+        </div>
+        <div style={{ display:'flex', gap:6 }}>
+          {['all','executive','admin','supervisor'].map(r=>(
+            <button key={r} onClick={()=>setRoleFilter(r)}
+              style={{ padding:'6px 13px', borderRadius:8, border:`1px solid ${roleFilter===r?C.blue:C.border}`,
+                background:roleFilter===r?C.blueD:C.s3, color:roleFilter===r?C.blue:C.gray,
+                fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
+              {r==='all'?'All':r.charAt(0).toUpperCase()+r.slice(1)}
+            </button>
+          ))}
+        </div>
+        <button onClick={()=>{ setForm(emptyForm); setSaveErr(null); setSaveOk(false); setShowAdd(true); }}
+          style={{ padding:'8px 16px', background:C.red, border:'none', borderRadius:10, color:'#fff',
+            fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif",
+            display:'flex', alignItems:'center', gap:6, boxShadow:`0 4px 16px ${C.redB}` }}>
+          + Add User
+        </button>
+      </div>
+
+      {loading ? (
+        <div style={{ display:'flex', justifyContent:'center', padding:'40px 0' }}><Spin/></div>
+      ) : error ? (
+        <Card style={{ background:C.redD, border:`1px solid ${C.redB}` }}>
+          <div style={{ color:C.red, fontWeight:700, marginBottom:6 }}>Failed to load users</div>
+          <div style={{ fontSize:13, color:C.gray, marginBottom:12 }}>{error}</div>
+          <button onClick={onRefresh} style={{ ...btnSecondary, flex:'unset', padding:'7px 14px', fontSize:12 }}>Retry</button>
+        </Card>
+      ) : (
+        <Card style={{ padding:0, overflow:'hidden' }}>
+          <div style={{ display:'grid', gridTemplateColumns:'2.2fr 1.2fr 1.4fr 1.2fr 1fr 110px',
+            gap:8, padding:'10px 18px', borderBottom:`1px solid ${C.border}`,
+            fontSize:10, color:C.grayd, fontWeight:700, letterSpacing:'0.7px', textTransform:'uppercase' }}>
+            {['Name / ID','Role','Mobile','Zone / City','Status','Actions'].map(h=><span key={h}>{h}</span>)}
+          </div>
+          {filtered.length === 0 ? (
+            <div style={{ textAlign:'center', padding:'32px 0', color:C.grayd, fontSize:13 }}>No users found</div>
+          ) : filtered.map((u,i)=>(
+            <div key={u.id} className="km-tr"
+              style={{ display:'grid', gridTemplateColumns:'2.2fr 1.2fr 1.4fr 1.2fr 1fr 110px',
+                gap:8, padding:'13px 18px', alignItems:'center',
+                borderBottom:i<filtered.length-1?`1px solid ${C.border}`:'none', transition:'background .13s' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                <Avatar name={u.name} size={30}/>
+                <div>
+                  <div style={{ fontSize:13, fontWeight:700 }}>{u.name}</div>
+                  <div style={{ fontSize:10, color:C.grayd, fontFamily:'monospace', marginTop:1 }}>{u.employee_id||'—'}</div>
+                </div>
+              </div>
+              <span style={{ display:'inline-flex', padding:'3px 10px', borderRadius:20, background:`${roleColor[u.role]||C.blue}15`, color:roleColor[u.role]||C.blue, fontSize:11, fontWeight:700, textTransform:'capitalize' }}>{u.role}</span>
+              <span style={{ fontSize:12, color:C.gray, fontFamily:'monospace' }}>{u.mobile||'—'}</span>
+              <span style={{ fontSize:12, color:C.gray }}>{zones.find(z=>z.id===u.zone_id)?.name||u.city||'—'}</span>
+              <span style={{ display:'inline-flex', padding:'3px 10px', borderRadius:20, background:u.is_active!==false?C.greenD:C.redD, color:u.is_active!==false?C.green:C.red, fontSize:11, fontWeight:700 }}>
+                {u.is_active!==false?'Active':'Inactive'}
+              </span>
+              <div style={{ display:'flex', gap:4 }}>
+                {[
+                  { title:'Edit', icon:'✏️', fn:()=>openEdit(u) },
+                  { title:'Reset password', icon:'🔑', fn:()=>{ setSelUser(u); setNewPass(''); setSaveErr(null); setSaveOk(false); setShowReset(true); } },
+                  { title:u.is_active!==false?'Deactivate':'Activate', icon:u.is_active!==false?'⏸':'▶️', fn:()=>toggleActive(u) },
+                ].map(a=>(
+                  <button key={a.title} title={a.title} onClick={a.fn}
+                    style={{ width:28, height:28, borderRadius:8, border:`1px solid ${C.border}`, background:'transparent', cursor:'pointer', fontSize:13, display:'flex', alignItems:'center', justifyContent:'center' }}
+                    onMouseEnter={e=>(e.currentTarget.style.background=C.s3)}
+                    onMouseLeave={e=>(e.currentTarget.style.background='transparent')}>
+                    {a.icon}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </Card>
+      )}
+
+      {/* Add User Modal */}
+      {showAdd && (
+        <div style={modalOverlay} onClick={e=>e.target===e.currentTarget&&setShowAdd(false)}>
+          <div style={modalBox}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:22 }}>
+              <div style={{ fontFamily:"'Syne',sans-serif", fontSize:18, fontWeight:800 }}>Add New User</div>
+              <button onClick={()=>setShowAdd(false)} style={{ background:'transparent', border:`1px solid ${C.border}`, borderRadius:8, width:30, height:30, cursor:'pointer', color:C.gray, fontSize:16 }}>×</button>
+            </div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+              {FField('name','Full Name')}
+              {FField('mobile','Mobile Number','tel')}
+              {FField('email','Email (optional)','email')}
+              {FField('password','Password','password')}
+              {FField('role','Role','text',[{v:'executive',l:'Field Executive'},{v:'supervisor',l:'Supervisor'},{v:'admin',l:'Admin'},{v:'program_manager',l:'Program Manager'},{v:'city_manager',l:'City Manager'}])}
+              {FField('employee_id','Employee ID (e.g. FE-003)')}
+              {FField('city','City')}
+              {FField('zone_id','Zone','text',zones.map(z=>({v:z.id,l:z.name})))}
+              <div style={{ gridColumn:'1 / -1' }}>
+                <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>Date Joined</div>
+                <input type="date" style={inputStyle} value={form.joined_date} onChange={e=>setForm(p=>({...p,joined_date:e.target.value}))}/>
+              </div>
+            </div>
+            {saveErr && <div style={{ marginTop:14, background:C.redD, border:`1px solid ${C.redB}`, borderRadius:10, padding:'10px 14px', fontSize:13, color:C.red }}>{saveErr}</div>}
+            {saveOk  && <div style={{ marginTop:14, background:C.greenD, border:`1px solid ${C.green}28`, borderRadius:10, padding:'10px 14px', fontSize:13, color:C.green }}>✓ User created!</div>}
+            <div style={{ display:'flex', gap:10, marginTop:20 }}>
+              <button style={btnSecondary} onClick={()=>setShowAdd(false)}>Cancel</button>
+              <button style={btnPrimary} onClick={doAdd} disabled={saving||!form.name||!form.mobile}>{saving?<Spin/>:'+ Create User'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit User Modal */}
+      {showEdit && selUser && (
+        <div style={modalOverlay} onClick={e=>e.target===e.currentTarget&&setShowEdit(false)}>
+          <div style={modalBox}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:22 }}>
+              <div><div style={{ fontFamily:"'Syne',sans-serif", fontSize:18, fontWeight:800 }}>Edit User</div><div style={{ fontSize:12, color:C.gray, marginTop:2 }}>{selUser.name}</div></div>
+              <button onClick={()=>setShowEdit(false)} style={{ background:'transparent', border:`1px solid ${C.border}`, borderRadius:8, width:30, height:30, cursor:'pointer', color:C.gray, fontSize:16 }}>×</button>
+            </div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+              {FField('name','Full Name')}
+              {FField('mobile','Mobile Number','tel')}
+              {FField('email','Email','email')}
+              {FField('role','Role','text',[{v:'executive',l:'Field Executive'},{v:'supervisor',l:'Supervisor'},{v:'admin',l:'Admin'},{v:'program_manager',l:'Program Manager'},{v:'city_manager',l:'City Manager'}])}
+              {FField('employee_id','Employee ID')}
+              {FField('city','City')}
+              {FField('zone_id','Zone','text',zones.map(z=>({v:z.id,l:z.name})))}
+            </div>
+            {saveErr && <div style={{ marginTop:14, background:C.redD, border:`1px solid ${C.redB}`, borderRadius:10, padding:'10px 14px', fontSize:13, color:C.red }}>{saveErr}</div>}
+            {saveOk  && <div style={{ marginTop:14, background:C.greenD, border:`1px solid ${C.green}28`, borderRadius:10, padding:'10px 14px', fontSize:13, color:C.green }}>✓ Saved!</div>}
+            <div style={{ display:'flex', gap:10, marginTop:20 }}>
+              <button style={btnSecondary} onClick={()=>setShowEdit(false)}>Cancel</button>
+              <button style={btnPrimary} onClick={doEdit} disabled={saving||!form.name||!form.mobile}>{saving?<Spin/>:'✓ Save Changes'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reset Password Modal */}
+      {showReset && selUser && (
+        <div style={modalOverlay} onClick={e=>e.target===e.currentTarget&&setShowReset(false)}>
+          <div style={{ ...modalBox, maxWidth:380 }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
+              <div><div style={{ fontFamily:"'Syne',sans-serif", fontSize:18, fontWeight:800 }}>Reset Password</div><div style={{ fontSize:12, color:C.gray, marginTop:2 }}>{selUser.name}</div></div>
+              <button onClick={()=>setShowReset(false)} style={{ background:'transparent', border:`1px solid ${C.border}`, borderRadius:8, width:30, height:30, cursor:'pointer', color:C.gray, fontSize:16 }}>×</button>
+            </div>
+            <div style={{ display:'flex', gap:10, padding:'11px 14px', background:C.yellowD, border:`1px solid ${C.yellow}28`, borderRadius:10, marginBottom:16 }}>
+              <span style={{ fontSize:13 }}>⚠️</span>
+              <span style={{ fontSize:12, color:C.yellow, lineHeight:1.5 }}>User must log in with this new password immediately.</span>
+            </div>
+            <div>
+              <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>New Password (min. 6 characters)</div>
+              <input type="password" placeholder="Enter new password…" style={inputStyle} value={newPass} onChange={e=>setNewPass(e.target.value)}/>
+            </div>
+            {saveErr && <div style={{ marginTop:12, background:C.redD, border:`1px solid ${C.redB}`, borderRadius:10, padding:'10px 14px', fontSize:13, color:C.red }}>{saveErr}</div>}
+            {saveOk  && <div style={{ marginTop:12, background:C.greenD, border:`1px solid ${C.green}28`, borderRadius:10, padding:'10px 14px', fontSize:13, color:C.green }}>✓ Password reset!</div>}
+            <div style={{ display:'flex', gap:10, marginTop:20 }}>
+              <button style={btnSecondary} onClick={()=>setShowReset(false)}>Cancel</button>
+              <button style={btnPrimary} onClick={doReset} disabled={saving||!newPass}>{saving?<Spin/>:'🔑 Reset Password'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+/* ══════════════════════════════════════════════════
+   TRAINING SECTION
+══════════════════════════════════════════════════ */
+function TrainingSection({ token }:{ token:string }) {
+  const [materials, setMaterials] = useState<any[]>([]);
+  const [loading, setLoading]     = useState(true);
+  const [showUpload, setShowUpload] = useState(false);
+  const [uploading, setUploading]  = useState(false);
+  const [uploadErr, setUploadErr]  = useState('');
+  const [uploadOk, setUploadOk]    = useState(false);
+  const [form, setForm] = useState({ title:'', category:'', visible_to:'all', description:'' });
+
+  const fetchMaterials = useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await api.get<any>('/api/v1/learning', { headers:{ Authorization:`Bearer ${token}` } });
+      setMaterials((r?.data ?? r) || []);
+    } catch { setMaterials([]); } finally { setLoading(false); }
+  }, [token]);
+
+  useEffect(() => { fetchMaterials(); }, [fetchMaterials]);
+
+  const fileRef = { current: null as HTMLInputElement | null };
+
+  const doUpload = async () => {
+    const fileInput = document.getElementById('training-file-input') as HTMLInputElement;
+    const file = fileInput?.files?.[0];
+    if (!form.title) { setUploadErr('Title is required'); return; }
+    if (!file) { setUploadErr('Please select a file'); return; }
+    setUploading(true); setUploadErr(''); setUploadOk(false);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('title', form.title);
+      formData.append('category', form.category);
+      formData.append('visible_to', form.visible_to);
+      formData.append('description', form.description);
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/learning`, {
+        method:'POST',
+        headers:{ Authorization:`Bearer ${token}` },
+        body: formData,
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || json.message || 'Upload failed');
+      setUploadOk(true);
+      setTimeout(()=>{ setUploadOk(false); setShowUpload(false); setForm({ title:'', category:'', visible_to:'all', description:'' }); fetchMaterials(); }, 1600);
+    } catch(e:any) { setUploadErr(e.message); }
+    finally { setUploading(false); }
+  };
+
+  const inputStyle: React.CSSProperties = {
+    width:'100%', padding:'9px 12px', borderRadius:10, border:`1.5px solid ${C.border}`,
+    background:C.s3, color:C.white, fontSize:13, fontFamily:"'DM Sans',sans-serif",
+    outline:'none', colorScheme:'dark' as any,
+  };
+
+  const typeIcon = (t?:string) => t==='video'||t==='Video'?'▶':'📄';
+  const typeColor = (t?:string) => t==='video'||t==='Video'?C.red:C.blue;
+
+  return (
+    <>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:4 }}>
+        <SectionHeader title="Training Materials" sub="All uploaded learning content"/>
+        <button onClick={()=>{ setForm({ title:'', category:'', visible_to:'all', description:'' }); setUploadErr(''); setUploadOk(false); setShowUpload(true); }}
+          style={{ padding:'8px 14px', background:C.red, border:'none', borderRadius:10, color:'#fff',
+            fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif",
+            display:'flex', alignItems:'center', gap:6, boxShadow:`0 4px 12px ${C.redB}` }}>
+          + Upload Material
+        </button>
+      </div>
+
+      {loading ? (
+        <div style={{ display:'flex', flexDirection:'column', gap:8 }}>{[...Array(4)].map((_,i)=><Shimmer key={i} h={56} br={12}/>)}</div>
+      ) : materials.length === 0 ? (
+        <Card><div style={{ textAlign:'center', padding:'32px 0', color:C.grayd, fontSize:13 }}>No materials uploaded yet</div></Card>
+      ) : (
+        <Card style={{ padding:0, overflow:'hidden' }}>
+          {materials.map((m,i)=>(
+            <div key={m.id||i} style={{ display:'flex', gap:14, padding:'16px 20px', borderBottom:i<materials.length-1?`1px solid ${C.border}`:'none', alignItems:'center' }}>
+              <div style={{ width:44, height:44, borderRadius:13, background:`${typeColor(m.material_type||m.type)}18`,
+                display:'flex', alignItems:'center', justifyContent:'center', fontSize:20, flexShrink:0 }}>
+                {typeIcon(m.material_type||m.type)}
+              </div>
+              <div style={{ flex:1 }}>
+                <div style={{ fontSize:14, fontWeight:700, color:C.white, marginBottom:3 }}>{m.title}</div>
+                <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                  {m.category && <span style={{ fontSize:10, color:C.gray, padding:'2px 8px', borderRadius:6, background:C.s3 }}>{m.category}</span>}
+                  {m.visible_to && <span style={{ fontSize:10, color:C.gray }}>Visible to: {m.visible_to}</span>}
+                  {m.view_count != null && <span style={{ fontSize:10, color:C.grayd }}>{m.view_count} views</span>}
+                </div>
+              </div>
+              <div style={{ display:'flex', gap:6, alignItems:'center' }}>
+                <span style={{ display:'inline-flex', padding:'3px 10px', borderRadius:20, fontSize:11, fontWeight:700,
+                  background:`${typeColor(m.material_type||m.type)}18`, color:typeColor(m.material_type||m.type) }}>
+                  {m.material_type||m.type||'PDF'}
+                </span>
+                {m.file_url && (
+                  <a href={m.file_url} target="_blank" rel="noreferrer"
+                    style={{ padding:'4px 10px', borderRadius:8, background:C.blueD, border:`1px solid ${C.blue}30`,
+                      fontSize:11, color:C.blue, fontWeight:700, textDecoration:'none' }}>
+                    View
+                  </a>
+                )}
+              </div>
+            </div>
+          ))}
+        </Card>
+      )}
+
+      {/* Upload Modal */}
+      {showUpload && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.72)', zIndex:200,
+          display:'flex', alignItems:'center', justifyContent:'center', padding:24 }}
+          onClick={e=>e.target===e.currentTarget&&setShowUpload(false)}>
+          <div style={{ background:C.s2, border:`1px solid ${C.borderL}`, borderRadius:20, padding:28,
+            width:'100%', maxWidth:500, boxShadow:'0 32px 80px rgba(0,0,0,.8)', animation:'km-fadein .2s ease' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:22 }}>
+              <div style={{ fontFamily:"'Syne',sans-serif", fontSize:18, fontWeight:800 }}>Upload Training Material</div>
+              <button onClick={()=>setShowUpload(false)} style={{ background:'transparent', border:`1px solid ${C.border}`, borderRadius:8, width:30, height:30, cursor:'pointer', color:C.gray, fontSize:16 }}>×</button>
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:12, marginBottom:16 }}>
+              <div>
+                <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>Title *</div>
+                <input placeholder="e.g. Product Training Module 1" style={inputStyle}
+                  value={form.title} onChange={e=>setForm(p=>({...p,title:e.target.value}))}/>
+              </div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+                <div>
+                  <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>Category</div>
+                  <select style={inputStyle} value={form.category} onChange={e=>setForm(p=>({...p,category:e.target.value}))}>
+                    <option value="">Select…</option>
+                    <option value="Product">Product</option>
+                    <option value="Operations">Operations</option>
+                    <option value="Skills">Skills</option>
+                    <option value="Safety">Safety</option>
+                    <option value="HR">HR</option>
+                  </select>
+                </div>
+                <div>
+                  <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>Visible To</div>
+                  <select style={inputStyle} value={form.visible_to} onChange={e=>setForm(p=>({...p,visible_to:e.target.value}))}>
+                    <option value="all">All</option>
+                    <option value="executive">Field Executives</option>
+                    <option value="supervisor">Supervisors</option>
+                    <option value="admin">Admins</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>Description (optional)</div>
+                <textarea rows={2} placeholder="Brief description…" style={{ ...inputStyle, resize:'none' }}
+                  value={form.description} onChange={e=>setForm(p=>({...p,description:e.target.value}))}/>
+              </div>
+              <div>
+                <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>File (PDF, MP4, PPT, etc.) *</div>
+                <input id="training-file-input" type="file" accept=".pdf,.mp4,.ppt,.pptx,.docx,.jpg,.png"
+                  style={{ width:'100%', padding:'9px 12px', borderRadius:10, border:`1.5px solid ${C.border}`,
+                    background:C.s3, color:C.gray, fontSize:13, fontFamily:"'DM Sans',sans-serif",
+                    cursor:'pointer', colorScheme:'dark' as any }}/>
+              </div>
+            </div>
+            {uploadErr && <div style={{ marginBottom:12, padding:'10px 14px', background:C.redD, border:`1px solid ${C.redB}`, borderRadius:10, fontSize:13, color:C.red }}>{uploadErr}</div>}
+            {uploadOk  && <div style={{ marginBottom:12, padding:'10px 14px', background:C.greenD, border:`1px solid ${C.green}28`, borderRadius:10, fontSize:13, color:C.green }}>✓ Uploaded successfully!</div>}
+            <div style={{ display:'flex', gap:10 }}>
+              <button onClick={()=>setShowUpload(false)}
+                style={{ flex:1, padding:'10px', borderRadius:11, border:`1px solid ${C.border}`, background:'transparent', color:C.gray, fontWeight:600, fontSize:13, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", display:'flex', alignItems:'center', justifyContent:'center' }}>
+                Cancel
+              </button>
+              <button onClick={doUpload} disabled={uploading}
+                style={{ flex:1, padding:'10px', borderRadius:11, border:'none', background:C.red, color:'#fff', fontWeight:700, fontSize:13, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
+                {uploading ? <Spin/> : '↑ Upload'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+/* ══════════════════════════════════════════════════
+   MAIN HR PAGE
+══════════════════════════════════════════════════ */
+export default function HRPage() {
+  const [tab, setTab] = useState<'team'|'ats'|'training'>('team');
+  const [users, setUsers] = useState<HRUser[]>([]);
+  const [zones, setZones] = useState<Zone[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState<string|null>(null);
+
+  const token = typeof window !== 'undefined' ? localStorage.getItem('kinematic_token') || '' : '';
+
+  const executives  = users.filter(u=>u.role==='executive');
+  const activeUsers = users.filter(u=>u.is_active!==false);
+  const admins      = users.filter(u=>u.role==='admin');
+
+  const fetchAll = useCallback(async () => {
+    setLoading(true); setError(null);
+    try {
+      const headers = { Authorization:`Bearer ${token}` };
+      const [uRes, zRes] = await Promise.allSettled([
+        api.get<any>('/api/v1/users',  { headers }),
+        api.get<any>('/api/v1/zones', { headers }),
+      ]);
+      if (uRes.status==='fulfilled') setUsers((uRes.value?.data??uRes.value)||[]);
+      if (zRes.status==='fulfilled') setZones((zRes.value?.data??zRes.value)||[]);
+    } catch(e:any) { setError(e?.message||'Failed to load'); }
+    finally { setLoading(false); }
+  }, [token]);
+
+  useEffect(() => { fetchAll(); }, [fetchAll]);
+
   return (
     <>
       <style>{`
-        @keyframes km-shimmer { 0%{transform:translateX(-100%)} 100%{transform:translateX(100%)} }
-        @keyframes km-fadein  { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
-        @keyframes kspin      { to{transform:rotate(360deg)} }
+        @keyframes km-shimmer  { 0%{transform:translateX(-100%)} 100%{transform:translateX(100%)} }
+        @keyframes km-fadein   { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes km-slidein  { from{transform:translateX(100%)} to{transform:translateX(0)} }
+        @keyframes kspin       { to{transform:rotate(360deg)} }
         .km-tr:hover { background:${C.s3} !important; }
         .kbtn:hover  { opacity:.82; }
         .kbtn:active { transform:scale(.97); }
@@ -274,51 +1187,43 @@ export default function HRPage() {
 
       <div style={{ display:'flex', flexDirection:'column', gap:22, animation:'km-fadein .3s ease' }}>
 
-        {/* ── Header ── */}
+        {/* Header */}
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-end', flexWrap:'wrap', gap:12 }}>
           <div>
             <div style={{ fontFamily:"'Syne',sans-serif", fontSize:24, fontWeight:800, color:C.white, letterSpacing:'-0.3px' }}>
-              HR — Team Management
+              HR & Recruitment
             </div>
-            <div style={{ fontSize:12, color:C.gray, marginTop:3 }}>All users registered in Rise Up</div>
+            <div style={{ fontSize:12, color:C.gray, marginTop:3 }}>Team management, hiring pipeline & training</div>
           </div>
-          <div style={{ display:'flex', gap:8 }}>
-            <button className="kbtn" onClick={fetchAll}
-              style={{ padding:'8px 14px', background:C.s3, border:`1px solid ${C.border}`, borderRadius:10,
-                color:C.gray, fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:"'DM Sans',sans-serif",
-                display:'flex', alignItems:'center', gap:6 }}>
-              ↺ Refresh
-            </button>
-            <button className="kbtn" onClick={()=>{ setForm(emptyForm); setSaveErr(null); setSaveOk(false); setShowAdd(true); }}
-              style={{ padding:'8px 16px', background:C.red, border:'none', borderRadius:10,
-                color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif",
-                display:'flex', alignItems:'center', gap:6, boxShadow:`0 4px 16px ${C.redB}` }}>
-              + Add User
-            </button>
-          </div>
+          <button onClick={fetchAll}
+            style={{ padding:'8px 14px', background:C.s3, border:`1px solid ${C.border}`, borderRadius:10,
+              color:C.gray, fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:"'DM Sans',sans-serif",
+              display:'flex', alignItems:'center', gap:6 }}>
+            ↺ Refresh
+          </button>
         </div>
 
-        {/* ── KPI row ── */}
+        {/* KPI row */}
         <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12 }}>
           {[
-            { label:'Total Users',       value:users.length,       color:C.blue,  sub:'Across all roles' },
-            { label:'Field Executives',  value:executives.length,  color:C.blue,  sub:'In field ops' },
-            { label:'Active',            value:activeUsers.length, color:C.green, sub:'is_active = true' },
-            { label:'Admins',            value:admins.length,      color:C.red,   sub:'System administrators' },
-          ].map((k,i) => <StatCard key={i} {...k} loading={loading}/>)}
+            { label:'Total Users',      value:users.length,       color:C.blue,  sub:'All roles' },
+            { label:'Field Executives', value:executives.length,  color:C.blue,  sub:'In field ops' },
+            { label:'Active',           value:activeUsers.length, color:C.green, sub:'is_active = true' },
+            { label:'Admins',           value:admins.length,      color:C.red,   sub:'System access' },
+          ].map((k,i)=><StatCard key={i} {...k} loading={loading}/>)}
         </div>
 
-        {/* ── Tabs ── */}
+        {/* Tabs */}
         <div style={{ display:'flex', borderBottom:`1px solid ${C.border}` }}>
           {([
-            { id:'team',     label:'Team Directory' },
-            { id:'roles',    label:'Role Overview' },
-            { id:'training', label:'Training & Docs' },
-          ] as const).map(t => (
-            <button key={t.id} onClick={()=>setHrTab(t.id)}
-              style={{ padding:'10px 20px', background:'transparent', border:'none',
-                borderBottom: hrTab===t.id ? `2px solid ${C.red}` : '2px solid transparent',
-                color: hrTab===t.id ? C.red : C.gray,
+            { id:'team',     label:'👥 Team Directory' },
+            { id:'ats',      label:'🎯 Hiring Pipeline (ATS)' },
+            { id:'training', label:'📚 Training & Docs' },
+          ] as const).map(t=>(
+            <button key={t.id} onClick={()=>setTab(t.id)}
+              style={{ padding:'10px 22px', background:'transparent', border:'none',
+                borderBottom: tab===t.id?`2px solid ${C.red}`:'2px solid transparent',
+                color: tab===t.id?C.red:C.gray,
                 fontFamily:"'DM Sans',sans-serif", fontWeight:700, fontSize:13,
                 cursor:'pointer', marginBottom:-1, transition:'all .2s' }}>
               {t.label}
@@ -326,341 +1231,15 @@ export default function HRPage() {
           ))}
         </div>
 
-        {/* ══ TAB: Team Directory ══ */}
-        {hrTab === 'team' && (
-          <>
-            {/* Toolbar */}
-            <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
-              <div style={{ position:'relative', flex:1, minWidth:200 }}>
-                <span style={{ position:'absolute', left:11, top:'50%', transform:'translateY(-50%)', fontSize:13, color:C.grayd }}>🔍</span>
-                <input placeholder="Search by name, ID, mobile, city…" value={search}
-                  onChange={e=>setSearch(e.target.value)}
-                  style={{ ...inputStyle, paddingLeft:32 }}/>
-              </div>
-              <div style={{ display:'flex', gap:6 }}>
-                {['all','executive','admin','supervisor'].map(r=>(
-                  <button key={r} onClick={()=>setRoleFilter(r)}
-                    style={{ padding:'6px 13px', borderRadius:8,
-                      border:`1px solid ${roleFilter===r ? C.blue : C.border}`,
-                      background: roleFilter===r ? C.blueD : C.s3,
-                      color: roleFilter===r ? C.blue : C.gray,
-                      fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
-                    {r==='all'?'All':r.charAt(0).toUpperCase()+r.slice(1)}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Table */}
-            {loading ? (
-              <div style={{ display:'flex', justifyContent:'center', padding:'40px 0' }}><Spin/></div>
-            ) : error ? (
-              <Card style={{ background:C.redD, border:`1px solid ${C.redB}` }}>
-                <div style={{ color:C.red, fontWeight:700, marginBottom:6 }}>Failed to load users</div>
-                <div style={{ fontSize:13, color:C.gray, marginBottom:12 }}>{error}</div>
-                <button onClick={fetchAll} style={{ ...btnSecondary, flex:'unset', padding:'7px 14px', fontSize:12 }}>Retry</button>
-              </Card>
-            ) : filtered.length === 0 ? (
-              <Card><div style={{ textAlign:'center', padding:'32px 0', color:C.grayd, fontSize:13 }}>
-                No users found{search ? ` for "${search}"` : ''}
-              </div></Card>
-            ) : (
-              <Card style={{ padding:0, overflow:'hidden' }}>
-                <div style={{ display:'grid', gridTemplateColumns:'2.2fr 1.2fr 1.4fr 1.2fr 1fr 110px',
-                  gap:8, padding:'10px 18px', borderBottom:`1px solid ${C.border}`,
-                  fontSize:10, color:C.grayd, fontWeight:700, letterSpacing:'0.7px', textTransform:'uppercase' }}>
-                  {['Name / ID','Role','Mobile','Zone / City','Status','Actions'].map(h=><span key={h}>{h}</span>)}
-                </div>
-                {filtered.map((u, i) => (
-                  <div key={u.id} className="km-tr"
-                    style={{ display:'grid', gridTemplateColumns:'2.2fr 1.2fr 1.4fr 1.2fr 1fr 110px',
-                      gap:8, padding:'13px 18px', alignItems:'center',
-                      borderBottom: i<filtered.length-1 ? `1px solid ${C.border}` : 'none',
-                      transition:'background .13s' }}>
-                    <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                      <Avatar name={u.name} size={30}/>
-                      <div>
-                        <div style={{ fontSize:13, fontWeight:700, color:C.white }}>{u.name}</div>
-                        <div style={{ fontSize:10, color:C.grayd, fontFamily:'monospace', marginTop:1 }}>{u.employee_id || '—'}</div>
-                      </div>
-                    </div>
-                    <span style={{ display:'inline-flex', alignItems:'center', padding:'3px 10px', borderRadius:20,
-                      background:`${roleColor[u.role]||C.blue}15`, color:roleColor[u.role]||C.blue,
-                      fontSize:11, fontWeight:700, textTransform:'capitalize' }}>
-                      {u.role}
-                    </span>
-                    <span style={{ fontSize:12, color:C.gray, fontFamily:'monospace' }}>{u.mobile || '—'}</span>
-                    <span style={{ fontSize:12, color:C.gray }}>
-                      {zones.find(z=>z.id===u.zone_id)?.name || u.city || '—'}
-                    </span>
-                    <span style={{ display:'inline-flex', alignItems:'center', padding:'3px 10px', borderRadius:20,
-                      background: u.is_active !== false ? C.greenD : C.redD,
-                      color: u.is_active !== false ? C.green : C.red,
-                      fontSize:11, fontWeight:700 }}>
-                      {u.is_active !== false ? 'Active' : 'Inactive'}
-                    </span>
-                    <div style={{ display:'flex', gap:4 }}>
-                      {[
-                        { title:'Edit',    icon:'✏️', fn:()=>openEdit(u) },
-                        { title:'Reset password', icon:'🔑', fn:()=>{ setSelUser(u); setNewPass(''); setSaveErr(null); setSaveOk(false); setShowReset(true); } },
-                        { title: u.is_active !== false ? 'Deactivate' : 'Activate', icon: u.is_active !== false ? '⏸' : '▶️', fn:()=>toggleActive(u) },
-                      ].map(a=>(
-                        <button key={a.title} title={a.title} onClick={a.fn}
-                          style={{ width:28, height:28, borderRadius:8, border:`1px solid ${C.border}`,
-                            background:'transparent', cursor:'pointer', fontSize:13,
-                            display:'flex', alignItems:'center', justifyContent:'center' }}
-                          onMouseEnter={e=>(e.currentTarget.style.background=C.s3)}
-                          onMouseLeave={e=>(e.currentTarget.style.background='transparent')}>
-                          {a.icon}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </Card>
-            )}
-            {!loading && !error && filtered.length > 0 && (
-              <div style={{ fontSize:12, color:C.grayd, textAlign:'right' }}>
-                Showing {filtered.length} of {users.length} users
-              </div>
-            )}
-          </>
+        {/* Tab content */}
+        {tab==='team' && (
+          <TeamSection users={users} zones={zones} loading={loading} error={error} onRefresh={fetchAll} token={token}/>
         )}
-
-        {/* ══ TAB: Role Overview ══ */}
-        {hrTab === 'roles' && (
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:14 }}>
-            <Card>
-              <SectionHeader title="Role Distribution" sub="Live from database"/>
-              {loading ? <div style={{ display:'flex', justifyContent:'center', padding:40 }}><Spin/></div> : (
-                <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-                  {[
-                    { l:'Field Executives', v:executives.length,  c:C.blue },
-                    { l:'Admins',           v:admins.length,       c:C.red  },
-                    { l:'Supervisors',      v:supervisors.length,  c:C.teal },
-                    { l:'Other',            v:users.filter(u=>!['executive','admin','supervisor'].includes(u.role)).length, c:C.purple },
-                  ].map((x,i)=>(
-                    <div key={i}>
-                      <div style={{ display:'flex', justifyContent:'space-between', marginBottom:5 }}>
-                        <div style={{ display:'flex', alignItems:'center', gap:8, fontSize:13, color:C.gray }}>
-                          <div style={{ width:9, height:9, borderRadius:'50%', background:x.c }}/>
-                          {x.l}
-                        </div>
-                        <span style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:15, color:x.c }}>{x.v}</span>
-                      </div>
-                      <div style={{ height:4, background:C.s3, borderRadius:2, overflow:'hidden' }}>
-                        <div style={{ height:'100%', background:x.c, borderRadius:2, width:`${users.length>0?(x.v/users.length)*100:0}%`, transition:'width .8s ease' }}/>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </Card>
-
-            <Card>
-              <SectionHeader title="Active Status" sub="Account activation state"/>
-              {loading ? <div style={{ display:'flex', justifyContent:'center', padding:40 }}><Spin/></div> : (
-                <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-                  {[
-                    { l:'Active users',   v:activeUsers.length,               c:C.green },
-                    { l:'Inactive users', v:users.length - activeUsers.length, c:C.red   },
-                  ].map((x,i)=>(
-                    <div key={i}>
-                      <div style={{ display:'flex', justifyContent:'space-between', marginBottom:5 }}>
-                        <div style={{ display:'flex', alignItems:'center', gap:8, fontSize:13, color:C.gray }}>
-                          <div style={{ width:9, height:9, borderRadius:'50%', background:x.c }}/>
-                          {x.l}
-                        </div>
-                        <span style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:15, color:x.c }}>{x.v}</span>
-                      </div>
-                      <div style={{ height:4, background:C.s3, borderRadius:2, overflow:'hidden' }}>
-                        <div style={{ height:'100%', background:x.c, borderRadius:2, width:`${users.length>0?(x.v/users.length)*100:0}%`, transition:'width .8s ease' }}/>
-                      </div>
-                    </div>
-                  ))}
-                  <div style={{ marginTop:8, padding:'12px 14px', background:C.s3, borderRadius:12, fontSize:12, color:C.gray }}>
-                    {users.length} total users · {executives.length} in field operations
-                  </div>
-                </div>
-              )}
-            </Card>
-
-            {(['executive','supervisor','admin'] as const).map(role => {
-              const roleUsers = users.filter(u=>u.role===role);
-              return (
-                <Card key={role} style={{ padding:0, overflow:'hidden' }}>
-                  <div style={{ padding:'14px 18px', borderBottom:`1px solid ${C.border}`, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                    <div style={{ fontFamily:"'Syne',sans-serif", fontSize:13, fontWeight:800, textTransform:'capitalize', color:roleColor[role]||C.blue }}>
-                      {role}s <span style={{ color:C.grayd, fontSize:11, fontWeight:400 }}>({roleUsers.length})</span>
-                    </div>
-                  </div>
-                  {loading ? <div style={{ padding:24, display:'flex', justifyContent:'center' }}><Spin/></div> :
-                    roleUsers.length === 0 ? (
-                      <div style={{ textAlign:'center', padding:'24px 0', color:C.grayd, fontSize:12 }}>No {role}s yet</div>
-                    ) : roleUsers.map((u,i)=>(
-                      <div key={u.id} style={{ display:'flex', gap:12, padding:'11px 18px', borderBottom:i<roleUsers.length-1?`1px solid ${C.border}`:'none', alignItems:'center' }}>
-                        <Avatar name={u.name} size={30}/>
-                        <div style={{ flex:1 }}>
-                          <div style={{ fontSize:13, fontWeight:600, color:C.white }}>{u.name}</div>
-                          <div style={{ fontSize:10, color:C.grayd, display:'flex', gap:8, marginTop:2 }}>
-                            {u.employee_id && <span style={{ fontFamily:'monospace' }}>{u.employee_id}</span>}
-                            {u.mobile && <span>{u.mobile}</span>}
-                          </div>
-                        </div>
-                        <span style={{ display:'inline-flex', padding:'2px 9px', borderRadius:20, fontSize:10, fontWeight:700,
-                          background: u.is_active !== false ? C.greenD : C.redD,
-                          color: u.is_active !== false ? C.green : C.red }}>
-                          {u.is_active !== false ? 'Active' : 'Inactive'}
-                        </span>
-                      </div>
-                    ))
-                  }
-                </Card>
-              );
-            })}
-          </div>
+        {tab==='ats' && (
+          <ATSSection token={token} zones={zones}/>
         )}
-
-        {/* ══ TAB: Training & Docs ══ */}
-        {hrTab === 'training' && (
-          <Card>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:18 }}>
-              <SectionHeader title="Training Materials" sub="Managed from Learning Center"/>
-              <button style={{ padding:'8px 14px', background:C.red, border:'none', borderRadius:10,
-                color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif",
-                display:'flex', alignItems:'center', gap:6, boxShadow:`0 4px 12px ${C.redB}` }}>
-                + Upload Material
-              </button>
-            </div>
-            {[
-              { name:'Product Training Module 1', type:'Video', visible:'FE + Supervisor', views:145 },
-              { name:'GT Activity Best Practices',  type:'PDF',   visible:'All',            views:234 },
-              { name:'Safety Guidelines 2024',      type:'PDF',   visible:'FE',             views:89  },
-              { name:'Supervisor Verification SOP', type:'PDF',   visible:'Supervisor',     views:42  },
-            ].map((m,i)=>(
-              <div key={i} style={{ display:'flex', gap:14, padding:'14px 0', borderBottom:i<3?`1px solid ${C.border}`:'none', alignItems:'center' }}>
-                <div style={{ width:40, height:40, borderRadius:12, background:m.type==='Video'?C.redD:C.blueD,
-                  display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0 }}>
-                  {m.type==='Video'?'▶':'📄'}
-                </div>
-                <div style={{ flex:1 }}>
-                  <div style={{ fontSize:14, fontWeight:700, color:C.white, marginBottom:3 }}>{m.name}</div>
-                  <div style={{ fontSize:11, color:C.gray }}>Visible to: {m.visible} · {m.views} views</div>
-                </div>
-                <span style={{ display:'inline-flex', padding:'3px 10px', borderRadius:20, fontSize:11, fontWeight:700,
-                  background:m.type==='Video'?C.redD:C.blueD, color:m.type==='Video'?C.red:C.blue }}>
-                  {m.type}
-                </span>
-              </div>
-            ))}
-          </Card>
-        )}
-
-        {/* ══ ADD USER MODAL ══ */}
-        {showAdd && (
-          <div style={modalOverlay} onClick={e=>e.target===e.currentTarget&&setShowAdd(false)}>
-            <div style={modalBox}>
-              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:22 }}>
-                <div style={{ fontFamily:"'Syne',sans-serif", fontSize:18, fontWeight:800, color:C.white }}>Add New User</div>
-                <button onClick={()=>setShowAdd(false)} style={{ background:'transparent', border:`1px solid ${C.border}`, borderRadius:8, width:30, height:30, cursor:'pointer', color:C.gray, fontSize:16 }}>×</button>
-              </div>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-                {FField('name',        'Full Name')}
-                {FField('mobile',      'Mobile Number', 'tel')}
-                {FField('email',       'Email (optional)', 'email')}
-                {FField('password',    'Password', 'password')}
-                {FField('role',        'Role', 'text', [
-                  {v:'executive',l:'Field Executive'},{v:'supervisor',l:'Supervisor'},
-                  {v:'admin',l:'Admin'},{v:'program_manager',l:'Program Manager'},{v:'city_manager',l:'City Manager'},
-                ])}
-                {FField('employee_id', 'Employee ID (e.g. FE-003)')}
-                {FField('city',        'City')}
-                {FField('zone_id',     'Zone', 'text', zones.map(z=>({v:z.id,l:z.name})))}
-                <div style={{ gridColumn:'1 / -1' }}>
-                  <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>Date Joined</div>
-                  <input type="date" style={inputStyle} value={form.joined_date} onChange={e=>setForm(p=>({...p,joined_date:e.target.value}))}/>
-                </div>
-              </div>
-              {saveErr && <div style={{ marginTop:14, background:C.redD, border:`1px solid ${C.redB}`, borderRadius:10, padding:'10px 14px', fontSize:13, color:C.red }}>{saveErr}</div>}
-              {saveOk  && <div style={{ marginTop:14, background:C.greenD, border:`1px solid ${C.green}28`, borderRadius:10, padding:'10px 14px', fontSize:13, color:C.green }}>✓ User created successfully!</div>}
-              <div style={{ display:'flex', gap:10, marginTop:20 }}>
-                <button style={btnSecondary} onClick={()=>setShowAdd(false)}>Cancel</button>
-                <button style={btnPrimary} onClick={doAdd} disabled={saving||!form.name||!form.mobile}>
-                  {saving ? <Spin/> : '+ Create User'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ══ EDIT USER MODAL ══ */}
-        {showEdit && selUser && (
-          <div style={modalOverlay} onClick={e=>e.target===e.currentTarget&&setShowEdit(false)}>
-            <div style={modalBox}>
-              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:22 }}>
-                <div>
-                  <div style={{ fontFamily:"'Syne',sans-serif", fontSize:18, fontWeight:800, color:C.white }}>Edit User</div>
-                  <div style={{ fontSize:12, color:C.gray, marginTop:2 }}>{selUser.name}</div>
-                </div>
-                <button onClick={()=>setShowEdit(false)} style={{ background:'transparent', border:`1px solid ${C.border}`, borderRadius:8, width:30, height:30, cursor:'pointer', color:C.gray, fontSize:16 }}>×</button>
-              </div>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-                {FField('name',        'Full Name')}
-                {FField('mobile',      'Mobile Number', 'tel')}
-                {FField('email',       'Email', 'email')}
-                {FField('role',        'Role', 'text', [
-                  {v:'executive',l:'Field Executive'},{v:'supervisor',l:'Supervisor'},
-                  {v:'admin',l:'Admin'},{v:'program_manager',l:'Program Manager'},{v:'city_manager',l:'City Manager'},
-                ])}
-                {FField('employee_id', 'Employee ID')}
-                {FField('city',        'City')}
-                {FField('zone_id',     'Zone', 'text', zones.map(z=>({v:z.id,l:z.name})))}
-                <div>
-                  <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>Date Joined</div>
-                  <input type="date" style={inputStyle} value={form.joined_date} onChange={e=>setForm(p=>({...p,joined_date:e.target.value}))}/>
-                </div>
-              </div>
-              {saveErr && <div style={{ marginTop:14, background:C.redD, border:`1px solid ${C.redB}`, borderRadius:10, padding:'10px 14px', fontSize:13, color:C.red }}>{saveErr}</div>}
-              {saveOk  && <div style={{ marginTop:14, background:C.greenD, border:`1px solid ${C.green}28`, borderRadius:10, padding:'10px 14px', fontSize:13, color:C.green }}>✓ Saved successfully!</div>}
-              <div style={{ display:'flex', gap:10, marginTop:20 }}>
-                <button style={btnSecondary} onClick={()=>setShowEdit(false)}>Cancel</button>
-                <button style={btnPrimary} onClick={doEdit} disabled={saving||!form.name||!form.mobile}>
-                  {saving ? <Spin/> : '✓ Save Changes'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ══ RESET PASSWORD MODAL ══ */}
-        {showReset && selUser && (
-          <div style={modalOverlay} onClick={e=>e.target===e.currentTarget&&setShowReset(false)}>
-            <div style={{ ...modalBox, maxWidth:380 }}>
-              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
-                <div>
-                  <div style={{ fontFamily:"'Syne',sans-serif", fontSize:18, fontWeight:800, color:C.white }}>Reset Password</div>
-                  <div style={{ fontSize:12, color:C.gray, marginTop:2 }}>{selUser.name}</div>
-                </div>
-                <button onClick={()=>setShowReset(false)} style={{ background:'transparent', border:`1px solid ${C.border}`, borderRadius:8, width:30, height:30, cursor:'pointer', color:C.gray, fontSize:16 }}>×</button>
-              </div>
-              <div style={{ display:'flex', gap:10, padding:'11px 14px', background:C.yellowD, border:`1px solid ${C.yellow}28`, borderRadius:10, marginBottom:16 }}>
-                <span style={{ fontSize:13 }}>⚠️</span>
-                <span style={{ fontSize:12, color:C.yellow, lineHeight:1.5 }}>The user will need to log in with this new password immediately.</span>
-              </div>
-              <div>
-                <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>New Password (min. 6 characters)</div>
-                <input type="password" placeholder="Enter new password…" style={inputStyle} value={newPass} onChange={e=>setNewPass(e.target.value)}/>
-              </div>
-              {saveErr && <div style={{ marginTop:12, background:C.redD, border:`1px solid ${C.redB}`, borderRadius:10, padding:'10px 14px', fontSize:13, color:C.red }}>{saveErr}</div>}
-              {saveOk  && <div style={{ marginTop:12, background:C.greenD, border:`1px solid ${C.green}28`, borderRadius:10, padding:'10px 14px', fontSize:13, color:C.green }}>✓ Password reset!</div>}
-              <div style={{ display:'flex', gap:10, marginTop:20 }}>
-                <button style={btnSecondary} onClick={()=>setShowReset(false)}>Cancel</button>
-                <button style={btnPrimary} onClick={doReset} disabled={saving||!newPass}>
-                  {saving ? <Spin/> : '🔑 Reset Password'}
-                </button>
-              </div>
-            </div>
-          </div>
+        {tab==='training' && (
+          <TrainingSection token={token}/>
         )}
 
       </div>
