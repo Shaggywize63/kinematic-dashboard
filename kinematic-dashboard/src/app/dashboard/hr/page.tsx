@@ -546,7 +546,8 @@ function ATSSection({ token, zones }:{ token:string; zones:Zone[] }) {
     setFormErrors(errs);
     return Object.keys(errs).length === 0;
   };
-
+if (!/^[6-9]\d{9}$/.test(form.mobile)) { setSaveErr('Enter valid 10-digit mobile'); return; }
+if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) { setSaveErr('Enter valid email'); return; }
   const doAdd = async () => {
     if (!validate()) return;
     setSaving(true); setSaveErr('');
