@@ -679,28 +679,21 @@ function ATSSection({ token, zones }:{ token:string; zones:Zone[] }) {
               </div>
 
               {/* City — dropdown */}
-              <div>
-                <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>City <span style={{ color:C.red }}>*</span></div>
-                <select style={{ ...inputStyle, borderColor:formErrors.city ? C.red : C.border }}
-                  value={form.city}
-                  onChange={e=>{ setForm(p=>({...p,city:e.target.value})); setFormErrors(p=>({...p,city:''})); }}>
-                  <option value="">Select city…</option>
-                  {cities.map(c=><option key={c} value={c}>{c}</option>)}
-                </select>
-                {formErrors.city && <div style={{ fontSize:11, color:C.red, marginTop:3 }}>⚠ {formErrors.city}</div>}
-              </div>
+              // City — dropdown
+<select style={inputStyle} value={form.city} onChange={e=>setForm(p=>({...p,city:e.target.value}))}>
+  <option value="">Select city…</option>
+  <option value="Gurugram">Gurugram</option>
+  <option value="Mumbai">Mumbai</option>
+  <option value="Other">Other</option>
+</select>
 
-              {/* Source — dropdown */}
-              <div>
-                <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>Source <span style={{ color:C.red }}>*</span></div>
-                <select style={{ ...inputStyle, borderColor:formErrors.source ? C.red : C.border }}
-                  value={form.source}
-                  onChange={e=>{ setForm(p=>({...p,source:e.target.value})); setFormErrors(p=>({...p,source:''})); }}>
-                  <option value="">Select source…</option>
-                  {SOURCES.map(s=><option key={s} value={s}>{s}</option>)}
-                </select>
-                {formErrors.source && <div style={{ fontSize:11, color:C.red, marginTop:3 }}>⚠ {formErrors.source}</div>}
-              </div>
+// Source — dropdown  
+<select style={inputStyle} value={form.source} onChange={e=>setForm(p=>({...p,source:e.target.value}))}>
+  <option value="">Select source…</option>
+  {['Referral','Walk-in','Naukri','LinkedIn','Indeed','WhatsApp','Instagram','Other'].map(s=>
+    <option key={s} value={s}>{s}</option>
+  )}
+</select>
 
               {/* Applying For */}
               <div>
