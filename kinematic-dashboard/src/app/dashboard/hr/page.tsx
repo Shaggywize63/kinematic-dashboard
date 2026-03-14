@@ -94,7 +94,6 @@ const DEFAULT_DOC_TYPES = [
   { type:'aadhaar',    label:'Aadhaar Card',            icon:'🪪',  input:'both',  placeholder:'Enter 12-digit Aadhaar number' },
   { type:'pan',        label:'PAN Card',                icon:'💳',  input:'both',  placeholder:'Enter PAN number (e.g. ABCDE1234F)' },
   { type:'bank',       label:'Bank Account Details',    icon:'🏦',  input:'text',  placeholder:'Account number / IFSC / Bank name' },
-  { type:'mobile',     label:'Mobile Number',           icon:'📱',  input:'text',  placeholder:'10-digit mobile number' },
   { type:'email',      label:'Email ID',                icon:'📧',  input:'text',  placeholder:'candidate@email.com' },
   { type:'education',  label:'Education Certificate',   icon:'🎓',  input:'both',  placeholder:'Degree / Board / Year' },
   { type:'photo',      label:'Passport Photo',          icon:'📸',  input:'file',  placeholder:'' },
@@ -444,11 +443,10 @@ function CandidateDetail({ candidate, zones, onClose, onRefresh, token }:{
                                   {dt.type === 'aadhaar' ? 'Aadhaar Number' :
                                    dt.type === 'pan' ? 'PAN Number' :
                                    dt.type === 'bank' ? 'Account Details' :
-                                   dt.type === 'mobile' ? 'Mobile Number' :
                                    dt.type === 'email' ? 'Email Address' :
                                    dt.type === 'education' ? 'Qualification Details' : 'Value'}
                                 </div>
-                                <input type={dt.type==='email'?'email':dt.type==='mobile'?'tel':'text'}
+                                <input type={dt.type==='email'?'email':'text'}
                                   placeholder={dt.placeholder} style={inp}
                                   value={currentVal}
                                   onChange={e=>setDocValues(p=>({...p,[dt.type]:e.target.value}))}/>
@@ -576,7 +574,7 @@ function CandidateDetail({ candidate, zones, onClose, onRefresh, token }:{
                 <>
                   <div style={{ padding:'12px 14px', background:C.greenD, border:`1px solid ${C.green}28`,
                     borderRadius:10, fontSize:12, color:C.green, lineHeight:1.6 }}>
-                    Converting <strong>{candidate.name}</strong> will create a Rise Up login account with role <strong>Field Executive</strong> and mark this candidate as onboarded.
+                    Converting <strong>{candidate.name}</strong> will create a Kinematic login account with role <strong>Field Executive</strong> and mark this candidate as onboarded.
                   </div>
                   <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
                     {[
@@ -636,6 +634,8 @@ function ATSSection({ token, zones }:{ token:string; zones:Zone[] }) {
   const [stageFilter, setStageFilter] = useState('all');
   const [search, setSearch]         = useState('');
   const [showAdd, setShowAdd]       = useState(false);
+  const [showEdit, setShowEdit]     = useState(false);
+  const [editTarget, setEditTarget] = useState<Candidate|null>(null);
   const [saving, setSaving]         = useState(false);
   const [saveErr, setSaveErr]       = useState('');
   const [formErrors, setFormErrors] = useState<Record<string,string>>({});
@@ -692,6 +692,12 @@ function ATSSection({ token, zones }:{ token:string; zones:Zone[] }) {
     if (!validate()) return;
     setSaving(true); setSaveErr('');
     try {
+      // Mobile duplication check against existing candidates
+      const dupCheck = safeCandidates.find(c => c.mobile?.trim() === form.mobile.trim());
+      if (dupCheck) {
+        setSaveErr(`Mobile ${form.mobile} already exists for candidate "${dupCheck.name}"`);
+        setSaving(false); return;
+      }
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/candidates`, {
         method:'POST',
         headers:{ Authorization:`Bearer ${token}`, 'Content-Type':'application/json' },
@@ -700,6 +706,35 @@ function ATSSection({ token, zones }:{ token:string; zones:Zone[] }) {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || json.message || 'Failed');
       setShowAdd(false); setForm(emptyForm); fetchCandidates();
+    } catch(e:any) { setSaveErr(e.message); }
+    finally { setSaving(false); }
+  };
+
+  const openEdit = (c: Candidate) => {
+    setEditTarget(c);
+    setForm({ name:c.name||'', mobile:c.mobile||'', email:c.email||'', applied_role:c.applied_role||'executive',
+      city:c.city||'', source:c.source||'', applied_zone:c.applied_zone||'' });
+    setSaveErr(''); setFormErrors({});
+    setShowEdit(true);
+  };
+
+  const doEdit = async () => {
+    if (!editTarget) return;
+    if (!form.name.trim()) { setSaveErr('Name is required'); return; }
+    if (form.mobile && !/^[6-9]\d{9}$/.test(form.mobile.trim())) { setSaveErr('Enter a valid 10-digit mobile number'); return; }
+    // Mobile duplication check (exclude current candidate)
+    const dupCheck = safeCandidates.find(c => c.id !== editTarget.id && c.mobile?.trim() === form.mobile.trim());
+    if (dupCheck) { setSaveErr(`Mobile ${form.mobile} already used by "${dupCheck.name}"`); return; }
+    setSaving(true); setSaveErr('');
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/candidates/${editTarget.id}`, {
+        method:'PATCH',
+        headers:{ Authorization:`Bearer ${token}`, 'Content-Type':'application/json' },
+        body: JSON.stringify(form),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || json.message || 'Failed');
+      setShowEdit(false); setEditTarget(null); fetchCandidates();
     } catch(e:any) { setSaveErr(e.message); }
     finally { setSaving(false); }
   };
@@ -749,14 +784,14 @@ function ATSSection({ token, zones }:{ token:string; zones:Zone[] }) {
           No candidates{stageFilter!=='all'?` in ${stageFilter}`:''}{search?` matching "${search}"`:''}</div></Card>
       ) : (
         <Card style={{ padding:0, overflow:'hidden' }}>
-          <div style={{ display:'grid', gridTemplateColumns:'2fr 1fr 1fr 1.2fr 1fr 80px',
+          <div style={{ display:'grid', gridTemplateColumns:'2fr 1fr 1fr 1.2fr 1fr 110px',
             gap:8, padding:'10px 18px', borderBottom:`1px solid ${C.border}`,
             fontSize:10, color:C.grayd, fontWeight:700, letterSpacing:'0.7px', textTransform:'uppercase' }}>
-            {['Candidate','Role','City','Source','Stage','Docs'].map(h=><span key={h}>{h}</span>)}
+            {['Candidate','Role','City','Source','Stage',''].map(h=><span key={h}>{h}</span>)}
           </div>
           {filtered.map((c,i)=>(
             <div key={c.id} className="km-tr" onClick={()=>setSelected(c)}
-              style={{ display:'grid', gridTemplateColumns:'2fr 1fr 1fr 1.2fr 1fr 80px',
+              style={{ display:'grid', gridTemplateColumns:'2fr 1fr 1fr 1.2fr 1fr 110px',
                 gap:8, padding:'13px 18px', alignItems:'center', cursor:'pointer',
                 borderBottom:i<filtered.length-1?`1px solid ${C.border}`:'none', transition:'background .13s' }}>
               <div style={{ display:'flex', alignItems:'center', gap:10 }}>
@@ -774,6 +809,13 @@ function ATSSection({ token, zones }:{ token:string; zones:Zone[] }) {
                 {STAGES.find(s=>s.id===c.stage)?.label}
               </span>
               <span style={{ fontSize:11, color:C.blue, fontWeight:700 }}>View →</span>
+              <span onClick={e=>{ e.stopPropagation(); openEdit(c); }}
+                style={{ fontSize:11, color:C.gray, fontWeight:700, cursor:'pointer', padding:'3px 8px',
+                  borderRadius:6, background:C.s3, border:`1px solid ${C.border}` }}
+                onMouseEnter={e=>(e.currentTarget.style.color=C.white)}
+                onMouseLeave={e=>(e.currentTarget.style.color=C.gray)}>
+                ✏️
+              </span>
             </div>
           ))}
         </Card>
@@ -876,6 +918,80 @@ function ATSSection({ token, zones }:{ token:string; zones:Zone[] }) {
         </div>
       )}
 
+      {/* Edit Candidate Modal */}
+      {showEdit && editTarget && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.72)', zIndex:200,
+          display:'flex', alignItems:'center', justifyContent:'center', padding:24 }}
+          onClick={e=>e.target===e.currentTarget&&setShowEdit(false)}>
+          <div style={{ background:C.s2, border:`1px solid ${C.borderL}`, borderRadius:20, padding:28,
+            width:'100%', maxWidth:520, boxShadow:'0 32px 80px rgba(0,0,0,.8)', animation:'km-fadein .2s ease' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
+              <div>
+                <div style={{ fontFamily:"'Syne',sans-serif", fontSize:18, fontWeight:800 }}>Edit Candidate</div>
+                <div style={{ fontSize:12, color:C.gray, marginTop:2 }}>{editTarget.name}</div>
+              </div>
+              <button onClick={()=>setShowEdit(false)} style={{ background:'transparent', border:`1px solid ${C.border}`, borderRadius:8, width:30, height:30, cursor:'pointer', color:C.gray, fontSize:16 }}>×</button>
+            </div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:16 }}>
+              <div style={{ gridColumn:'1 / -1' }}>
+                <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>Full Name <span style={{ color:C.red }}>*</span></div>
+                <input type="text" style={inputStyle} placeholder="Full name" value={form.name}
+                  onChange={e=>setForm(p=>({...p,name:e.target.value}))}/>
+              </div>
+              <div>
+                <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>Mobile</div>
+                <input type="tel" style={inputStyle} placeholder="10-digit number" maxLength={10}
+                  value={form.mobile} onChange={e=>setForm(p=>({...p,mobile:e.target.value.replace(/\D/g,'').slice(0,10)}))}/>
+              </div>
+              <div>
+                <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>Email</div>
+                <input type="email" style={inputStyle} placeholder="Optional" value={form.email}
+                  onChange={e=>setForm(p=>({...p,email:e.target.value}))}/>
+              </div>
+              <div>
+                <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>City</div>
+                <select style={inputStyle} value={form.city} onChange={e=>setForm(p=>({...p,city:e.target.value}))}>
+                  <option value="">Select city…</option>
+                  {cities.map(c=><option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <div>
+                <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>Source</div>
+                <select style={inputStyle} value={form.source} onChange={e=>setForm(p=>({...p,source:e.target.value}))}>
+                  <option value="">Select source…</option>
+                  {SOURCES.map(s=><option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+              <div>
+                <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>Applying For</div>
+                <select style={inputStyle} value={form.applied_role} onChange={e=>setForm(p=>({...p,applied_role:e.target.value}))}>
+                  <option value="executive">Field Executive</option>
+                  <option value="supervisor">Supervisor</option>
+                </select>
+              </div>
+              <div>
+                <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>Preferred Zone</div>
+                <select style={inputStyle} value={form.applied_zone} onChange={e=>setForm(p=>({...p,applied_zone:e.target.value}))}>
+                  <option value="">Select zone…</option>
+                  {zones.map(z=><option key={z.id} value={z.id}>{z.name}</option>)}
+                </select>
+              </div>
+            </div>
+            {saveErr && <div style={{ marginBottom:12, padding:'10px 14px', background:C.redD, border:`1px solid ${C.redB}`, borderRadius:10, fontSize:13, color:C.red }}>{saveErr}</div>}
+            <div style={{ display:'flex', gap:10 }}>
+              <button onClick={()=>setShowEdit(false)}
+                style={{ flex:1, padding:'10px', borderRadius:11, border:`1px solid ${C.border}`, background:'transparent', color:C.gray, fontWeight:600, fontSize:13, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
+                Cancel
+              </button>
+              <button onClick={doEdit} disabled={saving}
+                style={{ flex:1, padding:'10px', borderRadius:11, border:'none', background:C.red, color:'#fff', fontWeight:700, fontSize:13, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
+                {saving ? <Spin/> : '✓ Save Changes'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Candidate detail panel */}
       {selected && (
         <CandidateDetail
@@ -925,6 +1041,10 @@ function TeamSection({ users, zones, loading, error, onRefresh, token }:{
   };
 
   const doAdd = async () => {
+    if (!form.mobile || !/^\d{10}$/.test(form.mobile)) { setSaveErr('Enter a valid 10-digit mobile number'); return; }
+    // Mobile duplication check
+    const dupUser = users.find(u => u.mobile?.trim() === form.mobile.trim());
+    if (dupUser) { setSaveErr(`Mobile ${form.mobile} is already used by "${dupUser.name}"`); return; }
     setSaving(true); setSaveErr(null);
     try {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/users`, {
