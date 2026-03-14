@@ -30,7 +30,8 @@ interface Candidate {
 }
 interface CandidateDoc {
   id:string; candidate_id:string; doc_type:string; doc_label:string;
-  file_url?:string; file_name?:string; uploaded_at:string;
+  file_url?:string; file_name?:string; doc_value?:string;
+  is_verified?:boolean; uploaded_at:string;
 }
 
 /* ── atoms ── */
@@ -88,13 +89,16 @@ const STAGES = [
 const stageColor = (s:string) => STAGES.find(x=>x.id===s)?.color || C.gray;
 
 /* ── DOC TYPES ── */
+// input_type: 'text' = enter value only, 'file' = upload file, 'both' = value + file
 const DEFAULT_DOC_TYPES = [
-  { type:'aadhaar',     label:'Aadhaar Card' },
-  { type:'pan',         label:'PAN Card' },
-  { type:'education',   label:'Educational Certificate' },
-  { type:'photo',       label:'Passport Photo' },
-  { type:'bank',        label:'Bank Passbook / Cancelled Cheque' },
-  { type:'resume',      label:'Resume / CV' },
+  { type:'aadhaar',    label:'Aadhaar Card',            icon:'🪪',  input:'both',  placeholder:'Enter 12-digit Aadhaar number' },
+  { type:'pan',        label:'PAN Card',                icon:'💳',  input:'both',  placeholder:'Enter PAN number (e.g. ABCDE1234F)' },
+  { type:'bank',       label:'Bank Account Details',    icon:'🏦',  input:'text',  placeholder:'Account number / IFSC / Bank name' },
+  { type:'mobile',     label:'Mobile Number',           icon:'📱',  input:'text',  placeholder:'10-digit mobile number' },
+  { type:'email',      label:'Email ID',                icon:'📧',  input:'text',  placeholder:'candidate@email.com' },
+  { type:'education',  label:'Education Certificate',   icon:'🎓',  input:'both',  placeholder:'Degree / Board / Year' },
+  { type:'photo',      label:'Passport Photo',          icon:'📸',  input:'file',  placeholder:'' },
+  { type:'resume',     label:'Resume / CV',             icon:'📄',  input:'file',  placeholder:'' },
 ];
 
 /* ══════════════════════════════════════════════════
@@ -103,23 +107,38 @@ const DEFAULT_DOC_TYPES = [
 function CandidateDetail({ candidate, zones, onClose, onRefresh, token }:{
   candidate:Candidate; zones:Zone[]; onClose:()=>void; onRefresh:()=>void; token:string;
 }) {
-  const [docs, setDocs]         = useState<CandidateDoc[]>([]);
-  const [loadingDocs, setLD]    = useState(true);
-  const [stage, setStage]       = useState(candidate.stage);
-  const [saving, setSaving]     = useState(false);
-  const [notes, setNotes]       = useState(candidate.notes || '');
-  const [showConvert, setShowConvert] = useState(false);
-  const [showAddDoc, setShowAddDoc]   = useState(false);
-  const [customDocLabel, setCustomDocLabel] = useState('');
-  const [selectedDocType, setSelectedDocType] = useState('');
-  const [uploadingDoc, setUploadingDoc] = useState(false);
-  const [saveMsg, setSaveMsg]   = useState('');
+  const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
+  const authH   = { Authorization:`Bearer ${token}`, 'Content-Type':'application/json' };
 
-  // Convert form state
+  // Tabs within detail panel
+  const [detailTab, setDetailTab] = useState<'info'|'docs'|'convert'>('info');
+
+  // Stage / notes
+  const [stage,   setStage]   = useState(candidate.stage);
+  const [notes,   setNotes]   = useState(candidate.notes || '');
+  const [saving,  setSaving]  = useState(false);
+  const [saveMsg, setSaveMsg] = useState('');
+
+  // Documents
+  const [docs,       setDocs]      = useState<CandidateDoc[]>([]);
+  const [loadingDocs, setLD]       = useState(true);
+  const [editingDoc, setEditingDoc] = useState<string|null>(null); // doc_type being edited
+  const [docValues,  setDocValues] = useState<Record<string,string>>({}); // type -> value
+  const [savingDoc,  setSavingDoc] = useState<string|null>(null);
+  const [docMsg,     setDocMsg]    = useState('');
+
+  // Add custom doc
+  const [showAddCustom,    setShowAddCustom]    = useState(false);
+  const [customDocLabel,   setCustomDocLabel]   = useState('');
+  const [customDocValue,   setCustomDocValue]   = useState('');
+  const [savingCustom,     setSavingCustom]     = useState(false);
+
+  // Convert to FE
   const emptyConvert = { employee_id:'', password:'', zone_id:'', joined_date:'' };
   const [convertForm, setConvertForm] = useState(emptyConvert);
-  const [converting, setConverting]   = useState(false);
-  const [convertErr, setConvertErr]   = useState('');
+  const [converting,  setConverting]  = useState(false);
+  const [convertErr,  setConvertErr]  = useState('');
+  const [convertOk,   setConvertOk]   = useState(false);
 
   const fetchDocs = useCallback(async () => {
     setLD(true);
@@ -127,42 +146,91 @@ function CandidateDetail({ candidate, zones, onClose, onRefresh, token }:{
       const r = await api.get<any>(`/api/v1/candidates/${candidate.id}/documents`, {
         headers:{ Authorization:`Bearer ${token}` }
       });
-      setDocs((r?.data ?? r) || []);
+      const list: CandidateDoc[] = (r?.data ?? r) || [];
+      setDocs(list);
+      // Pre-fill docValues from existing records
+      const vals: Record<string,string> = {};
+      list.forEach(d => { if (d.doc_value) vals[d.doc_type] = d.doc_value; });
+      setDocValues(vals);
     } catch { setDocs([]); } finally { setLD(false); }
   }, [candidate.id, token]);
 
   useEffect(() => { fetchDocs(); }, [fetchDocs]);
 
-  const saveStageNotes = async () => {
+  /* ── Save stage + notes ── */
+  const saveInfo = async () => {
     setSaving(true);
     try {
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/candidates/${candidate.id}`, {
-        method:'PATCH',
-        headers:{ Authorization:`Bearer ${token}`, 'Content-Type':'application/json' },
+      await fetch(`${apiBase}/api/v1/candidates/${candidate.id}`, {
+        method:'PATCH', headers:authH,
         body: JSON.stringify({ stage, notes }),
       });
-      setSaveMsg('Saved!');
-      setTimeout(()=>setSaveMsg(''), 2000);
+      setSaveMsg('Saved!'); setTimeout(()=>setSaveMsg(''), 2000);
       onRefresh();
     } catch { setSaveMsg('Error saving'); }
     finally { setSaving(false); }
   };
 
+  /* ── Save a single document field ── */
+  const saveDocField = async (docType: string, docLabel: string, value: string, fileUrl?: string, fileName?: string) => {
+    setSavingDoc(docType);
+    try {
+      const existing = docs.find(d => d.doc_type === docType);
+      if (existing) {
+        // Update via PATCH — we'll use a direct supabase call via backend
+        await fetch(`${apiBase}/api/v1/candidates/${candidate.id}/documents/${existing.id}`, {
+          method:'PATCH', headers:authH,
+          body: JSON.stringify({ doc_value: value || null, file_url: fileUrl || existing.file_url, file_name: fileName || existing.file_name }),
+        });
+      } else {
+        await fetch(`${apiBase}/api/v1/candidates/${candidate.id}/documents`, {
+          method:'POST', headers:authH,
+          body: JSON.stringify({ doc_type: docType, doc_label: docLabel, doc_value: value || null, file_url: fileUrl || null, file_name: fileName || null }),
+        });
+      }
+      setDocMsg('Saved!'); setTimeout(()=>setDocMsg(''), 2000);
+      setEditingDoc(null);
+      fetchDocs();
+    } catch { setDocMsg('Error saving'); }
+    finally { setSavingDoc(null); }
+  };
+
+  /* ── Add custom doc ── */
+  const saveCustomDoc = async () => {
+    if (!customDocLabel.trim()) return;
+    setSavingCustom(true);
+    try {
+      await fetch(`${apiBase}/api/v1/candidates/${candidate.id}/documents`, {
+        method:'POST', headers:authH,
+        body: JSON.stringify({ doc_type: `custom_${Date.now()}`, doc_label: customDocLabel.trim(), doc_value: customDocValue || null }),
+      });
+      setCustomDocLabel(''); setCustomDocValue(''); setShowAddCustom(false);
+      fetchDocs();
+    } catch {}
+    finally { setSavingCustom(false); }
+  };
+
+  /* ── Delete a doc ── */
+  const deleteDoc = async (docId: string) => {
+    try {
+      await fetch(`${apiBase}/api/v1/candidates/${candidate.id}/documents/${docId}`, {
+        method:'DELETE', headers:authH,
+      });
+      fetchDocs();
+    } catch {}
+  };
+
+  /* ── Convert to FE ── */
   const doConvert = async () => {
     if (!convertForm.employee_id || !convertForm.password) { setConvertErr('Employee ID and password required'); return; }
     setConverting(true); setConvertErr('');
     try {
-      // Step 1: Create user account
-      const userRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/users`, {
-        method:'POST',
-        headers:{ Authorization:`Bearer ${token}`, 'Content-Type':'application/json' },
+      const userRes = await fetch(`${apiBase}/api/v1/users`, {
+        method:'POST', headers:authH,
         body: JSON.stringify({
-          name: candidate.name,
-          mobile: candidate.mobile,
-          email: candidate.email,
-          role: 'executive',
-          city: candidate.city,
-          employee_id: convertForm.employee_id,
+          name: candidate.name, mobile: candidate.mobile,
+          email: candidate.email, role: 'executive',
+          city: candidate.city, employee_id: convertForm.employee_id,
           zone_id: convertForm.zone_id || undefined,
           joined_date: convertForm.joined_date || undefined,
           password: convertForm.password,
@@ -171,329 +239,389 @@ function CandidateDetail({ candidate, zones, onClose, onRefresh, token }:{
       const userJson = await userRes.json();
       if (!userRes.ok) throw new Error(userJson.error || userJson.message || 'Failed to create user');
       const newUserId = userJson?.data?.id ?? userJson?.id;
-      // Step 2: Mark candidate as onboarded
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/candidates/${candidate.id}`, {
-        method:'PATCH',
-        headers:{ Authorization:`Bearer ${token}`, 'Content-Type':'application/json' },
+      await fetch(`${apiBase}/api/v1/candidates/${candidate.id}`, {
+        method:'PATCH', headers:authH,
         body: JSON.stringify({ stage:'onboarded', converted_user_id: newUserId }),
       });
-      setShowConvert(false);
-      onRefresh();
-      onClose();
+      setConvertOk(true);
+      setTimeout(()=>{ onRefresh(); onClose(); }, 1800);
     } catch(e:any) { setConvertErr(e.message); }
     finally { setConverting(false); }
   };
 
-  const uploadDoc = async (docType:string, docLabel:string, file:File) => {
-    setUploadingDoc(true);
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('doc_type', docType);
-      formData.append('doc_label', docLabel);
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/candidates/${candidate.id}/documents`, {
-        method:'POST',
-        headers:{ Authorization:`Bearer ${token}` },
-        body: formData,
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Upload failed');
-      fetchDocs();
-      setShowAddDoc(false);
-    } catch(e:any) { alert(e.message); }
-    finally { setUploadingDoc(false); }
+  const inp: React.CSSProperties = {
+    width:'100%', padding:'8px 11px', borderRadius:9, border:`1.5px solid ${C.border}`,
+    background:C.s4, color:C.white, fontSize:12, fontFamily:"'DM Sans',sans-serif",
+    outline:'none', colorScheme:'dark' as any,
   };
 
-  const deleteDoc = async (docId:string) => {
-    if (!confirm('Delete this document?')) return;
-    try {
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/candidates/${candidate.id}/documents/${docId}`, {
-        method:'DELETE', headers:{ Authorization:`Bearer ${token}` },
-      });
-      fetchDocs();
-    } catch {}
-  };
-
-  const isSelected = stage === 'selected' || stage === 'onboarded';
+  const existingTypes = new Set(docs.map(d => d.doc_type));
+  const customDocs    = docs.filter(d => !DEFAULT_DOC_TYPES.find(dt => dt.type === d.doc_type));
 
   return (
-    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.78)', zIndex:300, display:'flex', alignItems:'flex-start', justifyContent:'flex-end' }}
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.7)', zIndex:300,
+      display:'flex', alignItems:'center', justifyContent:'flex-end', padding:16 }}
       onClick={e=>e.target===e.currentTarget&&onClose()}>
-      <div style={{ width:560, height:'100vh', background:C.s2, borderLeft:`1px solid ${C.borderL}`,
-        overflowY:'auto', animation:'km-slidein .25s ease', display:'flex', flexDirection:'column' }}>
+      <div style={{ width:460, height:'calc(100vh - 32px)', background:C.s2,
+        border:`1px solid ${C.borderL}`, borderRadius:18, display:'flex', flexDirection:'column',
+        boxShadow:'0 32px 80px rgba(0,0,0,.8)', animation:'km-slidein .25s ease', overflow:'hidden' }}>
 
         {/* Header */}
-        <div style={{ padding:'20px 24px 16px', borderBottom:`1px solid ${C.border}`, flexShrink:0 }}>
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
-            <div style={{ display:'flex', gap:14, alignItems:'center' }}>
-              <Avatar name={candidate.name} size={46}/>
-              <div>
-                <div style={{ fontFamily:"'Syne',sans-serif", fontSize:18, fontWeight:800 }}>{candidate.name}</div>
-                <div style={{ fontSize:12, color:C.gray, marginTop:2 }}>{candidate.mobile} {candidate.email ? `· ${candidate.email}` : ''}</div>
-                <div style={{ display:'flex', gap:6, marginTop:6, alignItems:'center' }}>
-                  <span style={{ padding:'2px 10px', borderRadius:20, fontSize:11, fontWeight:700,
-                    background:`${stageColor(stage)}18`, color:stageColor(stage) }}>
-                    {STAGES.find(s=>s.id===stage)?.label}
-                  </span>
-                  <span style={{ fontSize:11, color:C.grayd }}>{candidate.applied_role} · {candidate.city||'—'}</span>
-                </div>
+        <div style={{ padding:'18px 20px 14px', borderBottom:`1px solid ${C.border}`, flexShrink:0 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:12 }}>
+            <Avatar name={candidate.name} size={42}/>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontFamily:"'Syne',sans-serif", fontSize:16, fontWeight:800, color:C.white }}>{candidate.name}</div>
+              <div style={{ fontSize:11, color:C.gray, marginTop:2 }}>{candidate.mobile} {candidate.city?`· ${candidate.city}`:''}</div>
+              <div style={{ display:'flex', gap:6, marginTop:6 }}>
+                <span style={{ fontSize:10, padding:'2px 9px', borderRadius:20, fontWeight:700,
+                  background:`${stageColor(stage)}18`, color:stageColor(stage) }}>
+                  {STAGES.find(s=>s.id===stage)?.label || stage}
+                </span>
+                {candidate.source && <span style={{ fontSize:10, padding:'2px 9px', borderRadius:20, background:C.s3, color:C.gray }}>{candidate.source}</span>}
               </div>
             </div>
-            <button onClick={onClose} style={{ background:'transparent', border:`1px solid ${C.border}`, borderRadius:8,
-              width:30, height:30, cursor:'pointer', color:C.gray, fontSize:16 }}>×</button>
+            <button onClick={onClose} style={{ background:'transparent', border:`1px solid ${C.border}`,
+              borderRadius:8, width:28, height:28, cursor:'pointer', color:C.gray, fontSize:16,
+              display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>×</button>
+          </div>
+          {/* Sub-tabs */}
+          <div style={{ display:'flex', gap:0, background:C.s3, borderRadius:10, padding:3 }}>
+            {([
+              { id:'info',    label:'📋 Info & Stage' },
+              { id:'docs',    label:'📁 Documents' },
+              { id:'convert', label:'🚀 Convert to FE' },
+            ] as const).map(t=>(
+              <button key={t.id} onClick={()=>setDetailTab(t.id)}
+                style={{ flex:1, padding:'6px 0', borderRadius:8, border:'none',
+                  background:detailTab===t.id?C.s2:'transparent',
+                  color:detailTab===t.id?C.white:C.gray,
+                  fontSize:11, fontWeight:700, cursor:'pointer',
+                  fontFamily:"'DM Sans',sans-serif", transition:'all .15s',
+                  boxShadow:detailTab===t.id?`0 1px 4px rgba(0,0,0,.4)`:undefined }}>
+                {t.label}
+              </button>
+            ))}
           </div>
         </div>
 
-        <div style={{ flex:1, padding:'20px 24px', display:'flex', flexDirection:'column', gap:20 }}>
+        {/* Body */}
+        <div style={{ flex:1, overflowY:'auto', padding:'16px 20px' }}>
 
-          {/* Stage changer */}
-          <Card style={{ padding:16 }}>
-            <div style={{ fontSize:12, color:C.gray, marginBottom:10, fontWeight:600 }}>HIRING STAGE</div>
-            <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:14 }}>
-              {STAGES.map(s=>(
-                <button key={s.id} onClick={()=>setStage(s.id)}
-                  style={{ padding:'5px 12px', borderRadius:8, border:`1px solid ${stage===s.id?s.color:C.border}`,
-                    background:stage===s.id?`${s.color}18`:'transparent', color:stage===s.id?s.color:C.gray,
-                    fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
-                  {s.label}
-                </button>
-              ))}
-            </div>
-            <div style={{ marginBottom:10 }}>
-              <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>Notes / Remarks</div>
-              <textarea value={notes} onChange={e=>setNotes(e.target.value)} rows={3}
-                style={{ width:'100%', padding:'9px 12px', borderRadius:10, border:`1.5px solid ${C.border}`,
-                  background:C.s3, color:C.white, fontSize:13, fontFamily:"'DM Sans',sans-serif",
-                  outline:'none', resize:'none', colorScheme:'dark' as any }}/>
-            </div>
-            <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-              <button onClick={saveStageNotes} disabled={saving}
-                style={{ padding:'8px 18px', background:C.red, border:'none', borderRadius:10,
-                  color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif",
-                  display:'flex', alignItems:'center', gap:6 }}>
-                {saving ? <Spin/> : '✓ Save'}
-              </button>
-              {saveMsg && <span style={{ fontSize:12, color:C.green }}>{saveMsg}</span>}
-            </div>
-          </Card>
+          {/* ── INFO & STAGE TAB ── */}
+          {detailTab === 'info' && (
+            <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+              {/* Details */}
+              <div style={{ background:C.s3, borderRadius:12, overflow:'hidden' }}>
+                {[
+                  { l:'Email',        v: candidate.email || '—' },
+                  { l:'Applied Role', v: candidate.applied_role },
+                  { l:'Source',       v: candidate.source || '—' },
+                  { l:'Applied',      v: candidate.created_at ? new Date(candidate.created_at).toLocaleDateString('en-IN') : '—' },
+                ].map((r,i,arr)=>(
+                  <div key={r.l} style={{ display:'flex', justifyContent:'space-between',
+                    padding:'10px 14px', borderBottom:i<arr.length-1?`1px solid ${C.border}`:'none', fontSize:12 }}>
+                    <span style={{ color:C.gray }}>{r.l}</span>
+                    <span style={{ color:C.white, fontWeight:600 }}>{r.v}</span>
+                  </div>
+                ))}
+              </div>
 
-          {/* Convert to FE button */}
-          {isSelected && !candidate.converted_user_id && (
-            <div style={{ background:`${C.green}10`, border:`1px solid ${C.green}30`, borderRadius:14, padding:'14px 16px' }}>
-              <div style={{ fontFamily:"'Syne',sans-serif", fontSize:14, fontWeight:800, color:C.green, marginBottom:4 }}>
-                🎉 Candidate Selected
+              {/* Stage mover */}
+              <div>
+                <div style={{ fontSize:10, color:C.grayd, fontWeight:700, letterSpacing:'0.8px', textTransform:'uppercase', marginBottom:8 }}>Move Stage</div>
+                <div style={{ display:'flex', gap:5, flexWrap:'wrap' }}>
+                  {STAGES.map(s=>(
+                    <button key={s.id} onClick={()=>setStage(s.id)}
+                      style={{ padding:'5px 12px', borderRadius:20, cursor:'pointer',
+                        border:`1.5px solid ${stage===s.id?s.color:C.border}`,
+                        background:stage===s.id?`${s.color}18`:'transparent',
+                        color:stage===s.id?s.color:C.gray,
+                        fontSize:11, fontWeight:700, fontFamily:"'DM Sans',sans-serif", transition:'all .15s' }}>
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div style={{ fontSize:12, color:C.gray, marginBottom:12 }}>
-                Convert this candidate to a Field Executive account in Rise Up.
+
+              {/* Notes */}
+              <div>
+                <div style={{ fontSize:10, color:C.grayd, fontWeight:700, letterSpacing:'0.8px', textTransform:'uppercase', marginBottom:8 }}>Notes</div>
+                <textarea value={notes} onChange={e=>setNotes(e.target.value)} rows={3}
+                  placeholder="Add notes about this candidate…"
+                  style={{ ...inp, resize:'none', lineHeight:1.5 }}/>
               </div>
-              <button onClick={()=>setShowConvert(true)}
-                style={{ padding:'9px 18px', background:C.green, border:'none', borderRadius:10,
-                  color:'#000', fontSize:12, fontWeight:800, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
-                → Convert to Field Executive
+
+              <button onClick={saveInfo} disabled={saving}
+                style={{ padding:'10px 0', borderRadius:11, border:'none', background:C.red,
+                  color:'#fff', fontWeight:700, fontSize:13, cursor:'pointer',
+                  fontFamily:"'DM Sans',sans-serif", display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
+                {saving ? <Spin/> : saveMsg ? `✓ ${saveMsg}` : 'Save Changes'}
               </button>
             </div>
           )}
 
-          {candidate.converted_user_id && (
-            <div style={{ background:C.greenD, border:`1px solid ${C.green}30`, borderRadius:14, padding:'12px 16px',
-              fontSize:13, color:C.green, fontWeight:700 }}>
-              ✓ Already onboarded as FE
+          {/* ── DOCUMENTS TAB ── */}
+          {detailTab === 'docs' && (
+            <div style={{ display:'flex', flexDirection:'column', gap:0 }}>
+              {docMsg && (
+                <div style={{ padding:'8px 12px', background:C.greenD, border:`1px solid ${C.green}28`,
+                  borderRadius:9, fontSize:12, color:C.green, marginBottom:10 }}>✓ {docMsg}</div>
+              )}
+
+              {loadingDocs ? (
+                <div style={{ display:'flex', justifyContent:'center', padding:'32px 0' }}><Spin/></div>
+              ) : (
+                <>
+                  {/* Standard doc types */}
+                  {DEFAULT_DOC_TYPES.map((dt, i) => {
+                    const existing = docs.find(d => d.doc_type === dt.type);
+                    const isEditing = editingDoc === dt.type;
+                    const currentVal = docValues[dt.type] || '';
+                    const isSaving = savingDoc === dt.type;
+                    const hasData = existing && (existing.doc_value || existing.file_url);
+
+                    return (
+                      <div key={dt.type} style={{
+                        borderBottom: i < DEFAULT_DOC_TYPES.length - 1 ? `1px solid ${C.border}` : 'none',
+                        padding:'12px 0',
+                      }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                          {/* Icon + status */}
+                          <div style={{ width:36, height:36, borderRadius:10, flexShrink:0,
+                            background: hasData ? C.greenD : C.s3,
+                            border: `1px solid ${hasData ? C.green+'40' : C.border}`,
+                            display:'flex', alignItems:'center', justifyContent:'center', fontSize:17 }}>
+                            {dt.icon}
+                          </div>
+                          <div style={{ flex:1, minWidth:0 }}>
+                            <div style={{ fontSize:12, fontWeight:700,
+                              color: hasData ? C.green : C.white }}>
+                              {dt.label}
+                              {hasData && <span style={{ fontSize:9, marginLeft:6, padding:'1px 6px',
+                                borderRadius:20, background:C.greenD, color:C.green, fontWeight:700 }}>✓ Filled</span>}
+                            </div>
+                            {existing?.doc_value && !isEditing && (
+                              <div style={{ fontSize:11, color:C.gray, marginTop:2, fontFamily:'monospace' }}>{existing.doc_value}</div>
+                            )}
+                            {existing?.file_name && !isEditing && (
+                              <div style={{ fontSize:10, color:C.grayd, marginTop:1 }}>📎 {existing.file_name}</div>
+                            )}
+                          </div>
+                          {/* Action buttons */}
+                          <div style={{ display:'flex', gap:5, flexShrink:0 }}>
+                            {existing?.file_url && (
+                              <a href={existing.file_url} target="_blank" rel="noreferrer"
+                                style={{ padding:'4px 9px', borderRadius:7, background:C.blueD,
+                                  border:`1px solid ${C.blue}30`, fontSize:10, color:C.blue,
+                                  fontWeight:700, textDecoration:'none' }}>View</a>
+                            )}
+                            <button onClick={()=>{ setEditingDoc(isEditing ? null : dt.type); setDocValues(p=>({...p,[dt.type]:existing?.doc_value||''})); }}
+                              style={{ padding:'4px 9px', borderRadius:7,
+                                background: isEditing ? C.yellowD : C.s3,
+                                border:`1px solid ${isEditing ? C.yellow+'40' : C.border}`,
+                                color: isEditing ? C.yellow : C.gray,
+                                fontSize:10, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
+                              {isEditing ? 'Cancel' : hasData ? 'Edit' : 'Add'}
+                            </button>
+                            {existing && (
+                              <button onClick={()=>deleteDoc(existing.id)}
+                                style={{ padding:'4px 8px', borderRadius:7, background:C.redD,
+                                  border:`1px solid ${C.red}30`, color:C.red,
+                                  fontSize:10, fontWeight:700, cursor:'pointer' }}>✕</button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Inline edit form */}
+                        {isEditing && (
+                          <div style={{ marginTop:10, display:'flex', flexDirection:'column', gap:8,
+                            padding:'12px', background:C.s3, borderRadius:10, border:`1px solid ${C.border}` }}>
+                            {/* Text value input (for all except photo/resume) */}
+                            {dt.input !== 'file' && (
+                              <div>
+                                <div style={{ fontSize:10, color:C.gray, marginBottom:4 }}>
+                                  {dt.type === 'aadhaar' ? 'Aadhaar Number' :
+                                   dt.type === 'pan' ? 'PAN Number' :
+                                   dt.type === 'bank' ? 'Account Details' :
+                                   dt.type === 'mobile' ? 'Mobile Number' :
+                                   dt.type === 'email' ? 'Email Address' :
+                                   dt.type === 'education' ? 'Qualification Details' : 'Value'}
+                                </div>
+                                <input type={dt.type==='email'?'email':dt.type==='mobile'?'tel':'text'}
+                                  placeholder={dt.placeholder} style={inp}
+                                  value={currentVal}
+                                  onChange={e=>setDocValues(p=>({...p,[dt.type]:e.target.value}))}/>
+                              </div>
+                            )}
+                            {/* File URL input (for all types that support file) */}
+                            {dt.input !== 'text' && (
+                              <div>
+                                <div style={{ fontSize:10, color:C.gray, marginBottom:4 }}>Document URL / Link</div>
+                                <input type="url" placeholder="Paste Google Drive / S3 link…" style={inp}
+                                  value={existing?.file_url || ''}
+                                  onChange={e=>{
+                                    // Store temporarily — will be saved on submit
+                                    const el = e.target as HTMLInputElement;
+                                    el.setAttribute('data-url', e.target.value);
+                                  }}/>
+                              </div>
+                            )}
+                            <button onClick={()=>{
+                              const fileInput = document.querySelector(`[data-url]`) as HTMLInputElement;
+                              const fileUrl = fileInput?.getAttribute('data-url') || existing?.file_url || '';
+                              saveDocField(dt.type, dt.label, currentVal, fileUrl);
+                            }} disabled={isSaving}
+                              style={{ padding:'8px 0', borderRadius:9, border:'none',
+                                background:C.green, color:'#000', fontWeight:800, fontSize:12,
+                                cursor:'pointer', fontFamily:"'DM Sans',sans-serif",
+                                display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
+                              {isSaving ? <Spin/> : '✓ Save'}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+
+                  {/* Custom docs */}
+                  {customDocs.length > 0 && (
+                    <div style={{ marginTop:8 }}>
+                      <div style={{ fontSize:10, color:C.grayd, fontWeight:700, letterSpacing:'0.8px',
+                        textTransform:'uppercase', padding:'10px 0 6px' }}>Additional Documents</div>
+                      {customDocs.map((doc, i) => (
+                        <div key={doc.id} style={{ display:'flex', alignItems:'center', gap:10,
+                          padding:'10px 0', borderTop:`1px solid ${C.border}` }}>
+                          <div style={{ width:34, height:34, borderRadius:9, background:C.blueD,
+                            border:`1px solid ${C.blue}30`, display:'flex', alignItems:'center',
+                            justifyContent:'center', fontSize:15, flexShrink:0 }}>📎</div>
+                          <div style={{ flex:1, minWidth:0 }}>
+                            <div style={{ fontSize:12, fontWeight:700, color:C.white }}>{doc.doc_label}</div>
+                            {doc.doc_value && <div style={{ fontSize:11, color:C.gray, marginTop:1 }}>{doc.doc_value}</div>}
+                          </div>
+                          <div style={{ display:'flex', gap:5 }}>
+                            {doc.file_url && (
+                              <a href={doc.file_url} target="_blank" rel="noreferrer"
+                                style={{ padding:'4px 9px', borderRadius:7, background:C.blueD,
+                                  border:`1px solid ${C.blue}30`, fontSize:10, color:C.blue,
+                                  fontWeight:700, textDecoration:'none' }}>View</a>
+                            )}
+                            <button onClick={()=>deleteDoc(doc.id)}
+                              style={{ padding:'4px 8px', borderRadius:7, background:C.redD,
+                                border:`1px solid ${C.red}30`, color:C.red,
+                                fontSize:10, fontWeight:700, cursor:'pointer' }}>✕</button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Add custom document */}
+                  {showAddCustom ? (
+                    <div style={{ marginTop:12, padding:'14px', background:C.s3, borderRadius:12,
+                      border:`1px solid ${C.border}`, display:'flex', flexDirection:'column', gap:10 }}>
+                      <div style={{ fontSize:12, fontWeight:700, color:C.white }}>Add Custom Document</div>
+                      <div>
+                        <div style={{ fontSize:10, color:C.gray, marginBottom:4 }}>Document Name *</div>
+                        <input placeholder="e.g. Driving Licence, NOC, Medical Certificate…" style={inp}
+                          value={customDocLabel} onChange={e=>setCustomDocLabel(e.target.value)}/>
+                      </div>
+                      <div>
+                        <div style={{ fontSize:10, color:C.gray, marginBottom:4 }}>Value / Number (optional)</div>
+                        <input placeholder="Document number or details…" style={inp}
+                          value={customDocValue} onChange={e=>setCustomDocValue(e.target.value)}/>
+                      </div>
+                      <div style={{ display:'flex', gap:8 }}>
+                        <button onClick={()=>{ setShowAddCustom(false); setCustomDocLabel(''); setCustomDocValue(''); }}
+                          style={{ flex:1, padding:'8px 0', borderRadius:9, border:`1px solid ${C.border}`,
+                            background:'transparent', color:C.gray, fontSize:12, fontWeight:600,
+                            cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>Cancel</button>
+                        <button onClick={saveCustomDoc} disabled={savingCustom||!customDocLabel.trim()}
+                          style={{ flex:1, padding:'8px 0', borderRadius:9, border:'none',
+                            background:C.blue, color:'#fff', fontSize:12, fontWeight:700,
+                            cursor:'pointer', fontFamily:"'DM Sans',sans-serif",
+                            display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
+                          {savingCustom ? <Spin/> : '+ Add'}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button onClick={()=>setShowAddCustom(true)}
+                      style={{ width:'100%', marginTop:14, padding:'10px 0', borderRadius:11,
+                        border:`1.5px dashed ${C.border}`, background:'transparent',
+                        color:C.gray, fontSize:12, fontWeight:600, cursor:'pointer',
+                        fontFamily:"'DM Sans',sans-serif", display:'flex', alignItems:'center',
+                        justifyContent:'center', gap:6, transition:'all .15s' }}
+                      onMouseEnter={e=>(e.currentTarget.style.borderColor=C.blue)}
+                      onMouseLeave={e=>(e.currentTarget.style.borderColor=C.border)}>
+                      + Add Other Document
+                    </button>
+                  )}
+                </>
+              )}
             </div>
           )}
 
-          {/* Document Repository */}
-          <Card style={{ padding:0, overflow:'hidden' }}>
-            <div style={{ padding:'14px 18px', borderBottom:`1px solid ${C.border}`, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-              <SectionHeader title="Document Repository" sub="Aadhaar, PAN, certificates & more"/>
-              <button onClick={()=>setShowAddDoc(true)}
-                style={{ padding:'6px 12px', background:C.red, border:'none', borderRadius:8,
-                  color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
-                + Upload
-              </button>
-            </div>
-
-            {/* Default doc type checklist */}
-            <div style={{ padding:'14px 18px', borderBottom:`1px solid ${C.border}` }}>
-              <div style={{ fontSize:10, color:C.grayd, fontWeight:700, letterSpacing:'0.7px', textTransform:'uppercase', marginBottom:10 }}>
-                Required Documents
-              </div>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
-                {DEFAULT_DOC_TYPES.map(dt=>{
-                  const uploaded = docs.find(d=>d.doc_type===dt.type);
-                  return (
-                    <div key={dt.type} style={{ display:'flex', alignItems:'center', gap:8, padding:'8px 10px',
-                      borderRadius:10, background:C.s3, border:`1px solid ${uploaded?C.green+'40':C.border}` }}>
-                      <div style={{ width:20, height:20, borderRadius:'50%', flexShrink:0,
-                        background:uploaded?C.greenD:C.s4, border:`1.5px solid ${uploaded?C.green:C.grayd}`,
-                        display:'flex', alignItems:'center', justifyContent:'center', fontSize:11 }}>
-                        {uploaded ? '✓' : ''}
-                      </div>
-                      <div style={{ flex:1, minWidth:0 }}>
-                        <div style={{ fontSize:12, fontWeight:600, color:uploaded?C.white:C.gray, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{dt.label}</div>
-                        {uploaded && <div style={{ fontSize:10, color:C.grayd, marginTop:1 }}>{uploaded.file_name||'Uploaded'}</div>}
-                      </div>
-                      {uploaded ? (
-                        <div style={{ display:'flex', gap:4 }}>
-                          {uploaded.file_url && (
-                            <a href={uploaded.file_url} target="_blank" rel="noreferrer"
-                              style={{ width:24, height:24, borderRadius:6, background:C.blueD, border:`1px solid ${C.blue}30`,
-                                display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, textDecoration:'none' }}>
-                              ↗
-                            </a>
-                          )}
-                          <button onClick={()=>deleteDoc(uploaded.id)}
-                            style={{ width:24, height:24, borderRadius:6, background:C.redD, border:`1px solid ${C.red}30`,
-                              cursor:'pointer', fontSize:12, color:C.red }}>
-                            ×
-                          </button>
-                        </div>
-                      ) : (
-                        <label style={{ cursor:'pointer' }}>
-                          <input type="file" style={{ display:'none' }} accept=".pdf,.jpg,.jpeg,.png"
-                            onChange={e=>{ const f=e.target.files?.[0]; if(f) uploadDoc(dt.type, dt.label, f); }}/>
-                          <span style={{ fontSize:10, color:C.blue, fontWeight:700, padding:'3px 8px',
-                            borderRadius:6, background:C.blueD, border:`1px solid ${C.blue}30` }}>
-                            Upload
-                          </span>
-                        </label>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Additional uploaded docs */}
-            {loadingDocs ? (
-              <div style={{ padding:16, display:'flex', justifyContent:'center' }}><Spin/></div>
-            ) : (
-              <>
-                {docs.filter(d=>!DEFAULT_DOC_TYPES.find(dt=>dt.type===d.doc_type)).length > 0 && (
-                  <div style={{ padding:'12px 18px' }}>
-                    <div style={{ fontSize:10, color:C.grayd, fontWeight:700, letterSpacing:'0.7px', textTransform:'uppercase', marginBottom:8 }}>
-                      Additional Documents
-                    </div>
-                    {docs.filter(d=>!DEFAULT_DOC_TYPES.find(dt=>dt.type===d.doc_type)).map(doc=>(
-                      <div key={doc.id} style={{ display:'flex', gap:12, padding:'10px 0', borderBottom:`1px solid ${C.border}`, alignItems:'center' }}>
-                        <div style={{ width:36, height:36, borderRadius:10, background:C.blueD, display:'flex', alignItems:'center', justifyContent:'center', fontSize:18 }}>📄</div>
-                        <div style={{ flex:1 }}>
-                          <div style={{ fontSize:13, fontWeight:700 }}>{doc.doc_label}</div>
-                          <div style={{ fontSize:10, color:C.grayd }}>{doc.file_name || 'Uploaded'} · {new Date(doc.uploaded_at).toLocaleDateString()}</div>
-                        </div>
-                        <div style={{ display:'flex', gap:4 }}>
-                          {doc.file_url && (
-                            <a href={doc.file_url} target="_blank" rel="noreferrer"
-                              style={{ padding:'4px 10px', borderRadius:7, background:C.blueD, border:`1px solid ${C.blue}30`,
-                                fontSize:11, color:C.blue, fontWeight:700, textDecoration:'none' }}>
-                              View
-                            </a>
-                          )}
-                          <button onClick={()=>deleteDoc(doc.id)}
-                            style={{ padding:'4px 10px', borderRadius:7, background:C.redD, border:`1px solid ${C.red}30`,
-                              fontSize:11, color:C.red, fontWeight:700, cursor:'pointer' }}>
-                            Delete
-                          </button>
-                        </div>
+          {/* ── CONVERT TO FE TAB ── */}
+          {detailTab === 'convert' && (
+            <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+              {candidate.converted_user_id ? (
+                <div style={{ padding:'16px', background:C.greenD, border:`1px solid ${C.green}28`,
+                  borderRadius:12, textAlign:'center' }}>
+                  <div style={{ fontSize:24, marginBottom:8 }}>✅</div>
+                  <div style={{ fontFamily:"'Syne',sans-serif", fontSize:15, fontWeight:800, color:C.green }}>Already Converted</div>
+                  <div style={{ fontSize:12, color:C.gray, marginTop:4 }}>This candidate has been onboarded as a Field Executive.</div>
+                </div>
+              ) : (
+                <>
+                  <div style={{ padding:'12px 14px', background:C.greenD, border:`1px solid ${C.green}28`,
+                    borderRadius:10, fontSize:12, color:C.green, lineHeight:1.6 }}>
+                    Converting <strong>{candidate.name}</strong> will create a Rise Up login account with role <strong>Field Executive</strong> and mark this candidate as onboarded.
+                  </div>
+                  <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+                    {[
+                      { id:'employee_id', l:'Employee ID *',    type:'text', ph:'e.g. FE-003' },
+                      { id:'password',    l:'Initial Password *', type:'password', ph:'Min 6 characters' },
+                      { id:'joined_date', l:'Joining Date',     type:'date', ph:'' },
+                    ].map(f=>(
+                      <div key={f.id}>
+                        <div style={{ fontSize:11, color:C.gray, marginBottom:5 }}>{f.l}</div>
+                        <input type={f.type} placeholder={f.ph} style={inp}
+                          value={convertForm[f.id as keyof typeof convertForm]}
+                          onChange={e=>setConvertForm(p=>({...p,[f.id]:e.target.value}))}/>
                       </div>
                     ))}
+                    <div>
+                      <div style={{ fontSize:11, color:C.gray, marginBottom:5 }}>Assign Zone</div>
+                      <select style={inp} value={convertForm.zone_id} onChange={e=>setConvertForm(p=>({...p,zone_id:e.target.value}))}>
+                        <option value="">Select zone…</option>
+                        {zones.map(z=><option key={z.id} value={z.id}>{z.name}</option>)}
+                      </select>
+                    </div>
                   </div>
-                )}
-              </>
-            )}
-          </Card>
-
+                  {convertErr && (
+                    <div style={{ padding:'10px 14px', background:C.redD, border:`1px solid ${C.redB}`,
+                      borderRadius:10, fontSize:12, color:C.red }}>{convertErr}</div>
+                  )}
+                  {convertOk && (
+                    <div style={{ padding:'10px 14px', background:C.greenD, border:`1px solid ${C.green}28`,
+                      borderRadius:10, fontSize:12, color:C.green }}>✓ Field Executive account created! Closing…</div>
+                  )}
+                  <button onClick={doConvert} disabled={converting || convertOk}
+                    style={{ padding:'12px 0', borderRadius:11, border:'none',
+                      background: converting||convertOk ? C.grayd : C.green,
+                      color: converting||convertOk ? C.gray : '#000',
+                      fontWeight:800, fontSize:14, cursor:'pointer',
+                      fontFamily:"'DM Sans',sans-serif",
+                      display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
+                    {converting ? <><Spin/> Creating account…</> : convertOk ? '✓ Done' : '🚀 Create Field Executive Account'}
+                  </button>
+                </>
+              )}
+            </div>
+          )}
         </div>
       </div>
-
-      {/* Convert to FE Modal */}
-      {showConvert && (
-        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.6)', zIndex:400,
-          display:'flex', alignItems:'center', justifyContent:'center', padding:24 }}>
-          <div style={{ background:C.s2, border:`1px solid ${C.borderL}`, borderRadius:20,
-            padding:28, width:'100%', maxWidth:480, boxShadow:'0 32px 80px rgba(0,0,0,.8)' }}>
-            <div style={{ fontFamily:"'Syne',sans-serif", fontSize:18, fontWeight:800, marginBottom:4 }}>
-              Convert to Field Executive
-            </div>
-            <div style={{ fontSize:12, color:C.gray, marginBottom:20 }}>
-              {candidate.name} will get a Rise Up app login immediately.
-            </div>
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:16 }}>
-              {[
-                { id:'employee_id', label:'Employee ID (e.g. FE-003)', type:'text' },
-                { id:'password',    label:'Initial Password', type:'password' },
-                { id:'joined_date', label:'Joining Date', type:'date' },
-              ].map(f=>(
-                <div key={f.id} style={{ gridColumn: f.id==='joined_date'?'1 / -1':'auto' }}>
-                  <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>{f.label}</div>
-                  <input type={f.type}
-                    style={{ width:'100%', padding:'9px 12px', borderRadius:10, border:`1.5px solid ${C.border}`,
-                      background:C.s3, color:C.white, fontSize:13, fontFamily:"'DM Sans',sans-serif",
-                      outline:'none', colorScheme:'dark' as any }}
-                    value={convertForm[f.id as keyof typeof convertForm]}
-                    onChange={e=>setConvertForm(p=>({...p,[f.id]:e.target.value}))}/>
-                </div>
-              ))}
-              <div style={{ gridColumn:'1 / -1' }}>
-                <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>Assign Zone</div>
-                <select style={{ width:'100%', padding:'9px 12px', borderRadius:10, border:`1.5px solid ${C.border}`,
-                  background:C.s3, color:C.white, fontSize:13, fontFamily:"'DM Sans',sans-serif",
-                  outline:'none', colorScheme:'dark' as any }}
-                  value={convertForm.zone_id} onChange={e=>setConvertForm(p=>({...p,zone_id:e.target.value}))}>
-                  <option value="">Select zone…</option>
-                  {zones.map(z=><option key={z.id} value={z.id}>{z.name}</option>)}
-                </select>
-              </div>
-            </div>
-            {convertErr && <div style={{ marginBottom:12, padding:'10px 14px', background:C.redD, border:`1px solid ${C.redB}`, borderRadius:10, fontSize:13, color:C.red }}>{convertErr}</div>}
-            <div style={{ display:'flex', gap:10 }}>
-              <button onClick={()=>setShowConvert(false)}
-                style={{ flex:1, padding:'10px', borderRadius:11, border:`1px solid ${C.border}`, background:'transparent', color:C.gray, fontWeight:600, fontSize:13, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
-                Cancel
-              </button>
-              <button onClick={doConvert} disabled={converting}
-                style={{ flex:1, padding:'10px', borderRadius:11, border:'none', background:C.green, color:'#000', fontWeight:800, fontSize:13, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
-                {converting ? <Spin/> : '→ Create FE Account'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Add Custom Doc Modal */}
-      {showAddDoc && (
-        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.6)', zIndex:400,
-          display:'flex', alignItems:'center', justifyContent:'center', padding:24 }}>
-          <div style={{ background:C.s2, border:`1px solid ${C.borderL}`, borderRadius:20,
-            padding:28, width:'100%', maxWidth:420, boxShadow:'0 32px 80px rgba(0,0,0,.8)' }}>
-            <div style={{ fontFamily:"'Syne',sans-serif", fontSize:18, fontWeight:800, marginBottom:16 }}>Upload Additional Document</div>
-            <div style={{ marginBottom:12 }}>
-              <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>Document Name</div>
-              <input placeholder="e.g. Medical Certificate, Police Verification…"
-                style={{ width:'100%', padding:'9px 12px', borderRadius:10, border:`1.5px solid ${C.border}`,
-                  background:C.s3, color:C.white, fontSize:13, fontFamily:"'DM Sans',sans-serif", outline:'none', colorScheme:'dark' as any }}
-                value={customDocLabel} onChange={e=>setCustomDocLabel(e.target.value)}/>
-            </div>
-            <div style={{ marginBottom:20 }}>
-              <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>File (PDF, JPG, PNG)</div>
-              <label style={{ display:'block', padding:'24px', border:`1.5px dashed ${C.border}`, borderRadius:12,
-                textAlign:'center', cursor:'pointer', color:C.gray, fontSize:13 }}>
-                <input type="file" style={{ display:'none' }} accept=".pdf,.jpg,.jpeg,.png"
-                  onChange={e=>{
-                    const f=e.target.files?.[0];
-                    if(f && customDocLabel) {
-                      uploadDoc('custom_'+Date.now(), customDocLabel, f);
-                    } else if(!customDocLabel) alert('Please enter a document name first.');
-                  }}/>
-                {uploadingDoc ? <Spin/> : '📎 Click to select file'}
-              </label>
-            </div>
-            <button onClick={()=>setShowAddDoc(false)}
-              style={{ width:'100%', padding:'10px', borderRadius:11, border:`1px solid ${C.border}`, background:'transparent', color:C.gray, fontWeight:600, fontSize:13, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
