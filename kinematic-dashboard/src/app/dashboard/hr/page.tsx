@@ -784,15 +784,15 @@ function ATSSection({ token, zones }:{ token:string; zones:Zone[] }) {
           No candidates{stageFilter!=='all'?` in ${stageFilter}`:''}{search?` matching "${search}"`:''}</div></Card>
       ) : (
         <Card style={{ padding:0, overflow:'hidden' }}>
-          <div style={{ display:'grid', gridTemplateColumns:'2fr 1fr 1fr 1.2fr 1.6fr',
+          <div style={{ display:'grid', gridTemplateColumns:'2fr 1fr 1fr 1.2fr 1fr 76px',
             gap:8, padding:'10px 18px', borderBottom:`1px solid ${C.border}`,
             fontSize:10, color:C.grayd, fontWeight:700, letterSpacing:'0.7px', textTransform:'uppercase' }}>
-            {['Candidate','Role','City','Source','Stage'].map(h=><span key={h}>{h}</span>)}
+            {['Candidate','Role','City','Source','Stage',''].map(h=><span key={h}>{h}</span>)}
           </div>
           {filtered.map((c,i)=>(
-            <div key={c.id} className="km-tr" onClick={()=>setSelected(c)}
-              style={{ display:'grid', gridTemplateColumns:'2fr 1fr 1fr 1.2fr 1.6fr',
-                gap:8, padding:'13px 18px', alignItems:'center', cursor:'pointer',
+            <div key={c.id} className="km-tr"
+              style={{ display:'grid', gridTemplateColumns:'2fr 1fr 1fr 1.2fr 1fr 76px',
+                gap:8, padding:'13px 18px', alignItems:'center', cursor:'default',
                 borderBottom:i<filtered.length-1?`1px solid ${C.border}`:'none', transition:'background .13s' }}>
               <div style={{ display:'flex', alignItems:'center', gap:10 }}>
                 <Avatar name={c.name} size={30}/>
@@ -808,17 +808,19 @@ function ATSSection({ token, zones }:{ token:string; zones:Zone[] }) {
                 background:`${stageColor(c.stage)}15`, color:stageColor(c.stage) }}>
                 {STAGES.find(s=>s.id===c.stage)?.label}
               </span>
-              <div style={{ display:'flex', gap:5, alignItems:'center' }}>
-                <span style={{ fontSize:11, color:C.blue, fontWeight:700, whiteSpace:'nowrap' }}>View →</span>
-                <span onClick={e=>{ e.stopPropagation(); openEdit(c); }}
-                  title="Edit candidate"
-                  style={{ width:26, height:26, display:'flex', alignItems:'center', justifyContent:'center',
-                    borderRadius:7, background:C.s3, border:`1px solid ${C.border}`,
-                    cursor:'pointer', fontSize:12, flexShrink:0, transition:'all .15s' }}
-                  onMouseEnter={e=>{ e.currentTarget.style.background=C.s4; e.currentTarget.style.borderColor=C.borderL; }}
-                  onMouseLeave={e=>{ e.currentTarget.style.background=C.s3; e.currentTarget.style.borderColor=C.border; }}>
+              <div style={{ display:'flex', gap:5, alignItems:'center', flexShrink:0 }}>
+                <button title="View details" onClick={()=>setSelected(c)}
+                  style={{ width:30, height:30, borderRadius:8, border:`1px solid ${C.blue}40`,
+                    background:C.blueD, cursor:'pointer', fontSize:14,
+                    display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                  👁
+                </button>
+                <button title="Edit candidate" onClick={e=>{ e.stopPropagation(); openEdit(c); }}
+                  style={{ width:30, height:30, borderRadius:8, border:`1px solid ${C.border}`,
+                    background:C.s3, cursor:'pointer', fontSize:14,
+                    display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
                   ✏️
-                </span>
+                </button>
               </div>
             </div>
           ))}
