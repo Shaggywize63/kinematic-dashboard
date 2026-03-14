@@ -498,6 +498,10 @@ function ATSSection({ token, zones }:{ token:string; zones:Zone[] }) {
   const [showAdd, setShowAdd]       = useState(false);
   const [saving, setSaving]         = useState(false);
   const [saveErr, setSaveErr]       = useState('');
+  const [formErrors, setFormErrors] = useState<Record<string,string>>({});
+  const [cities, setCities]         = useState<string[]>([]);
+
+  const SOURCES = ['Referral','Walk-in','Naukri','LinkedIn','Indeed','WhatsApp','Instagram','Other'];
 
   const emptyForm = { name:'', mobile:'', email:'', applied_role:'executive', city:'', source:'', applied_zone:'' };
   const [form, setForm] = useState(emptyForm);
@@ -512,6 +516,16 @@ function ATSSection({ token, zones }:{ token:string; zones:Zone[] }) {
 
   useEffect(() => { fetchCandidates(); }, [fetchCandidates]);
 
+  // Fetch cities from API
+  useEffect(() => {
+    api.get<any>('/api/v1/cities', { headers:{ Authorization:`Bearer ${token}` } })
+      .then(r => {
+        const list = (r?.data ?? r) || [];
+        setCities(list.map((c:any) => c.name).filter(Boolean));
+      })
+      .catch(() => setCities(['Mumbai','Delhi','Gurugram','Bangalore','Hyderabad','Chennai','Pune','Other']));
+  }, [token]);
+
   const stageCounts = STAGES.reduce((acc,s)=>{ acc[s.id]=candidates.filter(c=>c.stage===s.id).length; return acc; }, {} as Record<string,number>);
 
   const filtered = candidates.filter(c=>{
@@ -521,8 +535,20 @@ function ATSSection({ token, zones }:{ token:string; zones:Zone[] }) {
     return matchStage && matchSearch;
   });
 
+  const validate = (): boolean => {
+    const errs: Record<string,string> = {};
+    if (!form.name.trim())  errs.name   = 'Full name is required';
+    if (!form.mobile.trim()) errs.mobile = 'Mobile number is required';
+    else if (!/^[6-9]\d{9}$/.test(form.mobile.trim())) errs.mobile = 'Enter a valid 10-digit Indian mobile number';
+    if (form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) errs.email = 'Enter a valid email address';
+    if (!form.city)   errs.city   = 'Please select a city';
+    if (!form.source) errs.source = 'Please select a source';
+    setFormErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
   const doAdd = async () => {
-    if (!form.name || !form.mobile) { setSaveErr('Name and mobile required'); return; }
+    if (!validate()) return;
     setSaving(true); setSaveErr('');
     try {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/candidates`, {
@@ -566,7 +592,7 @@ function ATSSection({ token, zones }:{ token:string; zones:Zone[] }) {
           <input placeholder="Search candidates…" value={search} onChange={e=>setSearch(e.target.value)}
             style={{ ...inputStyle, paddingLeft:32 }}/>
         </div>
-        <button onClick={()=>{ setForm(emptyForm); setSaveErr(''); setShowAdd(true); }}
+        <button onClick={()=>{ setForm(emptyForm); setSaveErr(''); setFormErrors({}); setShowAdd(true); }}
           style={{ padding:'8px 16px', background:C.red, border:'none', borderRadius:10,
             color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif",
             display:'flex', alignItems:'center', gap:6, boxShadow:`0 4px 16px ${C.redB}`, flexShrink:0 }}>
@@ -621,19 +647,62 @@ function ATSSection({ token, zones }:{ token:string; zones:Zone[] }) {
             width:'100%', maxWidth:520, boxShadow:'0 32px 80px rgba(0,0,0,.8)', animation:'km-fadein .2s ease' }}>
             <div style={{ fontFamily:"'Syne',sans-serif", fontSize:18, fontWeight:800, marginBottom:20 }}>Add Candidate</div>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:16 }}>
-              {[
-                { id:'name',   label:'Full Name',   type:'text' },
-                { id:'mobile', label:'Mobile',      type:'tel'  },
-                { id:'email',  label:'Email',       type:'email'},
-                { id:'city',   label:'City',        type:'text' },
-                { id:'source', label:'Source (e.g. Referral, Walk-in)', type:'text' },
-              ].map(f=>(
-                <div key={f.id}>
-                  <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>{f.label}</div>
-                  <input type={f.type} style={inputStyle} placeholder={f.label}
-                    value={form[f.id as keyof typeof form]} onChange={e=>setForm(p=>({...p,[f.id]:e.target.value}))}/>
-                </div>
-              ))}
+
+              {/* Name - full width */}
+              <div style={{ gridColumn:'1 / -1' }}>
+                <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>Full Name <span style={{ color:C.red }}>*</span></div>
+                <input type="text" style={{ ...inputStyle, borderColor:formErrors.name ? C.red : C.border }}
+                  placeholder="Enter full name"
+                  value={form.name}
+                  onChange={e=>{ setForm(p=>({...p,name:e.target.value})); setFormErrors(p=>({...p,name:''})); }}/>
+                {formErrors.name && <div style={{ fontSize:11, color:C.red, marginTop:3 }}>⚠ {formErrors.name}</div>}
+              </div>
+
+              {/* Mobile */}
+              <div>
+                <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>Mobile <span style={{ color:C.red }}>*</span></div>
+                <input type="tel" style={{ ...inputStyle, borderColor:formErrors.mobile ? C.red : C.border }}
+                  placeholder="10-digit number" maxLength={10}
+                  value={form.mobile}
+                  onChange={e=>{ setForm(p=>({...p,mobile:e.target.value.replace(/\D/g,'').slice(0,10)})); setFormErrors(p=>({...p,mobile:''})); }}/>
+                {formErrors.mobile && <div style={{ fontSize:11, color:C.red, marginTop:3 }}>⚠ {formErrors.mobile}</div>}
+              </div>
+
+              {/* Email */}
+              <div>
+                <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>Email</div>
+                <input type="email" style={{ ...inputStyle, borderColor:formErrors.email ? C.red : C.border }}
+                  placeholder="Optional"
+                  value={form.email}
+                  onChange={e=>{ setForm(p=>({...p,email:e.target.value})); setFormErrors(p=>({...p,email:''})); }}/>
+                {formErrors.email && <div style={{ fontSize:11, color:C.red, marginTop:3 }}>⚠ {formErrors.email}</div>}
+              </div>
+
+              {/* City — dropdown */}
+              <div>
+                <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>City <span style={{ color:C.red }}>*</span></div>
+                <select style={{ ...inputStyle, borderColor:formErrors.city ? C.red : C.border }}
+                  value={form.city}
+                  onChange={e=>{ setForm(p=>({...p,city:e.target.value})); setFormErrors(p=>({...p,city:''})); }}>
+                  <option value="">Select city…</option>
+                  {cities.map(c=><option key={c} value={c}>{c}</option>)}
+                </select>
+                {formErrors.city && <div style={{ fontSize:11, color:C.red, marginTop:3 }}>⚠ {formErrors.city}</div>}
+              </div>
+
+              {/* Source — dropdown */}
+              <div>
+                <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>Source <span style={{ color:C.red }}>*</span></div>
+                <select style={{ ...inputStyle, borderColor:formErrors.source ? C.red : C.border }}
+                  value={form.source}
+                  onChange={e=>{ setForm(p=>({...p,source:e.target.value})); setFormErrors(p=>({...p,source:''})); }}>
+                  <option value="">Select source…</option>
+                  {SOURCES.map(s=><option key={s} value={s}>{s}</option>)}
+                </select>
+                {formErrors.source && <div style={{ fontSize:11, color:C.red, marginTop:3 }}>⚠ {formErrors.source}</div>}
+              </div>
+
+              {/* Applying For */}
               <div>
                 <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>Applying For</div>
                 <select style={inputStyle} value={form.applied_role} onChange={e=>setForm(p=>({...p,applied_role:e.target.value}))}>
@@ -641,7 +710,9 @@ function ATSSection({ token, zones }:{ token:string; zones:Zone[] }) {
                   <option value="supervisor">Supervisor</option>
                 </select>
               </div>
-              <div style={{ gridColumn:'1 / -1' }}>
+
+              {/* Preferred Zone */}
+              <div>
                 <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>Preferred Zone</div>
                 <select style={inputStyle} value={form.applied_zone} onChange={e=>setForm(p=>({...p,applied_zone:e.target.value}))}>
                   <option value="">Select zone…</option>
@@ -651,7 +722,7 @@ function ATSSection({ token, zones }:{ token:string; zones:Zone[] }) {
             </div>
             {saveErr && <div style={{ marginBottom:12, padding:'10px 14px', background:C.redD, border:`1px solid ${C.redB}`, borderRadius:10, fontSize:13, color:C.red }}>{saveErr}</div>}
             <div style={{ display:'flex', gap:10 }}>
-              <button onClick={()=>setShowAdd(false)}
+              <button onClick={()=>{ setShowAdd(false); setFormErrors({}); }}
                 style={{ flex:1, padding:'10px', borderRadius:11, border:`1px solid ${C.border}`, background:'transparent', color:C.gray, fontWeight:600, fontSize:13, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
                 Cancel
               </button>
