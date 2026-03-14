@@ -51,9 +51,10 @@ const StatCard = ({ label, value, color, sub, loading }:{ label:string; value:st
     {sub && <div style={{ fontSize:10, color:C.grayd, marginTop:2 }}>{sub}</div>}
   </div>
 );
-const Avatar = ({ name, size=32 }:{ name:string; size?:number }) => {
-  const initials = name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
-  const hue = name.split('').reduce((a,c)=>a+c.charCodeAt(0),0) % 360;
+const Avatar = ({ name, size=32 }:{ name?:string; size?:number }) => {
+  const safeName = name || '?';
+  const initials = safeName.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+  const hue = safeName.split('').reduce((a,c)=>a+c.charCodeAt(0),0) % 360;
   return (
     <div style={{ width:size, height:size, borderRadius:'50%', background:`hsl(${hue},55%,22%)`,
       border:`1px solid hsl(${hue},55%,35%)`, display:'flex', alignItems:'center', justifyContent:'center',
@@ -151,20 +152,31 @@ function CandidateDetail({ candidate, zones, onClose, onRefresh, token }:{
     if (!convertForm.employee_id || !convertForm.password) { setConvertErr('Employee ID and password required'); return; }
     setConverting(true); setConvertErr('');
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/candidates/${candidate.id}/convert`, {
+      // Step 1: Create user account
+      const userRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/users`, {
         method:'POST',
         headers:{ Authorization:`Bearer ${token}`, 'Content-Type':'application/json' },
         body: JSON.stringify({
-          ...convertForm,
           name: candidate.name,
           mobile: candidate.mobile,
           email: candidate.email,
-          role: candidate.applied_role,
+          role: 'executive',
           city: candidate.city,
+          employee_id: convertForm.employee_id,
+          zone_id: convertForm.zone_id || undefined,
+          joined_date: convertForm.joined_date || undefined,
+          password: convertForm.password,
         }),
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || json.message || 'Conversion failed');
+      const userJson = await userRes.json();
+      if (!userRes.ok) throw new Error(userJson.error || userJson.message || 'Failed to create user');
+      const newUserId = userJson?.data?.id ?? userJson?.id;
+      // Step 2: Mark candidate as onboarded
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/candidates/${candidate.id}`, {
+        method:'PATCH',
+        headers:{ Authorization:`Bearer ${token}`, 'Content-Type':'application/json' },
+        body: JSON.stringify({ stage:'onboarded', converted_user_id: newUserId }),
+      });
       setShowConvert(false);
       onRefresh();
       onClose();
@@ -526,9 +538,10 @@ function ATSSection({ token, zones }:{ token:string; zones:Zone[] }) {
       .catch(() => setCities(['Mumbai','Delhi','Gurugram','Bangalore','Hyderabad','Chennai','Pune','Other']));
   }, [token]);
 
-  const stageCounts = STAGES.reduce((acc,s)=>{ acc[s.id]=candidates.filter(c=>c.stage===s.id).length; return acc; }, {} as Record<string,number>);
+  const safeCandidates = Array.isArray(candidates) ? candidates : [];
+  const stageCounts = STAGES.reduce((acc,s)=>{ acc[s.id]=safeCandidates.filter(c=>c.stage===s.id).length; return acc; }, {} as Record<string,number>);
 
-  const filtered = candidates.filter(c=>{
+  const filtered = safeCandidates.filter(c=>{
     const matchStage = stageFilter==='all' || c.stage===stageFilter;
     const q = search.toLowerCase();
     const matchSearch = !search || c.name?.toLowerCase().includes(q) || c.mobile?.includes(q) || c.city?.toLowerCase().includes(q);
@@ -546,8 +559,7 @@ function ATSSection({ token, zones }:{ token:string; zones:Zone[] }) {
     setFormErrors(errs);
     return Object.keys(errs).length === 0;
   };
-if (!/^[6-9]\d{9}$/.test(form.mobile)) { setSaveErr('Enter valid 10-digit mobile'); return; }
-if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) { setSaveErr('Enter valid email'); return; }
+
   const doAdd = async () => {
     if (!validate()) return;
     setSaving(true); setSaveErr('');
@@ -638,7 +650,7 @@ if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) { setSaveErr('
           ))}
         </Card>
       )}
-      <div style={{ fontSize:12, color:C.grayd, textAlign:'right' }}>{filtered.length} of {candidates.length} candidates</div>
+      <div style={{ fontSize:12, color:C.grayd, textAlign:'right' }}>{filtered.length} of {safeCandidates.length} candidates</div>
 
       {/* Add Candidate Modal */}
       {showAdd && (
@@ -680,21 +692,28 @@ if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) { setSaveErr('
               </div>
 
               {/* City — dropdown */}
-              // City — dropdown
-<select style={inputStyle} value={form.city} onChange={e=>setForm(p=>({...p,city:e.target.value}))}>
-  <option value="">Select city…</option>
-  <option value="Gurugram">Gurugram</option>
-  <option value="Mumbai">Mumbai</option>
-  <option value="Other">Other</option>
-</select>
+              <div>
+                <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>City <span style={{ color:C.red }}>*</span></div>
+                <select style={{ ...inputStyle, borderColor:formErrors.city ? C.red : C.border }}
+                  value={form.city}
+                  onChange={e=>{ setForm(p=>({...p,city:e.target.value})); setFormErrors(p=>({...p,city:''})); }}>
+                  <option value="">Select city…</option>
+                  {cities.map(c=><option key={c} value={c}>{c}</option>)}
+                </select>
+                {formErrors.city && <div style={{ fontSize:11, color:C.red, marginTop:3 }}>⚠ {formErrors.city}</div>}
+              </div>
 
-// Source — dropdown  
-<select style={inputStyle} value={form.source} onChange={e=>setForm(p=>({...p,source:e.target.value}))}>
-  <option value="">Select source…</option>
-  {['Referral','Walk-in','Naukri','LinkedIn','Indeed','WhatsApp','Instagram','Other'].map(s=>
-    <option key={s} value={s}>{s}</option>
-  )}
-</select>
+              {/* Source — dropdown */}
+              <div>
+                <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>Source <span style={{ color:C.red }}>*</span></div>
+                <select style={{ ...inputStyle, borderColor:formErrors.source ? C.red : C.border }}
+                  value={form.source}
+                  onChange={e=>{ setForm(p=>({...p,source:e.target.value})); setFormErrors(p=>({...p,source:''})); }}>
+                  <option value="">Select source…</option>
+                  {SOURCES.map(s=><option key={s} value={s}>{s}</option>)}
+                </select>
+                {formErrors.source && <div style={{ fontSize:11, color:C.red, marginTop:3 }}>⚠ {formErrors.source}</div>}
+              </div>
 
               {/* Applying For */}
               <div>
