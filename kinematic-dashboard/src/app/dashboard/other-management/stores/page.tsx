@@ -3,280 +3,533 @@ import { useState, useEffect, useCallback } from 'react';
 import api from '@/lib/api';
 
 const C = {
-  bg:'#070D18',s2:'#0E1420',s3:'#131B2A',s4:'#1A2438',
-  border:'#1E2D45',borderL:'#253650',
-  white:'#E8EDF8',gray:'#7A8BA0',grayd:'#2E445E',graydd:'#1A2738',
-  red:'#E01E2C',redD:'rgba(224,30,44,0.08)',redB:'rgba(224,30,44,0.2)',
-  green:'#00D97E',greenD:'rgba(0,217,126,0.08)',
-  blue:'#3E9EFF',blueD:'rgba(62,158,255,0.10)',
-  yellow:'#FFB800',yellowD:'rgba(255,184,0,0.08)',
-  teal:'#00C9B1',tealD:'rgba(0,201,177,0.08)',
+  bg:'#070D18', s2:'#0E1420', s3:'#131B2A', s4:'#1A2438',
+  border:'#1E2D45', borderL:'#253650',
+  white:'#E8EDF8', gray:'#7A8BA0', grayd:'#2E445E', graydd:'#1A2738',
+  red:'#E01E2C', redD:'rgba(224,30,44,0.08)', redB:'rgba(224,30,44,0.2)',
+  green:'#00D97E', greenD:'rgba(0,217,126,0.08)',
+  blue:'#3E9EFF', blueD:'rgba(62,158,255,0.10)',
+  yellow:'#FFB800', yellowD:'rgba(255,184,0,0.08)',
+  purple:'#9B6EFF', purpleD:'rgba(155,110,255,0.08)',
+  teal:'#00C9B1', tealD:'rgba(0,201,177,0.08)',
+  orange:'#FF7A30',
 };
 
-interface Store { id:string; name:string; store_code?:string; owner_name?:string; phone?:string; address?:string; lat?:number; lng?:number; store_type?:string; is_active:boolean; zone_id?:string; city_id?:string; zones?:{name:string}; cities?:{name:string}; }
-interface Zone { id:string; name:string; city?:string; }
-interface City { id:string; name:string; }
-const BLANK = { name:'', store_code:'', owner_name:'', phone:'', address:'', lat:'', lng:'', store_type:'retail', zone_id:'', city_id:'', is_active:true };
-const STORE_TYPES = ['retail','kirana','supermarket','pan_shop','grocery','pharmacy','other'];
+/* ── Outlet types matching store_type in DB ── */
+const OUTLET_TYPES = [
+  'Kirana / General Store',
+  'Pan Shop',
+  'Grocery',
+  'Supermarket / Hypermarket',
+  'Medical / Pharmacy',
+  'Stationery',
+  'Electronics',
+  'Other',
+];
 
-const Spinner = () => <div style={{width:15,height:15,border:'2.5px solid rgba(255,255,255,0.18)',borderTopColor:'#fff',borderRadius:'50%',animation:'kspin .65s linear infinite',flexShrink:0}}/>;
-const Label = ({t,req}:{t:string;req?:boolean}) => <div style={{fontSize:11,fontWeight:700,color:C.gray,letterSpacing:'0.7px',textTransform:'uppercase',marginBottom:7}}>{t}{req&&<span style={{color:C.red}}> *</span>}</div>;
-const inp:React.CSSProperties = {width:'100%',background:C.s3,border:`1.5px solid ${C.border}`,color:C.white,borderRadius:11,padding:'10px 13px',fontSize:13,outline:'none',fontFamily:"'DM Sans',sans-serif",transition:'border-color .15s'};
+interface Zone  { id:string; name:string; city?:string; }
+interface City  { id:string; name:string; }
+interface Outlet {
+  id:string; name:string; store_code?:string; owner_name?:string;
+  phone?:string; address?:string; lat?:number; lng?:number;
+  store_type?:string; is_active:boolean; zone_id?:string; city_id?:string;
+  created_at?:string;
+  zones?: { name:string };
+  cities?: { name:string };
+}
 
-const Overlay = ({onClose,children}:{onClose:()=>void;children:React.ReactNode}) => (
-  <div onClick={e=>{if(e.target===e.currentTarget)onClose();}} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.78)',zIndex:500,display:'flex',alignItems:'center',justifyContent:'center',padding:20,backdropFilter:'blur(6px)'}}>
+/* ── Atoms ── */
+const Spin = () => (
+  <div style={{ width:18, height:18, border:`2px solid ${C.border}`, borderTopColor:C.blue,
+    borderRadius:'50%', animation:'kspin .65s linear infinite', flexShrink:0 }}/>
+);
+const Shimmer = ({ h=16, br=8 }:{ h?:number; br?:number }) => (
+  <div style={{ height:h, borderRadius:br, background:C.s3, overflow:'hidden', position:'relative' }}>
+    <div style={{ position:'absolute', inset:0, background:`linear-gradient(90deg,transparent,${C.border},transparent)`,
+      animation:'km-shimmer 1.3s ease-in-out infinite' }}/>
+  </div>
+);
+const Card = ({ children, style }:{ children:React.ReactNode; style?:React.CSSProperties }) => (
+  <div style={{ background:C.s2, border:`1px solid ${C.border}`, borderRadius:18, ...style }}>
     {children}
   </div>
 );
+const Badge = ({ label, color }:{ label:string; color:string }) => (
+  <span style={{ display:'inline-flex', alignItems:'center', padding:'3px 10px', borderRadius:20,
+    background:`${color}15`, color, fontSize:11, fontWeight:700 }}>
+    {label}
+  </span>
+);
 
-const TypeBadge = ({t}:{t?:string}) => {
-  const colors:{[k:string]:string} = {retail:C.blue,kirana:C.teal,supermarket:C.yellow,pan_shop:C.green,grocery:'#FF7A30',pharmacy:C.red,other:C.gray};
-  const c = colors[t||'other']||C.gray;
-  return <span style={{display:'inline-flex',padding:'3px 9px',borderRadius:20,fontSize:11,fontWeight:700,background:`${c}18`,color:c}}>{(t||'retail').replace('_',' ')}</span>;
-};
+export default function OutletManagementPage() {
+  const [outlets,  setOutlets]  = useState<Outlet[]>([]);
+  const [zones,    setZones]    = useState<Zone[]>([]);
+  const [cities,   setCities]   = useState<City[]>([]);
+  const [loading,  setLoading]  = useState(true);
+  const [error,    setError]    = useState<string|null>(null);
 
-export default function StoreManagement() {
-  const [stores, setStores] = useState<Store[]>([]);
-  const [zones, setZones] = useState<Zone[]>([]);
-  const [cities, setCities] = useState<City[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState('');
-  const [search, setSearch] = useState('');
-  const [filterType, setFilterType] = useState('');
-  const [showModal, setShowModal] = useState(false);
-  const [editing, setEditing] = useState<Store|null>(null);
-  const [form, setForm] = useState({...BLANK});
-  const [saving, setSaving] = useState(false);
-  const [fErr, setFErr] = useState('');
-  const [detailStore, setDetailStore] = useState<Store|null>(null);
+  // Filters
+  const [search,     setSearch]     = useState('');
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [zoneFilter, setZoneFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  // Modals
+  const [showAdd,  setShowAdd]  = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
+  const [selOutlet, setSelOutlet] = useState<Outlet|null>(null);
+
+  const emptyForm = {
+    name:'', store_code:'', owner_name:'', phone:'', address:'',
+    store_type:'', zone_id:'', city_id:'', lat:'', lng:'',
+  };
+  const [form,    setForm]    = useState(emptyForm);
+  const [saving,  setSaving]  = useState(false);
+  const [saveErr, setSaveErr] = useState<string|null>(null);
+  const [saveOk,  setSaveOk]  = useState(false);
+  const [formErrs, setFormErrs] = useState<Record<string,string>>({});
+
+  const token = typeof window !== 'undefined' ? localStorage.getItem('kinematic_token') || '' : '';
+  const authH = { Authorization:`Bearer ${token}`, 'Content-Type':'application/json' };
+  const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
+
+  /* ── Fetch ── */
+  const fetchAll = useCallback(async () => {
+    setLoading(true); setError(null);
     try {
-      const [sr, zr, cr] = await Promise.all([
-        api.get<any>('/api/v1/stores'),
-        api.get<any>('/api/v1/zones'),
-        api.get<any>('/api/v1/cities'),
+      const headers = { Authorization:`Bearer ${token}` };
+      const [oRes, zRes, cRes] = await Promise.allSettled([
+        api.get<any>('/api/v1/stores', { headers }),
+        api.get<any>('/api/v1/zones',  { headers }),
+        api.get<any>('/api/v1/cities', { headers }),
       ]);
-      const pick = (r:any) => Array.isArray(r?.data?.data)?r.data.data:Array.isArray(r?.data)?r.data:[];
-      setStores(pick(sr)); setZones(pick(zr)); setCities(pick(cr)); setErr('');
-    } catch(e:any){ setErr(e.message||'Failed to load stores'); }
+      if (oRes.status === 'fulfilled') setOutlets((oRes.value?.data ?? oRes.value) || []);
+      if (zRes.status === 'fulfilled') setZones((zRes.value?.data  ?? zRes.value)  || []);
+      if (cRes.status === 'fulfilled') setCities((cRes.value?.data ?? cRes.value)  || []);
+    } catch(e:any) { setError(e?.message || 'Failed to load'); }
     finally { setLoading(false); }
-  }, []);
+  }, [token]);
 
-  useEffect(()=>{ load(); },[load]);
+  useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  const openAdd = () => { setEditing(null); setForm({...BLANK}); setFErr(''); setShowModal(true); };
-  const openEdit = (s:Store) => {
-    setEditing(s);
-    setForm({ name:s.name, store_code:s.store_code||'', owner_name:s.owner_name||'', phone:s.phone||'', address:s.address||'', lat:s.lat!=null?String(s.lat):'', lng:s.lng!=null?String(s.lng):'', store_type:s.store_type||'retail', zone_id:s.zone_id||'', city_id:s.city_id||'', is_active:s.is_active });
-    setFErr(''); setShowModal(true);
+  /* ── Derived ── */
+  const safeOutlets = Array.isArray(outlets) ? outlets : [];
+  const filtered = safeOutlets.filter(o => {
+    const q = search.toLowerCase();
+    const matchSearch = !search
+      || o.name?.toLowerCase().includes(q)
+      || o.store_code?.toLowerCase().includes(q)
+      || o.owner_name?.toLowerCase().includes(q)
+      || o.phone?.includes(q)
+      || o.address?.toLowerCase().includes(q);
+    const matchType   = typeFilter === 'all'   || o.store_type === typeFilter;
+    const matchZone   = zoneFilter === 'all'   || o.zone_id === zoneFilter;
+    const matchStatus = statusFilter === 'all' || (statusFilter === 'active' ? o.is_active : !o.is_active);
+    return matchSearch && matchType && matchZone && matchStatus;
+  });
+
+  const activeCount   = safeOutlets.filter(o => o.is_active).length;
+  const inactiveCount = safeOutlets.filter(o => !o.is_active).length;
+
+  /* ── Validate ── */
+  const validate = () => {
+    const errs: Record<string,string> = {};
+    if (!form.name.trim())  errs.name  = 'Outlet name is required';
+    if (form.phone && !/^\d{10}$/.test(form.phone.trim())) errs.phone = 'Enter valid 10-digit number';
+    setFormErrs(errs);
+    return Object.keys(errs).length === 0;
   };
 
-  const save = async () => {
-    if(!form.name.trim()){setFErr('Store name is required');return;}
-    setSaving(true); setFErr('');
-    const payload:any = { name:form.name, store_code:form.store_code||null, owner_name:form.owner_name||null, phone:form.phone||null, address:form.address||null, store_type:form.store_type, is_active:form.is_active };
-    if(form.zone_id) payload.zone_id = form.zone_id;
-    if(form.city_id) payload.city_id = form.city_id;
-    if(form.lat) payload.lat = parseFloat(form.lat);
-    if(form.lng) payload.lng = parseFloat(form.lng);
+  /* ── Add ── */
+  const doAdd = async () => {
+    if (!validate()) return;
+    setSaving(true); setSaveErr(null);
     try {
-      if(editing) await api.patch(`/api/v1/stores/${editing.id}`, payload);
-      else await api.post('/api/v1/stores', payload);
-      setShowModal(false); load();
-    } catch(e:any){ setFErr(e.response?.data?.error||e.message||'Save failed'); }
+      const res = await fetch(`${apiBase}/api/v1/stores`, {
+        method:'POST', headers:authH,
+        body: JSON.stringify({
+          ...form,
+          lat: form.lat ? parseFloat(form.lat) : null,
+          lng: form.lng ? parseFloat(form.lng) : null,
+          zone_id:  form.zone_id  || null,
+          city_id:  form.city_id  || null,
+          store_type: form.store_type || null,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || json.message || 'Failed to create outlet');
+      setSaveOk(true);
+      setTimeout(() => { setSaveOk(false); setShowAdd(false); setForm(emptyForm); fetchAll(); }, 1400);
+    } catch(e:any) { setSaveErr(e.message); }
     finally { setSaving(false); }
   };
 
-  const toggle = async (s:Store) => {
-    try { await api.patch(`/api/v1/stores/${s.id}`, {is_active:!s.is_active}); load(); } catch{}
+  /* ── Edit ── */
+  const openEdit = (o: Outlet) => {
+    setSelOutlet(o);
+    setForm({
+      name: o.name || '', store_code: o.store_code || '',
+      owner_name: o.owner_name || '', phone: o.phone || '',
+      address: o.address || '', store_type: o.store_type || '',
+      zone_id: o.zone_id || '', city_id: o.city_id || '',
+      lat: o.lat?.toString() || '', lng: o.lng?.toString() || '',
+    });
+    setSaveErr(null); setSaveOk(false); setFormErrs({});
+    setShowEdit(true);
   };
 
-  const filtered = stores.filter(s =>
-    (s.name.toLowerCase().includes(search.toLowerCase()) || (s.store_code||'').toLowerCase().includes(search.toLowerCase()) || (s.owner_name||'').toLowerCase().includes(search.toLowerCase())) &&
-    (!filterType || s.store_type === filterType)
+  const doEdit = async () => {
+    if (!selOutlet || !validate()) return;
+    setSaving(true); setSaveErr(null);
+    try {
+      const res = await fetch(`${apiBase}/api/v1/stores/${selOutlet.id}`, {
+        method:'PATCH', headers:authH,
+        body: JSON.stringify({
+          ...form,
+          lat: form.lat ? parseFloat(form.lat) : null,
+          lng: form.lng ? parseFloat(form.lng) : null,
+          zone_id:  form.zone_id  || null,
+          city_id:  form.city_id  || null,
+          store_type: form.store_type || null,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || json.message || 'Failed to update outlet');
+      setSaveOk(true);
+      setTimeout(() => { setSaveOk(false); setShowEdit(false); setSelOutlet(null); fetchAll(); }, 1400);
+    } catch(e:any) { setSaveErr(e.message); }
+    finally { setSaving(false); }
+  };
+
+  /* ── Toggle active ── */
+  const toggleActive = async (o: Outlet) => {
+    try {
+      await fetch(`${apiBase}/api/v1/stores/${o.id}`, {
+        method:'PATCH', headers:authH,
+        body: JSON.stringify({ is_active: !o.is_active }),
+      });
+      fetchAll();
+    } catch {}
+  };
+
+  /* ── Shared styles ── */
+  const inp: React.CSSProperties = {
+    width:'100%', padding:'9px 12px', borderRadius:10,
+    border:`1.5px solid ${C.border}`, background:C.s3,
+    color:C.white, fontSize:13, fontFamily:"'DM Sans',sans-serif",
+    outline:'none', colorScheme:'dark' as any,
+  };
+  const overlay: React.CSSProperties = {
+    position:'fixed', inset:0, background:'rgba(0,0,0,.76)', zIndex:200,
+    display:'flex', alignItems:'center', justifyContent:'center', padding:24,
+  };
+  const mbox: React.CSSProperties = {
+    background:C.s2, border:`1px solid ${C.borderL}`, borderRadius:20,
+    padding:28, width:'100%', maxWidth:580,
+    maxHeight:'88vh', overflowY:'auto',
+    boxShadow:'0 32px 80px rgba(0,0,0,.8)', animation:'km-fadein .2s ease',
+  };
+  const btnP: React.CSSProperties = {
+    flex:1, padding:'10px 0', borderRadius:11, border:'none',
+    background:C.red, color:'#fff', fontWeight:700, fontSize:13,
+    fontFamily:"'DM Sans',sans-serif", cursor:'pointer',
+    display:'flex', alignItems:'center', justifyContent:'center', gap:6,
+  };
+  const btnS: React.CSSProperties = {
+    flex:1, padding:'10px 0', borderRadius:11,
+    border:`1px solid ${C.border}`, background:'transparent',
+    color:C.gray, fontWeight:600, fontSize:13,
+    fontFamily:"'DM Sans',sans-serif", cursor:'pointer',
+    display:'flex', alignItems:'center', justifyContent:'center',
+  };
+
+  /* ── Form field helper ── */
+  const F = (id: keyof typeof emptyForm, label: string, type = 'text', opts?: string[]) => (
+    <div key={id}>
+      <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>{label}</div>
+      {opts ? (
+        <select style={{ ...inp, borderColor: formErrs[id] ? C.red : C.border }}
+          value={form[id]} onChange={e => setForm(p => ({ ...p, [id]: e.target.value }))}>
+          <option value="">Select…</option>
+          {opts.map(o => <option key={o} value={o}>{o}</option>)}
+        </select>
+      ) : (
+        <input type={type} placeholder={label}
+          style={{ ...inp, borderColor: formErrs[id] ? C.red : C.border }}
+          value={form[id]} onChange={e => setForm(p => ({ ...p, [id]: e.target.value }))}/>
+      )}
+      {formErrs[id] && <div style={{ fontSize:11, color:C.red, marginTop:3 }}>⚠ {formErrs[id]}</div>}
+    </div>
   );
-  const active = stores.filter(s=>s.is_active).length;
-  const withGeo = stores.filter(s=>s.lat&&s.lng).length;
+
+  const OutletForm = () => (
+    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+      <div style={{ gridColumn:'1 / -1' }}>{F('name',       'Outlet Name *')}</div>
+      {F('store_code',  'Outlet Code')}
+      {F('owner_name',  'Owner / Contact Name')}
+      {F('phone',       'Phone Number', 'tel')}
+      {F('store_type',  'Outlet Type', 'text', OUTLET_TYPES)}
+      {/* Zone select */}
+      <div>
+        <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>Zone</div>
+        <select style={inp} value={form.zone_id}
+          onChange={e => setForm(p => ({ ...p, zone_id: e.target.value }))}>
+          <option value="">Select zone…</option>
+          {zones.map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
+        </select>
+      </div>
+      {/* City select */}
+      <div>
+        <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>City</div>
+        <select style={inp} value={form.city_id}
+          onChange={e => setForm(p => ({ ...p, city_id: e.target.value }))}>
+          <option value="">Select city…</option>
+          {cities.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+      </div>
+      <div style={{ gridColumn:'1 / -1' }}>{F('address', 'Address')}</div>
+      {F('lat', 'Latitude (optional)', 'number')}
+      {F('lng', 'Longitude (optional)', 'number')}
+    </div>
+  );
 
   return (
-    <div>
-      <style>{`@keyframes kspin{to{transform:rotate(360deg)}}`}</style>
+    <>
+      <style>{`
+        @keyframes km-shimmer { 0%{transform:translateX(-100%)} 100%{transform:translateX(100%)} }
+        @keyframes km-fadein  { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes kspin      { to{transform:rotate(360deg)} }
+        .km-tr:hover { background:${C.s3} !important; }
+      `}</style>
 
-      {/* Stats */}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:14,marginBottom:24}}>
-        {[{l:'Total Stores',v:stores.length,c:C.teal},{l:'Active',v:active,c:C.green},{l:'With Geo Location',v:withGeo,c:C.blue},{l:'Zones Covered',v:new Set(stores.map(s=>s.zone_id).filter(Boolean)).size,c:C.yellow}].map((s,i)=>(
-          <div key={i} style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:16,padding:'18px 20px'}}>
-            <div style={{fontSize:11,fontWeight:700,color:C.gray,letterSpacing:'0.8px',textTransform:'uppercase',marginBottom:10}}>{s.l}</div>
-            <div style={{fontFamily:"'Syne',sans-serif",fontSize:32,fontWeight:800,color:s.c}}>{s.v}</div>
+      <div style={{ display:'flex', flexDirection:'column', gap:22, animation:'km-fadein .3s ease' }}>
+
+        {/* ── Header ── */}
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-end', flexWrap:'wrap', gap:12 }}>
+          <div>
+            <div style={{ fontFamily:"'Syne',sans-serif", fontSize:24, fontWeight:800, color:C.white, letterSpacing:'-0.3px' }}>
+              Outlet Management
+            </div>
+            <div style={{ fontSize:12, color:C.gray, marginTop:3 }}>
+              All retail & trade outlets in your network
+            </div>
           </div>
-        ))}
-      </div>
-
-      {/* Toolbar */}
-      <div style={{display:'flex',gap:12,marginBottom:20,alignItems:'center',flexWrap:'wrap'}}>
-        <div style={{flex:1,minWidth:200,position:'relative'}}>
-          <svg style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',color:C.gray}} width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-          <input style={{...inp,paddingLeft:38}} placeholder="Search stores, codes, owners..." value={search} onChange={e=>setSearch(e.target.value)}/>
+          <div style={{ display:'flex', gap:8 }}>
+            <button onClick={fetchAll}
+              style={{ padding:'8px 14px', background:C.s3, border:`1px solid ${C.border}`, borderRadius:10,
+                color:C.gray, fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:"'DM Sans',sans-serif",
+                display:'flex', alignItems:'center', gap:6 }}>
+              ↺ Refresh
+            </button>
+            <button onClick={() => { setForm(emptyForm); setSaveErr(null); setSaveOk(false); setFormErrs({}); setShowAdd(true); }}
+              style={{ padding:'8px 16px', background:C.red, border:'none', borderRadius:10,
+                color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif",
+                display:'flex', alignItems:'center', gap:6, boxShadow:`0 4px 16px ${C.redB}` }}>
+              + Add Outlet
+            </button>
+          </div>
         </div>
-        <select style={{...inp,width:'auto',minWidth:140}} value={filterType} onChange={e=>setFilterType(e.target.value)}>
-          <option value="">All Types</option>
-          {STORE_TYPES.map(t=><option key={t} value={t}>{t.replace('_',' ')}</option>)}
-        </select>
-        <button onClick={openAdd} style={{background:C.red,color:'#fff',border:'none',borderRadius:11,padding:'10px 20px',fontSize:13,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',gap:8,fontFamily:"'DM Sans',sans-serif",whiteSpace:'nowrap'}}>
-          <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><path d="M12 5v14M5 12h14"/></svg>
-          Add Store
-        </button>
-      </div>
 
-      {/* Table */}
-      <div style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:16,overflow:'hidden'}}>
-        <div style={{display:'grid',gridTemplateColumns:'1fr 90px 1fr 120px 130px 90px 80px',padding:'12px 20px',borderBottom:`1px solid ${C.border}`,gap:12}}>
-          {['Store Name','Code','Owner / Phone','Type','Location','Status','Actions'].map(h=>(
-            <div key={h} style={{fontSize:11,fontWeight:700,color:C.grayd,letterSpacing:'0.8px',textTransform:'uppercase'}}>{h}</div>
+        {/* ── KPI row ── */}
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12 }}>
+          {[
+            { label:'Total Outlets',  value:safeOutlets.length, color:C.blue,   sub:'All registered' },
+            { label:'Active',         value:activeCount,         color:C.green,  sub:'Currently active' },
+            { label:'Inactive',       value:inactiveCount,       color:C.red,    sub:'Deactivated' },
+            { label:'Zones Covered',  value:new Set(safeOutlets.map(o=>o.zone_id).filter(Boolean)).size, color:C.yellow, sub:'Unique zones' },
+          ].map((k,i) => (
+            <div key={i} style={{ background:C.s2, border:`1px solid ${C.border}`, borderRadius:16, padding:'18px 20px' }}>
+              {loading ? <Shimmer h={28} br={5}/> : (
+                <div style={{ fontFamily:"'Syne',sans-serif", fontSize:30, fontWeight:800, color:k.color, lineHeight:1 }}>{k.value}</div>
+              )}
+              <div style={{ fontSize:11, color:C.gray, marginTop:6, fontWeight:600 }}>{k.label}</div>
+              <div style={{ fontSize:10, color:C.grayd, marginTop:2 }}>{k.sub}</div>
+            </div>
           ))}
         </div>
-        {loading ? <div style={{padding:40,textAlign:'center'}}><Spinner/></div>
-        : err ? <div style={{padding:40,textAlign:'center',color:C.red,fontSize:13}}>{err}</div>
-        : filtered.length===0 ? <div style={{padding:48,textAlign:'center',color:C.grayd,fontSize:13}}>{search||filterType?'No stores match.':'No stores yet. Add your first store.'}</div>
-        : filtered.map((s,i)=>(
-          <div key={s.id} style={{display:'grid',gridTemplateColumns:'1fr 90px 1fr 120px 130px 90px 80px',padding:'14px 20px',borderBottom:i<filtered.length-1?`1px solid ${C.border}`:'none',gap:12,alignItems:'center',cursor:'pointer'}}
-            onMouseEnter={e=>e.currentTarget.style.background=C.s3}
-            onMouseLeave={e=>e.currentTarget.style.background='transparent'}
-            onClick={()=>setDetailStore(s)}
-          >
-            <div>
-              <div style={{fontWeight:600,fontSize:14}}>{s.name}</div>
-              {s.zones && <div style={{fontSize:11,color:C.gray,marginTop:2}}>{s.zones.name}</div>}
-            </div>
-            <div style={{fontSize:12,color:C.gray,fontFamily:'monospace'}}>{s.store_code||'—'}</div>
-            <div>
-              <div style={{fontSize:13}}>{s.owner_name||'—'}</div>
-              {s.phone && <div style={{fontSize:11,color:C.gray}}>{s.phone}</div>}
-            </div>
-            <div onClick={e=>e.stopPropagation()}><TypeBadge t={s.store_type}/></div>
-            <div onClick={e=>e.stopPropagation()}>
-              {s.lat&&s.lng ? (
-                <a href={`https://maps.google.com/?q=${s.lat},${s.lng}`} target="_blank" rel="noreferrer"
-                  style={{fontSize:11,color:C.blue,textDecoration:'none',display:'flex',alignItems:'center',gap:4}}>
-                  <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M12 22s-8-4.5-8-11.8A8 8 0 0112 2a8 8 0 018 8.2c0 7.3-8 11.8-8 11.8z M12 13a3 3 0 100-6 3 3 0 000 6z"/></svg>
-                  {s.lat.toFixed(4)}, {s.lng.toFixed(4)}
-                </a>
-              ) : <span style={{fontSize:12,color:C.grayd}}>No GPS</span>}
-            </div>
-            <div onClick={e=>e.stopPropagation()}>
-              <span style={{display:'inline-flex',alignItems:'center',gap:5,padding:'3px 10px',borderRadius:20,fontSize:11,fontWeight:700,background:s.is_active?C.greenD:`rgba(122,139,160,0.1)`,color:s.is_active?C.green:C.gray}}>
-                <div style={{width:5,height:5,borderRadius:'50%',background:'currentColor'}}/>
-                {s.is_active?'Active':'Inactive'}
-              </span>
-            </div>
-            <div style={{display:'flex',gap:6}} onClick={e=>e.stopPropagation()}>
-              <button onClick={()=>openEdit(s)} style={{width:30,height:30,border:`1px solid ${C.border}`,borderRadius:8,background:'transparent',cursor:'pointer',color:C.gray,display:'flex',alignItems:'center',justifyContent:'center'}}
-                onMouseEnter={e=>{e.currentTarget.style.borderColor=C.blue;e.currentTarget.style.color=C.blue;}}
-                onMouseLeave={e=>{e.currentTarget.style.borderColor=C.border;e.currentTarget.style.color=C.gray;}}>
-                <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4z"/></svg>
-              </button>
-              <button onClick={()=>toggle(s)} style={{width:30,height:30,border:`1px solid ${C.border}`,borderRadius:8,background:'transparent',cursor:'pointer',color:s.is_active?C.red:C.green,display:'flex',alignItems:'center',justifyContent:'center'}}
-                onMouseEnter={e=>e.currentTarget.style.borderColor=s.is_active?C.red:C.green}
-                onMouseLeave={e=>e.currentTarget.style.borderColor=C.border}>
-                <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>{s.is_active?<path d="M18 6L6 18M6 6l12 12"/>:<path d="M20 6L9 17l-5-5"/>}</svg>
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
 
-      {/* Store Detail Panel */}
-      {detailStore && (
-        <Overlay onClose={()=>setDetailStore(null)}>
-          <div style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:20,padding:28,width:'100%',maxWidth:460}}>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:20}}>
-              <div>
-                <div style={{fontFamily:"'Syne',sans-serif",fontSize:20,fontWeight:800}}>{detailStore.name}</div>
-                <TypeBadge t={detailStore.store_type}/>
-              </div>
-              <button onClick={()=>setDetailStore(null)} style={{width:32,height:32,border:`1px solid ${C.border}`,borderRadius:9,background:'transparent',cursor:'pointer',color:C.gray,display:'flex',alignItems:'center',justifyContent:'center'}}>
-                <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><path d="M18 6L6 18M6 6l12 12"/></svg>
-              </button>
+        {/* ── Filters ── */}
+        <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
+          {/* Search */}
+          <div style={{ position:'relative', flex:1, minWidth:220 }}>
+            <span style={{ position:'absolute', left:11, top:'50%', transform:'translateY(-50%)', fontSize:13, color:C.grayd }}>🔍</span>
+            <input placeholder="Search outlet name, code, owner, phone…"
+              value={search} onChange={e => setSearch(e.target.value)}
+              style={{ ...inp, paddingLeft:32 }}/>
+          </div>
+          {/* Type filter */}
+          <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)}
+            style={{ ...inp, width:'auto', minWidth:160, padding:'9px 14px' }}>
+            <option value="all">All Types</option>
+            {OUTLET_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+          {/* Zone filter */}
+          <select value={zoneFilter} onChange={e => setZoneFilter(e.target.value)}
+            style={{ ...inp, width:'auto', minWidth:140, padding:'9px 14px' }}>
+            <option value="all">All Zones</option>
+            {zones.map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
+          </select>
+          {/* Status filter */}
+          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
+            style={{ ...inp, width:'auto', minWidth:120, padding:'9px 14px' }}>
+            <option value="all">All Status</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </select>
+        </div>
+
+        {/* ── Table ── */}
+        {loading ? (
+          <Card style={{ padding:'20px 22px' }}>
+            <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+              {[...Array(5)].map((_,i) => <Shimmer key={i} h={44} br={10}/>)}
             </div>
-            {[
-              {l:'Store Code',v:detailStore.store_code||'—'},
-              {l:'Owner',v:detailStore.owner_name||'—'},
-              {l:'Phone',v:detailStore.phone||'—'},
-              {l:'Zone',v:detailStore.zones?.name||'—'},
-              {l:'Address',v:detailStore.address||'—'},
-            ].map((r,i)=>(
-              <div key={i} style={{display:'flex',gap:12,padding:'10px 0',borderBottom:`1px solid ${C.border}`}}>
-                <span style={{fontSize:12,color:C.gray,width:100,flexShrink:0}}>{r.l}</span>
-                <span style={{fontSize:13,fontWeight:500}}>{r.v}</span>
+          </Card>
+        ) : error ? (
+          <Card style={{ padding:'20px 22px', background:C.redD, border:`1px solid ${C.redB}` }}>
+            <div style={{ color:C.red, fontWeight:700, marginBottom:6 }}>Failed to load outlets</div>
+            <div style={{ fontSize:13, color:C.gray, marginBottom:12 }}>{error}</div>
+            <button onClick={fetchAll} style={{ ...btnS, flex:'unset', padding:'7px 14px', fontSize:12 }}>Retry</button>
+          </Card>
+        ) : filtered.length === 0 ? (
+          <Card style={{ padding:'40px 22px' }}>
+            <div style={{ textAlign:'center', color:C.grayd, fontSize:13 }}>
+              <div style={{ fontSize:32, marginBottom:12 }}>🏪</div>
+              <div style={{ fontWeight:600, marginBottom:4 }}>No outlets found</div>
+              <div style={{ fontSize:12 }}>{search ? `No results for "${search}"` : 'Add your first outlet to get started'}</div>
+            </div>
+          </Card>
+        ) : (
+          <Card style={{ padding:0, overflow:'hidden' }}>
+            {/* Table header */}
+            <div style={{ display:'grid', gridTemplateColumns:'2fr 1.2fr 1.2fr 1.2fr 1fr 1fr 100px',
+              gap:8, padding:'10px 20px', borderBottom:`1px solid ${C.border}`,
+              fontSize:10, color:C.grayd, fontWeight:700, letterSpacing:'0.7px', textTransform:'uppercase' }}>
+              {['Outlet','Type','Zone','Owner / Phone','Code','Status','Actions'].map(h => (
+                <span key={h}>{h}</span>
+              ))}
+            </div>
+            {/* Rows */}
+            {filtered.map((o, i) => (
+              <div key={o.id} className="km-tr"
+                style={{ display:'grid', gridTemplateColumns:'2fr 1.2fr 1.2fr 1.2fr 1fr 1fr 100px',
+                  gap:8, padding:'14px 20px', alignItems:'center',
+                  borderBottom: i < filtered.length - 1 ? `1px solid ${C.border}` : 'none',
+                  transition:'background .13s' }}>
+
+                {/* Outlet name + address */}
+                <div>
+                  <div style={{ fontSize:13, fontWeight:700, color:C.white }}>{o.name}</div>
+                  {o.address && (
+                    <div style={{ fontSize:10, color:C.grayd, marginTop:2, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+                      📍 {o.address}
+                    </div>
+                  )}
+                </div>
+
+                {/* Type */}
+                <span style={{ fontSize:11, color:C.gray }}>
+                  {o.store_type || '—'}
+                </span>
+
+                {/* Zone */}
+                <span style={{ fontSize:11, color:C.gray }}>
+                  {zones.find(z => z.id === o.zone_id)?.name || '—'}
+                </span>
+
+                {/* Owner / Phone */}
+                <div>
+                  <div style={{ fontSize:12, color:C.white, fontWeight:600 }}>{o.owner_name || '—'}</div>
+                  {o.phone && <div style={{ fontSize:10, color:C.grayd, marginTop:1, fontFamily:'monospace' }}>{o.phone}</div>}
+                </div>
+
+                {/* Code */}
+                <span style={{ fontSize:11, color:C.grayd, fontFamily:'monospace' }}>
+                  {o.store_code || '—'}
+                </span>
+
+                {/* Status */}
+                <Badge label={o.is_active ? 'Active' : 'Inactive'} color={o.is_active ? C.green : C.red}/>
+
+                {/* Actions */}
+                <div style={{ display:'flex', gap:5 }}>
+                  <button title="Edit outlet" onClick={() => openEdit(o)}
+                    style={{ width:30, height:30, borderRadius:8, border:`1px solid ${C.border}`,
+                      background:'transparent', cursor:'pointer', fontSize:13,
+                      display:'flex', alignItems:'center', justifyContent:'center' }}
+                    onMouseEnter={e => (e.currentTarget.style.background = C.s3)}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                    ✏️
+                  </button>
+                  <button title={o.is_active ? 'Deactivate' : 'Activate'} onClick={() => toggleActive(o)}
+                    style={{ width:30, height:30, borderRadius:8, border:`1px solid ${C.border}`,
+                      background:'transparent', cursor:'pointer', fontSize:13,
+                      display:'flex', alignItems:'center', justifyContent:'center' }}
+                    onMouseEnter={e => (e.currentTarget.style.background = C.s3)}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                    {o.is_active ? '⏸' : '▶️'}
+                  </button>
+                </div>
               </div>
             ))}
-            {detailStore.lat && detailStore.lng && (
-              <div style={{marginTop:16,padding:14,background:C.s3,borderRadius:12,border:`1px solid ${C.border}`}}>
-                <div style={{fontSize:11,fontWeight:700,color:C.gray,letterSpacing:'0.8px',textTransform:'uppercase',marginBottom:10}}>GPS Location</div>
-                <div style={{fontSize:14,fontFamily:'monospace',color:C.white,marginBottom:10}}>{detailStore.lat.toFixed(6)}, {detailStore.lng.toFixed(6)}</div>
-                <a href={`https://maps.google.com/?q=${detailStore.lat},${detailStore.lng}`} target="_blank" rel="noreferrer" style={{display:'inline-flex',alignItems:'center',gap:6,padding:'7px 14px',background:C.blueD,border:`1px solid ${C.blue}40`,borderRadius:8,color:C.blue,fontSize:12,fontWeight:600,textDecoration:'none'}}>
-                  <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M12 22s-8-4.5-8-11.8A8 8 0 0112 2a8 8 0 018 8.2c0 7.3-8 11.8-8 11.8z M12 13a3 3 0 100-6 3 3 0 000 6z"/></svg>
-                  Open in Google Maps
-                </a>
-              </div>
-            )}
-            <div style={{display:'flex',gap:10,marginTop:20}}>
-              <button onClick={()=>{setDetailStore(null);openEdit(detailStore);}} style={{flex:1,padding:'10px',border:`1px solid ${C.border}`,borderRadius:11,background:'transparent',color:C.white,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>Edit Store</button>
-            </div>
+          </Card>
+        )}
+
+        {!loading && !error && (
+          <div style={{ fontSize:12, color:C.grayd, textAlign:'right' }}>
+            Showing {filtered.length} of {safeOutlets.length} outlets
           </div>
-        </Overlay>
-      )}
+        )}
+      </div>
 
-      {/* Add/Edit Modal */}
-      {showModal && (
-        <Overlay onClose={()=>setShowModal(false)}>
-          <div style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:20,padding:28,width:'100%',maxWidth:560,maxHeight:'90vh',overflowY:'auto'}}>
-            <div style={{fontFamily:"'Syne',sans-serif",fontSize:20,fontWeight:800,marginBottom:6}}>{editing?'Edit Store':'Add Store'}</div>
-            <div style={{fontSize:13,color:C.gray,marginBottom:24}}>{editing?`Editing ${editing.name}`:'Register a new store / outlet'}</div>
-            {fErr && <div style={{background:C.redD,border:`1px solid ${C.redB}`,borderRadius:10,padding:'10px 14px',color:C.red,fontSize:13,marginBottom:16}}>{fErr}</div>}
-
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:14}}>
-              <div style={{gridColumn:'1/-1'}}><Label t="Store Name" req/><input style={inp} placeholder="e.g. Sharma General Store" value={form.name} onChange={e=>setForm(p=>({...p,name:e.target.value}))}/></div>
-              <div><Label t="Store Code"/><input style={inp} placeholder="e.g. STR-001" value={form.store_code} onChange={e=>setForm(p=>({...p,store_code:e.target.value}))}/></div>
-              <div><Label t="Store Type"/><select style={inp} value={form.store_type} onChange={e=>setForm(p=>({...p,store_type:e.target.value}))}>{STORE_TYPES.map(t=><option key={t} value={t}>{t.replace('_',' ')}</option>)}</select></div>
-              <div><Label t="Owner Name"/><input style={inp} placeholder="Owner full name" value={form.owner_name} onChange={e=>setForm(p=>({...p,owner_name:e.target.value}))}/></div>
-              <div><Label t="Phone"/><input style={inp} placeholder="+91 XXXXX XXXXX" value={form.phone} onChange={e=>setForm(p=>({...p,phone:e.target.value}))}/></div>
-              <div><Label t="Zone"/><select style={inp} value={form.zone_id} onChange={e=>setForm(p=>({...p,zone_id:e.target.value}))}><option value="">Select zone...</option>{zones.map(z=><option key={z.id} value={z.id}>{z.name}</option>)}</select></div>
-              <div><Label t="City"/><select style={inp} value={form.city_id} onChange={e=>setForm(p=>({...p,city_id:e.target.value}))}><option value="">Select city...</option>{cities.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
-              <div style={{gridColumn:'1/-1'}}><Label t="Address"/><input style={inp} placeholder="Full store address" value={form.address} onChange={e=>setForm(p=>({...p,address:e.target.value}))}/></div>
+      {/* ══ ADD OUTLET MODAL ══ */}
+      {showAdd && (
+        <div style={overlay} onClick={e => e.target === e.currentTarget && setShowAdd(false)}>
+          <div style={mbox}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:22 }}>
+              <div style={{ fontFamily:"'Syne',sans-serif", fontSize:18, fontWeight:800, color:C.white }}>Add New Outlet</div>
+              <button onClick={() => setShowAdd(false)}
+                style={{ background:'transparent', border:`1px solid ${C.border}`, borderRadius:8,
+                  width:30, height:30, cursor:'pointer', color:C.gray, fontSize:16 }}>×</button>
             </div>
-
-            <div style={{background:C.s3,border:`1px solid ${C.border}`,borderRadius:13,padding:16,marginBottom:16}}>
-              <div style={{fontSize:12,fontWeight:700,color:C.teal,letterSpacing:'0.8px',textTransform:'uppercase',marginBottom:14,display:'flex',alignItems:'center',gap:7}}>
-                <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M12 22s-8-4.5-8-11.8A8 8 0 0112 2a8 8 0 018 8.2c0 7.3-8 11.8-8 11.8z M12 13a3 3 0 100-6 3 3 0 000 6z"/></svg>
-                GPS Coordinates
-              </div>
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
-                <div><Label t="Latitude"/><input style={inp} type="number" step="any" placeholder="e.g. 19.0760" value={form.lat} onChange={e=>setForm(p=>({...p,lat:e.target.value}))}/></div>
-                <div><Label t="Longitude"/><input style={inp} type="number" step="any" placeholder="e.g. 72.8777" value={form.lng} onChange={e=>setForm(p=>({...p,lng:e.target.value}))}/></div>
-              </div>
-              <div style={{fontSize:11,color:C.gray,marginTop:8}}>Used for store location on map. Find on Google Maps → right-click → Copy coordinates.</div>
-            </div>
-
-            {editing && (
-              <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:20}}>
-                <div onClick={()=>setForm(p=>({...p,is_active:!p.is_active}))} style={{width:40,height:22,borderRadius:11,background:form.is_active?C.red:C.grayd,cursor:'pointer',position:'relative',transition:'background .2s'}}>
-                  <div style={{position:'absolute',top:3,left:form.is_active?20:3,width:16,height:16,borderRadius:'50%',background:'#fff',transition:'left .2s'}}/>
-                </div>
-                <span style={{fontSize:13,color:C.gray}}>Active</span>
-              </div>
-            )}
-            <div style={{display:'flex',gap:10}}>
-              <button onClick={()=>setShowModal(false)} style={{flex:1,padding:'11px',border:`1px solid ${C.border}`,borderRadius:11,background:'transparent',color:C.gray,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>Cancel</button>
-              <button onClick={save} disabled={saving} style={{flex:1,padding:'11px',border:'none',borderRadius:11,background:C.red,color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:8,fontFamily:"'DM Sans',sans-serif",opacity:saving?0.7:1}}>
-                {saving?<><Spinner/>Saving...</>:`${editing?'Update':'Create'} Store`}
+            <OutletForm/>
+            {saveErr && <div style={{ marginTop:14, background:C.redD, border:`1px solid ${C.redB}`, borderRadius:10, padding:'10px 14px', fontSize:13, color:C.red }}>{saveErr}</div>}
+            {saveOk  && <div style={{ marginTop:14, background:C.greenD, border:`1px solid ${C.green}28`, borderRadius:10, padding:'10px 14px', fontSize:13, color:C.green }}>✓ Outlet created!</div>}
+            <div style={{ display:'flex', gap:10, marginTop:20 }}>
+              <button style={btnS} onClick={() => setShowAdd(false)}>Cancel</button>
+              <button style={btnP} onClick={doAdd} disabled={saving || !form.name}>
+                {saving ? <Spin/> : '+ Create Outlet'}
               </button>
             </div>
           </div>
-        </Overlay>
+        </div>
       )}
-    </div>
+
+      {/* ══ EDIT OUTLET MODAL ══ */}
+      {showEdit && selOutlet && (
+        <div style={overlay} onClick={e => e.target === e.currentTarget && setShowEdit(false)}>
+          <div style={mbox}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:22 }}>
+              <div>
+                <div style={{ fontFamily:"'Syne',sans-serif", fontSize:18, fontWeight:800, color:C.white }}>Edit Outlet</div>
+                <div style={{ fontSize:12, color:C.gray, marginTop:2 }}>{selOutlet.name}</div>
+              </div>
+              <button onClick={() => setShowEdit(false)}
+                style={{ background:'transparent', border:`1px solid ${C.border}`, borderRadius:8,
+                  width:30, height:30, cursor:'pointer', color:C.gray, fontSize:16 }}>×</button>
+            </div>
+            <OutletForm/>
+            {saveErr && <div style={{ marginTop:14, background:C.redD, border:`1px solid ${C.redB}`, borderRadius:10, padding:'10px 14px', fontSize:13, color:C.red }}>{saveErr}</div>}
+            {saveOk  && <div style={{ marginTop:14, background:C.greenD, border:`1px solid ${C.green}28`, borderRadius:10, padding:'10px 14px', fontSize:13, color:C.green }}>✓ Saved!</div>}
+            <div style={{ display:'flex', gap:10, marginTop:20 }}>
+              <button style={btnS} onClick={() => setShowEdit(false)}>Cancel</button>
+              <button style={btnP} onClick={doEdit} disabled={saving || !form.name}>
+                {saving ? <Spin/> : '✓ Save Changes'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
