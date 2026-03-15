@@ -663,7 +663,7 @@ function ATSSection({ token, zones }:{ token:string; zones:Zone[] }) {
         const list = (r?.data ?? r) || [];
         setCities(list.map((c:any) => c.name).filter(Boolean));
       })
-      .catch(() => setCities(['Mumbai','Delhi','Gurugram','Bangalore','Hyderabad','Chennai','Pune','Other']));
+      .catch(() => setCities([]));
   }, [token]);
 
   const safeCandidates = Array.isArray(candidates) ? candidates : [];
