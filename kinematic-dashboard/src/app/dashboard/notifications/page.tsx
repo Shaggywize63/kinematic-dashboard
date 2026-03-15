@@ -4,47 +4,30 @@ import { useState, useEffect, useCallback } from "react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type City = {
-  id: string;
-  name: string;
-};
-
-type Supervisor = {
-  id: string;
-  name: string;
-  cityId: string;
-};
-
-type FieldExec = {
-  id: string;
-  name: string;
-  supervisorId: string;
-};
-
+type City = { id: string; name: string; };
+type Supervisor = { id: string; name: string; cityId: string; };
+type FieldExec = { id: string; name: string; supervisorId: string; };
 type Priority = "Info" | "Warning" | "Critical";
 
 type SentNotification = {
-  id: string;
-  title: string;
-  message: string;
-  priority: Priority;
-  target: string;
-  readRate: number;
-  sentAt: string;
+  id: string; title: string; message: string; priority: Priority;
+  target: string; readRate: number; sentAt: string;
 };
 
 type FormState = {
-  title: string;
-  message: string;
-  priority: Priority;
-  cityId: string;
-  supervisorId: string;
-  fieldExecId: string;
+  title: string; message: string; priority: Priority;
+  cityId: string; supervisorId: string; fieldExecId: string;
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "";
+
+// ✅ FIXED: use kinematic_token, not "token"
+function getToken(): string {
+  if (typeof window === "undefined") return "";
+  return localStorage.getItem("kinematic_token") ?? "";
+}
 
 async function apiFetch<T>(path: string, token: string): Promise<T> {
   const res = await fetch(`${API}${path}`, {
@@ -52,20 +35,11 @@ async function apiFetch<T>(path: string, token: string): Promise<T> {
   });
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
   const json = await res.json();
-  // Handle both { data: [...] } and raw [...] responses
   return (json.data ?? json) as T;
 }
 
-function getToken(): string {
-  if (typeof window === "undefined") return "";
-  return localStorage.getItem("token") ?? "";
-}
-
 function buildAudienceLabel(
-  form: FormState,
-  cities: City[],
-  supervisors: Supervisor[],
-  fieldExecs: FieldExec[]
+  form: FormState, cities: City[], supervisors: Supervisor[], fieldExecs: FieldExec[]
 ): { heading: string; subtext: string } {
   if (form.fieldExecId && form.fieldExecId !== "all") {
     const fe = fieldExecs.find((f) => f.id === form.fieldExecId);
@@ -74,17 +48,11 @@ function buildAudienceLabel(
   if (form.supervisorId && form.supervisorId !== "all") {
     const sup = supervisors.find((s) => s.id === form.supervisorId);
     const count = fieldExecs.length;
-    return {
-      heading: sup?.name ?? "Supervisor",
-      subtext: `${count} FE${count !== 1 ? "s" : ""} under this supervisor`,
-    };
+    return { heading: sup?.name ?? "Supervisor", subtext: `${count} FE${count !== 1 ? "s" : ""} under this supervisor` };
   }
   if (form.cityId && form.cityId !== "all") {
     const city = cities.find((c) => c.id === form.cityId);
-    return {
-      heading: city?.name ?? "City",
-      subtext: "All FEs in this city",
-    };
+    return { heading: city?.name ?? "City", subtext: "All FEs in this city" };
   }
   return { heading: "All Users", subtext: "via In-App Feed" };
 }
@@ -105,30 +73,15 @@ function Label({ children }: { children: React.ReactNode }) {
   );
 }
 
-function SelectField({
-  value,
-  onChange,
-  disabled,
-  children,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  disabled?: boolean;
-  children: React.ReactNode;
+function SelectField({ value, onChange, disabled, children }: {
+  value: string; onChange: (v: string) => void; disabled?: boolean; children: React.ReactNode;
 }) {
   return (
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
       disabled={disabled}
-      className="
-        w-full px-4 py-3 rounded-xl text-sm font-medium
-        bg-[#0D1117] border border-[#1E2D3D]
-        text-[#CBD5E0] appearance-none cursor-pointer
-        focus:outline-none focus:border-[#EF1F35] focus:ring-1 focus:ring-[#EF1F35]/30
-        disabled:opacity-40 disabled:cursor-not-allowed
-        transition-all duration-150
-      "
+      className="w-full px-4 py-3 rounded-xl text-sm font-medium bg-[#0D1117] border border-[#1E2D3D] text-[#CBD5E0] appearance-none cursor-pointer focus:outline-none focus:border-[#EF1F35] focus:ring-1 focus:ring-[#EF1F35]/30 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-150"
       style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%234A5568' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 14px center" }}
     >
       {children}
@@ -140,11 +93,7 @@ function LoadingDots() {
   return (
     <span className="inline-flex gap-1 items-center">
       {[0, 1, 2].map((i) => (
-        <span
-          key={i}
-          className="w-1 h-1 rounded-full bg-[#4A5568] animate-pulse"
-          style={{ animationDelay: `${i * 150}ms` }}
-        />
+        <span key={i} className="w-1 h-1 rounded-full bg-[#4A5568] animate-pulse" style={{ animationDelay: `${i * 150}ms` }}/>
       ))}
     </span>
   );
@@ -155,18 +104,8 @@ function Toast({ message, type, onClose }: { message: string; type: "success" | 
     const t = setTimeout(onClose, 4000);
     return () => clearTimeout(t);
   }, [onClose]);
-
   return (
-    <div
-      className={`
-        fixed bottom-6 right-6 z-50 flex items-center gap-3
-        px-5 py-3.5 rounded-xl shadow-2xl border text-sm font-semibold
-        animate-in slide-in-from-bottom-4 duration-300
-        ${type === "success"
-          ? "bg-[#0a1f12] border-[#00DF7A]/30 text-[#00DF7A]"
-          : "bg-[#1a0608] border-[#EF1F35]/30 text-[#EF1F35]"}
-      `}
-    >
+    <div className={`fixed bottom-6 right-6 z-50 flex items-center gap-3 px-5 py-3.5 rounded-xl shadow-2xl border text-sm font-semibold animate-in slide-in-from-bottom-4 duration-300 ${type === "success" ? "bg-[#0a1f12] border-[#00DF7A]/30 text-[#00DF7A]" : "bg-[#1a0608] border-[#EF1F35]/30 text-[#EF1F35]"}`}>
       <span>{type === "success" ? "✓" : "✗"}</span>
       {message}
       <button onClick={onClose} className="ml-2 opacity-60 hover:opacity-100 text-base leading-none">×</button>
@@ -177,37 +116,35 @@ function Toast({ message, type, onClose }: { message: string; type: "success" | 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function NotificationsPage() {
-  // Form state
   const [form, setForm] = useState<FormState>({
-    title: "",
-    message: "",
-    priority: "Info",
-    cityId: "all",
-    supervisorId: "all",
-    fieldExecId: "all",
+    title: "", message: "", priority: "Info",
+    cityId: "all", supervisorId: "all", fieldExecId: "all",
   });
 
-  // Data
-  const [cities, setCities]           = useState<City[]>([]);
+  const [cities,      setCities]      = useState<City[]>([]);
   const [supervisors, setSupervisors] = useState<Supervisor[]>([]);
-  const [fieldExecs, setFieldExecs]   = useState<FieldExec[]>([]);
-  const [history, setHistory]         = useState<SentNotification[]>([]);
+  const [fieldExecs,  setFieldExecs]  = useState<FieldExec[]>([]);
+  const [history,     setHistory]     = useState<SentNotification[]>([]);
 
-  // Loading states — each dropdown has its own
-  const [loadingCities, setLoadingCities]       = useState(true);
+  const [loadingCities,      setLoadingCities]      = useState(true);
   const [loadingSupervisors, setLoadingSupervisors] = useState(false);
-  const [loadingFieldExecs, setLoadingFieldExecs]   = useState(false);
-  const [sending, setSending]                   = useState(false);
-  const [loadingHistory, setLoadingHistory]     = useState(true);
+  const [loadingFieldExecs,  setLoadingFieldExecs]  = useState(false);
+  const [sending,            setSending]            = useState(false);
+  const [loadingHistory,     setLoadingHistory]     = useState(true);
 
-  // UI
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
-  // ── Fetch cities on mount ──────────────────────────────────────────────────
+  // ── Fetch cities from City Management on mount ─────────────────────────────
   useEffect(() => {
     setLoadingCities(true);
     apiFetch<City[]>("/api/v1/cities", getToken())
-      .then(setCities)
+      .then((data) => {
+        // Filter only active cities
+        const active = Array.isArray(data)
+          ? data.filter((c: any) => c.is_active !== false)
+          : [];
+        setCities(active);
+      })
       .catch((err) => {
         console.error("Failed to load cities:", err);
         setToast({ message: "Could not load cities", type: "error" });
@@ -220,22 +157,19 @@ export default function NotificationsPage() {
     setLoadingHistory(true);
     apiFetch<SentNotification[]>("/api/v1/notifications", getToken())
       .then(setHistory)
-      .catch(() => setHistory([]))       // silently degrade — table just shows empty
+      .catch(() => setHistory([]))
       .finally(() => setLoadingHistory(false));
   }, []);
 
   // ── Fetch supervisors when city changes ───────────────────────────────────
   useEffect(() => {
-    // Reset downstream selections
     setForm((f) => ({ ...f, supervisorId: "all", fieldExecId: "all" }));
     setSupervisors([]);
     setFieldExecs([]);
-
     if (!form.cityId || form.cityId === "all") return;
-
     setLoadingSupervisors(true);
-    apiFetch<Supervisor[]>(`/api/v1/supervisors?cityId=${form.cityId}`, getToken())
-      .then(setSupervisors)
+    apiFetch<Supervisor[]>(`/api/v1/users?role=supervisor&city=${form.cityId}`, getToken())
+      .then((data) => setSupervisors(Array.isArray(data) ? data : []))
       .catch((err) => {
         console.error("Failed to load supervisors:", err);
         setToast({ message: "Could not load supervisors", type: "error" });
@@ -246,18 +180,12 @@ export default function NotificationsPage() {
 
   // ── Fetch field execs when supervisor changes ─────────────────────────────
   useEffect(() => {
-    // Reset downstream
     setForm((f) => ({ ...f, fieldExecId: "all" }));
     setFieldExecs([]);
-
     if (!form.supervisorId || form.supervisorId === "all") return;
-
     setLoadingFieldExecs(true);
-    apiFetch<FieldExec[]>(
-      `/api/v1/field-execs?supervisorId=${form.supervisorId}`,
-      getToken()
-    )
-      .then(setFieldExecs)
+    apiFetch<FieldExec[]>(`/api/v1/users?role=executive&supervisor_id=${form.supervisorId}`, getToken())
+      .then((data) => setFieldExecs(Array.isArray(data) ? data : []))
       .catch((err) => {
         console.error("Failed to load field execs:", err);
         setToast({ message: "Could not load field executives", type: "error" });
@@ -272,7 +200,6 @@ export default function NotificationsPage() {
       setToast({ message: "Title and message are required", type: "error" });
       return;
     }
-
     setSending(true);
     try {
       const payload = {
@@ -283,39 +210,25 @@ export default function NotificationsPage() {
         supervisorId: form.supervisorId !== "all" ? form.supervisorId : null,
         fieldExecId:  form.fieldExecId  !== "all" ? form.fieldExecId  : null,
       };
-
       const res = await fetch(`${API}/api/v1/notifications`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${getToken()}`,
-        },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
         body: JSON.stringify(payload),
       });
-
       if (!res.ok) throw new Error(await res.text());
-
       const created = await res.json();
-
-      // Prepend to local history
-      setHistory((prev) => [
-        {
-          id:       created.id ?? crypto.randomUUID(),
-          title:    form.title,
-          message:  form.message,
-          priority: form.priority,
-          target:   audience.heading,
-          readRate: 0,
-          sentAt:   new Date().toISOString(),
-        },
-        ...prev,
-      ]);
-
-      // Reset form
+      setHistory((prev) => [{
+        id:       created.id ?? crypto.randomUUID(),
+        title:    form.title,
+        message:  form.message,
+        priority: form.priority,
+        target:   audience.heading,
+        readRate: 0,
+        sentAt:   new Date().toISOString(),
+      }, ...prev]);
       setForm({ title: "", message: "", priority: "Info", cityId: "all", supervisorId: "all", fieldExecId: "all" });
       setSupervisors([]);
       setFieldExecs([]);
-
       setToast({ message: "Notification sent successfully!", type: "success" });
     } catch (err) {
       console.error("Send failed:", err);
@@ -325,16 +238,13 @@ export default function NotificationsPage() {
     }
   }, [form]);
 
-  // ── Derived audience ──────────────────────────────────────────────────────
-  const audience = buildAudienceLabel(form, cities, supervisors, fieldExecs);
-
+  const audience   = buildAudienceLabel(form, cities, supervisors, fieldExecs);
   const isFormValid = form.title.trim().length > 0 && form.message.trim().length > 0;
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-[#080C12] text-[#CBD5E0] p-6 lg:p-8">
 
-      {/* Page header */}
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-white tracking-tight">Notifications</h1>
         <p className="text-sm text-[#4A5568] mt-1">Send broadcast notifications to field executives</p>
@@ -342,10 +252,8 @@ export default function NotificationsPage() {
 
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_300px] gap-6 items-start">
 
-        {/* ── Left: Send form ────────────────────────────────────────────── */}
+        {/* ── Left: Send form ── */}
         <div className="space-y-5">
-
-          {/* Send card */}
           <div className="bg-[#0D1117] border border-[#1E2D3D] rounded-2xl p-6">
             <h2 className="text-base font-bold text-white mb-5">Send Notification</h2>
 
@@ -354,24 +262,14 @@ export default function NotificationsPage() {
               <div>
                 <Label>Title</Label>
                 <input
-                  type="text"
-                  placeholder="e.g. Attendance Reminder"
-                  value={form.title}
+                  type="text" placeholder="e.g. Attendance Reminder" value={form.title}
                   onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-                  className="
-                    w-full px-4 py-3 rounded-xl text-sm font-medium
-                    bg-[#0D1117] border border-[#1E2D3D] text-white placeholder-[#2D3748]
-                    focus:outline-none focus:border-[#EF1F35] focus:ring-1 focus:ring-[#EF1F35]/30
-                    transition-all duration-150
-                  "
+                  className="w-full px-4 py-3 rounded-xl text-sm font-medium bg-[#0D1117] border border-[#1E2D3D] text-white placeholder-[#2D3748] focus:outline-none focus:border-[#EF1F35] focus:ring-1 focus:ring-[#EF1F35]/30 transition-all duration-150"
                 />
               </div>
               <div>
                 <Label>Priority</Label>
-                <SelectField
-                  value={form.priority}
-                  onChange={(v) => setForm((f) => ({ ...f, priority: v as Priority }))}
-                >
+                <SelectField value={form.priority} onChange={(v) => setForm((f) => ({ ...f, priority: v as Priority }))}>
                   {(["Info", "Warning", "Critical"] as Priority[]).map((p) => (
                     <option key={p} value={p}>{p}</option>
                   ))}
@@ -383,23 +281,16 @@ export default function NotificationsPage() {
             <div className="mb-5">
               <Label>Message</Label>
               <textarea
-                placeholder="Write notification message…"
-                value={form.message}
+                placeholder="Write notification message…" value={form.message}
                 onChange={(e) => setForm((f) => ({ ...f, message: e.target.value }))}
                 rows={4}
-                className="
-                  w-full px-4 py-3 rounded-xl text-sm font-medium resize-none
-                  bg-[#0D1117] border border-[#1E2D3D] text-white placeholder-[#2D3748]
-                  focus:outline-none focus:border-[#EF1F35] focus:ring-1 focus:ring-[#EF1F35]/30
-                  transition-all duration-150
-                "
+                className="w-full px-4 py-3 rounded-xl text-sm font-medium resize-none bg-[#0D1117] border border-[#1E2D3D] text-white placeholder-[#2D3748] focus:outline-none focus:border-[#EF1F35] focus:ring-1 focus:ring-[#EF1F35]/30 transition-all duration-150"
               />
             </div>
 
-            {/* Divider */}
             <div className="border-t border-[#1E2D3D] my-5" />
 
-            {/* ── City dropdown ───────────────────────────────────────────── */}
+            {/* ── City dropdown — fetched from City Management ── */}
             <div className="mb-4">
               <Label>City</Label>
               <SelectField
@@ -408,30 +299,25 @@ export default function NotificationsPage() {
                 disabled={loadingCities}
               >
                 <option value="all">
-                  {loadingCities
-                    ? "Loading cities…"
-                    : `All Cities (${cities.length} available)`}
+                  {loadingCities ? "Loading cities…" : `All Cities (${cities.length} available)`}
                 </option>
                 {cities.map((city) => (
-                  <option key={city.id} value={city.id}>
-                    {city.name}
-                  </option>
+                  <option key={city.id} value={city.id}>{city.name}</option>
                 ))}
               </SelectField>
+              {!loadingCities && cities.length === 0 && (
+                <p className="text-xs text-[#4A5568] mt-1.5">
+                  No cities found — add cities in <strong className="text-[#CBD5E0]">Other Management → City Management</strong>
+                </p>
+              )}
             </div>
 
-            {/* ── Supervisor + Field Exec ─────────────────────────────────── */}
+            {/* ── Supervisor + Field Exec ── */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-
-              {/* Supervisor */}
               <div>
                 <Label>
                   Supervisor
-                  {loadingSupervisors && (
-                    <span className="ml-2 normal-case tracking-normal font-normal">
-                      <LoadingDots />
-                    </span>
-                  )}
+                  {loadingSupervisors && <span className="ml-2 normal-case tracking-normal font-normal"><LoadingDots /></span>}
                 </Label>
                 <SelectField
                   value={form.supervisorId}
@@ -439,29 +325,17 @@ export default function NotificationsPage() {
                   disabled={form.cityId === "all" || loadingSupervisors}
                 >
                   <option value="all">
-                    {form.cityId === "all"
-                      ? "Select a city first"
-                      : loadingSupervisors
-                      ? "Loading…"
-                      : `All Supervisors (${supervisors.length})`}
+                    {form.cityId === "all" ? "Select a city first" : loadingSupervisors ? "Loading…" : `All Supervisors (${supervisors.length})`}
                   </option>
                   {supervisors.map((sup) => (
-                    <option key={sup.id} value={sup.id}>
-                      {sup.name}
-                    </option>
+                    <option key={sup.id} value={sup.id}>{sup.name}</option>
                   ))}
                 </SelectField>
               </div>
-
-              {/* Field Executive */}
               <div>
                 <Label>
                   Field Executive
-                  {loadingFieldExecs && (
-                    <span className="ml-2 normal-case tracking-normal font-normal">
-                      <LoadingDots />
-                    </span>
-                  )}
+                  {loadingFieldExecs && <span className="ml-2 normal-case tracking-normal font-normal"><LoadingDots /></span>}
                 </Label>
                 <SelectField
                   value={form.fieldExecId}
@@ -469,16 +343,10 @@ export default function NotificationsPage() {
                   disabled={form.supervisorId === "all" || loadingFieldExecs}
                 >
                   <option value="all">
-                    {form.supervisorId === "all"
-                      ? "Select a supervisor first"
-                      : loadingFieldExecs
-                      ? "Loading…"
-                      : `All FEs (${fieldExecs.length})`}
+                    {form.supervisorId === "all" ? "Select a supervisor first" : loadingFieldExecs ? "Loading…" : `All FEs (${fieldExecs.length})`}
                   </option>
                   {fieldExecs.map((fe) => (
-                    <option key={fe.id} value={fe.id}>
-                      {fe.name}
-                    </option>
+                    <option key={fe.id} value={fe.id}>{fe.name}</option>
                   ))}
                 </SelectField>
               </div>
@@ -486,15 +354,8 @@ export default function NotificationsPage() {
 
             {/* Send button */}
             <button
-              onClick={handleSend}
-              disabled={!isFormValid || sending}
-              className="
-                w-full py-3.5 rounded-xl font-bold text-sm text-white
-                bg-[#EF1F35] hover:bg-[#d41a2e] active:scale-[0.98]
-                disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100
-                transition-all duration-150 shadow-lg shadow-red-500/20
-                flex items-center justify-center gap-2
-              "
+              onClick={handleSend} disabled={!isFormValid || sending}
+              className="w-full py-3.5 rounded-xl font-bold text-sm text-white bg-[#EF1F35] hover:bg-[#d41a2e] active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100 transition-all duration-150 shadow-lg shadow-red-500/20 flex items-center justify-center gap-2"
             >
               {sending ? (
                 <>
@@ -515,30 +376,23 @@ export default function NotificationsPage() {
             </button>
           </div>
 
-          {/* ── Sent History ─────────────────────────────────────────────── */}
+          {/* ── Sent History ── */}
           <div className="bg-[#0D1117] border border-[#1E2D3D] rounded-2xl overflow-hidden">
             <div className="px-6 py-4 border-b border-[#1E2D3D]">
               <h2 className="text-base font-bold text-white">Sent History</h2>
             </div>
-
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-[#1E2D3D]">
                     {["Notification", "Target", "Priority", "Read Rate", "Sent At"].map((h) => (
-                      <th key={h} className="px-5 py-3 text-left text-[11px] font-bold tracking-widest text-[#4A5568] uppercase whitespace-nowrap">
-                        {h}
-                      </th>
+                      <th key={h} className="px-5 py-3 text-left text-[11px] font-bold tracking-widest text-[#4A5568] uppercase whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {loadingHistory ? (
-                    <tr>
-                      <td colSpan={5} className="px-5 py-10 text-center text-[#4A5568] text-sm">
-                        Loading history…
-                      </td>
-                    </tr>
+                    <tr><td colSpan={5} className="px-5 py-10 text-center text-[#4A5568] text-sm">Loading history…</td></tr>
                   ) : history.length === 0 ? (
                     <tr>
                       <td colSpan={5} className="px-5 py-12 text-center">
@@ -555,31 +409,22 @@ export default function NotificationsPage() {
                             <div className="font-semibold text-white text-sm leading-tight">{n.title}</div>
                             <div className="text-[#4A5568] text-xs mt-0.5 truncate max-w-[240px]">{n.message}</div>
                           </td>
-                          <td className="px-5 py-3.5">
-                            <span className="text-[#CBD5E0] text-sm">{n.target}</span>
-                          </td>
+                          <td className="px-5 py-3.5"><span className="text-[#CBD5E0] text-sm">{n.target}</span></td>
                           <td className="px-5 py-3.5">
                             <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${ps.bg} ${ps.text}`}>
-                              <span className={`w-1.5 h-1.5 rounded-full ${ps.dot}`}/>
-                              {n.priority}
+                              <span className={`w-1.5 h-1.5 rounded-full ${ps.dot}`}/>{n.priority}
                             </span>
                           </td>
                           <td className="px-5 py-3.5">
                             <div className="flex items-center gap-2.5">
                               <div className="flex-1 h-1.5 bg-[#1E2D3D] rounded-full overflow-hidden w-20">
-                                <div
-                                  className="h-full bg-[#00DF7A] rounded-full transition-all"
-                                  style={{ width: `${n.readRate}%` }}
-                                />
+                                <div className="h-full bg-[#00DF7A] rounded-full transition-all" style={{ width: `${n.readRate}%` }}/>
                               </div>
                               <span className="text-xs font-bold text-[#CBD5E0] tabular-nums">{n.readRate}%</span>
                             </div>
                           </td>
                           <td className="px-5 py-3.5 text-[#4A5568] text-xs whitespace-nowrap">
-                            {new Date(n.sentAt).toLocaleString("en-IN", {
-                              day: "2-digit", month: "short", year: "numeric",
-                              hour: "2-digit", minute: "2-digit",
-                            })}
+                            {new Date(n.sentAt).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
                           </td>
                         </tr>
                       );
@@ -589,46 +434,17 @@ export default function NotificationsPage() {
               </table>
             </div>
           </div>
-
         </div>
 
-        {/* ── Right: Recipients panel ─────────────────────────────────────── */}
+        {/* ── Right: Recipients panel ── */}
         <div className="space-y-4 xl:sticky xl:top-6">
-
           <div className="bg-[#0D1117] border border-[#1E2D3D] rounded-2xl p-5">
             <h2 className="text-base font-bold text-white mb-4">Recipients</h2>
-
-            {/* Filter summary rows */}
             <div className="space-y-3 mb-4">
               {[
-                {
-                  label: "City",
-                  value: loadingCities
-                    ? "Loading…"
-                    : form.cityId === "all"
-                    ? "All Cities"
-                    : cities.find((c) => c.id === form.cityId)?.name ?? "—",
-                },
-                {
-                  label: "Supervisor",
-                  value: form.cityId === "all"
-                    ? "All"
-                    : loadingSupervisors
-                    ? "Loading…"
-                    : form.supervisorId === "all"
-                    ? "All"
-                    : supervisors.find((s) => s.id === form.supervisorId)?.name ?? "—",
-                },
-                {
-                  label: "Field Exec",
-                  value: form.supervisorId === "all"
-                    ? "All"
-                    : loadingFieldExecs
-                    ? "Loading…"
-                    : form.fieldExecId === "all"
-                    ? "All"
-                    : fieldExecs.find((f) => f.id === form.fieldExecId)?.name ?? "—",
-                },
+                { label: "City",       value: loadingCities      ? "Loading…" : form.cityId       === "all" ? "All Cities"       : cities.find((c) => c.id === form.cityId)?.name           ?? "—" },
+                { label: "Supervisor", value: form.cityId === "all" ? "All"   : loadingSupervisors ? "Loading…" : form.supervisorId === "all" ? "All" : supervisors.find((s) => s.id === form.supervisorId)?.name ?? "—" },
+                { label: "Field Exec", value: form.supervisorId === "all" ? "All" : loadingFieldExecs ? "Loading…" : form.fieldExecId === "all" ? "All" : fieldExecs.find((f) => f.id === form.fieldExecId)?.name ?? "—" },
               ].map((row) => (
                 <div key={row.label} className="flex justify-between items-center text-sm">
                   <span className="text-[#4A5568]">{row.label}</span>
@@ -636,8 +452,6 @@ export default function NotificationsPage() {
                 </div>
               ))}
             </div>
-
-            {/* Audience highlight */}
             <div className="bg-[#EF1F35]/8 border border-[#EF1F35]/20 rounded-xl p-4">
               <p className="text-[10px] font-bold tracking-widest text-[#EF1F35]/70 uppercase mb-1.5">Audience</p>
               <p className="text-xl font-bold text-white leading-tight">{audience.heading}</p>
@@ -645,7 +459,6 @@ export default function NotificationsPage() {
             </div>
           </div>
 
-          {/* Priority legend card */}
           <div className="bg-[#0D1117] border border-[#1E2D3D] rounded-2xl p-5">
             <h2 className="text-sm font-bold text-white mb-3">Priority Guide</h2>
             <div className="space-y-2.5">
@@ -664,18 +477,10 @@ export default function NotificationsPage() {
               })}
             </div>
           </div>
-
         </div>
       </div>
 
-      {/* Toast */}
-      {toast && (
-        <Toast
-          message={toast.message}
-          type={toast.type}
-          onClose={() => setToast(null)}
-        />
-      )}
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   );
 }
