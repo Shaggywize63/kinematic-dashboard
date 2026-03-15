@@ -45,8 +45,7 @@ export default function NotificationsPage() {
       setSups(allUsers.filter((u:User)=>u.role==='supervisor'));
       setCms(allUsers.filter((u:User)=>u.role==='city_manager'));
       setZones(pick(zR));
-        const cityData = pick(citR)
-                setCities(cityData.filter((c:any)=>c?.is_active).map((c:any)=>c.name));;useEffect(()=>{fetchAll();},[fetchAll]);
+      const cityData = Array.isArray(citR?.data?.data) ? citR.data.data : Array.isArray(citR?.data) ? citR.data : [];                setCities(cityData.filter((c:any)=>c?.is_active).map((c:any)=>c.name));;useEffect(()=>{fetchAll();},[fetchAll]);
   const filtFes=city?fes.filter(f=>f.zones?.city===city||f.city===city):fes;
     const filtSups=city?sups.filter(s=>s.zones?.city===city||s.city===city):sups;
 
