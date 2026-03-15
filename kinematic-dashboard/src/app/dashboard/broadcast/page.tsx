@@ -20,12 +20,7 @@ const inp: React.CSSProperties = {
   fontSize: 13, outline: 'none', fontFamily: "'DM Sans', sans-serif",
 };
 
-const ZONES = [
-  { id: '10000000-0000-0000-0000-000000000001', name: 'Andheri West Hub', city: 'Mumbai' },
-  { id: '10000000-0000-0000-0000-000000000002', name: 'Bandra Hub', city: 'Mumbai' },
-  { id: '10000000-0000-0000-0000-000000000003', name: 'Borivali Hub', city: 'Mumbai' },
-];
-const CITIES = [...new Set(ZONES.map(z => z.city))];
+// Zones + cities fetched live from API — no hardcoded values
 
 interface BroadcastQuestion {
   id: string;
@@ -109,6 +104,8 @@ function TogglePill({
   );
 }
 
+interface ZoneOption { id: string; name: string; city: string; }
+
 export default function BroadcastPage() {
   const [questions, setQuestions] = useState<BroadcastQuestion[]>([]);
   const [loading, setLoading] = useState(true);
@@ -119,6 +116,29 @@ export default function BroadcastPage() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [closingId, setClosingId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  // Live zones + cities from API
+  const [zones, setZones] = useState<ZoneOption[]>([]);
+  const [cities, setCities] = useState<string[]>([]);
+
+  const loadZones = useCallback(async () => {
+    try {
+      const [zonesRes, citiesRes] = await Promise.allSettled([
+        api.get('/api/v1/zones') as any,
+        api.get('/api/v1/cities') as any,
+      ]);
+      if (zonesRes.status === 'fulfilled') {
+        const res = zonesRes.value as any;
+        const list: ZoneOption[] = Array.isArray(res) ? res : (res?.data ?? []);
+        setZones(list);
+      }
+      if (citiesRes.status === 'fulfilled') {
+        const res = citiesRes.value as any;
+        const list = Array.isArray(res) ? res : (res?.data ?? []);
+        setCities(list.filter((c: any) => c.is_active !== false).map((c: any) => c.name).filter(Boolean));
+      }
+    } catch { /* silent — non-critical */ }
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -132,6 +152,8 @@ export default function BroadcastPage() {
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => { loadZones(); }, [loadZones]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -381,7 +403,8 @@ export default function BroadcastPage() {
                 Filter by City <span style={{ color: C.grayd, textTransform: 'none', letterSpacing: 0 }}>(leave blank = all cities)</span>
               </label>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                {CITIES.map(city => (
+                {cities.length === 0 && <span style={{ fontSize: 12, color: C.grayd }}>No cities found</span>}
+                {(Array.isArray(cities)?cities:[]).map(city => (
                   <TogglePill key={city} label={city} active={form.target_cities.includes(city)} onClick={() => toggleCity(city)} color={C.yellow} />
                 ))}
               </div>
@@ -393,7 +416,8 @@ export default function BroadcastPage() {
                 Filter by Zone <span style={{ color: C.grayd, textTransform: 'none', letterSpacing: 0 }}>(leave blank = all zones)</span>
               </label>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                {ZONES.map(z => (
+                {zones.length === 0 && <span style={{ fontSize: 12, color: C.grayd }}>No zones found</span>}
+                {(Array.isArray(zones)?zones:[]).map(z => (
                   <TogglePill key={z.id} label={z.name} active={form.target_zone_ids.includes(z.id)} onClick={() => toggleZone(z.id)} color={C.teal || C.green} />
                 ))}
               </div>
