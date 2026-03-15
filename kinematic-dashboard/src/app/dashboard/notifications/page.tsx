@@ -22,6 +22,7 @@ export default function NotificationsPage() {
   const [sups,setSups]=useState<User[]>([]);
   const [cms,setCms]=useState<User[]>([]);
   const [zones,setZones]=useState<{id:string,name:string,city:string}[]>([]);
+   const [cities,setCities]=useState<string[]>([]);
   const [history,setHistory]=useState<Notif[]>([]);
   const [sending,setSending]=useState(false);
 
@@ -41,8 +42,7 @@ export default function NotificationsPage() {
       setSups(pick(sR)); 
       setCms(pick(cR)); 
       setZones(pick(zR));
-          const cityData=pick(citR).filter((c:any)=>c.is_active);
-      setHistory(pick(hR));
+    setCities(pick(citR).filter((c:any)=>c.is_active).map((c:any)=>c.name).sort());      setHistory(pick(hR));
     } catch(e){ console.error('Fetch error:',e); }
   },[]);
 
