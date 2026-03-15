@@ -42,8 +42,6 @@ export default function NotificationsPage() {
       };
       const allUsers=pick(uR);
       setFes(allUsers.filter((u:User)=>u.role==='executive'||u.role==='field_executive'));
-      setSups(pick(sR)); 
-      setCms(pick(cR)); 
       setZones(pick(zR));
     setCities(pick(citR).filter((c:any)=>c.is_active).map((c:any)=>c.name).sort());      setHistory(pick(hR));
     } catch(e){ console.error('Fetch error:',e); }
