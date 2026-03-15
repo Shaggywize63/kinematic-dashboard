@@ -47,7 +47,8 @@ export default function NotificationsPage() {
   },[]);
 
   useEffect(()=>{fetchAll();},[fetchAll]);
-
+  const filtFes=city?fes.filter(f=>f.zones?.city===city||f.city===city):fes;
+    const filtSups=city?sups.filter(s=>s.zones?.city===city||s.city===city):sups;
 
   const send=async()=>{
     if(!title||!body)return alert('Title and message are required');
