@@ -28,9 +28,12 @@ export default function NotificationsPage() {
 
   const fetchAll = useCallback(async()=>{
     try {
-    const [uR,sR,cR,zR,hR,citR] = await Promise.all([      api.get('/api/v1/cities'),
-        api.get('/api/v1/notifications/history'),
-      ]);
+      const [uR,zR,citR,hR] = await Promise.all([
+                           api.get('/api/v1/users'),
+                           api.get('/api/v1/zones'),
+                           api.get('/api/v1/cities'),
+                           api.get('/api/v1/notifications/history'),
+              ]);
       const pick=(r:any)=>{
         if(Array.isArray(r))return r;
         if(Array.isArray(r?.data))return r.data;
