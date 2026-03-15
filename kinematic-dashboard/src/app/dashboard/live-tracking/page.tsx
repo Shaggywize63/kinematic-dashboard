@@ -382,7 +382,7 @@ export default function LiveTrackingPage() {
           <select value={zoneFilter} onChange={e => setZoneFilter(e.target.value)}
             style={{ ...inp, minWidth:140 }}>
             <option value="all">All Zones</option>
-            {zones.map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
+            {(Array.isArray(zones)?zones:[]).map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
           </select>
           {/* Layer toggles */}
           <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
@@ -418,7 +418,7 @@ export default function LiveTrackingPage() {
                     letterSpacing:'0.8px', textTransform:'uppercase', borderBottom:`1px solid ${C.border}` }}>
                     👤 Field Executives ({filteredFEs.length})
                   </div>
-                  {filteredFEs.map(fe => (
+                  {(Array.isArray(filteredFEs)?filteredFEs:[]).map(fe => (
                     <div key={fe.id} className="lt-row"
                       onClick={() => { setSelectedId(fe.id); setSelectedType('fe'); }}
                       style={{ display:'flex', gap:10, padding:'10px 14px', cursor:'pointer',
@@ -453,7 +453,7 @@ export default function LiveTrackingPage() {
                     letterSpacing:'0.8px', textTransform:'uppercase', borderBottom:`1px solid ${C.border}` }}>
                     👔 Supervisors ({filteredSups.length})
                   </div>
-                  {filteredSups.map(s => (
+                  {(Array.isArray(filteredSups)?filteredSups:[]).map(s => (
                     <div key={s.id} className="lt-row"
                       onClick={() => { setSelectedId(s.id); setSelectedType('supervisor'); }}
                       style={{ display:'flex', gap:10, padding:'10px 14px', cursor:'pointer',
@@ -483,7 +483,7 @@ export default function LiveTrackingPage() {
                     letterSpacing:'0.8px', textTransform:'uppercase', borderBottom:`1px solid ${C.border}` }}>
                     🏪 Outlets ({filteredOutlets.length})
                   </div>
-                  {filteredOutlets.map(o => (
+                  {(Array.isArray(filteredOutlets)?filteredOutlets:[]).map(o => (
                     <div key={o.id} className="lt-row"
                       onClick={() => { setSelectedId(o.id); setSelectedType('outlet'); }}
                       style={{ display:'flex', gap:10, padding:'10px 14px', cursor:'pointer',
@@ -512,7 +512,7 @@ export default function LiveTrackingPage() {
                     letterSpacing:'0.8px', textTransform:'uppercase', borderBottom:`1px solid ${C.border}` }}>
                     🏭 Warehouses ({filteredWarehouses.length})
                   </div>
-                  {filteredWarehouses.map(w => (
+                  {(Array.isArray(filteredWarehouses)?filteredWarehouses:[]).map(w => (
                     <div key={w.id} className="lt-row"
                       onClick={() => { setSelectedId(w.id); setSelectedType('warehouse'); }}
                       style={{ display:'flex', gap:10, padding:'10px 14px', cursor:'pointer',
