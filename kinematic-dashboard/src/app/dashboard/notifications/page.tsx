@@ -45,7 +45,8 @@ export default function NotificationsPage() {
       setSups(allUsers.filter((u:User)=>u.role==='supervisor'));
       setCms(allUsers.filter((u:User)=>u.role==='city_manager'));
       setZones(pick(zR));
-            const cityData = Array.isArray(citR?.data?.data) ? citR.data.data : Array.isArray(citR?.data) ? citR.data : [];
+      const cityResponse = pick(citR);
+            const cityData = Array.isArray(cityResponse?.data) ? cityResponse.data : Array.isArray(cityResponse) ? cityResponse : [];
       console.log('Cities data:', cityData);
       setCities(cityData.filter((c:any)=>c?.is_active===true).map((c:any)=>c.name).sort());    } catch(e){ console.error('Fetch error:',e); }
   },[]);
