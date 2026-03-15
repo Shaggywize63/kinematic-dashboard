@@ -28,11 +28,12 @@ export default function NotificationsPage() {
 
   const fetchAll = useCallback(async()=>{
     try {
-      const [uR,sR,cR,zR,hR] = await Promise.all([
+      const [uR,sR,cR,zR,hR],citR = await Promise.all([
         api.get('/api/v1/users?limit=500'),
         api.get('/api/v1/users?role=supervisor&limit=200'),
         api.get('/api/v1/users?role=city_manager&limit=100'),
         api.get('/api/v1/zones'),
+      api.get('/api/v1/cities'),
         api.get('/api/v1/notifications/history'),
       ]);
       const pick=(r:any)=>{
@@ -46,14 +47,14 @@ export default function NotificationsPage() {
       setSups(pick(sR)); 
       setCms(pick(cR)); 
       setZones(pick(zR));
+          const cityData=pick(citR).filter((c:any)=>c.is_active);
       setHistory(pick(hR));
     } catch(e){ console.error('Fetch error:',e); }
   },[]);
 
   useEffect(()=>{fetchAll();},[fetchAll]);
 
-  const cities=Array.from(new Set([...fes,...sups,...cms].map(u=>u.zones?.city||u.city||'').filter(Boolean))).sort();  const filtSups=city?sups.filter(s=>(s.zones?.city||s.city)===city):sups;
-  const filtFes=city?fes.filter(f=>(f.zones?.city||f.city)===city):fes;
+  const cities=cityData.map((c:any)=>c.name).sort();  const filtFes=city?fes.filter(f=>(f.zones?.city||f.city)===city):fes;
 
   const send=async()=>{
     if(!title||!body)return alert('Title and message are required');
