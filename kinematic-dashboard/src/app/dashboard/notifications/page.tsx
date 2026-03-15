@@ -42,8 +42,9 @@ export default function NotificationsPage() {
       };
       const allUsers=pick(uR);
       setFes(allUsers.filter((u:User)=>u.role==='executive'||u.role==='field_executive'));
-      setZones(pick(zR));
-    setCities(pick(citR).filter((c:any)=>c.is_active).map((c:any)=>c.name).sort());      setHistory(pick(hR));
+      setSups(allUsers.filter((u:User)=>u.role==='supervisor'));
+      setCms(allUsers.filter((u:User)=>u.role==='city_manager'));
+      setZones(pick(zR));    setCities(pick(citR).filter((c:any)=>c.is_active).map((c:any)=>c.name).sort());      setHistory(pick(hR));
     } catch(e){ console.error('Fetch error:',e); }
   },[]);
 
