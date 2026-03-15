@@ -625,7 +625,7 @@ function UserSection() {
                 <label style={{ fontSize:12, color:C.gray, display:'block', marginBottom:6 }}>City</label>
                 <select style={{ ...inp, appearance:'none' as any }} value={form.city} onChange={e => setForm(p => ({...p, city:e.target.value}))}>
                   <option value="">Select city…</option>
-                  {cities.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                  {(Array.isArray(cities)?cities:[]).map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
                 </select>
               </div>
             </div>
