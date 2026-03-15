@@ -44,8 +44,10 @@ export default function NotificationsPage() {
       setFes(allUsers.filter((u:User)=>u.role==='executive'||u.role==='field_executive'));
       setSups(allUsers.filter((u:User)=>u.role==='supervisor'));
       setCms(allUsers.filter((u:User)=>u.role==='city_manager'));
-      setZones(pick(zR));    setCities(pick(citR).filter((c:any)=>c.is_active).map((c:any)=>c.name).sort());      setHistory(pick(hR));
-    } catch(e){ console.error('Fetch error:',e); }
+      setZones(pick(zR));
+      const cityData = pick(citR);
+      console.log('Cities data:', cityData);
+      setCities(cityData.filter((c:any)=>c?.is_active===true).map((c:any)=>c.name).sort());    } catch(e){ console.error('Fetch error:',e); }
   },[]);
 
   useEffect(()=>{fetchAll();},[fetchAll]);
