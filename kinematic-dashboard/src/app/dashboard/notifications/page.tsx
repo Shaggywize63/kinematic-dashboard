@@ -48,7 +48,6 @@ export default function NotificationsPage() {
 
   useEffect(()=>{fetchAll();},[fetchAll]);
 
-  const cities=cityData.map((c:any)=>c.name).sort();  const filtFes=city?fes.filter(f=>(f.zones?.city||f.city)===city):fes;
 
   const send=async()=>{
     if(!title||!body)return alert('Title and message are required');
