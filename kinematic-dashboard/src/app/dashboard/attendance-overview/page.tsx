@@ -491,7 +491,7 @@ export default function AttendancePage() {
     // ══ SHEET 2: City-wise summary ══
     const cities = Array.from(new Set(allUsers.map(u => u.city || 'Unknown'))).sort();
     const cityHeader = ['City','Total Execs','Present','Half Days','Absent','Total Hours','Avg Hrs/Exec'];
-    const cityRows = cities.map(city => {
+    const cityRows = (Array.isArray(cities)?cities:[]).map(city => {
       const cu = allUsers.filter(u => (u.city || 'Unknown') === city);
       const present  = cu.reduce((a,u) => a + u.presentDays, 0);
       const half     = cu.reduce((a,u) => a + u.halfDays, 0);
@@ -943,7 +943,7 @@ export default function AttendancePage() {
             <select className="kinp" style={{ ...baseInp, appearance: 'none' as const, marginBottom: 14 }}
               value={form.user_id} onChange={e => setF('user_id', e.target.value)}>
               <option value="">Select executive…</option>
-              {users.map(u => <option key={u.id} value={u.id}>{u.name}{u.employee_id ? ` (${u.employee_id})` : ''}</option>)}
+              {(Array.isArray(users)?users:[]).map(u => <option key={u.id} value={u.id}>{u.name}{u.employee_id ? ` (${u.employee_id})` : ''}</option>)}
             </select>
             {sharedFormFields}
 
