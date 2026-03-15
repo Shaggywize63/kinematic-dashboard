@@ -149,7 +149,7 @@ export default function FieldExecutivesPage() {
         api.get<any>('/api/v1/users?limit=500'),
         api.get<any>('/api/v1/zones'),
         api.get<any>('/api/v1/users?role=supervisor&limit=200'),
-        api.get<any>('/api/v1/users?role=city_manager&limit=100'),
+        api.get<any>('/a,citR]users?role=city_manager&limit=100'),
       api.get<any>('/api/v1/cities'),
       ]);
       const pick = (r: any): any[] => {
