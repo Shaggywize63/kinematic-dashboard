@@ -275,7 +275,7 @@ export default function OutletManagementPage() {
         <select style={inp} value={form.zone_id}
           onChange={e => setForm(p => ({ ...p, zone_id: e.target.value }))}>
           <option value="">Select zone…</option>
-          {zones.map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
+          {(Array.isArray(zones)?zones:[]).map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
         </select>
       </div>
       {/* City select */}
@@ -284,7 +284,7 @@ export default function OutletManagementPage() {
         <select style={inp} value={form.city_id}
           onChange={e => setForm(p => ({ ...p, city_id: e.target.value }))}>
           <option value="">Select city…</option>
-          {cities.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          {(Array.isArray(cities)?cities:[]).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
       </div>
       <div style={{ gridColumn:'1 / -1' }}>{F('address', 'Address')}</div>
@@ -367,7 +367,7 @@ export default function OutletManagementPage() {
           <select value={zoneFilter} onChange={e => setZoneFilter(e.target.value)}
             style={{ ...inp, width:'auto', minWidth:140, padding:'9px 14px' }}>
             <option value="all">All Zones</option>
-            {zones.map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
+            {(Array.isArray(zones)?zones:[]).map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
           </select>
           {/* Status filter */}
           <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
