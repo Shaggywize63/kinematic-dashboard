@@ -9,7 +9,7 @@ const C = {
   border:'#1E2D45', white:'#E8EDF8',
 };
 
-interface User { id:string; name:string; role:string; city?:string; zones?:{city?:string}; }
+interface User { id:string; name:string; role:string; city?:string; zones?:{name:string,city?:string}; }
 interface Notif { id:string; title:string; body:string; priority:string; audience_summary:string; created_at:string; recipients_count:number; read_count:number; }
 
 export default function NotificationsPage() {
@@ -22,25 +22,37 @@ export default function NotificationsPage() {
   const [fes,setFes]=useState<User[]>([]);
   const [sups,setSups]=useState<User[]>([]);
   const [cms,setCms]=useState<User[]>([]);
+  const [zones,setZones]=useState<{id:string,name:string,city:string}[]>([]);
   const [history,setHistory]=useState<Notif[]>([]);
   const [sending,setSending]=useState(false);
 
   const fetchAll = useCallback(async()=>{
     try {
-      const [uR,sR,cR,hR] = await Promise.all([
-        api.get('/api/v1/users?role=executive&limit=1000'),
-        api.get('/api/v1/users?role=supervisor&limit=500'),
-        api.get('/api/v1/users?role=city_manager&limit=200'),
+      const [uR,sR,cR,zR,hR] = await Promise.all([
+        api.get('/api/v1/users?limit=500'),
+        api.get('/api/v1/users?role=supervisor&limit=200'),
+        api.get('/api/v1/users?role=city_manager&limit=100'),
+        api.get('/api/v1/zones'),
         api.get('/api/v1/notifications/history'),
       ]);
-      const pick=(r:any)=>(Array.isArray(r?.data?.data)?r.data.data:Array.isArray(r?.data)?r.data:Array.isArray(r)?r:[]);
-      setFes(pick(uR)); setSups(pick(sR)); setCms(pick(cR)); setHistory(pick(hR));
-    } catch(e){ console.error(e); }
+      const pick=(r:any)=>{
+        if(Array.isArray(r))return r;
+        if(Array.isArray(r?.data))return r.data;
+        if(Array.isArray(r?.data?.data))return r.data.data;
+        return r?.users||r?.zones||[];
+      };
+      const allUsers=pick(uR);
+      setFes(allUsers.filter((u:User)=>u.role==='executive'||u.role==='field_executive'));
+      setSups(pick(sR)); 
+      setCms(pick(cR)); 
+      setZones(pick(zR));
+      setHistory(pick(hR));
+    } catch(e){ console.error('Fetch error:',e); }
   },[]);
 
   useEffect(()=>{fetchAll();},[fetchAll]);
 
-  const cities=Array.from(new Set([...fes,...sups,...cms].map(u=>u.zones?.city||u.city||'').filter(Boolean))).sort();
+  const cities=Array.from(new Set(zones.map(z=>z.city).filter(Boolean))).sort();
   const filtSups=city?sups.filter(s=>(s.zones?.city||s.city)===city):sups;
   const filtFes=city?fes.filter(f=>(f.zones?.city||f.city)===city):fes;
 
@@ -49,7 +61,7 @@ export default function NotificationsPage() {
     setSending(true);
     try{
       await api.post('/api/v1/notifications/send',{title,body,priority,targeting:{city:city||null,supervisor_id:supId||null,fe_id:feId||null}});
-      alert('Sent!');
+      alert('Sent successfully!');
       setTitle('');setBody('');setCity('');setSupId('');setFeId('');
       fetchAll();
     }catch(e:any){alert(e.message||'Failed');}
@@ -62,7 +74,6 @@ export default function NotificationsPage() {
     <div style={{display:'flex',flexDirection:'column',gap:24,paddingBottom:40}}>
       <div style={{display:'flex',gap:24,alignItems:'flex-start'}}>
 
-        {/* Composer */}
         <div style={{flex:1,background:C.s2,border:`1px solid ${C.border}`,borderRadius:16,padding:32}}>
           <h2 style={{fontSize:20,fontWeight:700,marginBottom:24}}>Send Notification</h2>
           <div style={{display:'flex',flexDirection:'column',gap:20}}>
@@ -121,7 +132,6 @@ export default function NotificationsPage() {
           </div>
         </div>
 
-        {/* Summary */}
         <div style={{width:320,background:C.s2,border:`1px solid ${C.border}`,borderRadius:16,padding:24}}>
           <h2 style={{fontSize:16,fontWeight:700,marginBottom:20}}>Recipients</h2>
           <div style={{display:'flex',flexDirection:'column',gap:12}}>
@@ -137,7 +147,6 @@ export default function NotificationsPage() {
         </div>
       </div>
 
-      {/* History */}
       <div style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:16,padding:24}}>
         <h2 style={{fontSize:18,fontWeight:700,marginBottom:20}}>Sent History</h2>
         <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
