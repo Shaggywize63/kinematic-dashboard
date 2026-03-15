@@ -52,8 +52,7 @@ export default function NotificationsPage() {
 
   useEffect(()=>{fetchAll();},[fetchAll]);
 
-  const cities=Array.from(new Set(zones.map(z=>z.city).filter(Boolean))).sort();
-  const filtSups=city?sups.filter(s=>(s.zones?.city||s.city)===city):sups;
+  const cities=Array.from(new Set([...fes,...sups,...cms].map(u=>u.zones?.city||u.city||'').filter(Boolean))).sort();  const filtSups=city?sups.filter(s=>(s.zones?.city||s.city)===city):sups;
   const filtFes=city?fes.filter(f=>(f.zones?.city||f.city)===city):fes;
 
   const send=async()=>{
