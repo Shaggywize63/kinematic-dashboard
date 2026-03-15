@@ -427,7 +427,12 @@ export default function FieldExecutivesPage() {
                   {zones.map(z=><option key={z.id} value={z.id}>{z.name}{z.city?` — ${z.city}`:''}</option>)}
                 </select>
               </Field>
-              <Field label="City"><input className="kinp" style={inp} placeholder="e.g. Mumbai" value={form.city} onChange={e=>setF('city',e.target.value)}/></Field>
+             <Field label="City">
+  <select className="kinp" style={{...inp, appearance:'none' as const}} value={form.city} onChange={e=>setF('city',e.target.value)}>
+    <option value="">Select city…</option>
+    {cityNames.map(c=><option key={c} value={c}>{c}</option>)}
+  </select>
+</Field>
               <Field label="Supervisor">
                 <select className="kinp" style={{...inp,appearance:'none' as const}} value={form.supervisor_id} onChange={e=>setF('supervisor_id',e.target.value)}>
                   <option value="">No supervisor</option>
@@ -564,7 +569,12 @@ export default function FieldExecutivesPage() {
                   {zones.map(z=><option key={z.id} value={z.id}>{z.name}</option>)}
                 </select>
               </Field>
-              <Field label="City"><input className="kinp" style={inp} placeholder="e.g. Mumbai" value={form.city} onChange={e=>setF('city',e.target.value)}/></Field>
+             <Field label="City">
+  <select className="kinp" style={{...inp, appearance:'none' as const}} value={form.city} onChange={e=>setF('city',e.target.value)}>
+    <option value="">Select city…</option>
+    {cityNames.map(c=><option key={c} value={c}>{c}</option>)}
+  </select>
+</Field>
               <Field label="Supervisor">
                 <select className="kinp" style={{...inp,appearance:'none' as const}} value={form.supervisor_id} onChange={e=>setF('supervisor_id',e.target.value)}>
                   <option value="">No supervisor</option>
