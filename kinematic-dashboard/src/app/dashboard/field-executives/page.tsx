@@ -145,8 +145,7 @@ export default function FieldExecutivesPage() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [uR,zR,sR,cR],citR = await Promise.all([
-        api.get<any>('/api/v1/users?limit=500'),
+      const [uR,zR,sR,cR,citR] = await Promise.all([        api.get<any>('/api/v1/users?limit=500'),
         api.get<any>('/api/v1/zones'),
         api.get<any>('/api/v1/users?role=supervisor&limit=200'),
         api.get<any>('/a,citR]users?role=city_manager&limit=100'),
