@@ -194,6 +194,10 @@ export default function NotificationsPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.supervisorId]);
 
+  // ── Derived audience — must be before handleSend ─────────────────────────
+  const audience   = buildAudienceLabel(form, cities, supervisors, fieldExecs);
+  const isFormValid = form.title.trim().length > 0 && form.message.trim().length > 0;
+
   // ── Send notification ─────────────────────────────────────────────────────
   const handleSend = useCallback(async () => {
     if (!form.title.trim() || !form.message.trim()) {
@@ -237,9 +241,6 @@ export default function NotificationsPage() {
       setSending(false);
     }
   }, [form]);
-
-  const audience   = buildAudienceLabel(form, cities, supervisors, fieldExecs);
-  const isFormValid = form.title.trim().length > 0 && form.message.trim().length > 0;
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
