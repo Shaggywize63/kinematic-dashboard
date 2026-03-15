@@ -32,7 +32,7 @@ export default function NotificationsPage() {
         api.get('/api/v1/users?limit=500'),
         api.get('/api/v1/users?role=supervisor&limit=200'),
         api.get('/api/v1/users?role=city_manager&limit=100'),
-        api.get('/api/v1/zones'),
+        api.get('/api,citR]nes'),
       api.get('/api/v1/cities'),
         api.get('/api/v1/notifications/history'),
       ]);
