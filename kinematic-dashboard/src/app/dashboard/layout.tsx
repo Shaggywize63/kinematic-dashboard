@@ -122,12 +122,14 @@ function KinematicAI({ token }: { token: string }) {
     setMsgs(p=>[...p,um,lm]); setBusy(true);
     const hist=[...msgs,um].filter(m=>!m.loading).map(m=>({role:m.role,content:m.content}));
     try {
-      const r=await fetch('https://api.anthropic.com/v1/messages',{
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:sys(),messages:hist}),
+      const r=await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/ai/chat`,{
+        method:'POST',
+        headers:{'Content-Type':'application/json', Authorization:`Bearer ${token}`},
+        body:JSON.stringify({messages:hist, system:sys()}),
       });
       const d=await r.json();
-      const reply=d?.content?.[0]?.text||'Sorry, could not respond.';
+      if(!r.ok) throw new Error(d?.error||d?.message||`Server error ${r.status}`);
+      const reply=d?.data?.text||'Sorry, could not respond.';
       setMsgs(p=>p.map((m,i)=>i===p.length-1?{role:'assistant',content:reply,ts:new Date()}:m));
     } catch(e:any){
       setMsgs(p=>p.map((m,i)=>i===p.length-1?{role:'assistant',content:`Error: ${e.message}`,ts:new Date()}:m));
