@@ -158,8 +158,11 @@ export default function NotificationsPage() {
   // ── Fetch notification history on mount ───────────────────────────────────
   useEffect(() => {
     setLoadingHistory(true);
-    apiFetch<SentNotification[]>("/api/v1/notifications", getToken())
-      .then(setHistory)
+    apiFetch<any>("/api/v1/notifications", getToken())
+      .then((data) => {
+        const list = Array.isArray(data) ? data : (data?.data ?? data?.notifications ?? []);
+        setHistory(Array.isArray(list) ? list : []);
+      })
       .catch(() => setHistory([]))
       .finally(() => setLoadingHistory(false));
   }, []);
@@ -171,8 +174,11 @@ export default function NotificationsPage() {
     setFieldExecs([]);
     if (!form.cityId || form.cityId === "all") return;
     setLoadingSupervisors(true);
-    apiFetch<Supervisor[]>(`/api/v1/users?role=supervisor&city=${form.cityId}`, getToken())
-      .then((data) => setSupervisors(Array.isArray(data) ? data : []))
+    apiFetch<any>(`/api/v1/users?role=supervisor&city=${form.cityId}`, getToken())
+      .then((data) => {
+        const list = Array.isArray(data) ? data : (data?.data ?? data?.users ?? []);
+        setSupervisors(Array.isArray(list) ? list : []);
+      })
       .catch((err) => {
         console.error("Failed to load supervisors:", err);
         setToast({ message: "Could not load supervisors", type: "error" });
@@ -187,8 +193,11 @@ export default function NotificationsPage() {
     setFieldExecs([]);
     if (!form.supervisorId || form.supervisorId === "all") return;
     setLoadingFieldExecs(true);
-    apiFetch<FieldExec[]>(`/api/v1/users?role=executive&supervisor_id=${form.supervisorId}`, getToken())
-      .then((data) => setFieldExecs(Array.isArray(data) ? data : []))
+    apiFetch<any>(`/api/v1/users?role=executive&supervisor_id=${form.supervisorId}`, getToken())
+      .then((data) => {
+        const list = Array.isArray(data) ? data : (data?.data ?? data?.users ?? []);
+        setFieldExecs(Array.isArray(list) ? list : []);
+      })
       .catch((err) => {
         console.error("Failed to load field execs:", err);
         setToast({ message: "Could not load field executives", type: "error" });
