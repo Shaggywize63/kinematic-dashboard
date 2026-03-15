@@ -176,7 +176,7 @@ export default function FieldExecutivesPage() {
   sups.forEach(s=>{ supMap[s.id]=s.name; });
 
   // Cities come from City Management API — no hardcoded fallback
-  const cityNames = cities.map(c => c.name);
+  const cityNames = (Array.isArray(cities)?cities:[]).map(c => c.name);
 
   const shown = fes.filter(fe => {
     const q = search.toLowerCase();
@@ -429,7 +429,7 @@ export default function FieldExecutivesPage() {
               <Field label="Zone">
                 <select className="kinp" style={{...inp,appearance:'none' as const}} value={form.zone_id} onChange={e=>setF('zone_id',e.target.value)}>
                   <option value="">No zone</option>
-                  {zones.map(z=><option key={z.id} value={z.id}>{z.name}{z.city?` — ${z.city}`:''}</option>)}
+                  {(Array.isArray(zones)?zones:[]).map(z=><option key={z.id} value={z.id}>{z.name}{z.city?` — ${z.city}`:''}</option>)}
                 </select>
               </Field>
               <Field label="City">
@@ -571,7 +571,7 @@ export default function FieldExecutivesPage() {
               <Field label="Zone">
                 <select className="kinp" style={{...inp,appearance:'none' as const}} value={form.zone_id} onChange={e=>setF('zone_id',e.target.value)}>
                   <option value="">No zone</option>
-                  {zones.map(z=><option key={z.id} value={z.id}>{z.name}</option>)}
+                  {(Array.isArray(zones)?zones:[]).map(z=><option key={z.id} value={z.id}>{z.name}</option>)}
                 </select>
               </Field>
               <Field label="City">
