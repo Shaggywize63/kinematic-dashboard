@@ -314,7 +314,7 @@ export default function NotificationsPage() {
                 <option value="all">
                   {loadingCities ? "Loading cities…" : `All Cities (${cities.length} available)`}
                 </option>
-                {cities.map((city) => (
+                {(Array.isArray(cities)?cities:[]).map((city) => (
                   <option key={city.id} value={city.id}>{city.name}</option>
                 ))}
               </SelectField>
@@ -340,7 +340,7 @@ export default function NotificationsPage() {
                   <option value="all">
                     {form.cityId === "all" ? "Select a city first" : loadingSupervisors ? "Loading…" : `All Supervisors (${supervisors.length})`}
                   </option>
-                  {supervisors.map((sup) => (
+                  {(Array.isArray(supervisors)?supervisors:[]).map((sup) => (
                     <option key={sup.id} value={sup.id}>{sup.name}</option>
                   ))}
                 </SelectField>
@@ -358,7 +358,7 @@ export default function NotificationsPage() {
                   <option value="all">
                     {form.supervisorId === "all" ? "Select a supervisor first" : loadingFieldExecs ? "Loading…" : `All FEs (${fieldExecs.length})`}
                   </option>
-                  {fieldExecs.map((fe) => (
+                  {(Array.isArray(fieldExecs)?fieldExecs:[]).map((fe) => (
                     <option key={fe.id} value={fe.id}>{fe.name}</option>
                   ))}
                 </SelectField>
@@ -414,7 +414,7 @@ export default function NotificationsPage() {
                       </td>
                     </tr>
                   ) : (
-                    history.map((n) => {
+                    (Array.isArray(history)?history:[]).map((n) => {
                       const ps = PRIORITY_STYLES[n.priority];
                       return (
                         <tr key={n.id} className="border-b border-[#0F1923] hover:bg-[#0a0f16] transition-colors">
