@@ -105,11 +105,14 @@ function Toast({ message, type, onClose }: { message: string; type: "success" | 
     return () => clearTimeout(t);
   }, [onClose]);
   return (
-    <div className={`fixed bottom-6 right-6 z-50 flex items-center gap-3 px-5 py-3.5 rounded-xl shadow-2xl border text-sm font-semibold animate-in slide-in-from-bottom-4 duration-300 ${type === "success" ? "bg-[#0a1f12] border-[#00DF7A]/30 text-[#00DF7A]" : "bg-[#1a0608] border-[#EF1F35]/30 text-[#EF1F35]"}`}>
+    <>
+      <style>{`@keyframes toastIn { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }`}</style>
+      <div className={`fixed bottom-6 right-6 z-50 flex items-center gap-3 px-5 py-3.5 rounded-xl shadow-2xl border text-sm font-semibold ${type === "success" ? "bg-[#0a1f12] border-[#00DF7A]/30 text-[#00DF7A]" : "bg-[#1a0608] border-[#EF1F35]/30 text-[#EF1F35]"}`} style={{ animation: "toastIn 0.3s ease" }}>
       <span>{type === "success" ? "✓" : "✗"}</span>
       {message}
       <button onClick={onClose} className="ml-2 opacity-60 hover:opacity-100 text-base leading-none">×</button>
-    </div>
+      </div>
+    </>
   );
 }
 
