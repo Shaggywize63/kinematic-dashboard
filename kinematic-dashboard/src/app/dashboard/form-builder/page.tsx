@@ -785,7 +785,7 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
               <div style={{ display:'grid', gridTemplateColumns:'1fr 120px 100px 140px', padding:'10px 16px', borderBottom:`1px solid ${C.border}` }}>
                 {['Submitted By','Status','Date','Time'].map(h => <div key={h} style={{ fontSize:11, color:C.grayd, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.8px' }}>{h}</div>)}
               </div>
-              {subs.map((s,i) => (
+              {(Array.isArray(subs)?subs:[]).map((s,i) => (
                 <div key={s.id} style={{ display:'grid', gridTemplateColumns:'1fr 120px 100px 140px', padding:'12px 16px', borderBottom:i<subs.length-1?`1px solid ${C.border}`:'none', alignItems:'center' }}>
                   <div style={{ fontSize:13, fontWeight:600, color:C.white }}>{s.submitted_by||'Unknown'}</div>
                   <Tag label={s.status} color={s.status==='submitted'?C.green:s.status==='approved'?C.blue:C.red}/>
