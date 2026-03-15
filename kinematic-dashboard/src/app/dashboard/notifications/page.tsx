@@ -45,13 +45,8 @@ export default function NotificationsPage() {
       setSups(allUsers.filter((u:User)=>u.role==='supervisor'));
       setCms(allUsers.filter((u:User)=>u.role==='city_manager'));
       setZones(pick(zR));
-      const cityResponse = pick(citR);
-            const cityData = Array.isArray(cityResponse?.data) ? cityResponse.data : Array.isArray(cityResponse) ? cityResponse : [];
-      console.log('Cities data:', cityData);
-      setCities(cityData.filter((c:any)=>c?.is_active===true).map((c:any)=>c.name).sort());    } catch(e){ console.error('Fetch error:',e); }
-  },[]);
-
-  useEffect(()=>{fetchAll();},[fetchAll]);
+        const cityData = pick(citR)
+                setCities(cityData.filter((c:any)=>c?.is_active).map((c:any)=>c.name));;useEffect(()=>{fetchAll();},[fetchAll]);
   const filtFes=city?fes.filter(f=>f.zones?.city===city||f.city===city):fes;
     const filtSups=city?sups.filter(s=>s.zones?.city===city||s.city===city):sups;
 
