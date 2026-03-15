@@ -145,11 +145,12 @@ export default function FieldExecutivesPage() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [uR,zR,sR,cR] = await Promise.all([
+      const [uR,zR,sR,cR],citR = await Promise.all([
         api.get<any>('/api/v1/users?limit=500'),
         api.get<any>('/api/v1/zones'),
         api.get<any>('/api/v1/users?role=supervisor&limit=200'),
         api.get<any>('/api/v1/users?role=city_manager&limit=100'),
+      api.get<any>('/api/v1/cities'),
       ]);
       const pick = (r: any): any[] => {
         if (Array.isArray(r)) return r;
@@ -171,10 +172,8 @@ export default function FieldExecutivesPage() {
   const supMap: Record<string,string> = {};
   sups.forEach(s=>{ supMap[s.id]=s.name; });
 
-  const allCities = Array.from(new Set(
-    fes.map(fe=>fe.zones?.city||fe.city||'').filter(Boolean)
-  )).sort();
-
+    const cityData=pick(citR).filter((c:any)=>c.is_active);
+  const allCities = cityData.map((c:any)=>c.name).sort();
   const shown = fes.filter(fe => {
     const q = search.toLowerCase();
     const ms = !q||fe.name?.toLowerCase().includes(q)||(fe.employee_id||'').toLowerCase().includes(q)||(fe.zones?.name||'').toLowerCase().includes(q)||(fe.mobile||'').includes(q);
