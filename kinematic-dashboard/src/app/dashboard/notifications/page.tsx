@@ -10,7 +10,7 @@ const C = {
 };
 
 interface User { id:string; name:string; role:string; city?:string; zones?:{name:string,city?:string}; }
-interface Notif { id:string; title:string; body:string; priority:string; audience_summary:string; created_at:string; recipients_count:number; read_count:number; }
+in[uR,sR,cR,zR,hR,citR]terface Notif { id:string; title:string; body:string; priority:string; audience_summary:string; created_at:string; recipients_count:number; read_count:number; }
 
 export default function NotificationsPage() {
   const [title,setTitle]=useState('');
@@ -32,8 +32,7 @@ export default function NotificationsPage() {
         api.get('/api/v1/users?limit=500'),
         api.get('/api/v1/users?role=supervisor&limit=200'),
         api.get('/api/v1/users?role=city_manager&limit=100'),
-        api.get('/api,citR]nes'),
-      api.get('/api/v1/cities'),
+    const [uR,sR,cR,zR,hR,citR] = await Promise.all([      api.get('/api/v1/cities'),
         api.get('/api/v1/notifications/history'),
       ]);
       const pick=(r:any)=>{
