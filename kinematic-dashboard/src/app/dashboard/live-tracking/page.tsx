@@ -232,8 +232,25 @@ export default function LiveTrackingPage() {
 
       if (locRes.status === 'fulfilled') {
         const locs: FELoc[] = (locRes.value?.data ?? locRes.value)?.locations || (locRes.value?.data ?? locRes.value) || [];
-        setFEs(locs.filter((l:FELoc) => l.role === 'executive' || !l.role));
-        setSupervisors(locs.filter((l:FELoc) => l.role === 'supervisor'));
+        const normalize = (r?: string) => (r || '').toLowerCase().trim();
+
+setFEs(
+  locs.filter((l: FELoc) => {
+    const role = normalize(l.role);
+    return (
+      role.includes('executive') ||
+      role.includes('fe') ||
+      role.includes('field')
+    );
+  })
+);
+
+setSupervisors(
+  locs.filter((l: FELoc) => {
+    const role = normalize(l.role);
+    return role.includes('supervisor');
+  })
+);
       }
       if (outletRes.status === 'fulfilled') {
         const raw = outletRes.value?.data ?? outletRes.value;
