@@ -453,7 +453,7 @@ export default function WarehousePage() {
             <span style={{ fontSize: 11, fontWeight: 700, color: C.gray, letterSpacing: '0.8px', textTransform: 'uppercase' }}>Warehouses ({warehouses.length})</span>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {(Array.isArray(warehouses)?warehouses:[]).map(wh => (
+            {warehouses.map(wh => (
               <div key={wh.id} onClick={() => setSelWh(wh)} style={{ background: selWh?.id === wh.id ? C.s3 : C.s2, border: `1px solid ${selWh?.id === wh.id ? C.blue : C.border}`, borderRadius: 12, padding: '14px 16px', cursor: 'pointer', transition: 'all .15s' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <div style={{ flex: 1, minWidth: 0 }}>

@@ -593,7 +593,7 @@ function CandidateDetail({ candidate, zones, onClose, onRefresh, token }:{
                       <div style={{ fontSize:11, color:C.gray, marginBottom:5 }}>Assign Zone</div>
                       <select style={inp} value={convertForm.zone_id} onChange={e=>setConvertForm(p=>({...p,zone_id:e.target.value}))}>
                         <option value="">Select zone…</option>
-                        {(Array.isArray(zones)?zones:[]).map(z=><option key={z.id} value={z.id}>{z.name}</option>)}
+                        {zones.map(z=><option key={z.id} value={z.id}>{z.name}</option>)}
                       </select>
                     </div>
                   </div>
@@ -663,7 +663,7 @@ function ATSSection({ token, zones }:{ token:string; zones:Zone[] }) {
         const list = (r?.data ?? r) || [];
         setCities(list.map((c:any) => c.name).filter(Boolean));
       })
-      .catch(() => setCities([]));
+      .catch(() => setCities(['Mumbai','Delhi','Gurugram','Bangalore','Hyderabad','Chennai','Pune','Other']));
   }, [token]);
 
   const safeCandidates = Array.isArray(candidates) ? candidates : [];
@@ -874,7 +874,7 @@ function ATSSection({ token, zones }:{ token:string; zones:Zone[] }) {
                   value={form.city}
                   onChange={e=>{ setForm(p=>({...p,city:e.target.value})); setFormErrors(p=>({...p,city:''})); }}>
                   <option value="">Select city…</option>
-                  {(Array.isArray(cities)?cities:[]).map(c=><option key={c} value={c}>{c}</option>)}
+                  {cities.map(c=><option key={c} value={c}>{c}</option>)}
                 </select>
                 {formErrors.city && <div style={{ fontSize:11, color:C.red, marginTop:3 }}>⚠ {formErrors.city}</div>}
               </div>
@@ -905,7 +905,7 @@ function ATSSection({ token, zones }:{ token:string; zones:Zone[] }) {
                 <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>Preferred Zone</div>
                 <select style={inputStyle} value={form.applied_zone} onChange={e=>setForm(p=>({...p,applied_zone:e.target.value}))}>
                   <option value="">Select zone…</option>
-                  {(Array.isArray(zones)?zones:[]).map(z=><option key={z.id} value={z.id}>{z.name}</option>)}
+                  {zones.map(z=><option key={z.id} value={z.id}>{z.name}</option>)}
                 </select>
               </div>
             </div>
@@ -958,7 +958,7 @@ function ATSSection({ token, zones }:{ token:string; zones:Zone[] }) {
                 <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>City</div>
                 <select style={inputStyle} value={form.city} onChange={e=>setForm(p=>({...p,city:e.target.value}))}>
                   <option value="">Select city…</option>
-                  {(Array.isArray(cities)?cities:[]).map(c=><option key={c} value={c}>{c}</option>)}
+                  {cities.map(c=><option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
               <div>
@@ -979,7 +979,7 @@ function ATSSection({ token, zones }:{ token:string; zones:Zone[] }) {
                 <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>Preferred Zone</div>
                 <select style={inputStyle} value={form.applied_zone} onChange={e=>setForm(p=>({...p,applied_zone:e.target.value}))}>
                   <option value="">Select zone…</option>
-                  {(Array.isArray(zones)?zones:[]).map(z=><option key={z.id} value={z.id}>{z.name}</option>)}
+                  {zones.map(z=><option key={z.id} value={z.id}>{z.name}</option>)}
                 </select>
               </div>
             </div>
@@ -1227,7 +1227,7 @@ function TeamSection({ users, zones, loading, error, onRefresh, token }:{
               {FField('role','Role','text',[{v:'executive',l:'Field Executive'},{v:'supervisor',l:'Supervisor'},{v:'admin',l:'Admin'},{v:'program_manager',l:'Program Manager'},{v:'city_manager',l:'City Manager'}])}
               {FField('employee_id','Employee ID (e.g. FE-003)')}
               {FField('city','City')}
-              {FField('zone_id','Zone','text',(Array.isArray(zones)?zones:[]).map(z=>({v:z.id,l:z.name})))}
+              {FField('zone_id','Zone','text',zones.map(z=>({v:z.id,l:z.name})))}
               <div style={{ gridColumn:'1 / -1' }}>
                 <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>Date Joined</div>
                 <input type="date" style={inputStyle} value={form.joined_date} onChange={e=>setForm(p=>({...p,joined_date:e.target.value}))}/>
@@ -1258,7 +1258,7 @@ function TeamSection({ users, zones, loading, error, onRefresh, token }:{
               {FField('role','Role','text',[{v:'executive',l:'Field Executive'},{v:'supervisor',l:'Supervisor'},{v:'admin',l:'Admin'},{v:'program_manager',l:'Program Manager'},{v:'city_manager',l:'City Manager'}])}
               {FField('employee_id','Employee ID')}
               {FField('city','City')}
-              {FField('zone_id','Zone','text',(Array.isArray(zones)?zones:[]).map(z=>({v:z.id,l:z.name})))}
+              {FField('zone_id','Zone','text',zones.map(z=>({v:z.id,l:z.name})))}
             </div>
             {saveErr && <div style={{ marginTop:14, background:C.redD, border:`1px solid ${C.redB}`, borderRadius:10, padding:'10px 14px', fontSize:13, color:C.red }}>{saveErr}</div>}
             {saveOk  && <div style={{ marginTop:14, background:C.greenD, border:`1px solid ${C.green}28`, borderRadius:10, padding:'10px 14px', fontSize:13, color:C.green }}>✓ Saved!</div>}

@@ -232,25 +232,8 @@ export default function LiveTrackingPage() {
 
       if (locRes.status === 'fulfilled') {
         const locs: FELoc[] = (locRes.value?.data ?? locRes.value)?.locations || (locRes.value?.data ?? locRes.value) || [];
-        const normalize = (r?: string) => (r || '').toLowerCase().trim();
-
-setFEs(
-  locs.filter((l: FELoc) => {
-    const role = normalize(l.role);
-    return (
-      role.includes('executive') ||
-      role.includes('fe') ||
-      role.includes('field')
-    );
-  })
-);
-
-setSupervisors(
-  locs.filter((l: FELoc) => {
-    const role = normalize(l.role);
-    return role.includes('supervisor');
-  })
-);
+        setFEs(locs.filter((l:FELoc) => l.role === 'executive' || !l.role));
+        setSupervisors(locs.filter((l:FELoc) => l.role === 'supervisor'));
       }
       if (outletRes.status === 'fulfilled') {
         const raw = outletRes.value?.data ?? outletRes.value;
@@ -399,7 +382,7 @@ setSupervisors(
           <select value={zoneFilter} onChange={e => setZoneFilter(e.target.value)}
             style={{ ...inp, minWidth:140 }}>
             <option value="all">All Zones</option>
-            {(Array.isArray(zones)?zones:[]).map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
+            {zones.map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
           </select>
           {/* Layer toggles */}
           <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
@@ -435,7 +418,7 @@ setSupervisors(
                     letterSpacing:'0.8px', textTransform:'uppercase', borderBottom:`1px solid ${C.border}` }}>
                     👤 Field Executives ({filteredFEs.length})
                   </div>
-                  {(Array.isArray(filteredFEs)?filteredFEs:[]).map(fe => (
+                  {filteredFEs.map(fe => (
                     <div key={fe.id} className="lt-row"
                       onClick={() => { setSelectedId(fe.id); setSelectedType('fe'); }}
                       style={{ display:'flex', gap:10, padding:'10px 14px', cursor:'pointer',
@@ -470,7 +453,7 @@ setSupervisors(
                     letterSpacing:'0.8px', textTransform:'uppercase', borderBottom:`1px solid ${C.border}` }}>
                     👔 Supervisors ({filteredSups.length})
                   </div>
-                  {(Array.isArray(filteredSups)?filteredSups:[]).map(s => (
+                  {filteredSups.map(s => (
                     <div key={s.id} className="lt-row"
                       onClick={() => { setSelectedId(s.id); setSelectedType('supervisor'); }}
                       style={{ display:'flex', gap:10, padding:'10px 14px', cursor:'pointer',
@@ -500,7 +483,7 @@ setSupervisors(
                     letterSpacing:'0.8px', textTransform:'uppercase', borderBottom:`1px solid ${C.border}` }}>
                     🏪 Outlets ({filteredOutlets.length})
                   </div>
-                  {(Array.isArray(filteredOutlets)?filteredOutlets:[]).map(o => (
+                  {filteredOutlets.map(o => (
                     <div key={o.id} className="lt-row"
                       onClick={() => { setSelectedId(o.id); setSelectedType('outlet'); }}
                       style={{ display:'flex', gap:10, padding:'10px 14px', cursor:'pointer',
@@ -529,7 +512,7 @@ setSupervisors(
                     letterSpacing:'0.8px', textTransform:'uppercase', borderBottom:`1px solid ${C.border}` }}>
                     🏭 Warehouses ({filteredWarehouses.length})
                   </div>
-                  {(Array.isArray(filteredWarehouses)?filteredWarehouses:[]).map(w => (
+                  {filteredWarehouses.map(w => (
                     <div key={w.id} className="lt-row"
                       onClick={() => { setSelectedId(w.id); setSelectedType('warehouse'); }}
                       style={{ display:'flex', gap:10, padding:'10px 14px', cursor:'pointer',

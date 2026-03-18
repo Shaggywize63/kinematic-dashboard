@@ -116,7 +116,6 @@ export default function FieldExecutivesPage() {
   const [zones,    setZones]   = useState<Zone[]>([]);
   const [sups,     setSups]    = useState<FieldExecutive[]>([]);
   const [cms,      setCMs]     = useState<FieldExecutive[]>([]);
-  const [cities,   setCities]  = useState<{id:string;name:string}[]>([]);
   const [loading,  setLoading] = useState(true);
   const [error,    setError]   = useState('');
   const [search,   setSearch]  = useState('');
@@ -146,12 +145,11 @@ export default function FieldExecutivesPage() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [uR,zR,sR,cR,citR] = await Promise.all([
+      const [uR,zR,sR,cR] = await Promise.all([
         api.get<any>('/api/v1/users?limit=500'),
         api.get<any>('/api/v1/zones'),
         api.get<any>('/api/v1/users?role=supervisor&limit=200'),
         api.get<any>('/api/v1/users?role=city_manager&limit=100'),
-        api.get<any>('/api/v1/cities'),
       ]);
       const pick = (r: any): any[] => {
         if (Array.isArray(r)) return r;
@@ -164,8 +162,6 @@ export default function FieldExecutivesPage() {
       setZones(pick(zR));
       setSups(pick(sR));
       setCMs(pick(cR));
-      const cityList = (citR?.data ?? citR) || [];
-      setCities(Array.isArray(cityList) ? cityList.filter((c:any)=>c.is_active!==false) : []);
       setError('');
     } catch(e:any) { setError(e.message||'Failed to load'); }
     finally { setLoading(false); }
@@ -175,8 +171,9 @@ export default function FieldExecutivesPage() {
   const supMap: Record<string,string> = {};
   sups.forEach(s=>{ supMap[s.id]=s.name; });
 
-  // Cities come from City Management API — no hardcoded fallback
-  const cityNames = (Array.isArray(cities)?cities:[]).map(c => c.name);
+  const allCities = Array.from(new Set(
+    fes.map(fe=>fe.zones?.city||fe.city||'').filter(Boolean)
+  )).sort();
 
   const shown = fes.filter(fe => {
     const q = search.toLowerCase();
@@ -335,7 +332,7 @@ export default function FieldExecutivesPage() {
             <select value={fCity} onChange={e=>setFCity(e.target.value)} className="kinp"
               style={{...inp,width:'auto',minWidth:130,appearance:'none' as const,borderRadius:10,fontSize:12,background:fCity?C.s4:C.s2,borderColor:fCity?C.blue:C.border,color:fCity?C.white:C.gray}}>
               <option value="">All Cities</option>
-              {cityNames.map(c=><option key={c} value={c}>{c}</option>)}
+              {allCities.map(c=><option key={c} value={c}>{c}</option>)}
             </select>
             {/* Supervisor */}
             <select value={fSup} onChange={e=>setFSup(e.target.value)} className="kinp"
@@ -429,15 +426,10 @@ export default function FieldExecutivesPage() {
               <Field label="Zone">
                 <select className="kinp" style={{...inp,appearance:'none' as const}} value={form.zone_id} onChange={e=>setF('zone_id',e.target.value)}>
                   <option value="">No zone</option>
-                  {(Array.isArray(zones)?zones:[]).map(z=><option key={z.id} value={z.id}>{z.name}{z.city?` — ${z.city}`:''}</option>)}
+                  {zones.map(z=><option key={z.id} value={z.id}>{z.name}{z.city?` — ${z.city}`:''}</option>)}
                 </select>
               </Field>
-              <Field label="City">
-                <select className="kinp" style={{...inp,appearance:'none' as const}} value={form.city} onChange={e=>setF('city',e.target.value)}>
-                  <option value="">Select city…</option>
-                  {cityNames.map(c=><option key={c} value={c}>{c}</option>)}
-                </select>
-              </Field>
+              <Field label="City"><input className="kinp" style={inp} placeholder="e.g. Mumbai" value={form.city} onChange={e=>setF('city',e.target.value)}/></Field>
               <Field label="Supervisor">
                 <select className="kinp" style={{...inp,appearance:'none' as const}} value={form.supervisor_id} onChange={e=>setF('supervisor_id',e.target.value)}>
                   <option value="">No supervisor</option>
@@ -571,15 +563,10 @@ export default function FieldExecutivesPage() {
               <Field label="Zone">
                 <select className="kinp" style={{...inp,appearance:'none' as const}} value={form.zone_id} onChange={e=>setF('zone_id',e.target.value)}>
                   <option value="">No zone</option>
-                  {(Array.isArray(zones)?zones:[]).map(z=><option key={z.id} value={z.id}>{z.name}</option>)}
+                  {zones.map(z=><option key={z.id} value={z.id}>{z.name}</option>)}
                 </select>
               </Field>
-              <Field label="City">
-                <select className="kinp" style={{...inp,appearance:'none' as const}} value={form.city} onChange={e=>setF('city',e.target.value)}>
-                  <option value="">Select city…</option>
-                  {cityNames.map(c=><option key={c} value={c}>{c}</option>)}
-                </select>
-              </Field>
+              <Field label="City"><input className="kinp" style={inp} placeholder="e.g. Mumbai" value={form.city} onChange={e=>setF('city',e.target.value)}/></Field>
               <Field label="Supervisor">
                 <select className="kinp" style={{...inp,appearance:'none' as const}} value={form.supervisor_id} onChange={e=>setF('supervisor_id',e.target.value)}>
                   <option value="">No supervisor</option>
