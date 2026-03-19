@@ -67,7 +67,7 @@ POST /api/v1/auth/login          → { email, password } → { user, access_toke
 GET  /api/v1/dashboard/stats     → DashboardStats
 GET  /api/v1/field-executives    → FieldExecutive[]
 GET  /api/v1/attendance          → AttendanceRecord[]
-GET  /api/v1/forms               → CCForm[]
+GET  /api/v1/builder               → CCForm[]
 GET  /api/v1/stock               → StockItem[]
 GET  /api/v1/broadcast           → BroadcastQuestion[]
 POST /api/v1/broadcast           → Create question
