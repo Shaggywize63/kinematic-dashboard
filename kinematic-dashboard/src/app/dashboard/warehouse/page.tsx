@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '@/lib/api';
+import CitySelect from '@/components/CitySelect';
 
 /* ── colour tokens (Kinematic design system) ── */
 const C = {
@@ -128,7 +129,7 @@ function WarehouseForm({ initial, onSave, onClose, saving, err }: { initial: any
         </div>
         <div>
           <label style={labelStyle}>City</label>
-          <input style={inputStyle} value={f.city} onChange={e => set('city', e.target.value)} placeholder="e.g. New Delhi" />
+          <CitySelect value={f.city} onChange={(v, c) => set('city', v)} placeholder="e.g. New Delhi" />
         </div>
         <div style={{ gridColumn: '1/-1' }}>
           <label style={labelStyle}>Address</label>

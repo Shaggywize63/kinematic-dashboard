@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import api from '@/lib/api';
+import CitySelect from '@/components/CitySelect';
 
 const C = {
   bg:'#070D18', s2:'#0E1420', s3:'#131B2A', s4:'#1A2438',
@@ -281,11 +282,7 @@ export default function OutletManagementPage() {
       {/* City select */}
       <div>
         <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>City</div>
-        <select style={inp} value={form.city_id}
-          onChange={e => setForm(p => ({ ...p, city_id: e.target.value }))}>
-          <option value="">Select city…</option>
-          {cities.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
+        <CitySelect value={form.city_id} onChange={(v, c) => setForm(p => ({ ...p, city_id: c.id }))} placeholder="Select city..." />
       </div>
       <div style={{ gridColumn:'1 / -1' }}>{F('address', 'Address')}</div>
       {F('lat', 'Latitude (optional)', 'number')}

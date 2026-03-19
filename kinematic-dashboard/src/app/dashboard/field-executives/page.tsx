@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import api from '@/lib/api';
+import CitySelect from '@/components/CitySelect';
 
 const C = {
   red:'#E01E2C', redD:'rgba(224,30,44,0.08)', redB:'rgba(224,30,44,0.2)',
@@ -429,7 +430,9 @@ export default function FieldExecutivesPage() {
                   {zones.map(z=><option key={z.id} value={z.id}>{z.name}{z.city?` — ${z.city}`:''}</option>)}
                 </select>
               </Field>
-              <Field label="City"><input className="kinp" style={inp} placeholder="e.g. Mumbai" value={form.city} onChange={e=>setF('city',e.target.value)}/></Field>
+              <Field label="City">
+                <CitySelect value={form.city} onChange={(v, c) => setF('city', v)} placeholder="e.g. Mumbai" />
+              </Field>
               <Field label="Supervisor">
                 <select className="kinp" style={{...inp,appearance:'none' as const}} value={form.supervisor_id} onChange={e=>setF('supervisor_id',e.target.value)}>
                   <option value="">No supervisor</option>
@@ -566,7 +569,9 @@ export default function FieldExecutivesPage() {
                   {zones.map(z=><option key={z.id} value={z.id}>{z.name}</option>)}
                 </select>
               </Field>
-              <Field label="City"><input className="kinp" style={inp} placeholder="e.g. Mumbai" value={form.city} onChange={e=>setF('city',e.target.value)}/></Field>
+              <Field label="City">
+                <CitySelect value={form.city} onChange={(v, c) => setF('city', v)} placeholder="e.g. Mumbai" />
+              </Field>
               <Field label="Supervisor">
                 <select className="kinp" style={{...inp,appearance:'none' as const}} value={form.supervisor_id} onChange={e=>setF('supervisor_id',e.target.value)}>
                   <option value="">No supervisor</option>
