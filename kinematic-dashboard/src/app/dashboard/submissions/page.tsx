@@ -39,9 +39,9 @@ export default function SubmissionsPage() {
       const params: Record<string, string> = { page: String(page), limit: String(limit) };
       if (filter === 'ecc') params.is_ecc = 'true';
       if (filter === 'non_ecc') params.is_ecc = 'false';
-      // FIXED: correct endpoint is /api/v1/admin/submissions (not /api/v1/forms/admin/submissions)
+      // FIXED: correct endpoint is /api/v1/admin/submissions (not /api/v1/builder/admin/submissions)
       const qs = new URLSearchParams(params).toString();
-      const res = await api.get<PaginatedResult>(`/api/v1/forms/admin/submissions?${qs}`);
+      const res = await api.get<PaginatedResult>(`/api/v1/builder/admin/submissions?${qs}`);
       const d = res as any;
       setSubmissions(d.data || d.submissions || (Array.isArray(d) ? d : []));
       setTotal(d.total || d.count || 0);
