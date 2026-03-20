@@ -10,7 +10,7 @@ const C = {
   border:'#1E2D45', white:'#E8EDF8',
 };
 
-interface User { id:string; name:string; role:string; city?:string; zones?:{name:string,city?:string}; }
+interface User { id:string; name:string; role:string; city?:string; zones?:{name:string,city?:string}; supervisor_id?:string; }
 interface City { id:string; name:string; }
 interface Notif { id:string; title:string; body:string; priority:string; audience_summary:string; created_at:string; recipients_count:number; read_count:number; }
 
@@ -55,7 +55,11 @@ export default function NotificationsPage() {
   useEffect(()=>{fetchAll();},[fetchAll]);
 
   const filtSups=city?sups.filter(s=>(s.zones?.city||s.city)===city):sups;
-  const filtFes=city?fes.filter(f=>(f.zones?.city||f.city)===city):fes;
+  const filtFes=fes.filter(f=>{
+    const matchCity = !city || (f.zones?.city || f.city) === city;
+    const matchSup = !supId || f.supervisor_id === supId;
+    return matchCity && matchSup;
+  });
 
   const send=async()=>{
     if(!title||!body)return alert('Title and message are required');
