@@ -1,6 +1,6 @@
-'use client';
 import { useState, useEffect, useCallback } from 'react';
 import api from '@/lib/api';
+import CitySelect from '@/components/CitySelect';
 
 const C = {
   red:'#E01E2C', green:'#00D97E', blue:'#3E9EFF', purple:'#9B6EFF',
@@ -10,6 +10,7 @@ const C = {
 };
 
 interface User { id:string; name:string; role:string; city?:string; zones?:{name:string,city?:string}; }
+interface City { id:string; name:string; }
 interface Notif { id:string; title:string; body:string; priority:string; audience_summary:string; created_at:string; recipients_count:number; read_count:number; }
 
 export default function NotificationsPage() {
@@ -52,7 +53,7 @@ export default function NotificationsPage() {
 
   useEffect(()=>{fetchAll();},[fetchAll]);
 
-  const cities=Array.from(new Set([...fes,...sups,...cms].map(u=>u.zones?.city||u.city||'').filter(Boolean))).sort();  const filtSups=city?sups.filter(s=>(s.zones?.city||s.city)===city):sups;
+  const filtSups=city?sups.filter(s=>(s.zones?.city||s.city)===city):sups;
   const filtFes=city?fes.filter(f=>(f.zones?.city||f.city)===city):fes;
 
   const send=async()=>{
@@ -102,10 +103,21 @@ export default function NotificationsPage() {
             <div style={{display:'flex',flexDirection:'column',gap:16}}>
               <div>
                 <label style={{fontSize:11,color:C.gray,fontWeight:600,display:'block',marginBottom:8}}>CITY</label>
-                <select value={city} onChange={e=>{setCity(e.target.value);setSupId('');setFeId('');}} style={{...inp,appearance:'none'}}>
-                  <option value="">All Cities ({cities.length} available)</option>
-                  {cities.map(c=><option key={c} value={c}>{c}</option>)}
-                </select>
+                <div style={{ position: 'relative' }}>
+                  <CitySelect 
+                    value={city} 
+                    onChange={(val) => { setCity(val); setSupId(''); setFeId(''); }} 
+                    placeholder="All Cities"
+                  />
+                  {city && (
+                    <button 
+                      onClick={() => { setCity(''); setSupId(''); setFeId(''); }}
+                      style={{ position: 'absolute', right: 38, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: C.gray, cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center' }}
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
               </div>
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
                 <div>
