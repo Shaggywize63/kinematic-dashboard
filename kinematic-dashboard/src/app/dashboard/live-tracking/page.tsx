@@ -163,6 +163,7 @@ function LiveMap({
       <div style="color:#7A8BA0;font-size:11px;margin-bottom:6px">${role}${zone?` · ${zone}`:''}</div>
       <div style="display:inline-flex;padding:2px 8px;border-radius:20px;background:${color}20;color:${color};font-size:10px;font-weight:700;text-transform:capitalize">${status.replace('_',' ')}</div>
       ${ecc!=null?`<div style="color:#7A8BA0;font-size:10px;margin-top:2px">TFF (Total forms filled): ${ecc||0}</div>`:''}
+    </div>`;
 
   return (
     <>
