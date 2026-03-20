@@ -83,7 +83,7 @@ class ApiClient {
     return this.get(`/api/v1/attendance/history${qs}`);
   }
 
-  // ── Forms (CC Submissions) ────────────────────────────────────────────────
+  // ── Forms (TFF Submissions) ────────────────────────────────────────────────
   // FIXED: correct admin submissions endpoint is /api/v1/admin/submissions
   getAdminSubmissions(params?: Record<string, string>) {
     const qs = params ? '?' + new URLSearchParams(params).toString() : '';

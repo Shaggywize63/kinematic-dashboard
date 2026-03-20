@@ -5,13 +5,15 @@ import api from '@/lib/api';
 const C = { red:'#E01E2C',green:'#00D97E',yellow:'#FFB800',blue:'#3E9EFF',purple:'#9B6EFF',gray:'#7A8BA0',grayd:'#2E445E',s2:'#131B2A',border:'#1E2D45' };
 
 interface SummaryData {
+  total_tff?: number;
   total_cc?: number;
   total_ecc?: number;
   avg_attendance?: number;
+  tff_rate?: number;
   ecc_rate?: number;
-  monthly_data?: Array<{ month: string; cc: number; ecc: number }>;
-  top_performers?: Array<{ name: string; zone: string; ecc: number; attendance: number }>;
-  zone_breakdown?: Array<{ zone: string; ecc: number; target: number }>;
+  monthly_data?: Array<{ month: string; tff?: number; cc?: number; ecc?: number }>;
+  top_performers?: Array<{ name: string; zone: string; tff?: number; ecc?: number; attendance: number }>;
+  zone_breakdown?: Array<{ zone: string; tff?: number; ecc?: number; target: number }>;
 }
 
 interface ActivityItem {
@@ -192,15 +194,13 @@ export default function AnalyticsPage() {
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const monthly       = summary?.monthly_data    || [];
-  const maxCC         = monthly.length ? Math.max(...monthly.map(m => m.cc), 1) : 1;
+  const maxTFF        = monthly.length ? Math.max(...monthly.map(m => m.tff ?? m.ecc ?? 0), 1) : 1;
   const topPerformers = summary?.top_performers  || [];
   const zones         = summary?.zone_breakdown  || [];
 
   const kpis = [
-    { l:'Total CC',       v: summary?.total_cc?.toLocaleString()                    ?? '—', delta:'+8.2%',  c:C.blue   },
-    { l:'Total ECC',      v: summary?.total_ecc?.toLocaleString()                   ?? '—', delta:'+11.4%', c:C.green  },
-    { l:'Avg Attendance', v: summary?.avg_attendance ? `${summary.avg_attendance}%` : '—', delta:'+2.1%',  c:C.yellow },
-    { l:'ECC Rate',       v: summary?.ecc_rate       ? `${summary.ecc_rate}%`       : '—', delta:'+3.5%',  c:C.purple },
+    { l:'Total TFF',      v: (summary?.total_tff ?? summary?.total_ecc)?.toLocaleString() ?? '—', c:C.green  },
+    { l:'Avg Attendance', v: summary?.avg_attendance ? `${summary.avg_attendance}%` : '—', c:C.yellow },
   ];
 
   return (
@@ -227,21 +227,20 @@ export default function AnalyticsPage() {
       )}
 
       {/* KPIs */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:14 }}>
+      <div style={{ display:'grid', gridTemplateColumns:`repeat(${kpis.length},1fr)`, gap:14 }}>
         {kpis.map(s => (
           <div key={s.l} style={{ background:'#0E1420', border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
             <div style={{ fontSize:12, color:C.gray, marginBottom:10 }}>{s.l}</div>
             <div style={{ fontFamily:"'Syne',sans-serif", fontSize:28, fontWeight:800, color:s.c }}>
               {loading ? '—' : s.v}
             </div>
-            <div style={{ fontSize:11, color:C.green, marginTop:6 }}>{s.delta} vs last period</div>
           </div>
         ))}
       </div>
 
       {/* Monthly chart */}
       <div style={{ background:'#0E1420', border:`1px solid ${C.border}`, borderRadius:16, padding:24 }}>
-        <div style={{ fontFamily:"'Syne',sans-serif", fontSize:15, fontWeight:700, marginBottom:20 }}>Monthly CC vs ECC Trend</div>
+        <div style={{ fontFamily:"'Syne',sans-serif", fontSize:15, fontWeight:700, marginBottom:20 }}>Monthly TFF Trend</div>
         {loading ? (
           <div style={{ height:160, display:'flex', alignItems:'center', justifyContent:'center', color:C.grayd, fontSize:13 }}>Loading chart...</div>
         ) : monthly.length === 0 ? (
@@ -251,8 +250,7 @@ export default function AnalyticsPage() {
             {monthly.map((m, i) => (
               <div key={i} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:6, height:'100%', justifyContent:'flex-end' }}>
                 <div style={{ display:'flex', gap:4, width:'100%', alignItems:'flex-end', height:'100%' }}>
-                  <div style={{ flex:1, background:C.blue,  borderRadius:'5px 5px 0 0', height:`${(m.cc /maxCC)*100}%`, opacity:0.8, minHeight:4 }}/>
-                  <div style={{ flex:1, background:C.green, borderRadius:'5px 5px 0 0', height:`${(m.ecc/maxCC)*100}%`, opacity:0.8, minHeight:4 }}/>
+                  <div style={{ flex:1, background:C.green, borderRadius:'5px 5px 0 0', height:`${(m.ecc/maxTFF)*100}%`, opacity:0.8, minHeight:4 }}/>
                 </div>
                 <span style={{ fontSize:11, color:C.grayd }}>{m.month}</span>
               </div>
@@ -260,7 +258,7 @@ export default function AnalyticsPage() {
           </div>
         )}
         <div style={{ display:'flex', gap:16, marginTop:14 }}>
-          {[{c:C.blue,l:'CC'},{c:C.green,l:'ECC'}].map(l => (
+          {[{c:C.green,l:'TFF'}].map(l => (
             <div key={l.l} style={{ display:'flex', alignItems:'center', gap:6, fontSize:12, color:C.gray }}>
               <div style={{ width:10, height:10, borderRadius:2, background:l.c }}/>{l.l}
             </div>
@@ -285,7 +283,7 @@ export default function AnalyticsPage() {
                 <div style={{ fontSize:13, fontWeight:600 }}>{fe.name}</div>
                 <div style={{ fontSize:11, color:C.grayd }}>{fe.zone} · {fe.attendance}% att.</div>
               </div>
-              <div style={{ fontFamily:"'Syne',sans-serif", fontSize:18, fontWeight:800, color:C.green }}>{fe.ecc}</div>
+              <div style={{ fontFamily:"'Syne',sans-serif", fontSize:18, fontWeight:800, color:C.green }}>{fe.tff ?? fe.ecc}</div>
             </div>
           ))}
         </div>
@@ -300,7 +298,8 @@ export default function AnalyticsPage() {
           ) : zones.map((z, i) => {
             const colors = [C.blue, C.green, C.yellow, C.purple];
             const col = colors[i % colors.length];
-            const pct = z.target ? Math.round((z.ecc / z.target) * 100) : 0;
+            const tffVal = z.tff ?? z.ecc ?? 0;
+            const pct = z.target ? Math.round((tffVal / z.target) * 100) : 0;
             return (
               <div key={i} style={{ marginBottom:14 }}>
                 <div style={{ display:'flex', justifyContent:'space-between', marginBottom:6 }}>
@@ -310,7 +309,7 @@ export default function AnalyticsPage() {
                 <div style={{ height:6, background:C.s2, borderRadius:3, overflow:'hidden' }}>
                   <div style={{ height:'100%', width:`${pct}%`, background:col, borderRadius:3 }}/>
                 </div>
-                <div style={{ fontSize:10, color:C.grayd, marginTop:4 }}>{z.ecc} / {z.target} ECC</div>
+                <div style={{ fontSize:10, color:C.grayd, marginTop:4 }}>{tffVal} / {z.target} TFF</div>
               </div>
             );
           })}

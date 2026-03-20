@@ -26,6 +26,7 @@ const MAIN_NAV = [
   { href: '/dashboard',                     label: 'Dashboard',     icon: 'M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z M9 22V12h6v10' },
   { href: '/dashboard/field-executives',    label: 'Field Execs',   icon: 'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 11a4 4 0 100-8 4 4 0 000 8z M23 21v-2a4 4 0 00-3-3.87 M16 3.13a4 4 0 010 7.75' },
   { href: '/dashboard/attendance-overview', label: 'Attendance',    icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
+  { href: '/dashboard/work-activities',     label: 'Work Activities', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 012-2h2a2 2 0 012 2 M12 12h.01 M12 16h.01 M8 12h.01 M16 12h.01' },
   { href: '/dashboard/route-plan',          label: 'Route Plan',    icon: 'M9 20l-5.44-2.72A2 2 0 013 15.49V4.5a2 2 0 012.89-1.8L9 4 M9 20l6-3 M9 4v16 M15 1l5.44 2.72A2 2 0 0121 5.51v10.98a2 2 0 01-2.89 1.8L15 17 M15 1v16' },
   { href: '/dashboard/warehouse',           label: 'Warehouse',     icon: 'M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8' },
   { href: '/dashboard/broadcast',           label: 'Broadcast',     icon: 'M18 8a6 6 0 010 8M14 11.73A2 2 0 1112 15a2 2 0 002-3.27z M21.64 4.36a12 12 0 010 15.27' },
@@ -53,7 +54,7 @@ const QUICK = [
   'How many FEs are present today?',
   "Today's attendance summary",
   'Total active outlets',
-  "Today's CC and ECC numbers",
+  "Today's TFF numbers",
   "This week's performance",
   'Generate attendance report for today',
   'Top performers this week',
@@ -113,7 +114,7 @@ function KinematicAI({ token }: { token: string }) {
     const week = live.week||{};
     const summ = live.summ||{};
     const fes  = locs.filter((l:any)=>l.status==='active');
-    return `You are Kinematic AI — operations assistant for Rise Up field force platform by Hindustan Field Co.\nToday: ${today}\n\n## LIVE DATA\n### Attendance\n- Total FEs: ${att.total??'unknown'}\n- Present: ${att.present??'unknown'}\n- On Break: ${att.on_break??'unknown'}\n- Checked Out: ${att.checked_out??'unknown'}\n- Absent: ${att.absent??'unknown'}\n\n### Active FEs Now\n${fes.length>0?fes.map((f:any)=>`- ${f.name} · ${f.zone_name||'—'} · ${f.status}`).join('\n'):'- None active'}\n\n### Today Performance\n- CC: ${summ.total_engagements??0}\n- ECC: ${summ.total_conversions??0}\n- Rate: ${summ.conversion_rate??0}%\n\n### This Week\n- CC: ${week.total_cc??0}, ECC: ${week.total_ecc??0}\n- ${(week.days||[]).map((d:any)=>`${d.short_label}:CC=${d.cc} ECC=${d.ecc}`).join(', ')||'No data'}\n\nBe concise, data-driven, use **bold** for numbers. Generate structured reports when asked. Don't make up data.`;
+    return `You are Kinematic AI — operations assistant for Kinematic field force platform by Hindustan Field Co.\nToday: ${today}\n\n## LIVE DATA\n### Attendance\n- Total FEs: ${att.total??'unknown'}\n- Present: ${att.present??'unknown'}\n- On Break: ${att.on_break??'unknown'}\n- Checked Out: ${att.checked_out??'unknown'}\n- Absent: ${att.absent??'unknown'}\n\n### Active FEs Now\n${fes.length>0?fes.map((f:any)=>`- ${f.name} · ${f.zone_name||'—'} · ${f.status}`).join('\n'):'- None active'}\n\n### Today Performance\n- TFF: ${summ.total_conversions??0}\n\n### This Week\n- TFF: ${week.total_ecc??0}\n- ${(week.days||[]).map((d:any)=>`${d.short_label}: TFF=${d.ecc}`).join(', ')||'No data'}\n\nBe concise, data-driven, use **bold** for numbers. Generate structured reports when asked. Don't make up data.`;
   };
 
   const send = async (text?: string) => {
@@ -201,11 +202,10 @@ function KinematicAI({ token }: { token: string }) {
                 <div style={{textAlign:'center',paddingTop:8}}>
                   <div style={{fontSize:11,color:C.gray,lineHeight:1.6}}>Ask me about your field operations</div>
                   {ready&&(
-                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6,marginTop:10}}>
+                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6,marginTop:10}}>
                       {[
                         {l:'Present',  v:live.att?.summary?.present??'—',  c:C.green},
-                        {l:'CC Today', v:live.summ?.total_engagements??'—', c:C.blue},
-                        {l:'ECC Today',v:live.summ?.total_conversions??'—', c:'#FFB800'},
+                        {l:'TFF Today',v:live.summ?.total_conversions??'—', c:'#FFB800'},
                       ].map((s,i)=>(
                         <div key={i} style={{background:C.s3,borderRadius:9,padding:'7px 5px',textAlign:'center'}}>
                           <div style={{fontFamily:"'Syne',sans-serif",fontSize:18,fontWeight:800,color:s.c}}>{s.v}</div>
@@ -249,7 +249,7 @@ function KinematicAI({ token }: { token: string }) {
           {/* Input */}
           <div style={{padding:'9px 11px',borderTop:`1px solid ${C.border}`,flexShrink:0}}>
             <div style={{display:'flex',gap:7,alignItems:'flex-end'}}>
-              <textarea ref={taRef} rows={1} placeholder="Ask about attendance, CC/ECC, outlets…" value={input}
+              <textarea ref={taRef} rows={1} placeholder="Ask about attendance, TFF, outlets…" value={input}
                 onChange={e=>{setInput(e.target.value);e.target.style.height='auto';e.target.style.height=Math.min(e.target.scrollHeight,90)+'px';}}
                 onKeyDown={onKey} style={taStyle}/>
               <button onClick={()=>send()} disabled={!input.trim()||busy} style={{width:34,height:34,borderRadius:9,border:'none',flexShrink:0,background:!input.trim()||busy?C.s3:C.red,color:'#fff',cursor:!input.trim()||busy?'not-allowed':'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontSize:15,transition:'all .15s'}}>

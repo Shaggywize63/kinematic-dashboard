@@ -128,6 +128,7 @@ export default function AttendancePage() {
   const [dateFilter, setDate]   = useState(new Date().toISOString().split('T')[0]);
   const [statusFilter, setSF]   = useState('all');
   const [search,   setSearch]   = useState('');
+  const [roleFilter, setRoleFilter] = useState<'executive' | 'supervisor'>('executive');
 
   /* modals */
   const [showAdd,    setShowAdd]    = useState(false);
@@ -211,23 +212,26 @@ export default function AttendancePage() {
 
       // Enrich attendance records with user info if join didn't come back
       const attArr = pick(attRes).map((r: any) => {
-        if (r.users?.name) return r;
         const u = userMap[r.user_id];
-        if (u) return { ...r, users: { name: u.name, employee_id: u.employee_id, zones: u.zones } };
+        if (r.users?.name) {
+          if (u) r.users.role = u.role;
+          return r;
+        }
+        if (u) return { ...r, users: { name: u.name, employee_id: u.employee_id, zones: u.zones, role: u.role } };
         return r;
       });
 
-      // Add implicit absent rows for executives with no attendance record for this date
+      // Add implicit absent rows for users with no attendance record for this date
       const coveredIds = new Set(attArr.map((r: any) => r.user_id));
       const absentRows = usersArr
-        .filter((u: any) => u.role === 'executive' && u.is_active && !coveredIds.has(u.id))
+        .filter((u: any) => (u.role === 'executive' || u.role === 'supervisor') && u.is_active && !coveredIds.has(u.id))
         .map((u: any) => ({
           id: null,
           user_id: u.id,
           date: dateFilter,
           status: 'absent' as const,
           checkin_at: null, checkout_at: null, total_hours: null,
-          users: { name: u.name, employee_id: u.employee_id, zones: u.zones },
+          users: { name: u.name, employee_id: u.employee_id, zones: u.zones, role: u.role },
           _virtual: true,
         }));
 
@@ -582,15 +586,18 @@ export default function AttendancePage() {
       || (r.users?.employee_id || '').toLowerCase().includes(q)
       || (r.users?.zones?.name || '').toLowerCase().includes(q);
     const matchStatus = statusFilter === 'all' || r.status === statusFilter;
-    return matchSearch && matchStatus;
+    const matchRole = r.users?.role === roleFilter;
+    return matchSearch && matchStatus && matchRole;
   });
 
+  const currentRoleRecords = records.filter(r => r.users?.role === roleFilter);
+
   const stats = {
-    total:    records.length,
-    in:       records.filter(r => r.status === 'checked_in').length,
-    out:      records.filter(r => r.status === 'checked_out').length,
-    absent:   records.filter(r => r.status === 'absent').length,
-    half:     records.filter(r => r.status === 'half_day').length,
+    total:    currentRoleRecords.length,
+    in:       currentRoleRecords.filter(r => r.status === 'checked_in').length,
+    out:      currentRoleRecords.filter(r => r.status === 'checked_out').length,
+    absent:   currentRoleRecords.filter(r => r.status === 'absent').length,
+    half:     currentRoleRecords.filter(r => r.status === 'half_day').length,
   };
 
   /* ── inline form fields (NOT a component — avoids remount-on-render bug) ── */
@@ -772,6 +779,32 @@ export default function AttendancePage() {
           ))}
         </div>
 
+        {/* ── Role Tabs ── */}
+        <div style={{ display: 'flex', gap: 10, borderBottom: `1px solid ${C.border}`, paddingBottom: 10 }}>
+          <button
+            onClick={() => setRoleFilter('executive')}
+            style={{
+              padding: '8px 16px', background: roleFilter === 'executive' ? C.s3 : 'transparent',
+              border: `1px solid ${roleFilter === 'executive' ? C.border : 'transparent'}`,
+              borderRadius: 10, color: roleFilter === 'executive' ? C.white : C.gray,
+              fontSize: 14, fontWeight: 700, fontFamily: "'DM Sans',sans-serif", cursor: 'pointer', transition: 'all 0.2s'
+            }}
+          >
+            Field Executives
+          </button>
+          <button
+            onClick={() => setRoleFilter('supervisor')}
+            style={{
+              padding: '8px 16px', background: roleFilter === 'supervisor' ? C.s3 : 'transparent',
+              border: `1px solid ${roleFilter === 'supervisor' ? C.border : 'transparent'}`,
+              borderRadius: 10, color: roleFilter === 'supervisor' ? C.white : C.gray,
+              fontSize: 14, fontWeight: 700, fontFamily: "'DM Sans',sans-serif", cursor: 'pointer', transition: 'all 0.2s'
+            }}
+          >
+            Supervisors
+          </button>
+        </div>
+
         {/* ── toolbar ── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
 
@@ -836,7 +869,7 @@ export default function AttendancePage() {
               </button>
             ))}
             <span style={{ marginLeft: 'auto', fontSize: 12, color: C.grayd, alignSelf: 'center', fontWeight: 600 }}>
-              {shown.length} of {records.length} records
+              {shown.length} of {currentRoleRecords.length} records
             </span>
           </div>
         </div>
@@ -855,7 +888,7 @@ export default function AttendancePage() {
             <div style={{ padding: 50, textAlign: 'center', color: C.grayd, fontSize: 14 }}>Loading…</div>
           ) : shown.length === 0 ? (
             <div style={{ padding: 50, textAlign: 'center', color: C.grayd, fontSize: 14 }}>
-              {records.length === 0 ? `No attendance records for ${fmtDate(dateFilter)}` : 'No results match your filters.'}
+              {currentRoleRecords.length === 0 ? `No attendance records for ${fmtDate(dateFilter)}` : 'No results match your filters.'}
             </div>
           ) : (
             shown.map((r, i) => {
@@ -920,7 +953,7 @@ export default function AttendancePage() {
         {/* row count */}
         {!loading && shown.length > 0 && (
           <div style={{ fontSize: 12, color: C.grayd, textAlign: 'right' }}>
-            Showing {shown.length} of {records.length} records for {fmtDate(dateFilter)}
+            Showing {shown.length} of {currentRoleRecords.length} records for {fmtDate(dateFilter)}
           </div>
         )}
       </div>
@@ -1025,6 +1058,31 @@ export default function AttendancePage() {
                 </div>
               ))}
             </div>
+
+            {/* Coordinates / Locations */}
+            {(detail.checkin_lat || detail.checkout_lat) && (
+              <div style={{ marginBottom: 14, padding: '12px', background: C.s3, borderRadius: 11 }}>
+                <div style={{ fontSize: 10, color: C.grayd, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Location Data</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  {detail.checkin_lat ? (
+                    <div>
+                      <div style={{ fontSize: 11, color: C.gray, marginBottom: 2 }}>Check-in</div>
+                      <a href={`https://maps.google.com/?q=${detail.checkin_lat},${detail.checkin_lng}`} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: C.blue, textDecoration: 'none' }}>
+                        {detail.checkin_lat.toFixed(5)}, {detail.checkin_lng?.toFixed(5)} ↗
+                      </a>
+                    </div>
+                  ) : <div />}
+                  {detail.checkout_lat ? (
+                    <div>
+                      <div style={{ fontSize: 11, color: C.gray, marginBottom: 2 }}>Check-out</div>
+                      <a href={`https://maps.google.com/?q=${detail.checkout_lat},${detail.checkout_lng}`} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: C.blue, textDecoration: 'none' }}>
+                        {detail.checkout_lat.toFixed(5)}, {detail.checkout_lng?.toFixed(5)} ↗
+                      </a>
+                    </div>
+                  ) : <div />}
+                </div>
+              </div>
+            )}
 
             {/* Selfie thumbnails */}
             {(detail.checkin_selfie_url || detail.checkout_selfie_url) && (

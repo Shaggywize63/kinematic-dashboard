@@ -210,7 +210,6 @@ const WeeklyBar = ({ days, loading }:{ days:WeekDay[]; loading:boolean }) => {
     return <div style={{ textAlign:'center', padding:'24px 0', color:C.grayd, fontSize:13 }}>No data</div>;
   }
   const maxECC = Math.max(...days.map(d => d.ecc), 1);
-  const maxCC  = Math.max(...days.map(d => d.cc), 1);
 
   return (
     <div style={{ display:'flex', gap:5, alignItems:'flex-end', height:100 }}>
@@ -242,9 +241,7 @@ const WeeklyBar = ({ days, loading }:{ days:WeekDay[]; loading:boolean }) => {
               }}
             >
               <div style={{ fontWeight:700, marginBottom:3 }}>{d.label}</div>
-              <div style={{ color:C.green }}>ECC: {d.ecc}</div>
-              <div style={{ color:C.blue }}>CC: {d.cc}</div>
-              {d.cc > 0 && <div style={{ color:C.yellow }}>Rate: {d.ecc_rate}%</div>}
+              <div style={{ color:C.green }}>TFF: {d.ecc}</div>
             </div>
           )}
           <div
@@ -262,20 +259,11 @@ const WeeklyBar = ({ days, loading }:{ days:WeekDay[]; loading:boolean }) => {
           >
             <div
               style={{
-                width:'100%',
-                height:`${(d.cc/maxCC)*100}%`,
-                background:`${C.blue}30`,
-                transition:'height .5s ease',
-                borderRadius:4,
-              }}
-            />
-            <div
-              style={{
                 position:'absolute',
                 bottom:0,
                 left:0,
                 right:0,
-                height:`${(d.ecc/maxCC)*100}%`,
+                height:`${(d.ecc/maxECC)*100}%`,
                 background:C.green,
                 borderRadius:4,
                 opacity:.85,
@@ -576,7 +564,7 @@ export default function DashboardPage() {
             <div style={{ fontFamily:"'Syne',sans-serif", fontSize:24, fontWeight:800, color:C.white, letterSpacing:'-0.3px' }}>
               Dashboard
             </div>
-            <div style={{ fontSize:12, color:C.gray, marginTop:3 }}>Rise Up · Kinematic</div>
+            <div style={{ fontSize:12, color:C.gray, marginTop:3 }}>Kinematic</div>
           </div>
           <div style={{ display:'flex', alignItems:'center', gap:10, flexWrap:'wrap' }}>
             <DateRangePicker from={from} to={to} onChange={(f,t)=>{ setFrom(f); setTo(t); }}/>
@@ -604,7 +592,7 @@ export default function DashboardPage() {
         </div>
 
         {/* KPI Row */}
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12 }}>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12 }}>
           {[
             {
               label:'Total FEs',
@@ -619,19 +607,10 @@ export default function DashboardPage() {
               sub:'Checked in now',
             },
             {
-              label:'CC This Period',
-              value: weekData?.total_cc ?? (loadingWeek ? '…' : '—'),
-              color: C.red,
-              sub:`${from} → ${to}`,
-            },
-            {
-              label:'ECC This Period',
+              label:'TFF This Period',
               value: weekData?.total_ecc ?? (loadingWeek ? '…' : '—'),
               color: C.yellow,
-              sub:
-                weekData && weekData.total_cc > 0
-                  ? `${Math.round((weekData.total_ecc / weekData.total_cc) * 100)}% conversion`
-                  : undefined,
+              sub:`${from} → ${to}`,
             },
           ].map((k, i) => (
             <StatCard
@@ -720,7 +699,7 @@ export default function DashboardPage() {
           <Card>
             <SectionHeader
               title="Weekly Activity"
-              sub="Total forms filled · ECC (green) · CC (blue)"
+              sub="Total forms filled (TFF) · (green)"
             />
             <WeeklyBar days={weekData?.days || []} loading={loadingWeek}/>
             {!loadingWeek && weekData && (
@@ -734,16 +713,7 @@ export default function DashboardPage() {
                 }}
               >
                 {[
-                  { l:'Total CC',  v:weekData.total_cc,  c:C.blue   },
-                  { l:'Total ECC', v:weekData.total_ecc, c:C.green  },
-                  {
-                    l:'ECC Rate',
-                    v:
-                      weekData.total_cc > 0
-                        ? `${Math.round((weekData.total_ecc / weekData.total_cc) * 100)}%`
-                        : '—',
-                    c:C.yellow,
-                  },
+                  { l:'Total forms filled (TFF)', v:weekData.total_ecc, c:C.green  },
                 ].map(s => (
                   <div key={s.l}>
                     <div
@@ -897,7 +867,7 @@ export default function DashboardPage() {
               <div
                 style={{
                   display:'grid',
-                  gridTemplateColumns:'1fr 70px 70px 70px 70px 80px 70px',
+                  gridTemplateColumns:'1fr 70px 70px 70px 70px',
                   gap:8,
                   padding:'8px 12px',
                   fontSize:10,
@@ -912,21 +882,19 @@ export default function DashboardPage() {
                 <div>City</div>
                 <div style={{ textAlign:'center' }}>FEs</div>
                 <div style={{ textAlign:'center' }}>Check-ins</div>
-                <div style={{ textAlign:'center' }}>CC</div>
-                <div style={{ textAlign:'center' }}>ECC</div>
-                <div style={{ textAlign:'center' }}>ECC Rate</div>
+                <div style={{ textAlign:'center' }}>TFF</div>
                 <div style={{ textAlign:'center' }}>Outlets</div>
               </div>
               {cityData.cities.map((city, i) => {
-                const maxCC = Math.max(...cityData.cities.map(c => c.cc), 1);
-                const barW  = (city.cc / maxCC) * 100;
+                const maxECC = Math.max(...cityData.cities.map(c => c.ecc), 1);
+                const barW  = (city.ecc / maxECC) * 100;
                 return (
                   <div
                     key={city.city}
                     className="km-tr"
                     style={{
                       display:'grid',
-                      gridTemplateColumns:'1fr 70px 70px 70px 70px 80px 70px',
+                      gridTemplateColumns:'1fr 70px 70px 70px 70px',
                       gap:8,
                       padding:'12px 12px',
                       borderRadius:10,
@@ -996,13 +964,13 @@ export default function DashboardPage() {
                         fontFamily:"'Syne',sans-serif",
                         fontWeight:800,
                         fontSize:16,
-                        color:C.blue,
+                        color:C.white,
                         display:'flex',
                         alignItems:'center',
                         justifyContent:'center',
                       }}
                     >
-                      {city.cc}
+                      {city.checkins}
                     </div>
                     <div
                       style={{
@@ -1017,30 +985,6 @@ export default function DashboardPage() {
                       }}
                     >
                       {city.ecc}
-                    </div>
-                    <div
-                      style={{
-                        textAlign:'center',
-                        display:'flex',
-                        alignItems:'center',
-                        justifyContent:'center',
-                      }}
-                    >
-                      <span
-                        style={{
-                          fontFamily:"'Syne',sans-serif",
-                          fontWeight:800,
-                          fontSize:14,
-                          color:
-                            city.ecc_rate >= 60
-                              ? C.green
-                              : city.ecc_rate >= 30
-                              ? C.yellow
-                              : C.red,
-                        }}
-                      >
-                        {city.ecc_rate}%
-                      </span>
                     </div>
                     <div
                       style={{
@@ -1138,7 +1082,7 @@ export default function DashboardPage() {
                 <div>Outlet</div>
                 <div style={{ textAlign:'center' }}>Visits</div>
                 <div style={{ textAlign:'center' }}>Conversions</div>
-                <div style={{ textAlign:'center' }}>ECC Rate</div>
+                <div style={{ textAlign:'center' }}>TFF Rate</div>
               </div>
               <div style={{ maxHeight:280, overflowY:'auto' }}>
                 {outletData.outlets.map((o, i) => (

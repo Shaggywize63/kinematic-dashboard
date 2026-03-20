@@ -63,8 +63,8 @@ export default function SubmissionsPage() {
       {/* Header */}
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
         <div>
-          <div style={{ fontFamily:"'Syne',sans-serif", fontSize:22, fontWeight:800 }}>CC Submissions</div>
-          <div style={{ fontSize:13, color:C.gray, marginTop:3 }}>Consumer contact form submissions</div>
+          <div style={{ fontFamily:"'Syne',sans-serif", fontSize:22, fontWeight:800 }}>TFF Submissions</div>
+          <div style={{ fontSize:13, color:C.gray, marginTop:3 }}>Total forms filled</div>
         </div>
         <button onClick={fetchData} style={{ padding:'9px 16px', background:C.red, color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
           Refresh
@@ -81,8 +81,8 @@ export default function SubmissionsPage() {
       <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:14 }}>
         {[
           { l:'Total Submissions', v:total, c:C.blue },
-          { l:'Effective (ECC)', v:ecc, c:C.green },
-          { l:'Non-ECC', v:nonEcc, c:C.gray },
+          { l:'Effective (TFF)', v:ecc, c:C.green },
+          { l:'Non-TFF', v:nonEcc, c:C.gray },
         ].map((s, i) => (
           <div key={i} style={{ background:'#0E1420', border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
             <div style={{ fontFamily:"'Syne',sans-serif", fontSize:30, fontWeight:800, color:s.c }}>{s.v}</div>
@@ -95,7 +95,7 @@ export default function SubmissionsPage() {
       <div style={{ background:'#0E1420', border:`1px solid ${C.border}`, borderRadius:16, overflow:'hidden' }}>
         {/* Filters */}
         <div style={{ padding:'14px 18px', borderBottom:`1px solid ${C.border}`, display:'flex', gap:8 }}>
-          {[['all','All'],['ecc','ECC Only'],['non_ecc','Non-ECC']].map(([f, l]) => (
+          {[['all','All'],['ecc','TFF Only'],['non_ecc','Non-TFF']].map(([f, l]) => (
             <button key={f} onClick={() => { setFilter(f); setPage(1); }}
               style={{ padding:'7px 14px', borderRadius:9, border:'1px solid', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", transition:'all 0.15s',
                 background: filter===f ? C.red : C.s2, borderColor: filter===f ? C.red : C.border, color: filter===f ? '#fff' : C.gray }}>
@@ -113,7 +113,7 @@ export default function SubmissionsPage() {
             <table style={{ width:'100%', borderCollapse:'collapse' }}>
               <thead>
                 <tr style={{ borderBottom:`1px solid ${C.border}` }}>
-                  {['FE Name','Outlet','Template','Activity','ECC','Time','Details'].map(h => (
+                  {['FE Name','Outlet','Template','Activity','TFF','Time','Details'].map(h => (
                     <th key={h} style={{ padding:'10px 16px', textAlign:'left', fontSize:11, fontWeight:700, color:C.grayd, letterSpacing:'0.8px', textTransform:'uppercase' }}>{h}</th>
                   ))}
                 </tr>
@@ -131,7 +131,7 @@ export default function SubmissionsPage() {
                       <span style={{ fontSize:10, fontWeight:700, padding:'3px 9px', borderRadius:20,
                         background: s.is_converted ? 'rgba(0,217,126,0.12)' : 'rgba(122,139,160,0.1)',
                         color: s.is_converted ? C.green : C.gray }}>
-                        {s.is_converted ? 'ECC' : 'No'}
+                        {s.is_converted ? 'TFF' : 'No'}
                       </span>
                     </td>
                     <td style={{ padding:'12px 16px', fontSize:12, color:C.grayd }}>
@@ -183,7 +183,7 @@ export default function SubmissionsPage() {
                 ['Outlet', selected.outlet_name],
                 ['Template', selected.form_templates?.name],
                 ['Activity', selected.activities?.name],
-                ['ECC', selected.is_converted ? 'Yes' : 'No'],
+                ['TFF', selected.is_converted ? 'Yes' : 'No'],
                 ['Submitted', new Date(selected.submitted_at).toLocaleString('en-IN')],
               ].filter(([,v]) => v).map(([k, v]) => (
                 <div key={String(k)} style={{ display:'flex', justifyContent:'space-between', fontSize:13, padding:'8px 0', borderBottom:`1px solid ${C.border}40` }}>

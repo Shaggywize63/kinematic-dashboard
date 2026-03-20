@@ -162,9 +162,7 @@ function LiveMap({
       <div style="font-weight:700;margin-bottom:2px">${name}</div>
       <div style="color:#7A8BA0;font-size:11px;margin-bottom:6px">${role}${zone?` · ${zone}`:''}</div>
       <div style="display:inline-flex;padding:2px 8px;border-radius:20px;background:${color}20;color:${color};font-size:10px;font-weight:700;text-transform:capitalize">${status.replace('_',' ')}</div>
-      ${checkinAt?`<div style="color:#7A8BA0;font-size:10px;margin-top:4px">In: ${new Date(checkinAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</div>`:''}
-      ${cc!=null?`<div style="color:#7A8BA0;font-size:10px;margin-top:2px">CC: ${cc} · ECC: ${ecc||0}</div>`:''}
-    </div>`;
+      ${ecc!=null?`<div style="color:#7A8BA0;font-size:10px;margin-top:2px">TFF (Total forms filled): ${ecc||0}</div>`:''}
 
   return (
     <>
@@ -610,8 +608,7 @@ export default function LiveTrackingPage() {
                     {[
                       { l:'Status',    v: selFE.status.replace('_',' '), c: STATUS_COLOR[selFE.status]||C.gray },
                       { l:'Check-in',  v: selFE.checkin_at ? new Date(selFE.checkin_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : '—', c: C.white },
-                      { l:'CC Today',  v: String(selFE.today_cc ?? '—'), c: C.blue },
-                      { l:'ECC Today', v: String(selFE.today_ecc ?? '—'), c: C.green },
+                      { l:'TFF Today', v: String(selFE.today_ecc ?? '—'), c: C.green },
                     ].map((s,i) => (
                       <div key={i} style={{ textAlign:'center' }}>
                         <div style={{ fontFamily:"'Syne',sans-serif", fontSize:16, fontWeight:800, color:s.c, textTransform:'capitalize' }}>{s.v}</div>
