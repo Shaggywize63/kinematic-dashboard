@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import api from '@/lib/api';
+import CitySelect from '@/components/CitySelect';
 
 const C = {
   bg:'#070D18', s2:'#0E1420', s3:'#131B2A', s4:'#1A2438',
@@ -639,7 +640,6 @@ function ATSSection({ token, zones }:{ token:string; zones:Zone[] }) {
   const [saving, setSaving]         = useState(false);
   const [saveErr, setSaveErr]       = useState('');
   const [formErrors, setFormErrors] = useState<Record<string,string>>({});
-  const [cities, setCities]         = useState<string[]>([]);
 
   const SOURCES = ['Referral','Walk-in','Naukri','LinkedIn','Indeed','WhatsApp','Instagram','Other'];
 
@@ -656,15 +656,6 @@ function ATSSection({ token, zones }:{ token:string; zones:Zone[] }) {
 
   useEffect(() => { fetchCandidates(); }, [fetchCandidates]);
 
-  // Fetch cities from API
-  useEffect(() => {
-    api.get<any>('/api/v1/cities', { headers:{ Authorization:`Bearer ${token}` } })
-      .then(r => {
-        const list = (r?.data ?? r) || [];
-        setCities(list.map((c:any) => c.name).filter(Boolean));
-      })
-      .catch(() => setCities(['Mumbai','Delhi','Gurugram','Bangalore','Hyderabad','Chennai','Pune','Other']));
-  }, [token]);
 
   const safeCandidates = Array.isArray(candidates) ? candidates : [];
   const stageCounts = STAGES.reduce((acc,s)=>{ acc[s.id]=safeCandidates.filter(c=>c.stage===s.id).length; return acc; }, {} as Record<string,number>);
@@ -870,12 +861,11 @@ function ATSSection({ token, zones }:{ token:string; zones:Zone[] }) {
               {/* City — dropdown */}
               <div>
                 <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>City <span style={{ color:C.red }}>*</span></div>
-                <select style={{ ...inputStyle, borderColor:formErrors.city ? C.red : C.border }}
+                <CitySelect
                   value={form.city}
-                  onChange={e=>{ setForm(p=>({...p,city:e.target.value})); setFormErrors(p=>({...p,city:''})); }}>
-                  <option value="">Select city…</option>
-                  {cities.map(c=><option key={c} value={c}>{c}</option>)}
-                </select>
+                  onChange={(v) => { setForm(p=>({...p,city:v})); setFormErrors(p=>({...p,city:''})); }}
+                  placeholder="Select city…"
+                />
                 {formErrors.city && <div style={{ fontSize:11, color:C.red, marginTop:3 }}>⚠ {formErrors.city}</div>}
               </div>
 
@@ -956,10 +946,11 @@ function ATSSection({ token, zones }:{ token:string; zones:Zone[] }) {
               </div>
               <div>
                 <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>City</div>
-                <select style={inputStyle} value={form.city} onChange={e=>setForm(p=>({...p,city:e.target.value}))}>
-                  <option value="">Select city…</option>
-                  {cities.map(c=><option key={c} value={c}>{c}</option>)}
-                </select>
+                <CitySelect
+                  value={form.city}
+                  onChange={(v) => setForm(p=>({...p,city:v}))}
+                  placeholder="Select city…"
+                />
               </div>
               <div>
                 <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>Source</div>

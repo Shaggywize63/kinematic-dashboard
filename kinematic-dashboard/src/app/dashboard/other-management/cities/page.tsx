@@ -2,6 +2,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '@/lib/api';
 
+export const INDIAN_STATES = [
+  "Andaman and Nicobar Islands", "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chandigarh", "Chhattisgarh", "Dadra and Nagar Haveli and Daman and Diu", 
+  "Delhi", "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jammu and Kashmir", "Jharkhand", "Karnataka", "Kerala", "Ladakh", "Lakshadweep", 
+  "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya", "Mizoram", "Nagaland", "Odisha", "Puducherry", "Punjab", "Rajasthan", "Sikkim", 
+  "Tamil Nadu", "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand", "West Bengal"
+];
+
 const C = {
   bg:'#070D18',s2:'#0E1420',s3:'#131B2A',s4:'#1A2438',
   border:'#1E2D45',borderL:'#253650',
@@ -52,6 +59,7 @@ export default function CityManagement() {
 
   const save = async () => {
     if(!form.name.trim()){setFErr('City name is required');return;}
+    if(!form.state){setFErr('State is required');return;}
     setSaving(true); setFErr('');
     try {
       if(editing) await api.patch(`/api/v1/cities/${editing.id}`, form);
@@ -149,7 +157,13 @@ export default function CityManagement() {
             {fErr && <div style={{background:C.redD,border:`1px solid ${C.redB}`,borderRadius:10,padding:'10px 14px',color:C.red,fontSize:13,marginBottom:16}}>{fErr}</div>}
             <div style={{marginBottom:14}}><Label t="City Name" req/><input style={inp} placeholder="e.g. Mumbai" value={form.name} onChange={e=>setForm(p=>({...p,name:e.target.value}))}/></div>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:20}}>
-              <div><Label t="State"/><input style={inp} placeholder="e.g. Maharashtra" value={form.state} onChange={e=>setForm(p=>({...p,state:e.target.value}))}/></div>
+              <div>
+                <Label t="State" req/>
+                <select style={{...inp, appearance: 'none', cursor: 'pointer', color: form.state ? C.white : C.gray}} value={form.state} onChange={e=>setForm(p=>({...p,state:e.target.value}))}>
+                  <option value="" disabled>Select State</option>
+                  {INDIAN_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
               <div><Label t="Country"/><input style={inp} placeholder="India" value={form.country} onChange={e=>setForm(p=>({...p,country:e.target.value}))}/></div>
             </div>
             {editing && (

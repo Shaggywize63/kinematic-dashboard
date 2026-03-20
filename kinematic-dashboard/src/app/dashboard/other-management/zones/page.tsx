@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import api from '@/lib/api';
+import CitySelect from '@/components/CitySelect';
 
 const C = {
   bg:'#070D18',s2:'#0E1420',s3:'#131B2A',s4:'#1A2438',
@@ -28,7 +29,6 @@ const Overlay = ({onClose,children}:{onClose:()=>void;children:React.ReactNode})
 
 export default function ZoneManagement() {
   const [zones, setZones] = useState<Zone[]>([]);
-  const [cities, setCities] = useState<City[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
   const [search, setSearch] = useState('');
@@ -41,12 +41,9 @@ export default function ZoneManagement() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [zr, cr] = await Promise.all([
-        api.get<any>('/api/v1/zones'),
-        api.get<any>('/api/v1/cities'),
-      ]);
       const pick = (r:any) => Array.isArray(r?.data?.data)?r.data.data:Array.isArray(r?.data)?r.data:[];
-      setZones(pick(zr)); setCities(pick(cr)); setErr('');
+      const zr = await api.get<any>('/api/v1/zones');
+      setZones(pick(zr)); setErr('');
     } catch(e:any){ setErr(e.message||'Failed to load zones'); }
     finally { setLoading(false); }
   }, []);
@@ -164,14 +161,11 @@ export default function ZoneManagement() {
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:14}}>
               <div>
                 <Label t="City"/>
-                {cities.length>0 ? (
-                  <select style={{...inp}} value={form.city_id} onChange={e=>{const c=cities.find(x=>x.id===e.target.value);setForm(p=>({...p,city_id:e.target.value,city:c?.name||''}));}}>
-                    <option value="">Select city...</option>
-                    {cities.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
-                ) : (
-                  <input style={inp} placeholder="e.g. Mumbai" value={form.city} onChange={e=>setForm(p=>({...p,city:e.target.value}))}/>
-                )}
+                <CitySelect
+                  value={form.city}
+                  onChange={(v, c) => setForm(p=>({...p, city_id: c?.id||'', city: v, state: c?.state||p.state}))}
+                  placeholder="Search city..."
+                />
               </div>
               <div><Label t="State"/><input style={inp} placeholder="e.g. Maharashtra" value={form.state} onChange={e=>setForm(p=>({...p,state:e.target.value}))}/></div>
             </div>
