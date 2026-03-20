@@ -10,20 +10,26 @@ const C = {
 };
 
 const PERMISSIONS = [
-  { id: 'view_analytics', label: 'View Analytics & Dashboard' },
+  { id: 'view_analytics', label: 'Analytics & Reporting' },
+  { id: 'live_tracking', label: 'Live Tracking & Map' },
+  { id: 'manage_users', label: 'Manage Users & Access' },
   { id: 'manage_field_execs', label: 'Manage Field Executives' },
   { id: 'manage_attendance', label: 'Approve Attendance & Leaves' },
   { id: 'manage_routes', label: 'Create & Edit Route Plans' },
   { id: 'manage_zones', label: 'Manage Geofences & Cities' },
   { id: 'manage_inventory', label: 'Manage Warehouse & SKUs' },
   { id: 'broadcast_notifs', label: 'Send Broadcast Notifications' },
+  { id: 'form_builder', label: 'Form Builder & Surveys' },
   { id: 'manage_settings', label: 'Modify System Settings' }
 ];
 
 const INIT_PERMS: Record<string, string[]> = {
-  admin: ['view_analytics', 'manage_field_execs', 'manage_attendance', 'manage_routes', 'manage_zones', 'manage_inventory', 'broadcast_notifs', 'manage_settings'],
-  sub_admin: ['view_analytics', 'manage_field_execs', 'manage_attendance', 'manage_routes', 'manage_inventory'],
-  city_manager: ['view_analytics', 'manage_attendance', 'manage_routes']
+  admin: ['view_analytics', 'live_tracking', 'manage_users', 'manage_field_execs', 'manage_attendance', 'manage_routes', 'manage_zones', 'manage_inventory', 'broadcast_notifs', 'form_builder', 'manage_settings'],
+  sub_admin: ['view_analytics', 'live_tracking', 'manage_field_execs', 'manage_attendance', 'manage_routes', 'manage_inventory', 'form_builder'],
+  city_manager: ['view_analytics', 'manage_attendance', 'manage_routes', 'live_tracking'],
+  warehouse_manager: ['view_analytics', 'manage_inventory'],
+  hr: ['view_analytics', 'manage_attendance', 'manage_users'],
+  mis: ['view_analytics', 'manage_users', 'form_builder']
 };
 
 export default function SettingsPage() {
@@ -66,8 +72,14 @@ export default function SettingsPage() {
     });
   };
 
-  const roleColors: Record<string, string> = { admin: C.red, sub_admin: C.blue, city_manager: C.green };
-  const roleLabels: Record<string, string> = { admin: 'Admin', sub_admin: 'Sub-Admin', city_manager: 'City Manager' };
+  const roleColors: Record<string, string> = { 
+    admin: C.red, sub_admin: C.blue, city_manager: C.green, 
+    warehouse_manager: '#F59E0B', hr: '#D946EF', mis: '#06B6D4' 
+  };
+  const roleLabels: Record<string, string> = { 
+    admin: 'Admin', sub_admin: 'Sub-Admin', city_manager: 'City Manager', 
+    warehouse_manager: 'Warehouse Manager', hr: 'HR', mis: 'MIS' 
+  };
 
   return (
     <div style={{ fontFamily: "'DM Sans', sans-serif", color: C.white, paddingBottom: 40 }}>
@@ -155,6 +167,9 @@ export default function SettingsPage() {
                       <option value="admin">Admin</option>
                       <option value="sub_admin">Sub-Admin</option>
                       <option value="city_manager">City Manager</option>
+                      <option value="warehouse_manager">Warehouse Manager</option>
+                      <option value="hr">HR</option>
+                      <option value="mis">MIS</option>
                     </select>
                   </div>
                   <div style={{ display: 'flex', gap: 10 }}>
