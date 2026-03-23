@@ -41,11 +41,19 @@ interface StoreVisit {
 
 function fmt(ts: string | null | undefined) {
   if (!ts) return '—';
-  return new Date(ts).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+  try {
+    const d = new Date(ts);
+    if (isNaN(d.getTime())) return '—';
+    return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+  } catch { return '—'; }
 }
 function fmtDate(ts: string | null | undefined) {
   if (!ts) return '—';
-  return new Date(ts).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  try {
+    const d = new Date(ts);
+    if (isNaN(d.getTime())) return '—';
+    return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  } catch { return '—'; }
 }
 
 function Spinner() {
@@ -86,14 +94,16 @@ export default function WorkActivitiesPage() {
   /* ── Load reference data ── */
   useEffect(() => {
     api.get<any>('/api/v1/admin/users?limit=500').then((r: any) => {
-      const arr = r.data || r.users || (Array.isArray(r) ? r : []);
+      const arr = Array.isArray(r) ? r : (Array.isArray(r?.data) ? r.data : (Array.isArray(r?.users) ? r.users : []));
       setUsers(arr);
     }).catch(() => {});
     api.get<any>('/api/v1/admin/cities?limit=200').then((r: any) => {
-      setCities(r.data || r.cities || (Array.isArray(r) ? r : []));
+      const arr = Array.isArray(r) ? r : (Array.isArray(r?.data) ? r.data : (Array.isArray(r?.cities) ? r.cities : []));
+      setCities(arr);
     }).catch(() => {});
     api.get<any>('/api/v1/admin/zones?limit=500').then((r: any) => {
-      setZones(r.data || r.zones || (Array.isArray(r) ? r : []));
+      const arr = Array.isArray(r) ? r : (Array.isArray(r?.data) ? r.data : (Array.isArray(r?.zones) ? r.zones : []));
+      setZones(arr);
     }).catch(() => {});
   }, []);
 
@@ -117,7 +127,7 @@ export default function WorkActivitiesPage() {
       const paramsObj = Object.fromEntries(new URLSearchParams(qs));
       const r = await api.getAdminSubmissions(paramsObj);
       const d = r as any;
-      const rows = d.data || d.submissions || (Array.isArray(d) ? d : []);
+      const rows = Array.isArray(d) ? d : (Array.isArray(d?.data) ? d.data : (Array.isArray(d?.submissions) ? d.submissions : []));
       setFEActivities(rows);
       setFETotal(d.total || d.count || rows.length);
       setFEPage(page);
@@ -136,16 +146,16 @@ export default function WorkActivitiesPage() {
     try {
       const r = await api.get<any>(`/api/v1/visits/team?${qs}`);
       const d = r as any;
-      const rows = d.data || d.visits || (Array.isArray(d) ? d : []);
+      const rows = Array.isArray(d) ? d : (Array.isArray(d?.data) ? d.data : (Array.isArray(d?.visits) ? d.visits : []));
       setSvActivities(rows);
-      setSvTotal(d.total || d.count || rows.length);
+      setSvTotal(d?.total || d?.count || rows.length);
       setSvPage(page);
     } catch (e: any) {
       // fallback: try alternative endpoint
       try {
         const r2 = await api.get<any>(`/api/v1/supervisor/visits?${qs}`);
         const d2 = r2 as any;
-        const rows2 = d2.data || d2.visits || (Array.isArray(d2) ? d2 : []);
+        const rows2 = Array.isArray(d2) ? d2 : (Array.isArray(d2?.data) ? d2.data : (Array.isArray(d2?.visits) ? d2.visits : []));
         setSvActivities(rows2);
         setSvTotal(d2.total || rows2.length);
         setSvPage(page);

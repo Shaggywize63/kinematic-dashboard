@@ -19,8 +19,12 @@ const tok   = () => (typeof window !== 'undefined' ? localStorage.getItem('kinem
 const hdrs  = () => ({ 'Content-Type':'application/json', Authorization:`Bearer ${tok()}` });
 async function apiFetch<T>(path:string, opts:RequestInit={}):Promise<T> {
   const r = await fetch(`${API}${path}`, { ...opts, headers:{ ...hdrs(), ...(opts.headers||{}) } });
-  if (!r.ok) throw new Error(`${r.status}`);
-  const j = await r.json();
+  const text = await r.text();
+  let j: any = {};
+  if (text) {
+    try { j = JSON.parse(text); } catch { j = { message: text }; }
+  }
+  if (!r.ok) throw new Error(j.message || j.error || `${r.status} ${r.statusText}`);
   return (j?.data ?? j) as T;
 }
 
@@ -112,8 +116,12 @@ function FormList({ onOpen, onCreate }:{ onOpen:(f:BForm)=>void; onCreate:()=>vo
   const del = async (id:string, e:React.MouseEvent) => {
     e.stopPropagation();
     if (!confirm('Delete this form?')) return;
-    await apiFetch(`/api/v1/builder/forms/${id}`, { method:'DELETE' }).catch(()=>{});
-    load();
+    try {
+      await apiFetch(`/api/v1/builder/forms/${id}`, { method:'DELETE' });
+      load();
+    } catch (err: any) {
+      alert('Delete failed: ' + err.message);
+    }
   };
 
   const duplicate = async (f:BForm, e:React.MouseEvent) => {
