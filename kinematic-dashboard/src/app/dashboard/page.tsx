@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import api from '@/lib/api';
+import { getStoredUser } from '@/lib/auth';
 
 /* ── palette ─────────────────────────────────────────────── */
 const C = {
@@ -25,7 +26,51 @@ interface AttSummary {
   checked_out:number;
   absent:number;
   regularised:number;
+  total_days_worked?:number;
+  total_leaves?:number;
 }
+
+/* ... existing tiny atoms ... */
+
+const SessionProgressBar = ({ startTime, loading }: { startTime?: string; loading?: boolean }) => {
+  const [pct, setPct] = useState(0);
+  const [elapsed, setElapsed] = useState('');
+
+  useEffect(() => {
+    if (!startTime || loading) return;
+    const tick = () => {
+      const start = new Date(startTime).getTime();
+      const now = new Date().getTime();
+      const diffMs = now - start;
+      const hours8 = 8 * 60 * 60 * 1000;
+      const p = Math.min((diffMs / hours8) * 100, 100);
+      setPct(p);
+
+      const hrs = Math.floor(diffMs / 3600000);
+      const mins = Math.floor((diffMs % 3600000) / 60000);
+      setElapsed(`${hrs}h ${mins}m`);
+    };
+    tick();
+    const inv = setInterval(tick, 60000);
+    return () => clearInterval(inv);
+  }, [startTime, loading]);
+
+  if (loading) return <Shimmer h={80} br={16}/>;
+  if (!startTime) return null;
+
+  return (
+    <div style={{ background:C.s2, border:`1px solid ${C.border}`, borderRadius:16, padding:'18px 20px', display:'flex', flexDirection:'column', gap:10 }}>
+       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+          <div style={{ fontSize:11, color:C.gray, fontWeight:600 }}>Active Session Progress</div>
+          <div style={{ fontSize:12, color:C.white, fontWeight:700 }}>{elapsed} / 8h</div>
+       </div>
+       <div style={{ height:8, background:C.s3, borderRadius:4, overflow:'hidden', position:'relative' }}>
+          <div style={{ position:'absolute', inset:0, background:C.blue, width:`${pct}%`, transition:'width 1s ease' }}/>
+       </div>
+       <div style={{ fontSize:10, color:C.grayd }}>Current shift activity</div>
+    </div>
+  );
+};
 interface WeekDay {
   date:string;
   label:string;
@@ -477,6 +522,14 @@ export default function DashboardPage() {
   const [lastSync, setSync] = useState('');
   const [mapLoaded, setMapLoaded] = useState(false);
 
+  const [currUser, setCurrUser] = useState<any>(null);
+  const userName = currUser?.name || 'Admin';
+
+  useEffect(() => {
+    const u = getStoredUser();
+    setCurrUser(u);
+  }, []);
+
   const loadAtt = useCallback(async () => {
     setLAtt(true);
     try {
@@ -561,10 +614,10 @@ export default function DashboardPage() {
         {/* Header – analytics only, no toggle */}
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-end', flexWrap:'wrap', gap:12 }}>
           <div>
+            <div style={{ fontSize:11, color:C.gray, fontWeight:600, letterSpacing:1, textTransform:'uppercase', marginBottom:2 }}>Operational Overview</div>
             <div style={{ fontFamily:"'Syne',sans-serif", fontSize:24, fontWeight:800, color:C.white, letterSpacing:'-0.3px' }}>
-              Dashboard
+              Hello, {userName}
             </div>
-            <div style={{ fontSize:12, color:C.gray, marginTop:3 }}>Kinematic</div>
           </div>
           <div style={{ display:'flex', alignItems:'center', gap:10, flexWrap:'wrap' }}>
             <DateRangePicker from={from} to={to} onChange={(f,t)=>{ setFrom(f); setTo(t); }}/>
@@ -591,34 +644,13 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* KPI Row */}
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12 }}>
-          {[
-            {
-              label:'Total FEs',
-              value: summData?.total_executives ?? (loadingSumm ? '…' : '—'),
-              color: C.blue,
-              sub:'Active executives',
-            },
-            {
-              label:'Active Today',
-              value: att?.present ?? (loadingAtt ? '…' : '—'),
-              color: C.green,
-              sub:'Checked in now',
-            },
-            {
-              label:'TFF This Period',
-              value: weekData?.total_tff ?? (loadingWeek ? '…' : '—'),
-              color: C.yellow,
-              sub:`${from} → ${to}`,
-            },
-          ].map((k, i) => (
-            <StatCard
-              key={i}
-              {...k}
-              loading={loadingSumm || loadingAtt || loadingWeek}
-            />
-          ))}
+        {/* KPI Row - Phase 2 */}
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr 1.6fr', gap:14 }}>
+          <StatCard label="Total TFF" value={summData?.kpis?.total_tff ?? '—'} color={C.green} loading={loadingSumm} />
+          <StatCard label="Days Worked" value={summData?.total_days_worked ?? '—'} color={C.blue} loading={loadingSumm} />
+          <StatCard label="Total Leaves" value={summData?.total_leaves ?? '—'} color={C.red} loading={loadingSumm} />
+          <StatCard label="Avg Attendance" value={summData?.kpis?.avg_attendance ? `${summData.kpis.avg_attendance}%` : '—'} color={C.yellow} loading={loadingSumm} />
+          <SessionProgressBar startTime={activeFEs[0]?.checkin_at} loading={loadingLoc} />
         </div>
 
         {/* Row 2: Attendance + Weekly Activity */}

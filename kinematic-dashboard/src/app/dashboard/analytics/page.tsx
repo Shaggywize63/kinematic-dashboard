@@ -1,6 +1,10 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import api from '@/lib/api';
+import { 
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, 
+  ResponsiveContainer, AreaChart, Area, BarChart, Bar 
+} from 'recharts';
 
 const C = { red:'#E01E2C',green:'#00D97E',yellow:'#FFB800',blue:'#3E9EFF',purple:'#9B6EFF',gray:'#7A8BA0',grayd:'#2E445E',s2:'#131B2A',border:'#1E2D45' };
 
@@ -152,8 +156,15 @@ function ContactActivityHeatmap({ data, loading }: { data: HeatmapResponse | nul
 }
 // ── End Heatmap ───────────────────────────────────────────────────────────────
 
+interface TrendItem { label:string; date:string; tff:number; engagements:number; }
+
 export default function AnalyticsPage() {
-  const [period,         setPeriod]         = useState<'month'|'quarter'>('month');
+  const today = new Date().toISOString().split('T')[0];
+  const sevenDaysAgo = (() => { const d = new Date(); d.setDate(d.getDate() - 6); return d.toISOString().split('T')[0]; })();
+
+  const [from,           setFrom]           = useState(sevenDaysAgo);
+  const [to,             setTo]             = useState(today);
+  const [trends,         setTrends]         = useState<TrendItem[]>([]);
   const [summary,        setSummary]        = useState<SummaryData | null>(null);
   const [activity,       setActivity]       = useState<ActivityItem[]>([]);
   const [heatmap,        setHeatmap]        = useState<HeatmapResponse | null>(null);
@@ -164,21 +175,26 @@ export default function AnalyticsPage() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     setHeatmapLoading(true);
+    const qs = `?from=${from}&to=${to}`;
     try {
-      const [summaryRes, activityRes, heatmapRes] = await Promise.all([
-        api.get<any>(`/api/v1/analytics/summary?period=${period}`),
+      const [summRes, actRes, heatRes, trendRes] = await Promise.all([
+        api.get<any>(`/api/v1/analytics/summary${qs}`),
         api.get<any>('/api/v1/analytics/activity-feed'),
-        api.get<any>('/api/v1/analytics/contact-heatmap?days=7'),
+        api.get<any>(`/api/v1/analytics/contact-heatmap${qs}`),
+        api.get<any>(`/api/v1/analytics/tff-trends${qs}`),
       ]);
 
-      const s = summaryRes as any;
+      const s = summRes as any;
       setSummary(s.data || s);
 
-      const a = activityRes as any;
+      const a = actRes as any;
       setActivity(a.data || a.feed || (Array.isArray(a) ? a : []));
 
-      const h = heatmapRes as any;
+      const h = heatRes as any;
       setHeatmap(h.data || h);
+
+      const t = trendRes as any;
+      setTrends(t.data || t);
 
       setError('');
     } catch (e: any) {
@@ -187,14 +203,14 @@ export default function AnalyticsPage() {
       setLoading(false);
       setHeatmapLoading(false);
     }
-  }, [period]);
+  }, [from, to]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const monthly       = summary?.monthly_data    || [];
-  const maxTFF        = monthly.length ? Math.max(...monthly.map(m => m.tff ?? m.ecc ?? 0), 1) : 1;
+  const maxTFF        = monthly.length ? Math.max(...monthly.map(m => m.tff ?? 0), 1) : 1;
   const topPerformers = summary?.top_performers  || [];
-  const zones         = summary?.zone_breakdown  || [];
+  const zones         = summary?.zone_performance || [];
 
   const kpis = [
     { l:'Total TFF',      v: (summary?.total_tff)?.toLocaleString() ?? '—', c:C.green  },
@@ -203,19 +219,40 @@ export default function AnalyticsPage() {
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
-      {/* Period selector */}
-      <div style={{ display:'flex', gap:8 }}>
-        {(['month','quarter'] as const).map(p => (
-          <button key={p} onClick={() => setPeriod(p)}
-            style={{ padding:'9px 18px', borderRadius:10, border:'1px solid', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:"'DM Sans',sans-serif",
-              background: period===p ? C.red : '#0E1420', borderColor: period===p ? C.red : C.border, color: period===p ? '#fff' : C.gray, transition:'all 0.15s' }}>
-            {p === 'month' ? 'This Month' : 'This Quarter'}
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-end', flexWrap:'wrap', gap:10 }}>
+        <div>
+          <div style={{ fontSize:15, fontWeight:800, fontFamily:"'Syne',sans-serif" }}>Analytics</div>
+          <div style={{ fontSize:11, color:C.gray, marginTop:2 }}>Performance trends and metrics</div>
+        </div>
+        <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
+          {[
+            { l:'Last 7d', d:7 },
+            { l:'Last 30d', d:30 }
+          ].map(p => {
+            const pFrom = (() => { const d = new Date(); d.setDate(d.getDate() - (p.d-1)); return d.toISOString().split('T')[0]; })();
+            const active = from === pFrom && to === today;
+            return (
+              <button key={p.l} onClick={() => { setFrom(pFrom); setTo(today); }}
+                style={{
+                  padding:'6px 12px', borderRadius:8, fontSize:11, fontWeight:600, cursor:'pointer',
+                  background: active ? C.blue : '#1A2438',
+                  border: `1px solid ${active ? C.blue : C.border}`,
+                  color: active ? '#fff' : C.gray,
+                  transition: 'all .15s'
+                }}>{p.l}</button>
+            );
+          })}
+          <input type="date" value={from} onChange={e => setFrom(e.target.value)}
+            style={{ background:'#1A2438', border:`1px solid ${C.border}`, borderRadius:8, color:'#fff', fontSize:11, padding:'5px 8px', colorScheme:'dark' }} />
+          <span style={{ color:C.grayd, fontSize:12 }}>→</span>
+          <input type="date" value={to} onChange={e => setTo(e.target.value)}
+            style={{ background:'#1A2438', border:`1px solid ${C.border}`, borderRadius:8, color:'#fff', fontSize:11, padding:'5px 8px', colorScheme:'dark' }} />
+          
+          <button onClick={fetchData} className="kbtn" 
+            style={{ padding:'6px 12px', borderRadius:8, background:C.s2, border:`1px solid ${C.border}`, color:C.gray, fontSize:11, fontWeight:600 }}>
+            ↺ Sync
           </button>
-        ))}
-        <button onClick={fetchData}
-          style={{ marginLeft:'auto', padding:'9px 18px', borderRadius:10, border:`1px solid ${C.border}`, fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", background:'#0E1420', color:C.gray }}>
-          Refresh
-        </button>
+        </div>
       </div>
 
       {error && (
@@ -236,32 +273,58 @@ export default function AnalyticsPage() {
         ))}
       </div>
 
-      {/* Monthly chart */}
+      {/* TFF Trend Chart - Phase 2 */}
       <div style={{ background:'#0E1420', border:`1px solid ${C.border}`, borderRadius:16, padding:24 }}>
-        <div style={{ fontFamily:"'Syne',sans-serif", fontSize:15, fontWeight:700, marginBottom:20 }}>Monthly TFF Trend</div>
-        {loading ? (
-          <div style={{ height:160, display:'flex', alignItems:'center', justifyContent:'center', color:C.grayd, fontSize:13 }}>Loading chart...</div>
-        ) : monthly.length === 0 ? (
-          <div style={{ height:160, display:'flex', alignItems:'center', justifyContent:'center', color:C.grayd, fontSize:13 }}>No data available</div>
-        ) : (
-          <div style={{ display:'flex', alignItems:'flex-end', gap:16, height:160 }}>
-            {monthly.map((m, i) => (
-              <div key={i} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:6, height:'100%', justifyContent:'flex-end' }}>
-                <div style={{ display:'flex', gap:4, width:'100%', alignItems:'flex-end', height:'100%' }}>
-                  <div style={{ flex:1, background:C.green, borderRadius:'5px 5px 0 0', height:`${(m.tff / maxTFF)*100}%`, opacity:0.8, minHeight:4 }}/>
-                </div>
-                <span style={{ fontSize:11, color:C.grayd }}>{m.month}</span>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
+          <div style={{ fontFamily:"'Syne',sans-serif", fontSize:15, fontWeight:700 }}>TFF & Engagements Trend</div>
+          <div style={{ display:'flex', gap:10 }}>
+            {[{c:C.green,l:'TFF'}, {c:C.blue,l:'Engagements'}].map(l => (
+              <div key={l.l} style={{ display:'flex', alignItems:'center', gap:6, fontSize:11, color:C.gray }}>
+                <div style={{ width:10, height:10, borderRadius:2, background:l.c }}/>{l.l}
               </div>
             ))}
           </div>
-        )}
-        <div style={{ display:'flex', gap:16, marginTop:14 }}>
-          {[{c:C.green,l:'TFF'}].map(l => (
-            <div key={l.l} style={{ display:'flex', alignItems:'center', gap:6, fontSize:12, color:C.gray }}>
-              <div style={{ width:10, height:10, borderRadius:2, background:l.c }}/>{l.l}
-            </div>
-          ))}
         </div>
+        
+        {loading ? (
+          <div style={{ height:240, display:'flex', alignItems:'center', justifyContent:'center', color:C.grayd, fontSize:13 }}>Loading chart...</div>
+        ) : (
+          <div style={{ height:240, width:'100%' }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={trends}>
+                <defs>
+                  <linearGradient id="colTff" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={C.green} stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor={C.green} stopOpacity={0}/>
+                  </linearGradient>
+                  <linearGradient id="colEng" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={C.blue} stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor={C.blue} stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke={C.border} vertical={false} />
+                <XAxis 
+                  dataKey="label" 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{fill:C.grayd, fontSize:10}} 
+                  dy={10}
+                />
+                <YAxis 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{fill:C.grayd, fontSize:10}} 
+                />
+                <Tooltip 
+                  contentStyle={{ background:C.s2, border:`1px solid ${C.border}`, borderRadius:12, fontSize:12 }}
+                  itemStyle={{ fontSize:11, fontWeight:700 }}
+                />
+                <Area type="monotone" dataKey="tff" stroke={C.green} fillOpacity={1} fill="url(#colTff)" strokeWidth={2} />
+                <Area type="monotone" dataKey="engagements" stroke={C.blue} fillOpacity={1} fill="url(#colEng)" strokeWidth={2} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        )}
       </div>
 
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
@@ -296,7 +359,7 @@ export default function AnalyticsPage() {
           ) : zones.map((z, i) => {
             const colors = [C.blue, C.green, C.yellow, C.purple];
             const col = colors[i % colors.length];
-            const tffVal = z.tff ?? z.ecc ?? 0;
+            const tffVal = z.tff ?? 0;
             const pct = z.target ? Math.round((tffVal / z.target) * 100) : 0;
             return (
               <div key={i} style={{ marginBottom:14 }}>
