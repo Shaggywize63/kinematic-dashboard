@@ -30,9 +30,9 @@ interface WeekDay {
   date:string;
   label:string;
   short_label:string;
-  cc:number;
-  ecc:number;
-  ecc_rate:number;
+  engagements:number;
+  tff:number;
+  tff_rate:number;
 }
 interface FELoc {
   id:string;
@@ -52,9 +52,9 @@ interface CityPerf {
   zones:number;
   active_fes:number;
   checkins:number;
-  cc:number;
-  ecc:number;
-  ecc_rate:number;
+  engagements:number;
+  tff:number;
+  tff_rate:number;
   unique_outlets:number;
   avg_hours:number;
   lat:number|null;
@@ -63,9 +63,9 @@ interface CityPerf {
 interface OutletRow {
   name:string;
   visits:number;
-  conversions:number;
+  tff:number;
   city:string|null;
-  ecc_rate:number;
+  tff_rate:number;
 }
 
 /* ── tiny atoms ─────────────────────────────────────────────── */
@@ -194,7 +194,7 @@ const PieChart = ({ present, on_break, checked_out, absent, total }:{
   );
 };
 
-/* ── BAR CHART (weekly ECC) ────────────────────────────────── */
+/* ── BAR CHART (weekly TFF) ────────────────────────────────── */
 const WeeklyBar = ({ days, loading }:{ days:WeekDay[]; loading:boolean }) => {
   const [hover, setHover] = useState<number|null>(null);
   if (loading) {
@@ -209,7 +209,7 @@ const WeeklyBar = ({ days, loading }:{ days:WeekDay[]; loading:boolean }) => {
   if (!days.length) {
     return <div style={{ textAlign:'center', padding:'24px 0', color:C.grayd, fontSize:13 }}>No data</div>;
   }
-  const maxECC = Math.max(...days.map(d => d.ecc), 1);
+  const maxTFF = Math.max(...days.map(d => d.tff), 1);
 
   return (
     <div style={{ display:'flex', gap:5, alignItems:'flex-end', height:100 }}>
@@ -241,7 +241,7 @@ const WeeklyBar = ({ days, loading }:{ days:WeekDay[]; loading:boolean }) => {
               }}
             >
               <div style={{ fontWeight:700, marginBottom:3 }}>{d.label}</div>
-              <div style={{ color:C.green }}>TFF: {d.ecc}</div>
+              <div style={{ color:C.green }}>TFF: {d.tff}</div>
             </div>
           )}
           <div
@@ -263,7 +263,7 @@ const WeeklyBar = ({ days, loading }:{ days:WeekDay[]; loading:boolean }) => {
                 bottom:0,
                 left:0,
                 right:0,
-                height:`${(d.ecc/maxECC)*100}%`,
+                height:`${(d.tff/maxTFF)*100}%`,
                 background:C.green,
                 borderRadius:4,
                 opacity:.85,
@@ -461,7 +461,7 @@ export default function DashboardPage() {
   const [to,   setTo]   = useState(today);
 
   const [attData,    setAtt]    = useState<{ summary:AttSummary; executives:any[] }|null>(null);
-  const [weekData,   setWeek]   = useState<{ days:WeekDay[]; total_cc:number; total_ecc:number }|null>(null);
+  const [weekData,   setWeek]   = useState<{ days:WeekDay[]; total_cc:number; total_tff:number }|null>(null);
   const [locData,    setLoc]    = useState<{ summary:any; locations:FELoc[] }|null>(null);
   const [cityData,   setCity]   = useState<{ cities:CityPerf[] }|null>(null);
   const [outletData, setOutlet] = useState<{ summary:any; outlets:OutletRow[]; cities:any[] }|null>(null);
@@ -608,7 +608,7 @@ export default function DashboardPage() {
             },
             {
               label:'TFF This Period',
-              value: weekData?.total_ecc ?? (loadingWeek ? '…' : '—'),
+              value: weekData?.total_tff ?? (loadingWeek ? '…' : '—'),
               color: C.yellow,
               sub:`${from} → ${to}`,
             },
@@ -713,7 +713,7 @@ export default function DashboardPage() {
                 }}
               >
                 {[
-                  { l:'Total forms filled (TFF)', v:weekData.total_ecc, c:C.green  },
+                  { l:'Total forms filled (TFF)', v:weekData.total_tff, c:C.green  },
                 ].map(s => (
                   <div key={s.l}>
                     <div
@@ -886,8 +886,8 @@ export default function DashboardPage() {
                 <div style={{ textAlign:'center' }}>Outlets</div>
               </div>
               {cityData.cities.map((city, i) => {
-                const maxECC = Math.max(...cityData.cities.map(c => c.ecc), 1);
-                const barW  = (city.ecc / maxECC) * 100;
+                const maxTFF = Math.max(...cityData.cities.map(c => c.tff), 1);
+                const barW  = (city.tff / maxTFF) * 100;
                 return (
                   <div
                     key={city.city}
@@ -956,21 +956,7 @@ export default function DashboardPage() {
                         justifyContent:'center',
                       }}
                     >
-                      {city.checkins}
-                    </div>
-                    <div
-                      style={{
-                        textAlign:'center',
-                        fontFamily:"'Syne',sans-serif",
-                        fontWeight:800,
-                        fontSize:16,
-                        color:C.white,
-                        display:'flex',
-                        alignItems:'center',
-                        justifyContent:'center',
-                      }}
-                    >
-                      {city.checkins}
+                      {city.engagements}
                     </div>
                     <div
                       style={{
@@ -984,7 +970,7 @@ export default function DashboardPage() {
                         justifyContent:'center',
                       }}
                     >
-                      {city.ecc}
+                      {city.tff}
                     </div>
                     <div
                       style={{
@@ -1081,7 +1067,7 @@ export default function DashboardPage() {
               >
                 <div>Outlet</div>
                 <div style={{ textAlign:'center' }}>Visits</div>
-                <div style={{ textAlign:'center' }}>Conversions</div>
+                <div style={{ textAlign:'center' }}>TFF</div>
                 <div style={{ textAlign:'center' }}>TFF Rate</div>
               </div>
               <div style={{ maxHeight:280, overflowY:'auto' }}>
@@ -1142,7 +1128,7 @@ export default function DashboardPage() {
                         justifyContent:'center',
                       }}
                     >
-                      {o.conversions}
+                      {o.tff}
                     </div>
                     <div
                       style={{
@@ -1158,14 +1144,14 @@ export default function DashboardPage() {
                           fontWeight:700,
                           fontSize:12,
                           color:
-                            o.ecc_rate >= 60
+                            o.tff_rate >= 60
                               ? C.green
-                              : o.ecc_rate >= 30
+                              : o.tff_rate >= 30
                               ? C.yellow
                               : C.grayd,
                         }}
                       >
-                        {o.ecc_rate}%
+                        {o.tff_rate}%
                       </span>
                     </div>
                   </div>

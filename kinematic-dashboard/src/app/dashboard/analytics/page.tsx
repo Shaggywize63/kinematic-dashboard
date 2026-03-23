@@ -6,14 +6,12 @@ const C = { red:'#E01E2C',green:'#00D97E',yellow:'#FFB800',blue:'#3E9EFF',purple
 
 interface SummaryData {
   total_tff?: number;
-  total_cc?: number;
-  total_ecc?: number;
+  total_engagements?: number;
   avg_attendance?: number;
   tff_rate?: number;
-  ecc_rate?: number;
-  monthly_data?: Array<{ month: string; tff?: number; cc?: number; ecc?: number }>;
-  top_performers?: Array<{ name: string; zone: string; tff?: number; ecc?: number; attendance: number }>;
-  zone_breakdown?: Array<{ zone: string; tff?: number; ecc?: number; target: number }>;
+  monthly_data?: Array<{ month: string; tff?: number; engagements?: number }>;
+  top_performers?: Array<{ name: string; zone: string; tff?: number; attendance: number }>;
+  zone_breakdown?: Array<{ zone: string; tff?: number; target: number }>;
 }
 
 interface ActivityItem {
@@ -68,7 +66,7 @@ function ContactActivityHeatmap({ data, loading }: { data: HeatmapResponse | nul
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:20 }}>
         <div>
           <div style={{ fontFamily:"'Syne',sans-serif", fontSize:15, fontWeight:700, marginBottom:4 }}>
-            Contact Activity Heatmap
+            TFF Activity Heatmap
           </div>
           <div style={{ fontSize:12, color:C.gray }}>Density by day &amp; hour — last 7 days</div>
         </div>
@@ -91,7 +89,7 @@ function ContactActivityHeatmap({ data, loading }: { data: HeatmapResponse | nul
       ) : isEmpty ? (
         <div style={{ height:180, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:10 }}>
           <div style={{ fontSize:28 }}>📊</div>
-          <div style={{ fontSize:13, color:C.gray, fontWeight:600 }}>No contact activity yet</div>
+          <div style={{ fontSize:13, color:C.gray, fontWeight:600 }}>No TFF activity yet</div>
           <div style={{ fontSize:12, color:C.grayd, textAlign:'center', maxWidth:280 }}>
             Data will appear here once field executives start submitting forms
           </div>
@@ -141,7 +139,7 @@ function ContactActivityHeatmap({ data, loading }: { data: HeatmapResponse | nul
               </div>
             </div>
             <div>
-              <div style={{ fontSize:11, color:C.grayd, marginBottom:3 }}>Total Contacts</div>
+              <div style={{ fontSize:11, color:C.grayd, marginBottom:3 }}>Total Engagements</div>
               <div style={{ fontFamily:"'Syne',sans-serif", fontSize:16, fontWeight:700, color:C.blue }}>
                 {data?.summary?.total_contacts?.toLocaleString() ?? '—'}
               </div>
@@ -199,7 +197,7 @@ export default function AnalyticsPage() {
   const zones         = summary?.zone_breakdown  || [];
 
   const kpis = [
-    { l:'Total TFF',      v: (summary?.total_tff ?? summary?.total_ecc)?.toLocaleString() ?? '—', c:C.green  },
+    { l:'Total TFF',      v: (summary?.total_tff)?.toLocaleString() ?? '—', c:C.green  },
     { l:'Avg Attendance', v: summary?.avg_attendance ? `${summary.avg_attendance}%` : '—', c:C.yellow },
   ];
 
@@ -250,7 +248,7 @@ export default function AnalyticsPage() {
             {monthly.map((m, i) => (
               <div key={i} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:6, height:'100%', justifyContent:'flex-end' }}>
                 <div style={{ display:'flex', gap:4, width:'100%', alignItems:'flex-end', height:'100%' }}>
-                  <div style={{ flex:1, background:C.green, borderRadius:'5px 5px 0 0', height:`${(m.ecc/maxTFF)*100}%`, opacity:0.8, minHeight:4 }}/>
+                  <div style={{ flex:1, background:C.green, borderRadius:'5px 5px 0 0', height:`${(m.tff / maxTFF)*100}%`, opacity:0.8, minHeight:4 }}/>
                 </div>
                 <span style={{ fontSize:11, color:C.grayd }}>{m.month}</span>
               </div>
@@ -283,7 +281,7 @@ export default function AnalyticsPage() {
                 <div style={{ fontSize:13, fontWeight:600 }}>{fe.name}</div>
                 <div style={{ fontSize:11, color:C.grayd }}>{fe.zone} · {fe.attendance}% att.</div>
               </div>
-              <div style={{ fontFamily:"'Syne',sans-serif", fontSize:18, fontWeight:800, color:C.green }}>{fe.tff ?? fe.ecc}</div>
+              <div style={{ fontFamily:"'Syne',sans-serif", fontSize:18, fontWeight:800, color:C.green }}>{fe.tff}</div>
             </div>
           ))}
         </div>
@@ -309,14 +307,14 @@ export default function AnalyticsPage() {
                 <div style={{ height:6, background:C.s2, borderRadius:3, overflow:'hidden' }}>
                   <div style={{ height:'100%', width:`${pct}%`, background:col, borderRadius:3 }}/>
                 </div>
-                <div style={{ fontSize:10, color:C.grayd, marginTop:4 }}>{tffVal} / {z.target} TFF</div>
+                <div style={{ fontSize:10, color:C.grayd, marginTop:4 }}>{z.tff || 0} / {z.target} TFF</div>
               </div>
             );
           })}
         </div>
       </div>
 
-      {/* ── Contact Activity Heatmap (live) ── */}
+      {/* ── TFF Activity Heatmap (live) ── */}
       <ContactActivityHeatmap data={heatmap} loading={heatmapLoading} />
 
       {/* Activity feed */}

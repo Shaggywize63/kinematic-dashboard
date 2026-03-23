@@ -1,6 +1,49 @@
-'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import api from '@/lib/api';
+
+/* ── DateRangePicker component ── */
+function DateRangePicker({ from, to, onChange }: { from: string; to: string; onChange: (f: string, t: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  const presets = [
+    { l: 'Today', f: new Date().toISOString().split('T')[0], t: new Date().toISOString().split('T')[0] },
+    { l: 'Yesterday', f: new Date(Date.now() - 86400000).toISOString().split('T')[0], t: new Date(Date.now() - 86400000).toISOString().split('T')[0] },
+    { l: 'Last 7 Days', f: new Date(Date.now() - 6 * 86400000).toISOString().split('T')[0], t: new Date().toISOString().split('T')[0] },
+    { l: 'Last 30 Days', f: new Date(Date.now() - 29 * 86400000).toISOString().split('T')[0], t: new Date().toISOString().split('T')[0] },
+  ];
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button onClick={() => setOpen(!open)}
+        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 14px', background: C.s2, border: `1px solid ${C.border}`, borderRadius: 10, color: C.white, fontSize: 13, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
+        📅 {from === to ? new Date(from).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : `${new Date(from).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })} - ${new Date(to).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}`}
+      </button>
+      {open && (
+        <div style={{ position: 'absolute', top: '110%', left: 0, zIndex: 600, background: C.s2, border: `1px solid ${C.border}`, borderRadius: 12, padding: 16, width: 280, boxShadow: '0 10px 40px rgba(0,0,0,0.5)' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
+            {presets.map(p => (
+              <button key={p.l} onClick={() => { onChange(p.f, p.t); setOpen(false); }}
+                style={{ padding: '7px 10px', background: 'transparent', border: 'none', color: C.gray, fontSize: 12, textAlign: 'left', cursor: 'pointer', borderRadius: 6 }}>{p.l}</button>
+            ))}
+          </div>
+          <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              <div><div style={{ fontSize: 10, color: C.grayd, marginBottom: 4 }}>FROM</div><input type="date" value={from} onChange={e => onChange(e.target.value, to)} style={{ width: '100%', background: C.s3, border: `1px solid ${C.border}`, borderRadius: 6, padding: '4px', color: '#fff', fontSize: 11 }} /></div>
+              <div><div style={{ fontSize: 10, color: C.grayd, marginBottom: 4 }}>TO</div><input type="date" value={to} onChange={e => onChange(from, e.target.value)} style={{ width: '100%', background: C.s3, border: `1px solid ${C.border}`, borderRadius: 6, padding: '4px', color: '#fff', fontSize: 11 }} /></div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 const C = {
   bg:      '#070D18',
@@ -125,7 +168,8 @@ export default function AttendancePage() {
   const [users,    setUsers]    = useState<any[]>([]);
   const [loading,  setLoading]  = useState(true);
   const [err,      setErr]      = useState('');
-  const [dateFilter, setDate]   = useState(new Date().toISOString().split('T')[0]);
+  const [fromDate,   setFrom]   = useState(new Date().toISOString().split('T')[0]);
+  const [toDate,     setTo]     = useState(new Date().toISOString().split('T')[0]);
   const [statusFilter, setSF]   = useState('all');
   const [search,   setSearch]   = useState('');
   const [roleFilter, setRoleFilter] = useState<'executive' | 'supervisor'>('executive');
@@ -190,9 +234,10 @@ export default function AttendancePage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      // Fetch attendance + all users (no role filter — avoids mismatch between 'executive' vs 'field_executive')
+      // Fetch attendance + all users
+      const qs = fromDate === toDate ? `date=${fromDate}` : `from_date=${fromDate}&to_date=${toDate}`;
       const [attRes, usersRes] = await Promise.all([
-        api.get<any>(`/api/v1/attendance/team?date=${dateFilter}`),
+        api.get<any>(`/api/v1/attendance/team?${qs}`),
         api.get<any>('/api/v1/users?limit=500'),
       ]);
 
@@ -221,26 +266,29 @@ export default function AttendancePage() {
         return r;
       });
 
-      // Add implicit absent rows for users with no attendance record for this date
-      const coveredIds = new Set(attArr.map((r: any) => r.user_id));
-      const absentRows = usersArr
-        .filter((u: any) => ['executive', 'field_executive', 'field-executive', 'supervisor', 'city_manager'].includes(u.role) && u.is_active && !coveredIds.has(u.id))
-        .map((u: any) => ({
-          id: null,
-          user_id: u.id,
-          date: dateFilter,
-          status: 'absent' as const,
-          checkin_at: null, checkout_at: null, total_hours: null,
-          users: { name: u.name, employee_id: u.employee_id, zones: u.zones, role: u.role },
-          _virtual: true,
-        }));
-
-      setRecords([...attArr, ...absentRows]);
+      // Add implicit absent rows for users with no attendance record ONLY if it's a single date view
+      if (fromDate === toDate) {
+        const coveredIds = new Set(attArr.map((r: any) => r.user_id));
+        const absentRows = usersArr
+          .filter((u: any) => ['executive', 'field_executive', 'field-executive', 'supervisor', 'city_manager'].includes(u.role) && u.is_active && !coveredIds.has(u.id))
+          .map((u: any) => ({
+            id: null,
+            user_id: u.id,
+            date: fromDate,
+            status: 'absent' as const,
+            checkin_at: null, checkout_at: null, total_hours: null,
+            users: { name: u.name, employee_id: u.employee_id, zones: u.zones, role: u.role },
+            _virtual: true,
+          }));
+        setRecords([...attArr, ...absentRows]);
+      } else {
+        setRecords(attArr);
+      }
       setErr('');
     } catch (e: any) {
       setErr(e.message || 'Failed to load attendance');
     } finally { setLoading(false); }
-  }, [dateFilter]);
+  }, [fromDate, toDate]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -285,7 +333,7 @@ export default function AttendancePage() {
         mergeRecord(saved);
       }
       // If the overridden date differs from the current date filter, switch to it so the row is visible
-      if (form.date !== dateFilter) setDate(form.date);
+      if (form.date !== fromDate) setFrom(form.date);
       setShowAdd(false); setForm(BLANK);
     } catch (e: any) { setFErr(e.message || 'Failed to create record'); }
     finally { setSaving(false); }
@@ -811,15 +859,8 @@ export default function AttendancePage() {
           {/* Row 1: date + search + action buttons */}
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
 
-            {/* date picker */}
-            <div style={{ position: 'relative', flexShrink: 0 }}>
-              <svg style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', opacity: .35, pointerEvents: 'none' }}
-                width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
-                <rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
-              </svg>
-              <input type="date" value={dateFilter} onChange={e => setDate(e.target.value)}
-                className="kinp"
-                style={{ ...baseInp, width: 'auto', paddingLeft: 32, borderRadius: 10 }} />
+            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+               <DateRangePicker from={fromDate} to={toDate} onChange={(f,t) => { setFrom(f); setTo(t); }} />
             </div>
 
             {/* search */}
@@ -878,8 +919,8 @@ export default function AttendancePage() {
         <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 18, overflow: 'hidden' }}>
 
           {/* table header */}
-          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.2fr 1fr 1fr 1fr 1fr 80px', gap: 0, padding: '11px 20px', borderBottom: `1px solid ${C.border}`, background: C.s3 }}>
-            {['Executive', 'Status', 'Check-in', 'Check-out', 'Hours', 'Zone', 'Actions'].map(h => (
+          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.2fr 1fr 1fr 1fr 1fr 1fr 80px', gap: 0, padding: '11px 20px', borderBottom: `1px solid ${C.border}`, background: C.s3 }}>
+            {['Executive', 'Status', 'Selfie', 'Check-in', 'Check-out', 'Hours', 'Zone', 'Actions'].map(h => (
               <div key={h} style={{ fontSize: 11, fontWeight: 700, color: C.grayd, letterSpacing: '0.7px', textTransform: 'uppercase' as const }}>{h}</div>
             ))}
           </div>
@@ -888,14 +929,14 @@ export default function AttendancePage() {
             <div style={{ padding: 50, textAlign: 'center', color: C.grayd, fontSize: 14 }}>Loading…</div>
           ) : shown.length === 0 ? (
             <div style={{ padding: 50, textAlign: 'center', color: C.grayd, fontSize: 14 }}>
-              {currentRoleRecords.length === 0 ? `No attendance records for ${fmtDate(dateFilter)}` : 'No results match your filters.'}
+              {currentRoleRecords.length === 0 ? `No attendance records for ${fmtDate(fromDate)}` : 'No results match your filters.'}
             </div>
           ) : (
             shown.map((r, i) => {
               const sm = statusMeta[r.status] || statusMeta.absent;
               return (
-                <div key={r.id} className="kcard" onClick={() => setDetail(r)}
-                  style={{ display: 'grid', gridTemplateColumns: '2fr 1.2fr 1fr 1fr 1fr 1fr 80px', gap: 0, padding: '13px 20px', borderBottom: i < shown.length - 1 ? `1px solid ${C.border}` : 'none', cursor: 'pointer', alignItems: 'center', background: C.s2 }}>
+                <div key={r.id || `${r.user_id}_${r.date}`} className="kcard" onClick={() => setDetail(r)}
+                  style={{ display: 'grid', gridTemplateColumns: '2fr 1.2fr 1fr 1fr 1fr 1fr 1fr 80px', gap: 0, padding: '13px 20px', borderBottom: i < shown.length - 1 ? `1px solid ${C.border}` : 'none', cursor: 'pointer', alignItems: 'center', background: C.s2 }}>
 
                   {/* name */}
                   <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
@@ -913,6 +954,16 @@ export default function AttendancePage() {
                     <span style={{ width: 6, height: 6, borderRadius: '50%', background: sm.color, flexShrink: 0 }} />
                     {sm.label}
                   </span>
+
+                  {/* selfie preview */}
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    {r.checkin_selfie_url ? (
+                      <img src={r.checkin_selfie_url} alt="In" style={{ width: 28, height: 28, borderRadius: 6, objectFit: 'cover', border: `1px solid ${C.green}40` }} />
+                    ) : <div style={{ width: 28, height: 28, borderRadius: 6, background: C.s3, border: `1px solid ${C.border}` }} />}
+                    {r.checkout_selfie_url ? (
+                      <img src={r.checkout_selfie_url} alt="Out" style={{ width: 28, height: 28, borderRadius: 6, objectFit: 'cover', border: `1px solid ${C.blue}40` }} />
+                    ) : null}
+                  </div>
 
                   {/* check-in */}
                   <div style={{ fontSize: 13, color: r.checkin_at ? C.white : C.grayd }}>{fmt(r.checkin_at)}</div>
@@ -953,7 +1004,7 @@ export default function AttendancePage() {
         {/* row count */}
         {!loading && shown.length > 0 && (
           <div style={{ fontSize: 12, color: C.grayd, textAlign: 'right' }}>
-            Showing {shown.length} of {currentRoleRecords.length} records for {fmtDate(dateFilter)}
+            Showing {shown.length} of {currentRoleRecords.length} records for {fromDate === toDate ? fmtDate(fromDate) : `${fmtDate(fromDate)} - ${fmtDate(toDate)}`}
           </div>
         )}
       </div>
@@ -1241,3 +1292,5 @@ export default function AttendancePage() {
     </>
   );
 }
+
+

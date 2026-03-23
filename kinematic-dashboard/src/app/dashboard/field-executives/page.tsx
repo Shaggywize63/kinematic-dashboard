@@ -23,7 +23,7 @@ interface FieldExecutive {
   supervisor_id?: string; supervisors?: { name: string };
   city_manager_id?: string;
   created_at: string;
-  is_checked_in?: boolean; today_cc?: number; today_ecc?: number; hours_worked?: number;
+  is_checked_in?: boolean; today_engagements?: number; today_tff?: number; hours_worked?: number;
 }
 interface FormData {
   name: string; mobile: string; password: string; employee_id: string;
@@ -376,7 +376,7 @@ export default function FieldExecutivesPage() {
                   <span style={{fontSize:10,fontWeight:700,padding:'3px 8px',borderRadius:20,flexShrink:0,background:fe.is_checked_in?'rgba(0,217,126,0.12)':!fe.is_active?'rgba(122,139,160,0.1)':'rgba(224,30,44,0.1)',color:fe.is_checked_in?C.green:!fe.is_active?C.gray:C.red}}>{fe.is_checked_in?'● Active':!fe.is_active?'Inactive':'Absent'}</span>
                 </div>
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:7,marginBottom:12}}>
-                  {[{l:'TFF Today',v:fe.today_ecc??'—',c:C.green},{l:'Hours',v:fe.hours_worked!=null?`${fe.hours_worked.toFixed(1)}h`:'—',c:C.yellow}].map(s=>(
+                  {[{l:'TFF Today',v:fe.today_tff??'—',c:C.green},{l:'Hours',v:fe.hours_worked!=null?`${fe.hours_worked.toFixed(1)}h`:'—',c:C.yellow}].map(s=>(
                     <div key={s.l} style={{background:C.s3,borderRadius:9,padding:'8px 0',textAlign:'center'}}>
                       <div style={{fontFamily:"'Syne',sans-serif",fontSize:17,fontWeight:800,color:s.c}}>{s.v}</div>
                       <div style={{fontSize:10,color:C.grayd,marginTop:1}}>{s.l}</div>
@@ -617,7 +617,7 @@ export default function FieldExecutivesPage() {
               ))}
             </div>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:9,marginBottom:22}}>
-              {[{l:'TFF Today',v:selected.today_ecc??'—',c:C.green},{l:'Hours Today',v:selected.hours_worked!=null?`${selected.hours_worked.toFixed(1)}h`:'—',c:C.yellow}].map(s=>(
+              {[{l:'TFF Today',v:selected.today_tff??'—',c:C.green},{l:'Hours Today',v:selected.hours_worked!=null?`${selected.hours_worked.toFixed(1)}h`:'—',c:C.yellow}].map(s=>(
                 <div key={s.l} style={{background:C.s4,border:`1px solid ${C.border}`,borderRadius:13,padding:'14px 0',textAlign:'center'}}>
                   <div style={{fontFamily:"'Syne',sans-serif",fontSize:24,fontWeight:800,color:s.c}}>{s.v}</div>
                   <div style={{fontSize:10,color:C.grayd,marginTop:3}}>{s.l}</div>

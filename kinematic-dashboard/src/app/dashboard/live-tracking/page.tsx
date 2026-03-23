@@ -23,7 +23,7 @@ interface FELoc {
   lat: number|null; lng: number|null;
   checkin_at?: string; checkout_at?: string;
   total_hours?: number; address?: string;
-  today_cc?: number; today_ecc?: number;
+  today_engagements?: number; today_tff?: number;
 }
 interface Outlet {
   id: string; name: string; store_type?: string;
@@ -115,7 +115,7 @@ function LiveMap({
         const c = STATUS_COLOR[fe.status] || C.grayd;
         const sel = selectedId === fe.id;
         const html = `<div style="width:32px;height:32px;border-radius:50%;background:${c};border:${sel?'3px solid #fff':'2px solid #0E1420'};display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;color:#000;box-shadow:0 2px 12px rgba(0,0,0,.6);${sel?'transform:scale(1.2)':''}">${fe.name[0]}</div>`;
-        const popup = popupHtml(fe.name, fe.role, c, fe.status, fe.zone_name, fe.checkin_at, fe.today_cc, fe.today_ecc);
+        const popup = popupHtml(fe.name, fe.role, c, fe.status, fe.zone_name, fe.checkin_at, fe.today_engagements, fe.today_tff);
         addMarker(fe.lat!, fe.lng!, html, popup, fe.id, 'fe');
       });
     }
@@ -157,12 +157,12 @@ function LiveMap({
 
   }, [mapLoaded, fes, supervisors, outlets, warehouses, activeLayers, selectedId, onSelect]);
 
-  const popupHtml = (name:string, role:string, color:string, status:string, zone?:string, checkinAt?:string, cc?:number, ecc?:number) =>
+  const popupHtml = (name:string, role:string, color:string, status:string, zone?:string, checkinAt?:string, engagements?:number, tff?:number) =>
     `<div style="font-family:DM Sans,sans-serif;font-size:12px;color:#E8EDF8;background:#0E1420;padding:10px 12px;border-radius:8px;min-width:160px">
       <div style="font-weight:700;margin-bottom:2px">${name}</div>
       <div style="color:#7A8BA0;font-size:11px;margin-bottom:6px">${role}${zone?` · ${zone}`:''}</div>
       <div style="display:inline-flex;padding:2px 8px;border-radius:20px;background:${color}20;color:${color};font-size:10px;font-weight:700;text-transform:capitalize">${status.replace('_',' ')}</div>
-      ${ecc!=null?`<div style="color:#7A8BA0;font-size:10px;margin-top:2px">TFF (Total forms filled): ${ecc||0}</div>`:''}
+      ${tff!=null?`<div style="color:#7A8BA0;font-size:10px;margin-top:2px">TFF (Total forms filled): ${tff||0}</div>`:''}
     </div>`;
 
   return (
@@ -610,7 +610,7 @@ export default function LiveTrackingPage() {
                     {[
                       { l:'Status',    v: selFE.status.replace('_',' '), c: STATUS_COLOR[selFE.status]||C.gray },
                       { l:'Check-in',  v: selFE.checkin_at ? new Date(selFE.checkin_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : '—', c: C.white },
-                      { l:'TFF Today', v: String(selFE.today_ecc ?? '—'), c: C.green },
+                      { l:'TFF Today', v: String(selFE.today_tff ?? '—'), c: C.green },
                     ].map((s,i) => (
                       <div key={i} style={{ textAlign:'center' }}>
                         <div style={{ fontFamily:"'Syne',sans-serif", fontSize:16, fontWeight:800, color:s.c, textTransform:'capitalize' }}>{s.v}</div>

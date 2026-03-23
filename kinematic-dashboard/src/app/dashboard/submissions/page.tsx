@@ -37,8 +37,8 @@ export default function SubmissionsPage() {
     setLoading(true);
     try {
       const params: Record<string, string> = { page: String(page), limit: String(limit) };
-      if (filter === 'ecc') params.is_ecc = 'true';
-      if (filter === 'non_ecc') params.is_ecc = 'false';
+      if (filter === 'tff') params.is_tff = 'true';
+      if (filter === 'non_tff') params.is_tff = 'false';
       // FIXED: correct endpoint is /api/v1/builder/forms/admin/submissions
       const qs = new URLSearchParams(params).toString();
       const res = await api.get<PaginatedResult>(`/api/v1/builder/forms/admin/submissions?${qs}`);
@@ -55,8 +55,8 @@ export default function SubmissionsPage() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  const ecc = submissions.filter(s => s.is_converted).length;
-  const nonEcc = submissions.filter(s => !s.is_converted).length;
+  const tffCount = submissions.filter(s => s.is_converted).length;
+  const nonTff = submissions.filter(s => !s.is_converted).length;
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
@@ -81,8 +81,8 @@ export default function SubmissionsPage() {
       <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:14 }}>
         {[
           { l:'Total Submissions', v:total, c:C.blue },
-          { l:'Effective (TFF)', v:ecc, c:C.green },
-          { l:'Non-TFF', v:nonEcc, c:C.gray },
+          { l:'Effective (TFF)', v:tffCount, c:C.green },
+          { l:'Non-TFF', v:nonTff, c:C.gray },
         ].map((s, i) => (
           <div key={i} style={{ background:'#0E1420', border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
             <div style={{ fontFamily:"'Syne',sans-serif", fontSize:30, fontWeight:800, color:s.c }}>{s.v}</div>
@@ -95,7 +95,7 @@ export default function SubmissionsPage() {
       <div style={{ background:'#0E1420', border:`1px solid ${C.border}`, borderRadius:16, overflow:'hidden' }}>
         {/* Filters */}
         <div style={{ padding:'14px 18px', borderBottom:`1px solid ${C.border}`, display:'flex', gap:8 }}>
-          {[['all','All'],['ecc','TFF Only'],['non_ecc','Non-TFF']].map(([f, l]) => (
+          {[['all','All'],['tff','TFF Only'],['non_tff','Non-TFF']].map(([f, l]) => (
             <button key={f} onClick={() => { setFilter(f); setPage(1); }}
               style={{ padding:'7px 14px', borderRadius:9, border:'1px solid', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", transition:'all 0.15s',
                 background: filter===f ? C.red : C.s2, borderColor: filter===f ? C.red : C.border, color: filter===f ? '#fff' : C.gray }}>

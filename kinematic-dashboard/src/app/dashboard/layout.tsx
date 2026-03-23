@@ -115,7 +115,7 @@ function KinematicAI({ token }: { token: string }) {
     const week = live.week||{};
     const summ = live.summ||{};
     const fes  = locs.filter((l:any)=>l.status==='active');
-    return `You are Kinematic AI — operations assistant for Kinematic field force platform by Hindustan Field Co.\nToday: ${today}\n\n## LIVE DATA\n### Attendance\n- Total FEs: ${att.total??'unknown'}\n- Present: ${att.present??'unknown'}\n- On Break: ${att.on_break??'unknown'}\n- Checked Out: ${att.checked_out??'unknown'}\n- Absent: ${att.absent??'unknown'}\n\n### Active FEs Now\n${fes.length>0?fes.map((f:any)=>`- ${f.name} · ${f.zone_name||'—'} · ${f.status}`).join('\n'):'- None active'}\n\n### Today Performance\n- TFF: ${summ.total_conversions??0}\n\n### This Week\n- TFF: ${week.total_ecc??0}\n- ${(week.days||[]).map((d:any)=>`${d.short_label}: TFF=${d.ecc}`).join(', ')||'No data'}\n\nBe concise, data-driven, use **bold** for numbers. Generate structured reports when asked. Don't make up data.`;
+    return `You are Kinematic AI — operations assistant for Kinematic field force platform by Hindustan Field Co.\nToday: ${today}\n\n## LIVE DATA\n### Attendance\n- Total FEs: ${att.total??'unknown'}\n- Present: ${att.present??'unknown'}\n- On Break: ${att.on_break??'unknown'}\n- Checked Out: ${att.checked_out??'unknown'}\n- Absent: ${att.absent??'unknown'}\n\n### Active FEs Now\n${fes.length>0?fes.map((f:any)=>`- ${f.name} · ${f.zone_name||'—'} · ${f.status}`).join('\n'):'- None active'}\n\n### Today Performance\n- TFF: ${summ.total_tff??0}\n\n### This Week\n- TFF: ${week.total_tff??0}\n- ${(week.days||[]).map((d:any)=>`${d.short_label}: TFF=${d.tff}`).join(', ')||'No data'}\n\nBe concise, data-driven, use **bold** for numbers. Generate structured reports when asked. Don't make up data.`;
   };
 
   const send = async (text?: string) => {
@@ -206,7 +206,7 @@ function KinematicAI({ token }: { token: string }) {
                     <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6,marginTop:10}}>
                       {[
                         {l:'Present',  v:live.att?.summary?.present??'—',  c:C.green},
-                        {l:'TFF Today',v:live.summ?.total_conversions??'—', c:'#FFB800'},
+                        {l:'TFF Today',v:live.summ?.total_tff??'—', c:'#FFB800'},
                       ].map((s,i)=>(
                         <div key={i} style={{background:C.s3,borderRadius:9,padding:'7px 5px',textAlign:'center'}}>
                           <div style={{fontFamily:"'Syne',sans-serif",fontSize:18,fontWeight:800,color:s.c}}>{s.v}</div>
