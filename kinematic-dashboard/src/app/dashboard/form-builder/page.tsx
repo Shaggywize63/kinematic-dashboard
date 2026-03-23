@@ -389,7 +389,7 @@ function PropertiesPanel({ q, onChange, onDelete }:{ q:BQuestion; onChange:(q:BQ
             <option value="user.employee_id">Employee ID</option>
             <option value="outlet.name">Outlet Name</option>
             <option value="supervisor.name">Supervisor Name</option>
-            <option value="meta.date">Today's Date</option>
+            <option value="meta.date">Today&apos;s Date</option>
             <option value="meta.location">Current Location</option>
           </select>
         </div>

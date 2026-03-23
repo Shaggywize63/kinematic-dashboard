@@ -131,8 +131,8 @@ export default function WorkActivitiesPage() {
   const loadSV = useCallback(async (page = 1) => {
     setSvLoading(true);
     setErr('');
+    const qs = buildParams(page);
     try {
-      const qs = buildParams(page);
       const r = await api.get<any>(`/api/v1/visits?${qs}`);
       const d = r as any;
       const rows = d.data || d.visits || (Array.isArray(d) ? d : []);
@@ -161,7 +161,7 @@ export default function WorkActivitiesPage() {
   useEffect(() => {
     if (tab === 'fe') loadFE(1);
     else loadSV(1);
-  }, [tab, search, userFilter, cityFilter, zoneFilter, dateFrom, dateTo]);
+  }, [tab, loadFE, loadSV]);
 
   /* ── Filtered users for dropdown ── */
   const feUsers = users.filter(u => ['executive', 'field_executive', 'field-executive'].includes(u.role));

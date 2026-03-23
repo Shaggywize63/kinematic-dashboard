@@ -129,6 +129,13 @@ export default function ActivityManagement() {
                   {a.icon||'⚡'}
                 </div>
                 <div style={{display:'flex',gap:6}}>
+                  <button onClick={() => window.location.href = `/dashboard/route-plan?tab=mapping&activity_id=${a.id}`} 
+                    style={{width:28,height:28,border:`1px solid ${C.border}`,borderRadius:8,background:'transparent',cursor:'pointer',color:C.purple,display:'flex',alignItems:'center',justifyContent:'center'}}
+                    title="Map FEs to this activity"
+                    onMouseEnter={e=>{e.currentTarget.style.borderColor=C.purple;e.currentTarget.style.background=`${C.purple}10`;}}
+                    onMouseLeave={e=>{e.currentTarget.style.borderColor=C.border;e.currentTarget.style.background='transparent';}}>
+                    <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+                  </button>
                   <button onClick={()=>openEdit(a)} style={{width:28,height:28,border:`1px solid ${C.border}`,borderRadius:8,background:'transparent',cursor:'pointer',color:C.gray,display:'flex',alignItems:'center',justifyContent:'center'}}
                     onMouseEnter={e=>{e.currentTarget.style.borderColor=C.blue;e.currentTarget.style.color=C.blue;}}
                     onMouseLeave={e=>{e.currentTarget.style.borderColor=C.border;e.currentTarget.style.color=C.gray;}}>

@@ -270,7 +270,7 @@ export default function WarehousePage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selWh]);
 
   useEffect(() => { loadSummary(); }, [loadSummary]);
 

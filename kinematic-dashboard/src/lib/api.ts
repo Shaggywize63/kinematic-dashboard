@@ -29,19 +29,19 @@ class ApiClient {
     return data;
   }
 
-  get<T>(path: string) { return this.request<T>(path); }
-  post<T>(path: string, body: unknown) {
-    return this.request<T>(path, { method: 'POST', body: JSON.stringify(body) });
+  get<T>(path: string, options: RequestInit = {}) { return this.request<T>(path, options); }
+  post<T>(path: string, body: unknown, options: RequestInit = {}) {
+    return this.request<T>(path, { ...options, method: 'POST', body: JSON.stringify(body) });
   }
-  put<T>(path: string, body: unknown) {
-    return this.request<T>(path, { method: 'PUT', body: JSON.stringify(body) });
+  put<T>(path: string, body: unknown, options: RequestInit = {}) {
+    return this.request<T>(path, { ...options, method: 'PUT', body: JSON.stringify(body) });
   }
   // ADDED: PATCH method (needed for grievances and other updates)
-  patch<T>(path: string, body: unknown) {
-    return this.request<T>(path, { method: 'PATCH', body: JSON.stringify(body) });
+  patch<T>(path: string, body: unknown, options: RequestInit = {}) {
+    return this.request<T>(path, { ...options, method: 'PATCH', body: JSON.stringify(body) });
   }
-  delete<T>(path: string) {
-    return this.request<T>(path, { method: 'DELETE' });
+  delete<T>(path: string, options: RequestInit = {}) {
+    return this.request<T>(path, { ...options, method: 'DELETE' });
   }
 
   // ── Auth ──────────────────────────────────────────────────────────────────

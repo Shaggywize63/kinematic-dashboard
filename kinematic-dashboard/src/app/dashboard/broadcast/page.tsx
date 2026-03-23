@@ -115,7 +115,7 @@ export default function BroadcastPage() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [closingId, setClosingId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [allCities, setAllCities] = useState<string[]>([]);
+  const [allCities, setAllCities] = useState<City[]>([]);
   const [allZones, setAllZones] = useState<Zone[]>([]);
 
   const load = useCallback(async () => {
@@ -130,7 +130,7 @@ export default function BroadcastPage() {
       setQuestions(Array.isArray(bRes) ? bRes : (bRes as any)?.data ?? []);
       
       const citiesArr = Array.isArray(cRes) ? cRes : (cRes as any)?.data ?? [];
-      setAllCities(citiesArr.map((c: any) => c.name));
+      setAllCities(citiesArr);
       
       const zonesArr = Array.isArray(zRes) ? zRes : (zRes as any)?.data ?? [];
       setAllZones(zonesArr);
@@ -211,11 +211,11 @@ export default function BroadcastPage() {
     }));
   };
 
-  const toggleCity = (city: string) => {
+  const toggleCity = (cityName: string) => {
     setForm(p => {
-      const next = p.target_cities.includes(city)
-        ? p.target_cities.filter(c => c !== city)
-        : [...p.target_cities, city];
+      const next = p.target_cities.includes(cityName)
+        ? p.target_cities.filter(c => c !== cityName)
+        : [...p.target_cities, cityName];
       return { ...p, target_cities: next, target_zone_ids: [] }; // Reset zones when city changes
     });
   };
@@ -390,7 +390,7 @@ export default function BroadcastPage() {
               </label>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {allCities.map(city => (
-                  <TogglePill key={city} label={city} active={form.target_cities.includes(city)} onClick={() => toggleCity(city)} color={C.yellow} />
+                  <TogglePill key={city.id} label={city.name} active={form.target_cities.includes(city.name)} onClick={() => toggleCity(city.name)} color={C.yellow} />
                 ))}
                 {allCities.length === 0 && <div style={{ fontSize:12, color:C.gray }}>No cities found</div>}
               </div>

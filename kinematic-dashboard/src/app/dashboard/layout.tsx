@@ -86,12 +86,13 @@ function KinematicAI({ token }: { token: string }) {
   const fetchLive = useCallback(async () => {
     setReady(false);
     try {
+      const hdrs = { Authorization:`Bearer ${token}` };
       const today = new Date().toISOString().split('T')[0];
       const [a,l,w,s] = await Promise.allSettled([
-        api.get<any>('/api/v1/analytics/attendance-today',{headers}),
-        api.get<any>('/api/v1/analytics/live-locations',  {headers}),
-        api.get<any>('/api/v1/analytics/weekly-contacts', {headers}),
-        api.get<any>(`/api/v1/analytics/summary?date=${today}`,{headers}),
+        api.get<any>('/api/v1/analytics/attendance-today',{headers:hdrs}),
+        api.get<any>('/api/v1/analytics/live-locations',  {headers:hdrs}),
+        api.get<any>('/api/v1/analytics/weekly-contacts', {headers:hdrs}),
+        api.get<any>(`/api/v1/analytics/summary?date=${today}`,{headers:hdrs}),
       ]);
       const ctx: Record<string,any> = {};
       if(a.status==='fulfilled') ctx.att  = a.value?.data??a.value;
@@ -103,7 +104,7 @@ function KinematicAI({ token }: { token: string }) {
     setReady(true);
   },[token]);
 
-  useEffect(()=>{ if(open&&!ready) fetchLive(); },[open]);
+  useEffect(()=>{ if(open&&!ready) fetchLive(); },[open, ready, fetchLive]);
   useEffect(()=>{ endRef.current?.scrollIntoView({behavior:'smooth'}); },[msgs]);
   useEffect(()=>{ if(open) setTimeout(()=>taRef.current?.focus(),120); },[open]);
 

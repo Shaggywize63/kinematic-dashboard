@@ -1,5 +1,6 @@
 'use client';
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 
 /* ── COLOURS ─────────────────────────────────────────────── */
@@ -139,6 +140,14 @@ const Badge = ({ label, color }: { label: string; color: string }) => (
 
 /* ── MAIN PAGE ─────────────────────────────────────────────── */
 export default function RoutePlanPage() {
+  return (
+    <Suspense fallback={<Spinner />}>
+      <RoutePlanContent />
+    </Suspense>
+  );
+}
+
+function RoutePlanContent() {
   const todayStr = new Date().toISOString().split('T')[0];
 
   const [date, setDate]         = useState(todayStr);
@@ -150,7 +159,12 @@ export default function RoutePlanPage() {
   const [search, setSearch]     = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | PlanStatus>('all');
   const [zoneFilter, setZoneFilter]     = useState('all');
-  const [tab, setTab]                   = useState<'plans' | 'mapping'>('plans');
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const initialTab = searchParams.get('tab') === 'mapping' ? 'mapping' : 'plans';
+  const initialActivity = searchParams.get('activity_id') || '';
+
+  const [tab, setTab]                   = useState<'plans' | 'mapping'>(initialTab);
 
   // Modal state
   const [modal, setModal]   = useState<'create' | 'import' | null>(null);
@@ -205,7 +219,7 @@ export default function RoutePlanPage() {
     const [storesRes, usersRes, actRes] = await Promise.allSettled([
       api.get('/api/v1/stores') as Promise<any>,
       api.get('/api/v1/users?role=executive&limit=500') as Promise<any>,
-      api.get('/api/v1/activity-mapping/activities') as Promise<any>,
+      api.get('/api/v1/activities') as Promise<any>,
     ]);
     if (storesRes.status === 'fulfilled') {
       const r = storesRes.value;
@@ -233,6 +247,12 @@ export default function RoutePlanPage() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
   useEffect(() => { fetchFormData(); }, [fetchFormData]);
+
+  useEffect(() => {
+    const t = searchParams.get('tab');
+    if (t === 'mapping') setTab('mapping');
+    else if (t === 'plans') setTab('plans');
+  }, [searchParams]);
 
   /* ── DERIVED ─────────────────────────────────────────────── */
   const zones = ['all', ...Array.from(new Set(plans.map(p => p.zone_name).filter(Boolean))) as string[]];
@@ -428,10 +448,12 @@ export default function RoutePlanPage() {
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: 22, fontWeight: 800, margin: 0, color: C.white }}>
-            Route Plan
+            {tab === 'plans' ? 'Route Plan' : 'Activity-FE Mapping'}
           </h2>
           <p style={{ fontSize: 13, color: C.gray, marginTop: 4, marginBottom: 0 }}>
-            Manage daily outlet assignments — track visits, targets and completion in real-time
+            {tab === 'plans' 
+              ? 'Manage daily outlet assignments — track visits, targets and completion in real-time'
+              : 'Assign Field Executives to specific activities to enable route planning.'}
           </p>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -911,9 +933,9 @@ export default function RoutePlanPage() {
                 </div>
                 <div style={{ fontFamily: 'monospace', fontSize: 11, color: C.gray, lineHeight: 1.7 }}>
                   fe_employee_id, store_code, activity_name, target_type, target_notes, target_value, visit_order<br />
-                  FE-001, ST-101, Merchandising, order_collection, "Take full order", 5000, 1<br />
+                  FE-001, ST-101, Merchandising, order_collection, &quot;Take full order&quot;, 5000, 1<br />
                   FE-001, ST-102, Stock Check, stock_check, , , 2<br />
-                  FE-002, ST-201, Merchandising, merchandising, "Shelf display", , 1
+                  FE-002, ST-201, Merchandising, merchandising, &quot;Shelf display&quot;, , 1
                 </div>
               </div>
 
@@ -1006,8 +1028,14 @@ export default function RoutePlanPage() {
 }
 
 function MappingView({ users, activities, mapping, onRefresh }: { users: FEUser[], activities: Activity[], mapping: Record<string, string[]>, onRefresh: () => void }) {
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
-  const [selectedActivity, setSelectedActivity] = useState<string>('');
+  const [selectedActivity, setSelectedActivity] = useState<string>(searchParams.get('activity_id') || '');
+
+  useEffect(() => {
+    const aid = searchParams.get('activity_id');
+    if (aid) setSelectedActivity(aid);
+  }, [searchParams]);
 
   const toggleMap = async (userId: string, active: boolean) => {
     if (!selectedActivity) return;

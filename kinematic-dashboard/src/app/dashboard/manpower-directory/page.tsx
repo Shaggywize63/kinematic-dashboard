@@ -464,8 +464,7 @@ export default function ManpowerDirectoryPage() {
                 </select>
               </Field>
               <div style={{gridColumn:'1/-1'}}><Field label="Mobile Number"><input className="kinp" style={inp} placeholder="10-digit mobile (optional)" value={form.mobile} onChange={e=>setF('mobile',e.target.value)} maxLength={10}/></Field></div>
-              <div style={{gridColumn:'1/-1'}}><Field label="Login Password"><input className="kinp" style={inp} type="password" placeholder="System login password" value={form.password} onChange={e=>setF('password',e.target.value)}/></Field></div>
-              <div style={{gridColumn:'1/-1'}}><Field label="App Password"><input className="kinp" style={inp} type="text" placeholder="Password for mobile app" value={form.app_password} onChange={e=>setF('app_password',e.target.value)}/></Field></div>
+              <div style={{gridColumn:'1/-1'}}><Field label="Login Password" required><input className="kinp" style={inp} type="text" placeholder="Enter password for app/web login" value={form.password} onChange={e=>{setF('password',e.target.value); setF('app_password',e.target.value);}}/></Field></div>
               <Field label="City">
                 <CitySelect value={form.city} onChange={(v, c) => setF('city', v)} placeholder="e.g. Mumbai" />
               </Field>
@@ -529,7 +528,7 @@ export default function ManpowerDirectoryPage() {
                   </select>
                 </Field>
               )}
-              <div style={{gridColumn:'1/-1'}}><Field label="App Password"><input className="kinp" style={inp} type="text" placeholder="Mobile app password" value={form.app_password} onChange={e=>setF('app_password',e.target.value)}/></Field></div>
+              <div style={{gridColumn:'1/-1'}}><Field label="Login Password"><input className="kinp" style={inp} type="text" placeholder="Mobile app/web password" value={form.app_password} onChange={e=>{setF('app_password',e.target.value); setF('password', e.target.value);}}/></Field></div>
             </div>
             <div style={{display:'flex',gap:10,marginTop:10}}>
               <button onClick={()=>setShowEdit(false)} style={{flex:1,padding:'11px',background:C.s3,border:`1px solid ${C.border}`,color:C.gray,borderRadius:11,fontSize:13,fontWeight:600}}>Cancel</button>

@@ -50,7 +50,7 @@ interface AttendanceRecord {
   override_by?: string;
   is_regularised?: boolean;
   _virtual?: boolean;
-  users?: { name: string; employee_id?: string; zones?: { name: string } };
+  users?: { name: string; role?: string; employee_id?: string; zones?: { name: string } };
 }
 
 interface FormData {
@@ -733,7 +733,7 @@ export default function AttendancePage() {
         placeholder="Why is this being set manually? (optional)"
         value={form.override_reason} onChange={e => setF('override_reason', e.target.value)} />
       <div style={{ fontSize: 11, color: C.grayd, marginBottom: 16 }}>
-        If left blank, "Manual override by admin" will be recorded.
+        If left blank, &quot;Manual override by admin&quot; will be recorded.
       </div>
     </>
   );
@@ -1147,7 +1147,7 @@ export default function AttendancePage() {
             </div>
             <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 18, fontWeight: 800, marginBottom: 8 }}>Mark as Absent?</div>
             <div style={{ fontSize: 13, color: C.gray, lineHeight: 1.6, marginBottom: 22 }}>
-              This will override <span style={{ color: C.white, fontWeight: 600 }}>{delRec.users?.name}</span>'s attendance for {fmtDate(delRec.date)} to <span style={{ color: C.red, fontWeight: 600 }}>Absent</span>.
+              This will override <span style={{ color: C.white, fontWeight: 600 }}>{delRec.users?.name}</span>&apos;s attendance for {fmtDate(delRec.date)} to <span style={{ color: C.red, fontWeight: 600 }}>Absent</span>.
             </div>
             <div style={{ display: 'flex', gap: 10 }}>
               <button className="kbtn" onClick={() => setDelRec(null)}
@@ -1194,8 +1194,8 @@ export default function AttendancePage() {
               </div>
             </div>
 
-            {/* what's included */}
-            <div style={{ fontSize: 11, fontWeight: 700, color: C.gray, letterSpacing: '0.8px', textTransform: 'uppercase' as const, marginBottom: 10 }}>What's Included (5 sheets)</div>
+            {/* what&apos;s included */}
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.gray, letterSpacing: '0.8px', textTransform: 'uppercase' as const, marginBottom: 10 }}>What&apos;s Included (5 sheets)</div>
             <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 8, marginBottom: 20 }}>
               {[
                 { icon: '📊', title: 'Summary',      desc: 'Per-executive: total days, present, half days, hours worked' },
@@ -1217,7 +1217,7 @@ export default function AttendancePage() {
             {/* midnight crossover note */}
             <div style={{ background: 'rgba(255,184,0,0.07)', border: `1px solid rgba(255,184,0,0.2)`, borderRadius: 12, padding: '12px 15px', marginBottom: 20, fontSize: 12, color: C.yellow, lineHeight: 1.7 }}>
               <div style={{ fontWeight: 700, marginBottom: 4 }}>⚠ Midnight Crossover Handling</div>
-              If checkout is earlier than check-in on the same record (e.g. in at <strong>9 PM</strong>, out at <strong>2 AM</strong>), the system adds <strong>+24 hours</strong> to the checkout before calculating duration. These records are flagged <em>"YES — checkout next day"</em> in the Day Detail sheet. Capped at 24h to guard bad data.
+              If checkout is earlier than check-in on the same record (e.g. in at <strong>9 PM</strong>, out at <strong>2 AM</strong>), the system adds <strong>+24 hours</strong> to the checkout before calculating duration. These records are flagged <em>&quot;YES — checkout next day&quot;</em> in the Day Detail sheet. Capped at 24h to guard bad data.
               <div style={{ marginTop: 6, fontWeight: 600 }}>Half Day rule: any shift under 4 hours is auto-classified as Half Day.</div>
             </div>
 

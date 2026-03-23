@@ -155,7 +155,7 @@ function LiveMap({
       mapInst.current.fitBounds(group.getBounds().pad(0.15));
     }
 
-  }, [mapLoaded, fes, supervisors, outlets, warehouses, activeLayers, selectedId]);
+  }, [mapLoaded, fes, supervisors, outlets, warehouses, activeLayers, selectedId, onSelect]);
 
   const popupHtml = (name:string, role:string, color:string, status:string, zone?:string, checkinAt?:string, cc?:number, ecc?:number) =>
     `<div style="font-family:DM Sans,sans-serif;font-size:12px;color:#E8EDF8;background:#0E1420;padding:10px 12px;border-radius:8px;min-width:160px">
@@ -222,11 +222,12 @@ export default function LiveTrackingPage() {
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
+      const hdrs = { Authorization: `Bearer ${token}` };
       const [locRes, outletRes, whRes, zoneRes] = await Promise.allSettled([
-        api.get<any>('/api/v1/analytics/live-locations', { headers }),
-        api.get<any>('/api/v1/stores?limit=500',         { headers }),
-        api.get<any>('/api/v1/warehouses',               { headers }),
-        api.get<any>('/api/v1/zones',                    { headers }),
+        api.get<any>('/api/v1/analytics/live-locations', { headers: hdrs }),
+        api.get<any>('/api/v1/stores?limit=500',         { headers: hdrs }),
+        api.get<any>('/api/v1/warehouses',               { headers: hdrs }),
+        api.get<any>('/api/v1/zones',                    { headers: hdrs }),
       ]);
 
       if (locRes.status === 'fulfilled') {
