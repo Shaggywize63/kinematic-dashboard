@@ -113,16 +113,8 @@ function FormList({ onOpen, onCreate }:{ onOpen:(f:BForm)=>void; onCreate:()=>vo
 
   useEffect(() => { load(); }, [load]);
 
-  const del = async (id:string, e:React.MouseEvent) => {
-    e.stopPropagation();
-    if (!confirm('Delete this form?')) return;
-    try {
-      await apiFetch(`/api/v1/builder/forms/${id}`, { method:'DELETE' });
-      load();
-    } catch (err: any) {
-      alert('Delete failed: ' + err.message);
-    }
-  };
+  // Original del function logic removed in favor of `showDeleteModal` and `confirmDelete`
+
 
   const duplicate = async (f:BForm, e:React.MouseEvent) => {
     e.stopPropagation();
@@ -136,6 +128,28 @@ function FormList({ onOpen, onCreate }:{ onOpen:(f:BForm)=>void; onCreate:()=>vo
   );
 
   const stats = { total:forms.length, published:forms.filter(f=>f.status==='published').length, draft:forms.filter(f=>f.status==='draft').length };
+
+  const [deleteForm, setDeleteForm] = useState<BForm | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const confirmDelete = async () => {
+    if (!deleteForm) return;
+    setDeleting(true);
+    try {
+      await apiFetch(`/api/v1/builder/forms/${deleteForm.id}`, { method:'DELETE' });
+      setDeleteForm(null);
+      load();
+    } catch (err: any) {
+      alert('Delete failed: ' + err.message);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const showDeleteModal = (f:BForm, e:React.MouseEvent) => {
+    e.stopPropagation();
+    setDeleteForm(f);
+  };
 
   return (
     <div style={{ padding:'28px 32px', overflowY:'auto', flex:1 }}>
@@ -208,13 +222,37 @@ function FormList({ onOpen, onCreate }:{ onOpen:(f:BForm)=>void; onCreate:()=>vo
                     ✏️ Edit
                   </button>
                   <button onClick={e => duplicate(f, e)} style={{ padding:'8px 10px', background:C.s3, border:`1px solid ${C.border}`, borderRadius:8, color:C.gray, fontSize:12, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }} title="Duplicate">⧉</button>
-                  <button onClick={e => del(f.id, e)} style={{ padding:'8px 10px', background:C.s3, border:`1px solid ${C.redB}`, borderRadius:8, color:C.red, fontSize:12, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }} title="Delete">🗑</button>
+                  <button onClick={e => showDeleteModal(f, e)} style={{ padding:'8px 10px', background:C.s3, border:`1px solid ${C.redB}`, borderRadius:8, color:C.red, fontSize:12, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }} title="Delete">🗑</button>
                 </div>
               </div>
             </div>
           ))}
         </div>
       )}
+
+      {deleteForm && (
+        <DeleteFormModal formName={deleteForm.title} onDelete={confirmDelete} onClose={() => setDeleteForm(null)} loading={deleting} />
+      )}
+    </div>
+  );
+}
+
+function DeleteFormModal({ formName, onDelete, onClose, loading }:{ formName:string; onDelete:()=>void; onClose:()=>void; loading:boolean }) {
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.75)', zIndex:300, display:'flex', alignItems:'center', justifyContent:'center' }}>
+      <div style={{ background:C.s2, border:`1px solid ${C.border}`, borderRadius:20, padding:32, width:400, boxShadow:'0 32px 100px rgba(0,0,0,.9)' }}>
+        <div style={{ fontSize:40, textAlign:'center', marginBottom:16 }}>⚠️</div>
+        <div style={{ fontFamily:"'Syne',sans-serif", fontSize:20, fontWeight:800, color:C.white, marginBottom:12, textAlign:'center' }}>Delete Form?</div>
+        <div style={{ fontSize:14, color:C.gray, textAlign:'center', marginBottom:24, lineHeight:1.5 }}>
+          Are you sure you want to delete <strong style={{ color:C.white }}>{formName}</strong>? This will permanently remove all associated pages, questions, and submissions. This action cannot be undone.
+        </div>
+        <div style={{ display:'flex', gap:10 }}>
+          <button onClick={onClose} disabled={loading} style={{ flex:1, padding:'10px', background:C.s3, border:`1px solid ${C.border}`, borderRadius:10, color:C.gray, fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", opacity:loading?0.5:1 }}>Cancel</button>
+          <button onClick={onDelete} disabled={loading} style={{ flex:1, padding:'10px', background:C.red, border:'none', borderRadius:10, color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", opacity:loading?0.6:1, display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
+            {loading?<><Spin size={14}/>Deleting…</>:'Delete'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
