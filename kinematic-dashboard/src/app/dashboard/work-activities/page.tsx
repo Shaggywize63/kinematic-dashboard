@@ -320,7 +320,7 @@ export default function WorkActivitiesPage() {
                         {(a.users?.name?.[0] || '?')}
                       </div>
                       <div>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: C.white }}>{a.users?.name || a.user_id.slice(0, 8)}</div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: C.white }}>{a.users?.name || a.user_id?.slice(0, 8) || '—'}</div>
                         <div style={{ fontSize: 11, color: C.grayd }}>{a.users?.employee_id || ''}</div>
                       </div>
                     </div>
@@ -412,7 +412,7 @@ export default function WorkActivitiesPage() {
                         {(v.users?.name?.[0] || '?')}
                       </div>
                       <div>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: C.white }}>{v.users?.name || v.user_id.slice(0, 8)}</div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: C.white }}>{v.users?.name || v.user_id?.slice(0, 8) || '—'}</div>
                         <div style={{ fontSize: 11, color: C.grayd }}>{v.users?.employee_id || ''}</div>
                       </div>
                     </div>
