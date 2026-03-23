@@ -164,8 +164,8 @@ export default function WorkActivitiesPage() {
   }, [tab, search, userFilter, cityFilter, zoneFilter, dateFrom, dateTo]);
 
   /* ── Filtered users for dropdown ── */
-  const feUsers = users.filter(u => u.role === 'executive' || u.role === 'fe');
-  const svUsers = users.filter(u => u.role === 'supervisor');
+  const feUsers = users.filter(u => ['executive', 'field_executive', 'field-executive'].includes(u.role));
+  const svUsers = users.filter(u => ['supervisor', 'city_manager', 'program_manager'].includes(u.role));
   const dropdownUsers = tab === 'fe' ? feUsers : svUsers;
 
   const filteredZones = cityFilter

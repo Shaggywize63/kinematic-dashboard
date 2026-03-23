@@ -231,8 +231,8 @@ export default function LiveTrackingPage() {
 
       if (locRes.status === 'fulfilled') {
         const locs: FELoc[] = (locRes.value?.data ?? locRes.value)?.locations || (locRes.value?.data ?? locRes.value) || [];
-        setFEs(locs.filter((l:FELoc) => l.role === 'executive' || !l.role));
-        setSupervisors(locs.filter((l:FELoc) => l.role === 'supervisor'));
+        setFEs(locs.filter((l:FELoc) => ['executive', 'field_executive', 'field-executive'].includes(l.role) || !l.role));
+        setSupervisors(locs.filter((l:FELoc) => ['supervisor', 'city_manager', 'program_manager'].includes(l.role)));
       }
       if (outletRes.status === 'fulfilled') {
         const raw = outletRes.value?.data ?? outletRes.value;

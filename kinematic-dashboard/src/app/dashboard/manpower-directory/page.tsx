@@ -167,8 +167,12 @@ export default function ManpowerDirectoryPage() {
         return r?.users || [];
       };
       const all = pick(uR);
-      // Consolidate both Field Executives and Supervisors
-      setStaff(all.filter((u:any)=>u.role==='executive'||u.role==='field_executive'||u.role==='supervisor'));
+      setAllUsers(all);
+      // More inclusive role matching for staff list
+      const staffList = all.filter((u:any) =>
+        ['executive', 'field_executive', 'field-executive', 'supervisor', 'city_manager', 'program_manager'].includes(u.role)
+      );
+      setStaff(staffList);
       setZones(pick(zR));
       setSups(pick(sR));
       setCMs(pick(cR));
@@ -189,7 +193,10 @@ export default function ManpowerDirectoryPage() {
     const q = search.toLowerCase();
     const ms = !q||fe.name?.toLowerCase().includes(q)||(fe.employee_id||'').toLowerCase().includes(q)||(fe.zones?.name||'').toLowerCase().includes(q)||(fe.mobile||'').includes(q);
     const mf = filter==='all'||(filter==='active'&&fe.is_active)||(filter==='inactive'&&!fe.is_active)||(filter==='checked_in'&&fe.is_checked_in);
-    const mr = fRole==='all' || (fRole==='executive' && (fe.role==='executive'||fe.role==='field_executive')) || (fRole==='supervisor' && fe.role==='supervisor');
+    const mr = fRole==='all' 
+      || (fRole==='executive' && (fe.role==='executive'||fe.role==='field_executive'||fe.role==='field-executive')) 
+      || (fRole==='supervisor' && fe.role==='supervisor')
+      || (fRole==='city_manager' && fe.role==='city_manager');
     const mc = !fCity||(fe.zones?.city||fe.city)===fCity;
     const ms2= !fSup||fe.supervisor_id===fSup;
     const mc2= !fCM||fe.city_manager_id===fCM;

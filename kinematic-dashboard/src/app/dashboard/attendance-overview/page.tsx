@@ -224,7 +224,7 @@ export default function AttendancePage() {
       // Add implicit absent rows for users with no attendance record for this date
       const coveredIds = new Set(attArr.map((r: any) => r.user_id));
       const absentRows = usersArr
-        .filter((u: any) => (u.role === 'executive' || u.role === 'supervisor') && u.is_active && !coveredIds.has(u.id))
+        .filter((u: any) => ['executive', 'field_executive', 'field-executive', 'supervisor', 'city_manager'].includes(u.role) && u.is_active && !coveredIds.has(u.id))
         .map((u: any) => ({
           id: null,
           user_id: u.id,
