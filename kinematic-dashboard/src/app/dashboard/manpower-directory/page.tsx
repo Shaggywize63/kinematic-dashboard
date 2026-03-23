@@ -167,7 +167,6 @@ export default function ManpowerDirectoryPage() {
         return r?.users || [];
       };
       const all = pick(uR);
-      setAllUsers(all);
       // More inclusive role matching for staff list
       const staffList = all.filter((u:any) =>
         ['executive', 'field_executive', 'field-executive', 'supervisor', 'city_manager', 'program_manager'].includes(u.role)
