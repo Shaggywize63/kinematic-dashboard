@@ -13,9 +13,11 @@ interface SummaryData {
   total_engagements?: number;
   avg_attendance?: number;
   tff_rate?: number;
+  total_days_worked?: number;
+  total_leaves?: number;
   monthly_data?: Array<{ month: string; tff?: number; engagements?: number }>;
   top_performers?: Array<{ name: string; zone: string; tff?: number; attendance: number }>;
-  zone_breakdown?: Array<{ zone: string; tff?: number; target: number }>;
+  zone_performance?: Array<{ zone: string; tff?: number; target: number }>;
 }
 
 interface ActivityItem {
@@ -215,6 +217,8 @@ export default function AnalyticsPage() {
   const kpis = [
     { l:'Total TFF',      v: (summary?.total_tff)?.toLocaleString() ?? '—', c:C.green  },
     { l:'Avg Attendance', v: summary?.avg_attendance ? `${summary.avg_attendance}%` : '—', c:C.yellow },
+    { l:'Days Worked',    v: summary?.total_days_worked || '—', c:C.blue },
+    { l:'Total Leaves',   v: summary?.total_leaves || '—', c:C.red },
   ];
 
   return (
@@ -356,7 +360,7 @@ export default function AnalyticsPage() {
             <div style={{ padding:24, textAlign:'center', color:C.grayd, fontSize:13 }}>Loading...</div>
           ) : zones.length === 0 ? (
             <div style={{ padding:24, textAlign:'center', color:C.grayd, fontSize:13 }}>No data available</div>
-          ) : zones.map((z, i) => {
+          ) : zones.map((z: any, i: number) => {
             const colors = [C.blue, C.green, C.yellow, C.purple];
             const col = colors[i % colors.length];
             const tffVal = z.tff ?? 0;
