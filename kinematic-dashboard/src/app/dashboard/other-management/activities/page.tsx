@@ -27,7 +27,7 @@ interface Activity {
 }
 const BLANK = { 
   name:'', 
-  type:'gt', 
+  type:'GT', 
   description:'', 
   icon:'⚡', 
   color:'#3E9EFF', 
@@ -35,7 +35,7 @@ const BLANK = {
   is_geofenced:false, 
   geofence_radius:100 
 };
-const ACT_TYPES = [{v:'gt',l:'GT Activity'},{v:'mt',l:'MT Activity'},{v:'visit',l:'Store Visit'},{v:'sampling',l:'Sampling'},{v:'demo',l:'Demo'},{v:'survey',l:'Survey'},{v:'other',l:'Other'}];
+const ACT_TYPES = [{v:'GT',l:'GT Activity'},{v:'MT',l:'MT Activity'},{v:'VISIT',l:'Store Visit'},{v:'SAMPLING',l:'Sampling'},{v:'DEMO',l:'Demo'},{v:'SURVEY',l:'Survey'},{v:'OTHER',l:'Other'}];
 const ICONS = ['⚡','🎯','📋','🏪','🤝','📊','🛍️','💡','📦','🔍','✅','🎉'];
 const PRESET_COLORS = ['#3E9EFF','#00D97E','#FFB800','#9B6EFF','#FF7A30','#E01E2C','#00C9B1','#FF6B9D'];
 
