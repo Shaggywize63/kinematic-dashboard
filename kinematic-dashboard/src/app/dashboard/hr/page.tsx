@@ -134,7 +134,7 @@ function CandidateDetail({ candidate, zones, onClose, onRefresh, token }:{
   const [savingCustom,     setSavingCustom]     = useState(false);
 
   // Convert to FE
-  const emptyConvert = { employee_id:'', password:'', zone_id:'', joined_date:'' };
+  const emptyConvert = { employee_id:'', app_password:'', zone_id:'', joined_date:'' };
   const [convertForm, setConvertForm] = useState(emptyConvert);
   const [converting,  setConverting]  = useState(false);
   const [convertErr,  setConvertErr]  = useState('');
@@ -247,18 +247,20 @@ function CandidateDetail({ candidate, zones, onClose, onRefresh, token }:{
 
   /* ── Convert to FE ── */
   const doConvert = async () => {
-    if (!convertForm.employee_id || !convertForm.password) { setConvertErr('Employee ID and password required'); return; }
+    if (!convertForm.employee_id || !convertForm.app_password) { setConvertErr('Employee ID and app password required'); return; }
     setConverting(true); setConvertErr('');
     try {
       const userRes = await fetch(`${apiBase}/api/v1/users`, {
         method:'POST', headers:authH,
         body: JSON.stringify({
           name: candidate.name, mobile: candidate.mobile,
-          email: candidate.email, role: 'executive',
+          email: candidate.email, 
           city: candidate.city, employee_id: convertForm.employee_id,
           zone_id: convertForm.zone_id || undefined,
           joined_date: convertForm.joined_date || undefined,
-          password: convertForm.password,
+          password: convertForm.app_password,
+          app_password: convertForm.app_password,
+          role: 'executive'
         }),
       });
       const userJson = await userRes.json();
@@ -646,9 +648,9 @@ function CandidateDetail({ candidate, zones, onClose, onRefresh, token }:{
                   </div>
                   <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
                     {[
-                      { id:'employee_id', l:'Employee ID *',    type:'text', ph:'e.g. FE-003' },
-                      { id:'password',    l:'Initial Password *', type:'password', ph:'Min 6 characters' },
-                      { id:'joined_date', l:'Joining Date',     type:'date', ph:'' },
+                      { id:'employee_id', label:'Employee ID *',    type:'text', ph:'e.g. FE-003' },
+                      { id:'app_password',    label:'App Password *', type:'password', ph:'Min 6 characters' },
+                      { id:'joined_date', label:'Joining Date',     type:'date', ph:'' },
                     ].map(f=>(
                       <div key={f.id}>
                         <div style={{ fontSize:11, color:C.gray, marginBottom:5 }}>{f.l}</div>

@@ -85,6 +85,7 @@ interface Summary {
 
 interface Store { id: string; name: string; store_code?: string; address?: string; store_type?: string; }
 interface FEUser { id: string; name: string; employee_id?: string; }
+interface Activity { id: string; name: string; }
 
 interface NewOutlet {
   store_id: string; target_type: string; target_notes: string;
@@ -149,6 +150,7 @@ export default function RoutePlanPage() {
   const [search, setSearch]     = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | PlanStatus>('all');
   const [zoneFilter, setZoneFilter]     = useState('all');
+  const [tab, setTab]                   = useState<'plans' | 'mapping'>('plans');
 
   // Modal state
   const [modal, setModal]   = useState<'create' | 'import' | null>(null);
@@ -156,7 +158,7 @@ export default function RoutePlanPage() {
 
   // Form state for create
   const [form, setForm] = useState({
-    user_id: '', plan_date: todayStr, notes: '', frequency: 'daily', territory_label: '',
+    user_id: '', activity_id: '', plan_date: todayStr, notes: '', frequency: 'daily', territory_label: '',
     outlets: [{ store_id: '', target_type: 'general', target_notes: '', target_value: '', visit_order: 1, planned_duration_min: '' }] as NewOutlet[],
   });
 
@@ -170,6 +172,8 @@ export default function RoutePlanPage() {
   // Store/user lists for form
   const [stores, setStores] = useState<Store[]>([]);
   const [users,  setUsers]  = useState<FEUser[]>([]);
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [activityUsers, setActivityUsers] = useState<Record<string, string[]>>({}); // activityId -> [userIds]
 
   /* ── DATA FETCH ─────────────────────────────────────────── */
   const fetchData = useCallback(async () => {
@@ -198,9 +202,10 @@ export default function RoutePlanPage() {
   }, [date]);
 
   const fetchFormData = useCallback(async () => {
-    const [storesRes, usersRes] = await Promise.allSettled([
+    const [storesRes, usersRes, actRes] = await Promise.allSettled([
       api.get('/api/v1/stores') as Promise<any>,
       api.get('/api/v1/users?role=executive&limit=500') as Promise<any>,
+      api.get('/api/v1/activity-mapping/activities') as Promise<any>,
     ]);
     if (storesRes.status === 'fulfilled') {
       const r = storesRes.value;
@@ -209,6 +214,20 @@ export default function RoutePlanPage() {
     if (usersRes.status === 'fulfilled') {
       const r = usersRes.value;
       setUsers(Array.isArray(r) ? r : (r?.data ?? []));
+    }
+    if (actRes.status === 'fulfilled') {
+      const r = actRes.value;
+      const acts = Array.isArray(r) ? r : (r?.data ?? []);
+      setActivities(acts);
+      
+      // Fetch mappings for each activity
+      acts.forEach(async (a: Activity) => {
+        try {
+          const mRes = await api.get(`/api/v1/activity-mapping/activity/${a.id}/users`) as any;
+          const uids = (mRes?.data || mRes || []).map((u: any) => u.user_id);
+          setActivityUsers((prev: any) => ({ ...prev, [a.id]: uids }));
+        } catch {}
+      });
     }
   }, []);
 
@@ -244,19 +263,20 @@ export default function RoutePlanPage() {
     setForm(f => ({ ...f, outlets: f.outlets.map((o, idx) => idx === i ? { ...o, [k]: v } : o) }));
 
   const resetForm = () => setForm({
-    user_id: '', plan_date: todayStr, notes: '', frequency: 'daily', territory_label: '',
+    user_id: '', activity_id: '', plan_date: todayStr, notes: '', frequency: 'daily', territory_label: '',
     outlets: [{ store_id: '', target_type: 'general', target_notes: '', target_value: '', visit_order: 1, planned_duration_min: '' }],
   });
 
   /* ── ACTIONS ─────────────────────────────────────────────── */
   const handleCreate = async () => {
-    if (!form.user_id || !form.plan_date) { setError('Select a field executive and date'); return; }
+    if (!form.user_id || !form.activity_id || !form.plan_date) { setError('Select FE, Activity and Date'); return; }
     if (form.outlets.some(o => !o.store_id)) { setError('Select a store for every outlet stop'); return; }
     setCreating(true);
     setError(null);
     try {
       await api.post('/api/v1/route-plans', {
         user_id:        form.user_id,
+        activity_id:    form.activity_id,
         plan_date:      form.plan_date,
         notes:          form.notes || null,
         frequency:      form.frequency,
@@ -314,11 +334,15 @@ export default function RoutePlanPage() {
     const storeList: any[] = storesRes.status === 'fulfilled' ? (Array.isArray(storesRes.value) ? storesRes.value : (storesRes.value?.data ?? [])) : [];
 
     const lines: string[] = [
-      'fe_employee_id,store_code,target_type,target_notes,target_value,visit_order,planned_duration_min',
+      'activity_name,fe_employee_id,store_code,target_type,target_notes,target_value,visit_order,planned_duration_min',
       '# ---- EXAMPLE ROWS (delete these before uploading) ----',
-      `${fes[0]?.employee_id ?? 'FE-001'},${storeList[0]?.store_code ?? 'ST-001'},order_collection,"Take full order",5000,1,30`,
-      `${fes[0]?.employee_id ?? 'FE-001'},${storeList[1]?.store_code ?? 'ST-002'},stock_check,,0,2,20`,
-      `${fes[1]?.employee_id ?? 'FE-002'},${storeList[0]?.store_code ?? 'ST-001'},merchandising,"Display products",0,1,25`,
+      `${activities[0]?.name ?? 'Sales'},${fes[0]?.employee_id ?? 'FE-001'},${storeList[0]?.store_code ?? 'ST-001'},order_collection,"Take full order",5000,1,30`,
+      `${activities[0]?.name ?? 'Sales'},${fes[0]?.employee_id ?? 'FE-001'},${storeList[1]?.store_code ?? 'ST-002'},stock_check,,0,2,20`,
+      `${activities[1]?.name || activities[0]?.name || 'Audit'},${fes[1]?.employee_id ?? 'FE-002'},${storeList[0]?.store_code ?? 'ST-001'},merchandising,"Display products",0,1,25`,
+      '',
+      '',
+      '# ---- YOUR ACTIVITIES (activity_name column) ----',
+      ...activities.map(a => `# ${a.name}`),
       '',
       '# ---- YOUR FIELD EXECUTIVES (fe_employee_id column) ----',
       ...fes.map((f: any) => `# ${f.employee_id ?? '(no ID)'}  →  ${f.name ?? ''}`),
@@ -341,7 +365,7 @@ export default function RoutePlanPage() {
     URL.revokeObjectURL(url);
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = (e: any) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
@@ -362,10 +386,15 @@ export default function RoutePlanPage() {
     setImporting(true);
     setError(null);
     try {
+      const mappedRows = importRows.map((row: any) => ({
+        ...row,
+        activity_id: getActivityId(row.activity_name || '')
+      }));
+
       const r = await api.post('/api/v1/route-plans/bulk-import', {
         plan_date: importDate,
         filename:  fileRef.current?.files?.[0]?.name || 'import.csv',
-        rows:      importRows,
+        rows:      mappedRows,
       }) as any;
       setImportResult(r?.data ?? r);
       fetchData();
@@ -376,11 +405,24 @@ export default function RoutePlanPage() {
     }
   };
 
+  const getActivityId = (name: string) => {
+    const a = activities.find((act: Activity) => act.name.toLowerCase() === name.toLowerCase());
+    return a?.id || '';
+  };
+
   /* ── RENDER ─────────────────────────────────────────────── */
   if (loading) return <Spinner />;
 
   return (
     <div style={{ fontFamily: "'DM Sans', sans-serif" }}>
+      {/* ── TABS ───────────────────────────────────────────── */}
+      <div style={{ display: 'flex', gap: 2, background: C.s2, padding: 4, borderRadius: 12, marginBottom: 24, width: 'fit-content', border: `1px solid ${C.border}` }}>
+        <button onClick={() => setTab('plans')} style={{ padding: '8px 20px', borderRadius: 9, border: 'none', fontSize: 13, fontWeight: 700, cursor: 'pointer', background: tab === 'plans' ? C.red : 'transparent', color: tab === 'plans' ? '#fff' : C.gray, transition: 'all 0.2s', fontFamily: "'Syne', sans-serif" }}>Route Plans</button>
+        <button onClick={() => setTab('mapping')} style={{ padding: '8px 20px', borderRadius: 9, border: 'none', fontSize: 13, fontWeight: 700, cursor: 'pointer', background: tab === 'mapping' ? C.red : 'transparent', color: tab === 'mapping' ? '#fff' : C.gray, transition: 'all 0.2s', fontFamily: "'Syne', sans-serif" }}>Activity-FE Mapping</button>
+      </div>
+
+      {tab === 'mapping' ? <MappingView users={users} activities={activities} mapping={activityUsers} onRefresh={fetchFormData} /> : (
+      <>
 
       {/* ── HEADER ─────────────────────────────────────────── */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
@@ -685,6 +727,8 @@ export default function RoutePlanPage() {
           })}
         </div>
       )}
+      </>
+      )}
 
       {/* ══════════════════════════════════════════════════════
           CREATE PLAN MODAL
@@ -707,18 +751,28 @@ export default function RoutePlanPage() {
               {/* FE + Date */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
                 <div>
-                  <div style={{ fontSize: 12, color: C.gray, marginBottom: 7 }}>Field Executive <span style={{ color: C.red }}>*</span></div>
-                  <select value={form.user_id} onChange={e => setForm(f => ({ ...f, user_id: e.target.value }))}
-                    style={{ width: '100%', background: C.s3, border: `1px solid ${C.border}`, borderRadius: 9, padding: '10px 13px', color: form.user_id ? C.white : C.grayd, fontSize: 13, outline: 'none' }}>
-                    <option value="">Select FE…</option>
-                    {users.map(u => <option key={u.id} value={u.id}>{u.name}{u.employee_id ? ` (${u.employee_id})` : ''}</option>)}
+                  <div style={{ fontSize: 12, color: C.gray, marginBottom: 7 }}>Activity <span style={{ color: C.red }}>*</span></div>
+                  <select value={form.activity_id} onChange={e => setForm(f => ({ ...f, activity_id: e.target.value, user_id: '' }))}
+                    style={{ width: '100%', background: C.s3, border: `1px solid ${C.border}`, borderRadius: 9, padding: '10px 13px', color: form.activity_id ? C.white : C.grayd, fontSize: 13, outline: 'none' }}>
+                    <option value="">Select Activity…</option>
+                    {activities.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
                   </select>
                 </div>
                 <div>
-                  <div style={{ fontSize: 12, color: C.gray, marginBottom: 7 }}>Plan Date <span style={{ color: C.red }}>*</span></div>
-                  <input type="date" value={form.plan_date} onChange={e => setForm(f => ({ ...f, plan_date: e.target.value }))}
-                    style={{ width: '100%', background: C.s3, border: `1px solid ${C.border}`, borderRadius: 9, padding: '10px 13px', color: C.white, fontSize: 13, outline: 'none' }} />
+                  <div style={{ fontSize: 12, color: C.gray, marginBottom: 7 }}>Field Executive <span style={{ color: C.red }}>*</span></div>
+                  <select value={form.user_id} onChange={e => setForm(f => ({ ...f, user_id: e.target.value }))} disabled={!form.activity_id}
+                    style={{ width: '100%', background: C.s3, border: `1px solid ${C.border}`, borderRadius: 9, padding: '10px 13px', color: form.user_id ? C.white : C.grayd, fontSize: 13, outline: 'none', opacity: !form.activity_id ? 0.5 : 1 }}>
+                    <option value="">{!form.activity_id ? 'Select Activity First' : 'Select FE…'}</option>
+                    {users
+                      .filter(u => !form.activity_id || activityUsers[form.activity_id]?.includes(u.id))
+                      .map(u => <option key={u.id} value={u.id}>{u.name}{u.employee_id ? ` (${u.employee_id})` : ''}</option>)}
+                  </select>
                 </div>
+              </div>
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 12, color: C.gray, marginBottom: 7 }}>Plan Date <span style={{ color: C.red }}>*</span></div>
+                <input type="date" value={form.plan_date} onChange={e => setForm(f => ({ ...f, plan_date: e.target.value }))}
+                  style={{ width: '100%', background: C.s3, border: `1px solid ${C.border}`, borderRadius: 9, padding: '10px 13px', color: C.white, fontSize: 13, outline: 'none' }} />
               </div>
 
               {/* Frequency + Territory */}
@@ -856,10 +910,10 @@ export default function RoutePlanPage() {
                   <Icon d={IC.info} s={14} c={C.blue} /> Required CSV Format
                 </div>
                 <div style={{ fontFamily: 'monospace', fontSize: 11, color: C.gray, lineHeight: 1.7 }}>
-                  fe_employee_id, store_code, target_type, target_notes, target_value, visit_order<br />
-                  FE-001, ST-101, order_collection, "Take full order", 5000, 1<br />
-                  FE-001, ST-102, stock_check, , , 2<br />
-                  FE-002, ST-201, merchandising, "Shelf display", , 1
+                  fe_employee_id, store_code, activity_name, target_type, target_notes, target_value, visit_order<br />
+                  FE-001, ST-101, Merchandising, order_collection, "Take full order", 5000, 1<br />
+                  FE-001, ST-102, Stock Check, stock_check, , , 2<br />
+                  FE-002, ST-201, Merchandising, merchandising, "Shelf display", , 1
                 </div>
               </div>
 
@@ -945,6 +999,85 @@ export default function RoutePlanPage() {
               )}
             </div>
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MappingView({ users, activities, mapping, onRefresh }: { users: FEUser[], activities: Activity[], mapping: Record<string, string[]>, onRefresh: () => void }) {
+  const [loading, setLoading] = useState(false);
+  const [selectedActivity, setSelectedActivity] = useState<string>('');
+
+  const toggleMap = async (userId: string, active: boolean) => {
+    if (!selectedActivity) return;
+    setLoading(true);
+    try {
+      await api.post('/api/v1/activity-mapping/map', {
+        user_id: userId,
+        activity_id: selectedActivity,
+        is_mapped: active
+      });
+      onRefresh();
+    } catch (e: any) {
+      alert(e.message || 'Failed to update mapping');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 16, padding: 24 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <div>
+          <h3 style={{ fontFamily: "'Syne', sans-serif", fontSize: 18, fontWeight: 800, margin: 0, color: C.white }}>Activity-FE Mapping</h3>
+          <p style={{ fontSize: 12, color: C.gray, marginTop: 4 }}>Assign Field Executives to specific activities to enable route planning.</p>
+        </div>
+        <select 
+          value={selectedActivity} 
+          onChange={e => setSelectedActivity(e.target.value)}
+          style={{ background: C.s3, border: `1px solid ${C.border}`, borderRadius: 9, padding: '9px 14px', color: C.white, fontSize: 13, outline: 'none', minWidth: 200 }}
+        >
+          <option value="">Select Activity to Map…</option>
+          {activities.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+        </select>
+      </div>
+
+      {!selectedActivity ? (
+        <div style={{ padding: 60, textAlign: 'center', background: C.s3, borderRadius: 12, border: `1px dashed ${C.border}` }}>
+          <div style={{ fontSize: 32, marginBottom: 12 }}>🎯</div>
+          <div style={{ fontSize: 14, color: C.gray, fontWeight: 700 }}>Select an activity above to view and manage FE assignments.</div>
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12 }}>
+          {users.map((u: FEUser) => {
+            const isMapped = mapping[selectedActivity]?.includes(u.id);
+            return (
+              <div 
+                key={u.id} 
+                onClick={() => !loading && toggleMap(u.id, !isMapped)}
+                style={{ 
+                  background: isMapped ? C.blueD : C.s3, 
+                  border: `1.5px solid ${isMapped ? C.blue : C.border}`, 
+                  borderRadius: 12, padding: '12px 16px', cursor: loading ? 'wait' : 'pointer',
+                  display: 'flex', alignItems: 'center', gap: 12, transition: 'all 0.15s'
+                }}
+              >
+                <div style={{ 
+                  width: 18, height: 18, borderRadius: 4, 
+                  border: `2px solid ${isMapped ? C.blue : C.grayd}`,
+                  background: isMapped ? C.blue : 'transparent',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center'
+                }}>
+                  {isMapped && <div style={{ width: 8, height: 8, background: '#fff', borderRadius: 1 }} />}
+                </div>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: isMapped ? C.white : C.gray }}>{u.name}</div>
+                  <div style={{ fontSize: 11, color: C.grayd }}>{u.employee_id || 'No ID'}</div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
