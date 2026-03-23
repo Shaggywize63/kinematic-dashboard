@@ -786,7 +786,6 @@ function RoutePlanContent() {
                     style={{ width: '100%', background: C.s3, border: `1px solid ${C.border}`, borderRadius: 9, padding: '10px 13px', color: form.user_id ? C.white : C.grayd, fontSize: 13, outline: 'none', opacity: !form.activity_id ? 0.5 : 1 }}>
                     <option value="">{!form.activity_id ? 'Select Activity First' : 'Select FE…'}</option>
                     {users
-                      .filter(u => !form.activity_id || activityUsers[form.activity_id]?.includes(u.id))
                       .map(u => <option key={u.id} value={u.id}>{u.name}{u.employee_id ? ` (${u.employee_id})` : ''}</option>)}
                   </select>
                 </div>

@@ -84,10 +84,9 @@ class ApiClient {
   }
 
   // ── Forms (TFF Submissions) ────────────────────────────────────────────────
-  // FIXED: correct admin submissions endpoint is /api/v1/admin/submissions
   getAdminSubmissions(params?: Record<string, string>) {
     const qs = params ? '?' + new URLSearchParams(params).toString() : '';
-    return this.get(`/api/v1/builder/forms/admin/submissions${qs}`);
+    return this.get(`/api/v1/forms/admin/submissions${qs}`);
   }
   getSubmission(id: string) {
     return this.get(`/api/v1/builder/forms/submissions/${id}`);

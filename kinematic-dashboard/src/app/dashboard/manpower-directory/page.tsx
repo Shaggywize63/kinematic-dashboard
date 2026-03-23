@@ -109,7 +109,7 @@ function parseCSV(text: string): Record<string,string>[] {
     const obj: Record<string,string> = {};
     headers.forEach((h,i)=>{ obj[h]=(vals[i]||'').replace(/^"|"$/g,''); });
     return obj;
-  }).filter(r=>r['name']||r['employee_id']);
+  }).filter(r=>r['name']&&r['employee_id']);
 }
 
 /* ══════════════════════════════════════════════════════ */
@@ -632,38 +632,70 @@ export default function ManpowerDirectoryPage() {
         </Modal>
       )}
 
-      {/* BULK MODAL (Simplified) */}
+      {/* BULK MODAL */}
       {showBulk && (
         <Modal onClose={resetBulk}>
-          {/* ... existing bulk logic, but with updated labels ... */}
           <div style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:22,width:'100%',maxWidth:700,padding:28,maxHeight:'92vh',overflowY:'auto'}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:20}}>
               <div>
                 <div style={{fontFamily:"'Syne',sans-serif",fontSize:20,fontWeight:800}}>Bulk Upload Manpower</div>
                 <div style={{fontSize:12,color:C.gray,marginTop:3}}>Upload a CSV to add multiple members at once</div>
               </div>
-              <button onClick={resetBulk} style={{width:32,height:32,borderRadius:9,background:C.s3,border:`1px solid ${C.border}`,color:C.gray,fontSize:16}}>✕</button>
+              <button onClick={resetBulk} style={{width:32,height:32,borderRadius:9,background:C.s3,border:`1px solid ${C.border}`,color:C.gray,fontSize:16,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer'}}>✕</button>
             </div>
             
+            {bulkErr && <div style={{background:C.redD,border:`1px solid ${C.redB}`,borderRadius:10,padding:'10px 14px',fontSize:13,color:C.red,marginBottom:16}}>{bulkErr}</div>}
+
             {bulkRows.length===0 ? (
                <div onClick={()=>fileRef.current?.click()}
                   style={{border:`2px dashed ${C.border}`,borderRadius:16,padding:'48px 24px',textAlign:'center',cursor:'pointer',transition:'all 0.2s',marginBottom:16}}>
                   <div style={{fontSize:34,marginBottom:12}}>📂</div>
                   <div style={{fontSize:14,fontWeight:700,marginBottom:6}}>Select CSV file</div>
+                  <div style={{fontSize:12,color:C.gray,marginBottom:14}}>Click to browse or drag and drop</div>
                   <input ref={fileRef} type="file" accept=".csv" style={{display:'none'}} onChange={onFile}/>
                   <button onClick={(e)=>{e.stopPropagation(); downloadTemplate();}} style={{fontSize:12,color:C.blue,background:'none',border:'none',cursor:'pointer',textDecoration:'underline'}}>Download Template</button>
                 </div>
             ) : (
-              <div style={{display:'flex',flexDirection:'column',gap:10}}>
-                <div style={{maxHeight:300,overflowY:'auto',background:C.s3,borderRadius:12,padding:10}}>
-                  {bulkRows.map((r,i)=><div key={i} style={{fontSize:12,padding:6,borderBottom:i<bulkRows.length-1?`1px solid ${C.border}`:'none',display:'flex',justifyContent:'space-between'}}>
-                    <span>{r.name} ({r.employee_id})</span>
-                    <span style={{color:r._status==='error'?C.red:r._status==='success'?C.green:C.yellow}}>{r._status}</span>
-                  </div>)}
+              <div style={{display:'flex',flexDirection:'column',gap:16}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:13,color:C.gray,background:C.s3,padding:'10px 14px',borderRadius:12}}>
+                  <div><strong style={{color:C.white}}>{bulkRows.length}</strong> rows found</div>
+                  <div><strong style={{color:C.green}}>{bulkRows.filter(r=>r._status==='success').length}</strong> successful</div>
                 </div>
-                <div style={{display:'flex',gap:10}}>
-                   <button onClick={resetBulk} style={{flex:1,padding:11,background:C.s3,border:`1px solid ${C.border}`,borderRadius:11,fontSize:13}}>Close</button>
-                   {!bulkDone && <button onClick={runBulk} disabled={bulkBusy} style={{flex:2,padding:11,background:C.red,borderRadius:11,fontSize:13,fontWeight:700}}>{bulkBusy?'Processing...':'Start Upload'}</button>}
+
+                <div style={{maxHeight:300,overflowY:'auto',border:`1px solid ${C.border}`,borderRadius:12}}>
+                  {/* Header */}
+                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 100px 120px',gap:10,padding:'10px 14px',background:C.s3,borderBottom:`1px solid ${C.border}`,fontSize:11,fontWeight:700,color:C.gray,letterSpacing:'0.5px',textTransform:'uppercase'}}>
+                    <div>Name</div>
+                    <div>Employee ID</div>
+                    <div>Role</div>
+                    <div>Status</div>
+                  </div>
+                  {/* Rows */}
+                  {bulkRows.map((r,i) => (
+                    <div key={i} className={r._status==='error'?'brow-err':r._status==='success'?'brow-ok':''}
+                      style={{display:'grid',gridTemplateColumns:'1fr 1fr 100px 120px',gap:10,padding:'12px 14px',borderBottom:i<bulkRows.length-1?`1px solid ${C.border}`:'none',fontSize:13,alignItems:'center'}}>
+                      <div style={{fontWeight:600}}>{r.name || '—'}</div>
+                      <div style={{fontFamily:'monospace',color:C.gray}}>{r.employee_id || '—'}</div>
+                      <div>{r.role || 'executive'}</div>
+                      <div style={{fontSize:11,fontWeight:700,color:r._status==='error'?C.red:r._status==='success'?C.green:C.yellow}}>
+                        {r._status.toUpperCase()}
+                        {r._error && <div style={{fontSize:10,fontWeight:400,color:C.red,marginTop:2}}>{r._error}</div>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{display:'flex',gap:10,marginTop:10}}>
+                   <button onClick={resetBulk} disabled={bulkBusy} style={{flex:1,padding:12,background:C.s3,border:`1px solid ${C.border}`,color:C.gray,borderRadius:12,fontSize:13,fontWeight:600,cursor:bulkBusy?'not-allowed':'pointer'}}>Cancel</button>
+                   {!bulkDone ? (
+                     <button onClick={runBulk} disabled={bulkBusy} style={{flex:2,padding:12,background:C.red,border:'none',color:'#fff',borderRadius:12,fontSize:13,fontWeight:700,cursor:bulkBusy?'not-allowed':'pointer',opacity:bulkBusy?0.7:1}}>
+                       {bulkBusy?<><Spin/> Processing...</>:'Start Upload'}
+                     </button>
+                   ) : (
+                     <button onClick={resetBulk} style={{flex:2,padding:12,background:C.green,border:'none',color:'#fff',borderRadius:12,fontSize:13,fontWeight:700,cursor:'pointer'}}>
+                       Done
+                     </button>
+                   )}
                 </div>
               </div>
             )}

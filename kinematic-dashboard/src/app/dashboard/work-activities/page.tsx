@@ -114,7 +114,8 @@ export default function WorkActivitiesPage() {
     setErr('');
     try {
       const qs = buildParams(page);
-      const r = await api.get<any>(`/api/v1/builder/forms/admin/submissions?${qs}`);
+      const paramsObj = Object.fromEntries(new URLSearchParams(qs));
+      const r = await api.getAdminSubmissions(paramsObj);
       const d = r as any;
       const rows = d.data || d.submissions || (Array.isArray(d) ? d : []);
       setFEActivities(rows);
@@ -133,7 +134,7 @@ export default function WorkActivitiesPage() {
     setErr('');
     const qs = buildParams(page);
     try {
-      const r = await api.get<any>(`/api/v1/visits?${qs}`);
+      const r = await api.get<any>(`/api/v1/visits/team?${qs}`);
       const d = r as any;
       const rows = d.data || d.visits || (Array.isArray(d) ? d : []);
       setSvActivities(rows);
