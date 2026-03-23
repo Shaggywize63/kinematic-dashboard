@@ -139,6 +139,31 @@ function CandidateDetail({ candidate, zones, onClose, onRefresh, token }:{
   const [converting,  setConverting]  = useState(false);
   const [convertErr,  setConvertErr]  = useState('');
   const [convertOk,   setConvertOk]   = useState(false);
+  const [convertedUser, setConvertedUser] = useState<HRUser|null>(null);
+  const [loadingUser, setLoadingUser] = useState(false);
+  const [showPwReset, setShowPwReset] = useState(false);
+  const [newAppPw, setNewAppPw] = useState('');
+  const [pwUpdating, setPwUpdating] = useState(false);
+
+  const fetchUser = useCallback(async () => {
+    if (!candidate.converted_user_id) return;
+    setLoadingUser(true);
+    try {
+      const r = await api.getFieldExecutive(candidate.converted_user_id);
+      setConvertedUser(r as HRUser);
+    } catch {} finally { setLoadingUser(false); }
+  }, [candidate.converted_user_id]);
+
+  useEffect(() => { fetchUser(); }, [fetchUser]);
+
+  const updateAppPw = async () => {
+    if (!newAppPw || !convertedUser) return;
+    setPwUpdating(true);
+    try {
+      await api.updateUser(convertedUser.id, { app_password: newAppPw });
+      setNewAppPw(''); setShowPwReset(false); fetchUser();
+    } catch {} finally { setPwUpdating(false); }
+  };
 
   const fetchDocs = useCallback(async () => {
     setLD(true);
@@ -352,12 +377,54 @@ function CandidateDetail({ candidate, zones, onClose, onRefresh, token }:{
                   style={{ ...inp, resize:'none', lineHeight:1.5 }}/>
               </div>
 
-              <button onClick={saveInfo} disabled={saving}
-                style={{ padding:'10px 0', borderRadius:11, border:'none', background:C.red,
-                  color:'#fff', fontWeight:700, fontSize:13, cursor:'pointer',
-                  fontFamily:"'DM Sans',sans-serif", display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
-                {saving ? <Spin/> : saveMsg ? `✓ ${saveMsg}` : 'Save Changes'}
-              </button>
+               <button onClick={saveInfo} disabled={saving} style={{ padding:"10px 0", borderRadius:11, border:"none", background:C.red, color:"#fff", fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"\"DM Sans\",sans-serif", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}> {saving ? <Spin/> : saveMsg ? `✓ ${saveMsg}` : "Save Changes"} </button>
+
+              {/* ── App Credentials Section (if onboarded) ── */}
+              {candidate.converted_user_id && (
+                <div style={{ marginTop:20, padding:'16px', background:C.s3, borderRadius:14, border:`1px solid ${C.border}` }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+                    <div style={{ fontSize:10, color:C.grayd, fontWeight:700, letterSpacing:'0.8px', textTransform:'uppercase' }}>App Credentials</div>
+                    <span style={{ fontSize:9, padding:'2px 8px', borderRadius:20, background:C.greenD, color:C.green, fontWeight:700 }}>Mobile Login Active</span>
+                  </div>
+                  
+                  {loadingUser ? <Shimmer h={40}/> : convertedUser ? (
+                    <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                        <div>
+                          <div style={{ fontSize:11, color:C.gray }}>Login ID (Mobile/Email)</div>
+                          <div style={{ fontSize:13, fontWeight:700, color:C.white, marginTop:2 }}>{convertedUser.mobile || convertedUser.email}</div>
+                        </div>
+                        <div style={{ textAlign:'right' }}>
+                          <div style={{ fontSize:11, color:C.gray }}>App Password</div>
+                          <div style={{ fontSize:13, fontWeight:700, color:C.green, marginTop:2, fontFamily:'monospace' }}>
+                            {convertedUser.app_password || '********'}
+                          </div>
+                        </div>
+                      </div>
+
+                      {showPwReset ? (
+                        <div style={{ marginTop:6, display:'flex', gap:8 }}>
+                          <input type="text" placeholder="New app password" style={{ ...inp, flex:1 }}
+                            value={newAppPw} onChange={e=>setNewAppPw(e.target.value)}/>
+                          <button onClick={updateAppPw} disabled={pwUpdating}
+                            style={{ padding:'0 14px', borderRadius:9, border:'none', background:C.green, color:'#000', fontWeight:800, fontSize:11, cursor:'pointer' }}>
+                            {pwUpdating ? <Spin/> : 'Change'}
+                          </button>
+                          <button onClick={()=>setShowPwReset(false)}
+                            style={{ padding:'0 10px', borderRadius:9, border:`1px solid ${C.border}`, background:'transparent', color:C.gray, fontSize:11, cursor:'pointer' }}>✕</button>
+                        </div>
+                      ) : (
+                        <button onClick={()=>setShowPwReset(true)}
+                          style={{ width:'100%', padding:'8px 0', border:`1px solid ${C.border}`, background:'transparent', borderRadius:10, color:C.gray, fontSize:11, fontWeight:700, cursor:'pointer', marginTop:4 }}>
+                          🔑 Set New App Password
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <div style={{ fontSize:11, color:C.red, textAlign:'center' }}>Failed to load user profile</div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 

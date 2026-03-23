@@ -22,11 +22,12 @@ interface FieldExecutive {
   zones?: { name: string; city?: string };
   supervisor_id?: string; supervisors?: { name: string };
   city_manager_id?: string;
+  app_password?: string;
   created_at: string;
   is_checked_in?: boolean; today_cc?: number; today_ecc?: number; hours_worked?: number;
 }
 interface FormData {
-  name: string; mobile: string; password: string; employee_id: string;
+  name: string; mobile: string; password: string; app_password?: string; employee_id: string;
   zone_id: string; role: string; supervisor_id: string; joined_date: string; city: string;
 }
 interface BulkRow {
@@ -36,7 +37,7 @@ interface BulkRow {
 }
 
 const EMPTY_FORM: FormData = {
-  name:'', mobile:'', password:'', employee_id:'',
+  name:'', mobile:'', password:'', app_password:'', employee_id:'',
   zone_id:'', role:'executive', supervisor_id:'', joined_date:'', city:'',
 };
 
@@ -129,8 +130,14 @@ export default function ManpowerDirectoryPage() {
 
   const [showAdd,   setShowAdd]  = useState(false);
   const [showEdit,  setShowEdit] = useState(false);
-  const [showBulk,  setShowBulk] = useState(false);
   const [editTarget,setEditT]   = useState<FieldExecutive|null>(null);
+
+  // App Password Reset State
+  const [showPwReset, setShowPwReset] = useState(false);
+  const [newAppPw, setNewAppPw] = useState('');
+  const [pwUpdating, setPwUpdating] = useState(false);
+
+  const [showBulk,  setShowBulk] = useState(false);
 
   const [form,    setForm]   = useState<FormData>(EMPTY_FORM);
   const [saving,  setSaving] = useState(false);
@@ -203,6 +210,7 @@ export default function ManpowerDirectoryPage() {
     try {
       await api.post('/api/v1/users',{
         name:form.name, mobile:form.mobile||undefined, password:form.password||undefined,
+        app_password:form.app_password||undefined,
         role:form.role, employee_id:form.employee_id, zone_id:form.zone_id||undefined,
         supervisor_id:form.supervisor_id||undefined, joined_date:form.joined_date||undefined, city:form.city||undefined,
       });
@@ -213,7 +221,7 @@ export default function ManpowerDirectoryPage() {
   /* ── EDIT ── */
   const openEdit = (fe: FieldExecutive) => {
     setEditT(fe);
-    setForm({ name:fe.name, mobile:fe.mobile||'', password:'', employee_id:fe.employee_id||'', zone_id:fe.zone_id||'', role:fe.role, supervisor_id:fe.supervisor_id||'', joined_date:'', city:fe.city||fe.zones?.city||'' });
+    setForm({ name:fe.name, mobile:fe.mobile||'', password:'', employee_id:fe.employee_id||'', zone_id:fe.zone_id||'', role:fe.role, supervisor_id:fe.supervisor_id||'', joined_date:'', city:fe.city||fe.zones?.city||'', app_password:fe.app_password||'' });
     setFErr(''); setShowEdit(true);
   };
   const handleEdit = async () => {
@@ -223,7 +231,7 @@ export default function ManpowerDirectoryPage() {
       await api.patch(`/api/v1/users/${editTarget.id}`,{ 
         name:form.name, zone_id:form.zone_id||null, supervisor_id:form.supervisor_id||null, 
         employee_id:form.employee_id||null, is_active:editTarget.is_active, city:form.city||null,
-        role:form.role
+        role:form.role, app_password:form.app_password||undefined
       });
       setShowEdit(false); setEditT(null); setSelected(null); fetchData();
     } catch(e:any){ setFErr(e.message||'Failed'); } finally{ setSaving(false); }
@@ -450,7 +458,8 @@ export default function ManpowerDirectoryPage() {
                 </select>
               </Field>
               <div style={{gridColumn:'1/-1'}}><Field label="Mobile Number"><input className="kinp" style={inp} placeholder="10-digit mobile (optional)" value={form.mobile} onChange={e=>setF('mobile',e.target.value)} maxLength={10}/></Field></div>
-              <div style={{gridColumn:'1/-1'}}><Field label="Password"><input className="kinp" style={inp} type="password" placeholder="Login password" value={form.password} onChange={e=>setF('password',e.target.value)}/></Field></div>
+              <div style={{gridColumn:'1/-1'}}><Field label="Login Password"><input className="kinp" style={inp} type="password" placeholder="System login password" value={form.password} onChange={e=>setF('password',e.target.value)}/></Field></div>
+              <div style={{gridColumn:'1/-1'}}><Field label="App Password"><input className="kinp" style={inp} type="text" placeholder="Password for mobile app" value={form.app_password} onChange={e=>setF('app_password',e.target.value)}/></Field></div>
               <Field label="City">
                 <CitySelect value={form.city} onChange={(v, c) => setF('city', v)} placeholder="e.g. Mumbai" />
               </Field>
@@ -514,6 +523,7 @@ export default function ManpowerDirectoryPage() {
                   </select>
                 </Field>
               )}
+              <div style={{gridColumn:'1/-1'}}><Field label="App Password"><input className="kinp" style={inp} type="text" placeholder="Mobile app password" value={form.app_password} onChange={e=>setF('app_password',e.target.value)}/></Field></div>
             </div>
             <div style={{display:'flex',gap:10,marginTop:10}}>
               <button onClick={()=>setShowEdit(false)} style={{flex:1,padding:'11px',background:C.s3,border:`1px solid ${C.border}`,color:C.gray,borderRadius:11,fontSize:13,fontWeight:600}}>Cancel</button>
@@ -537,6 +547,57 @@ export default function ManpowerDirectoryPage() {
                 <div style={{fontSize:12,color:C.gray,marginTop:3}}>{selected.role.toUpperCase()} · {selected.employee_id}</div>
                 <span style={{fontSize:10,fontWeight:700,padding:'3px 9px',borderRadius:20,marginTop:6,display:'inline-block',background:selected.is_active?C.greenD:C.redD,color:selected.is_active?C.green:C.red}}>{selected.is_active?'● Active':'Inactive'}</span>
               </div>
+            </div>
+
+            <div style={{marginBottom:'24px',border:'1px solid #e5e7eb',borderRadius:'12px',padding:'16px',background:'#f9fafb'}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'12px'}}>
+                <h3 style={{fontSize:'14px',fontWeight:600}}>App Credentials</h3>
+                {!showPwReset ? (
+                  <button onClick={() => { setShowPwReset(true); setNewAppPw(selected.app_password || ''); }} style={{fontSize:'12px',color:'#007bff',background:'white',padding:'4px 10px',borderRadius:'6px',border:'1px solid #e5e7eb',cursor:'pointer'}}>Manage</button>
+                ) : (
+                  <button onClick={() => setShowPwReset(false)} style={{fontSize:'12px',color:'#6b7280',background:'white',padding:'4px 10px',borderRadius:'6px',border:'1px solid #e5e7eb',cursor:'pointer'}}>Cancel</button>
+                )}
+              </div>
+              
+              {!showPwReset ? (
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'12px'}}>
+                  <Field label="App Password">
+                    <div style={{fontSize:'14px',fontFamily:'monospace',color:'#374151'}}>{selected.app_password || 'Not set'}</div>
+                  </Field>
+                  <Field label="Login Mobile">
+                    <div style={{fontSize:'14px',color:'#374151'}}>{selected.mobile || 'Not set'}</div>
+                  </Field>
+                </div>
+              ) : (
+                <div style={{display:'flex',flexDirection:'column' as const,gap:'12px'}}>
+                  <div style={{fontSize:'12px',color:'#6b7280'}}>Set a new password for mobile app login.</div>
+                  <div style={{display:'flex',gap:'8px'}}>
+                    <input className="kinp" style={{...inp,flex:1}} type="text" placeholder="New App Password" value={newAppPw} onChange={e => setNewAppPw(e.target.value)} />
+                    <button 
+                      disabled={pwUpdating}
+                      onClick={async () => {
+                        setPwUpdating(true);
+                        try {
+                          await api.patch(`/api/v1/users/${selected.id}`, { app_password: newAppPw });
+                          const updated = { ...selected, app_password: newAppPw };
+                          setSelected(updated);
+                          setStaff(p => p.map(u => u.id === updated.id ? updated : u));
+                          setSups(p => p.map(u => u.id === updated.id ? updated : u));
+                          setCMs(p => p.map(u => u.id === updated.id ? updated : u));
+                          setShowPwReset(false);
+                        } catch (e: any) {
+                          alert(e.message || 'Failed to update app password');
+                        } finally {
+                          setPwUpdating(false);
+                        }
+                      }}
+                      style={{backgroundColor:'#007bff',color:'white',padding:'8px 16px',borderRadius:'8px',border:'none',fontSize:'13px',fontWeight:600,cursor:pwUpdating?'not-allowed':'pointer',opacity:pwUpdating?0.7:1}}
+                    >
+                      {pwUpdating ? 'Saving...' : 'Save'}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:20}}>
                <div style={{background:C.s3,borderRadius:12,padding:12}}>
