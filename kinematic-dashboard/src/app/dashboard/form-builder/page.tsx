@@ -215,9 +215,16 @@ function FormList({ onOpen, onCreate }:{ onOpen:(f:BForm)=>void; onCreate:()=>vo
    CREATE FORM MODAL
 ══════════════════════════════════════════════════════════════════════════ */
 function CreateFormModal({ onCreated, onClose }:{ onCreated:(f:BForm)=>void; onClose:()=>void }) {
-  const [form, setForm] = useState({ title:'', description:'', icon:'📋', cover_color:C.red });
+  const [form, setForm] = useState({ title:'', description:'', icon:'📋', cover_color:C.red, activity_id:'' });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
+  const [activities, setActivities] = useState<any[]>([]);
+
+  useEffect(() => {
+    apiFetch<any>('/api/v1/activities').then(d => {
+      setActivities(Array.isArray(d) ? d : (d?.data || []));
+    }).catch(()=>{});
+  }, []);
 
   const ICONS = ['📋','📊','🏪','👤','📦','🔍','✅','⚠️','📸','🗂️','📝','🔧'];
   const COLORS = [C.red,'#3E9EFF','#00D97E','#FFB800','#9B6EFF','#00C9B1','#FF7A30','#FF6B9D'];
@@ -240,6 +247,13 @@ function CreateFormModal({ onCreated, onClose }:{ onCreated:(f:BForm)=>void; onC
         <div style={{ marginBottom:14 }}>
           <label style={{ fontSize:12, color:C.gray, display:'block', marginBottom:6 }}>Form Title <span style={{ color:C.red }}>*</span></label>
           <input style={inpStyle} placeholder="e.g. Outlet Audit Form" value={form.title} onChange={e => setForm(p => ({...p, title:e.target.value}))} autoFocus/>
+        </div>
+        <div style={{ marginBottom:16 }}>
+          <label style={{ fontSize:12, color:C.gray, display:'block', marginBottom:6 }}>Linked Activity</label>
+          <select style={{...inpStyle, appearance:'none' as any}} value={form.activity_id} onChange={e => setForm(p => ({...p, activity_id:e.target.value}))}>
+            <option value="">None (Standalone Form)</option>
+            {activities.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+          </select>
         </div>
         <div style={{ marginBottom:18 }}>
           <label style={{ fontSize:12, color:C.gray, display:'block', marginBottom:6 }}>Description</label>

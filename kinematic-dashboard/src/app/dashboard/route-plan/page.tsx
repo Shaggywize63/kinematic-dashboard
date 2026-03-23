@@ -138,6 +138,39 @@ const Badge = ({ label, color }: { label: string; color: string }) => (
   </span>
 );
 
+function FESelector({ users, value, onChange }: { users: FEUser[], value: string, onChange: (id: string) => void }) {
+  const [search, setSearch] = useState('');
+  const [open, setOpen] = useState(false);
+  const selected = users.find(u => u.id === value);
+  const filtered = users.filter(u => !search || u.name.toLowerCase().includes(search.toLowerCase()) || u.employee_id?.toLowerCase().includes(search.toLowerCase()));
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <input 
+        value={open ? search : (selected?.name || '')}
+        onChange={e => setSearch(e.target.value)}
+        onFocus={() => { setOpen(true); setSearch(''); }}
+        onBlur={() => setTimeout(() => setOpen(false), 200)}
+        placeholder="Search FE by name or ID…"
+        style={{ width: '100%', background: C.s3, border: `1px solid ${C.border}`, borderRadius: 9, padding: '10px 13px', color: value || open ? C.white : C.grayd, fontSize: 13, outline: 'none' }}
+      />
+      {open && (
+        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: C.s4, border: `1px solid ${C.borderL}`, borderRadius: 9, maxHeight: 180, overflowY: 'auto', zIndex: 50, marginTop: 6, boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }}>
+          {filtered.length === 0 ? (
+            <div style={{ padding: '10px 13px', fontSize: 12, color: C.gray }}>No FEs found</div>
+          ) : filtered.map(u => (
+            <div key={u.id} onMouseDown={(e) => { e.preventDefault(); onChange(u.id); setOpen(false); }}
+              style={{ padding: '10px 13px', cursor: 'pointer', fontSize: 13, color: C.white, borderBottom: `1px solid ${C.border}`, background: value === u.id ? C.redD : 'transparent' }}>
+              <span style={{ fontWeight: value === u.id ? 700 : 400 }}>{u.name}</span>
+              {u.employee_id && <span style={{ color: C.gray, marginLeft: 6, fontSize: 11 }}>({u.employee_id})</span>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ── MAIN PAGE ─────────────────────────────────────────────── */
 export default function RoutePlanPage() {
   return (
@@ -172,7 +205,7 @@ function RoutePlanContent() {
 
   // Form state for create
   const [form, setForm] = useState({
-    user_id: '', activity_id: '', plan_date: todayStr, notes: '', frequency: 'daily', territory_label: '',
+    user_id: '', activity_ids: [] as string[], plan_date: todayStr, notes: '', frequency: 'daily', territory_label: '',
     outlets: [{ store_id: '', target_type: 'general', target_notes: '', target_value: '', visit_order: 1, planned_duration_min: '' }] as NewOutlet[],
   });
 
@@ -283,20 +316,20 @@ function RoutePlanContent() {
     setForm(f => ({ ...f, outlets: f.outlets.map((o, idx) => idx === i ? { ...o, [k]: v } : o) }));
 
   const resetForm = () => setForm({
-    user_id: '', activity_id: '', plan_date: todayStr, notes: '', frequency: 'daily', territory_label: '',
+    user_id: '', activity_ids: [], plan_date: todayStr, notes: '', frequency: 'daily', territory_label: '',
     outlets: [{ store_id: '', target_type: 'general', target_notes: '', target_value: '', visit_order: 1, planned_duration_min: '' }],
   });
 
   /* ── ACTIONS ─────────────────────────────────────────────── */
   const handleCreate = async () => {
-    if (!form.user_id || !form.activity_id || !form.plan_date) { setError('Select FE, Activity and Date'); return; }
+    if (!form.user_id || !form.activity_ids.length || !form.plan_date) { setError('Select FE, Activities and Date'); return; }
     if (form.outlets.some(o => !o.store_id)) { setError('Select a store for every outlet stop'); return; }
     setCreating(true);
     setError(null);
     try {
       await api.post('/api/v1/route-plans', {
         user_id:        form.user_id,
-        activity_id:    form.activity_id,
+        activity_ids:   form.activity_ids,
         plan_date:      form.plan_date,
         notes:          form.notes || null,
         frequency:      form.frequency,
@@ -773,21 +806,23 @@ function RoutePlanContent() {
               {/* FE + Date */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
                 <div>
-                  <div style={{ fontSize: 12, color: C.gray, marginBottom: 7 }}>Activity <span style={{ color: C.red }}>*</span></div>
-                  <select value={form.activity_id} onChange={e => setForm(f => ({ ...f, activity_id: e.target.value, user_id: '' }))}
-                    style={{ width: '100%', background: C.s3, border: `1px solid ${C.border}`, borderRadius: 9, padding: '10px 13px', color: form.activity_id ? C.white : C.grayd, fontSize: 13, outline: 'none' }}>
-                    <option value="">Select Activity…</option>
-                    {activities.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-                  </select>
+                  <div style={{ fontSize: 12, color: C.gray, marginBottom: 7 }}>Activities <span style={{ color: C.red }}>*</span></div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, background: C.s3, border: `1px solid ${C.border}`, borderRadius: 9, padding: 8, minHeight: 40 }}>
+                    {activities.length === 0 && <div style={{ fontSize: 12, color: C.grayd, padding: 4 }}>No activities found</div>}
+                    {activities.map(a => {
+                      const isSel = form.activity_ids.includes(a.id);
+                      return (
+                        <div key={a.id} onClick={() => setForm(f => ({ ...f, activity_ids: isSel ? f.activity_ids.filter(id => id !== a.id) : [...f.activity_ids, a.id] }))}
+                          style={{ padding: '6px 10px', background: isSel ? C.redD : 'transparent', border: `1px solid ${isSel ? C.red : C.borderL}`, borderRadius: 8, fontSize: 12, color: isSel ? C.red : C.gray, cursor: 'pointer', transition: 'all 0.2s', fontWeight: isSel ? 700 : 500 }}>
+                          {a.name}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
                 <div>
                   <div style={{ fontSize: 12, color: C.gray, marginBottom: 7 }}>Field Executive <span style={{ color: C.red }}>*</span></div>
-                  <select value={form.user_id} onChange={e => setForm(f => ({ ...f, user_id: e.target.value }))} disabled={!form.activity_id}
-                    style={{ width: '100%', background: C.s3, border: `1px solid ${C.border}`, borderRadius: 9, padding: '10px 13px', color: form.user_id ? C.white : C.grayd, fontSize: 13, outline: 'none', opacity: !form.activity_id ? 0.5 : 1 }}>
-                    <option value="">{!form.activity_id ? 'Select Activity First' : 'Select FE…'}</option>
-                    {users
-                      .map(u => <option key={u.id} value={u.id}>{u.name}{u.employee_id ? ` (${u.employee_id})` : ''}</option>)}
-                  </select>
+                  <FESelector users={users} value={form.user_id} onChange={id => setForm(f => ({ ...f, user_id: id }))} />
                 </div>
               </div>
               <div style={{ marginBottom: 14 }}>

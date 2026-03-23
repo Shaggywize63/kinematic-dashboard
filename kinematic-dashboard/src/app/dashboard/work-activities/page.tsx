@@ -424,7 +424,7 @@ export default function WorkActivitiesPage() {
                         <div>
                           <a href={`https://maps.google.com/?q=${v.lat},${v.lng}`} target="_blank" rel="noreferrer"
                             style={{ fontSize: 11, color: C.blue, textDecoration: 'none' }}>
-                            📍 {v.lat.toFixed(4)}, {v.lng.toFixed(4)} ↗
+                            📍 {Number(v.lat).toFixed(4)}, {Number(v.lng).toFixed(4)} ↗
                           </a>
                         </div>
                       )}
