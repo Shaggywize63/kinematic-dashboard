@@ -14,8 +14,27 @@ const C = {
   orange:'#FF7A30',orangeD:'rgba(255,122,48,0.08)',
 };
 
-interface Activity { id:string; name:string; type?:string; description?:string; icon?:string; color?:string; is_active:boolean; }
-const BLANK = { name:'', type:'gt', description:'', icon:'⚡', color:'#3E9EFF', is_active:true };
+interface Activity { 
+  id:string; 
+  name:string; 
+  type?:string; 
+  description?:string; 
+  icon?:string; 
+  color?:string; 
+  is_active:boolean; 
+  is_geofenced?:boolean; 
+  geofence_radius?:number; 
+}
+const BLANK = { 
+  name:'', 
+  type:'gt', 
+  description:'', 
+  icon:'⚡', 
+  color:'#3E9EFF', 
+  is_active:true, 
+  is_geofenced:false, 
+  geofence_radius:100 
+};
 const ACT_TYPES = [{v:'gt',l:'GT Activity'},{v:'mt',l:'MT Activity'},{v:'visit',l:'Store Visit'},{v:'sampling',l:'Sampling'},{v:'demo',l:'Demo'},{v:'survey',l:'Survey'},{v:'other',l:'Other'}];
 const ICONS = ['⚡','🎯','📋','🏪','🤝','📊','🛍️','💡','📦','🔍','✅','🎉'];
 const PRESET_COLORS = ['#3E9EFF','#00D97E','#FFB800','#9B6EFF','#FF7A30','#E01E2C','#00C9B1','#FF6B9D'];
@@ -61,14 +80,32 @@ export default function ActivityManagement() {
   const openAdd = () => { setEditing(null); setForm({...BLANK}); setFErr(''); setShowModal(true); };
   const openEdit = (a:Activity) => {
     setEditing(a);
-    setForm({ name:a.name, type:a.type||'gt', description:a.description||'', icon:a.icon||'⚡', color:a.color||'#3E9EFF', is_active:a.is_active });
+    setForm({ 
+      name:a.name, 
+      type:a.type||'gt', 
+      description:a.description||'', 
+      icon:a.icon||'⚡', 
+      color:a.color||'#3E9EFF', 
+      is_active:a.is_active,
+      is_geofenced:a.is_geofenced ?? false,
+      geofence_radius:a.geofence_radius ?? 100
+    });
     setFErr(''); setShowModal(true);
   };
 
   const save = async () => {
     if(!form.name.trim()){setFErr('Activity name is required');return;}
     setSaving(true); setFErr('');
-    const payload = { name:form.name.trim(), type:form.type, description:form.description||null, icon:form.icon||null, color:form.color||null, is_active:form.is_active };
+    const payload = { 
+      name:form.name.trim(), 
+      type:form.type, 
+      description:form.description||null, 
+      icon:form.icon||null, 
+      color:form.color||null, 
+      is_active:form.is_active,
+      is_geofenced:form.is_geofenced,
+      geofence_radius:form.geofence_radius
+    };
     try {
       if(editing) await api.patch(`/api/v1/activities/${editing.id}`, payload);
       else await api.post('/api/v1/activities', payload);
@@ -198,14 +235,29 @@ export default function ActivityManagement() {
               </div>
             </div>
 
-            {editing && (
-              <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:20}}>
-                <div onClick={()=>setForm(p=>({...p,is_active:!p.is_active}))} style={{width:40,height:22,borderRadius:11,background:form.is_active?C.red:C.grayd,cursor:'pointer',position:'relative',transition:'background .2s'}}>
-                  <div style={{position:'absolute',top:3,left:form.is_active?20:3,width:16,height:16,borderRadius:'50%',background:'#fff',transition:'left .2s'}}/>
+
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:16}}>
+              <div>
+                <Label t="Geo-fencing"/>
+                <div style={{display:'flex',alignItems:'center',gap:10,background:C.s3,border:`1.5px solid ${C.border}`,borderRadius:11,padding:'8px 12px'}}>
+                  <div onClick={()=>setForm(p=>({...p,is_geofenced:!p.is_geofenced}))} style={{width:34,height:18,borderRadius:10,background:form.is_geofenced?C.green:C.grayd,cursor:'pointer',position:'relative',transition:'background .2s',flexShrink:0}}>
+                    <div style={{position:'absolute',top:2,left:form.is_geofenced?18:2,width:14,height:14,borderRadius:'50%',background:'#fff',transition:'left .2s'}}/>
+                  </div>
+                  <span style={{fontSize:12,color:C.gray,fontWeight:600}}>{form.is_geofenced?'Enabled':'Disabled'}</span>
                 </div>
-                <span style={{fontSize:13,color:C.gray}}>Active</span>
               </div>
-            )}
+              <div>
+                <Label t="Radius (meters)"/>
+                <input type="number" style={{...inp, opacity: form.is_geofenced?1:0.5}} disabled={!form.is_geofenced} placeholder="e.g. 100" value={form.geofence_radius} onChange={e=>setForm(p=>({...p,geofence_radius:parseInt(e.target.value)||0}))}/>
+              </div>
+            </div>
+
+            <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:20}}>
+              <div onClick={()=>setForm(p=>({...p,is_active:!p.is_active}))} style={{width:40,height:22,borderRadius:11,background:form.is_active?C.red:C.grayd,cursor:'pointer',position:'relative',transition:'background .2s'}}>
+                <div style={{position:'absolute',top:3,left:form.is_active?20:3,width:16,height:16,borderRadius:'50%',background:'#fff',transition:'left .2s'}}/>
+              </div>
+              <span style={{fontSize:13,color:C.gray}}>Active</span>
+            </div>
             <div style={{display:'flex',gap:10}}>
               <button onClick={()=>setShowModal(false)} style={{flex:1,padding:'11px',border:`1px solid ${C.border}`,borderRadius:11,background:'transparent',color:C.gray,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>Cancel</button>
               <button onClick={save} disabled={saving} style={{flex:1,padding:'11px',border:'none',borderRadius:11,background:C.red,color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:8,fontFamily:"'DM Sans',sans-serif",opacity:saving?0.7:1}}>
