@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { parseISO, isValid } from 'date-fns';
 import api from '@/lib/api';
 
 /* ── DateRangePicker component ── */
@@ -166,7 +167,16 @@ const fmtHrs = (h: number | null) => {
   const totalMinutes = Math.round(h * 60);
   const hrs = Math.floor(totalMinutes / 60);
   const mins = totalMinutes % 60;
+  if (hrs === 0 && mins === 0 && h > 0) return '1m'; // Show at least 1m if there is duration
   return hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`;
+};
+
+// Robust parser for inconsistent ISO strings (handles spaces instead of T, etc.)
+const parseDate = (iso?: string | null): number | null => {
+  if (!iso) return null;
+  const s = iso.replace(' ', 'T'); // Fix space-separated timestamps
+  const d = parseISO(s);
+  return isValid(d) ? d.getTime() : null;
 };
 
 /* ═══════════════════════════════════════════════════ */
@@ -428,18 +438,21 @@ export default function AttendancePage() {
   ═════════════════════════════════════════════════════════ */
   const calcHours = (rec: AttendanceRecord): number | null => {
     if (rec.total_hours != null) return rec.total_hours;
-    if (!rec.checkin_at) return null;
-    const ci = new Date(rec.checkin_at).getTime();
+    const ci = parseDate(rec.checkin_at);
+    if (ci == null) return null;
     
     // Fallback to current time if checked_in but not yet checked_out
     let coStr = rec.checkout_at;
     if (!coStr && rec.status === 'checked_in') coStr = new Date().toISOString();
     
-    if (!coStr) return null;
-    let co = new Date(coStr).getTime();
+    const co = parseDate(coStr);
+    if (co == null) return null;
+
     // Midnight crossover: checkout is earlier than checkin
-    if (co < ci) co += 24 * 60 * 60 * 1000;
-    const h = (co - ci) / 3_600_000 - (rec.break_minutes || 0) / 60;
+    let durationMs = co - ci;
+    if (co < ci) durationMs += 24 * 60 * 60 * 1000;
+    
+    const h = durationMs / 3_600_000 - (rec.break_minutes || 0) / 60;
     return Math.min(Math.max(h, 0), 24);
   };
 
