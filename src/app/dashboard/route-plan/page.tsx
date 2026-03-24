@@ -803,6 +803,16 @@ function RoutePlanContent() {
             {/* Body */}
             <div style={{ padding: '20px 24px', overflowY: 'auto', flex: 1 }}>
 
+              {/* Error display inside modal */}
+              {error && (
+                <div style={{ background: C.redD, border: `1px solid ${C.redB}`, borderRadius: 12, padding: '12px 16px', marginBottom: 20, color: C.red, fontSize: 13, display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <Icon d={IC.alert} s={16} c={C.red} /> {error}
+                  <button onClick={() => setError(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: C.red, cursor: 'pointer', display: 'flex' }}>
+                    <Icon d={IC.x} s={14} c={C.red} />
+                  </button>
+                </div>
+              )}
+
               {/* FE + Date */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
                 <div>
@@ -952,6 +962,16 @@ function RoutePlanContent() {
 
             {/* Body */}
             <div style={{ padding: '20px 24px', overflowY: 'auto', flex: 1 }}>
+
+              {/* Error display inside modal */}
+              {error && !importResult && (
+                <div style={{ background: C.redD, border: `1px solid ${C.redB}`, borderRadius: 12, padding: '12px 16px', marginBottom: 20, color: C.red, fontSize: 13, display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <Icon d={IC.alert} s={16} c={C.red} /> {error}
+                  <button onClick={() => setError(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: C.red, cursor: 'pointer', display: 'flex' }}>
+                    <Icon d={IC.x} s={14} c={C.red} />
+                  </button>
+                </div>
+              )}
 
               {/* Date */}
               <div style={{ marginBottom: 18 }}>
