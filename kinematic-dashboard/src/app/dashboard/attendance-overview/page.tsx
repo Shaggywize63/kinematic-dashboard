@@ -430,8 +430,13 @@ export default function AttendancePage() {
     if (rec.total_hours != null) return rec.total_hours;
     if (!rec.checkin_at) return null;
     const ci = new Date(rec.checkin_at).getTime();
-    if (!rec.checkout_at) return null;
-    let co = new Date(rec.checkout_at).getTime();
+    
+    // Fallback to current time if checked_in but not yet checked_out
+    let coStr = rec.checkout_at;
+    if (!coStr && rec.status === 'checked_in') coStr = new Date().toISOString();
+    
+    if (!coStr) return null;
+    let co = new Date(coStr).getTime();
     // Midnight crossover: checkout is earlier than checkin
     if (co < ci) co += 24 * 60 * 60 * 1000;
     const h = (co - ci) / 3_600_000 - (rec.break_minutes || 0) / 60;
