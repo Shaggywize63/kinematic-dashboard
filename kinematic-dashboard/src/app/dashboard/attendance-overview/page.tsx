@@ -972,8 +972,11 @@ export default function AttendancePage() {
                   <div style={{ fontSize: 13, color: r.checkout_at ? C.white : C.grayd }}>{fmt(r.checkout_at)}</div>
 
                   {/* hours */}
-                  <div style={{ fontSize: 13, fontWeight: 700, color: r.total_hours ? C.green : C.grayd }}>
-                    {r.total_hours ? `${r.total_hours.toFixed(1)}h` : '—'}
+                  <div style={{ fontSize: 13, fontWeight: 700, color: (r.total_hours || calcHours(r)) ? C.green : C.grayd }}>
+                    {(() => {
+                      const h = calcHours(r);
+                      return h != null ? `${h.toFixed(1)}h` : '—';
+                    })()}
                   </div>
 
                   {/* zone */}
@@ -1100,7 +1103,7 @@ export default function AttendancePage() {
               {[
                 { l: 'Check-in',  v: fmt(detail.checkin_at) },
                 { l: 'Check-out', v: fmt(detail.checkout_at) },
-                { l: 'Hours',     v: detail.total_hours ? `${detail.total_hours.toFixed(1)}h` : '—' },
+                { l: 'Hours',     v: (() => { const h = calcHours(detail); return h != null ? `${h.toFixed(1)}h` : '—'; })() },
                 { l: 'Break',     v: detail.break_minutes ? `${detail.break_minutes}m` : '—' },
               ].map(r => (
                 <div key={r.l} style={{ background: C.s3, borderRadius: 11, padding: '11px 13px' }}>
