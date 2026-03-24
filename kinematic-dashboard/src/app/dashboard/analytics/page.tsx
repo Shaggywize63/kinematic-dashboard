@@ -220,7 +220,7 @@ export default function AnalyticsPage() {
     { l:'Avg Attendance', v: summary?.avg_attendance ? `${summary.avg_attendance}%` : '—', c:C.yellow },
     { l:'Days Worked',    v: summary?.total_days_worked || '—', c:C.blue },
     { l:'Total Leaves',   v: summary?.total_leaves || '—', c:C.red },
-    { l:'Total Hours',    v: summary?.total_hours_worked != null ? `${summary.total_hours_worked}h` : '—', c:C.purple },
+    { l:'Total Hours',    v: summary?.total_hours_worked != null ? `${Math.floor(summary.total_hours_worked)}h ${Math.round((summary.total_hours_worked % 1) * 60)}m` : '—', c:C.purple },
   ];
 
   return (
