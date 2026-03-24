@@ -996,7 +996,7 @@ export default function AttendancePage() {
                   <div style={{ fontSize: 13, color: r.checkout_at ? C.white : C.grayd }}>{fmt(r.checkout_at)}</div>
 
                   {/* hours */}
-                  <div style={{ fontSize: 13, fontWeight: 700, color: (r.total_hours || calcHours(r)) ? C.green : C.grayd }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: (r.total_hours || calcHours(r)) ? C.green : C.grayd, background: 'red' }}>
                     {fmtHrs(calcHours(r))}
                   </div>
 
