@@ -1,3 +1,5 @@
+'use client';
+
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { parseISO, isValid } from 'date-fns';
 import api from '@/lib/api';
