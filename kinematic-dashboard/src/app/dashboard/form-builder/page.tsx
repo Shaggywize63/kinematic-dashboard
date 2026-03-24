@@ -278,10 +278,12 @@ function CreateFormModal({ onCreated, onClose }:{ onCreated:(f:BForm)=>void; onC
   const create = async () => {
     if (!form.title.trim()) { setErr('Form title is required'); return; }
     setSaving(true); setErr('');
+    const payload = { ...form };
+    if (!payload.activity_id) delete (payload as any).activity_id;
     try {
-      const f = await apiFetch<BForm>('/api/v1/builder/forms', { method:'POST', body: JSON.stringify(form) });
+      const f = await apiFetch<BForm>('/api/v1/builder/forms', { method:'POST', body: JSON.stringify(payload) });
       onCreated(f);
-    } catch { setErr('Failed to create form'); }
+    } catch (e: any) { setErr(e.message || 'Failed to create form'); }
     setSaving(false);
   };
 
