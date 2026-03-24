@@ -161,6 +161,13 @@ const fmt = (iso?: string) => {
 };
 const fmtDate = (d: string) =>
   new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+const fmtHrs = (h: number | null) => {
+  if (h == null) return '—';
+  const totalMinutes = Math.round(h * 60);
+  const hrs = Math.floor(totalMinutes / 60);
+  const mins = totalMinutes % 60;
+  return hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`;
+};
 
 /* ═══════════════════════════════════════════════════ */
 export default function AttendancePage() {
@@ -973,10 +980,7 @@ export default function AttendancePage() {
 
                   {/* hours */}
                   <div style={{ fontSize: 13, fontWeight: 700, color: (r.total_hours || calcHours(r)) ? C.green : C.grayd }}>
-                    {(() => {
-                      const h = calcHours(r);
-                      return h != null ? `${h.toFixed(1)}h` : '—';
-                    })()}
+                    {fmtHrs(calcHours(r))}
                   </div>
 
                   {/* zone */}
@@ -1103,7 +1107,7 @@ export default function AttendancePage() {
               {[
                 { l: 'Check-in',  v: fmt(detail.checkin_at) },
                 { l: 'Check-out', v: fmt(detail.checkout_at) },
-                { l: 'Hours',     v: (() => { const h = calcHours(detail); return h != null ? `${h.toFixed(1)}h` : '—'; })() },
+                { l: 'Hours',     v: fmtHrs(calcHours(detail)) },
                 { l: 'Break',     v: detail.break_minutes ? `${detail.break_minutes}m` : '—' },
               ].map(r => (
                 <div key={r.l} style={{ background: C.s3, borderRadius: 11, padding: '11px 13px' }}>
