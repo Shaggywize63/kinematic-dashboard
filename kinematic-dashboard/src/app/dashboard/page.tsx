@@ -645,8 +645,9 @@ export default function DashboardPage() {
         </div>
 
         {/* KPI Row - Phase 2 */}
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr 1.6fr', gap:14 }}>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(5, 1fr) 1.6fr', gap:10 }}>
           <StatCard label="Total TFF" value={summData?.kpis?.total_tff ?? '—'} color={C.green} loading={loadingSumm} />
+          <StatCard label="Total Hours" value={summData?.total_hours_worked != null ? `${summData.total_hours_worked}h` : '—'} color={C.purple} loading={loadingSumm} />
           <StatCard label="Days Worked" value={summData?.total_days_worked ?? '—'} color={C.blue} loading={loadingSumm} />
           <StatCard label="Total Leaves" value={summData?.total_leaves ?? '—'} color={C.red} loading={loadingSumm} />
           <StatCard label="Avg Attendance" value={summData?.kpis?.avg_attendance ? `${summData.kpis.avg_attendance}%` : '—'} color={C.yellow} loading={loadingSumm} />
@@ -719,6 +720,7 @@ export default function DashboardPage() {
                           }}
                         >
                           {sc.replace('_',' ')}
+                          {fe.total_hours != null && <span style={{ color:C.grayd, marginLeft:4, fontWeight:400 }}>· {Math.floor(fe.total_hours)}h {Math.round((fe.total_hours % 1) * 60)}m</span>}
                         </div>
                       </div>
                     );

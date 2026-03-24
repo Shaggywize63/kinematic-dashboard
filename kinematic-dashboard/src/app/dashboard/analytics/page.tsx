@@ -15,6 +15,7 @@ interface SummaryData {
   tff_rate?: number;
   total_days_worked?: number;
   total_leaves?: number;
+  total_hours_worked?: number;
   monthly_data?: Array<{ month: string; tff?: number; engagements?: number }>;
   top_performers?: Array<{ name: string; zone: string; tff?: number; attendance: number }>;
   zone_performance?: Array<{ zone: string; tff?: number; target: number }>;
@@ -219,6 +220,7 @@ export default function AnalyticsPage() {
     { l:'Avg Attendance', v: summary?.avg_attendance ? `${summary.avg_attendance}%` : '—', c:C.yellow },
     { l:'Days Worked',    v: summary?.total_days_worked || '—', c:C.blue },
     { l:'Total Leaves',   v: summary?.total_leaves || '—', c:C.red },
+    { l:'Total Hours',    v: summary?.total_hours_worked != null ? `${summary.total_hours_worked}h` : '—', c:C.purple },
   ];
 
   return (
