@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import api from '@/lib/api';
 import CitySelect from '@/components/CitySelect';
+import { fmtHrs } from '@/lib/utils';
 
 const C = {
   red:'#E01E2C', redD:'rgba(224,30,44,0.08)', redB:'rgba(224,30,44,0.2)',
@@ -420,7 +421,7 @@ export default function ManpowerDirectoryPage() {
                 </div>
 
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:7,marginBottom:12}}>
-                  {[{l:'TFF Today',v:u.today_ecc??'—',c:C.green},{l:'Hours',v:u.hours_worked!=null?`${u.hours_worked.toFixed(1)}h`:'—',c:C.yellow}].map(s=>(
+                  {[{l:'TFF Today',v:u.today_ecc??'—',c:C.green},{l:'Hours',v:fmtHrs(u.hours_worked),c:C.yellow}].map(s=>(
                     <div key={s.l} style={{background:C.s3,borderRadius:9,padding:'8px 0',textAlign:'center'}}>
                       <div style={{fontFamily:"'Syne',sans-serif",fontSize:17,fontWeight:800,color:s.c}}>{s.v}</div>
                       <div style={{fontSize:10,color:C.grayd,marginTop:1}}>{s.l}</div>

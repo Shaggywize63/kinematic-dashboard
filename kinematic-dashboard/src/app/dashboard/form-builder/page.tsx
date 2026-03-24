@@ -283,7 +283,10 @@ function CreateFormModal({ onCreated, onClose }:{ onCreated:(f:BForm)=>void; onC
     try {
       const f = await apiFetch<BForm>('/api/v1/builder/forms', { method:'POST', body: JSON.stringify(payload) });
       onCreated(f);
-    } catch (e: any) { setErr(e.message || 'Failed to create form'); }
+    } catch (e: any) { 
+      console.error('Form creation failed:', e);
+      setErr(`⚠ Failed to create form: ${e.message || 'Unknown server error'}`); 
+    }
     setSaving(false);
   };
 

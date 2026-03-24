@@ -560,7 +560,7 @@ export default function AttendancePage() {
       q(u.name), q(u.employee_id), q(u.role), q(u.city), q(u.zone), q(u.supervisor),
       u.totalDays, u.presentDays,
       u.halfDays > 0 ? `⚠ ${u.halfDays}` : '0',
-      u.absentDays, u.totalHours.toFixed(1), u.avgHoursPerDay.toFixed(1),
+      u.absentDays, fmtHrs(u.totalHours), fmtHrs(u.avgHoursPerDay),
     ]);
     tabs.push({ name: 'Summary', csvContent: [summaryHeader.map(q).join(','), ...summaryRows.map(r => r.join(','))].join('\n') });
 
@@ -573,7 +573,7 @@ export default function AttendancePage() {
       const half     = cu.reduce((a,u) => a + u.halfDays, 0);
       const absent   = cu.reduce((a,u) => a + u.absentDays, 0);
       const hours    = cu.reduce((a,u) => a + u.totalHours, 0);
-      return [q(city), cu.length, present, half > 0 ? `⚠ ${half}` : '0', absent, hours.toFixed(1), cu.length ? (hours / cu.length).toFixed(1) : '0'];
+      return [q(city), cu.length, present, half > 0 ? `⚠ ${half}` : '0', absent, fmtHrs(hours), cu.length ? fmtHrs(hours / cu.length) : '0h 0m'];
     });
     tabs.push({ name: 'City Wise', csvContent: [cityHeader.map(q).join(','), ...cityRows.map(r => r.join(','))].join('\n') });
 
@@ -587,7 +587,7 @@ export default function AttendancePage() {
         ru.reduce((a,u) => a+u.presentDays, 0),
         ru.reduce((a,u) => a+u.halfDays,    0),
         ru.reduce((a,u) => a+u.absentDays,  0),
-        ru.reduce((a,u) => a+u.totalHours,  0).toFixed(1),
+        fmtHrs(ru.reduce((a,u) => a+u.totalHours,  0)),
       ];
     });
     tabs.push({ name: 'Role Wise', csvContent: [roleHeader.map(q).join(','), ...roleRows.map(r => r.join(','))].join('\n') });
@@ -608,7 +608,7 @@ export default function AttendancePage() {
         q(r.users?.zones?.name || ''),
         q(r.checkin_at  ? new Date(r.checkin_at).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) : '—'),
         q(r.checkout_at ? new Date(r.checkout_at).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) : '—'),
-        hrs != null ? hrs.toFixed(2) : '—',
+        fmtHrs(hrs),
         r.break_minutes || 0,
         q(classifyDay(r)),
         isCrossover ? q('YES — checkout next day, +24h applied') : q('No'),
@@ -622,8 +622,8 @@ export default function AttendancePage() {
       ['MIDNIGHT CROSSOVER POLICY — How working hours are calculated'],
       [''],
       ['Scenario', 'Example', 'Calculation', 'Result'],
-      ['Normal shift',       'Check-in 09:00  Check-out 18:00', '18:00 − 09:00',          '9.0 hrs'],
-      ['Midnight crossover', 'Check-in 21:00  Check-out 02:00', '02:00 + 24h − 21:00',    '5.0 hrs'],
+      ['Normal shift',       'Check-in 09:00  Check-out 18:00', '18:00 − 09:00',          '9h 0m'],
+      ['Midnight crossover', 'Check-in 21:00  Check-out 02:00', '02:00 + 24h − 21:00',    '5h 0m'],
       [''],
       ['Rule: If checkout_at < checkin_at (same attendance record), the system assumes the shift crossed midnight.'],
       ['A full 24 hours is added to the checkout timestamp before calculating the difference.'],

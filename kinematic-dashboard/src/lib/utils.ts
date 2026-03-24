@@ -22,6 +22,14 @@ export function formatNumber(n: number): string {
   return String(n);
 }
 
+export function fmtHrs(h: number | null | undefined): string {
+  if (h == null || isNaN(h)) return '—';
+  const totalMinutes = Math.round(h * 60);
+  const hrs = Math.floor(totalMinutes / 60);
+  const mins = totalMinutes % 60;
+  return `${hrs}h ${mins}m`;
+}
+
 export function pct(num: number, den: number): number {
   if (den === 0) return 0;
   return Math.round((num / den) * 100);
