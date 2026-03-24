@@ -167,8 +167,7 @@ const fmtHrs = (h: number | null) => {
   const totalMinutes = Math.round(h * 60);
   const hrs = Math.floor(totalMinutes / 60);
   const mins = totalMinutes % 60;
-  if (hrs === 0 && mins === 0 && h > 0) return '1m'; // Show at least 1m if there is duration
-  return hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`;
+  return `${hrs}h ${mins}m`;
 };
 
 // Robust parser for inconsistent ISO strings (handles spaces instead of T, etc.)
