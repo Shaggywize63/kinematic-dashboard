@@ -249,10 +249,11 @@ function RoutePlanContent() {
   }, [date]);
 
   const fetchFormData = useCallback(async () => {
-    const [storesRes, usersRes, actRes] = await Promise.allSettled([
+    const [storesRes, usersRes, actRes, mapsRes] = await Promise.allSettled([
       api.get('/api/v1/stores') as Promise<any>,
       api.get('/api/v1/users?role=executive&limit=500') as Promise<any>,
       api.get('/api/v1/activities') as Promise<any>,
+      api.get('/api/v1/activity-mappings') as Promise<any>,
     ]);
     if (storesRes.status === 'fulfilled') {
       const r = storesRes.value;
@@ -266,15 +267,16 @@ function RoutePlanContent() {
       const r = actRes.value;
       const acts = Array.isArray(r) ? r : (r?.data ?? []);
       setActivities(acts);
-      
-      // Fetch mappings for each activity
-      acts.forEach(async (a: Activity) => {
-        try {
-          const mRes = await api.get(`/api/v1/activity-mapping/activity/${a.id}/users`) as any;
-          const uids = (mRes?.data || mRes || []).map((u: any) => u.user_id);
-          setActivityUsers((prev: any) => ({ ...prev, [a.id]: uids }));
-        } catch {}
+    }
+    if (mapsRes.status === 'fulfilled') {
+      const r = mapsRes.value;
+      const allMaps = Array.isArray(r) ? r : (r?.data ?? []);
+      const grouped: Record<string, string[]> = {};
+      allMaps.forEach((m: any) => {
+        if (!grouped[m.activity_id]) grouped[m.activity_id] = [];
+        grouped[m.activity_id].push(m.user_id);
       });
+      setActivityUsers(grouped);
     }
   }, []);
 
@@ -1095,7 +1097,7 @@ function MappingView({ users, activities, mapping, onRefresh }: { users: FEUser[
     if (!selectedActivity) return;
     setLoading(true);
     try {
-      await api.post('/api/v1/activity-mapping/map', {
+      await api.post('/api/v1/activity-mappings', {
         user_id: userId,
         activity_id: selectedActivity,
         is_mapped: active
