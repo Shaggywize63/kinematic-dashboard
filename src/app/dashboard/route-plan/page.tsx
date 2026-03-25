@@ -1099,10 +1099,13 @@ function MappingView({ users, activities, mapping, onRefresh }: { users: FEUser[
     if (!selectedActivity) return;
     setLoading(true);
     try {
+      const current = mapping[selectedActivity] ?? [];
+      const user_ids = active
+        ? [...current.filter(id => id !== userId), userId]
+        : current.filter(id => id !== userId);
       await api.post('/api/v1/activity-mappings', {
-        user_id: userId,
         activity_id: selectedActivity,
-        is_mapped: active
+        user_ids,
       });
       onRefresh();
     } catch (e: any) {
