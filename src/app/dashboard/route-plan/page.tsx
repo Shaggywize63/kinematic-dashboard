@@ -251,7 +251,7 @@ function RoutePlanContent() {
   const fetchFormData = useCallback(async () => {
     const [storesRes, usersRes, actRes, mapsRes] = await Promise.allSettled([
       api.get('/api/v1/stores') as Promise<any>,
-      api.get('/api/v1/users?role=executive&limit=500') as Promise<any>,
+      api.get('/api/v1/users?limit=500') as Promise<any>,
       api.get('/api/v1/activities') as Promise<any>,
       api.get('/api/v1/activity-mappings') as Promise<any>,
     ]);
@@ -261,7 +261,8 @@ function RoutePlanContent() {
     }
     if (usersRes.status === 'fulfilled') {
       const r = usersRes.value;
-      setUsers(Array.isArray(r) ? r : (r?.data ?? []));
+      const allUsers = Array.isArray(r) ? r : (r?.data ?? []);
+      setUsers(allUsers.filter((u: any) => u.role === 'executive' || u.role === 'field_executive'));
     }
     if (actRes.status === 'fulfilled') {
       const r = actRes.value;
@@ -382,10 +383,11 @@ function RoutePlanContent() {
 
   const downloadTemplate = async () => {
     const [fesRes, storesRes] = await Promise.allSettled([
-      api.get('/api/v1/users?role=executive&limit=500') as Promise<any>,
+      api.get('/api/v1/users?limit=500') as Promise<any>,
       api.get('/api/v1/stores') as Promise<any>,
     ]);
-    const fes: any[]       = fesRes.status === 'fulfilled'    ? (Array.isArray(fesRes.value) ? fesRes.value : (fesRes.value?.data ?? [])) : [];
+    const allFes: any[]    = fesRes.status === 'fulfilled'    ? (Array.isArray(fesRes.value) ? fesRes.value : (fesRes.value?.data ?? [])) : [];
+    const fes: any[]       = allFes.filter((u: any) => u.role === 'executive' || u.role === 'field_executive');
     const storeList: any[] = storesRes.status === 'fulfilled' ? (Array.isArray(storesRes.value) ? storesRes.value : (storesRes.value?.data ?? [])) : [];
 
     const lines: string[] = [
