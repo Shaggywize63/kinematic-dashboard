@@ -32,45 +32,6 @@ interface AttSummary {
 
 /* ... existing tiny atoms ... */
 
-const SessionProgressBar = ({ startTime, loading }: { startTime?: string; loading?: boolean }) => {
-  const [pct, setPct] = useState(0);
-  const [elapsed, setElapsed] = useState('');
-
-  useEffect(() => {
-    if (!startTime || loading) return;
-    const tick = () => {
-      const start = new Date(startTime).getTime();
-      const now = new Date().getTime();
-      const diffMs = now - start;
-      const hours8 = 8 * 60 * 60 * 1000;
-      const p = Math.min((diffMs / hours8) * 100, 100);
-      setPct(p);
-
-      const hrs = Math.floor(diffMs / 3600000);
-      const mins = Math.floor((diffMs % 3600000) / 60000);
-      setElapsed(`${hrs}h ${mins}m`);
-    };
-    tick();
-    const inv = setInterval(tick, 60000);
-    return () => clearInterval(inv);
-  }, [startTime, loading]);
-
-  if (loading) return <Shimmer h={80} br={16}/>;
-  if (!startTime) return null;
-
-  return (
-    <div style={{ background:C.s2, border:`1px solid ${C.border}`, borderRadius:16, padding:'18px 20px', display:'flex', flexDirection:'column', gap:10 }}>
-       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-          <div style={{ fontSize:11, color:C.gray, fontWeight:600 }}>Active Session Progress</div>
-          <div style={{ fontSize:12, color:C.white, fontWeight:700 }}>{elapsed} / 8h</div>
-       </div>
-       <div style={{ height:8, background:C.s3, borderRadius:4, overflow:'hidden', position:'relative' }}>
-          <div style={{ position:'absolute', inset:0, background:C.blue, width:`${pct}%`, transition:'width 1s ease' }}/>
-       </div>
-       <div style={{ fontSize:10, color:C.grayd }}>Current shift activity</div>
-    </div>
-  );
-};
 interface WeekDay {
   date:string;
   label:string;
@@ -645,13 +606,12 @@ export default function DashboardPage() {
         </div>
 
         {/* KPI Row - Phase 2 */}
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(5, 1fr) 1.6fr', gap:10 }}>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(5, 1fr)', gap:10 }}>
           <StatCard label="Total TFF" value={summData?.kpis?.total_tff ?? '—'} color={C.green} loading={loadingSumm} />
           <StatCard label="Total Hours" value={summData?.total_hours_worked != null ? `${Math.floor(summData.total_hours_worked)}h ${Math.round((summData.total_hours_worked % 1) * 60)}m` : '—'} color={C.purple} loading={loadingSumm} />
           <StatCard label="Days Worked" value={summData?.total_days_worked ?? '—'} color={C.blue} loading={loadingSumm} />
           <StatCard label="Total Leaves" value={summData?.total_leaves ?? '—'} color={C.red} loading={loadingSumm} />
           <StatCard label="Avg Attendance" value={summData?.kpis?.avg_attendance ? `${summData.kpis.avg_attendance}%` : '—'} color={C.yellow} loading={loadingSumm} />
-          <SessionProgressBar startTime={activeFEs[0]?.checkin_at} loading={loadingLoc} />
         </div>
 
         {/* Row 2: Attendance + Weekly Activity */}
