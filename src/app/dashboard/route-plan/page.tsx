@@ -251,7 +251,7 @@ function RoutePlanContent() {
   const fetchFormData = useCallback(async () => {
     const [storesRes, usersRes, actRes, mapsRes] = await Promise.allSettled([
       api.get('/api/v1/stores') as Promise<any>,
-      api.get('/api/v1/users?role=executive&limit=500') as Promise<any>,
+      api.get('/api/v1/users?role=field_executive&limit=500') as Promise<any>,
       api.get('/api/v1/activities') as Promise<any>,
       api.get('/api/v1/activity-mappings') as Promise<any>,
     ]);
@@ -382,7 +382,7 @@ function RoutePlanContent() {
 
   const downloadTemplate = async () => {
     const [fesRes, storesRes] = await Promise.allSettled([
-      api.get('/api/v1/users?role=executive&limit=500') as Promise<any>,
+      api.get('/api/v1/users?role=field_executive&limit=500') as Promise<any>,
       api.get('/api/v1/stores') as Promise<any>,
     ]);
     const fes: any[]       = fesRes.status === 'fulfilled'    ? (Array.isArray(fesRes.value) ? fesRes.value : (fesRes.value?.data ?? [])) : [];
