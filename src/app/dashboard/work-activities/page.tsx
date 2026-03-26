@@ -180,8 +180,8 @@ export default function WorkActivitiesPage() {
     setModalLoading(true);
     setFormData(null);
     try {
-      const r = await api.getSubmission(f.id);
-      setFormData(r);
+      const r: any = await api.getSubmission(f.id);
+      setFormData(r.data || r); // Handle both {data} and direct object
     } catch (e: any) {
       setErr('Failed to load form details: ' + e.message);
     } finally {
@@ -191,15 +191,14 @@ export default function WorkActivitiesPage() {
 
   const downloadCSV = () => {
     if (feActivities.length === 0) return;
-    const headers = ['ID', 'Submitted At', 'Executive', 'Employee ID', 'Form', 'Outlet', 'Zone', 'GPS'];
+    const headers = ['ID', 'Submitted At', 'Executive', 'Employee ID', 'Form', 'Outlet', 'GPS'];
     const rows = feActivities.map(a => [
       a.id,
       a.submitted_at,
       a.users?.name || '',
       a.users?.employee_id || '',
-      a.form_templates?.name || a.activities?.name || '',
+      a.form_templates?.title || a.activities?.name || '',
       a.outlet_name || '',
-      a.users?.zones?.name || '',
       a.gps || '',
     ]);
     const csvContent = [headers, ...rows].map(r => r.join(',')).join('\n');
@@ -357,18 +356,13 @@ export default function WorkActivitiesPage() {
 
             <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 16, overflow: 'hidden' }}>
               {/* Header */}
-              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr 1.5fr 1fr 1fr 1fr 0.8fr', padding: '11px 20px', borderBottom: `1px solid ${C.border}`, background: C.s3 }}>
-                {[
-                  { h: 'Executive', w: '2fr' },
-                  { h: 'Form / Activity', w: '1.5fr' },
-                  { h: 'Outlet', w: '1.5fr' },
-                  { h: 'Zone', w: '1fr' },
-                  { h: 'GPS', w: '1fr' },
-                  { h: 'Time', w: '1fr' },
-                  { h: 'Actions', w: '0.8fr' },
-                ].map(obj => (
-                  <div key={obj.h} style={{ fontSize: 11, fontWeight: 700, color: C.grayd, letterSpacing: '0.7px', textTransform: 'uppercase' as const }}>{obj.h}</div>
-                ))}
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr 1.5fr 1fr 1fr 0.8fr', padding: '12px 20px', borderBottom: `1px solid ${C.border}`, background: C.s3, color: C.grayd, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                <div>Executive</div>
+                <div>Form / Activity</div>
+                <div>Outlet</div>
+                <div>GPS</div>
+                <div>Time</div>
+                <div>Actions</div>
               </div>
 
               {feLoading ? (
@@ -382,7 +376,7 @@ export default function WorkActivitiesPage() {
               ) : (
                 feActivities.map((a, i) => (
                   <div key={a.id} className="wa-row"
-                    style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr 1.5fr 1fr 1fr 1fr 0.8fr', padding: '13px 20px', borderBottom: i < feActivities.length - 1 ? `1px solid ${C.border}` : 'none', alignItems: 'center', background: C.s2 }}>
+                    style={{ display: 'grid', gridTemplateColumns: '2fr 1.8fr 1.8fr 1.2fr 1.2fr 0.8fr', padding: '13px 20px', borderBottom: i < feActivities.length - 1 ? `1px solid ${C.border}` : 'none', alignItems: 'center', background: C.s2 }}>
 
                     {/* Executive */}
                     <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
@@ -401,16 +395,6 @@ export default function WorkActivitiesPage() {
                       {a.activities?.name && a.form_templates?.name && (
                         <div style={{ fontSize: 11, color: C.grayd }}>{a.activities.name}</div>
                       )}
-                    </div>
-
-                    {/* Outlet */}
-                    <div style={{ fontSize: 13, color: a.outlet_name ? C.white : C.grayd }}>
-                      {a.outlet_name || '—'}
-                    </div>
-
-                    {/* Zone */}
-                    <div style={{ fontSize: 12, color: C.gray }}>
-                      {a.users?.zones?.name || '—'}
                     </div>
 
                     {/* GPS */}
