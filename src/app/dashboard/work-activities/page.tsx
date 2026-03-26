@@ -20,14 +20,17 @@ interface Zone { id: string; name: string; city?: string; }
 interface FormActivity {
   id: string;
   submitted_at: string;
+  outlet_id?: string;
   outlet_name?: string;
   user_id: string;
   users?: { name: string; employee_id?: string; role: string; zones?: { name?: string } };
   activities?: { name: string };
-  form_templates?: { name: string };
+  form_templates?: { title: string };
+  outlets?: { name: string };
   city_id?: string;
   zone_id?: string;
-  gps?: string; // Add GPS field
+  gps?: string;
+  form_responses?: any[];
 }
 interface StoreVisit {
   id: string;
@@ -391,10 +394,14 @@ export default function WorkActivitiesPage() {
 
                     {/* Form / Activity */}
                     <div>
-                      <div style={{ fontSize: 13, color: C.white, fontWeight: 500 }}>{a.form_templates?.name || a.activities?.name || '—'}</div>
-                      {a.activities?.name && a.form_templates?.name && (
+                      <div style={{ fontSize: 13, color: C.white, fontWeight: 500 }}>{a.form_templates?.title || a.activities?.name || '—'}</div>
+                      {a.activities?.name && a.form_templates?.title && (
                         <div style={{ fontSize: 11, color: C.grayd }}>{a.activities.name}</div>
                       )}
+                    </div>
+                    {/* Outlet */}
+                    <div style={{ fontSize: 13, color: a.outlets?.name || a.outlet_name ? C.white : C.grayd }}>
+                      {a.outlets?.name || a.outlet_name || '—'}
                     </div>
 
                     {/* GPS */}
@@ -556,7 +563,7 @@ export default function WorkActivitiesPage() {
                   Form Submission
                 </div>
                 <div style={{ fontSize: 20, fontWeight: 800, color: C.white }}>
-                  {viewingForm.form_templates?.name || viewingForm.activities?.name || 'Form Details'}
+                  {viewingForm.form_templates?.title || viewingForm.activities?.name || 'Form Details'}
                 </div>
               </div>
               <button className="wa-btn" onClick={() => setViewingForm(null)}
@@ -599,8 +606,8 @@ export default function WorkActivitiesPage() {
                       FORM RESPONSES
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                      {Array.isArray(formData.responses) && formData.responses.length > 0 ? (
-                        formData.responses.map((r: any, idx: number) => (
+                      {Array.isArray(formData.form_responses) && formData.form_responses.length > 0 ? (
+                        formData.form_responses.map((r: any, idx: number) => (
                           <div key={idx} style={{ padding: 16, background: C.s3, border: `1px solid ${C.borderL}`, borderRadius: 14 }}>
                             <div style={{ fontSize: 12, color: C.grayd, fontWeight: 700, marginBottom: 4 }}>
                               {r.field_key?.replace(/_/g, ' ').toUpperCase() || 'Field'}
