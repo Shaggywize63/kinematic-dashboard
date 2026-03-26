@@ -27,6 +27,7 @@ interface FormActivity {
   form_templates?: { name: string };
   city_id?: string;
   zone_id?: string;
+  gps?: string; // Add GPS field
 }
 interface StoreVisit {
   id: string;
@@ -76,6 +77,11 @@ export default function WorkActivitiesPage() {
   const [svLoading, setSvLoading] = useState(false);
   const [svTotal, setSvTotal] = useState(0);
   const [svPage, setSvPage] = useState(1);
+
+  /* ── View Form Modal ── */
+  const [viewingForm, setViewingForm] = useState<FormActivity | null>(null);
+  const [formData, setFormData] = useState<any>(null);
+  const [modalLoading, setModalLoading] = useState(false);
 
   /* ── Filters ── */
   const [users, setUsers] = useState<User[]>([]);
@@ -168,6 +174,44 @@ export default function WorkActivitiesPage() {
       setSvLoading(false);
     }
   }, [buildParams]);
+
+  const handleViewForm = async (f: FormActivity) => {
+    setViewingForm(f);
+    setModalLoading(true);
+    setFormData(null);
+    try {
+      const r = await api.getSubmission(f.id);
+      setFormData(r);
+    } catch (e: any) {
+      setErr('Failed to load form details: ' + e.message);
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
+  const downloadCSV = () => {
+    if (feActivities.length === 0) return;
+    const headers = ['ID', 'Submitted At', 'Executive', 'Employee ID', 'Form', 'Outlet', 'Zone', 'GPS'];
+    const rows = feActivities.map(a => [
+      a.id,
+      a.submitted_at,
+      a.users?.name || '',
+      a.users?.employee_id || '',
+      a.form_templates?.name || a.activities?.name || '',
+      a.outlet_name || '',
+      a.users?.zones?.name || '',
+      a.gps || '',
+    ]);
+    const csvContent = [headers, ...rows].map(r => r.join(',')).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `form_submissions_${new Date().toISOString().slice(0,10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   useEffect(() => {
     if (tab === 'fe') loadFE(1);
@@ -299,30 +343,46 @@ export default function WorkActivitiesPage() {
               <div style={{ fontSize: 13, color: C.grayd, fontWeight: 600 }}>
                 {feLoading ? 'Loading…' : `${feTotal} total submissions`}
               </div>
-              <button className="wa-btn" onClick={() => loadFE(fePage)}
-                style={{ padding: '8px 12px', background: C.s2, border: `1px solid ${C.border}`, color: C.gray, borderRadius: 9, fontSize: 13 }}>
-                ↻ Refresh
-              </button>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button className="wa-btn" onClick={downloadCSV}
+                  style={{ padding: '8px 12px', background: C.blueD, border: `1px solid ${C.blue}`, color: C.blue, borderRadius: 9, fontSize: 13, fontWeight: 600 }}>
+                  ⬇ Download CSV
+                </button>
+                <button className="wa-btn" onClick={() => loadFE(fePage)}
+                  style={{ padding: '8px 12px', background: C.s2, border: `1px solid ${C.border}`, color: C.gray, borderRadius: 9, fontSize: 13 }}>
+                  ↻ Refresh
+                </button>
+              </div>
             </div>
 
             <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 16, overflow: 'hidden' }}>
               {/* Header */}
-              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr 1.5fr 1fr 1fr', padding: '11px 20px', borderBottom: `1px solid ${C.border}`, background: C.s3 }}>
-                {['Executive', 'Form / Activity', 'Outlet', 'Zone', 'Time'].map(h => (
-                  <div key={h} style={{ fontSize: 11, fontWeight: 700, color: C.grayd, letterSpacing: '0.7px', textTransform: 'uppercase' as const }}>{h}</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr 1.5fr 1fr 1fr 1fr 0.8fr', padding: '11px 20px', borderBottom: `1px solid ${C.border}`, background: C.s3 }}>
+                {[
+                  { h: 'Executive', w: '2fr' },
+                  { h: 'Form / Activity', w: '1.5fr' },
+                  { h: 'Outlet', w: '1.5fr' },
+                  { h: 'Zone', w: '1fr' },
+                  { h: 'GPS', w: '1fr' },
+                  { h: 'Time', w: '1fr' },
+                  { h: 'Actions', w: '0.8fr' },
+                ].map(obj => (
+                  <div key={obj.h} style={{ fontSize: 11, fontWeight: 700, color: C.grayd, letterSpacing: '0.7px', textTransform: 'uppercase' as const }}>{obj.h}</div>
                 ))}
               </div>
 
               {feLoading ? (
                 <div style={{ padding: 50, display: 'flex', justifyContent: 'center' }}><Spinner /></div>
               ) : feActivities.length === 0 ? (
-                <div style={{ padding: 50, textAlign: 'center', color: C.grayd, fontSize: 14 }}>
-                  No form submissions found for the selected filters.
+                <div style={{ padding: 60, textAlign: 'center', color: C.grayd, fontSize: 14 }}>
+                  <div style={{ fontSize: 32, marginBottom: 12 }}>📋</div>
+                  <div style={{ fontWeight: 600, marginBottom: 6 }}>No form submissions found</div>
+                  <div style={{ fontSize: 12 }}>Field executive form submission data will appear here once recorded through the mobile app.</div>
                 </div>
               ) : (
                 feActivities.map((a, i) => (
                   <div key={a.id} className="wa-row"
-                    style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr 1.5fr 1fr 1fr', padding: '13px 20px', borderBottom: i < feActivities.length - 1 ? `1px solid ${C.border}` : 'none', alignItems: 'center', background: C.s2 }}>
+                    style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr 1.5fr 1fr 1fr 1fr 0.8fr', padding: '13px 20px', borderBottom: i < feActivities.length - 1 ? `1px solid ${C.border}` : 'none', alignItems: 'center', background: C.s2 }}>
 
                     {/* Executive */}
                     <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
@@ -353,10 +413,30 @@ export default function WorkActivitiesPage() {
                       {a.users?.zones?.name || '—'}
                     </div>
 
+                    {/* GPS */}
+                    <div>
+                      {a.gps ? (
+                        <a href={`https://maps.google.com/?q=${a.gps}`} target="_blank" rel="noreferrer"
+                          style={{ fontSize: 11, color: C.blue, textDecoration: 'none' }}>
+                          📍 {a.gps.split(',').map(v => Number(v.trim()).toFixed(4)).join(', ')} ↗
+                        </a>
+                      ) : (
+                        <span style={{ fontSize: 11, color: C.grayd }}>No GPS</span>
+                      )}
+                    </div>
+
                     {/* Time */}
                     <div style={{ fontSize: 12, color: C.grayd }}>
                       <div style={{ color: C.white, fontWeight: 600 }}>{fmt(a.submitted_at)}</div>
                       <div>{fmtDate(a.submitted_at)}</div>
+                    </div>
+
+                    {/* Actions */}
+                    <div>
+                      <button className="wa-btn" onClick={() => handleViewForm(a)}
+                        style={{ padding: '6px 10px', background: C.s3, border: `1px solid ${C.border}`, color: C.white, borderRadius: 7, fontSize: 11, fontWeight: 600 }}>
+                        View Form
+                      </button>
                     </div>
                   </div>
                 ))
@@ -479,6 +559,104 @@ export default function WorkActivitiesPage() {
           </div>
         )}
       </div>
+
+      {/* ── View Form Modal ── */}
+      {viewingForm && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(5px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}>
+          <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 24, width: '100%', maxWidth: 700, maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 20px 40px rgba(0,0,0,0.5)' }}>
+
+            {/* Modal Header */}
+            <div style={{ padding: '24px 30px', borderBottom: `1px solid ${C.border}`, background: C.s3, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ fontSize: 14, color: C.blue, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>
+                  Form Submission
+                </div>
+                <div style={{ fontSize: 20, fontWeight: 800, color: C.white }}>
+                  {viewingForm.form_templates?.name || viewingForm.activities?.name || 'Form Details'}
+                </div>
+              </div>
+              <button className="wa-btn" onClick={() => setViewingForm(null)}
+                style={{ width: 40, height: 40, borderRadius: 12, background: C.s4, border: 'none', color: C.white, fontSize: 20, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '30px' }}>
+              {modalLoading ? (
+                <div style={{ padding: 60, display: 'flex', justifyContent: 'center' }}><Spinner /></div>
+              ) : formData ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+
+                  {/* Meta Grid */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, padding: 20, background: C.s3, borderRadius: 16, border: `1px solid ${C.border}` }}>
+                    <div>
+                      <div style={{ fontSize: 11, color: C.grayd, fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }}>Executive</div>
+                      <div style={{ fontSize: 14, color: C.white, fontWeight: 600 }}>{viewingForm.users?.name}</div>
+                      <div style={{ fontSize: 12, color: C.gray }}>{viewingForm.users?.employee_id}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 11, color: C.grayd, fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }}>Submitted At</div>
+                      <div style={{ fontSize: 14, color: C.white, fontWeight: 600 }}>{fmtDate(viewingForm.submitted_at)}</div>
+                      <div style={{ fontSize: 12, color: C.gray }}>{fmt(viewingForm.submitted_at)}</div>
+                    </div>
+                    {viewingForm.outlet_name && (
+                      <div style={{ gridColumn: 'span 2' }}>
+                        <div style={{ fontSize: 11, color: C.grayd, fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }}>Outlet</div>
+                        <div style={{ fontSize: 14, color: C.white, fontWeight: 600 }}>{viewingForm.outlet_name}</div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Responses */}
+                  <div>
+                    <div style={{ fontSize: 13, color: C.gray, fontWeight: 700, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{ width: 4, height: 16, background: C.blue, borderRadius: 2 }}></div>
+                      FORM RESPONSES
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                      {Array.isArray(formData.responses) && formData.responses.length > 0 ? (
+                        formData.responses.map((r: any, idx: number) => (
+                          <div key={idx} style={{ padding: 16, background: C.s3, border: `1px solid ${C.borderL}`, borderRadius: 14 }}>
+                            <div style={{ fontSize: 12, color: C.grayd, fontWeight: 700, marginBottom: 4 }}>
+                              {r.field_key?.replace(/_/g, ' ').toUpperCase() || 'Field'}
+                            </div>
+                            <div style={{ fontSize: 15, color: C.white, fontWeight: 500 }}>
+                              {r.value_text || r.value_number || (r.value_bool !== null ? (r.value_bool ? 'Yes' : 'No') : '—')}
+                            </div>
+                            {r.photo_url && (
+                              <div style={{ marginTop: 10 }}>
+                                <img src={r.photo_url} alt="Submission" style={{ maxWidth: '100%', borderRadius: 8, border: `1px solid ${C.border}` }} />
+                              </div>
+                            )}
+                          </div>
+                        ))
+                      ) : (
+                        <div style={{ padding: 20, textAlign: 'center', color: C.grayd, fontSize: 14, border: `1px dashed ${C.border}`, borderRadius: 14 }}>
+                          No responses found for this submission.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                </div>
+              ) : (
+                <div style={{ textAlign: 'center', padding: 40, color: C.red }}>
+                  Could not load form data.
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{ padding: '20px 30px', borderTop: `1px solid ${C.border}`, background: C.s3, display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+              <button className="wa-btn" onClick={() => setViewingForm(null)}
+                style={{ padding: '10px 24px', borderRadius: 12, background: C.s4, color: C.white, fontSize: 14, fontWeight: 600, border: 'none' }}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

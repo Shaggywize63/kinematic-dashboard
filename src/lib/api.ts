@@ -89,7 +89,7 @@ class ApiClient {
     return this.get(`/api/v1/forms/admin/submissions${qs}`);
   }
   getSubmission(id: string) {
-    return this.get(`/api/v1/builder/forms/submissions/${id}`);
+    return this.get(`/api/v1/forms/submissions/${id}`);
   }
 
   // ── Grievances ────────────────────────────────────────────────────────────
