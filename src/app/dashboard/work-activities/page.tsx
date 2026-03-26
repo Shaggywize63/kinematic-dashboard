@@ -359,11 +359,11 @@ export default function WorkActivitiesPage() {
 
             <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 16, overflow: 'hidden' }}>
               {/* Header */}
-              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr 1.5fr 1fr 1fr 0.8fr', padding: '12px 20px', borderBottom: `1px solid ${C.border}`, background: C.s3, color: C.grayd, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.8fr 1.8fr 1.2fr 1.2fr 0.8fr', padding: '12px 20px', borderBottom: `1px solid ${C.border}`, background: C.s3, color: C.grayd, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                 <div>Executive</div>
                 <div>Form / Activity</div>
                 <div>Outlet</div>
-                <div>GPS</div>
+                <div>User Location</div>
                 <div>Time</div>
                 <div>Actions</div>
               </div>
@@ -610,7 +610,7 @@ export default function WorkActivitiesPage() {
                         formData.form_responses.map((r: any, idx: number) => (
                           <div key={idx} style={{ padding: 16, background: C.s3, border: `1px solid ${C.borderL}`, borderRadius: 14 }}>
                             <div style={{ fontSize: 12, color: C.grayd, fontWeight: 700, marginBottom: 4 }}>
-                              {r.field_key?.replace(/_/g, ' ').toUpperCase() || 'Field'}
+                              {r.form_fields?.label || r.field_key?.replace(/_/g, ' ').toUpperCase() || 'Field'}
                             </div>
                             <div style={{ fontSize: 15, color: C.white, fontWeight: 500 }}>
                               {r.value_text || r.value_number || (r.value_bool !== null ? (r.value_bool ? 'Yes' : 'No') : '—')}
