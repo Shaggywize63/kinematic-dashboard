@@ -551,11 +551,9 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
   const [questions, setQs]       = useState<BQuestion[]>([]);
   const [selPage,   setSelPage]  = useState<string|null>(null);
   const [selQ,      setSelQ]     = useState<string|null>(null);
-  const [tab,       setTab]      = useState<'build'|'settings'|'logic'|'submissions'>('build');
+  const [tab,       setTab]      = useState<'build'|'settings'|'logic'>('build');
   const [saving,    setSaving]   = useState(false);
   const [saved,     setSaved]    = useState(false);
-  const [subs,      setSubs]     = useState<BSubmission[]>([]);
-  const [loadingSubs, setLoadSubs] = useState(false);
 
   /* Load form data */
   const loadForm = useCallback(async () => {
@@ -581,15 +579,6 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
 
   useEffect(() => { loadForm(); }, [loadForm]);
 
-  /* Load submissions */
-  useEffect(() => {
-    if (tab !== 'submissions') return;
-    setLoadSubs(true);
-    apiFetch<any>(`/api/v1/builder/forms/${form.id}/submissions`)
-      .then(d => { const list = Array.isArray(d)?d:(d?.data??[]); setSubs(list); })
-      .catch(()=>setSubs([]))
-      .finally(()=>setLoadSubs(false));
-  }, [tab, form.id]);
 
   /* Add question */
   const addQuestion = async (qtype:string) => {
@@ -669,7 +658,7 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
         </div>
         {/* Tabs */}
         <div style={{ display:'flex', gap:2, background:C.s3, borderRadius:9, padding:3, border:`1px solid ${C.border}` }}>
-          {(['build','settings','logic','submissions'] as const).map(t => (
+          {(['build','settings','logic'] as const).map(t => (
             <button key={t} onClick={() => setTab(t)}
               style={{ padding:'6px 14px', borderRadius:7, border:'none', cursor:'pointer', fontSize:12, fontWeight:700, fontFamily:"'DM Sans',sans-serif", textTransform:'capitalize', background:tab===t?C.s4:'transparent', color:tab===t?C.white:C.gray, transition:'all .13s' }}>
               {t}
@@ -828,38 +817,6 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
               </div>
             ))}
           </div>
-        </div>
-      )}
-
-      {/* Submissions tab */}
-      {tab==='submissions' && (
-        <div style={{ flex:1, overflowY:'auto', padding:'28px 40px' }}>
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
-            <h2 style={{ fontFamily:"'Syne',sans-serif", fontSize:18, fontWeight:800, color:C.white, margin:0 }}>Submissions</h2>
-            <div style={{ fontSize:13, color:C.gray }}>{subs.length} total</div>
-          </div>
-          {loadingSubs ? (
-            <div style={{ display:'flex', justifyContent:'center', padding:48 }}><Spin size={24}/></div>
-          ) : subs.length===0 ? (
-            <div style={{ textAlign:'center', padding:'60px 20px', color:C.grayd }}>
-              <div style={{ fontSize:40, marginBottom:12 }}>📭</div>
-              <div style={{ fontSize:14, color:C.gray }}>No submissions yet</div>
-            </div>
-          ) : (
-            <div style={{ background:C.s3, borderRadius:14, border:`1px solid ${C.border}`, overflow:'hidden' }}>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 120px 100px 140px', padding:'10px 16px', borderBottom:`1px solid ${C.border}` }}>
-                {['Submitted By','Status','Date','Time'].map(h => <div key={h} style={{ fontSize:11, color:C.grayd, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.8px' }}>{h}</div>)}
-              </div>
-              {subs.map((s,i) => (
-                <div key={s.id} style={{ display:'grid', gridTemplateColumns:'1fr 120px 100px 140px', padding:'12px 16px', borderBottom:i<subs.length-1?`1px solid ${C.border}`:'none', alignItems:'center' }}>
-                  <div style={{ fontSize:13, fontWeight:600, color:C.white }}>{s.submitted_by||'Unknown'}</div>
-                  <Tag label={s.status} color={s.status==='submitted'?C.green:s.status==='approved'?C.blue:C.red}/>
-                  <div style={{ fontSize:12, color:C.gray }}>{new Date(s.submitted_at).toLocaleDateString('en-IN')}</div>
-                  <div style={{ fontSize:12, color:C.grayd }}>{new Date(s.submitted_at).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})}</div>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
       )}
     </div>
