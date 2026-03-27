@@ -489,7 +489,7 @@ export default function OutletManagementPage() {
                 style={{ background:'transparent', border:`1px solid ${C.border}`, borderRadius:8,
                   width:30, height:30, cursor:'pointer', color:C.gray, fontSize:16 }}>×</button>
             </div>
-            <OutletForm/>
+            {OutletForm()}
             {saveErr && <div style={{ marginTop:14, background:C.redD, border:`1px solid ${C.redB}`, borderRadius:10, padding:'10px 14px', fontSize:13, color:C.red }}>{saveErr}</div>}
             {saveOk  && <div style={{ marginTop:14, background:C.greenD, border:`1px solid ${C.green}28`, borderRadius:10, padding:'10px 14px', fontSize:13, color:C.green }}>✓ Outlet created!</div>}
             <div style={{ display:'flex', gap:10, marginTop:20 }}>
@@ -515,7 +515,7 @@ export default function OutletManagementPage() {
                 style={{ background:'transparent', border:`1px solid ${C.border}`, borderRadius:8,
                   width:30, height:30, cursor:'pointer', color:C.gray, fontSize:16 }}>×</button>
             </div>
-            <OutletForm/>
+            {OutletForm()}
             {saveErr && <div style={{ marginTop:14, background:C.redD, border:`1px solid ${C.redB}`, borderRadius:10, padding:'10px 14px', fontSize:13, color:C.red }}>{saveErr}</div>}
             {saveOk  && <div style={{ marginTop:14, background:C.greenD, border:`1px solid ${C.green}28`, borderRadius:10, padding:'10px 14px', fontSize:13, color:C.green }}>✓ Saved!</div>}
             <div style={{ display:'flex', gap:10, marginTop:20 }}>
