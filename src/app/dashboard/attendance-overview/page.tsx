@@ -982,12 +982,25 @@ export default function AttendancePage() {
                   </span>
 
                   {/* selfie preview */}
-                  <div style={{ display: 'flex', gap: 4 }}>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                     {r.checkin_selfie_url ? (
-                      <img src={r.checkin_selfie_url} alt="In" style={{ width: 28, height: 28, borderRadius: 6, objectFit: 'cover', border: `1px solid ${C.green}40` }} />
-                    ) : <div style={{ width: 28, height: 28, borderRadius: 6, background: C.s3, border: `1px solid ${C.border}` }} />}
+                      <div style={{ position: 'relative', group: 'true' } as any}>
+                        <img src={r.checkin_selfie_url} alt="In" style={{ width: 40, height: 40, borderRadius: 8, objectFit: 'cover', border: `1px solid ${C.green}40` }} />
+                        <a href={r.checkin_selfie_url} target="_blank" rel="noreferrer" 
+                           style={{ position: 'absolute', bottom: -2, right: -2, background: C.s3, border: `1px solid ${C.border}`, borderRadius: '50%', width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, textDecoration: 'none' }}>
+                          👁️
+                        </a>
+                      </div>
+                    ) : <div style={{ width: 40, height: 40, borderRadius: 8, background: C.s3, border: `1px solid ${C.border}` }} />}
+                    
                     {r.checkout_selfie_url ? (
-                      <img src={r.checkout_selfie_url} alt="Out" style={{ width: 28, height: 28, borderRadius: 6, objectFit: 'cover', border: `1px solid ${C.blue}40` }} />
+                      <div style={{ position: 'relative' }}>
+                        <img src={r.checkout_selfie_url} alt="Out" style={{ width: 40, height: 40, borderRadius: 8, objectFit: 'cover', border: `1px solid ${C.blue}40` }} />
+                        <a href={r.checkout_selfie_url} target="_blank" rel="noreferrer" 
+                           style={{ position: 'absolute', bottom: -2, right: -2, background: C.s3, border: `1px solid ${C.border}`, borderRadius: '50%', width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, textDecoration: 'none' }}>
+                          👁️
+                        </a>
+                      </div>
                     ) : null}
                   </div>
 

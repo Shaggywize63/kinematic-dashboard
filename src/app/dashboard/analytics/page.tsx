@@ -16,6 +16,7 @@ interface SummaryData {
   total_days_worked?: number;
   total_leaves?: number;
   total_hours_worked?: number;
+  total_visits?: number;
   monthly_data?: Array<{ month: string; tff?: number; engagements?: number }>;
   top_performers?: Array<{ name: string; zone: string; tff?: number; attendance: number }>;
   zone_performance?: Array<{ zone: string; tff?: number; target: number }>;
@@ -221,6 +222,7 @@ export default function AnalyticsPage() {
     { l:'Days Worked',    v: summary?.total_days_worked || '—', c:C.blue },
     { l:'Total Leaves',   v: summary?.total_leaves || '—', c:C.red },
     { l:'Total Hours',    v: summary?.total_hours_worked != null ? `${Math.floor(summary.total_hours_worked)}h ${Math.round((summary.total_hours_worked % 1) * 60)}m` : '—', c:C.purple },
+    { l:'Field Visits',   v: (summary?.total_visits)?.toLocaleString() ?? '—', c:C.blue },
   ];
 
   return (

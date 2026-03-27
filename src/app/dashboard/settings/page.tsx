@@ -35,7 +35,8 @@ const INIT_PERMS: Record<string, string[]> = {
 export default function SettingsPage() {
   const [radius, setRadius] = useState(100);
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<'users'|'roles'>('roles');
+  const [activeTab, setActiveTab] = useState<'users'|'roles'|'pref'>('roles');
+  const [theme, setTheme] = useState<'dark'|'light'>('dark');
   const [selectedRole, setSelectedRole] = useState('sub_admin');
   const [rolePerms, setRolePerms] = useState<Record<string, string[]>>(INIT_PERMS);
   
@@ -141,6 +142,7 @@ export default function SettingsPage() {
           <div style={{ display: 'flex', gap: 8, marginBottom: 24, borderBottom: `1px solid ${C.border}`, paddingBottom: 16 }}>
             <button onClick={() => setActiveTab('roles')} style={{ background: activeTab === 'roles' ? C.s4 : 'transparent', color: activeTab === 'roles' ? C.white : C.gray, border: `1px solid ${activeTab === 'roles' ? C.border : 'transparent'}`, padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'all .1s' }}>Role Permissions</button>
             <button onClick={() => setActiveTab('users')} style={{ background: activeTab === 'users' ? C.s4 : 'transparent', color: activeTab === 'users' ? C.white : C.gray, border: `1px solid ${activeTab === 'users' ? C.border : 'transparent'}`, padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'all .1s' }}>User Directory</button>
+            <button onClick={() => setActiveTab('pref')} style={{ background: activeTab === 'pref' ? C.s4 : 'transparent', color: activeTab === 'pref' ? C.white : C.gray, border: `1px solid ${activeTab === 'pref' ? C.border : 'transparent'}`, padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'all .1s' }}>System Preferences</button>
           </div>
 
           {activeTab === 'users' && (
@@ -205,6 +207,41 @@ export default function SettingsPage() {
                     No users configured. Add a user to get started.
                   </div>
                 )}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'pref' && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 20 }}>
+              <div style={{ background: C.s3, border: `1px solid ${C.border}`, borderRadius: 12, padding: 24 }}>
+                <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 16, fontWeight: 800, marginBottom: 8 }}>Interface Appearance</div>
+                <div style={{ fontSize: 13, color: C.gray, marginBottom: 20 }}>Choose your preferred dashboard theme color.</div>
+                
+                <div style={{ display: 'flex', gap: 12 }}>
+                  <button onClick={() => setTheme('dark')} style={{ flex: 1, padding: '14px', borderRadius: 10, background: theme === 'dark' ? C.s4 : 'transparent', border: `1px solid ${theme === 'dark' ? C.blue : C.border}`, cursor: 'pointer', transition: 'all .2s' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+                      <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#0D1117', border: '2px solid #30363d', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>🌙</div>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: theme === 'dark' ? C.white : C.gray }}>Dark Mode</span>
+                    </div>
+                  </button>
+                  <button onClick={() => setTheme('light')} style={{ flex: 1, padding: '14px', borderRadius: 10, background: theme === 'light' ? C.s4 : 'transparent', border: `1px solid ${theme === 'light' ? C.blue : C.border}`, cursor: 'pointer', transition: 'all .2s' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+                      <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#ffffff', border: '2px solid #e1e4e8', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>☀️</div>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: theme === 'light' ? C.white : C.gray }}>Light Mode</span>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              <div style={{ background: C.s3, border: `1px solid ${C.border}`, borderRadius: 12, padding: 24 }}>
+                <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 16, fontWeight: 800, marginBottom: 8 }}>Region & Timezone</div>
+                <div style={{ fontSize: 13, color: C.gray, marginBottom: 16 }}>Primary settings for date and time formatting.</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div style={{ fontSize: 12, color: C.grayd, fontWeight: 600 }}>DEFAULT TIMEZONE</div>
+                  <div style={{ background: C.s2, border: `1px solid ${C.border}`, padding: '10px 14px', borderRadius: 8, fontSize: 13, color: C.white, fontWeight: 600 }}>
+                    (GMT+05:30) India Standard Time
+                  </div>
+                </div>
               </div>
             </div>
           )}
