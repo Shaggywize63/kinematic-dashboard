@@ -133,6 +133,7 @@ class ApiClient {
 
   // ── Visit Logs ────────────────────────────────────────────────────────────
   getVisitLogs() { return this.get('/api/v1/visits'); }
+  getVisitLogTeam(date: string) { return this.get(`/api/v1/visits/team?date=${date}`); }
 
   // ── Users / Zones ─────────────────────────────────────────────────────────
   getUsers(params?: Record<string, string>) {

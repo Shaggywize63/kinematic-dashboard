@@ -40,7 +40,7 @@ export default function VisitLogsPage() {
     setLoading(true);
     try {
       // Endpoint /api/v1/visits/team returns all visits for the org
-      const res = await api.get<any>(`/api/v1/visits/team?date=${date}`);
+      const res = await api.getVisitLogTeam(date) as any;
       setVisits(res.data || []);
     } catch (err) {
       console.error('Failed to fetch visits', err);
