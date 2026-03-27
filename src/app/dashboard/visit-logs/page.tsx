@@ -26,8 +26,9 @@ interface Visit {
   fe_feedback_at: string | null;
   visited_at: string;
   date: string;
-  users?: { name: string; role: string }; // Actual visitor (mapped via visitor_id)
-  executive?: { name: string; role: string }; // The FE being visited
+  users?: { name: string; role: string }; // Deprecated, but keeping for safety
+  visitor?: { name: string; role: string };
+  executive?: { name: string; role: string };
   stores?: { name: string };
 }
 
@@ -116,7 +117,7 @@ export default function VisitLogsPage() {
                     👤
                   </div>
                   <div>
-                    <div style={{ fontSize: 15, fontWeight: 700 }}>{v.users?.name || 'Unknown Visitor'}</div>
+                    <div style={{ fontSize: 15, fontWeight: 700 }}>{v.visitor?.name || v.users?.name || 'Unknown Visitor'}</div>
                     <div style={{ fontSize: 12, color: C.gray }}>Logged a visit about <span style={{ color: C.white, fontWeight: 600 }}>{v.executive?.name || 'FE'}</span></div>
                   </div>
                 </div>
