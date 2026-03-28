@@ -639,55 +639,6 @@ export default function DashboardPage() {
               <div style={{ textAlign:'center', padding:'24px 0', color:C.grayd, fontSize:13 }}>No attendance data</div>
             )}
 
-            {!loadingAtt && attData?.executives && attData.executives.length > 0 && (
-              <div style={{ marginTop:16, borderTop:`1px solid ${C.border}`, paddingTop:14 }}>
-                <div
-                  style={{
-                    fontSize:10,
-                    color:C.grayd,
-                    fontWeight:700,
-                    letterSpacing:'0.8px',
-                    textTransform:'uppercase',
-                    marginBottom:8,
-                  }}
-                >
-                  Field Executives
-                </div>
-                <div style={{ display:'flex', flexDirection:'column', gap:6, maxHeight:160, overflowY:'auto' }}>
-                  {attData.executives.map((fe:any) => {
-                    const sc = fe.display_status;
-                    const c =
-                      sc === 'present'
-                        ? C.green
-                        : sc === 'on_break'
-                        ? C.yellow
-                        : sc === 'checked_out'
-                        ? C.blue
-                        : C.grayd;
-                    return (
-                      <div key={fe.id} style={{ display:'flex', alignItems:'center', gap:8 }}>
-                        <Dot color={c} size={7}/>
-                        <div style={{ flex:1, fontSize:12, color:sc === 'absent' ? C.grayd : C.white }}>{fe.name}</div>
-                        <div style={{ fontSize:10, color:C.grayd }}>{fe.zone_name || ''}</div>
-                        <div
-                          style={{
-                            fontSize:10,
-                            color:c,
-                            fontWeight:700,
-                            textTransform:'capitalize',
-                            width:72,
-                            textAlign:'right',
-                          }}
-                        >
-                          {sc.replace('_',' ')}
-                          {fe.total_hours != null && <span style={{ color:C.grayd, marginLeft:4, fontWeight:400 }}>· {Math.floor(fe.total_hours)}h {Math.round((fe.total_hours % 1) * 60)}m</span>}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
           </Card>
 
           <Card>
@@ -850,54 +801,56 @@ export default function DashboardPage() {
             title="City-wise Performance"
             sub={`${from} → ${to} · based on check-ins & form submissions`}
           />
-          {loadingCity ? (
-            <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-              {[...Array(3)].map((_,i) => (
-                <Shimmer key={i} h={52} br={10}/>
-              ))}
-            </div>
-          ) : cityData?.cities?.length ? (
-            <>
-              <div
-                style={{
-                  display:'grid',
-                  gridTemplateColumns:'1fr 70px 70px 70px 70px',
-                  gap:8,
-                  padding:'8px 12px',
-                  fontSize:10,
-                  color:C.grayd,
-                  fontWeight:700,
-                  letterSpacing:'0.6px',
-                  textTransform:'uppercase',
-                  borderBottom:`1px solid ${C.border}`,
-                  marginBottom:6,
-                }}
-              >
-                <div>City</div>
-                <div style={{ textAlign:'center' }}>FEs</div>
-                <div style={{ textAlign:'center' }}>Check-ins</div>
-                <div style={{ textAlign:'center' }}>TFF</div>
-                <div style={{ textAlign:'center' }}>Outlets</div>
+          {(() => {
+            const visibleCities = (cityData?.cities ?? []).filter(c => c.city?.toLowerCase() !== 'gurugram');
+            const maxTFF = Math.max(...visibleCities.map(c => c.tff), 1);
+            return loadingCity ? (
+              <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                {[...Array(3)].map((_,i) => (
+                  <Shimmer key={i} h={52} br={10}/>
+                ))}
               </div>
-              {cityData.cities.map((city, i) => {
-                const maxTFF = Math.max(...cityData.cities.map(c => c.tff), 1);
-                const barW  = (city.tff / maxTFF) * 100;
-                return (
-                  <div
-                    key={city.city}
-                    className="km-tr"
-                    style={{
-                      display:'grid',
-                      gridTemplateColumns:'1fr 70px 70px 70px 70px',
-                      gap:8,
-                      padding:'12px 12px',
-                      borderRadius:10,
-                      borderBottom:i < cityData.cities.length - 1 ? `1px solid ${C.border}` : 'none',
-                      transition:'background .15s',
-                      position:'relative',
-                      overflow:'hidden',
-                    }}
-                  >
+            ) : visibleCities.length ? (
+              <>
+                <div
+                  style={{
+                    display:'grid',
+                    gridTemplateColumns:'1fr 70px 70px 70px 70px',
+                    gap:8,
+                    padding:'8px 12px',
+                    fontSize:10,
+                    color:C.grayd,
+                    fontWeight:700,
+                    letterSpacing:'0.6px',
+                    textTransform:'uppercase',
+                    borderBottom:`1px solid ${C.border}`,
+                    marginBottom:6,
+                  }}
+                >
+                  <div>City</div>
+                  <div style={{ textAlign:'center' }}>FEs</div>
+                  <div style={{ textAlign:'center' }}>Check-ins</div>
+                  <div style={{ textAlign:'center' }}>TFF</div>
+                  <div style={{ textAlign:'center' }}>Outlets</div>
+                </div>
+                {visibleCities.map((city, i) => {
+                  const barW = (city.tff / maxTFF) * 100;
+                  return (
+                    <div
+                      key={city.city}
+                      className="km-tr"
+                      style={{
+                        display:'grid',
+                        gridTemplateColumns:'1fr 70px 70px 70px 70px',
+                        gap:8,
+                        padding:'12px 12px',
+                        borderRadius:10,
+                        borderBottom:i < visibleCities.length - 1 ? `1px solid ${C.border}` : 'none',
+                        transition:'background .15s',
+                        position:'relative',
+                        overflow:'hidden',
+                      }}
+                    >
                     <div
                       style={{
                         position:'absolute',
@@ -950,7 +903,7 @@ export default function DashboardPage() {
                         justifyContent:'center',
                       }}
                     >
-                      {city.engagements}
+                      {city.checkins ?? '—'}
                     </div>
                     <div
                       style={{
@@ -981,14 +934,15 @@ export default function DashboardPage() {
                       {city.unique_outlets}
                     </div>
                   </div>
-                );
-              })}
-            </>
-          ) : (
-            <div style={{ textAlign:'center', padding:'32px 0', color:C.grayd, fontSize:13 }}>
-              No city data for this period
-            </div>
-          )}
+                  );
+                })}
+              </>
+            ) : (
+              <div style={{ textAlign:'center', padding:'32px 0', color:C.grayd, fontSize:13 }}>
+                No city data for this period
+              </div>
+            );
+          })()}
         </Card>
 
         {/* Row 5: Outlet Coverage */}
@@ -1122,7 +1076,7 @@ export default function DashboardPage() {
                         justifyContent:'center',
                       }}
                     >
-                      {o.tff}
+                      {o.tff ?? '—'}
                     </div>
                     <div
                       style={{
@@ -1132,21 +1086,25 @@ export default function DashboardPage() {
                         justifyContent:'center',
                       }}
                     >
-                      <span
-                        style={{
-                          fontFamily:"'Syne',sans-serif",
-                          fontWeight:700,
-                          fontSize:12,
-                          color:
-                            o.tff_rate >= 60
-                              ? C.green
-                              : o.tff_rate >= 30
-                              ? C.yellow
-                              : C.grayd,
-                        }}
-                      >
-                        {o.tff_rate}%
-                      </span>
+                      {o.tff_rate != null ? (
+                        <span
+                          style={{
+                            fontFamily:"'Syne',sans-serif",
+                            fontWeight:700,
+                            fontSize:12,
+                            color:
+                              o.tff_rate >= 60
+                                ? C.green
+                                : o.tff_rate >= 30
+                                ? C.yellow
+                                : C.grayd,
+                          }}
+                        >
+                          {o.tff_rate}%
+                        </span>
+                      ) : (
+                        <span style={{ fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:12, color:C.grayd }}>—</span>
+                      )}
                     </div>
                   </div>
                 ))}
