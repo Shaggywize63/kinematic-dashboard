@@ -22,8 +22,8 @@ interface Visit {
   outlet_id: string;
   rating: string;
   remarks: string;
-  fe_feedback: string | null;
-  fe_feedback_at: string | null;
+  visit_response: string | null;
+  visit_response_at: string | null;
   visited_at: string;
   date: string;
   visitor_role: string | null;
@@ -155,10 +155,10 @@ export default function VisitLogsPage() {
                 </div>
                 <div style={{ borderLeft: `1px solid ${C.border}`, paddingLeft: 20 }}>
                   <div style={{ fontSize: 10, fontWeight: 800, color: C.gray, letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: 8 }}>FE Response / Feedback</div>
-                  {v.fe_feedback ? (
+                  {v.visit_response ? (
                     <div style={{ color: C.green }}>
-                        <div style={{ fontSize: 13, fontWeight: 500 }}>"{v.fe_feedback}"</div>
-                        <div style={{ fontSize: 10, marginTop: 4, opacity: 0.7 }}>Responded at {new Date(v.fe_feedback_at!).toLocaleString('en-IN')}</div>
+                        <div style={{ fontSize: 13, fontWeight: 500 }}>"{v.visit_response}"</div>
+                        <div style={{ fontSize: 10, marginTop: 4, opacity: 0.7 }}>Responded at {new Date(v.visit_response_at!).toLocaleString('en-IN')}</div>
                     </div>
                   ) : (
                     <div style={{ fontSize: 13, color: C.gray, fontStyle: 'italic' }}>
