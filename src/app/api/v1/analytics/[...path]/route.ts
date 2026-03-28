@@ -3,7 +3,6 @@ import { createClient } from '@supabase/supabase-js';
 
 const SUPA_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SERVICE  = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -11,16 +10,22 @@ const CORS = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
 
+// Decode JWT payload without verifying signature (token came from Railway auth)
+function jwtUserId(token: string): string | null {
+  try {
+    const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString());
+    return payload?.sub ?? payload?.user_id ?? payload?.id ?? null;
+  } catch { return null; }
+}
+
 async function getOrgId(authHeader: string | null): Promise<string | null> {
   if (!authHeader) return null;
   try {
-    const userClient = createClient(SUPA_URL, ANON_KEY, {
-      global: { headers: { Authorization: authHeader } },
-    });
-    const { data: { user } } = await userClient.auth.getUser();
-    if (!user) return null;
+    const token  = authHeader.replace(/^Bearer\s+/i, '');
+    const userId = jwtUserId(token);
+    if (!userId) return null;
     const admin = createClient(SUPA_URL, SERVICE);
-    const { data } = await admin.from('users').select('org_id').eq('id', user.id).single();
+    const { data } = await admin.from('users').select('org_id').eq('id', userId).single();
     return data?.org_id ?? null;
   } catch {
     return null;
