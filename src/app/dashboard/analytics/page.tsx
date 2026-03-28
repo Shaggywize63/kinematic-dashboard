@@ -197,7 +197,8 @@ export default function AnalyticsPage() {
       setSummary(summaryRaw);
 
       const h = heatRes as any;
-      setHeatmap(h.data || h);
+      const heatmapRaw = h?.data?.data ?? h?.data ?? h;
+      setHeatmap(heatmapRaw);
 
       const t = trendRes as any;
       setTrends(Array.isArray(t.data) ? t.data : Array.isArray(t) ? t : []);
@@ -213,10 +214,10 @@ export default function AnalyticsPage() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  const monthly       = summary?.monthly_data    || [];
-  const maxTFF        = monthly.length ? Math.max(...monthly.map(m => m.tff ?? 0), 1) : 1;
-  const topPerformers = summary?.top_performers  || [];
-  const zones         = summary?.zone_performance || [];
+  const monthly       = summary?.monthly_data || [];
+  const maxTFF        = monthly.length ? Math.max(...monthly.map((m: any) => m.tff ?? 0), 1) : 1;
+  const topPerformers: any[] = summary?.top_performers ?? summary?.data?.top_performers ?? [];
+  const zones: any[]         = summary?.zone_performance ?? summary?.data?.zone_performance ?? [];
 
   // Resolve each field across all known response shapes
   const totalTff    = summary?.kpis?.total_tff     ?? summary?.total_tff    ?? summary?.tff_count;
@@ -339,18 +340,25 @@ export default function AnalyticsPage() {
             <div style={{ padding:24, textAlign:'center', color:C.grayd, fontSize:13 }}>Loading...</div>
           ) : topPerformers.length === 0 ? (
             <div style={{ padding:24, textAlign:'center', color:C.grayd, fontSize:13 }}>No data available</div>
-          ) : topPerformers.map((fe, i) => (
-            <div key={i} style={{ display:'flex', gap:12, alignItems:'center', padding:'10px 0', borderBottom: i < topPerformers.length-1 ? `1px solid ${C.border}40` : 'none' }}>
-              <div style={{ width:28, height:28, borderRadius:'50%', background: i===0?'rgba(255,184,0,0.15)':i===1?'rgba(122,139,160,0.1)':i===2?'rgba(205,127,50,0.15)':'rgba(62,158,255,0.1)',
-                display:'flex', alignItems:'center', justifyContent:'center', fontFamily:"'Syne',sans-serif", fontSize:12, fontWeight:800,
-                color: i===0?C.yellow:i===1?C.gray:i===2?'#CD7F32':C.blue, flexShrink:0 }}>#{i+1}</div>
-              <div style={{ flex:1 }}>
-                <div style={{ fontSize:13, fontWeight:600 }}>{fe.name}</div>
-                <div style={{ fontSize:11, color:C.grayd }}>{fe.zone} · {fe.attendance}% att.</div>
+          ) : topPerformers.map((fe: any, i: number) => {
+            const tffVal = fe.tff ?? fe.tff_count ?? fe.total_tff ?? '—';
+            const attVal = fe.attendance ?? fe.attendance_pct ?? fe.attendance_percentage;
+            const zone   = fe.zone ?? fe.zone_name ?? '';
+            return (
+              <div key={i} style={{ display:'flex', gap:12, alignItems:'center', padding:'10px 0', borderBottom: i < topPerformers.length-1 ? `1px solid ${C.border}40` : 'none' }}>
+                <div style={{ width:28, height:28, borderRadius:'50%', background: i===0?'rgba(255,184,0,0.15)':i===1?'rgba(122,139,160,0.1)':i===2?'rgba(205,127,50,0.15)':'rgba(62,158,255,0.1)',
+                  display:'flex', alignItems:'center', justifyContent:'center', fontFamily:"'Syne',sans-serif", fontSize:12, fontWeight:800,
+                  color: i===0?C.yellow:i===1?C.gray:i===2?'#CD7F32':C.blue, flexShrink:0 }}>#{i+1}</div>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontSize:13, fontWeight:600 }}>{fe.name}</div>
+                  <div style={{ fontSize:11, color:C.grayd }}>
+                    {zone}{attVal != null ? ` · ${Number(attVal).toFixed(0)}% att.` : ''}
+                  </div>
+                </div>
+                <div style={{ fontFamily:"'Syne',sans-serif", fontSize:18, fontWeight:800, color:C.green }}>{tffVal}</div>
               </div>
-              <div style={{ fontFamily:"'Syne',sans-serif", fontSize:18, fontWeight:800, color:C.green }}>{fe.tff}</div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* Zone breakdown */}
@@ -362,19 +370,21 @@ export default function AnalyticsPage() {
             <div style={{ padding:24, textAlign:'center', color:C.grayd, fontSize:13 }}>No data available</div>
           ) : zones.map((z: any, i: number) => {
             const colors = [C.blue, C.green, C.yellow, C.purple];
-            const col = colors[i % colors.length];
-            const tffVal = z.tff ?? 0;
-            const pct = z.target ? Math.round((tffVal / z.target) * 100) : 0;
+            const col    = colors[i % colors.length];
+            const zoneName = z.zone ?? z.zone_name ?? z.name ?? `Zone ${i+1}`;
+            const tffVal   = z.tff ?? z.tff_count ?? z.total_tff ?? 0;
+            const target   = z.target ?? z.tff_target ?? z.goal ?? 0;
+            const pct      = target > 0 ? Math.min(100, Math.round((tffVal / target) * 100)) : 0;
             return (
               <div key={i} style={{ marginBottom:14 }}>
                 <div style={{ display:'flex', justifyContent:'space-between', marginBottom:6 }}>
-                  <span style={{ fontSize:12, fontWeight:500 }}>{z.zone}</span>
+                  <span style={{ fontSize:12, fontWeight:500 }}>{zoneName}</span>
                   <span style={{ fontSize:12, fontWeight:700, color:col }}>{pct}%</span>
                 </div>
                 <div style={{ height:6, background:C.s2, borderRadius:3, overflow:'hidden' }}>
                   <div style={{ height:'100%', width:`${pct}%`, background:col, borderRadius:3 }}/>
                 </div>
-                <div style={{ fontSize:10, color:C.grayd, marginTop:4 }}>{z.tff || 0} / {z.target} TFF</div>
+                <div style={{ fontSize:10, color:C.grayd, marginTop:4 }}>{tffVal} / {target || '—'} TFF</div>
               </div>
             );
           })}
