@@ -32,6 +32,7 @@ interface Visit {
   visitor?: { name: string; role: string };
   executive?: { name: string; role: string };
   stores?: { name: string };
+  photo_url?: string | null;
 }
 
 export default function VisitLogsPage() {
@@ -126,7 +127,24 @@ export default function VisitLogsPage() {
                     </div>
                   </div>
                 </div>
-                <div style={{ textAlign: 'right' }}>
+                {v.photo_url && (
+                  <div style={{ marginLeft: 'auto', flexShrink: 0 }}>
+                    <img 
+                      src={v.photo_url} 
+                      alt="Visit Photo" 
+                      style={{ 
+                        width: 70, 
+                        height: 70, 
+                        borderRadius: 12, 
+                        objectFit: 'cover', 
+                        border: `1px solid ${C.border}`,
+                        cursor: 'pointer'
+                      }} 
+                      onClick={() => window.open(v.photo_url!, '_blank')}
+                    />
+                  </div>
+                )}
+                <div style={{ textAlign: 'right', marginLeft: v.photo_url ? 16 : 0 }}>
                   <div style={{ 
                     display: 'inline-block', 
                     padding: '4px 10px', 
