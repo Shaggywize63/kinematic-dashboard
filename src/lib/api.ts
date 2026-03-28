@@ -12,6 +12,14 @@ class ApiClient {
     return localStorage.getItem('kinematic_token');
   }
 
+  private getOrgId(): string | null {
+    if (typeof window === 'undefined') return null;
+    try {
+      const raw = localStorage.getItem('kinematic_user');
+      return raw ? JSON.parse(raw)?.org_id ?? null : null;
+    } catch { return null; }
+  }
+
   private async request<T>(path: string, options: RequestInit = {}): Promise<T> {
     const token = this.getToken();
     const headers: Record<string, string> = {
@@ -23,6 +31,10 @@ class ApiClient {
     // Analytics endpoints are served by Next.js API routes (relative URL)
     // so they work regardless of what NEXT_PUBLIC_API_URL points to
     const isAnalytics = path.startsWith('/api/v1/analytics/');
+    if (isAnalytics) {
+      const orgId = this.getOrgId();
+      if (orgId) headers['X-Org-Id'] = orgId;
+    }
     const base = isAnalytics ? '' : this.baseUrl;
     const res = await fetch(`${base}${path}`, { ...options, headers });
 

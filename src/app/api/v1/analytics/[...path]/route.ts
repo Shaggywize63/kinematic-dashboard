@@ -7,30 +7,8 @@ const SERVICE  = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Org-Id',
 };
-
-// Decode JWT payload without verifying signature (token came from Railway auth)
-function jwtUserId(token: string): string | null {
-  try {
-    const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString());
-    return payload?.sub ?? payload?.user_id ?? payload?.id ?? null;
-  } catch { return null; }
-}
-
-async function getOrgId(authHeader: string | null): Promise<string | null> {
-  if (!authHeader) return null;
-  try {
-    const token  = authHeader.replace(/^Bearer\s+/i, '');
-    const userId = jwtUserId(token);
-    if (!userId) return null;
-    const admin = createClient(SUPA_URL, SERVICE);
-    const { data } = await admin.from('users').select('org_id').eq('id', userId).single();
-    return data?.org_id ?? null;
-  } catch {
-    return null;
-  }
-}
 
 function getDateRange(sp: URLSearchParams): { fromDate: string; toDate: string } {
   const fromParam = sp.get('from');
@@ -59,8 +37,8 @@ export async function GET(
   const analyticsPath = '/' + pathSegments.join('/');
   const sp = req.nextUrl.searchParams;
 
-  const auth  = req.headers.get('Authorization');
-  const orgId = await getOrgId(auth);
+  // org_id is sent as X-Org-Id header from the client (read from stored user session)
+  const orgId = req.headers.get('X-Org-Id');
   if (!orgId) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401, headers: CORS });
   }
