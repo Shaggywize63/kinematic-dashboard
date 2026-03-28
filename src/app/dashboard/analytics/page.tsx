@@ -1,9 +1,9 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import api from '@/lib/api';
-import { 
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, 
-  ResponsiveContainer, AreaChart, Area, BarChart, Bar 
+import {
+  XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, AreaChart, Area
 } from 'recharts';
 
 const C = { red:'#E01E2C',green:'#00D97E',yellow:'#FFB800',blue:'#3E9EFF',purple:'#9B6EFF',gray:'#7A8BA0',grayd:'#2E445E',s2:'#131B2A',border:'#1E2D45' };
@@ -20,13 +20,6 @@ interface SummaryData {
   monthly_data?: Array<{ month: string; tff?: number; engagements?: number }>;
   top_performers?: Array<{ name: string; zone: string; tff?: number; attendance: number }>;
   zone_performance?: Array<{ zone: string; tff?: number; target: number }>;
-}
-
-interface ActivityItem {
-  type: string;
-  message: string;
-  time: string;
-  user?: string;
 }
 
 // ── Heatmap types ─────────────────────────────────────────────────────────────
@@ -120,7 +113,7 @@ function ContactActivityHeatmap({ data, loading }: { data: HeatmapResponse | nul
                 {row.day}
               </div>
               {HOURS.map(hour => {
-                const val = row.hours[hour]?.count || 0;
+                const val = row.hours.find((h: HeatmapHour) => h.hour === hour)?.count || 0;
                 return (
                   <div
                     key={hour}
@@ -170,7 +163,6 @@ export default function AnalyticsPage() {
   const [to,             setTo]             = useState(today);
   const [trends,         setTrends]         = useState<TrendItem[]>([]);
   const [summary,        setSummary]        = useState<SummaryData | null>(null);
-  const [activity,       setActivity]       = useState<ActivityItem[]>([]);
   const [heatmap,        setHeatmap]        = useState<HeatmapResponse | null>(null);
   const [loading,        setLoading]        = useState(true);
   const [heatmapLoading, setHeatmapLoading] = useState(true);
@@ -181,9 +173,8 @@ export default function AnalyticsPage() {
     setHeatmapLoading(true);
     const qs = `?from=${from}&to=${to}`;
     try {
-      const [summRes, actRes, heatRes, trendRes] = await Promise.all([
+      const [summRes, heatRes, trendRes] = await Promise.all([
         api.get<any>(`/api/v1/analytics/summary${qs}`),
-        api.get<any>('/api/v1/analytics/activity-feed'),
         api.get<any>(`/api/v1/analytics/contact-heatmap${qs}`),
         api.get<any>(`/api/v1/analytics/tff-trends${qs}`),
       ]);
@@ -191,14 +182,11 @@ export default function AnalyticsPage() {
       const s = summRes as any;
       setSummary(s.data || s);
 
-      const a = actRes as any;
-      setActivity(a.data || a.feed || (Array.isArray(a) ? a : []));
-
       const h = heatRes as any;
       setHeatmap(h.data || h);
 
       const t = trendRes as any;
-      setTrends(t.data || t);
+      setTrends(Array.isArray(t.data) ? t.data : Array.isArray(t) ? t : []);
 
       setError('');
     } catch (e: any) {
@@ -216,13 +204,20 @@ export default function AnalyticsPage() {
   const topPerformers = summary?.top_performers  || [];
   const zones         = summary?.zone_performance || [];
 
+  const totalTff     = summary?.kpis?.total_tff     ?? summary?.total_tff;
+  const avgAtt       = summary?.kpis?.avg_attendance ?? summary?.avg_attendance;
+  const daysWorked   = summary?.total_days_worked;
+  const totalLeaves  = summary?.total_leaves;
+  const totalHours   = summary?.total_hours_worked;
+  const totalVisits  = summary?.total_visits;
+
   const kpis = [
-    { l:'Total TFF',      v: (summary?.total_tff)?.toLocaleString() ?? '—', c:C.green  },
-    { l:'Avg Attendance', v: summary?.avg_attendance ? `${summary.avg_attendance}%` : '—', c:C.yellow },
-    { l:'Days Worked',    v: summary?.total_days_worked || '—', c:C.blue },
-    { l:'Total Leaves',   v: summary?.total_leaves || '—', c:C.red },
-    { l:'Total Hours',    v: summary?.total_hours_worked != null ? `${Math.floor(summary.total_hours_worked)}h ${Math.round((summary.total_hours_worked % 1) * 60)}m` : '—', c:C.purple },
-    { l:'Field Visits',   v: (summary?.total_visits)?.toLocaleString() ?? '—', c:C.blue },
+    { l:'Total TFF',      v: totalTff    != null ? (totalTff as number).toLocaleString() : '—', c:C.green  },
+    { l:'Avg Attendance', v: avgAtt      != null ? `${avgAtt}%` : '—',                          c:C.yellow },
+    { l:'Days Worked',    v: daysWorked  != null ? String(daysWorked) : '—',                     c:C.blue   },
+    { l:'Total Leaves',   v: totalLeaves != null ? String(totalLeaves) : '—',                    c:C.red    },
+    { l:'Total Hours',    v: totalHours  != null ? `${Math.floor(totalHours as number)}h ${Math.round(((totalHours as number) % 1) * 60)}m` : '—', c:C.purple },
+    { l:'Field Visits',   v: totalVisits != null ? (totalVisits as number).toLocaleString() : '—', c:C.blue },
   ];
 
   return (
@@ -281,21 +276,22 @@ export default function AnalyticsPage() {
         ))}
       </div>
 
-      {/* TFF Trend Chart - Phase 2 */}
+      {/* TFF Trend Chart */}
       <div style={{ background:'#0E1420', border:`1px solid ${C.border}`, borderRadius:16, padding:24 }}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
-          <div style={{ fontFamily:"'Syne',sans-serif", fontSize:15, fontWeight:700 }}>TFF & Engagements Trend</div>
-          <div style={{ display:'flex', gap:10 }}>
-            {[{c:C.green,l:'TFF'}, {c:C.blue,l:'Engagements'}].map(l => (
-              <div key={l.l} style={{ display:'flex', alignItems:'center', gap:6, fontSize:11, color:C.gray }}>
-                <div style={{ width:10, height:10, borderRadius:2, background:l.c }}/>{l.l}
-              </div>
-            ))}
+          <div>
+            <div style={{ fontFamily:"'Syne',sans-serif", fontSize:15, fontWeight:700 }}>TFF Trend</div>
+            <div style={{ fontSize:11, color:C.gray, marginTop:2 }}>Forms filled per day</div>
+          </div>
+          <div style={{ display:'flex', alignItems:'center', gap:6, fontSize:11, color:C.gray }}>
+            <div style={{ width:10, height:10, borderRadius:2, background:C.green }}/>TFF
           </div>
         </div>
-        
+
         {loading ? (
           <div style={{ height:240, display:'flex', alignItems:'center', justifyContent:'center', color:C.grayd, fontSize:13 }}>Loading chart...</div>
+        ) : !trends.length ? (
+          <div style={{ height:240, display:'flex', alignItems:'center', justifyContent:'center', color:C.grayd, fontSize:13 }}>No trend data for this period</div>
         ) : (
           <div style={{ height:240, width:'100%' }}>
             <ResponsiveContainer width="100%" height="100%">
@@ -305,30 +301,15 @@ export default function AnalyticsPage() {
                     <stop offset="5%" stopColor={C.green} stopOpacity={0.3}/>
                     <stop offset="95%" stopColor={C.green} stopOpacity={0}/>
                   </linearGradient>
-                  <linearGradient id="colEng" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={C.blue} stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor={C.blue} stopOpacity={0}/>
-                  </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke={C.border} vertical={false} />
-                <XAxis 
-                  dataKey="label" 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tick={{fill:C.grayd, fontSize:10}} 
-                  dy={10}
-                />
-                <YAxis 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tick={{fill:C.grayd, fontSize:10}} 
-                />
-                <Tooltip 
+                <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{fill:C.grayd, fontSize:10}} dy={10}/>
+                <YAxis axisLine={false} tickLine={false} tick={{fill:C.grayd, fontSize:10}}/>
+                <Tooltip
                   contentStyle={{ background:C.s2, border:`1px solid ${C.border}`, borderRadius:12, fontSize:12 }}
                   itemStyle={{ fontSize:11, fontWeight:700 }}
                 />
-                <Area type="monotone" dataKey="tff" stroke={C.green} fillOpacity={1} fill="url(#colTff)" strokeWidth={2} />
-                <Area type="monotone" dataKey="engagements" stroke={C.blue} fillOpacity={1} fill="url(#colEng)" strokeWidth={2} />
+                <Area type="monotone" dataKey="tff" stroke={C.green} fillOpacity={1} fill="url(#colTff)" strokeWidth={2} name="TFF"/>
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -388,21 +369,164 @@ export default function AnalyticsPage() {
       {/* ── TFF Activity Heatmap (live) ── */}
       <ContactActivityHeatmap data={heatmap} loading={heatmapLoading} />
 
-      {/* Activity feed */}
-      {activity.length > 0 && (
-        <div style={{ background:'#0E1420', border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
-          <div style={{ fontFamily:"'Syne',sans-serif", fontSize:14, fontWeight:700, marginBottom:16 }}>Live Activity Feed</div>
-          <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-            {activity.slice(0, 8).map((a, i) => (
-              <div key={i} style={{ display:'flex', gap:12, alignItems:'center', padding:'8px 0', borderBottom: i < Math.min(activity.length,8)-1 ? `1px solid ${C.border}40` : 'none' }}>
-                <div style={{ width:8, height:8, borderRadius:'50%', background:C.green, flexShrink:0 }}/>
-                <div style={{ flex:1, fontSize:13, color:C.gray }}>{a.message}</div>
-                <div style={{ fontSize:11, color:C.grayd, flexShrink:0 }}>{a.time}</div>
-              </div>
-            ))}
+      {/* Predictive Insights */}
+      {!loading && trends.length > 0 && (() => {
+        // ── Compute insights from existing data ──────────────────────────────
+
+        // 1. TFF Momentum: compare avg of first half vs second half of trend period
+        const half = Math.floor(trends.length / 2);
+        const firstHalfAvg  = half > 0 ? trends.slice(0, half).reduce((s, d) => s + d.tff, 0) / half : 0;
+        const secondHalfAvg = (trends.length - half) > 0 ? trends.slice(half).reduce((s, d) => s + d.tff, 0) / (trends.length - half) : 0;
+        const momentumPct   = firstHalfAvg > 0 ? Math.round(((secondHalfAvg - firstHalfAvg) / firstHalfAvg) * 100) : 0;
+        const momentumUp    = momentumPct >= 0;
+
+        // 2. TFF Forecast: linear regression to predict tomorrow's TFF
+        const n = trends.length;
+        const xMean = (n - 1) / 2;
+        const yMean = trends.reduce((s, d) => s + d.tff, 0) / n;
+        const slope = trends.reduce((s, d, i) => s + (i - xMean) * (d.tff - yMean), 0) /
+                      (trends.reduce((s, _, i) => s + (i - xMean) ** 2, 0) || 1);
+        const intercept   = yMean - slope * xMean;
+        const forecastVal = Math.max(0, Math.round(intercept + slope * n));
+
+        // 3. Best performing day
+        const best = trends.reduce((a, b) => b.tff > a.tff ? b : a, trends[0]);
+
+        // 4. Consistency score: % of days with at least 1 TFF
+        const activeDays    = trends.filter(d => d.tff > 0).length;
+        const consistencyPct = Math.round((activeDays / trends.length) * 100);
+
+        // 5. At-risk zones: zones below 50% of target
+        const atRiskZones = zones.filter((z: any) => z.target > 0 && (z.tff ?? 0) / z.target < 0.5);
+
+        // 6. Peak performer efficiency (TFF per attended day)
+        const topFe = topPerformers[0];
+        const efficiencyScore = topFe
+          ? `${topFe.tff} TFF · ${topFe.attendance}% att.`
+          : null;
+
+        const insightCard = (
+          icon: string,
+          title: string,
+          value: string,
+          sub: string,
+          accent: string,
+          badge?: { label: string; color: string }
+        ) => (
+          <div style={{
+            background:'#0E1420', border:`1px solid ${C.border}`, borderRadius:16,
+            padding:20, display:'flex', flexDirection:'column', gap:10,
+          }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+              <div style={{ fontSize:22 }}>{icon}</div>
+              {badge && (
+                <span style={{
+                  fontSize:10, fontWeight:700, letterSpacing:'0.5px',
+                  padding:'3px 8px', borderRadius:20,
+                  background:`${badge.color}18`, color:badge.color,
+                  border:`1px solid ${badge.color}30`,
+                }}>
+                  {badge.label}
+                </span>
+              )}
+            </div>
+            <div style={{ fontFamily:"'Syne',sans-serif", fontSize:24, fontWeight:800, color:accent, lineHeight:1 }}>
+              {value}
+            </div>
+            <div style={{ fontSize:13, fontWeight:600, color:'#E8EDF8' }}>{title}</div>
+            <div style={{ fontSize:11, color:C.gray }}>{sub}</div>
           </div>
-        </div>
-      )}
+        );
+
+        return (
+          <div>
+            <div style={{ marginBottom:14 }}>
+              <div style={{ fontFamily:"'Syne',sans-serif", fontSize:15, fontWeight:800, color:'#E8EDF8' }}>
+                Predictive Insights
+              </div>
+              <div style={{ fontSize:11, color:C.gray, marginTop:2 }}>
+                AI-computed signals from your {trends.length}-day activity window
+              </div>
+            </div>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:14 }}>
+              {insightCard(
+                '📈',
+                'TFF Momentum',
+                `${momentumUp ? '+' : ''}${momentumPct}%`,
+                momentumUp
+                  ? `Performance is accelerating — second half avg ${Math.round(secondHalfAvg)} vs first half ${Math.round(firstHalfAvg)}`
+                  : `Performance is declining — second half avg ${Math.round(secondHalfAvg)} vs first half ${Math.round(firstHalfAvg)}`,
+                momentumUp ? C.green : C.red,
+                { label: momentumUp ? 'TRENDING UP' : 'NEEDS ATTENTION', color: momentumUp ? C.green : C.red }
+              )}
+              {insightCard(
+                '🔮',
+                'TFF Forecast (Tomorrow)',
+                String(forecastVal),
+                slope >= 0
+                  ? `Based on the current upward trend (+${slope.toFixed(1)}/day), tomorrow looks strong`
+                  : `Current trend is softening (${slope.toFixed(1)}/day) — consider nudging the team`,
+                C.blue,
+                { label: slope >= 0 ? 'POSITIVE SIGNAL' : 'WATCH', color: slope >= 0 ? C.blue : C.yellow }
+              )}
+              {insightCard(
+                '🏆',
+                'Best Day This Period',
+                best.label,
+                `Peak TFF of ${best.tff} — schedule high-priority outlets on similar days`,
+                C.yellow
+              )}
+              {insightCard(
+                '📅',
+                'Activity Consistency',
+                `${consistencyPct}%`,
+                `${activeDays} of ${trends.length} days had TFF activity — ${
+                  consistencyPct >= 80 ? 'excellent execution discipline'
+                  : consistencyPct >= 50 ? 'some gaps in daily execution'
+                  : 'significant gaps — check FE attendance & route coverage'
+                }`,
+                consistencyPct >= 80 ? C.green : consistencyPct >= 50 ? C.yellow : C.red
+              )}
+              {atRiskZones.length > 0
+                ? insightCard(
+                    '⚠️',
+                    'Zones Below 50% Target',
+                    String(atRiskZones.length),
+                    `${atRiskZones.map((z: any) => z.zone).join(', ')} — immediate intervention recommended`,
+                    C.red,
+                    { label: 'AT RISK', color: C.red }
+                  )
+                : insightCard(
+                    '✅',
+                    'All Zones on Track',
+                    '0 at risk',
+                    'Every zone is above 50% of its TFF target for this period',
+                    C.green,
+                    { label: 'ON TRACK', color: C.green }
+                  )
+              }
+              {topFe
+                ? insightCard(
+                    '⚡',
+                    'Top Performer',
+                    topFe.name,
+                    efficiencyScore
+                      ? `${efficiencyScore} — replicate this execution pattern across the team`
+                      : 'Leading the leaderboard this period',
+                    C.purple
+                  )
+                : insightCard(
+                    '⚡',
+                    'Top Performer',
+                    '—',
+                    'No performer data available for this period',
+                    C.purple
+                  )
+              }
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
