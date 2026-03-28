@@ -20,7 +20,11 @@ class ApiClient {
     };
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    const res = await fetch(`${this.baseUrl}${path}`, { ...options, headers });
+    // Analytics endpoints are served by Next.js API routes (relative URL)
+    // so they work regardless of what NEXT_PUBLIC_API_URL points to
+    const isAnalytics = path.startsWith('/api/v1/analytics/');
+    const base = isAnalytics ? '' : this.baseUrl;
+    const res = await fetch(`${base}${path}`, { ...options, headers });
 
     if (res.status === 401) throw new Error('Unauthorized');
 
