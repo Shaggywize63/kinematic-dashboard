@@ -311,11 +311,11 @@ function heatColor(value: number, max: number): string {
 }
 
 function ContactActivityHeatmap({ data, loading }: { data: HeatmapResponse | null; loading: boolean }) {
-  const rows         = data?.rows || [];
-  const totalContacts = data?.summary?.total_contacts ?? 0;
-  const allVals      = rows.flatMap(row => row.hours.map(h => h.count));
-  const maxVal       = Math.max(...allVals, 1);
-  const isEmpty      = !loading && (rows.length === 0 || totalContacts === 0);
+  const rows          = data?.rows ?? (Array.isArray(data) ? data : []);
+  const totalContacts = data?.summary?.total_contacts ?? rows.reduce((acc: number, r: any) => acc + (r.total || 0), 0);
+  const allVals       = rows.flatMap((row: any) => row.hours.map((h: any) => h.count));
+  const maxVal        = Math.max(...allVals, 1);
+  const isEmpty       = !loading && (rows.length === 0 || totalContacts === 0);
 
   return (
     <Card style={{ padding: 24, marginTop: 10 }}>
