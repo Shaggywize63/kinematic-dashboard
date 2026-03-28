@@ -74,6 +74,20 @@ interface OutletRow {
   tff_rate:number;
 }
 
+/* ── heatmap types ─────────────────────────────────────────── */
+interface HeatmapHour  { hour: number; count: number; }
+interface HeatmapRow   { date: string; day: string; hours: HeatmapHour[]; total: number; }
+interface HeatmapResponse {
+  rows: HeatmapRow[];
+  summary: {
+    peak_hour: string;
+    peak_hour_count: number;
+    peak_day: string;
+    peak_day_count: number;
+    total_contacts: number;
+  };
+}
+
 /* ── tiny atoms ─────────────────────────────────────────────── */
 const Shimmer = ({ w='100%', h=16, br=6 }:{ w?:string|number; h?:number; br?:number }) => (
   <div style={{ width:w, height:h, borderRadius:br, background:C.s3, overflow:'hidden', position:'relative' }}>
@@ -284,6 +298,101 @@ const WeeklyBar = ({ days, loading }:{ days:WeekDay[]; loading:boolean }) => {
   );
 };
 
+/* ── HELPERS ─────────────────────────────────────────────── */
+const HOURS = Array.from({ length: 24 }, (_, i) => i);
+function heatColor(value: number, max: number): string {
+  if (max === 0) return C.s2;
+  const ratio = value / max;
+  if (ratio === 0)   return C.s2;
+  if (ratio < 0.25)  return '#0d2e3e';
+  if (ratio < 0.5)   return '#0a4a6e';
+  if (ratio < 0.75)  return '#076b9e';
+  return '#009dff';
+}
+
+function ContactActivityHeatmap({ data, loading }: { data: HeatmapResponse | null; loading: boolean }) {
+  const rows         = data?.rows || [];
+  const totalContacts = data?.summary?.total_contacts ?? 0;
+  const allVals      = rows.flatMap(row => row.hours.map(h => h.count));
+  const maxVal       = Math.max(...allVals, 1);
+  const isEmpty      = !loading && (rows.length === 0 || totalContacts === 0);
+
+  return (
+    <Card style={{ padding: 24, marginTop: 10 }}>
+      {/* Header */}
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:20 }}>
+        <div>
+          <div style={{ fontFamily:"'Syne',sans-serif", fontSize:15, fontWeight:800, color:C.white }}>TFF Activity Heatmap</div>
+          <div style={{ fontSize:11, color:C.gray, marginTop:2 }}>Form submission density by day and hour</div>
+        </div>
+      </div>
+
+      {loading ? (
+        <div style={{ height:180, display:'flex', alignItems:'center', justifyContent:'center', color:C.grayd, fontSize:13 }}>
+          <div style={{ width:20, height:20, border:`2px solid ${C.border}`, borderTopColor:C.blue, borderRadius:'50%', animation:'kspin .65s linear infinite', marginRight:10 }}/>
+          Loading heatmap...
+        </div>
+      ) : isEmpty ? (
+        <div style={{ height:180, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:10 }}>
+          <div style={{ fontSize:28 }}>📊</div>
+          <div style={{ fontSize:13, color:C.gray, fontWeight:600 }}>No TFF activity yet</div>
+          <div style={{ fontSize:11, color:C.grayd, textAlign:'center' }}>Data will appear here once executives start submitting forms</div>
+        </div>
+      ) : (
+        <>
+          {/* Hours labels */}
+          <div style={{ display:'flex', marginLeft:40, marginBottom:8, gap:2 }}>
+            {HOURS.map(h => (
+              <div key={h} style={{ flex:1, textAlign:'center', fontSize:9, color:C.grayd }}>
+                {h % 3 === 0 ? `${h}h` : ''}
+              </div>
+            ))}
+          </div>
+
+          {/* Grid rows */}
+          <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
+            {rows.map(row => (
+              <div key={row.date} style={{ display:'flex', alignItems:'center', gap:2 }}>
+                <div style={{ width:40, fontSize:10, color:C.gray, fontWeight:700, textTransform:'uppercase' }}>{row.day}</div>
+                <div style={{ flex:1, display:'flex', gap:2 }}>
+                  {HOURS.map(hour => {
+                    const val = row.hours[hour]?.count || 0;
+                    return (
+                      <div
+                        key={hour}
+                        title={`${row.date} ${hour}:00 — ${val} submissions`}
+                        style={{
+                          flex:1, height:18, borderRadius:3,
+                          background: heatColor(val, maxVal),
+                          transition:'all .2s'
+                        }}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Footer stats */}
+          <div style={{ display:'flex', gap:24, marginTop:20, paddingTop:16, borderTop:`1px solid ${C.border}` }}>
+            {[
+              { label:'Peak Hour', value: data?.summary?.peak_hour },
+              { label:'Peak Day',  value: data?.summary?.peak_day },
+              { label:'Total TFF', value: totalContacts }
+            ].map(s => (
+              <div key={s.label}>
+                <div style={{ fontSize:10, color:C.grayd, textTransform:'uppercase', fontWeight:700, letterSpacing:0.5 }}>{s.label}</div>
+                <div style={{ fontSize:16, fontWeight:800, color:C.white, marginTop:2 }}>{s.value}</div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </Card>
+  );
+}
+
 /* ── LEAFLET MAP ───────────────────────────────────────────── */
 const MapView = ({ locations }:{ locations:FELoc[] }) => {
   const mapRef  = useRef<HTMLDivElement>(null);
@@ -479,6 +588,8 @@ export default function DashboardPage() {
   const [loadingCity,   setLCity]   = useState(true);
   const [loadingOutlet, setLOutlet] = useState(true);
   const [loadingSumm,   setLSumm]   = useState(true);
+  const [heatmap,        setHeatmap]        = useState<HeatmapResponse | null>(null);
+  const [loadingHeatmap, setLHeatmap]       = useState(true);
 
   const [lastSync, setSync] = useState('');
   const [mapLoaded, setMapLoaded] = useState(false);
@@ -508,19 +619,24 @@ export default function DashboardPage() {
   }, [today]);
 
   const loadRange = useCallback(async (f:string, t:string) => {
-    setLWeek(true); setLCity(true); setLOutlet(true);
+    setLWeek(true); setLCity(true); setLOutlet(true); setLHeatmap(true);
     const qs = `?from=${f}&to=${t}`;
     try {
-      const [wRes, cRes, oRes] = await Promise.allSettled([
+      const [wRes, cRes, oRes, hRes] = await Promise.allSettled([
         api.get<any>(`/api/v1/analytics/weekly-contacts${qs}`),
         api.get<any>(`/api/v1/analytics/city-performance${qs}`),
         api.get<any>(`/api/v1/analytics/outlet-coverage${qs}`),
+        api.get<any>(`/api/v1/analytics/contact-heatmap${qs}`),
       ]);
       if (wRes.status === 'fulfilled') setWeek(wRes.value?.data ?? wRes.value);
       if (cRes.status === 'fulfilled') setCity(cRes.value?.data ?? cRes.value);
       if (oRes.status === 'fulfilled') setOutlet(oRes.value?.data ?? oRes.value);
+      if (hRes.status === 'fulfilled') {
+        const h = hRes.value as any;
+        setHeatmap(h.data || h);
+      }
     } catch { }
-    setLWeek(false); setLCity(false); setLOutlet(false);
+    setLWeek(false); setLCity(false); setLOutlet(false); setLHeatmap(false);
   }, []);
 
   const loadLoc = useCallback(async () => {
@@ -1116,6 +1232,9 @@ export default function DashboardPage() {
             </div>
           )}
         </Card>
+
+        {/* Row 6: TFF Activity Heatmap */}
+        <ContactActivityHeatmap data={heatmap} loading={loadingHeatmap}/>
       </div>
     </>
   );

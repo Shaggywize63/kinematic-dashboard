@@ -224,7 +224,7 @@ export default function AttendancePage() {
       const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
       const ANON_KEY    = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-      const uploadRes = await fetch(`${SUPABASE_URL}/storage/v1/object/attendance-selfies/${path}`, {
+      const uploadRes = await fetch(`${SUPABASE_URL}/storage/v1/object/kinematic-selfies/${path}`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${ANON_KEY}`,
@@ -239,7 +239,7 @@ export default function AttendancePage() {
         throw new Error(err.message || 'Upload failed');
       }
 
-      const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/attendance-selfies/${path}`;
+      const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/kinematic-selfies/${path}`;
       setF(field, publicUrl);
     } catch (e: any) {
       alert('Upload failed: ' + (e?.message || 'Unknown error'));
@@ -976,7 +976,7 @@ export default function AttendancePage() {
                   </div>
 
                   {/* status */}
-                  <span style={{ fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 20, display: 'inline-flex', alignItems: 'center', gap: 5, background: sm.bg, color: sm.color, width: 'fit-content' }}>
+                  <span title={JSON.stringify(r, null, 2)} style={{ fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 20, display: 'inline-flex', alignItems: 'center', gap: 5, background: sm.bg, color: sm.color, width: 'fit-content', cursor: 'help' }}>
                     <span style={{ width: 6, height: 6, borderRadius: '50%', background: sm.color, flexShrink: 0 }} />
                     {sm.label}
                   </span>
