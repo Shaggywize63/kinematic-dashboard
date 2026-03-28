@@ -19,7 +19,7 @@ interface Visit {
   id: string;
   visitor_id: string;
   executive_id: string;
-  outlet_id: string;
+  visit_outlet_id: string;
   rating: string;
   remarks: string;
   visit_response: string | null;
