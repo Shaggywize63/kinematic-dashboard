@@ -10,8 +10,10 @@ const C = { red:'#E01E2C',green:'#00D97E',yellow:'#FFB800',blue:'#3E9EFF',purple
 
 interface SummaryData {
   total_tff?: number;
+  tff_count?: number;
   total_engagements?: number;
   avg_attendance?: number;
+  attendance_pct?: number;
   tff_rate?: number;
   total_days_worked?: number;
   total_leaves?: number;
@@ -20,6 +22,16 @@ interface SummaryData {
   monthly_data?: Array<{ month: string; tff?: number; engagements?: number }>;
   top_performers?: Array<{ name: string; zone: string; tff?: number; attendance: number }>;
   zone_performance?: Array<{ zone: string; tff?: number; target: number }>;
+  kpis?: {
+    total_tff?: number;
+    avg_attendance?: number;
+    total_leaves?: number;
+    total_days_worked?: number;
+    total_hours_worked?: number;
+    total_visits?: number;
+    [key: string]: any;
+  };
+  [key: string]: any;
 }
 
 // ── Heatmap types ─────────────────────────────────────────────────────────────
@@ -180,7 +192,9 @@ export default function AnalyticsPage() {
       ]);
 
       const s = summRes as any;
-      setSummary(s.data || s);
+      // Handle single wrap { data: {...} }, double wrap { data: { data: {...} } }, or raw
+      const summaryRaw = s?.data?.data ?? s?.data ?? s;
+      setSummary(summaryRaw);
 
       const h = heatRes as any;
       setHeatmap(h.data || h);
@@ -204,20 +218,21 @@ export default function AnalyticsPage() {
   const topPerformers = summary?.top_performers  || [];
   const zones         = summary?.zone_performance || [];
 
-  const totalTff     = summary?.kpis?.total_tff     ?? summary?.total_tff;
-  const avgAtt       = summary?.kpis?.avg_attendance ?? summary?.avg_attendance;
-  const daysWorked   = summary?.total_days_worked;
-  const totalLeaves  = summary?.total_leaves;
-  const totalHours   = summary?.total_hours_worked;
-  const totalVisits  = summary?.total_visits;
+  // Resolve each field across all known response shapes
+  const totalTff    = summary?.kpis?.total_tff     ?? summary?.total_tff    ?? summary?.tff_count;
+  const avgAtt      = summary?.kpis?.avg_attendance ?? summary?.avg_attendance ?? summary?.attendance_pct;
+  const daysWorked  = summary?.kpis?.total_days_worked  ?? summary?.total_days_worked;
+  const totalLeaves = summary?.kpis?.total_leaves   ?? summary?.total_leaves;
+  const totalHours  = summary?.kpis?.total_hours_worked ?? summary?.total_hours_worked;
+  const totalVisits = summary?.kpis?.total_visits   ?? summary?.total_visits;
 
   const kpis = [
-    { l:'Total TFF',      v: totalTff    != null ? (totalTff as number).toLocaleString() : '—', c:C.green  },
-    { l:'Avg Attendance', v: avgAtt      != null ? `${avgAtt}%` : '—',                          c:C.yellow },
-    { l:'Days Worked',    v: daysWorked  != null ? String(daysWorked) : '—',                     c:C.blue   },
-    { l:'Total Leaves',   v: totalLeaves != null ? String(totalLeaves) : '—',                    c:C.red    },
-    { l:'Total Hours',    v: totalHours  != null ? `${Math.floor(totalHours as number)}h ${Math.round(((totalHours as number) % 1) * 60)}m` : '—', c:C.purple },
-    { l:'Field Visits',   v: totalVisits != null ? (totalVisits as number).toLocaleString() : '—', c:C.blue },
+    { l:'Total Form Filled', v: totalTff    != null ? Number(totalTff).toLocaleString() : '—',   c:C.green  },
+    { l:'Avg Attendance',    v: avgAtt      != null ? `${Number(avgAtt).toFixed(1)}%` : '—',      c:C.yellow },
+    { l:'Days Worked',       v: daysWorked  != null ? String(daysWorked) : '—',                   c:C.blue   },
+    { l:'Total Leaves',      v: totalLeaves != null ? String(totalLeaves) : '—',                  c:C.red    },
+    { l:'Total Hours',       v: totalHours  != null ? `${Math.floor(Number(totalHours))}h ${Math.round((Number(totalHours) % 1) * 60)}m` : '—', c:C.purple },
+    { l:'Field Visits',      v: totalVisits != null ? Number(totalVisits).toLocaleString() : '—', c:C.blue   },
   ];
 
   return (
