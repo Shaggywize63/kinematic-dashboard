@@ -75,6 +75,13 @@ function ContactActivityHeatmap({ data, loading }: { data: HeatmapResponse | nul
 
   return (
     <div style={{ background:'#0E1420', border:`1px solid ${C.border}`, borderRadius:16, padding:24 }}>
+      <style>{`
+        .heatmap-cell:hover {
+          transform: scale(1.15);
+          filter: brightness(1.2) drop-shadow(0 0 5px rgba(99, 179, 237, 0.4));
+          z-index: 10;
+        }
+      `}</style>
       {/* Header */}
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:20 }}>
         <div>
@@ -87,7 +94,7 @@ function ContactActivityHeatmap({ data, loading }: { data: HeatmapResponse | nul
         {!isEmpty && !loading && (
           <div style={{ display:'flex', alignItems:'center', gap:6 }}>
             <span style={{ fontSize:11, color:C.grayd }}>Low</span>
-            {['#0d2e3e','#0a4a6e','#0e6ea8','#3E9EFF'].map((col, i) => (
+            {['#1A365D','#2B6CB0','#4299E1','#63B3ED'].map((col, i) => (
               <div key={i} style={{ width:16, height:16, borderRadius:3, background:col }}/>
             ))}
             <span style={{ fontSize:11, color:C.grayd }}>High</span>
@@ -129,8 +136,16 @@ function ContactActivityHeatmap({ data, loading }: { data: HeatmapResponse | nul
                 return (
                   <div
                     key={hour}
-                    title={`${row.day} ${hour.toString().padStart(2,'0')}:00 — ${val} contacts`}
-                    style={{ flex:1, height:18, borderRadius:3, background:heatColor(val, maxVal), cursor:'default', transition:'opacity 0.15s' }}
+                    title={`${row.date} @ ${hour.toString().padStart(2,'0')}:00\nValue: ${val} TFFs`}
+                    className="heatmap-cell"
+                    style={{ 
+                      flex:1, 
+                      height:18, 
+                      borderRadius:3, 
+                      background:heatColor(val, maxVal), 
+                      cursor:'default', 
+                      transition:'all 0.1s ease-in-out'
+                    }}
                   />
                 );
               })}

@@ -40,19 +40,7 @@ interface WeekDay {
   tff:number;
   tff_rate:number;
 }
-interface FELoc {
-  id:string;
-  name:string;
-  employee_id?:string;
-  zone_name?:string;
-  city?:string;
-  status:'active'|'absent'|'checked_out';
-  lat:number|null;
-  lng:number|null;
-  address?:string;
-  checkin_at?:string;
-  total_hours?:number;
-}
+
 interface CityPerf {
   city:string;
   zones:number;
@@ -301,79 +289,7 @@ function heatColor(value: number, max: number): string {
 
 
 /* ── LEAFLET MAP ───────────────────────────────────────────── */
-const MapView = ({ locations }:{ locations:FELoc[] }) => {
-  const mapRef  = useRef<HTMLDivElement>(null);
-  const mapInst = useRef<any>(null);
-  const markRef = useRef<any[]>([]);
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const L = (window as any).L;
-    if (!L || !mapRef.current) return;
-    if (mapInst.current) return;
-    const map = L.map(mapRef.current, { zoomControl:false, attributionControl:false }).setView([19.076, 72.877], 11);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom:19 }).addTo(map);
-    L.control.zoom({ position:'bottomright' }).addTo(map);
-    mapInst.current = map;
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const L = (window as any).L;
-    const map = mapInst.current;
-    if (!L || !map) return;
-    markRef.current.forEach(m => m.remove());
-    markRef.current = [];
-    locations
-      .filter(fe => fe.lat && fe.lng)
-      .forEach(fe => {
-        const color =
-          fe.status === 'active'
-            ? '#00D97E'
-            : fe.status === 'checked_out'
-            ? '#3E9EFF'
-            : '#2E445E';
-        const iconHtml = `<div style="width:28px;height:28px;border-radius:50%;background:${color};border:2px solid ${C.s2};display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px;color:#fff;box-shadow:0 2px 10px rgba(0,0,0,.5)">${fe.name[0]}</div>`;
-        const icon = L.divIcon({ html:iconHtml, className:'', iconSize:[28,28], iconAnchor:[14,14] });
-        const m = L.marker([fe.lat, fe.lng], { icon })
-          .addTo(map)
-          .bindPopup(
-            `<div style="font-family:DM Sans,sans-serif;font-size:12px;color:#E8EDF8;background:#0E1420;padding:8px 10px;border-radius:8px;min-width:140px">
-              <div style="font-weight:700;margin-bottom:4px">${fe.name}</div>
-              <div style="color:#7A8BA0">${fe.zone_name || ''}</div>
-              <div style="margin-top:4px;font-size:11px;color:${color}">${fe.status}</div>
-              ${
-                fe.checkin_at
-                  ? `<div style="color:#7A8BA0;font-size:10px;margin-top:2px">In: ${new Date(
-                      fe.checkin_at,
-                    ).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })}</div>`
-                  : ''
-              }
-            </div>`,
-            { className:'km-popup' },
-          );
-        markRef.current.push(m);
-      });
-  }, [locations]);
-
-  return (
-    <>
-      <style>{`
-        .km-popup .leaflet-popup-content-wrapper{
-          background:#0E1420;
-          border:1px solid #1E2D45;
-          border-radius:12px;
-          box-shadow:0 8px 32px rgba(0,0,0,.7);
-        }
-        .km-popup .leaflet-popup-content{margin:0;}
-        .km-popup .leaflet-popup-tip{background:#0E1420;}
-      `}</style>
-      <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-      <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" async/>
-      <div ref={mapRef} style={{ width:'100%', height:'100%', borderRadius:16, overflow:'hidden' }}/>
-    </>
-  );
-};
 
 /* ── DATE RANGE PICKER ────────────────────────────────────── */
 const DateRangePicker = ({ from, to, onChange }:{
@@ -484,20 +400,17 @@ export default function DashboardPage() {
 
   const [attData,    setAtt]    = useState<{ summary:AttSummary; executives:any[] }|null>(null);
   const [weekData,   setWeek]   = useState<{ days:WeekDay[]; total_cc:number; total_tff:number }|null>(null);
-  const [locData,    setLoc]    = useState<{ summary:any; locations:FELoc[] }|null>(null);
   const [cityData,   setCity]   = useState<{ cities:CityPerf[] }|null>(null);
   const [outletData, setOutlet] = useState<{ summary:any; outlets:OutletRow[]; cities:any[] }|null>(null);
   const [summData,   setSumm]   = useState<any>(null);
 
   const [loadingAtt,    setLAtt]    = useState(true);
   const [loadingWeek,   setLWeek]   = useState(true);
-  const [loadingLoc,    setLLoc]    = useState(true);
   const [loadingCity,   setLCity]   = useState(true);
   const [loadingOutlet, setLOutlet] = useState(true);
   const [loadingSumm,   setLSumm]   = useState(true);
 
   const [lastSync, setSync] = useState('');
-  const [mapLoaded, setMapLoaded] = useState(false);
 
   const [currUser, setCurrUser] = useState<any>(null);
   const userName = currUser?.name || 'Admin';
@@ -539,39 +452,19 @@ export default function DashboardPage() {
     setLWeek(false); setLCity(false); setLOutlet(false);
   }, []);
 
-  const loadLoc = useCallback(async () => {
-    setLLoc(true);
-    try {
-      const r = await api.get<any>('/api/v1/analytics/live-locations');
-      setLoc(r?.data ?? r);
-    } catch { } finally { setLLoc(false); }
-  }, []);
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const L = (window as any).L;
-    if (L) { setMapLoaded(true); return; }
-    const s = document.createElement('script');
-    s.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-    s.onload = () => setMapLoaded(true);
-    document.head.appendChild(s);
-    const css = document.createElement('link');
-    css.rel = 'stylesheet';
-    css.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-    document.head.appendChild(css);
-  }, []);
 
-  useEffect(() => { loadAtt(); loadSumm(); loadLoc(); }, [loadAtt, loadSumm, loadLoc]);
+
+
+  useEffect(() => { loadAtt(); loadSumm(); }, [loadAtt, loadSumm]);
   useEffect(() => { loadRange(from, to); }, [from, to, loadRange]);
 
   const handleRefresh = () => {
-    loadAtt(); loadSumm(); loadLoc(); loadRange(from, to);
+    loadAtt(); loadSumm(); loadRange(from, to);
     setSync(new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }));
   };
 
   const att       = attData?.summary;
-  const locs      = locData?.locations || [];
-  const activeFEs = locs.filter(l => l.status === 'active');
 
   return (
     <>
@@ -695,123 +588,7 @@ export default function DashboardPage() {
           </Card>
         </div>
 
-        {/* Row 3: Live Map */}
-        <Card style={{ padding:0, overflow:'hidden' }}>
-          <div
-            style={{
-              padding:'18px 22px 14px',
-              borderBottom:`1px solid ${C.border}`,
-              display:'flex',
-              justifyContent:'space-between',
-              alignItems:'center',
-            }}
-          >
-            <div>
-              <SectionHeader
-                title="Live Field Locations"
-                sub={`${activeFEs.length} active FEs · based on today's check-in coordinates`}
-              />
-            </div>
-            <div style={{ display:'flex', gap:10, alignItems:'center' }}>
-              {[{l:'Active',c:C.green},{l:'Checked Out',c:C.blue},{l:'Absent',c:C.grayd}].map(b => (
-                <div key={b.l} style={{ display:'flex', alignItems:'center', gap:5, fontSize:11, color:C.gray }}>
-                  <div style={{ width:8, height:8, borderRadius:'50%', background:b.c }}/>
-                  {b.l}
-                </div>
-              ))}
-            </div>
-          </div>
-          <div style={{ height:380, position:'relative' }}>
-            {loadingLoc ? (
-              <div
-                style={{
-                  position:'absolute',
-                  inset:0,
-                  display:'flex',
-                  alignItems:'center',
-                  justifyContent:'center',
-                  color:C.grayd,
-                  fontSize:13,
-                }}
-              >
-                <div
-                  style={{
-                    width:20,
-                    height:20,
-                    border:`2px solid ${C.border}`,
-                    borderTopColor:C.blue,
-                    borderRadius:'50%',
-                    animation:'kspin .65s linear infinite',
-                  }}
-                />
-              </div>
-            ) : mapLoaded ? (
-              <MapView locations={locs}/>
-            ) : (
-              <div
-                style={{
-                  position:'absolute',
-                  inset:0,
-                  display:'flex',
-                  alignItems:'center',
-                  justifyContent:'center',
-                  color:C.grayd,
-                  fontSize:13,
-                }}
-              >
-                Loading map…
-              </div>
-            )}
-          </div>
-          {!loadingLoc && locs.length > 0 && (
-            <div
-              style={{
-                padding:'12px 22px',
-                borderTop:`1px solid ${C.border}`,
-                display:'flex',
-                gap:8,
-                flexWrap:'wrap',
-              }}
-            >
-              {locs.map(fe => {
-                const c =
-                  fe.status === 'active'
-                    ? C.green
-                    : fe.status === 'checked_out'
-                    ? C.blue
-                    : C.grayd;
-                return (
-                  <div
-                    key={fe.id}
-                    style={{
-                      display:'flex',
-                      alignItems:'center',
-                      gap:6,
-                      padding:'5px 10px',
-                      borderRadius:20,
-                      background:C.s3,
-                      border:`1px solid ${C.border}`,
-                      fontSize:11,
-                    }}
-                  >
-                    <div style={{ width:6, height:6, borderRadius:'50%', background:c }}/>
-                    <span
-                      style={{
-                        color:fe.status === 'absent' ? C.grayd : C.white,
-                        fontWeight:600,
-                      }}
-                    >
-                      {fe.name}
-                    </span>
-                    {fe.zone_name && <span style={{ color:C.grayd }}>{fe.zone_name}</span>}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </Card>
 
-        {/* Row 4: City Performance */}
         <Card>
           <SectionHeader
             title="City-wise Performance"
