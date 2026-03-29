@@ -1369,7 +1369,7 @@ function TrainingSection({ token }:{ token:string }) {
   const [uploading, setUploading]  = useState(false);
   const [uploadErr, setUploadErr]  = useState('');
   const [uploadOk, setUploadOk]    = useState(false);
-  const [form, setForm] = useState({ title:'', category:'', type:'document', visible_to:'all', description:'' });
+  const [form, setForm] = useState({ title:'', category:'', type:'document', visible_to:'all', description:'', link_url:'' });
 
   const fetchMaterials = useCallback(async () => {
     setLoading(true);
@@ -1386,21 +1386,27 @@ function TrainingSection({ token }:{ token:string }) {
     const file = fileInput?.files?.[0];
     if (!form.title) { setUploadErr('Title is required'); return; }
     if (!form.type)  { setUploadErr('Type is required'); return; }
-    if (!file) { setUploadErr('Please select a file'); return; }
+    const isLink = form.type === 'link';
+    if (isLink && !form.link_url) { setUploadErr('Please enter a URL'); return; }
+    if (!isLink && !file) { setUploadErr('Please select a file'); return; }
     setUploading(true); setUploadErr(''); setUploadOk(false);
     try {
-      // Step 1: upload file to storage
-      const fd = new FormData();
-      fd.append('file', file);
-      const upRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/upload/material`, {
-        method:'POST',
-        headers:{ Authorization:`Bearer ${token}` },
-        body: fd,
-      });
-      const upJson = await upRes.json();
-      if (!upRes.ok) throw new Error(upJson.error || upJson.message || 'File upload failed');
-      const fileUrl: string = upJson.data?.url;
-      if (!fileUrl) throw new Error('No URL returned from upload');
+      let fileUrl = form.link_url;
+
+      if (!isLink) {
+        // Step 1: upload file to storage
+        const fd = new FormData();
+        fd.append('file', file!);
+        const upRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/upload/material`, {
+          method:'POST',
+          headers:{ Authorization:`Bearer ${token}` },
+          body: fd,
+        });
+        const upJson = await upRes.json();
+        if (!upRes.ok) throw new Error(upJson.error || upJson.message || 'File upload failed');
+        fileUrl = upJson.data?.url;
+        if (!fileUrl) throw new Error('No URL returned from upload');
+      }
 
       // Step 2: create learning material record
       const targetRoles = form.visible_to === 'all'
@@ -1422,7 +1428,7 @@ function TrainingSection({ token }:{ token:string }) {
       const createJson = await createRes.json();
       if (!createRes.ok) throw new Error(createJson.error || createJson.message || 'Failed to save material');
       setUploadOk(true);
-      setTimeout(()=>{ setUploadOk(false); setShowUpload(false); setForm({ title:'', category:'', type:'document', visible_to:'all', description:'' }); fetchMaterials(); }, 1600);
+      setTimeout(()=>{ setUploadOk(false); setShowUpload(false); setForm({ title:'', category:'', type:'document', visible_to:'all', description:'', link_url:'' }); fetchMaterials(); }, 1600);
     } catch(e:any) { setUploadErr(e.message); }
     finally { setUploading(false); }
   };
@@ -1510,8 +1516,9 @@ function TrainingSection({ token }:{ token:string }) {
                     <option value="document">Document</option>
                     <option value="pdf">PDF</option>
                     <option value="video">Video</option>
-                    <option value="slides">Slides</option>
-                    <option value="link">Link</option>
+                    <option value="slides">Slides / PPT</option>
+                    <option value="image">Image</option>
+                    <option value="link">Link (URL)</option>
                   </select>
                 </div>
                 <div>
@@ -1540,13 +1547,22 @@ function TrainingSection({ token }:{ token:string }) {
                 <textarea rows={2} placeholder="Brief description…" style={{ ...inputStyle, resize:'none' }}
                   value={form.description} onChange={e=>setForm(p=>({...p,description:e.target.value}))}/>
               </div>
-              <div>
-                <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>File (PDF, MP4, PPT, etc.) *</div>
-                <input id="training-file-input" type="file" accept=".pdf,.mp4,.ppt,.pptx,.docx,.jpg,.png"
-                  style={{ width:'100%', padding:'9px 12px', borderRadius:10, border:`1.5px solid ${C.border}`,
-                    background:C.s3, color:C.gray, fontSize:13, fontFamily:"'DM Sans',sans-serif",
-                    cursor:'pointer', colorScheme:'dark' as any }}/>
-              </div>
+              {form.type === 'link' ? (
+                <div>
+                  <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>URL *</div>
+                  <input placeholder="https://…" style={inputStyle}
+                    value={form.link_url} onChange={e=>setForm(p=>({...p,link_url:e.target.value}))}/>
+                </div>
+              ) : (
+                <div>
+                  <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>File *</div>
+                  <input id="training-file-input" type="file"
+                    accept=".pdf,.mp4,.mov,.avi,.webm,.ppt,.pptx,.doc,.docx,.jpg,.jpeg,.png,.webp"
+                    style={{ width:'100%', padding:'9px 12px', borderRadius:10, border:`1.5px solid ${C.border}`,
+                      background:C.s3, color:C.gray, fontSize:13, fontFamily:"'DM Sans',sans-serif",
+                      cursor:'pointer', colorScheme:'dark' as any }}/>
+                </div>
+              )}
             </div>
             {uploadErr && <div style={{ marginBottom:12, padding:'10px 14px', background:C.redD, border:`1px solid ${C.redB}`, borderRadius:10, fontSize:13, color:C.red }}>{uploadErr}</div>}
             {uploadOk  && <div style={{ marginBottom:12, padding:'10px 14px', background:C.greenD, border:`1px solid ${C.green}28`, borderRadius:10, fontSize:13, color:C.green }}>✓ Uploaded successfully!</div>}
