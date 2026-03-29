@@ -244,7 +244,7 @@ export default function AnalyticsPage() {
   const totalVisits = summary?.kpis?.total_visits   ?? summary?.total_visits;
 
   const kpis = [
-    { l:'Total Form Filled', v: totalTff    != null ? Number(totalTff).toLocaleString() : '—',   c:C.green  },
+    { l:'Total Forms Filled', v: totalTff    != null ? Number(totalTff).toLocaleString() : '—',   c:C.green  },
     { l:'Avg Attendance',    v: avgAtt      != null ? `${Math.round(Number(avgAtt))}%` : '—',      c:C.yellow },
     { l:'Days Worked',       v: daysWorked  != null ? String(daysWorked) : '—',                   c:C.blue   },
     { l:'Total Leaves',      v: totalLeaves != null ? String(totalLeaves) : '—',                  c:C.red    },

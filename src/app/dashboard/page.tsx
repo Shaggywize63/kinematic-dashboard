@@ -516,7 +516,7 @@ export default function DashboardPage() {
 
         {/* KPI Row - Phase 2 */}
         <div style={{ display:'grid', gridTemplateColumns:'repeat(5, 1fr)', gap:10 }}>
-          <StatCard label="Total TFF" value={summData?.kpis?.total_tff ?? '—'} color={C.green} loading={loadingSumm} />
+          <StatCard label="Total Forms Filled" value={summData?.kpis?.total_tff ?? '—'} color={C.green} loading={loadingSumm} />
           <StatCard label="Total Hours" value={summData?.kpis?.total_hours_worked != null ? `${Math.floor(summData.kpis.total_hours_worked)}h ${Math.round((summData.kpis.total_hours_worked % 1) * 60)}m` : '—'} color={C.purple} loading={loadingSumm} />
           <StatCard label="Days Worked" value={summData?.kpis?.total_days_worked ?? '—'} color={C.blue} loading={loadingSumm} />
           <StatCard label="Total Leaves" value={summData?.kpis?.total_leaves ?? '—'} color={C.red} loading={loadingSumm} />
