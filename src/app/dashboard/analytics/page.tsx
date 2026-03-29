@@ -245,11 +245,10 @@ export default function AnalyticsPage() {
 
   const kpis = [
     { l:'Total Form Filled', v: totalTff    != null ? Number(totalTff).toLocaleString() : '—',   c:C.green  },
-    { l:'Avg Attendance',    v: avgAtt      != null ? `${Number(avgAtt).toFixed(1)}%` : '—',      c:C.yellow },
+    { l:'Avg Attendance',    v: avgAtt      != null ? `${Math.round(Number(avgAtt))}%` : '—',      c:C.yellow },
     { l:'Days Worked',       v: daysWorked  != null ? String(daysWorked) : '—',                   c:C.blue   },
     { l:'Total Leaves',      v: totalLeaves != null ? String(totalLeaves) : '—',                  c:C.red    },
     { l:'Total Hours',       v: totalHours  != null ? `${Math.floor(Number(totalHours))}h ${Math.round((Number(totalHours) % 1) * 60)}m` : '—', c:C.purple },
-    { l:'Field Visits',      v: totalVisits != null ? Number(totalVisits).toLocaleString() : '—', c:C.blue   },
   ];
 
   return (
