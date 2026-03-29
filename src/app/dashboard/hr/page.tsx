@@ -1369,7 +1369,7 @@ function TrainingSection({ token }:{ token:string }) {
   const [uploading, setUploading]  = useState(false);
   const [uploadErr, setUploadErr]  = useState('');
   const [uploadOk, setUploadOk]    = useState(false);
-  const [form, setForm] = useState({ title:'', category:'', visible_to:'all', description:'' });
+  const [form, setForm] = useState({ title:'', category:'', type:'document', visible_to:'all', description:'' });
 
   const fetchMaterials = useCallback(async () => {
     setLoading(true);
@@ -1381,30 +1381,48 @@ function TrainingSection({ token }:{ token:string }) {
 
   useEffect(() => { fetchMaterials(); }, [fetchMaterials]);
 
-  const fileRef = { current: null as HTMLInputElement | null };
-
   const doUpload = async () => {
     const fileInput = document.getElementById('training-file-input') as HTMLInputElement;
     const file = fileInput?.files?.[0];
     if (!form.title) { setUploadErr('Title is required'); return; }
+    if (!form.type)  { setUploadErr('Type is required'); return; }
     if (!file) { setUploadErr('Please select a file'); return; }
     setUploading(true); setUploadErr(''); setUploadOk(false);
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('title', form.title);
-      formData.append('category', form.category);
-      formData.append('visible_to', form.visible_to);
-      formData.append('description', form.description);
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/learning`, {
+      // Step 1: upload file to storage
+      const fd = new FormData();
+      fd.append('file', file);
+      const upRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/upload/material`, {
         method:'POST',
         headers:{ Authorization:`Bearer ${token}` },
-        body: formData,
+        body: fd,
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || json.message || 'Upload failed');
+      const upJson = await upRes.json();
+      if (!upRes.ok) throw new Error(upJson.error || upJson.message || 'File upload failed');
+      const fileUrl: string = upJson.data?.url;
+      if (!fileUrl) throw new Error('No URL returned from upload');
+
+      // Step 2: create learning material record
+      const targetRoles = form.visible_to === 'all'
+        ? ['executive','supervisor','admin','city_manager','super_admin']
+        : [form.visible_to];
+      const createRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/learning`, {
+        method:'POST',
+        headers:{ Authorization:`Bearer ${token}`, 'Content-Type':'application/json' },
+        body: JSON.stringify({
+          title: form.title,
+          type: form.type,
+          file_url: fileUrl,
+          category: form.category || undefined,
+          description: form.description || undefined,
+          target_roles: targetRoles,
+          is_mandatory: false,
+        }),
+      });
+      const createJson = await createRes.json();
+      if (!createRes.ok) throw new Error(createJson.error || createJson.message || 'Failed to save material');
       setUploadOk(true);
-      setTimeout(()=>{ setUploadOk(false); setShowUpload(false); setForm({ title:'', category:'', visible_to:'all', description:'' }); fetchMaterials(); }, 1600);
+      setTimeout(()=>{ setUploadOk(false); setShowUpload(false); setForm({ title:'', category:'', type:'document', visible_to:'all', description:'' }); fetchMaterials(); }, 1600);
     } catch(e:any) { setUploadErr(e.message); }
     finally { setUploading(false); }
   };
@@ -1487,6 +1505,16 @@ function TrainingSection({ token }:{ token:string }) {
               </div>
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
                 <div>
+                  <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>Type *</div>
+                  <select style={inputStyle} value={form.type} onChange={e=>setForm(p=>({...p,type:e.target.value}))}>
+                    <option value="document">Document</option>
+                    <option value="pdf">PDF</option>
+                    <option value="video">Video</option>
+                    <option value="slides">Slides</option>
+                    <option value="link">Link</option>
+                  </select>
+                </div>
+                <div>
                   <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>Category</div>
                   <select style={inputStyle} value={form.category} onChange={e=>setForm(p=>({...p,category:e.target.value}))}>
                     <option value="">Select…</option>
@@ -1497,15 +1525,15 @@ function TrainingSection({ token }:{ token:string }) {
                     <option value="HR">HR</option>
                   </select>
                 </div>
-                <div>
-                  <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>Visible To</div>
-                  <select style={inputStyle} value={form.visible_to} onChange={e=>setForm(p=>({...p,visible_to:e.target.value}))}>
-                    <option value="all">All</option>
-                    <option value="executive">Field Executives</option>
-                    <option value="supervisor">Supervisors</option>
-                    <option value="admin">Admins</option>
-                  </select>
-                </div>
+              </div>
+              <div>
+                <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>Visible To</div>
+                <select style={inputStyle} value={form.visible_to} onChange={e=>setForm(p=>({...p,visible_to:e.target.value}))}>
+                  <option value="all">All</option>
+                  <option value="executive">Field Executives</option>
+                  <option value="supervisor">Supervisors</option>
+                  <option value="admin">Admins</option>
+                </select>
               </div>
               <div>
                 <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>Description (optional)</div>
