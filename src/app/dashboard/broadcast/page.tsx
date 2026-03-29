@@ -23,6 +23,15 @@ const inp: React.CSSProperties = {
 interface Zone { id: string; name: string; city: string; }
 interface City { id: string; name: string; }
 
+interface BroadcastResponse {
+  user_name: string;
+  employee_id: string;
+  selected_label: string;
+  selected_index: number;
+  is_correct: boolean | null;
+  answered_at: string;
+}
+
 interface BroadcastQuestion {
   id: string;
   question: string;
@@ -37,6 +46,7 @@ interface BroadcastQuestion {
   created_at: string;
   response_count: number;
   tally: { label: string; index: number; count: number }[];
+  responses: BroadcastResponse[];
 }
 
 interface FormState {
@@ -472,6 +482,27 @@ export default function BroadcastPage() {
 }
 
 // ── Question Card ──────────────────────────────────────────
+function downloadCSV(q: BroadcastQuestion) {
+  const rows = [
+    ['Employee ID', 'Name', 'Answer', 'Correct?', 'Answered At'],
+    ...(q.responses || []).map(r => [
+      r.employee_id || '',
+      r.user_name || '',
+      r.selected_label || '',
+      q.correct_option !== null ? (r.is_correct ? 'Yes' : 'No') : 'N/A',
+      r.answered_at ? new Date(r.answered_at).toLocaleString('en-IN') : '',
+    ]),
+  ];
+  const csv = rows.map(row => row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `broadcast_${q.id.slice(0, 8)}_responses.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 function QuestionCard({
   q, qi, expanded, onExpand, onDelete, onToggleStatus, closingId,
 }: {
@@ -505,9 +536,10 @@ function QuestionCard({
         </div>
       </div>
 
-      {/* Expanded — tally */}
+      {/* Expanded — tally + responders */}
       {expanded && (
         <div style={{ padding: '0 20px 18px', borderTop: `1px solid ${C.border}` }}>
+          {/* Tally bars */}
           <div style={{ paddingTop: 14, marginBottom: 14 }}>
             {q.tally && q.tally.length > 0 ? q.tally.map((t, i) => {
               const pct = total > 0 ? Math.round((t.count / total) * 100) : 0;
@@ -529,6 +561,37 @@ function QuestionCard({
               <div style={{ fontSize: 12, color: C.gray, textAlign: 'center', padding: '12px 0' }}>No responses yet</div>
             )}
           </div>
+
+          {/* Responder list */}
+          {q.responses && q.responses.length > 0 && (
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: C.grayd, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 8 }}>
+                RESPONDENTS ({q.responses.length})
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 220, overflowY: 'auto' }}>
+                {q.responses.map((r, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: C.s3, borderRadius: 9, padding: '8px 12px', gap: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                      <div style={{ width: 28, height: 28, borderRadius: '50%', background: C.blueD, border: `1px solid ${C.blue}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: C.blue }}>{(r.user_name || 'U').charAt(0).toUpperCase()}</span>
+                      </div>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: C.white, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.user_name || 'Unknown'}</div>
+                        {r.employee_id && <div style={{ fontSize: 10, color: C.gray }}>{r.employee_id}</div>}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                      <span style={{ fontSize: 11, padding: '3px 8px', borderRadius: 6, background: q.correct_option !== null ? (r.is_correct ? 'rgba(0,217,126,0.1)' : 'rgba(224,30,44,0.08)') : C.blueD, color: q.correct_option !== null ? (r.is_correct ? C.green : C.red) : C.blue, fontWeight: 600 }}>
+                        {r.selected_label}
+                      </span>
+                      {r.answered_at && <span style={{ fontSize: 10, color: C.grayd }}>{new Date(r.answered_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Options row */}
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {q.options.map((opt, i) => (
@@ -548,6 +611,14 @@ function QuestionCard({
         >
           {expanded ? 'Hide Results' : 'View Results'}
         </button>
+        {q.response_count > 0 && (
+          <button
+            onClick={() => downloadCSV(q)}
+            style={{ background: 'rgba(62,158,255,0.08)', border: `1px solid ${C.blue}30`, borderRadius: 9, padding: '7px 12px', color: C.blue, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+          >
+            ↓ CSV
+          </button>
+        )}
         <button
           onClick={onToggleStatus}
           disabled={closingId === q.id}
