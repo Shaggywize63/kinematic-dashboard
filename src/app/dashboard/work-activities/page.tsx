@@ -87,6 +87,8 @@ function OutletPanel({
     }).catch(() => setForms([])).finally(() => setLoading(false));
   }, [outlet.outlet_id, outlet.user_id]);
 
+  const [downloading, setDownloading] = useState(false);
+
   const toggleForm = async (id: string) => {
     if (expandedId === id) { setExpandedId(null); return; }
     setExpandedId(id);
@@ -96,6 +98,61 @@ function OutletPanel({
       const r: any = await api.getSubmission(id);
       setDetails(p => ({ ...p, [id]: r?.data || r }));
     } catch { /* noop */ } finally { setDetailLoading(null); }
+  };
+
+  const downloadAllForms = async () => {
+    if (!forms.length) return;
+    setDownloading(true);
+    try {
+      // Fetch details for any forms not yet loaded
+      const missing = forms.filter(f => !details[f.id]);
+      const fetched = await Promise.all(
+        missing.map(f => api.getSubmission(f.id).then((r: any) => ({ id: f.id, data: r?.data || r })).catch(() => ({ id: f.id, data: null })))
+      );
+      const allDetails: Record<string, any> = { ...details };
+      fetched.forEach(({ id, data }) => { if (data) allDetails[id] = data; });
+      setDetails(allDetails);
+
+      // Build CSV rows — one row per field response
+      const escCSV = (v: string) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+      const headers = ['Outlet', 'FE Name', 'Employee ID', 'Checkin Time', 'Form / Activity', 'Submitted At', 'Field', 'Value', 'Photo URL'];
+      const rows: string[][] = [];
+
+      for (const f of forms) {
+        const detail = allDetails[f.id];
+        const responses: any[] = detail?.form_responses || [];
+        const formTitle = f.activities?.name || f.form_templates?.title || 'Form';
+        const baseRow = [
+          outlet.outlet_name,
+          outlet.user_name || '',
+          f.users?.employee_id || '',
+          outlet.checkin_at ? new Date(outlet.checkin_at).toLocaleString('en-IN') : '',
+          formTitle,
+          f.submitted_at ? new Date(f.submitted_at).toLocaleString('en-IN') : '',
+        ];
+
+        if (responses.length === 0) {
+          rows.push([...baseRow, '—', '—', '']);
+        } else {
+          for (const r of responses) {
+            const label = r.form_fields?.label || r.field_key?.replace(/_/g, ' ') || '';
+            const val = r.value_text ?? r.value_number?.toString() ?? (r.value_bool !== null && r.value_bool !== undefined ? (r.value_bool ? 'Yes' : 'No') : '') ?? '';
+            rows.push([...baseRow, label, val, r.photo_url || '']);
+          }
+        }
+      }
+
+      const csv = [headers, ...rows].map(row => row.map(escCSV).join(',')).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${(outlet.outlet_name || 'outlet').replace(/[^a-z0-9]/gi, '_')}_forms_${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setDownloading(false);
+    }
   };
 
   return (
@@ -179,8 +236,19 @@ function OutletPanel({
 
           {/* ── Forms Section ── */}
           <div style={{ marginBottom: 10 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: C.grayd, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 12 }}>
-              Forms Submitted {!loading && `(${forms.length})`}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: C.grayd, textTransform: 'uppercase', letterSpacing: '1px' }}>
+                Forms Submitted {!loading && `(${forms.length})`}
+              </div>
+              {!loading && forms.length > 0 && (
+                <button
+                  onClick={downloadAllForms}
+                  disabled={downloading}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: downloading ? C.s4 : C.blueD, border: `1px solid ${C.blue}40`, borderRadius: 8, color: downloading ? C.grayd : C.blue, fontSize: 12, fontWeight: 600, cursor: downloading ? 'default' : 'pointer', transition: 'all 0.15s' }}
+                >
+                  {downloading ? <><Spinner /> Preparing…</> : <>↓ Download All Forms</>}
+                </button>
+              )}
             </div>
 
             {loading ? (
