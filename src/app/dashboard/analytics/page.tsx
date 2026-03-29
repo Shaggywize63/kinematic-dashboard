@@ -58,10 +58,10 @@ function heatColor(value: number, max: number): string {
   if (max === 0) return C.s2;
   const ratio = value / max;
   if (ratio === 0)   return C.s2;
-  if (ratio < 0.25)  return '#0d2e3e';
-  if (ratio < 0.5)   return '#0a4a6e';
-  if (ratio < 0.75)  return '#0e6ea8';
-  return '#3E9EFF';
+  if (ratio < 0.25)  return '#1A365D'; // Dark blue
+  if (ratio < 0.5)   return '#2B6CB0'; // Medium blue
+  if (ratio < 0.75)  return '#4299E1'; // Bright blue
+  return '#63B3ED'; // Lightest blue
 }
 
 function ContactActivityHeatmap({ data, loading }: { data: HeatmapResponse | null; loading: boolean }) {
@@ -197,7 +197,8 @@ export default function AnalyticsPage() {
       setSummary(summaryRaw);
 
       const h = heatRes as any;
-      const heatmapRaw = h?.data?.data ?? h?.data ?? h;
+      // Robustly extract the heatmap data object
+      const heatmapRaw = h?.data?.rows ? h.data : (h?.rows ? h : (h?.data?.data?.rows ? h.data.data : null));
       setHeatmap(heatmapRaw);
 
       const t = trendRes as any;
