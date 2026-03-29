@@ -1433,6 +1433,21 @@ function TrainingSection({ token }:{ token:string }) {
     finally { setUploading(false); }
   };
 
+  const doDelete = async (id: string) => {
+    if (!window.confirm('Are you sure you want to delete this material?')) return;
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/learning/${id}`, {
+        method:'DELETE',
+        headers:{ Authorization:`Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const json = await res.json();
+        throw new Error(json.error || json.message || 'Failed to delete');
+      }
+      fetchMaterials();
+    } catch(e:any) { alert(e.message); }
+  };
+
   const inputStyle: React.CSSProperties = {
     width:'100%', padding:'9px 12px', borderRadius:10, border:`1.5px solid ${C.border}`,
     background:C.s3, color:C.white, fontSize:13, fontFamily:"'DM Sans',sans-serif",
@@ -1486,6 +1501,12 @@ function TrainingSection({ token }:{ token:string }) {
                     View
                   </a>
                 )}
+                <button onClick={() => doDelete(m.id)} title="Delete material"
+                  style={{ width:28, height:28, borderRadius:8, border:`1px solid ${C.border}`, background:'transparent', cursor:'pointer', fontSize:13, display:'flex', alignItems:'center', justifyContent:'center' }}
+                  onMouseEnter={e=>(e.currentTarget.style.background=C.redD)}
+                  onMouseLeave={e=>(e.currentTarget.style.background='transparent')}>
+                  🗑️
+                </button>
               </div>
             </div>
           ))}
