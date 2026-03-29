@@ -761,8 +761,8 @@ export default function DashboardPage() {
                     c:C.teal,
                   },
                   {
-                    l:'Total Visits',
-                    v:outletData.summary.total_visits,
+                    l:'Total Check-ins',
+                    v:outletData.summary.total_checkins,
                     c:C.blue,
                   },
                 ].map(s => (
@@ -807,7 +807,7 @@ export default function DashboardPage() {
                 }}
               >
                 <div>Outlet</div>
-                <div style={{ textAlign:'center' }}>Visits</div>
+                <div style={{ textAlign:'center' }}>Check-ins</div>
                 <div style={{ textAlign:'center' }}>TFF</div>
                 <div style={{ textAlign:'center' }}>TFF Rate</div>
               </div>
@@ -855,7 +855,7 @@ export default function DashboardPage() {
                         justifyContent:'center',
                       }}
                     >
-                      {o.visits}
+                      {o.checkins}
                     </div>
                     <div
                       style={{
