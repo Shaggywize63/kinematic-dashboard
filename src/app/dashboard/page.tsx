@@ -431,10 +431,10 @@ export default function DashboardPage() {
   const loadSumm = useCallback(async () => {
     setLSumm(true);
     try {
-      const r = await api.get<any>(`/api/v1/analytics/summary?date=${today}`);
+      const r = await api.get<any>(`/api/v1/analytics/summary?from=${from}&to=${to}`);
       setSumm(r?.data ?? r);
     } catch { } finally { setLSumm(false); }
-  }, [today]);
+  }, [from, to]);
 
   const loadRange = useCallback(async (f:string, t:string) => {
     setLWeek(true); setLCity(true); setLOutlet(true);
@@ -456,7 +456,8 @@ export default function DashboardPage() {
 
 
 
-  useEffect(() => { loadAtt(); loadSumm(); }, [loadAtt, loadSumm]);
+  useEffect(() => { loadAtt(); }, [loadAtt]);
+  useEffect(() => { loadSumm(); }, [loadSumm]);
   useEffect(() => { loadRange(from, to); }, [from, to, loadRange]);
 
   const handleRefresh = () => {
