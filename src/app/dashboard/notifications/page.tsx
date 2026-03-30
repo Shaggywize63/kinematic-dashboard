@@ -74,6 +74,14 @@ export default function NotificationsPage() {
     finally{setSending(false);}
   };
 
+  const handleDelete = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this broadcast? It will be removed from all users.')) return;
+    try {
+      await api.delete(`/api/v1/notifications/history/${id}`);
+      setHistory(history.filter(h => h.id !== id));
+    } catch (e: any) { alert(e.message || 'Failed to delete'); }
+  };
+
   const inp:React.CSSProperties={width:'100%',background:C.s3,border:`1px solid ${C.border}`,borderRadius:10,padding:'12px 14px',color:C.white,outline:'none',fontSize:14,fontFamily:'inherit'};
 
   return (
@@ -180,21 +188,25 @@ export default function NotificationsPage() {
             <tr style={{borderBottom:`1px solid ${C.border}`,textAlign:'left',color:C.gray}}>
               <th style={{padding:'10px 12px'}}>NOTIFICATION</th>
               <th style={{padding:'10px 12px'}}>TARGET</th>
-              <th style={{padding:'10px 12px'}}>PRIORITY</th>
+              <th style={{padding:'10px 12px'}}>TYPE</th>
               <th style={{padding:'10px 12px'}}>READ RATE</th>
               <th style={{padding:'10px 12px'}}>SENT AT</th>
+              <th style={{padding:'10px 12px',textAlign:'right'}}>ACTIONS</th>
             </tr>
           </thead>
           <tbody>
             {history.length===0?(
-              <tr><td colSpan={5} style={{textAlign:'center',padding:60,color:C.grayd}}>No notifications sent yet</td></tr>
+              <tr><td colSpan={6} style={{textAlign:'center',padding:60,color:C.grayd}}>No notifications sent yet</td></tr>
             ):history.map(h=>(
               <tr key={h.id} style={{borderBottom:`1px solid ${C.border}`}}>
                 <td style={{padding:'14px 12px'}}><div style={{fontWeight:600}}>{h.title}</div><div style={{fontSize:12,color:C.gray}}>{h.body}</div></td>
                 <td style={{padding:'14px 12px'}}>{h.audience_summary}</td>
-                <td style={{padding:'14px 12px'}}><span style={{padding:'3px 8px',borderRadius:6,fontSize:10,fontWeight:700,background:h.priority==='critical'?'rgba(224,30,44,0.12)':'rgba(122,139,160,0.12)',color:h.priority==='critical'?C.red:C.gray}}>{h.priority.toUpperCase()}</span></td>
+                <td style={{padding:'14px 12px'}}><span style={{padding:'3px 8px',borderRadius:6,fontSize:10,fontWeight:700,background:h.send_push?'rgba(224,30,44,0.12)':'rgba(122,139,160,0.12)',color:h.send_push?C.red:C.gray}}>{h.send_push?'PUSH + IN-APP':'IN-APP ONLY'}</span></td>
                 <td style={{padding:'14px 12px'}}><div style={{display:'flex',alignItems:'center',gap:8}}><div style={{flex:1,height:5,background:C.s4,borderRadius:3}}><div style={{width:`${h.recipients_count?Math.round(h.read_count/h.recipients_count*100):0}%`,height:'100%',background:C.green,borderRadius:3}}/></div><span style={{fontSize:11,fontWeight:600}}>{h.read_count}/{h.recipients_count}</span></div></td>
                 <td style={{padding:'14px 12px',color:C.gray}}>{new Date(h.created_at).toLocaleString('en-IN')}</td>
+                <td style={{padding:'14px 12px',textAlign:'right'}}>
+                  <button onClick={()=>handleDelete(h.id)} style={{background:'transparent',border:'none',color:C.gray,cursor:'pointer',fontSize:16,padding:4}} title="Delete Broadcast">🗑️</button>
+                </td>
               </tr>
             ))}
           </tbody>
