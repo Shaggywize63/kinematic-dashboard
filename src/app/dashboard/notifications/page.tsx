@@ -28,15 +28,17 @@ export default function NotificationsPage() {
   const [history,setHistory]=useState<Notif[]>([]);
   const [sendPush,setSendPush]=useState(false);
   const [sending,setSending]=useState(false);
+  const [page,setPage]=useState(1);
+  const [total,setTotal]=useState(0);
 
-  const fetchAll = useCallback(async()=>{
+  const fetchAll = useCallback(async(p: number = 1)=>{
     try {
       const [uR,sR,cR,zR,hR] = await Promise.all([
         api.get('/api/v1/users?limit=500'),
         api.get('/api/v1/users?role=supervisor&limit=200'),
         api.get('/api/v1/users?role=city_manager&limit=100'),
         api.get('/api/v1/zones'),
-        api.get('/api/v1/notifications/history?limit=10'),
+        api.get(`/api/v1/notifications/history?limit=10&page=${p}`),
       ]);
       const pick=(r:any)=>{
         if(Array.isArray(r))return r;
@@ -44,16 +46,22 @@ export default function NotificationsPage() {
         if(Array.isArray(r?.data?.data))return r.data.data;
         return r?.users||r?.zones||[];
       };
+      
       const allUsers=pick(uR);
       setFes(allUsers.filter((u:User)=>u.role==='executive'||u.role==='field_executive'));
       setSups(pick(sR)); 
       setCms(pick(cR)); 
       setZones(pick(zR));
-      setHistory(pick(hR));
+
+      // Handle history separately for totalCount
+      const hData = hR?.data?.data || hR?.data || [];
+      setHistory(Array.isArray(hData) ? hData : []);
+      setTotal(hR?.data?.totalCount || 0);
+
     } catch(e){ console.error('Fetch error:',e); }
   },[]);
 
-  useEffect(()=>{fetchAll();},[fetchAll]);
+  useEffect(()=>{fetchAll(page);}, [fetchAll, page]);
 
   const filtSups=city?sups.filter(s=>(s.zones?.city||s.city)===city):sups;
   const filtFes=fes.filter(f=>{
@@ -213,6 +221,26 @@ export default function NotificationsPage() {
             ))}
           </tbody>
         </table>
+
+        {total > 10 && (
+          <div style={{display:'flex',justifyContent:'center',alignItems:'center',gap:16,marginTop:24,paddingTop:16,borderTop:`1px solid ${C.border}`}}>
+            <button 
+              disabled={page === 1}
+              onClick={() => setPage(p => p - 1)}
+              style={{padding:'8px 16px',background:C.s3,border:`1px solid ${C.border}`,borderRadius:8,color:page===1?C.gray:'white',cursor:page===1?'default':'pointer',fontSize:12,fontWeight:600}}
+            >
+              Previous
+            </button>
+            <span style={{fontSize:13,color:C.gray}}>Page <b>{page}</b> of {Math.ceil(total / 10)}</span>
+            <button 
+              disabled={page * 10 >= total}
+              onClick={() => setPage(p => p + 1)}
+              style={{padding:'8px 16px',background:C.s3,border:`1px solid ${C.border}`,borderRadius:8,color:page*10>=total?C.gray:'white',cursor:page*10>=total?'default':'pointer',fontSize:12,fontWeight:600}}
+            >
+              Next
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
