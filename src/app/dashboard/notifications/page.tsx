@@ -26,6 +26,7 @@ export default function NotificationsPage() {
   const [cms,setCms]=useState<User[]>([]);
   const [zones,setZones]=useState<{id:string,name:string,city:string}[]>([]);
   const [history,setHistory]=useState<Notif[]>([]);
+  const [sendPush,setSendPush]=useState(false);
   const [sending,setSending]=useState(false);
 
   const fetchAll = useCallback(async()=>{
@@ -65,7 +66,7 @@ export default function NotificationsPage() {
     if(!title||!body)return alert('Title and message are required');
     setSending(true);
     try{
-      await api.post('/api/v1/notifications/send',{title,body,priority,targeting:{city:city||null,supervisor_id:supId||null,fe_id:feId||null}});
+      await api.post('/api/v1/notifications/send',{title,body,priority,send_push:sendPush,targeting:{city:city||null,supervisor_id:supId||null,fe_id:feId||null}});
       alert('Sent successfully!');
       setTitle('');setBody('');setCity('');setSupId('');setFeId('');
       fetchAll();
@@ -142,10 +143,19 @@ export default function NotificationsPage() {
               </div>
             </div>
 
+            <label style={{display:'flex',alignItems:'center',gap:12,cursor:'pointer',padding:'12px 16px',background:C.s3,border:`1px solid ${C.border}`,borderRadius:12,marginTop:8}}>
+               <input type="checkbox" checked={sendPush} onChange={e=>setSendPush(e.target.checked)} style={{width:18,height:18,accentColor:C.red,cursor:'pointer'}}/>
+               <div>
+                 <div style={{fontSize:14,fontWeight:600,color:C.white}}>Send as Push Notification</div>
+                 <div style={{fontSize:12,color:C.gray,marginTop:2}}>Pop up on the recipient's lock screen (alerts via Firebase)</div>
+               </div>
+            </label>
+
             <button onClick={send} disabled={sending} style={{marginTop:12,width:'100%',padding:16,background:C.red,border:'none',borderRadius:12,color:'#fff',fontSize:15,fontWeight:700,cursor:'pointer',opacity:sending?0.7:1}}>
               {sending?'Sending...':'Send Broadcast Notification'}
             </button>
           </div>
+
         </div>
 
         <div style={{width:320,background:C.s2,border:`1px solid ${C.border}`,borderRadius:16,padding:24}}>
