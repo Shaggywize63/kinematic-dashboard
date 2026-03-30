@@ -36,7 +36,7 @@ export default function NotificationsPage() {
         api.get('/api/v1/users?role=supervisor&limit=200'),
         api.get('/api/v1/users?role=city_manager&limit=100'),
         api.get('/api/v1/zones'),
-        api.get('/api/v1/notifications/history'),
+        api.get('/api/v1/notifications/history?limit=10'),
       ]);
       const pick=(r:any)=>{
         if(Array.isArray(r))return r;
@@ -77,7 +77,7 @@ export default function NotificationsPage() {
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this broadcast? It will be removed from all users.')) return;
     try {
-      await api.delete(`/api/v1/notifications/history/${id}`);
+      await api.delete(`/api/v1/notifications/${id}`);
       setHistory(history.filter(h => h.id !== id));
     } catch (e: any) { alert(e.message || 'Failed to delete'); }
   };
