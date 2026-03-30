@@ -420,48 +420,55 @@ export default function DashboardPage() {
     setCurrUser(u);
   }, []);
 
-  const loadAtt = useCallback(async () => {
-    setLAtt(true);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+
+  const loadInit = useCallback(async () => {
+    setLAtt(true); setLSumm(true); setLWeek(true);
     try {
-      const r = await api.get<any>('/api/v1/analytics/attendance-today');
-      setAtt(r?.data ?? r);
-    } catch { } finally { setLAtt(false); }
+      const r = await api.get<any>('/api/v1/analytics/dashboard-init');
+      if (r?.data || r) {
+        const d = r.data || r;
+        setAtt({ summary: d.attendance, executives: [] });
+        setSumm({ kpis: d.kpis });
+        setWeek(d.weekly);
+      }
+    } catch { } finally {
+      setLAtt(false); setLSumm(false); setLWeek(false);
+      setIsInitialLoad(false);
+    }
   }, []);
 
-  const loadSumm = useCallback(async () => {
-    setLSumm(true);
-    try {
-      const r = await api.get<any>(`/api/v1/analytics/summary?from=${from}&to=${to}`);
-      setSumm(r?.data ?? r);
-    } catch { } finally { setLSumm(false); }
-  }, [from, to]);
-
   const loadRange = useCallback(async (f:string, t:string) => {
-    setLWeek(true); setLCity(true); setLOutlet(true);
+    if (isInitialLoad && f === (new Date(Date.now() - 6 * 86400000).toISOString().split('T')[0]) && t === (new Date().toISOString().split('T')[0])) return;
+    setLWeek(true); setLCity(true); setLOutlet(true); setLSumm(true);
     const qs = `?from=${f}&to=${t}`;
     try {
-      const [wRes, cRes, oRes] = await Promise.allSettled([
+      const [wRes, cRes, oRes, sRes] = await Promise.allSettled([
         api.get<any>(`/api/v1/analytics/weekly-contacts${qs}`),
         api.get<any>(`/api/v1/analytics/city-performance${qs}`),
         api.get<any>(`/api/v1/analytics/outlet-coverage${qs}`),
+        api.get<any>(`/api/v1/analytics/summary${qs}`),
       ]);
       if (wRes.status === 'fulfilled') setWeek(wRes.value?.data ?? wRes.value);
       if (cRes.status === 'fulfilled') setCity(cRes.value?.data ?? cRes.value);
       if (oRes.status === 'fulfilled') setOutlet(oRes.value?.data ?? oRes.value);
+      if (sRes.status === 'fulfilled') setSumm(sRes.value?.data ?? sRes.value);
     } catch { }
-    setLWeek(false); setLCity(false); setLOutlet(false);
-  }, []);
+    setLWeek(false); setLCity(false); setLOutlet(false); setLSumm(false);
+  }, [isInitialLoad]);
 
 
 
 
 
-  useEffect(() => { loadAtt(); }, [loadAtt]);
-  useEffect(() => { loadSumm(); }, [loadSumm]);
-  useEffect(() => { loadRange(from, to); }, [from, to, loadRange]);
+  useEffect(() => { loadInit(); }, [loadInit]);
+  useEffect(() => { 
+    if (!isInitialLoad) loadRange(from, to); 
+  }, [from, to, loadRange, isInitialLoad]);
 
   const handleRefresh = () => {
-    loadAtt(); loadSumm(); loadRange(from, to);
+    loadInit();
+    if (!isInitialLoad) loadRange(from, to);
     setSync(new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }));
   };
 
