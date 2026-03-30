@@ -12,7 +12,7 @@ const C = {
 
 interface User { id:string; name:string; role:string; city?:string; zones?:{name:string,city?:string}; supervisor_id?:string; }
 interface City { id:string; name:string; }
-interface Notif { id:string; title:string; body:string; priority:string; audience_summary:string; created_at:string; recipients_count:number; read_count:number; }
+interface Notif { id:string; title:string; body:string; priority:string; audience_summary:string; created_at:string; recipients_count:number; read_count:number; send_push?:boolean; }
 
 export default function NotificationsPage() {
   const [title,setTitle]=useState('');
@@ -160,7 +160,7 @@ export default function NotificationsPage() {
             </label>
 
             <button onClick={send} disabled={sending} style={{marginTop:12,width:'100%',padding:16,background:C.red,border:'none',borderRadius:12,color:'#fff',fontSize:15,fontWeight:700,cursor:'pointer',opacity:sending?0.7:1}}>
-              {sending?'Sending...':'Send Broadcast Notification'}
+              {sending?'Sending...':'Send Notification'}
             </button>
           </div>
 
@@ -205,7 +205,9 @@ export default function NotificationsPage() {
                 <td style={{padding:'14px 12px'}}><div style={{display:'flex',alignItems:'center',gap:8}}><div style={{flex:1,height:5,background:C.s4,borderRadius:3}}><div style={{width:`${h.recipients_count?Math.round(h.read_count/h.recipients_count*100):0}%`,height:'100%',background:C.green,borderRadius:3}}/></div><span style={{fontSize:11,fontWeight:600}}>{h.read_count}/{h.recipients_count}</span></div></td>
                 <td style={{padding:'14px 12px',color:C.gray}}>{new Date(h.created_at).toLocaleString('en-IN')}</td>
                 <td style={{padding:'14px 12px',textAlign:'right'}}>
-                  <button onClick={()=>handleDelete(h.id)} style={{background:'transparent',border:'none',color:C.gray,cursor:'pointer',fontSize:16,padding:4}} title="Delete Broadcast">🗑️</button>
+                  <button onClick={()=>handleDelete(h.id)} style={{background:'rgba(224,30,44,0.1)',border:`1px solid ${C.red}44`,color:C.red,cursor:'pointer',fontSize:12,padding:'6px 12px',borderRadius:8,display:'inline-flex',alignItems:'center',gap:6,fontWeight:600}} title="Delete Broadcast">
+                    <span>🗑️</span> Delete
+                  </button>
                 </td>
               </tr>
             ))}
