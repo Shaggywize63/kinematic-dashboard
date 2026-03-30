@@ -181,8 +181,8 @@ export default function NotificationsPage() {
         </div>
       </div>
 
-      <div style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:16,padding:24}}>
-        <h2 style={{fontSize:18,fontWeight:700,marginBottom:20}}>Sent History</h2>
+      <div style={{background:C.s2,border:`1px solid ${C.red}33`,borderRadius:16,padding:24}}>
+        <h2 style={{fontSize:18,fontWeight:700,marginBottom:20,color:C.red}}>Live History (LATEST 10)</h2>
         <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
           <thead>
             <tr style={{borderBottom:`1px solid ${C.border}`,textAlign:'left',color:C.gray}}>
