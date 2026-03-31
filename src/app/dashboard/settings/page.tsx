@@ -1,5 +1,7 @@
-'use client';
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import api from '@/lib/api';
+import CitySelect from '@/components/CitySelect';
+import { AuthUser } from '@/types';
 
 const C = {
   bg: '#070D18', s2: '#0E1420', s3: '#131B2A', s4: '#1A2438',
@@ -39,15 +41,53 @@ export default function SettingsPage() {
   const [theme, setTheme] = useState<'dark'|'light'>('dark');
   const [selectedRole, setSelectedRole] = useState('sub_admin');
   const [rolePerms, setRolePerms] = useState<Record<string, string[]>>(INIT_PERMS);
+
+  const [users, setUsers] = useState<AuthUser[]>([]);
+  const [zones, setZones] = useState<any[]>([]);
+  const [cities, setCities] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   
-  // Access Control Mock Data
-  const [users, setUsers] = useState([
-    { id: '1', name: 'Sagar Bhargava', email: 'sagar@kinematic.com', role: 'admin' },
-    { id: '2', name: 'Field Lead', email: 'lead@kinematic.com', role: 'sub_admin' },
-    { id: '3', name: 'Delhi Manager', email: 'delhi@kinematic.com', role: 'city_manager' },
-  ]);
   const [showAdd, setShowAdd] = useState(false);
-  const [newU, setNewU] = useState({ name: '', email: '', role: 'sub_admin' });
+  const [editTarget, setEditTarget] = useState<AuthUser|null>(null);
+  
+  const [form, setForm] = useState({
+    name: '', email: '', role: 'sub_admin', password: '', 
+    mobile: '', employee_id: '', zone_id: '', city: '',
+    permissions: [] as string[],
+    assigned_cities: [] as string[]
+  });
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [uR, zR, cR] = await Promise.all([
+        api.get<any>('/api/v1/users?limit=1000'),
+        api.get<any>('/api/v1/zones'),
+        api.get<any>('/api/v1/cities')
+      ]);
+      
+      const pick = (r: any) => r.data?.data || r.data || r.users || r || [];
+      const allUsers = pick(uR);
+      
+      // Filter for administrative roles as requested
+      const admins = allUsers.filter((u: any) => 
+        ['admin', 'sub_admin', 'city_manager', 'hr', 'mis', 'warehouse_manager'].includes(u.role)
+      );
+      
+      setUsers(admins);
+      setZones(pick(zR));
+      setCities(pick(cR).filter((c: any) => c.is_active));
+    } catch (err: any) {
+      setError(err.message || 'Failed to load data');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  const allCityNames = cities.map(c => c.name);
 
   const handleSaveSettings = () => {
     setSaving(true);
@@ -57,11 +97,35 @@ export default function SettingsPage() {
     }, 600);
   };
 
-  const handleAddUser = () => {
-    if(!newU.name || !newU.email) return;
-    setUsers([...users, { id: Date.now().toString(), ...newU }]);
-    setShowAdd(false);
-    setNewU({ name: '', email: '', role: 'sub_admin' });
+  const handleAddUser = async () => {
+    if(!form.name || !form.email) return;
+    setSaving(true);
+    try {
+      await api.post('/api/v1/users', {
+        ...form,
+        is_active: true
+      });
+      setShowAdd(false);
+      setForm({
+        name: '', email: '', role: 'sub_admin', password: '', 
+        mobile: '', employee_id: '', zone_id: '', city: '',
+        permissions: [], assigned_cities: []
+      });
+      fetchData();
+    } catch (err: any) {
+      alert(err.message || 'Failed to add user');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleUpdateUser = async (u: AuthUser) => {
+    try {
+      await api.patch(`/api/v1/users/${u.id}`, { is_active: !u.is_active });
+      fetchData();
+    } catch (err: any) {
+      alert(err.message || 'Action failed');
+    }
   };
 
   const togglePerm = (permId: string) => {
@@ -147,64 +211,135 @@ export default function SettingsPage() {
 
           {activeTab === 'users' && (
             <div>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
-                <button onClick={() => setShowAdd(true)} style={{ background: C.red, border: 'none', color: '#fff', padding: '8px 16px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  + Add User
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <div style={{ fontSize: 13, color: C.gray }}>Manage administrative staff and their system access.</div>
+                <button onClick={() => { setForm({ name: '', email: '', role: 'sub_admin', password: '', mobile: '', employee_id: '', zone_id: '', city: '', permissions: [], assigned_cities: [] }); setShowAdd(true); }} style={{ background: C.red, border: 'none', color: '#fff', padding: '8px 16px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  + Add Administrator
                 </button>
               </div>
 
               {showAdd && (
-                <div style={{ background: C.s3, border: `1px solid ${C.redB}`, borderRadius: 12, padding: 20, marginBottom: 24, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: 16, alignItems: 'end' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: C.gray, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 8 }}>Name</label>
-                    <input value={newU.name} onChange={e=>setNewU({...newU, name: e.target.value})} placeholder="e.g. Rahul Sharma" style={{ width: '100%', background: C.s4, border: `1px solid ${C.border}`, padding: '10px 14px', borderRadius: 8, color: C.white, outline: 'none', fontSize: 13 }} />
+                <div style={{ background: C.s3, border: `1px solid ${C.border}`, borderRadius: 16, padding: 24, marginBottom: 24, animation: 'fadeIn 0.2s ease' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: C.gray, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 8 }}>Full Name</label>
+                      <input value={form.name} onChange={e=>setForm({...form, name: e.target.value})} placeholder="e.g. Rahul Sharma" style={{ width: '100%', background: C.s4, border: `1px solid ${C.border}`, padding: '10px 14px', borderRadius: 8, color: C.white, outline: 'none', fontSize: 13 }} />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: C.gray, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 8 }}>Email Address</label>
+                      <input value={form.email} onChange={e=>setForm({...form, email: e.target.value})} placeholder="rahul@kinematic.com" style={{ width: '100%', background: C.s4, border: `1px solid ${C.border}`, padding: '10px 14px', borderRadius: 8, color: C.white, outline: 'none', fontSize: 13 }} />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: C.gray, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 8 }}>Employee ID</label>
+                      <input value={form.employee_id} onChange={e=>setForm({...form, employee_id: e.target.value})} placeholder="e.g. ADM-001" style={{ width: '100%', background: C.s4, border: `1px solid ${C.border}`, padding: '10px 14px', borderRadius: 8, color: C.white, outline: 'none', fontSize: 13 }} />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: C.gray, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 8 }}>Role</label>
+                      <select value={form.role} onChange={e=>setForm({...form, role: e.target.value})} style={{ width: '100%', background: C.s4, border: `1px solid ${C.border}`, padding: '10px 14px', borderRadius: 8, color: C.white, outline: 'none', fontSize: 13, appearance: 'none' }}>
+                        <option value="admin">Admin</option>
+                        <option value="sub_admin">Sub-Admin</option>
+                        <option value="city_manager">City Manager</option>
+                        <option value="warehouse_manager">Warehouse Manager</option>
+                        <option value="hr">HR</option>
+                        <option value="mis">MIS</option>
+                      </select>
+                    </div>
                   </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: C.gray, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 8 }}>Email</label>
-                    <input value={newU.email} onChange={e=>setNewU({...newU, email: e.target.value})} placeholder="rahul@kinematic.com" style={{ width: '100%', background: C.s4, border: `1px solid ${C.border}`, padding: '10px 14px', borderRadius: 8, color: C.white, outline: 'none', fontSize: 13 }} />
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: C.gray, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 8 }}>Mobile Number</label>
+                      <input value={form.mobile} onChange={e=>setForm({...form, mobile: e.target.value})} placeholder="10-digit mobile" maxLength={10} style={{ width: '100%', background: C.s4, border: `1px solid ${C.border}`, padding: '10px 14px', borderRadius: 8, color: C.white, outline: 'none', fontSize: 13 }} />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: C.gray, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 8 }}>Login Password</label>
+                      <input type="password" value={form.password} onChange={e=>setForm({...form, password: e.target.value})} placeholder="Secure password" style={{ width: '100%', background: C.s4, border: `1px solid ${C.border}`, padding: '10px 14px', borderRadius: 8, color: C.white, outline: 'none', fontSize: 13 }} />
+                    </div>
                   </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: C.gray, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 8 }}>Role</label>
-                    <select value={newU.role} onChange={e=>setNewU({...newU, role: e.target.value})} style={{ width: '100%', background: C.s4, border: `1px solid ${C.border}`, padding: '10px 14px', borderRadius: 8, color: C.white, outline: 'none', fontSize: 13, appearance: 'none' }}>
-                      <option value="admin">Admin</option>
-                      <option value="sub_admin">Sub-Admin</option>
-                      <option value="city_manager">City Manager</option>
-                      <option value="warehouse_manager">Warehouse Manager</option>
-                      <option value="hr">HR</option>
-                      <option value="mis">MIS</option>
-                    </select>
+
+                  {/* Permissions Checklist */}
+                  <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 20, marginBottom: 20 }}>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: C.white, marginBottom: 12, fontFamily: "'Syne', sans-serif" }}>Module Permissions</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                      {['orders', 'users', 'analytics', 'inventory', 'reports'].map(m => (
+                        <label key={m} style={{ display: 'flex', alignItems: 'center', gap: 8, background: C.s4, padding: '8px 12px', borderRadius: 8, cursor: 'pointer', border: `1px solid ${form.permissions.includes(m) ? C.blue : C.border}`, transition: 'all 0.2s' }}>
+                          <input type="checkbox" checked={form.permissions.includes(m)} 
+                            onChange={e => {
+                              const next = e.target.checked ? [...form.permissions, m] : form.permissions.filter(p => p !== m);
+                              setForm(p => ({...p, permissions: next}));
+                            }} 
+                            style={{ accentColor: C.blue }}
+                          />
+                          <span style={{ fontSize: 12, fontWeight: 600, color: form.permissions.includes(m) ? C.white : C.gray, textTransform: 'capitalize' }}>{m}</span>
+                        </label>
+                      ))}
+                    </div>
                   </div>
-                  <div style={{ display: 'flex', gap: 10 }}>
-                    <button onClick={()=>setShowAdd(false)} style={{ background: 'transparent', border: `1px solid ${C.border}`, color: C.gray, padding: '10px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
-                    <button onClick={handleAddUser} style={{ background: C.red, border: 'none', color: '#fff', padding: '10px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Save Access</button>
+
+                  {/* City Assignment (Only for City Manager) */}
+                  {form.role === 'city_manager' && (
+                    <div style={{ marginBottom: 24 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: C.gray, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 10 }}>Assigned Cities (Scope)</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, background: C.s2, padding: 12, borderRadius: 10, border: `1px solid ${C.border}` }}>
+                        {allCityNames.map(city => (
+                          <button key={city} onClick={() => {
+                            const next = form.assigned_cities.includes(city) ? form.assigned_cities.filter(c => c !== city) : [...form.assigned_cities, city];
+                            setForm(p => ({...p, assigned_cities: next}));
+                          }} type="button"
+                            style={{ padding: '5px 12px', borderRadius: 6, border: 'none', fontSize: 11, fontWeight: 700, cursor: 'pointer', background: form.assigned_cities.includes(city) ? C.blue : C.s4, color: form.assigned_cities.includes(city) ? '#fff' : C.gray, transition: 'all 0.15s' }}>
+                            {city}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+                    <button onClick={()=>setShowAdd(false)} style={{ background: 'transparent', border: `1px solid ${C.border}`, color: C.gray, padding: '10px 20px', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
+                    <button onClick={handleAddUser} disabled={saving} style={{ background: C.red, border: 'none', color: '#fff', padding: '10px 24px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1 }}>
+                      {saving ? 'Saving...' : 'Save Administrator'}
+                    </button>
                   </div>
                 </div>
               )}
 
-              <div style={{ border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 2fr 1fr 80px', padding: '14px 20px', background: C.s3, borderBottom: `1px solid ${C.border}`, fontSize: 11, fontWeight: 700, color: C.gray, textTransform: 'uppercase', letterSpacing: '0.8px' }}>
-                  <div>Name</div>
-                  <div>Email ID</div>
-                  <div>Access Level</div>
-                  <div style={{ textAlign: 'right' }}>Action</div>
+              <div style={{ border: `1px solid ${C.border}`, borderRadius: 16, overflow: 'hidden', background: C.s2 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 2fr 1fr 100px', padding: '16px 24px', background: C.s3, borderBottom: `1px solid ${C.border}`, fontSize: 11, fontWeight: 700, color: C.gray, textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+                  <div>Name & Employee ID</div>
+                  <div>Email & Mobile</div>
+                  <div>Access Level (Scope)</div>
+                  <div style={{ textAlign: 'right' }}>Actions</div>
                 </div>
-                {users.map((u, i) => (
-                  <div key={u.id} style={{ display: 'grid', gridTemplateColumns: '1.5fr 2fr 1fr 80px', padding: '16px 20px', borderBottom: i < users.length - 1 ? `1px solid ${C.border}` : 'none', alignItems: 'center', background: C.s2 }}>
-                    <div style={{ fontSize: 14, fontWeight: 600 }}>{u.name}</div>
-                    <div style={{ fontSize: 13, color: C.gray }}>{u.email}</div>
+                {loading ? (
+                  <div style={{ padding: 40, textAlign: 'center', color: C.gray }}>Loading administrators...</div>
+                ) : users.map((u, i) => (
+                  <div key={u.id} style={{ display: 'grid', gridTemplateColumns: '1.5fr 2fr 1fr 100px', padding: '18px 24px', borderBottom: i < users.length - 1 ? `1px solid ${C.border}` : 'none', alignItems: 'center', opacity: u.is_active ? 1 : 0.5 }}>
                     <div>
-                      <span style={{ display: 'inline-flex', padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: `${roleColors[u.role]}15`, color: roleColors[u.role], border: `1px solid ${roleColors[u.role]}33`, textTransform: 'capitalize' }}>
-                        {roleLabels[u.role]}
-                      </span>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: C.white }}>{u.name}</div>
+                      <div style={{ fontSize: 12, color: C.gray, marginTop: 2 }}>{u.employee_id || 'ID: ' + u.id.slice(0, 8)}</div>
                     </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <button onClick={() => setUsers(users.filter(x => x.id !== u.id))} style={{ background: 'transparent', border: 'none', color: C.red, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Revoke</button>
+                    <div>
+                      <div style={{ fontSize: 13, color: u.is_active ? C.white : C.gray }}>{u.email}</div>
+                      {u.mobile && <div style={{ fontSize: 11, color: C.gray, marginTop: 2 }}>{u.mobile}</div>}
+                    </div>
+                    <div>
+                      <div style={{ display: 'inline-flex', padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 800, background: `${roleColors[u.role] || C.gray}15`, color: roleColors[u.role] || C.gray, border: `1px solid ${roleColors[u.role] || C.gray}33`, textTransform: 'capitalize', marginBottom: 4 }}>
+                        {roleLabels[u.role] || u.role}
+                      </div>
+                      {u.assigned_cities && u.assigned_cities.length > 0 && (
+                        <div style={{ fontSize: 10, color: C.gray, fontWeight: 600 }}>Scope: {u.assigned_cities.join(', ')}</div>
+                      )}
+                    </div>
+                    <div style={{ textAlign: 'right', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                      <button onClick={() => handleUpdateUser(u)} style={{ background: 'transparent', border: 'none', color: u.is_active ? C.red : C.green, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                        {u.is_active ? 'Revoke' : 'Unlock'}
+                      </button>
                     </div>
                   </div>
                 ))}
-                {users.length === 0 && (
-                  <div style={{ padding: 30, textAlign: 'center', color: C.gray, fontSize: 14 }}>
-                    No users configured. Add a user to get started.
+                {!loading && users.length === 0 && (
+                  <div style={{ padding: 40, textAlign: 'center', color: C.gray, fontSize: 14 }}>
+                    No administrative users found.
                   </div>
                 )}
               </div>

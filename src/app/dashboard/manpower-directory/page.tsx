@@ -125,6 +125,7 @@ export default function ManpowerDirectoryPage() {
   const [zones,    setZones]   = useState<Zone[]>([]);
   const [sups,     setSups]    = useState<FieldExecutive[]>([]);
   const [cms,      setCMs]     = useState<FieldExecutive[]>([]);
+  const [cities,   setCities]  = useState<Zone[]>([]); // Using Zone interface as it matches city {id, name}
   const [loading,  setLoading] = useState(true);
   const [error,    setError]   = useState('');
   const [search,   setSearch]  = useState('');
@@ -161,11 +162,12 @@ export default function ManpowerDirectoryPage() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [uR,zR,sR,cR] = await Promise.all([
+      const [uR,zR,sR,cR, cityR] = await Promise.all([
         api.get<any>('/api/v1/users?limit=1000'),
         api.get<any>('/api/v1/zones'),
         api.get<any>('/api/v1/users?role=supervisor&limit=200'),
         api.get<any>('/api/v1/users?role=city_manager&limit=100'),
+        api.get<any>('/api/v1/cities'),
       ]);
       const pick = (r: any): any[] => {
         if (Array.isArray(r)) return r;
@@ -173,15 +175,13 @@ export default function ManpowerDirectoryPage() {
         if (Array.isArray(r?.data?.data)) return r.data.data;
         return r?.users || [];
       };
-      const all = pick(uR);
-      // More inclusive role matching for staff list
-      const staffList = all.filter((u:any) =>
-        ['executive', 'field_executive', 'field-executive', 'supervisor', 'city_manager', 'program_manager'].includes(u.role)
-      );
-      setStaff(staffList);
+      setStaff(pick(uR).filter((u:any) =>
+        ['executive', 'field_executive', 'field-executive', 'supervisor'].includes(u.role)
+      ));
       setZones(pick(zR));
       setSups(pick(sR));
       setCMs(pick(cR));
+      setCities(pick(cityR).filter((c:any) => c.is_active));
       setError('');
     } catch(e:any) { setError(e.message||'Failed to load'); }
     finally { setLoading(false); }
@@ -191,9 +191,8 @@ export default function ManpowerDirectoryPage() {
   const supMap: Record<string,string> = {};
   sups.forEach(s=>{ supMap[s.id]=s.name; });
 
-  const allCities = Array.from(new Set(
-    staff.map(fe=>fe.zones?.city||fe.city||'').filter(Boolean)
-  )).sort();
+  const allCities = cities.map(c => c.name);
+
 
   const shown = staff.filter(fe => {
     const q = search.toLowerCase();
@@ -201,8 +200,7 @@ export default function ManpowerDirectoryPage() {
     const mf = filter==='all'||(filter==='active'&&fe.is_active)||(filter==='inactive'&&!fe.is_active)||(filter==='checked_in'&&fe.is_checked_in);
     const mr = fRole==='all' 
       || (fRole==='executive' && (fe.role==='executive'||fe.role==='field_executive'||fe.role==='field-executive')) 
-      || (fRole==='supervisor' && fe.role==='supervisor')
-      || (fRole==='city_manager' && fe.role==='city_manager');
+      || (fRole==='supervisor' && fe.role==='supervisor');
     const mc = !fCity||(fe.zones?.city||fe.city)===fCity;
     const ms2= !fSup||fe.supervisor_id===fSup;
     const mc2= !fCM||fe.city_manager_id===fCM;
@@ -476,8 +474,6 @@ export default function ManpowerDirectoryPage() {
                 <select className="kinp" style={{...inp,appearance:'none' as const}} value={form.role} onChange={e=>setF('role',e.target.value)}>
                   <option value="executive">Field Executive</option>
                   <option value="supervisor">Supervisor</option>
-                  <option value="city_manager">City Manager</option>
-                  <option value="sub_admin">Sub-Admin</option>
                 </select>
               </Field>
               <div style={{gridColumn:'1/-1'}}><Field label="Mobile Number"><input className="kinp" style={inp} placeholder="10-digit mobile (optional)" value={form.mobile} onChange={e=>setF('mobile',e.target.value)} maxLength={10}/></Field></div>
@@ -498,46 +494,6 @@ export default function ManpowerDirectoryPage() {
                     {sups.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
                   </select>
                 </Field>
-              )}
-
-              {/* RBAC Section */}
-              {(form.role === 'sub_admin' || form.role === 'city_manager' || form.role === 'admin') && (
-                <div style={{gridColumn:'1/-1', borderTop:`1px solid ${C.border}`, paddingTop:16, marginTop:8}}>
-                  <div style={{fontSize:12, fontWeight:800, color:C.white, marginBottom:12, fontFamily:"'Syne',sans-serif"}}>Module Access & Scope</div>
-                  
-                  <div style={{display:'flex', flexWrap:'wrap', gap:10, marginBottom:16}}>
-                    {['orders','users','analytics','inventory','reports'].map(m => (
-                      <label key={m} style={{display:'flex', alignItems:'center', gap:6, background:C.s3, padding:'6px 10px', borderRadius:8, cursor:'pointer', border:`1px solid ${form.permissions.includes(m)?C.blue:C.border}`}}>
-                        <input type="checkbox" checked={form.permissions.includes(m)} 
-                          onChange={e => {
-                            const next = e.target.checked ? [...form.permissions, m] : form.permissions.filter(p => p !== m);
-                            setForm(p => ({...p, permissions: next}));
-                          }} 
-                          style={{accentColor:C.blue}}
-                        />
-                        <span style={{fontSize:12, color:form.permissions.includes(m)?C.white:C.gray, textTransform:'capitalize'}}>{m}</span>
-                      </label>
-                    ))}
-                  </div>
-
-                  {form.role === 'city_manager' && (
-                    <div style={{marginTop:12}}>
-                      <div style={{fontSize:11, fontWeight:700, color:C.gray, letterSpacing:'0.8px', textTransform:'uppercase', marginBottom:6}}>Assigned Cities</div>
-                      <div style={{display:'flex', flexWrap:'wrap', gap:6, background:C.s3, padding:8, borderRadius:10, border:`1px solid ${C.border}`}}>
-                        {allCities.map(c => (
-                          <button key={c} onClick={() => {
-                            const next = form.assigned_cities.includes(c) ? form.assigned_cities.filter(x => x !== c) : [...form.assigned_cities, c];
-                            setForm(p => ({...p, assigned_cities: next}));
-                          }} type="button"
-                            style={{padding:'4px 10px', borderRadius:6, border:'none', fontSize:11, fontWeight:600, cursor:'pointer', background:form.assigned_cities.includes(c)?C.blue:C.s4, color:form.assigned_cities.includes(c)?'#fff':C.gray}}>
-                            {c}
-                          </button>
-                        ))}
-                        {allCities.length === 0 && <div style={{fontSize:11, color:C.grayd}}>No cities available</div>}
-                      </div>
-                    </div>
-                  )}
-                </div>
               )}
             </div>
             <div style={{display:'flex',gap:10,marginTop:20}}>
@@ -566,8 +522,6 @@ export default function ManpowerDirectoryPage() {
                   <select className="kinp" style={{...inp,appearance:'none' as const}} value={form.role} onChange={e=>setF('role',e.target.value)}>
                     <option value="executive">Field Executive</option>
                     <option value="supervisor">Supervisor</option>
-                    <option value="city_manager">City Manager</option>
-                    <option value="sub_admin">Sub-Admin</option>
                   </select>
                 </Field>
               <Field label="Zone">
