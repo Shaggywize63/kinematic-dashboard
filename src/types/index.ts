@@ -4,9 +4,23 @@ export interface AuthUser {
   id: string; org_id: string; name: string; email: string; role: UserRole;
   employee_id?: string; zone_id?: string; avatar_url?: string;
   mobile?: string;
+  client_id?: string; // Optional: only if user belongs to a client
   permissions?: string[]; 
   assigned_cities?: string[];
   is_active: boolean;
+}
+
+export interface Client {
+  id: string;
+  org_id: string;
+  name: string;
+  contact_person?: string;
+  email?: string;
+  phone?: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at?: string;
+  modules: string[]; // List of assigned module IDs (e.g., 'reports', 'analytics')
 }
 
 export interface AuthSession {

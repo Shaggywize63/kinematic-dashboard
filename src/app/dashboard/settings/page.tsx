@@ -28,13 +28,15 @@ const ROLE_DEFAULTS: Record<string, string[]> = {
   city_manager: ['analytics', 'attendance', 'route_plan'],
   warehouse_manager: ['inventory'],
   hr: ['analytics', 'attendance', 'manpower'],
-  mis: ['analytics', 'manpower', 'form_builder']
+  mis: ['analytics', 'manpower', 'form_builder'],
+  client: [] // Clients get permissions from their client profile
 };
 
 export default function SettingsPage() {
   const [users, setUsers] = useState<AuthUser[]>([]);
   const [cities, setCities] = useState<any[]>([]);
   const [zones, setZones] = useState<any[]>([]);
+  const [clients, setClients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
@@ -58,6 +60,7 @@ export default function SettingsPage() {
   const [form, setForm] = useState({
     name: '', email: '', role: 'sub_admin', password: '', 
     mobile: '', employee_id: '', zone_id: '', city: '',
+    client_id: '',
     permissions: ROLE_DEFAULTS['sub_admin'],
     assigned_cities: [] as string[]
   });
@@ -77,22 +80,24 @@ export default function SettingsPage() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [uR, zR, cR] = await Promise.all([
+      const [uR, zR, cR, clR] = await Promise.all([
         api.get<any>('/api/v1/users?limit=1000'),
         api.get<any>('/api/v1/zones'),
-        api.get<any>('/api/v1/cities')
+        api.get<any>('/api/v1/cities'),
+        api.get<any>('/api/v1/clients')
       ]);
       
       const pick = (r: any) => r.data?.data || r.data || r.users || r || [];
       const allUsers = pick(uR);
       
       const admins = allUsers.filter((u: any) => 
-        ['admin', 'sub_admin', 'city_manager', 'hr', 'mis', 'warehouse_manager'].includes(u.role)
+        ['admin', 'sub_admin', 'city_manager', 'hr', 'mis', 'warehouse_manager', 'client', 'super_admin'].includes((u.role || '').toLowerCase())
       );
       
       setUsers(admins);
       setZones(pick(zR));
       setCities(pick(cR).filter((c: any) => c.is_active));
+      setClients(pick(clR));
     } catch (err: any) {
       setError(err.message || 'Failed to load data');
     } finally {
@@ -121,6 +126,7 @@ export default function SettingsPage() {
       setForm({
         name: '', email: '', role: 'sub_admin', password: '', 
         mobile: '', employee_id: '', zone_id: '', city: '',
+        client_id: '',
         permissions: ROLE_DEFAULTS['sub_admin'], assigned_cities: []
       });
       fetchData();
@@ -146,7 +152,8 @@ export default function SettingsPage() {
   };
   const roleLabels: Record<string, string> = { 
     admin: 'Admin', sub_admin: 'Sub-Admin', city_manager: 'City Manager', 
-    warehouse_manager: 'Warehouse Manager', hr: 'HR', mis: 'MIS' 
+    warehouse_manager: 'Warehouse Manager', hr: 'HR', mis: 'MIS',
+    client: 'Client'
   };
 
   return (
@@ -203,7 +210,7 @@ export default function SettingsPage() {
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                 <div style={{ fontSize: 13, color: C.gray }}>Manage administrative accounts and their specific module permissions.</div>
-                <button onClick={() => { setForm({ name: '', email: '', role: 'sub_admin', password: '', mobile: '', employee_id: '', zone_id: '', city: '', permissions: ROLE_DEFAULTS['sub_admin'], assigned_cities: [] }); setShowAdd(true); }} style={{ background: C.red, border: 'none', color: '#fff', padding: '8px 16px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <button onClick={() => { setForm({ name: '', email: '', role: 'sub_admin', password: '', mobile: '', employee_id: '', zone_id: '', city: '', client_id: '', permissions: ROLE_DEFAULTS['sub_admin'], assigned_cities: [] }); setShowAdd(true); }} style={{ background: C.red, border: 'none', color: '#fff', padding: '8px 16px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
                   + Add Administrator
                 </button>
               </div>
@@ -228,6 +235,19 @@ export default function SettingsPage() {
                         {Object.keys(roleLabels).map(k => <option key={k} value={k}>{roleLabels[k]}</option>)}
                       </select>
                     </div>
+                    {form.role === 'client' && (
+                      <div>
+                        <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: C.gray, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 8 }}>Assign to Client</label>
+                        <select value={form.client_id} onChange={e => {
+                          const cid = e.target.value;
+                          const client = clients.find(c => c.id === cid);
+                          setForm({ ...form, client_id: cid, permissions: client?.modules || [] });
+                        }} style={{ width: '100%', background: C.s4, border: `1px solid ${C.border}`, padding: '10px 14px', borderRadius: 8, color: C.white, outline: 'none', fontSize: 13, appearance: 'none' }}>
+                          <option value="">Select Client</option>
+                          {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        </select>
+                      </div>
+                    )}
                     <div>
                       <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: C.gray, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 8 }}>Employee ID</label>
                       <input value={form.employee_id} onChange={e=>setForm({...form, employee_id: e.target.value})} placeholder="e.g. ADM-001" style={{ width: '100%', background: C.s4, border: `1px solid ${C.border}`, padding: '10px 14px', borderRadius: 8, color: C.white, outline: 'none', fontSize: 13 }} />
@@ -318,7 +338,7 @@ export default function SettingsPage() {
                         {roleLabels[u.role] || u.role}
                       </div>
                       <div style={{ fontSize: 10, color: C.gray, fontWeight: 600 }}>
-                        {u.permissions?.length || 0} modules · {u.assigned_cities?.length ? `${u.assigned_cities.length} cities` : 'Global'}
+                        {u.permissions?.length || 0} modules · {u.assigned_cities?.length ? `${u.assigned_cities.length} cities` : u.client_id ? `Client: ${clients.find(c => c.id === u.client_id)?.name || 'Unknown'}` : 'Global'}
                       </div>
                     </div>
                     <div style={{ textAlign: 'right', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>

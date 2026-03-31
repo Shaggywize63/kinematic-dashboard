@@ -324,6 +324,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const filterNav = (items: any[]) => {
     const isAdmin = ['super_admin', 'admin'].includes(userRole);
     if (isAdmin) return items;
+    
+    // For Clients, they only see modules explicitly assigned to them
+    if (userRole === 'client') {
+      return items.filter(item => {
+        if (!item.module) return false; // Clients only see assigned modules
+        return userPerms.includes(item.module);
+      });
+    }
+
     return items.filter(item => {
       if (!item.module) return true;
       return userPerms.includes(item.module);
@@ -347,6 +356,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { href: '/dashboard/manpower-directory', label: 'Manpower',       icon: 'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 11a4 4 0 100-8 4 4 0 000 8z M23 21v-2a4 4 0 00-3-3.87 M16 3.13a4 4 0 010 7.75', module: 'manpower' },
     { href: '/dashboard/hr',                 label: 'HR',              icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0z M12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z', module: 'manpower' },
     { href: '/dashboard/visit-logs',         label: 'Visit Logs',      icon: 'M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 100-6 3 3 0 000 6z', module: 'visit_logs' },
+    { href: '/dashboard/clients',            label: 'Clients',         icon: 'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 11a4 4 0 100-8 4 4 0 000 8z M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z', module: 'admin' },
     { href: '/dashboard/warehouse',          label: 'Warehouse',       icon: 'M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8', module: 'inventory' },
     { href: '/dashboard/grievances',         label: 'Grievances',     icon: 'M8 10h.01M12 10h.01M16 10h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z', module: 'grievances' },
     { href: '/dashboard/form-builder',       label: 'Form Builder',    icon: 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 113.003 3.003L12 16l-4 1 1-4 9.586-9.586z', module: 'form_builder' },
