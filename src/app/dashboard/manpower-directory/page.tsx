@@ -25,11 +25,15 @@ interface FieldExecutive {
   city_manager_id?: string;
   app_password?: string;
   created_at: string;
+  permissions?: string[];
+  assigned_cities?: string[];
   is_checked_in?: boolean; today_cc?: number; today_ecc?: number; hours_worked?: number;
 }
 interface FormData {
   name: string; mobile: string; password: string; app_password?: string; employee_id: string;
   zone_id: string; role: string; supervisor_id: string; joined_date: string; city: string;
+  permissions: string[];
+  assigned_cities: string[];
 }
 interface BulkRow {
   name: string; employee_id: string; mobile?: string; password?: string;
@@ -40,6 +44,8 @@ interface BulkRow {
 const EMPTY_FORM: FormData = {
   name:'', mobile:'', password:'', app_password:'', employee_id:'',
   zone_id:'', role:'executive', supervisor_id:'', joined_date:'', city:'',
+  permissions: [],
+  assigned_cities: [],
 };
 
 /* ── Helpers ── */
@@ -220,6 +226,7 @@ export default function ManpowerDirectoryPage() {
         app_password:form.app_password||undefined,
         role:form.role, employee_id:form.employee_id, zone_id:form.zone_id||undefined,
         supervisor_id:form.supervisor_id||undefined, joined_date:form.joined_date||undefined, city:form.city||undefined,
+        permissions: form.permissions, assigned_cities: form.assigned_cities,
       });
       setShowAdd(false); setForm(EMPTY_FORM); fetchData();
     } catch(e:any){ setFErr(e.message||'Failed'); } finally{ setSaving(false); }
@@ -228,7 +235,13 @@ export default function ManpowerDirectoryPage() {
   /* ── EDIT ── */
   const openEdit = (fe: FieldExecutive) => {
     setEditT(fe);
-    setForm({ name:fe.name, mobile:fe.mobile||'', password:'', employee_id:fe.employee_id||'', zone_id:fe.zone_id||'', role:fe.role, supervisor_id:fe.supervisor_id||'', joined_date:'', city:fe.city||fe.zones?.city||'', app_password:fe.app_password||'' });
+    setForm({ 
+      name:fe.name, mobile:fe.mobile||'', password:'', employee_id:fe.employee_id||'', 
+      zone_id:fe.zone_id||'', role:fe.role, supervisor_id:fe.supervisor_id||'', 
+      joined_date:'', city:fe.city||fe.zones?.city||'', app_password:fe.app_password||'',
+      permissions: fe.permissions || [],
+      assigned_cities: fe.assigned_cities || []
+    });
     setFErr(''); setShowEdit(true);
   };
   const handleEdit = async () => {
@@ -238,7 +251,8 @@ export default function ManpowerDirectoryPage() {
       await api.patch(`/api/v1/users/${editTarget.id}`,{ 
         name:form.name, zone_id:form.zone_id||null, supervisor_id:form.supervisor_id||null, 
         employee_id:form.employee_id||null, is_active:editTarget.is_active, city:form.city||null,
-        role:form.role, app_password:form.app_password||undefined
+        role:form.role, app_password:form.app_password||undefined,
+        permissions: form.permissions, assigned_cities: form.assigned_cities,
       });
       setShowEdit(false); setEditT(null); setSelected(null); fetchData();
     } catch(e:any){ setFErr(e.message||'Failed'); } finally{ setSaving(false); }
@@ -462,6 +476,8 @@ export default function ManpowerDirectoryPage() {
                 <select className="kinp" style={{...inp,appearance:'none' as const}} value={form.role} onChange={e=>setF('role',e.target.value)}>
                   <option value="executive">Field Executive</option>
                   <option value="supervisor">Supervisor</option>
+                  <option value="city_manager">City Manager</option>
+                  <option value="sub_admin">Sub-Admin</option>
                 </select>
               </Field>
               <div style={{gridColumn:'1/-1'}}><Field label="Mobile Number"><input className="kinp" style={inp} placeholder="10-digit mobile (optional)" value={form.mobile} onChange={e=>setF('mobile',e.target.value)} maxLength={10}/></Field></div>
@@ -482,6 +498,46 @@ export default function ManpowerDirectoryPage() {
                     {sups.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
                   </select>
                 </Field>
+              )}
+
+              {/* RBAC Section */}
+              {(form.role === 'sub_admin' || form.role === 'city_manager' || form.role === 'admin') && (
+                <div style={{gridColumn:'1/-1', borderTop:`1px solid ${C.border}`, paddingTop:16, marginTop:8}}>
+                  <div style={{fontSize:12, fontWeight:800, color:C.white, marginBottom:12, fontFamily:"'Syne',sans-serif"}}>Module Access & Scope</div>
+                  
+                  <div style={{display:'flex', flexWrap:'wrap', gap:10, marginBottom:16}}>
+                    {['orders','users','analytics','inventory','reports'].map(m => (
+                      <label key={m} style={{display:'flex', alignItems:'center', gap:6, background:C.s3, padding:'6px 10px', borderRadius:8, cursor:'pointer', border:`1px solid ${form.permissions.includes(m)?C.blue:C.border}`}}>
+                        <input type="checkbox" checked={form.permissions.includes(m)} 
+                          onChange={e => {
+                            const next = e.target.checked ? [...form.permissions, m] : form.permissions.filter(p => p !== m);
+                            setForm(p => ({...p, permissions: next}));
+                          }} 
+                          style={{accentColor:C.blue}}
+                        />
+                        <span style={{fontSize:12, color:form.permissions.includes(m)?C.white:C.gray, textTransform:'capitalize'}}>{m}</span>
+                      </label>
+                    ))}
+                  </div>
+
+                  {form.role === 'city_manager' && (
+                    <div style={{marginTop:12}}>
+                      <div style={{fontSize:11, fontWeight:700, color:C.gray, letterSpacing:'0.8px', textTransform:'uppercase', marginBottom:6}}>Assigned Cities</div>
+                      <div style={{display:'flex', flexWrap:'wrap', gap:6, background:C.s3, padding:8, borderRadius:10, border:`1px solid ${C.border}`}}>
+                        {allCities.map(c => (
+                          <button key={c} onClick={() => {
+                            const next = form.assigned_cities.includes(c) ? form.assigned_cities.filter(x => x !== c) : [...form.assigned_cities, c];
+                            setForm(p => ({...p, assigned_cities: next}));
+                          }} type="button"
+                            style={{padding:'4px 10px', borderRadius:6, border:'none', fontSize:11, fontWeight:600, cursor:'pointer', background:form.assigned_cities.includes(c)?C.blue:C.s4, color:form.assigned_cities.includes(c)?'#fff':C.gray}}>
+                            {c}
+                          </button>
+                        ))}
+                        {allCities.length === 0 && <div style={{fontSize:11, color:C.grayd}}>No cities available</div>}
+                      </div>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
             <div style={{display:'flex',gap:10,marginTop:20}}>
@@ -510,6 +566,8 @@ export default function ManpowerDirectoryPage() {
                   <select className="kinp" style={{...inp,appearance:'none' as const}} value={form.role} onChange={e=>setF('role',e.target.value)}>
                     <option value="executive">Field Executive</option>
                     <option value="supervisor">Supervisor</option>
+                    <option value="city_manager">City Manager</option>
+                    <option value="sub_admin">Sub-Admin</option>
                   </select>
                 </Field>
               <Field label="Zone">
@@ -530,6 +588,45 @@ export default function ManpowerDirectoryPage() {
                 </Field>
               )}
               <div style={{gridColumn:'1/-1'}}><Field label="Login Password"><input className="kinp" style={inp} type="text" placeholder="Mobile app/web password" value={form.app_password} onChange={e=>{setF('app_password',e.target.value); setF('password', e.target.value);}}/></Field></div>
+
+              {/* RBAC Section Edit */}
+              {(form.role === 'sub_admin' || form.role === 'city_manager' || form.role === 'admin') && (
+                <div style={{gridColumn:'1/-1', borderTop:`1px solid ${C.border}`, paddingTop:16, marginTop:8}}>
+                  <div style={{fontSize:12, fontWeight:800, color:C.white, marginBottom:12, fontFamily:"'Syne',sans-serif"}}>Module Access & Scope</div>
+                  
+                  <div style={{display:'flex', flexWrap:'wrap', gap:10, marginBottom:16}}>
+                    {['orders','users','analytics','inventory','reports'].map(m => (
+                      <label key={m} style={{display:'flex', alignItems:'center', gap:6, background:C.s3, padding:'6px 10px', borderRadius:8, cursor:'pointer', border:`1px solid ${form.permissions.includes(m)?C.blue:C.border}`}}>
+                        <input type="checkbox" checked={form.permissions.includes(m)} 
+                          onChange={e => {
+                            const next = e.target.checked ? [...form.permissions, m] : form.permissions.filter(p => p !== m);
+                            setForm(p => ({...p, permissions: next}));
+                          }} 
+                          style={{accentColor:C.blue}}
+                        />
+                        <span style={{fontSize:12, color:form.permissions.includes(m)?C.white:C.gray, textTransform:'capitalize'}}>{m}</span>
+                      </label>
+                    ))}
+                  </div>
+
+                  {form.role === 'city_manager' && (
+                    <div style={{marginTop:12}}>
+                      <div style={{fontSize:11, fontWeight:700, color:C.gray, letterSpacing:'0.8px', textTransform:'uppercase', marginBottom:6}}>Assigned Cities</div>
+                      <div style={{display:'flex', flexWrap:'wrap', gap:6, background:C.s3, padding:8, borderRadius:10, border:`1px solid ${C.border}`}}>
+                        {allCities.map(c => (
+                          <button key={c} onClick={() => {
+                            const next = form.assigned_cities.includes(c) ? form.assigned_cities.filter(x => x !== c) : [...form.assigned_cities, c];
+                            setForm(p => ({...p, assigned_cities: next}));
+                          }} type="button"
+                            style={{padding:'4px 10px', borderRadius:6, border:'none', fontSize:11, fontWeight:600, cursor:'pointer', background:form.assigned_cities.includes(c)?C.blue:C.s4, color:form.assigned_cities.includes(c)?'#fff':C.gray}}>
+                            {c}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
             <div style={{display:'flex',gap:10,marginTop:10}}>
               <button onClick={()=>setShowEdit(false)} style={{flex:1,padding:'11px',background:C.s3,border:`1px solid ${C.border}`,color:C.gray,borderRadius:11,fontSize:13,fontWeight:600}}>Cancel</button>

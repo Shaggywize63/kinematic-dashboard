@@ -1,8 +1,10 @@
-export type UserRole = 'super_admin' | 'admin' | 'hr' | 'program_manager' | 'city_manager' | 'supervisor' | 'field_executive' | 'client';
+export type UserRole = 'super_admin' | 'admin' | 'sub_admin' | 'hr' | 'program_manager' | 'city_manager' | 'supervisor' | 'field_executive' | 'client';
 
 export interface AuthUser {
   id: string; org_id: string; name: string; email: string; role: UserRole;
   employee_id?: string; zone_id?: string; avatar_url?: string;
+  permissions?: string[]; 
+  assigned_cities?: string[];
 }
 
 export interface AuthSession {

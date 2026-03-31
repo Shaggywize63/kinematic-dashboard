@@ -295,6 +295,7 @@ function KinematicAI({ token }: { token: string }) {
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [userName, setUserName]   = useState('');
   const [userRole, setUserRole]   = useState('');
+  const [userPerms, setUserPerms] = useState<string[]>([]);
   const [collapsed, setCollapsed] = useState(false);
   const [otherOpen, setOtherOpen] = useState(false);
   const [token,    setToken]      = useState('');
@@ -305,7 +306,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const u = getStoredUser();
     if (!u || !isSessionValid()) { clearSession(); router.push('/login'); return; }
     setUserName(u.name || u.email || 'Admin');
-    setUserRole(getRoleLabel(u.role || ''));
+    setUserRole(u.role || '');
+    setUserPerms(u.permissions || []);
     if (typeof window !== 'undefined') setToken(localStorage.getItem('kinematic_token') || '');
     if (pathname.startsWith('/dashboard/other-management')) setOtherOpen(true);
   }, [pathname, router]);
@@ -313,6 +315,52 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const handleLogout = () => { clearSession(); router.push('/login'); };
   const isActive = (href: string) => href === '/dashboard' ? pathname === '/dashboard' : pathname.startsWith(href);
   const sideW = collapsed ? 64 : 220;
+
+  // RBAC Filter
+  const filterNav = (items: any[]) => {
+    const isAdmin = ['super_admin', 'admin'].includes(userRole);
+    if (isAdmin) return items;
+    return items.filter(item => {
+      if (!item.module) return true;
+      return userPerms.includes(item.module);
+    });
+  };
+
+  const visibleCore = filterNav([
+    { href: '/dashboard',                     label: 'Dashboard',     icon: 'M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z M9 22V12h6v10' },
+    { href: '/dashboard/analytics',           label: 'Analytics',     icon: 'M18 20V10 M12 20V4 M6 20v-6', module: 'analytics' },
+    { href: '/dashboard/live-tracking',      label: 'Live Tracking',  icon: 'M12 22s-8-4.5-8-11.8A8 8 0 0112 2a8 8 0 018 8.2c0 7.3-8 11.8-8 11.8z M12 13a3 3 0 100-6 3 3 0 000 6z', module: 'analytics' },
+    { href: '/dashboard/broadcast',          label: 'Broadcast',      icon: 'M18 8a6 6 0 010 8M14 11.73A2 2 0 1112 15a2 2 0 002-3.27z M21.64 4.36a12 12 0 010 15.27' },
+  ]);
+
+  const visibleOps = filterNav([
+    { href: '/dashboard/attendance-overview', label: 'Attendance',    icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z', module: 'reports' },
+    { href: '/dashboard/route-plan',          label: 'Route Plan',    icon: 'M9 20l-5.44-2.72A2 2 0 013 15.49V4.5a2 2 0 012.89-1.8L9 4 M9 20l6-3 M9 4v16 M15 1l5.44 2.72A2 2 0 0121 5.51v10.98a2 2 0 01-2.89 1.8L15 17 M15 1v16', module: 'orders' },
+    { href: '/dashboard/work-activities',     label: 'Work Activities', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 012-2h2a2 2 0 012 2 M9 12l2 2 4-4', module: 'reports' },
+  ]);
+
+  const visibleMgt = filterNav([
+    { href: '/dashboard/manpower-directory', label: 'Manpower',       icon: 'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 11a4 4 0 100-8 4 4 0 000 8z M23 21v-2a4 4 0 00-3-3.87 M16 3.13a4 4 0 010 7.75', module: 'users' },
+    { href: '/dashboard/hr',                 label: 'HR',              icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0z M12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z', module: 'users' },
+    { href: '/dashboard/visit-logs',         label: 'Visit Logs',      icon: 'M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 100-6 3 3 0 000 6z', module: 'reports' },
+    { href: '/dashboard/warehouse',          label: 'Warehouse',       icon: 'M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8', module: 'inventory' },
+    { href: '/dashboard/grievances',         label: 'Grievances',     icon: 'M8 10h.01M12 10h.01M16 10h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z', module: 'reports' },
+    { href: '/dashboard/form-builder',       label: 'Form Builder',    icon: 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 113.003 3.003L12 16l-4 1 1-4 9.586-9.586z', module: 'admin' },
+  ]);
+
+  const visibleSys = filterNav([
+    { href: '/dashboard/notifications',      label: 'Notifications',  icon: 'M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9 M13.73 21a2 2 0 01-3.46 0' },
+    { href: '/dashboard/settings',           label: 'Settings',       icon: 'M12 15a3 3 0 100-6 3 3 0 000 6z M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z' },
+  ]);
+
+  const visibleOther = filterNav([
+    { href: '/dashboard/other-management/cities',     label: 'City Management',     icon: 'M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z M9 22V12h6v10', module: 'admin' },
+    { href: '/dashboard/other-management/zones',      label: 'Zone Management',     icon: 'M1 6l10.5 7L22 6M1 6v12a2 2 0 002 2h18a2 2 0 002-2V6 M1 6l10.5-4L22 6', module: 'admin' },
+    { href: '/dashboard/other-management/stores',     label: 'Outlet Management',   icon: 'M3 3h18v4H3z M5 7v13h14V7 M9 7v13 M15 7v13', module: 'admin' },
+    { href: '/dashboard/other-management/skus',       label: "SKU's Management",    icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10', module: 'inventory' },
+    { href: '/dashboard/other-management/activities', label: 'Activity Management', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 012-2h2a2 2 0 012 2 M9 12l2 2 4-4', module: 'admin' },
+    { href: '/dashboard/other-management/assets',     label: 'Asset Management',    icon: 'M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8 M10 12h4', module: 'inventory' },
+  ]);
 
   return (
     <div style={{ display:'flex', minHeight:'100vh', background:C.bg, fontFamily:"'DM Sans',sans-serif" }}>
@@ -338,8 +386,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {/* Nav */}
         <nav style={{ flex:1, overflowY:'auto', overflowX:'hidden', padding:'10px 0' }}>
           {/* Core */}
-          {!collapsed && <div style={{ padding:'0 16px', marginTop:14, marginBottom:6, fontSize:10, fontWeight:800, color:C.grayd, letterSpacing:'0.8px', textTransform:'uppercase' }}>Core</div>}
-          {CORE_NAV.map(item => {
+          {visibleCore.length > 0 && !collapsed && <div style={{ padding:'0 16px', marginTop:14, marginBottom:6, fontSize:10, fontWeight:800, color:C.grayd, letterSpacing:'0.8px', textTransform:'uppercase' }}>Core</div>}
+          {visibleCore.map(item => {
             const active = isActive(item.href);
             return (
               <Link key={item.href} href={item.href} style={{ textDecoration:'none' }}>
@@ -353,8 +401,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           })}
 
           {/* Operations */}
-          {!collapsed && <div style={{ padding:'0 16px', marginTop:18, marginBottom:6, fontSize:10, fontWeight:800, color:C.grayd, letterSpacing:'0.8px', textTransform:'uppercase' }}>Operations</div>}
-          {OPS_NAV.map(item => {
+          {visibleOps.length > 0 && !collapsed && <div style={{ padding:'0 16px', marginTop:18, marginBottom:6, fontSize:10, fontWeight:800, color:C.grayd, letterSpacing:'0.8px', textTransform:'uppercase' }}>Operations</div>}
+          {visibleOps.map(item => {
             const active = isActive(item.href);
             return (
               <Link key={item.href} href={item.href} style={{ textDecoration:'none' }}>
@@ -368,8 +416,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           })}
 
           {/* Management */}
-          {!collapsed && <div style={{ padding:'0 16px', marginTop:18, marginBottom:6, fontSize:10, fontWeight:800, color:C.grayd, letterSpacing:'0.8px', textTransform:'uppercase' }}>Management</div>}
-          {MGT_NAV.map(item => {
+          {visibleMgt.length > 0 && !collapsed && <div style={{ padding:'0 16px', marginTop:18, marginBottom:6, fontSize:10, fontWeight:800, color:C.grayd, letterSpacing:'0.8px', textTransform:'uppercase' }}>Management</div>}
+          {visibleMgt.map(item => {
             const active = isActive(item.href);
             return (
               <Link key={item.href} href={item.href} style={{ textDecoration:'none' }}>
@@ -383,14 +431,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           })}
 
           {/* Other Management */}
-          {!collapsed && (
+          {visibleOther.length > 0 && !collapsed && (
             <>
               <div onClick={()=>setOtherOpen(o=>!o)} style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 16px', margin:'18px 8px 1px', borderRadius:9, color:C.grayd, fontSize:10, fontWeight:800, letterSpacing:'0.8px', textTransform:'uppercase', cursor:'pointer', userSelect:'none' }}>
                 <Icon d="M4 6h16M4 12h16M4 18h16" size={14}/>
                 <span>Resources</span>
                 <svg style={{ marginLeft:'auto', transform:otherOpen?'rotate(180deg)':'none', transition:'transform .2s' }} width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><polyline points="6 9 12 15 18 9"/></svg>
               </div>
-              {otherOpen && OTHER_NAV.map(item => {
+              {otherOpen && visibleOther.map(item => {
                 const active = isActive(item.href);
                 return (
                   <Link key={item.href} href={item.href} style={{ textDecoration:'none' }}>
@@ -405,8 +453,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           )}
 
           {/* System */}
-          {!collapsed && <div style={{ padding:'0 16px', marginTop:18, marginBottom:6, fontSize:10, fontWeight:800, color:C.grayd, letterSpacing:'0.8px', textTransform:'uppercase' }}>System</div>}
-          {SYS_NAV.map(item => {
+          {!collapsed && visibleSys.length > 0 && <div style={{ padding:'0 16px', marginTop:18, marginBottom:6, fontSize:10, fontWeight:800, color:C.grayd, letterSpacing:'0.8px', textTransform:'uppercase' }}>System</div>}
+          {visibleSys.map(item => {
             const active = isActive(item.href);
             return (
               <Link key={item.href} href={item.href} style={{ textDecoration:'none' }}>
@@ -425,7 +473,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           {!collapsed && (
             <div style={{ marginBottom:10 }}>
               <div style={{ fontSize:13, fontWeight:700, color:C.white, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{userName}</div>
-              <div style={{ fontSize:11, color:C.grayd, marginTop:2 }}>{userRole}</div>
+              <div style={{ fontSize:11, color:C.grayd, marginTop:2 }}>{getRoleLabel(userRole)}</div>
             </div>
           )}
           <button onClick={handleLogout} style={{ width:'100%', display:'flex', alignItems:'center', gap:collapsed?0:8, justifyContent:collapsed?'center':'flex-start', padding:'8px 10px', borderRadius:9, background:'transparent', border:`1px solid ${C.border}`, color:C.gray, fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", transition:'background .14s' }}>
