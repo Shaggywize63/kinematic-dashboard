@@ -51,7 +51,7 @@ export default function SettingsPage() {
     autoCheckout: 12,
     minAppVersion: '1.2.0',
     gpsAccuracy: 50,
-    orgName: 'Hindustan Field Co.',
+    orgName: 'Horizonn Tech Studio',
     orgSupport: 'support@kinematic.com'
   });
 
