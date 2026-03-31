@@ -12,36 +12,20 @@ const C = {
   green: '#00D97E', blue: '#3E9EFF',
 };
 
-const PERMISSIONS = [
-  { id: 'view_analytics', label: 'Analytics & Reporting' },
-  { id: 'live_tracking', label: 'Live Tracking & Map' },
-  { id: 'manage_users', label: 'Manage Users & Access' },
-  { id: 'manage_field_execs', label: 'Manage Field Executives' },
-  { id: 'manage_attendance', label: 'Approve Attendance & Leaves' },
-  { id: 'manage_routes', label: 'Create & Edit Route Plans' },
-  { id: 'manage_zones', label: 'Manage Geofences & Cities' },
-  { id: 'manage_inventory', label: 'Manage Warehouse & SKUs' },
-  { id: 'broadcast_notifs', label: 'Send Broadcast Notifications' },
-  { id: 'form_builder', label: 'Form Builder & Surveys' },
-  { id: 'manage_settings', label: 'Modify System Settings' }
-];
-
-const INIT_PERMS: Record<string, string[]> = {
-  admin: ['view_analytics', 'live_tracking', 'manage_users', 'manage_field_execs', 'manage_attendance', 'manage_routes', 'manage_zones', 'manage_inventory', 'broadcast_notifs', 'form_builder', 'manage_settings'],
-  sub_admin: ['view_analytics', 'live_tracking', 'manage_field_execs', 'manage_attendance', 'manage_routes', 'manage_inventory', 'form_builder'],
-  city_manager: ['view_analytics', 'manage_attendance', 'manage_routes', 'live_tracking'],
-  warehouse_manager: ['view_analytics', 'manage_inventory'],
-  hr: ['view_analytics', 'manage_attendance', 'manage_users'],
-  mis: ['view_analytics', 'manage_users', 'form_builder']
+const ROLE_DEFAULTS: Record<string, string[]> = {
+  admin: ['analytics', 'attendance', 'route_plan', 'work_activities', 'manpower', 'visit_logs', 'inventory', 'grievances', 'form_builder', 'admin', 'broadcast'],
+  sub_admin: ['analytics', 'attendance', 'route_plan', 'work_activities', 'manpower', 'inventory', 'form_builder', 'broadcast'],
+  city_manager: ['analytics', 'attendance', 'route_plan'],
+  warehouse_manager: ['inventory'],
+  hr: ['analytics', 'attendance', 'manpower'],
+  mis: ['analytics', 'manpower', 'form_builder']
 };
 
 export default function SettingsPage() {
   const [radius, setRadius] = useState(100);
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<'users'|'roles'|'pref'>('roles');
+  const [activeTab, setActiveTab] = useState<'users'|'pref'>('users');
   const [theme, setTheme] = useState<'dark'|'light'>('dark');
-  const [selectedRole, setSelectedRole] = useState('sub_admin');
-  const [rolePerms, setRolePerms] = useState<Record<string, string[]>>(INIT_PERMS);
 
   const [users, setUsers] = useState<AuthUser[]>([]);
   const [zones, setZones] = useState<any[]>([]);
@@ -50,12 +34,11 @@ export default function SettingsPage() {
   const [error, setError] = useState('');
   
   const [showAdd, setShowAdd] = useState(false);
-  const [editTarget, setEditTarget] = useState<AuthUser|null>(null);
   
   const [form, setForm] = useState({
     name: '', email: '', role: 'sub_admin', password: '', 
     mobile: '', employee_id: '', zone_id: '', city: '',
-    permissions: [] as string[],
+    permissions: ROLE_DEFAULTS['sub_admin'],
     assigned_cities: [] as string[]
   });
 
@@ -71,7 +54,6 @@ export default function SettingsPage() {
       const pick = (r: any) => r.data?.data || r.data || r.users || r || [];
       const allUsers = pick(uR);
       
-      // Filter for administrative roles as requested
       const admins = allUsers.filter((u: any) => 
         ['admin', 'sub_admin', 'city_manager', 'hr', 'mis', 'warehouse_manager'].includes(u.role)
       );
@@ -102,15 +84,12 @@ export default function SettingsPage() {
     if(!form.name || !form.email) return;
     setSaving(true);
     try {
-      await api.post('/api/v1/users', {
-        ...form,
-        is_active: true
-      });
+      await api.post('/api/v1/users', { ...form, is_active: true });
       setShowAdd(false);
       setForm({
         name: '', email: '', role: 'sub_admin', password: '', 
         mobile: '', employee_id: '', zone_id: '', city: '',
-        permissions: [], assigned_cities: []
+        permissions: ROLE_DEFAULTS['sub_admin'], assigned_cities: []
       });
       fetchData();
     } catch (err: any) {
@@ -127,15 +106,6 @@ export default function SettingsPage() {
     } catch (err: any) {
       alert(err.message || 'Action failed');
     }
-  };
-
-  const togglePerm = (permId: string) => {
-    if (selectedRole === 'admin') return; // Admins have fixed permissions
-    setRolePerms(prev => {
-      const current = prev[selectedRole] || [];
-      const updated = current.includes(permId) ? current.filter(p => p !== permId) : [...current, permId];
-      return { ...prev, [selectedRole]: updated };
-    });
   };
 
   const roleColors: Record<string, string> = { 
@@ -159,12 +129,12 @@ export default function SettingsPage() {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
         
-        {/* Geo-Fence Management */}
+        {/* Geofence Management */}
         <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 16, padding: 32 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
               <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 18, fontWeight: 800, marginBottom: 8 }}>Geofence Management</div>
-              <div style={{ fontSize: 14, color: C.gray, marginBottom: 24 }}>Manually set the global allowed deviation radius for field tracking and meetings.</div>
+              <div style={{ fontSize: 14, color: C.gray, marginBottom: 24 }}>Set the global allowed deviation radius for field tracking and meetings.</div>
             </div>
             <button onClick={handleSaveSettings} style={{ background: C.s3, border: `1px solid ${C.border}`, color: C.white, padding: '10px 20px', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'all .15s' }}>
               {saving ? 'Saving...' : 'Save Settings'}
@@ -177,18 +147,8 @@ export default function SettingsPage() {
               <span style={{ fontSize: 16, fontFamily: "'Syne', sans-serif", fontWeight: 800, color: C.red }}>{radius} m</span>
             </div>
             
-            <input 
-              type="range" 
-              min="20" 
-              max="200" 
-              value={radius} 
-              onChange={e => setRadius(Number(e.target.value))} 
-              style={{ width: '100%', accentColor: C.red, cursor: 'pointer' }} 
-            />
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, fontSize: 11, color: C.gray, fontWeight: 600 }}>
-              <span>20 m</span>
-              <span>200 m</span>
-            </div>
+            <input type="range" min="20" max="200" value={radius} onChange={e => setRadius(Number(e.target.value))} style={{ width: '100%', accentColor: C.red, cursor: 'pointer' }} />
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, fontSize: 11, color: C.gray, fontWeight: 600 }}><span>20 m</span><span>200 m</span></div>
           </div>
         </div>
 
@@ -197,24 +157,20 @@ export default function SettingsPage() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
             <div>
               <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 18, fontWeight: 800, marginBottom: 8 }}>Access Control & Permissions</div>
-              <div style={{ fontSize: 14, color: C.gray }}>Manage system users and define granular role-based access.</div>
+              <div style={{ fontSize: 14, color: C.gray }}>Manage administrative staff and define granular system access.</div>
             </div>
-            <button onClick={handleSaveSettings} style={{ background: C.red, border: 'none', color: '#fff', padding: '10px 20px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
-              Save Permissions
-            </button>
           </div>
 
           <div style={{ display: 'flex', gap: 8, marginBottom: 24, borderBottom: `1px solid ${C.border}`, paddingBottom: 16 }}>
-            <button onClick={() => setActiveTab('roles')} style={{ background: activeTab === 'roles' ? C.s4 : 'transparent', color: activeTab === 'roles' ? C.white : C.gray, border: `1px solid ${activeTab === 'roles' ? C.border : 'transparent'}`, padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'all .1s' }}>Role Permissions</button>
-            <button onClick={() => setActiveTab('users')} style={{ background: activeTab === 'users' ? C.s4 : 'transparent', color: activeTab === 'users' ? C.white : C.gray, border: `1px solid ${activeTab === 'users' ? C.border : 'transparent'}`, padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'all .1s' }}>User Directory</button>
-            <button onClick={() => setActiveTab('pref')} style={{ background: activeTab === 'pref' ? C.s4 : 'transparent', color: activeTab === 'pref' ? C.white : C.gray, border: `1px solid ${activeTab === 'pref' ? C.border : 'transparent'}`, padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'all .1s' }}>System Preferences</button>
+            <button onClick={() => setActiveTab('users')} style={{ background: activeTab === 'users' ? C.s4 : 'transparent', color: activeTab === 'users' ? C.white : C.gray, border: `1px solid ${activeTab === 'users' ? C.border : 'transparent'}`, padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>User Directory</button>
+            <button onClick={() => setActiveTab('pref')} style={{ background: activeTab === 'pref' ? C.s4 : 'transparent', color: activeTab === 'pref' ? C.white : C.gray, border: `1px solid ${activeTab === 'pref' ? C.border : 'transparent'}`, padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>System Preferences</button>
           </div>
 
           {activeTab === 'users' && (
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                <div style={{ fontSize: 13, color: C.gray }}>Manage administrative staff and their system access.</div>
-                <button onClick={() => { setForm({ name: '', email: '', role: 'sub_admin', password: '', mobile: '', employee_id: '', zone_id: '', city: '', permissions: [], assigned_cities: [] }); setShowAdd(true); }} style={{ background: C.red, border: 'none', color: '#fff', padding: '8px 16px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div style={{ fontSize: 13, color: C.gray }}>Manage administrative accounts and their specific module permissions.</div>
+                <button onClick={() => { setForm({ name: '', email: '', role: 'sub_admin', password: '', mobile: '', employee_id: '', zone_id: '', city: '', permissions: ROLE_DEFAULTS['sub_admin'], assigned_cities: [] }); setShowAdd(true); }} style={{ background: C.red, border: 'none', color: '#fff', padding: '8px 16px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
                   + Add Administrator
                 </button>
               </div>
@@ -231,19 +187,17 @@ export default function SettingsPage() {
                       <input value={form.email} onChange={e=>setForm({...form, email: e.target.value})} placeholder="rahul@kinematic.com" style={{ width: '100%', background: C.s4, border: `1px solid ${C.border}`, padding: '10px 14px', borderRadius: 8, color: C.white, outline: 'none', fontSize: 13 }} />
                     </div>
                     <div>
-                      <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: C.gray, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 8 }}>Employee ID</label>
-                      <input value={form.employee_id} onChange={e=>setForm({...form, employee_id: e.target.value})} placeholder="e.g. ADM-001" style={{ width: '100%', background: C.s4, border: `1px solid ${C.border}`, padding: '10px 14px', borderRadius: 8, color: C.white, outline: 'none', fontSize: 13 }} />
+                      <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: C.gray, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 8 }}>Role</label>
+                      <select value={form.role} onChange={e=>{
+                        const r = e.target.value;
+                        setForm({...form, role: r, permissions: ROLE_DEFAULTS[r] || []});
+                      }} style={{ width: '100%', background: C.s4, border: `1px solid ${C.border}`, padding: '10px 14px', borderRadius: 8, color: C.white, outline: 'none', fontSize: 13, appearance: 'none' }}>
+                        {Object.keys(roleLabels).map(k => <option key={k} value={k}>{roleLabels[k]}</option>)}
+                      </select>
                     </div>
                     <div>
-                      <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: C.gray, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 8 }}>Role</label>
-                      <select value={form.role} onChange={e=>setForm({...form, role: e.target.value})} style={{ width: '100%', background: C.s4, border: `1px solid ${C.border}`, padding: '10px 14px', borderRadius: 8, color: C.white, outline: 'none', fontSize: 13, appearance: 'none' }}>
-                        <option value="admin">Admin</option>
-                        <option value="sub_admin">Sub-Admin</option>
-                        <option value="city_manager">City Manager</option>
-                        <option value="warehouse_manager">Warehouse Manager</option>
-                        <option value="hr">HR</option>
-                        <option value="mis">MIS</option>
-                      </select>
+                      <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: C.gray, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 8 }}>Employee ID</label>
+                      <input value={form.employee_id} onChange={e=>setForm({...form, employee_id: e.target.value})} placeholder="e.g. ADM-001" style={{ width: '100%', background: C.s4, border: `1px solid ${C.border}`, padding: '10px 14px', borderRadius: 8, color: C.white, outline: 'none', fontSize: 13 }} />
                     </div>
                   </div>
 
@@ -258,22 +212,14 @@ export default function SettingsPage() {
                     </div>
                   </div>
 
-                  {/* Permissions Checklist */}
                   <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 20, marginBottom: 20 }}>
-                    <div style={{ fontSize: 12, fontWeight: 800, color: C.white, marginBottom: 12, fontFamily: "'Syne', sans-serif" }}>Module Permissions</div>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: C.white, marginBottom: 12, fontFamily: "'Syne', sans-serif" }}>Module Permissions (Pre-filled based on role)</div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
                       {[
-                        {id: 'analytics', l: 'Analytics'},
-                        {id: 'attendance', l: 'Attendance'},
-                        {id: 'route_plan', l: 'Route Plan'},
-                        {id: 'work_activities', l: 'Work Activities'},
-                        {id: 'manpower', l: 'Manpower'},
-                        {id: 'visit_logs', l: 'Visit Logs'},
-                        {id: 'inventory', l: 'Inventory'},
-                        {id: 'grievances', l: 'Grievances'},
-                        {id: 'form_builder', l: 'Form Builder'},
-                        {id: 'admin', l: 'Resources'},
-                        {id: 'broadcast', l: 'Broadcast'}
+                        {id: 'analytics', l: 'Analytics'}, {id: 'attendance', l: 'Attendance'}, {id: 'route_plan', l: 'Route Plan'},
+                        {id: 'work_activities', l: 'Work Activities'}, {id: 'manpower', l: 'Manpower'}, {id: 'visit_logs', l: 'Visit Logs'},
+                        {id: 'inventory', l: 'Inventory'}, {id: 'grievances', l: 'Grievances'}, {id: 'form_builder', l: 'Form Builder'},
+                        {id: 'admin', l: 'Resources'}, {id: 'broadcast', l: 'Broadcast'}
                       ].map(m => (
                         <label key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, background: C.s4, padding: '8px 12px', borderRadius: 8, cursor: 'pointer', border: `1px solid ${form.permissions.includes(m.id) ? C.blue : C.border}`, transition: 'all 0.2s' }}>
                           <input type="checkbox" checked={form.permissions.includes(m.id)} 
@@ -289,7 +235,6 @@ export default function SettingsPage() {
                     </div>
                   </div>
 
-                  {/* City Assignment (Only for City Manager) */}
                   {form.role === 'city_manager' && (
                     <div style={{ marginBottom: 24 }}>
                       <div style={{ fontSize: 11, fontWeight: 700, color: C.gray, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 10 }}>Assigned Cities (Scope)</div>
@@ -299,7 +244,7 @@ export default function SettingsPage() {
                             const next = form.assigned_cities.includes(city) ? form.assigned_cities.filter(c => c !== city) : [...form.assigned_cities, city];
                             setForm(p => ({...p, assigned_cities: next}));
                           }} type="button"
-                            style={{ padding: '5px 12px', borderRadius: 6, border: 'none', fontSize: 11, fontWeight: 700, cursor: 'pointer', background: form.assigned_cities.includes(city) ? C.blue : C.s4, color: form.assigned_cities.includes(city) ? '#fff' : C.gray, transition: 'all 0.15s' }}>
+                            style={{ padding: '5px 12px', borderRadius: 6, border: 'none', fontSize: 11, fontWeight: 700, cursor: 'pointer', background: form.assigned_cities.includes(city) ? C.blue : C.s4, color: form.assigned_cities.includes(city) ? '#fff' : C.gray }}>
                             {city}
                           </button>
                         ))}
@@ -309,7 +254,7 @@ export default function SettingsPage() {
 
                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
                     <button onClick={()=>setShowAdd(false)} style={{ background: 'transparent', border: `1px solid ${C.border}`, color: C.gray, padding: '10px 20px', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
-                    <button onClick={handleAddUser} disabled={saving} style={{ background: C.red, border: 'none', color: '#fff', padding: '10px 24px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1 }}>
+                    <button onClick={handleAddUser} disabled={saving} style={{ background: C.red, border: 'none', color: '#fff', padding: '10px 24px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer' }}>
                       {saving ? 'Saving...' : 'Save Administrator'}
                     </button>
                   </div>
@@ -317,16 +262,16 @@ export default function SettingsPage() {
               )}
 
               <div style={{ border: `1px solid ${C.border}`, borderRadius: 16, overflow: 'hidden', background: C.s2 }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 2fr 1fr 100px', padding: '16px 24px', background: C.s3, borderBottom: `1px solid ${C.border}`, fontSize: 11, fontWeight: 700, color: C.gray, textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 2fr 1.2fr 100px', padding: '16px 24px', background: C.s3, borderBottom: `1px solid ${C.border}`, fontSize: 11, fontWeight: 700, color: C.gray, textTransform: 'uppercase', letterSpacing: '0.8px' }}>
                   <div>Name & Employee ID</div>
                   <div>Email & Mobile</div>
-                  <div>Access Level (Scope)</div>
+                  <div>Role & Permissions</div>
                   <div style={{ textAlign: 'right' }}>Actions</div>
                 </div>
                 {loading ? (
                   <div style={{ padding: 40, textAlign: 'center', color: C.gray }}>Loading administrators...</div>
                 ) : users.map((u, i) => (
-                  <div key={u.id} style={{ display: 'grid', gridTemplateColumns: '1.5fr 2fr 1fr 100px', padding: '18px 24px', borderBottom: i < users.length - 1 ? `1px solid ${C.border}` : 'none', alignItems: 'center', opacity: u.is_active ? 1 : 0.5 }}>
+                  <div key={u.id} style={{ display: 'grid', gridTemplateColumns: '1.5fr 2fr 1.2fr 100px', padding: '18px 24px', borderBottom: i < users.length - 1 ? `1px solid ${C.border}` : 'none', alignItems: 'center', opacity: u.is_active ? 1 : 0.5 }}>
                     <div>
                       <div style={{ fontSize: 14, fontWeight: 700, color: C.white }}>{u.name}</div>
                       <div style={{ fontSize: 12, color: C.gray, marginTop: 2 }}>{u.employee_id || 'ID: ' + u.id.slice(0, 8)}</div>
@@ -339,9 +284,9 @@ export default function SettingsPage() {
                       <div style={{ display: 'inline-flex', padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 800, background: `${roleColors[u.role] || C.gray}15`, color: roleColors[u.role] || C.gray, border: `1px solid ${roleColors[u.role] || C.gray}33`, textTransform: 'capitalize', marginBottom: 4 }}>
                         {roleLabels[u.role] || u.role}
                       </div>
-                      {u.assigned_cities && u.assigned_cities.length > 0 && (
-                        <div style={{ fontSize: 10, color: C.gray, fontWeight: 600 }}>Scope: {u.assigned_cities.join(', ')}</div>
-                      )}
+                      <div style={{ fontSize: 10, color: C.gray, fontWeight: 600 }}>
+                        {u.permissions?.length || 0} modules · {u.assigned_cities?.length ? `${u.assigned_cities.length} cities` : 'Global'}
+                      </div>
                     </div>
                     <div style={{ textAlign: 'right', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
                       <button onClick={() => handleUpdateUser(u)} style={{ background: 'transparent', border: 'none', color: u.is_active ? C.red : C.green, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
@@ -350,11 +295,6 @@ export default function SettingsPage() {
                     </div>
                   </div>
                 ))}
-                {!loading && users.length === 0 && (
-                  <div style={{ padding: 40, textAlign: 'center', color: C.gray, fontSize: 14 }}>
-                    No administrative users found.
-                  </div>
-                )}
               </div>
             </div>
           )}
@@ -364,15 +304,14 @@ export default function SettingsPage() {
               <div style={{ background: C.s3, border: `1px solid ${C.border}`, borderRadius: 12, padding: 24 }}>
                 <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 16, fontWeight: 800, marginBottom: 8 }}>Interface Appearance</div>
                 <div style={{ fontSize: 13, color: C.gray, marginBottom: 20 }}>Choose your preferred dashboard theme color.</div>
-                
                 <div style={{ display: 'flex', gap: 12 }}>
-                  <button onClick={() => setTheme('dark')} style={{ flex: 1, padding: '14px', borderRadius: 10, background: theme === 'dark' ? C.s4 : 'transparent', border: `1px solid ${theme === 'dark' ? C.blue : C.border}`, cursor: 'pointer', transition: 'all .2s' }}>
+                  <button onClick={() => setTheme('dark')} style={{ flex: 1, padding: '14px', borderRadius: 10, background: theme === 'dark' ? C.s4 : 'transparent', border: `1px solid ${theme === 'dark' ? C.blue : C.border}`, cursor: 'pointer' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
                       <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#0D1117', border: '2px solid #30363d', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>🌙</div>
                       <span style={{ fontSize: 13, fontWeight: 700, color: theme === 'dark' ? C.white : C.gray }}>Dark Mode</span>
                     </div>
                   </button>
-                  <button onClick={() => setTheme('light')} style={{ flex: 1, padding: '14px', borderRadius: 10, background: theme === 'light' ? C.s4 : 'transparent', border: `1px solid ${theme === 'light' ? C.blue : C.border}`, cursor: 'pointer', transition: 'all .2s' }}>
+                  <button onClick={() => setTheme('light')} style={{ flex: 1, padding: '14px', borderRadius: 10, background: theme === 'light' ? C.s4 : 'transparent', border: `1px solid ${theme === 'light' ? C.blue : C.border}`, cursor: 'pointer' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
                       <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#ffffff', border: '2px solid #e1e4e8', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>☀️</div>
                       <span style={{ fontSize: 13, fontWeight: 700, color: theme === 'light' ? C.white : C.gray }}>Light Mode</span>
@@ -380,66 +319,10 @@ export default function SettingsPage() {
                   </button>
                 </div>
               </div>
-
-              <div style={{ background: C.s3, border: `1px solid ${C.border}`, borderRadius: 12, padding: 24 }}>
-                <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 16, fontWeight: 800, marginBottom: 8 }}>Region & Timezone</div>
-                <div style={{ fontSize: 13, color: C.gray, marginBottom: 16 }}>Primary settings for date and time formatting.</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <div style={{ fontSize: 12, color: C.grayd, fontWeight: 600 }}>DEFAULT TIMEZONE</div>
-                  <div style={{ background: C.s2, border: `1px solid ${C.border}`, padding: '10px 14px', borderRadius: 8, fontSize: 13, color: C.white, fontWeight: 600 }}>
-                    (GMT+05:30) India Standard Time
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'roles' && (
-            <div style={{ display: 'grid', gridTemplateColumns: '180px 1fr', gap: 24 }}>
-              {/* Role Sidebar */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {Object.keys(roleLabels).map(role => (
-                  <button key={role} onClick={() => setSelectedRole(role)} style={{ background: selectedRole === role ? C.s3 : 'transparent', border: `1px solid ${selectedRole === role ? C.border : 'transparent'}`, color: selectedRole === role ? C.white : C.gray, padding: '12px 16px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: roleColors[role] }}/>
-                    {roleLabels[role]}
-                  </button>
-                ))}
-              </div>
-              
-              {/* Perm Checklist */}
-              <div style={{ background: C.s3, border: `1px solid ${C.border}`, borderRadius: 12, padding: 24 }}>
-                <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 16, fontWeight: 800, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <div style={{ width: 10, height: 10, borderRadius: '50%', background: roleColors[selectedRole] }}/>
-                  {roleLabels[selectedRole]} Permissions
-                </div>
-                <div style={{ fontSize: 13, color: C.gray, marginBottom: 24 }}>
-                  {selectedRole === 'admin' ? 'Admins have full unrestricted access to all modules.' : 'Toggle specific module access for this role.'}
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12 }}>
-                  {PERMISSIONS.map(p => {
-                    const hasPerm = rolePerms[selectedRole]?.includes(p.id);
-                    const disabled = selectedRole === 'admin';
-                    return (
-                      <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', background: C.s2, border: `1px solid ${hasPerm ? C.borderL : C.border}`, borderRadius: 10, cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.6 : 1, transition: 'all .15s' }}>
-                        <input 
-                          type="checkbox" 
-                          checked={hasPerm} 
-                          onChange={() => togglePerm(p.id)} 
-                          disabled={disabled}
-                          style={{ accentColor: C.red, width: 18, height: 18, cursor: disabled ? 'not-allowed' : 'pointer' }}
-                        />
-                        <span style={{ fontSize: 13, fontWeight: 600, color: hasPerm ? C.white : C.gray }}>{p.label}</span>
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
             </div>
           )}
 
         </div>
-
       </div>
     </div>
   );
