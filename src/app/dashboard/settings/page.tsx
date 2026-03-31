@@ -90,9 +90,10 @@ export default function SettingsPage() {
       const pick = (r: any) => r.data?.data || r.data || r.users || r || [];
       const allUsers = pick(uR);
       
-      const admins = allUsers.filter((u: any) => 
-        ['admin', 'sub_admin', 'city_manager', 'hr', 'mis', 'warehouse_manager', 'client', 'super_admin'].includes((u.role || '').toLowerCase())
-      );
+      const admins = allUsers.filter((u: any) => {
+        const r = (u.role || '').toLowerCase().trim();
+        return ['admin', 'sub_admin', 'city_manager', 'hr', 'mis', 'warehouse_manager', 'client', 'super_admin', 'sub-admin'].includes(r);
+      });
       
       setUsers(admins);
       setZones(pick(zR));
