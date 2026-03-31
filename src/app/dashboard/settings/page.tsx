@@ -5,11 +5,21 @@ import CitySelect from '@/components/CitySelect';
 import { AuthUser } from '@/types';
 
 const C = {
-  bg: 'var(--bg)', s1: 'var(--s1)', s2: 'var(--s2)', s3: 'var(--s3)', s4: 'var(--s4)',
-  border: 'var(--border)', borderL: 'var(--border-l)',
-  white: 'var(--text)', gray: 'var(--text-dim)', grayd: 'var(--text-dim)',
-  red: 'var(--primary)', redD: 'rgba(224,30,44,0.08)', redB: 'rgba(224,30,44,0.20)',
-  green: 'var(--green)', blue: 'var(--accent)',
+  bg: 'var(--bg)', 
+  s1: 'var(--s1)', 
+  s2: 'var(--s2)', 
+  s3: 'var(--s3)', 
+  s4: 'var(--s4)',
+  border: 'var(--border)', 
+  borderL: 'var(--borderL)',
+  white: 'var(--text)', 
+  gray: 'var(--textSec)', 
+  grayd: 'var(--textTert)',
+  red: '#E01E2C', 
+  redD: 'var(--redD)', 
+  redB: 'rgba(224,30,44,0.20)',
+  green: '#00D97E', 
+  blue: '#3E9EFF',
 };
 
 const ROLE_DEFAULTS: Record<string, string[]> = {

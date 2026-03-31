@@ -3,14 +3,25 @@ import { useState, useEffect, useCallback } from 'react';
 import api from '@/lib/api';
 
 const C = {
-  bg:'#070D18', s2:'#0E1420', s3:'#131B2A', s4:'#1A2438',
-  border:'#1E2D45', borderL:'#253650',
-  white:'#E8EDF8', gray:'#7A8BA0', grayd:'#2E445E',
-  red:'#E01E2C', redD:'rgba(224,30,44,0.08)', redB:'rgba(224,30,44,0.2)',
-  green:'#00D97E', greenD:'rgba(0,217,126,0.08)',
-  blue:'#3E9EFF', blueD:'rgba(62,158,255,0.10)',
-  yellow:'#FFB800', yellowD:'rgba(255,184,0,0.08)',
-  purple:'#9B6EFF',
+  bg: 'var(--bg)', 
+  s2: 'var(--s2)', 
+  s3: 'var(--s3)', 
+  s4: 'var(--s4)',
+  border: 'var(--border)', 
+  borderL: 'var(--borderL)',
+  white: 'var(--text)', 
+  gray: 'var(--textSec)', 
+  grayd: 'var(--textTert)',
+  red: '#E01E2C', 
+  redD: 'var(--redD)', 
+  redB: 'rgba(224,30,44,0.2)',
+  green: '#00D97E', 
+  greenD: 'var(--greenD)',
+  blue: '#3E9EFF', 
+  blueD: 'var(--blueD)',
+  yellow: '#FFB800', 
+  yellowD: 'var(--yellowD)',
+  purple: '#9B6EFF',
 };
 
 interface User { id: string; name: string; employee_id?: string; role: string; }
@@ -136,7 +147,7 @@ function OutletPanel({
         } else {
           for (const r of responses) {
             const label = r.form_fields?.label || r.field_key?.replace(/_/g, ' ') || '';
-            const val = r.value_text ?? r.value_number?.toString() ?? (r.value_bool !== null && r.value_bool !== undefined ? (r.value_bool ? 'Yes' : 'No') : '') ?? '';
+            const val = r.value_text ?? r.value_number?.toString() ?? (r.value_bool !== null && r.value_bool !== undefined ? (r.value_bool ? 'Yes' : 'No') : '');
             rows.push([...baseRow, label, val, r.photo_url || '']);
           }
         }

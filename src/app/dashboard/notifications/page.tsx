@@ -5,10 +5,19 @@ import api from '@/lib/api';
 import CitySelect from '@/components/CitySelect';
 
 const C = {
-  red:'#E01E2C', green:'#00D97E', blue:'#3E9EFF', purple:'#9B6EFF',
-  gray:'#7A8BA0', grayd:'#2E445E', graydd:'#1A2738',
-  s1:'#070D18', s2:'#0E1420', s3:'#131B2A', s4:'#1A2438',
-  border:'#1E2D45', white:'#E8EDF8',
+  red: '#E01E2C', 
+  green: '#00D97E', 
+  blue: '#3E9EFF', 
+  purple: '#9B6EFF',
+  gray: 'var(--textSec)', 
+  grayd: 'var(--textTert)', 
+  graydd: 'var(--border)',
+  s1: 'var(--bg)', 
+  s2: 'var(--s2)', 
+  s3: 'var(--s3)', 
+  s4: 'var(--s4)',
+  border: 'var(--border)', 
+  white: 'var(--text)',
 };
 
 interface User { id:string; name:string; role:string; city?:string; zones?:{name:string,city?:string}; supervisor_id?:string; }
@@ -35,11 +44,11 @@ export default function NotificationsPage() {
   const fetchAll = useCallback(async(p: number = 1)=>{
     try {
       const [uR,sR,cR,zR,hR] = await Promise.all([
-        api.get('/api/v1/users?limit=500'),
-        api.get('/api/v1/users?role=supervisor&limit=200'),
-        api.get('/api/v1/users?role=city_manager&limit=100'),
-        api.get('/api/v1/zones'),
-        api.get(`/api/v1/notifications/history?limit=10&page=${p}`),
+        api.get<any>('/api/v1/users?limit=500'),
+        api.get<any>('/api/v1/users?role=supervisor&limit=200'),
+        api.get<any>('/api/v1/users?role=city_manager&limit=100'),
+        api.get<any>('/api/v1/zones'),
+        api.get<any>(`/api/v1/notifications/history?limit=10&page=${p}`),
       ]);
       const pick=(r:any)=>{
         if(Array.isArray(r))return r;

@@ -4,14 +4,14 @@ import api from '@/lib/api';
 import { getStoredUser } from '@/lib/auth';
 
 const C = {
-  bg: '#060910',
-  card: 'rgba(14, 20, 32, 0.72)',
-  border: 'rgba(30, 45, 69, 0.5)',
-  white: '#E8EDF8',
-  gray: '#7A8BA0',
-  red: '#E01E2C',
-  green: '#00D97E',
-  blue: '#3E9EFF',
+  bg: 'var(--bg)', 
+  card: 'var(--s2)', 
+  border: 'var(--border)', 
+  white: 'var(--text)', 
+  gray: 'var(--textSec)', 
+  red: '#E01E2C', 
+  green: '#00D97E', 
+  blue: '#3E9EFF', 
   orange: '#FFB800',
 };
 

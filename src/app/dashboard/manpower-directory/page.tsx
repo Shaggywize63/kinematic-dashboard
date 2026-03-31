@@ -5,15 +5,27 @@ import CitySelect from '@/components/CitySelect';
 import { fmtHrs } from '@/lib/utils';
 
 const C = {
-  red:'#E01E2C', redD:'rgba(224,30,44,0.08)', redB:'rgba(224,30,44,0.2)',
-  green:'#00D97E', greenD:'rgba(0,217,126,0.08)',
-  yellow:'#FFB800', yellowD:'rgba(255,184,0,0.08)',
-  blue:'#3E9EFF', blueD:'rgba(62,158,255,0.08)',
-  purple:'#9B6EFF', purpleD:'rgba(155,110,255,0.08)',
-  gray:'#7A8BA0', grayd:'#2E445E', graydd:'#1A2738',
-  s1:'#070D18', s2:'#0E1420', s3:'#131B2A', s4:'#1A2438',
-  border:'#1E2D45', borderL:'#253650',
-  white:'#E8EDF8',
+  red: '#E01E2C', 
+  redD: 'var(--redD)', 
+  redB: 'rgba(224,30,44,0.2)',
+  green: '#00D97E', 
+  greenD: 'var(--greenD)',
+  yellow: '#FFB800', 
+  yellowD: 'var(--yellowD)',
+  blue: '#3E9EFF', 
+  blueD: 'var(--blueD)',
+  purple: '#9B6EFF', 
+  purpleD: 'rgba(155,110,255,0.08)',
+  gray: 'var(--textSec)', 
+  grayd: 'var(--textTert)', 
+  graydd: 'var(--border)',
+  s1: 'var(--bg)', 
+  s2: 'var(--s2)', 
+  s3: 'var(--s3)', 
+  s4: 'var(--s4)',
+  border: 'var(--border)', 
+  borderL: 'var(--borderL)',
+  white: 'var(--text)',
 };
 
 interface Zone { id: string; name: string; city?: string; }

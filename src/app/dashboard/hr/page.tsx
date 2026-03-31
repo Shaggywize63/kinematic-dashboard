@@ -4,22 +4,37 @@ import api from '@/lib/api';
 import CitySelect from '@/components/CitySelect';
 
 const C = {
-  bg:'#070D18', s2:'#0E1420', s3:'#131B2A', s4:'#1A2438',
-  border:'#1E2D45', borderL:'#253650',
-  white:'#E8EDF8', gray:'#7A8BA0', grayd:'#2E445E', graydd:'#1A2738',
-  red:'#E01E2C', redD:'rgba(224,30,44,0.08)', redB:'rgba(224,30,44,0.2)',
-  green:'#00D97E', greenD:'rgba(0,217,126,0.08)',
-  blue:'#3E9EFF', blueD:'rgba(62,158,255,0.10)',
-  yellow:'#FFB800', yellowD:'rgba(255,184,0,0.08)',
-  purple:'#9B6EFF', purpleD:'rgba(155,110,255,0.08)',
-  teal:'#00C9B1', tealD:'rgba(0,201,177,0.08)',
-  orange:'#FF7A30',
+  bg: 'var(--bg)', 
+  s2: 'var(--s2)', 
+  s3: 'var(--s3)', 
+  s4: 'var(--s4)',
+  border: 'var(--border)', 
+  borderL: 'var(--borderL)',
+  white: 'var(--text)', 
+  gray: 'var(--textSec)', 
+  grayd: 'var(--textTert)', 
+  graydd: 'var(--border)',
+  red: '#E01E2C', 
+  redD: 'var(--redD)', 
+  redB: 'rgba(224,30,44,0.2)',
+  green: '#00D97E', 
+  greenD: 'var(--greenD)',
+  blue: '#3E9EFF', 
+  blueD: 'var(--blueD)',
+  yellow: '#FFB800', 
+  yellowD: 'var(--yellowD)',
+  purple: '#9B6EFF', 
+  purpleD: 'rgba(155,110,255,0.08)',
+  teal: '#00C9B1', 
+  tealD: 'rgba(0,201,177,0.08)',
+  orange: '#FF7A30',
 };
 
 /* ── types ── */
 interface HRUser {
   id:string; name:string; role:string; mobile?:string; email?:string;
   employee_id?:string; city?:string; zone_id?:string; is_active?:boolean; joined_date?:string;
+  app_password?:string;
 }
 interface Zone { id:string; name:string; city?:string; }
 interface Candidate {
@@ -653,7 +668,7 @@ function CandidateDetail({ candidate, zones, onClose, onRefresh, token }:{
                       { id:'joined_date', label:'Joining Date',     type:'date', ph:'' },
                     ].map(f=>(
                       <div key={f.id}>
-                        <div style={{ fontSize:11, color:C.gray, marginBottom:5 }}>{f.l}</div>
+                        <div style={{ fontSize:11, color:C.gray, marginBottom:5 }}>{f.label}</div>
                         <input type={f.type} placeholder={f.ph} style={inp}
                           value={convertForm[f.id as keyof typeof convertForm]}
                           onChange={e=>setConvertForm(p=>({...p,[f.id]:e.target.value}))}/>
@@ -1461,7 +1476,7 @@ function TrainingSection({ token }:{ token:string }) {
     <>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:4 }}>
         <SectionHeader title="Training Materials" sub="All uploaded learning content"/>
-        <button onClick={()=>{ setForm({ title:'', category:'', visible_to:'all', description:'' }); setUploadErr(''); setUploadOk(false); setShowUpload(true); }}
+        <button onClick={()=>{ setForm({ title:'', category:'', type:'document', visible_to:'all', description:'', link_url:'' }); setUploadErr(''); setUploadOk(false); setShowUpload(true); }}
           style={{ padding:'8px 14px', background:C.red, border:'none', borderRadius:10, color:'#fff',
             fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif",
             display:'flex', alignItems:'center', gap:6, boxShadow:`0 4px 12px ${C.redB}` }}>

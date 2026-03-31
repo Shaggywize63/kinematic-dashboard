@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '@/lib/api';
 
-export const INDIAN_STATES = [
+const INDIAN_STATES = [
   "Andaman and Nicobar Islands", "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chandigarh", "Chhattisgarh", "Dadra and Nagar Haveli and Daman and Diu", 
   "Delhi", "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jammu and Kashmir", "Jharkhand", "Karnataka", "Kerala", "Ladakh", "Lakshadweep", 
   "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya", "Mizoram", "Nagaland", "Odisha", "Puducherry", "Punjab", "Rajasthan", "Sikkim", 
@@ -10,12 +10,23 @@ export const INDIAN_STATES = [
 ];
 
 const C = {
-  bg:'#070D18',s2:'#0E1420',s3:'#131B2A',s4:'#1A2438',
-  border:'#1E2D45',borderL:'#253650',
-  white:'#E8EDF8',gray:'#7A8BA0',grayd:'#2E445E',graydd:'#1A2738',
-  red:'#E01E2C',redD:'rgba(224,30,44,0.08)',redB:'rgba(224,30,44,0.2)',
-  green:'#00D97E',greenD:'rgba(0,217,126,0.08)',
-  blue:'#3E9EFF',blueD:'rgba(62,158,255,0.10)',
+  bg: 'var(--bg)', 
+  s2: 'var(--s2)', 
+  s3: 'var(--s3)', 
+  s4: 'var(--s4)',
+  border: 'var(--border)', 
+  borderL: 'var(--borderL)',
+  white: 'var(--text)', 
+  gray: 'var(--textSec)', 
+  grayd: 'var(--textTert)', 
+  graydd: 'var(--border)',
+  red: '#E01E2C', 
+  redD: 'var(--redD)', 
+  redB: 'rgba(224,30,44,0.2)',
+  green: '#00D97E', 
+  greenD: 'var(--greenD)',
+  blue: '#3E9EFF', 
+  blueD: 'var(--blueD)',
 };
 
 interface City { id:string; name:string; state?:string; country?:string; is_active:boolean; created_at:string; }
