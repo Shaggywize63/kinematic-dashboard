@@ -330,22 +330,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { href: '/dashboard',                     label: 'Dashboard',     icon: 'M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z M9 22V12h6v10' },
     { href: '/dashboard/analytics',           label: 'Analytics',     icon: 'M18 20V10 M12 20V4 M6 20v-6', module: 'analytics' },
     { href: '/dashboard/live-tracking',      label: 'Live Tracking',  icon: 'M12 22s-8-4.5-8-11.8A8 8 0 0112 2a8 8 0 018 8.2c0 7.3-8 11.8-8 11.8z M12 13a3 3 0 100-6 3 3 0 000 6z', module: 'analytics' },
-    { href: '/dashboard/broadcast',          label: 'Broadcast',      icon: 'M18 8a6 6 0 010 8M14 11.73A2 2 0 1112 15a2 2 0 002-3.27z M21.64 4.36a12 12 0 010 15.27' },
+    { href: '/dashboard/broadcast',          label: 'Broadcast',      icon: 'M18 8a6 6 0 010 8M14 11.73A2 2 0 1112 15a2 2 0 002-3.27z M21.64 4.36a12 12 0 010 15.27', module: 'broadcast' },
   ]);
 
   const visibleOps = filterNav([
-    { href: '/dashboard/attendance-overview', label: 'Attendance',    icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z', module: 'reports' },
-    { href: '/dashboard/route-plan',          label: 'Route Plan',    icon: 'M9 20l-5.44-2.72A2 2 0 013 15.49V4.5a2 2 0 012.89-1.8L9 4 M9 20l6-3 M9 4v16 M15 1l5.44 2.72A2 2 0 0121 5.51v10.98a2 2 0 01-2.89 1.8L15 17 M15 1v16', module: 'orders' },
-    { href: '/dashboard/work-activities',     label: 'Work Activities', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 012-2h2a2 2 0 012 2 M9 12l2 2 4-4', module: 'reports' },
+    { href: '/dashboard/attendance-overview', label: 'Attendance',    icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z', module: 'attendance' },
+    { href: '/dashboard/route-plan',          label: 'Route Plan',    icon: 'M9 20l-5.44-2.72A2 2 0 013 15.49V4.5a2 2 0 012.89-1.8L9 4 M9 20l6-3 M9 4v16 M15 1l5.44 2.72A2 2 0 0121 5.51v10.98a2 2 0 01-2.89 1.8L15 17 M15 1v16', module: 'route_plan' },
+    { href: '/dashboard/work-activities',     label: 'Work Activities', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 012-2h2a2 2 0 012 2 M9 12l2 2 4-4', module: 'work_activities' },
   ]);
 
   const visibleMgt = filterNav([
-    { href: '/dashboard/manpower-directory', label: 'Manpower',       icon: 'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 11a4 4 0 100-8 4 4 0 000 8z M23 21v-2a4 4 0 00-3-3.87 M16 3.13a4 4 0 010 7.75', module: 'users' },
-    { href: '/dashboard/hr',                 label: 'HR',              icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0z M12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z', module: 'users' },
-    { href: '/dashboard/visit-logs',         label: 'Visit Logs',      icon: 'M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 100-6 3 3 0 000 6z', module: 'reports' },
+    { href: '/dashboard/manpower-directory', label: 'Manpower',       icon: 'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 11a4 4 0 100-8 4 4 0 000 8z M23 21v-2a4 4 0 00-3-3.87 M16 3.13a4 4 0 010 7.75', module: 'manpower' },
+    { href: '/dashboard/hr',                 label: 'HR',              icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0z M12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z', module: 'manpower' },
+    { href: '/dashboard/visit-logs',         label: 'Visit Logs',      icon: 'M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 100-6 3 3 0 000 6z', module: 'visit_logs' },
     { href: '/dashboard/warehouse',          label: 'Warehouse',       icon: 'M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8', module: 'inventory' },
-    { href: '/dashboard/grievances',         label: 'Grievances',     icon: 'M8 10h.01M12 10h.01M16 10h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z', module: 'reports' },
-    { href: '/dashboard/form-builder',       label: 'Form Builder',    icon: 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 113.003 3.003L12 16l-4 1 1-4 9.586-9.586z', module: 'admin' },
+    { href: '/dashboard/grievances',         label: 'Grievances',     icon: 'M8 10h.01M12 10h.01M16 10h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z', module: 'grievances' },
+    { href: '/dashboard/form-builder',       label: 'Form Builder',    icon: 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 113.003 3.003L12 16l-4 1 1-4 9.586-9.586z', module: 'form_builder' },
   ]);
 
   const visibleSys = filterNav([

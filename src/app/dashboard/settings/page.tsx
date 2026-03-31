@@ -261,17 +261,29 @@ export default function SettingsPage() {
                   {/* Permissions Checklist */}
                   <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 20, marginBottom: 20 }}>
                     <div style={{ fontSize: 12, fontWeight: 800, color: C.white, marginBottom: 12, fontFamily: "'Syne', sans-serif" }}>Module Permissions</div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                      {['orders', 'users', 'analytics', 'inventory', 'reports'].map(m => (
-                        <label key={m} style={{ display: 'flex', alignItems: 'center', gap: 8, background: C.s4, padding: '8px 12px', borderRadius: 8, cursor: 'pointer', border: `1px solid ${form.permissions.includes(m) ? C.blue : C.border}`, transition: 'all 0.2s' }}>
-                          <input type="checkbox" checked={form.permissions.includes(m)} 
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                      {[
+                        {id: 'analytics', l: 'Analytics'},
+                        {id: 'attendance', l: 'Attendance'},
+                        {id: 'route_plan', l: 'Route Plan'},
+                        {id: 'work_activities', l: 'Work Activities'},
+                        {id: 'manpower', l: 'Manpower'},
+                        {id: 'visit_logs', l: 'Visit Logs'},
+                        {id: 'inventory', l: 'Inventory'},
+                        {id: 'grievances', l: 'Grievances'},
+                        {id: 'form_builder', l: 'Form Builder'},
+                        {id: 'admin', l: 'Resources'},
+                        {id: 'broadcast', l: 'Broadcast'}
+                      ].map(m => (
+                        <label key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, background: C.s4, padding: '8px 12px', borderRadius: 8, cursor: 'pointer', border: `1px solid ${form.permissions.includes(m.id) ? C.blue : C.border}`, transition: 'all 0.2s' }}>
+                          <input type="checkbox" checked={form.permissions.includes(m.id)} 
                             onChange={e => {
-                              const next = e.target.checked ? [...form.permissions, m] : form.permissions.filter(p => p !== m);
+                              const next = e.target.checked ? [...form.permissions, m.id] : form.permissions.filter(p => p !== m.id);
                               setForm(p => ({...p, permissions: next}));
                             }} 
                             style={{ accentColor: C.blue }}
                           />
-                          <span style={{ fontSize: 12, fontWeight: 600, color: form.permissions.includes(m) ? C.white : C.gray, textTransform: 'capitalize' }}>{m}</span>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: form.permissions.includes(m.id) ? C.white : C.gray }}>{m.l}</span>
                         </label>
                       ))}
                     </div>
