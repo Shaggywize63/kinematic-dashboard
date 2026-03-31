@@ -4,12 +4,12 @@ import { useState, useEffect, useCallback } from 'react';
 import { api } from '@/lib/api';
 
 const C = {
-  bg: '#070D18', s2: '#0E1420', s3: '#131B2A', s4: '#1A2438',
-  border: '#1E2D45', borderL: '#253650',
-  white: '#E8EDF8', gray: '#7A8BA0', grayd: '#2E445E',
-  red: '#E01E2C', redD: 'rgba(224,30,44,0.08)', redB: 'rgba(224,30,44,0.20)',
-  green: '#00D97E', greenD: 'rgba(0,217,126,0.08)',
-  blue: '#3E9EFF', blueD: 'rgba(62,158,255,0.10)',
+  bg: 'var(--bg)', s1: 'var(--s1)', s2: 'var(--s2)', s3: 'var(--s3)', s4: 'var(--s4)',
+  border: 'var(--border)', borderL: 'var(--border-l)',
+  white: 'var(--text)', gray: 'var(--text-dim)', grayd: 'var(--text-dim)', graydd: 'var(--text-dim)',
+  red: 'var(--primary)', redD: 'rgba(224,30,44,0.08)', redB: 'rgba(224,30,44,0.20)',
+  green: 'var(--green)', greenD: 'rgba(0,217,126,0.08)',
+  blue: 'var(--accent)', blueD: 'rgba(62,158,255,0.10)',
   yellow: '#FFB800', yellowD: 'rgba(255,184,0,0.08)',
   purple: '#9B6EFF', purpleD: 'rgba(155,110,255,0.08)',
 };
@@ -138,10 +138,8 @@ export default function BroadcastPage() {
         api.get('/api/v1/zones')
       ]);
       setQuestions(Array.isArray(bRes) ? bRes : (bRes as any)?.data ?? []);
-      
       const citiesArr = Array.isArray(cRes) ? cRes : (cRes as any)?.data ?? [];
       setAllCities(citiesArr);
-      
       const zonesArr = Array.isArray(zRes) ? zRes : (zRes as any)?.data ?? [];
       setAllZones(zonesArr);
     } catch (e: unknown) {
@@ -244,7 +242,7 @@ export default function BroadcastPage() {
         </div>
         <button
           onClick={() => { setForm(defaultForm()); setShowCreate(true); }}
-          style={{ background: C.red, color: '#fff', border: 'none', borderRadius: 12, padding: '11px 20px', fontSize: 13, fontWeight: 700, fontFamily: "'Syne',sans-serif", cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 8px 24px rgba(224,30,44,0.28)', whiteSpace: 'nowrap' }}
+          style={{ background: C.red, color: '#fff', border: 'none', borderRadius: 12, padding: '11px 20px', fontSize: 13, fontWeight: 700, fontFamily: "'Syne',sans-serif", cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 8px 24px var(--primary-shadow)', whiteSpace: 'nowrap' }}
         >
           + New Question
         </button>

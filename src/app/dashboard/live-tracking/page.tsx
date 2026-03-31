@@ -3,16 +3,16 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import api from '@/lib/api';
 
 const C = {
-  bg:'#070D18', s2:'#0E1420', s3:'#131B2A', s4:'#1A2438',
-  border:'#1E2D45', borderL:'#253650',
-  white:'#E8EDF8', gray:'#7A8BA0', grayd:'#2E445E', graydd:'#1A2738',
-  red:'#E01E2C', redD:'rgba(224,30,44,0.08)', redB:'rgba(224,30,44,0.2)',
-  green:'#00D97E', greenD:'rgba(0,217,126,0.08)',
-  blue:'#3E9EFF', blueD:'rgba(62,158,255,0.10)',
-  yellow:'#FFB800', yellowD:'rgba(255,184,0,0.08)',
-  purple:'#9B6EFF', purpleD:'rgba(155,110,255,0.08)',
-  teal:'#00C9B1', tealD:'rgba(0,201,177,0.08)',
-  orange:'#FF7A30',
+  bg: 'var(--bg)', s1: 'var(--s1)', s2: 'var(--s2)', s3: 'var(--s3)', s4: 'var(--s4)',
+  border: 'var(--border)', borderL: 'var(--border-l)',
+  white: 'var(--text)', gray: 'var(--text-dim)', grayd: 'var(--text-dim)', graydd: 'var(--text-dim)',
+  red: 'var(--primary)', redD: 'rgba(224,30,44,0.08)', redB: 'rgba(224,30,44,0.2)',
+  green: 'var(--green)', greenD: 'rgba(0,217,126,0.08)',
+  blue: 'var(--accent)', blueD: 'rgba(62,158,255,0.10)',
+  yellow: '#FFB800', yellowD: 'rgba(255,184,0,0.08)',
+  purple: '#9B6EFF', purpleD: 'rgba(155,110,255,0.08)',
+  teal: '#00C9B1', tealD: 'rgba(0,201,177,0.08)',
+  orange: '#FF7A30',
 };
 
 /* ── Types ── */
@@ -114,7 +114,7 @@ function LiveMap({
       fes.filter(fe => fe.lat && fe.lng).forEach(fe => {
         const c = STATUS_COLOR[fe.status] || C.grayd;
         const sel = selectedId === fe.id;
-        const html = `<div style="width:32px;height:32px;border-radius:50%;background:${c};border:${sel?'3px solid #fff':'2px solid #0E1420'};display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;color:#000;box-shadow:0 2px 12px rgba(0,0,0,.6);${sel?'transform:scale(1.2)':''}">${fe.name[0]}</div>`;
+        const html = `<div style="width:32px;height:32px;border-radius:50%;background:${c};border:${sel?'3px solid var(--text)':'2px solid var(--s1)'};display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;color:#000;box-shadow:0 2px 12px rgba(0,0,0,.6);${sel?'transform:scale(1.2)':''}">${fe.name[0]}</div>`;
         const popup = popupHtml(fe.name, fe.role, c, fe.status, fe.zone_name, fe.checkin_at, fe.today_engagements, fe.today_tff);
         addMarker(fe.lat!, fe.lng!, html, popup, fe.id, 'fe');
       });
@@ -124,7 +124,7 @@ function LiveMap({
     if (activeLayers.has('supervisor')) {
       supervisors.filter(s => s.lat && s.lng).forEach(sup => {
         const c = STATUS_COLOR[sup.status] || C.grayd;
-        const html = `<div style="width:32px;height:32px;border-radius:8px;background:${C.blue};border:2px solid #0E1420;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;color:#fff;box-shadow:0 2px 12px rgba(0,0,0,.6)">${sup.name[0]}</div>`;
+        const html = `<div style="width:32px;height:32px;border-radius:8px;background:${C.blue};border:2px solid var(--s1);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;color:#fff;box-shadow:0 2px 12px rgba(0,0,0,.6)">${sup.name[0]}</div>`;
         const popup = popupHtml(sup.name, 'Supervisor', c, sup.status, sup.zone_name, sup.checkin_at);
         addMarker(sup.lat!, sup.lng!, html, popup, sup.id, 'supervisor');
       });
@@ -133,8 +133,8 @@ function LiveMap({
     // Outlets
     if (activeLayers.has('outlet')) {
       outlets.filter(o => o.lat && o.lng).forEach(o => {
-        const html = `<div style="width:28px;height:28px;border-radius:6px;background:${C.yellow};border:2px solid #0E1420;display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 2px 10px rgba(0,0,0,.5)">🏪</div>`;
-        const popup = `<div style="font-family:DM Sans,sans-serif;font-size:12px;color:#E8EDF8;background:#0E1420;padding:10px 12px;border-radius:8px;min-width:150px"><div style="font-weight:700;margin-bottom:4px">${o.name}</div>${o.store_type?`<div style="color:#7A8BA0;font-size:11px">${o.store_type}</div>`:''}<div style="color:#7A8BA0;font-size:11px;margin-top:4px">${o.zone_name||''}</div>${o.address?`<div style="color:#2E445E;font-size:10px;margin-top:2px">${o.address}</div>`:''}</div>`;
+        const html = `<div style="width:28px;height:28px;border-radius:6px;background:${C.yellow};border:2px solid var(--s1);display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 2px 10px rgba(0,0,0,.5)">🏪</div>`;
+        const popup = `<div style="font-family:DM Sans,sans-serif;font-size:12px;color:var(--text);background:var(--s1);padding:10px 12px;border-radius:8px;min-width:150px"><div style="font-weight:700;margin-bottom:4px">${o.name}</div>${o.store_type?`<div style="color:var(--text-dim);font-size:11px">${o.store_type}</div>`:''}<div style="color:var(--text-dim);font-size:11px;margin-top:4px">${o.zone_name||''}</div>${o.address?`<div style="color:var(--text-dim);font-size:10px;margin-top:2px">${o.address}</div>`:''}</div>`;
         addMarker(o.lat!, o.lng!, html, popup, o.id, 'outlet');
       });
     }
@@ -142,8 +142,8 @@ function LiveMap({
     // Warehouses
     if (activeLayers.has('warehouse')) {
       warehouses.filter(w => w.latitude && w.longitude).forEach(w => {
-        const html = `<div style="width:30px;height:30px;border-radius:6px;background:${C.purple};border:2px solid #0E1420;display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 2px 10px rgba(0,0,0,.5)">🏭</div>`;
-        const popup = `<div style="font-family:DM Sans,sans-serif;font-size:12px;color:#E8EDF8;background:#0E1420;padding:10px 12px;border-radius:8px;min-width:150px"><div style="font-weight:700;margin-bottom:4px">${w.name}</div>${w.type?`<div style="color:#7A8BA0;font-size:11px">${w.type}</div>`:''}<div style="color:#7A8BA0;font-size:11px;margin-top:4px">${w.city||''}</div></div>`;
+        const html = `<div style="width:30px;height:30px;border-radius:6px;background:${C.purple};border:2px solid var(--s1);display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 2px 10px rgba(0,0,0,.5)">🏭</div>`;
+        const popup = `<div style="font-family:DM Sans,sans-serif;font-size:12px;color:var(--text);background:var(--s1);padding:10px 12px;border-radius:8px;min-width:150px"><div style="font-weight:700;margin-bottom:4px">${w.name}</div>${w.type?`<div style="color:var(--text-dim);font-size:11px">${w.type}</div>`:''}<div style="color:var(--text-dim);font-size:11px;margin-top:4px">${w.city||''}</div></div>`;
         addMarker(w.latitude!, w.longitude!, html, popup, w.id, 'warehouse');
       });
     }
@@ -158,16 +158,16 @@ function LiveMap({
   }, [mapLoaded, fes, supervisors, outlets, warehouses, activeLayers, selectedId, onSelect]);
 
   const popupHtml = (name:string, role:string, color:string, status:string, zone?:string, checkinAt?:string, engagements?:number, tff?:number) =>
-    `<div style="font-family:DM Sans,sans-serif;font-size:12px;color:#E8EDF8;background:#0E1420;padding:10px 12px;border-radius:8px;min-width:160px">
+    `<div style="font-family:DM Sans,sans-serif;font-size:12px;color:var(--text);background:var(--s1);padding:10px 12px;border-radius:8px;min-width:160px">
       <div style="font-weight:700;margin-bottom:2px">${name}</div>
-      <div style="color:#7A8BA0;font-size:11px;margin-bottom:6px">${role}${zone?` · ${zone}`:''}</div>
+      <div style="color:var(--text-dim);font-size:11px;margin-bottom:6px">${role}${zone?` · ${zone}`:''}</div>
       <div style="display:inline-flex;padding:2px 8px;border-radius:20px;background:${color}20;color:${color};font-size:10px;font-weight:700;text-transform:capitalize">${status.replace('_',' ')}</div>
-      ${tff!=null?`<div style="color:#7A8BA0;font-size:10px;margin-top:2px">TFF (Total forms filled): ${tff||0}</div>`:''}
+      ${tff!=null?`<div style="color:var(--text-dim);font-size:10px;margin-top:2px">TFF (Total forms filled): ${tff||0}</div>`:''}
     </div>`;
 
   return (
     <>
-      <style>{`.km-popup .leaflet-popup-content-wrapper{background:#0E1420;border:1px solid #1E2D45;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.7);padding:0}.km-popup .leaflet-popup-content{margin:0}.km-popup .leaflet-popup-tip{background:#0E1420}`}</style>
+      <style>{`.km-popup .leaflet-popup-content-wrapper{background:var(--s1);border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.3);padding:0}.km-popup .leaflet-popup-content{margin:0}.km-popup .leaflet-popup-tip{background:var(--s1)}`}</style>
       <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
       <div ref={mapRef} style={{ width:'100%', height:'100%' }}/>
       {!mapLoaded && (
@@ -319,8 +319,8 @@ export default function LiveTrackingPage() {
         @keyframes km-fadein { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
         @keyframes kspin     { to{transform:rotate(360deg)} }
         @keyframes kpulse    { 0%,100%{opacity:1} 50%{opacity:.2} }
-        .leaflet-container   { background:#070D18 !important; }
-        .lt-row:hover        { background:${C.s3} !important; }
+        .leaflet-container   { background: var(--bg) !important; }
+        .lt-row:hover        { background:${C.s4} !important; }
       `}</style>
 
       <div style={{ display:'flex', flexDirection:'column', height:'calc(100vh - 80px)', gap:16, animation:'km-fadein .3s ease' }}>
@@ -563,7 +563,7 @@ export default function LiveTrackingPage() {
               {/* No GPS notice */}
               {!loading && fes.length > 0 && fes.every(f => !f.lat || !f.lng) && (
                 <div style={{ position:'absolute', top:12, left:'50%', transform:'translateX(-50%)',
-                  background:'rgba(14,20,32,.9)', border:`1px solid ${C.yellow}40`,
+                  background:'var(--s1)', border:`1px solid ${C.yellow}40`,
                   borderRadius:10, padding:'8px 14px', fontSize:12, color:C.yellow,
                   display:'flex', alignItems:'center', gap:7, pointerEvents:'none', whiteSpace:'nowrap' }}>
                   ⚠️ No GPS coordinates yet — FEs need to check in with location enabled
@@ -572,7 +572,7 @@ export default function LiveTrackingPage() {
 
               {/* Layer legend */}
               <div style={{ position:'absolute', bottom:12, left:12,
-                background:'rgba(14,20,32,.9)', border:`1px solid ${C.border}`,
+                background:'var(--s1)', border:`1px solid ${C.border}`,
                 borderRadius:10, padding:'8px 12px', display:'flex', gap:10, flexWrap:'wrap' }}>
                 {LAYERS.filter(l => activeLayers.has(l.id)).map(l => (
                   <div key={l.id} style={{ display:'flex', alignItems:'center', gap:5, fontSize:11, color:C.gray }}>

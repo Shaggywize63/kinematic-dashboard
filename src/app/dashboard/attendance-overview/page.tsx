@@ -49,30 +49,15 @@ function DateRangePicker({ from, to, onChange }: { from: string; to: string; onC
 }
 
 const C = {
-  bg:      '#070D18',
-  s2:      '#0E1420',
-  s3:      '#131B2A',
-  s4:      '#1A2438',
-  border:  '#1E2D45',
-  borderL: '#253650',
-  white:   '#E8EDF8',
-  gray:    '#7A8BA0',
-  grayd:   '#2E445E',
-  graydd:  '#1A2738',
-  red:     '#E01E2C',
-  redD:    'rgba(224,30,44,0.08)',
-  redB:    'rgba(224,30,44,0.2)',
-  green:   '#00D97E',
-  greenD:  'rgba(0,217,126,0.08)',
-  greenB:  'rgba(0,217,126,0.2)',
-  blue:    '#3E9EFF',
-  blueD:   'rgba(62,158,255,0.10)',
-  yellow:  '#FFB800',
-  yellowD: 'rgba(255,184,0,0.08)',
-  purple:  '#9B6EFF',
-  purpleD: 'rgba(155,110,255,0.08)',
-  orange:  '#FF7B35',
-  orangeD: 'rgba(255,123,53,0.10)',
+  bg: 'var(--bg)', s1: 'var(--s1)', s2: 'var(--s2)', s3: 'var(--s3)', s4: 'var(--s4)',
+  border: 'var(--border)', borderL: 'var(--border-l)',
+  white: 'var(--text)', gray: 'var(--text-dim)', grayd: 'var(--text-dim)', graydd: 'var(--text-dim)',
+  red: 'var(--primary)', redD: 'rgba(224,30,44,0.08)', redB: 'rgba(224,30,44,0.2)',
+  green: 'var(--green)', greenD: 'rgba(0,217,126,0.08)', greenB: 'rgba(0,217,126,0.2)',
+  blue: 'var(--accent)', blueD: 'rgba(62,158,255,0.10)',
+  yellow: '#FFB800', yellowD: 'rgba(255,184,0,0.08)',
+  purple: '#9B6EFF', purpleD: 'rgba(155,110,255,0.08)',
+  orange: '#FF7B35', orangeD: 'rgba(255,123,53,0.10)',
 };
 
 /* ── types ── */
@@ -129,7 +114,7 @@ const BLANK: FormData = {
 
 /* ── helpers ── */
 const Spinner = () => (
-  <div style={{ width: 15, height: 15, border: '2.5px solid rgba(255,255,255,0.18)', borderTopColor: '#fff', borderRadius: '50%', animation: 'kspin .65s linear infinite', flexShrink: 0 }} />
+  <div style={{ width: 15, height: 15, border: `2.5px solid ${C.border}`, borderTopColor: C.white, borderRadius: '50%', animation: 'kspin .65s linear infinite', flexShrink: 0 }} />
 );
 
 const Label = ({ text, req }: { text: string; req?: boolean }) => (
