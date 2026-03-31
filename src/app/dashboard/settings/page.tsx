@@ -23,13 +23,13 @@ const C = {
 };
 
 const ROLE_DEFAULTS: Record<string, string[]> = {
-  admin: ['analytics', 'attendance', 'route_plan', 'work_activities', 'manpower', 'visit_logs', 'inventory', 'grievances', 'form_builder', 'admin', 'broadcast'],
-  sub_admin: ['analytics', 'attendance', 'route_plan', 'work_activities', 'manpower', 'inventory', 'form_builder', 'broadcast'],
-  city_manager: ['analytics', 'attendance', 'route_plan'],
+  admin: ['analytics', 'inventory', 'users', 'reports'],
+  sub_admin: ['analytics', 'inventory', 'users', 'reports'],
+  city_manager: ['analytics', 'reports'],
   warehouse_manager: ['inventory'],
-  hr: ['analytics', 'attendance', 'manpower'],
-  mis: ['analytics', 'manpower', 'form_builder'],
-  client: [] // Clients get permissions from their client profile
+  hr: ['analytics', 'reports'],
+  mis: ['analytics', 'reports'],
+  client: []
 };
 
 export default function SettingsPage() {
@@ -40,10 +40,19 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
+  const [editMode, setEditMode] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'users'|'rules'|'pref'>('users');
   const [theme, setTheme] = useState<'dark'|'light'>('dark');
   const [radius, setRadius] = useState(100);
   const [error, setError] = useState('');
+
+  const [form, setForm] = useState({
+    name: '', email: '', role: 'sub_admin', password: '', 
+    mobile: '', employee_id: '', zone_id: '', city: '',
+    client_id: '',
+    permissions: ROLE_DEFAULTS['sub_admin'],
+    assigned_cities: [] as string[]
+  });
 
   // NEW: System Settings Hooks
   const [opsRules, setOpsRules] = useState({
@@ -57,18 +66,10 @@ export default function SettingsPage() {
     orgSupport: 'support@kinematic.com'
   });
 
-  const [form, setForm] = useState({
-    name: '', email: '', role: 'sub_admin', password: '', 
-    mobile: '', employee_id: '', zone_id: '', city: '',
-    client_id: '',
-    permissions: ROLE_DEFAULTS['sub_admin'],
-    assigned_cities: [] as string[]
-  });
-
   // Sync Theme Initial State
   useEffect(() => {
     const saved = localStorage.getItem('kinematic-theme') as 'dark'|'light' || 'dark';
-    setTheme(saved);
+    setTheme(saved || 'dark');
   }, []);
 
   const toggleTheme = (t: 'dark'|'light') => {
@@ -91,8 +92,8 @@ export default function SettingsPage() {
       const allUsers = pick(uR);
       
       const admins = allUsers.filter((u: any) => {
-        const r = (u.role || '').toLowerCase().trim();
-        return ['admin', 'sub_admin', 'city_manager', 'hr', 'mis', 'warehouse_manager', 'client', 'super_admin', 'sub-admin'].includes(r);
+        const r = (u.role || '').toLowerCase().trim().replace(/-/g, '_');
+        return ['admin', 'sub_admin', 'city_manager', 'hr', 'mis', 'warehouse_manager', 'client', 'super_admin'].includes(r);
       });
       
       setUsers(admins);
@@ -118,12 +119,46 @@ export default function SettingsPage() {
     }, 600);
   };
 
-  const handleAddUser = async () => {
-    if(!form.name || !form.email) return;
+  const handleEditClick = (u: any) => {
+    setEditMode(u.id);
+    setForm({
+      name: u.name || '',
+      email: u.email || '',
+      role: u.role || 'sub_admin',
+      password: '', // Hidden/Unchanged by default
+      mobile: u.mobile || '',
+      employee_id: u.employee_id || '',
+      zone_id: u.zone_id || '',
+      city: u.city || '',
+      client_id: u.client_id || '',
+      permissions: u.permissions || [],
+      assigned_cities: u.assigned_cities || []
+    });
+    setShowAdd(true);
+  };
+
+  const handleSaveUser = async () => {
+    if(!form.name || !form.mobile) return;
     setSaving(true);
     try {
-      await api.post('/api/v1/users', { ...form, is_active: true });
+      const payload = { 
+        ...form, 
+        // Sync email if blank
+        email: form.email || `${form.mobile}@kinematic.app`,
+        is_active: true 
+      };
+
+      if (editMode) {
+        await api.patch(`/api/v1/users/${editMode}`, { 
+          ...payload, 
+          app_password: form.password || undefined 
+        });
+      } else {
+        await api.post('/api/v1/users', payload);
+      }
+      
       setShowAdd(false);
+      setEditMode(null);
       setForm({
         name: '', email: '', role: 'sub_admin', password: '', 
         mobile: '', employee_id: '', zone_id: '', city: '',
@@ -132,11 +167,12 @@ export default function SettingsPage() {
       });
       fetchData();
     } catch (err: any) {
-      alert(err.message || 'Failed to add user');
+      alert(err.message || 'Failed to save user');
     } finally {
       setSaving(false);
     }
   };
+
 
   const handleUpdateUser = async (u: AuthUser) => {
     try {
@@ -266,14 +302,12 @@ export default function SettingsPage() {
                     </div>
                   </div>
 
-                  <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 20, marginBottom: 20 }}>
+                    <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 20, marginBottom: 20 }}>
                     <div style={{ fontSize: 12, fontWeight: 800, color: C.white, marginBottom: 12, fontFamily: "'Syne', sans-serif" }}>Module Permissions (Pre-filled based on role)</div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
                       {[
-                        {id: 'analytics', l: 'Analytics'}, {id: 'attendance', l: 'Attendance'}, {id: 'route_plan', l: 'Route Plan'},
-                        {id: 'work_activities', l: 'Work Activities'}, {id: 'manpower', l: 'Manpower'}, {id: 'visit_logs', l: 'Visit Logs'},
-                        {id: 'inventory', l: 'Inventory'}, {id: 'grievances', l: 'Grievances'}, {id: 'form_builder', l: 'Form Builder'},
-                        {id: 'admin', l: 'Resources'}, {id: 'broadcast', l: 'Broadcast'}
+                        {id: 'analytics', l: 'Analytics'}, {id: 'users', l: 'Users'}, 
+                        {id: 'inventory', l: 'Inventory'}, {id: 'reports', l: 'Reports'}
                       ].map(m => (
                         <label key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, background: C.s4, padding: '8px 12px', borderRadius: 8, cursor: 'pointer', border: `1px solid ${form.permissions.includes(m.id) ? C.blue : C.border}`, transition: 'all 0.2s' }}>
                           <input type="checkbox" checked={form.permissions.includes(m.id)} 
@@ -307,9 +341,9 @@ export default function SettingsPage() {
                   )}
 
                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
-                    <button onClick={()=>setShowAdd(false)} style={{ background: 'transparent', border: `1px solid ${C.border}`, color: C.gray, padding: '10px 20px', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
-                    <button onClick={handleAddUser} disabled={saving} style={{ background: C.red, border: 'none', color: '#fff', padding: '10px 24px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer' }}>
-                      {saving ? 'Saving...' : 'Save Administrator'}
+                    <button onClick={()=>{ setShowAdd(false); setEditMode(null); }} style={{ background: 'transparent', border: `1px solid ${C.border}`, color: C.gray, padding: '10px 20px', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
+                    <button onClick={handleSaveUser} disabled={saving} style={{ background: C.red, border: 'none', color: '#fff', padding: '10px 24px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer' }}>
+                      {saving ? 'Saving...' : editMode ? 'Update Administrator' : 'Save Administrator'}
                     </button>
                   </div>
                 </div>
@@ -342,7 +376,10 @@ export default function SettingsPage() {
                         {u.permissions?.length || 0} modules · {u.assigned_cities?.length ? `${u.assigned_cities.length} cities` : u.client_id ? `Client: ${clients.find(c => c.id === u.client_id)?.name || 'Unknown'}` : 'Global'}
                       </div>
                     </div>
-                    <div style={{ textAlign: 'right', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                    <div style={{ textAlign: 'right', display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+                      <button onClick={() => handleEditClick(u)} style={{ background: 'transparent', border: 'none', color: C.blue, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                        Edit
+                      </button>
                       <button onClick={() => handleUpdateUser(u)} style={{ background: 'transparent', border: 'none', color: u.is_active ? C.red : C.green, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
                         {u.is_active ? 'Revoke' : 'Unlock'}
                       </button>
