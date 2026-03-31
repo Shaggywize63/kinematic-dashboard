@@ -5,11 +5,11 @@ import CitySelect from '@/components/CitySelect';
 import { AuthUser } from '@/types';
 
 const C = {
-  bg: '#070D18', s2: '#0E1420', s3: '#131B2A', s4: '#1A2438',
-  border: '#1E2D45', borderL: '#253650',
-  white: '#E8EDF8', gray: '#7A8BA0', grayd: '#2E445E',
-  red: '#E01E2C', redD: 'rgba(224,30,44,0.08)', redB: 'rgba(224,30,44,0.20)',
-  green: '#00D97E', blue: '#3E9EFF',
+  bg: 'var(--bg)', s1: 'var(--s1)', s2: 'var(--s2)', s3: 'var(--s3)', s4: 'var(--s4)',
+  border: 'var(--border)', borderL: 'var(--border-l)',
+  white: 'var(--text)', gray: 'var(--text-dim)', grayd: 'var(--text-dim)',
+  red: 'var(--primary)', redD: 'rgba(224,30,44,0.08)', redB: 'rgba(224,30,44,0.20)',
+  green: 'var(--green)', blue: 'var(--accent)',
 };
 
 const ROLE_DEFAULTS: Record<string, string[]> = {
@@ -22,25 +22,47 @@ const ROLE_DEFAULTS: Record<string, string[]> = {
 };
 
 export default function SettingsPage() {
-  const [radius, setRadius] = useState(100);
-  const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<'users'|'pref'>('users');
-  const [theme, setTheme] = useState<'dark'|'light'>('dark');
-
   const [users, setUsers] = useState<AuthUser[]>([]);
-  const [zones, setZones] = useState<any[]>([]);
   const [cities, setCities] = useState<any[]>([]);
+  const [zones, setZones] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  
+  const [saving, setSaving] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
-  
+  const [activeTab, setActiveTab] = useState<'users'|'rules'|'pref'>('users');
+  const [theme, setTheme] = useState<'dark'|'light'>('dark');
+  const [radius, setRadius] = useState(100);
+  const [error, setError] = useState('');
+
+  // NEW: System Settings Hooks
+  const [opsRules, setOpsRules] = useState({
+    shiftStart: '09:00',
+    shiftEnd: '18:00',
+    gracePeriod: 15,
+    autoCheckout: 12,
+    minAppVersion: '1.2.0',
+    gpsAccuracy: 50,
+    orgName: 'Hindustan Field Co.',
+    orgSupport: 'support@kinematic.com'
+  });
+
   const [form, setForm] = useState({
     name: '', email: '', role: 'sub_admin', password: '', 
     mobile: '', employee_id: '', zone_id: '', city: '',
     permissions: ROLE_DEFAULTS['sub_admin'],
     assigned_cities: [] as string[]
   });
+
+  // Sync Theme Initial State
+  useEffect(() => {
+    const saved = localStorage.getItem('kinematic-theme') as 'dark'|'light' || 'dark';
+    setTheme(saved);
+  }, []);
+
+  const toggleTheme = (t: 'dark'|'light') => {
+    setTheme(t);
+    document.documentElement.setAttribute('data-theme', t);
+    localStorage.setItem('kinematic-theme', t);
+  };
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -133,11 +155,11 @@ export default function SettingsPage() {
         <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 16, padding: 32 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
-              <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 18, fontWeight: 800, marginBottom: 8 }}>Geofence Management</div>
-              <div style={{ fontSize: 14, color: C.gray, marginBottom: 24 }}>Set the global allowed deviation radius for field tracking and meetings.</div>
+              <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 18, fontWeight: 800, marginBottom: 8 }}>Operational Environment</div>
+              <div style={{ fontSize: 14, color: C.gray, marginBottom: 24 }}>Manage organization-wide rules, shift timings, and mobile app behavior.</div>
             </div>
-            <button onClick={handleSaveSettings} style={{ background: C.s3, border: `1px solid ${C.border}`, color: C.white, padding: '10px 20px', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'all .15s' }}>
-              {saving ? 'Saving...' : 'Save Settings'}
+            <button onClick={handleSaveSettings} disabled={saving} style={{ background: C.red, border: 'none', color: '#fff', padding: '10px 24px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', transition: 'all .15s', boxShadow: `0 4px 12px rgba(224,30,44,0.2)` }}>
+              {saving ? 'Saving...' : 'Save Global Changes'}
             </button>
           </div>
           
@@ -162,8 +184,9 @@ export default function SettingsPage() {
           </div>
 
           <div style={{ display: 'flex', gap: 8, marginBottom: 24, borderBottom: `1px solid ${C.border}`, paddingBottom: 16 }}>
-            <button onClick={() => setActiveTab('users')} style={{ background: activeTab === 'users' ? C.s4 : 'transparent', color: activeTab === 'users' ? C.white : C.gray, border: `1px solid ${activeTab === 'users' ? C.border : 'transparent'}`, padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>User Directory</button>
-            <button onClick={() => setActiveTab('pref')} style={{ background: activeTab === 'pref' ? C.s4 : 'transparent', color: activeTab === 'pref' ? C.white : C.gray, border: `1px solid ${activeTab === 'pref' ? C.border : 'transparent'}`, padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>System Preferences</button>
+            <button onClick={() => setActiveTab('users')} style={{ background: activeTab === 'users' ? C.s4 : 'transparent', color: activeTab === 'users' ? C.white : C.gray, border: `1px solid ${activeTab === 'users' ? C.border : 'transparent'}`, padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'all .15s' }}>User Directory</button>
+            <button onClick={() => setActiveTab('rules')} style={{ background: activeTab === 'rules' ? C.s4 : 'transparent', color: activeTab === 'rules' ? C.white : C.gray, border: `1px solid ${activeTab === 'rules' ? C.border : 'transparent'}`, padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'all .15s' }}>Operational Rules</button>
+            <button onClick={() => setActiveTab('pref')} style={{ background: activeTab === 'pref' ? C.s4 : 'transparent', color: activeTab === 'pref' ? C.white : C.gray, border: `1px solid ${activeTab === 'pref' ? C.border : 'transparent'}`, padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'all .15s' }}>System Preferences</button>
           </div>
 
           {activeTab === 'users' && (
@@ -300,23 +323,108 @@ export default function SettingsPage() {
           )}
 
           {activeTab === 'pref' && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 20 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 24 }}>
+              {/* Interface Appearance */}
               <div style={{ background: C.s3, border: `1px solid ${C.border}`, borderRadius: 12, padding: 24 }}>
                 <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 16, fontWeight: 800, marginBottom: 8 }}>Interface Appearance</div>
-                <div style={{ fontSize: 13, color: C.gray, marginBottom: 20 }}>Choose your preferred dashboard theme color.</div>
+                <div style={{ fontSize: 13, color: C.gray, marginBottom: 20 }}>Toggle between dark and light themes for the dashboard.</div>
                 <div style={{ display: 'flex', gap: 12 }}>
-                  <button onClick={() => setTheme('dark')} style={{ flex: 1, padding: '14px', borderRadius: 10, background: theme === 'dark' ? C.s4 : 'transparent', border: `1px solid ${theme === 'dark' ? C.blue : C.border}`, cursor: 'pointer' }}>
+                  <button onClick={() => toggleTheme('dark')} style={{ flex: 1, padding: '14px', borderRadius: 10, background: theme === 'dark' ? C.s4 : 'transparent', border: `1px solid ${theme === 'dark' ? C.blue : C.border}`, cursor: 'pointer', transition: 'all .2s' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-                      <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#0D1117', border: '2px solid #30363d', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>🌙</div>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: theme === 'dark' ? C.white : C.gray }}>Dark Mode</span>
+                      <div style={{ width: 44, height: 44, borderRadius: '50%', background: '#0D1117', border: `2px solid ${theme === 'dark' ? C.blue : '#30363d'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>🌙</div>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: theme === 'dark' ? C.white : C.gray }}>Dark Theme</span>
                     </div>
                   </button>
-                  <button onClick={() => setTheme('light')} style={{ flex: 1, padding: '14px', borderRadius: 10, background: theme === 'light' ? C.s4 : 'transparent', border: `1px solid ${theme === 'light' ? C.blue : C.border}`, cursor: 'pointer' }}>
+                  <button onClick={() => toggleTheme('light')} style={{ flex: 1, padding: '14px', borderRadius: 10, background: theme === 'light' ? C.s4 : 'transparent', border: `1px solid ${theme === 'light' ? C.blue : C.border}`, cursor: 'pointer', transition: 'all .2s' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-                      <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#ffffff', border: '2px solid #e1e4e8', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>☀️</div>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: theme === 'light' ? C.white : C.gray }}>Light Mode</span>
+                      <div style={{ width: 44, height: 44, borderRadius: '50%', background: '#ffffff', border: `2px solid ${theme === 'light' ? C.blue : '#e1e4e8'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>☀️</div>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: theme === 'light' ? C.white : C.gray }}>Light Theme</span>
                     </div>
                   </button>
+                </div>
+              </div>
+
+              {/* Organization Profile */}
+              <div style={{ background: C.s3, border: `1px solid ${C.border}`, borderRadius: 12, padding: 24 }}>
+                <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 16, fontWeight: 800, marginBottom: 8 }}>Organization Details</div>
+                <div style={{ fontSize: 13, color: C.gray, marginBottom: 20 }}>Basic information about your Kinematic enterprise.</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: C.gray, textTransform: 'uppercase', marginBottom: 8 }}>Entity Name</label>
+                    <input value={opsRules.orgName} onChange={e=>setOpsRules({...opsRules, orgName: e.target.value})} style={{ width: '100%', background: C.s2, border: `1px solid ${C.border}`, padding: '10px 14px', borderRadius: 8, color: C.white, fontSize: 13, outline: 'none' }} />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: C.gray, textTransform: 'uppercase', marginBottom: 8 }}>Primary Support Email</label>
+                    <input value={opsRules.orgSupport} onChange={e=>setOpsRules({...opsRules, orgSupport: e.target.value})} style={{ width: '100%', background: C.s2, border: `1px solid ${C.border}`, padding: '10px 14px', borderRadius: 8, color: C.white, fontSize: 13, outline: 'none' }} />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'rules' && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 24 }}>
+              {/* Attendance & Shift Rules */}
+              <div style={{ background: C.s3, border: `1px solid ${C.border}`, borderRadius: 12, padding: 24 }}>
+                <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 16, fontWeight: 800, marginBottom: 20 }}>Attendance & Operational Rules</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: C.gray, textTransform: 'uppercase', marginBottom: 8 }}>Shift Start</label>
+                      <input type="time" value={opsRules.shiftStart} onChange={e=>setOpsRules({...opsRules, shiftStart: e.target.value})} style={{ width: '100%', background: C.s2, border: `1px solid ${C.border}`, padding: '10px 12px', borderRadius: 8, color: C.white, fontSize: 13 }} />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: C.gray, textTransform: 'uppercase', marginBottom: 8 }}>Shift End</label>
+                      <input type="time" value={opsRules.shiftEnd} onChange={e=>setOpsRules({...opsRules, shiftEnd: e.target.value})} style={{ width: '100%', background: C.s2, border: `1px solid ${C.border}`, padding: '10px 12px', borderRadius: 8, color: C.white, fontSize: 13 }} />
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                      <label style={{ fontSize: 11, fontWeight: 700, color: C.gray, textTransform: 'uppercase' }}>Late Grace Period</label>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: C.blue }}>{opsRules.gracePeriod} min</span>
+                    </div>
+                    <input type="range" min="0" max="60" step="5" value={opsRules.gracePeriod} onChange={e=>setOpsRules({...opsRules, gracePeriod: Number(e.target.value)})} style={{ width: '100%', accentColor: C.blue }} />
+                  </div>
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                      <label style={{ fontSize: 11, fontWeight: 700, color: C.gray, textTransform: 'uppercase' }}>Auto Checkout Threshold</label>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: C.blue }}>{opsRules.autoCheckout} hrs</span>
+                    </div>
+                    <input type="range" min="4" max="24" step="1" value={opsRules.autoCheckout} onChange={e=>setOpsRules({...opsRules, autoCheckout: Number(e.target.value)})} style={{ width: '100%', accentColor: C.blue }} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Mobile App Configuration */}
+              <div style={{ background: C.s3, border: `1px solid ${C.border}`, borderRadius: 12, padding: 24 }}>
+                <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 16, fontWeight: 800, marginBottom: 20 }}>Mobile App Parameters</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: C.gray, textTransform: 'uppercase', marginBottom: 8 }}>Min Required App Version</label>
+                    <input value={opsRules.minAppVersion} onChange={e=>setOpsRules({...opsRules, minAppVersion: e.target.value})} placeholder="e.g. 1.2.0" style={{ width: '100%', background: C.s2, border: `1px solid ${C.border}`, padding: '10px 14px', borderRadius: 8, color: C.white, fontSize: 13, outline: 'none' }} />
+                    <div style={{ fontSize: 10, color: C.grayd, marginTop: 6 }}>Users with versions lower than this will be prompted to update.</div>
+                  </div>
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                      <label style={{ fontSize: 11, fontWeight: 700, color: C.gray, textTransform: 'uppercase' }}>GPS Accuracy Requirement</label>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: C.green }}>{opsRules.gpsAccuracy}m</span>
+                    </div>
+                    <input type="range" min="10" max="200" step="10" value={opsRules.gpsAccuracy} onChange={e=>setOpsRules({...opsRules, gpsAccuracy: Number(e.target.value)})} style={{ width: '100%', accentColor: C.green }} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Tracking Sensitivity */}
+              <div style={{ background: C.s3, border: `1px solid ${C.border}`, borderRadius: 12, padding: 24 }}>
+                <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 16, fontWeight: 800, marginBottom: 12 }}>Tracking Precision</div>
+                <div style={{ fontSize: 13, color: C.gray, marginBottom: 20 }}>Set the deviation radius for field activity validation.</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: C.gray, textTransform: 'uppercase' }}>Visit Geofence Radius</span>
+                    <span style={{ fontSize: 16, fontFamily: "'Syne', sans-serif", fontWeight: 800, color: C.red }}>{radius} m</span>
+                  </div>
+                  <input type="range" min="20" max="200" value={radius} onChange={e => setRadius(Number(e.target.value))} style={{ width: '100%', accentColor: C.red, cursor: 'pointer' }} />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, fontSize: 10, color: C.grayd, fontWeight: 600 }}><span>20 m</span><span>200 m</span></div>
                 </div>
               </div>
             </div>

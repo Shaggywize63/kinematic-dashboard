@@ -6,7 +6,17 @@ import {
   ResponsiveContainer, AreaChart, Area
 } from 'recharts';
 
-const C = { red:'#E01E2C',green:'#00D97E',yellow:'#FFB800',blue:'#3E9EFF',purple:'#9B6EFF',gray:'#7A8BA0',grayd:'#2E445E',s2:'#131B2A',border:'#1E2D45' };
+const C = { 
+  red: 'var(--primary)', 
+  green: 'var(--green)', 
+  yellow: '#FFB800', 
+  blue: 'var(--accent)', 
+  purple: '#9B6EFF', 
+  gray: 'var(--text-dim)', 
+  grayd: 'var(--text-dim)', 
+  s1: 'var(--s1)', s2: 'var(--s2)', s3: 'var(--s3)',
+  border: 'var(--border)' 
+};
 
 interface SummaryData {
   total_tff?: number;
@@ -74,7 +84,7 @@ function ContactActivityHeatmap({ data, loading }: { data: HeatmapResponse | nul
   const isEmpty = !loading && (rows.length === 0 || totalContacts === 0);
 
   return (
-    <div style={{ background:'#0E1420', border:`1px solid ${C.border}`, borderRadius:16, padding:24 }}>
+    <div style={{ background:C.s1, border:`1px solid ${C.border}`, borderRadius:16, padding:24 }}>
       <style>{`
         .heatmap-cell:hover {
           transform: scale(1.15);
@@ -298,7 +308,7 @@ export default function AnalyticsPage() {
       {/* KPIs */}
       <div style={{ display:'grid', gridTemplateColumns:`repeat(${kpis.length},1fr)`, gap:14 }}>
         {kpis.map(s => (
-          <div key={s.l} style={{ background:'#0E1420', border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
+          <div key={s.l} style={{ background:C.s1, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
             <div style={{ fontSize:12, color:C.gray, marginBottom:10 }}>{s.l}</div>
             <div style={{ fontFamily:"'Syne',sans-serif", fontSize:28, fontWeight:800, color:s.c }}>
               {loading ? '—' : s.v}
@@ -308,7 +318,7 @@ export default function AnalyticsPage() {
       </div>
 
       {/* TFF Trend Chart */}
-      <div style={{ background:'#0E1420', border:`1px solid ${C.border}`, borderRadius:16, padding:24 }}>
+      <div style={{ background:C.s1, border:`1px solid ${C.border}`, borderRadius:16, padding:24 }}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
           <div>
             <div style={{ fontFamily:"'Syne',sans-serif", fontSize:15, fontWeight:700 }}>TFF Trend</div>
@@ -349,7 +359,7 @@ export default function AnalyticsPage() {
 
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
         {/* Top performers */}
-        <div style={{ background:'#0E1420', border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
+        <div style={{ background:C.s1, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
           <div style={{ fontFamily:"'Syne',sans-serif", fontSize:14, fontWeight:700, marginBottom:16 }}>Top Performers</div>
           {loading ? (
             <div style={{ padding:24, textAlign:'center', color:C.grayd, fontSize:13 }}>Loading...</div>
@@ -377,7 +387,7 @@ export default function AnalyticsPage() {
         </div>
 
         {/* Zone breakdown */}
-        <div style={{ background:'#0E1420', border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
+        <div style={{ background:C.s1, border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
           <div style={{ fontFamily:"'Syne',sans-serif", fontSize:14, fontWeight:700, marginBottom:16 }}>Zone Breakdown</div>
           {loading ? (
             <div style={{ padding:24, textAlign:'center', color:C.grayd, fontSize:13 }}>Loading...</div>
@@ -454,7 +464,7 @@ export default function AnalyticsPage() {
           badge?: { label: string; color: string }
         ) => (
           <div style={{
-            background:'#0E1420', border:`1px solid ${C.border}`, borderRadius:16,
+            background:C.s1, border:`1px solid ${C.border}`, borderRadius:16,
             padding:20, display:'flex', flexDirection:'column', gap:10,
           }}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>

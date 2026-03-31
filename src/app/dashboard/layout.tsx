@@ -6,18 +6,18 @@ import { getStoredUser, isSessionValid, clearSession, getRoleLabel } from '@/lib
 import api from '@/lib/api';
 
 const C = {
-  bg: '#060910', 
-  side: 'rgba(14, 20, 32, 0.72)', 
-  border: 'rgba(30, 45, 69, 0.5)', 
-  borderL: 'rgba(255, 255, 255, 0.08)',
-  white: '#E8EDF8', 
-  gray: '#7A8BA0', 
-  grayd: '#2E445E',
-  red: '#E01E2C', 
+  bg: 'var(--bg)', 
+  side: 'var(--s1)', 
+  border: 'var(--border)', 
+  borderL: 'var(--border-l)',
+  white: 'var(--text)', 
+  gray: 'var(--text-dim)', 
+  grayd: 'var(--text-dim)',
+  red: 'var(--primary)', 
   redD: 'rgba(224,30,44,0.12)', 
   redB: 'rgba(224,30,44,0.2)',
-  s2: '#0E1420', s3: '#131B2A', s4: '#1A2438',
-  green: '#00D97E', blue: '#3E9EFF',
+  s1: 'var(--s1)', s2: 'var(--s2)', s3: 'var(--s3)', s4: 'var(--s4)',
+  green: 'var(--green)', blue: 'var(--accent)',
 };
 
 function Icon({ d, size = 18 }: { d: string; size?: number }) {
@@ -308,7 +308,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     setUserName(u.name || u.email || 'Admin');
     setUserRole(u.role || '');
     setUserPerms(u.permissions || []);
-    if (typeof window !== 'undefined') setToken(localStorage.getItem('kinematic_token') || '');
+    if (typeof window !== 'undefined') {
+      const savedTheme = localStorage.getItem('kinematic-theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', savedTheme);
+      setToken(localStorage.getItem('kinematic_token') || '');
+    }
     if (pathname.startsWith('/dashboard/other-management')) setOtherOpen(true);
   }, [pathname, router]);
 

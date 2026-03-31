@@ -8,18 +8,51 @@
 :root {
   --font-syne: 'Syne', sans-serif;
   --font-dm-sans: 'DM Sans', sans-serif;
+  
+  /* Dark Mode (Default) */
+  --bg: #070D18;
+  --s1: #0A0F1D;
+  --s2: #0E1420;
+  --s3: #131B2A;
+  --s4: #1A2438;
+  --border: #1E2D45;
+  --border-l: #253650;
+  --text: #E8EDF8;
+  --text-dim: #7A8BA0;
+  --primary: #E01E2C;
+  --accent: #3E9EFF;
+  --green: #00D97E;
+  
   color-scheme: dark;
+}
+
+[data-theme="light"] {
+  --bg: #F8FAFC;
+  --s1: #FFFFFF;
+  --s2: #FFFFFF;
+  --s3: #F1F5F9;
+  --s4: #E2E8F0;
+  --border: #E2E8F0;
+  --border-l: #CBD5E1;
+  --text: #0F172A;
+  --text-dim: #64748B;
+  --primary: #E01E2C;
+  --accent: #1D5BBF;
+  --green: #059669;
+  
+  color-scheme: light;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
 
 html, body {
   height: 100%;
-  background: #080B12;
-  color: #E8EDF8;
+  background: var(--bg);
+  color: var(--text);
   font-family: var(--font-dm-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 ::-webkit-scrollbar { width: 4px; height: 4px; }
