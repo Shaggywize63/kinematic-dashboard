@@ -26,9 +26,9 @@ const C = {
 const MODULES = [
   { id: 'analytics',       label: 'Analytics & Tracking' },
   { id: 'attendance',      label: 'Attendance' },
-  { id: 'route_plan',      label: 'Route Planning (Orders)' },
+  { id: 'orders',          label: 'Route Planning (Orders)' },
   { id: 'work_activities', label: 'Work Activities' },
-  { id: 'manpower',        label: 'Manpower & HR' },
+  { id: 'users',           label: 'Manpower & HR' },
   { id: 'visit_logs',      label: 'Visit Logs' },
   { id: 'inventory',       label: 'Warehouse & Inventory' },
   { id: 'grievances',      label: 'Grievance Management' },
