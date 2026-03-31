@@ -36,7 +36,7 @@ const MODULES = [
   { id: 'broadcast',       label: 'Broadcasts' },
 ];
 
-const BLANK = { name: '', contact_person: '', email: '', phone: '', is_active: true, modules: [] as string[] };
+const BLANK = { name: '', contact_person: '', email: '', phone: '', password: '', is_active: true, modules: [] as string[] };
 
 const Spinner = () => <div style={{ width: 15, height: 15, border: '2.5px solid rgba(255,255,255,0.18)', borderTopColor: '#fff', borderRadius: '50%', animation: 'kspin .65s linear infinite', flexShrink: 0 }} />;
 const Label = ({ t, req }: { t: string; req?: boolean }) => <div style={{ fontSize: 11, fontWeight: 700, color: C.gray, letterSpacing: '0.7px', textTransform: 'uppercase', marginBottom: 7 }}>{t}{req && <span style={{ color: C.red }}> *</span>}</div>;
@@ -72,7 +72,7 @@ export default function ClientManagement() {
   useEffect(() => { load(); }, [load]);
 
   const openAdd = () => { setEditing(null); setForm({ ...BLANK }); setFErr(''); setShowModal(true); };
-  const openEdit = (c: Client) => { setEditing(c); setForm({ name: c.name, contact_person: c.contact_person || '', email: c.email || '', phone: c.phone || '', is_active: c.is_active, modules: c.modules || [] }); setFErr(''); setShowModal(true); };
+  const openEdit = (c: Client) => { setEditing(c); setForm({ name: c.name, contact_person: c.contact_person || '', email: c.email || '', phone: c.phone || '', password: '', is_active: c.is_active, modules: c.modules || [] }); setFErr(''); setShowModal(true); };
 
   const save = async () => {
     if (!form.name.trim()) { setFErr('Client name is required'); return; }
@@ -196,9 +196,9 @@ export default function ClientManagement() {
               <div><Label t="Phone" /><input style={inp} placeholder="+91..." value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))} /></div>
             </div>
 
-            <div style={{ marginBottom: 24 }}>
-              <Label t="Email Address" />
-              <input style={inp} placeholder="client@example.com" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
+              <div><Label t="Email Address" /><input style={inp} placeholder="client@example.com" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} /></div>
+              <div><Label t="Login Password" req={!editing} /><input type="password" style={inp} placeholder={editing ? "(Unchanged)" : "Create password"} value={form.password} onChange={e => setForm(p => ({ ...p, password: e.target.value }))} /></div>
             </div>
 
             <div style={{ marginBottom: 28 }}>
