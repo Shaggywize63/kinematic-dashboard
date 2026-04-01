@@ -152,6 +152,18 @@ class ApiClient {
     return this.get(`/api/v1/users${qs}`);
   }
   getZones() { return this.get('/api/v1/zones'); }
+  getCities(params?: Record<string, string>) {
+    const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+    return this.get(`/api/v1/cities${qs}`);
+  }
+  getStores(params?: Record<string, string>) {
+    const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+    return this.get(`/api/v1/stores${qs}`);
+  }
+  getActivities(params?: Record<string, string>) {
+    const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+    return this.get(`/api/v1/activities${qs}`);
+  }
 }
 
 export const api = new ApiClient(API_URL);

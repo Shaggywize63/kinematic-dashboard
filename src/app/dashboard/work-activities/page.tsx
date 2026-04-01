@@ -366,9 +366,9 @@ export default function WorkActivitiesPage() {
   const LIMIT = 25;
 
   useEffect(() => {
-    api.get<any>('/api/v1/admin/users?limit=500').then((r: any) => setUsers(Array.isArray(r) ? r : (r?.data ?? r?.users ?? []))).catch(() => {});
-    api.get<any>('/api/v1/admin/cities?limit=200').then((r: any) => setCities(Array.isArray(r) ? r : (r?.data ?? r?.cities ?? []))).catch(() => {});
-    api.get<any>('/api/v1/admin/zones?limit=500').then((r: any) => setZones(Array.isArray(r) ? r : (r?.data ?? r?.zones ?? []))).catch(() => {});
+    api.getUsers({ limit: '500' }).then((r: any) => setUsers(Array.isArray(r) ? r : (r?.data ?? r?.users ?? []))).catch(() => {});
+    api.getCities({ limit: '200' }).then((r: any) => setCities(Array.isArray(r) ? r : (r?.data ?? r?.cities ?? []))).catch(() => {});
+    api.getZones().then((r: any) => setZones(Array.isArray(r) ? r : (r?.data ?? r?.zones ?? []))).catch(() => {});
   }, []);
 
   const buildParams = useCallback((page: number) => {
