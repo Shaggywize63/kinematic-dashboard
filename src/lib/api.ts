@@ -28,6 +28,9 @@ class ApiClient {
     };
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
+    const orgId = this.getOrgId();
+    if (orgId && !headers['X-Org-Id']) headers['X-Org-Id'] = orgId;
+
     const res = await fetch(`${this.baseUrl}${path}`, { ...options, headers });
 
     if (res.status === 401) throw new Error('Unauthorized');

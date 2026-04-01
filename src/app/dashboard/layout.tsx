@@ -322,7 +322,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   // RBAC Filter
   const filterNav = (items: any[]) => {
-    const isAdmin = ['super_admin', 'admin'].includes(userRole);
+    const isAdmin = ['super_admin', 'admin', 'main_admin'].includes(userRole);
     if (isAdmin) return items;
     
     // For Clients, they only see modules explicitly assigned to them + the dashboard
