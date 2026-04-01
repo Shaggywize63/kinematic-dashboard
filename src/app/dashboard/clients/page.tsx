@@ -1,7 +1,23 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
-import api from '@/lib/api';
 import { Client } from '@/types';
+
+// Uses the Next.js proxy routes (/api/v1/clients) which seed the modules table
+// before forwarding to the Supabase edge function, preventing FK constraint errors.
+async function clientsFetch(method: string, path: string, body?: unknown) {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('kinematic_token') : null;
+  const res = await fetch(path, {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+  });
+  const data = await res.json();
+  if (!res.ok) throw { response: { data } };
+  return data;
+}
 
 const C = {
   bg: 'var(--bg)', 
@@ -72,7 +88,7 @@ export default function ClientManagement() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await api.get<any>('/api/v1/clients');
+      const r = await clientsFetch('GET', '/api/v1/clients');
       const d = Array.isArray(r?.data?.data) ? r.data.data : Array.isArray(r?.data) ? r.data : [];
       setClients(d); setErr('');
     } catch (e: any) { setErr(e.message || 'Failed to load clients'); }
@@ -88,8 +104,8 @@ export default function ClientManagement() {
     if (!form.name.trim()) { setFErr('Client name is required'); return; }
     setSaving(true); setFErr('');
     try {
-      if (editing) await api.patch(`/api/v1/clients/${editing.id}`, form);
-      else await api.post('/api/v1/clients', form);
+      if (editing) await clientsFetch('PATCH', `/api/v1/clients/${editing.id}`, form);
+      else await clientsFetch('POST', '/api/v1/clients', form);
       setShowModal(false); load();
     } catch (e: any) { setFErr(e.response?.data?.error || e.message || 'Save failed'); }
     finally { setSaving(false); }
