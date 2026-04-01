@@ -1,6 +1,8 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import api from '@/lib/api';
+import ClientSelect from '@/components/ClientSelect';
+import { useAuth } from '@/hooks/useAuth';
 
 const C = {
   bg: 'var(--bg)', 
@@ -39,6 +41,7 @@ interface Activity {
   is_active:boolean; 
   is_geofenced?:boolean; 
   geofence_radius?:number; 
+  client_id?:string;
 }
 const BLANK = { 
   name:'', 
@@ -48,7 +51,8 @@ const BLANK = {
   color:'#3E9EFF', 
   is_active:true, 
   is_geofenced:false, 
-  geofence_radius:100 
+  geofence_radius:100,
+  client_id: '',
 };
 const ACT_TYPES = [{v:'GT',l:'GT Activity'},{v:'MT',l:'MT Activity'},{v:'VISIT',l:'Store Visit'},{v:'SAMPLING',l:'Sampling'},{v:'DEMO',l:'Demo'},{v:'SURVEY',l:'Survey'},{v:'OTHER',l:'Other'}];
 const ICONS = ['⚡','🎯','📋','🏪','🤝','📊','🛍️','💡','📦','🔍','✅','🎉'];
@@ -71,6 +75,8 @@ const TypeBadge = ({t}:{t?:string}) => {
 
 export default function ActivityManagement() {
   const [acts, setActs] = useState<Activity[]>([]);
+  const { user } = useAuth();
+  const isPlatformAdmin = user?.role === 'super_admin' || user?.role === 'admin';
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
   const [search, setSearch] = useState('');
@@ -103,7 +109,8 @@ export default function ActivityManagement() {
       color:a.color||'#3E9EFF', 
       is_active:a.is_active,
       is_geofenced:a.is_geofenced ?? false,
-      geofence_radius:a.geofence_radius ?? 100
+      geofence_radius:a.geofence_radius ?? 100,
+      client_id: a.client_id || '',
     });
     setFErr(''); setShowModal(true);
   };
@@ -119,7 +126,8 @@ export default function ActivityManagement() {
       color:form.color||null, 
       is_active:form.is_active,
       is_geofenced:form.is_geofenced,
-      geofence_radius:form.geofence_radius
+      geofence_radius:form.geofence_radius,
+      client_id:form.client_id||null
     };
     try {
       if(editing) await api.patch(`/api/v1/activities/${editing.id}`, payload);
@@ -273,6 +281,15 @@ export default function ActivityManagement() {
               </div>
               <span style={{fontSize:13,color:C.gray}}>Active</span>
             </div>
+            {isPlatformAdmin && (
+              <div style={{marginBottom:24}}>
+                <Label t="Client Organization" req/>
+                <ClientSelect 
+                  value={form.client_id || ''} 
+                  onChange={(id) => setForm(p => ({ ...p, client_id: id }))} 
+                />
+              </div>
+            )}
             <div style={{display:'flex',gap:10}}>
               <button onClick={()=>setShowModal(false)} style={{flex:1,padding:'11px',border:`1px solid ${C.border}`,borderRadius:11,background:'transparent',color:C.gray,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>Cancel</button>
               <button onClick={save} disabled={saving} style={{flex:1,padding:'11px',border:'none',borderRadius:11,background:C.red,color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:8,fontFamily:"'DM Sans',sans-serif",opacity:saving?0.7:1}}>

@@ -2,6 +2,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '@/lib/api';
 import CitySelect from '@/components/CitySelect';
+import ClientSelect from '@/components/ClientSelect';
+import { useAuth } from '@/hooks/useAuth';
 
 const C = {
   bg: 'var(--bg)', 
@@ -48,6 +50,7 @@ interface Outlet {
   id:string; name:string; store_code?:string; owner_name?:string;
   phone?:string; address?:string; lat?:number; lng?:number;
   store_type?:string; is_active:boolean; zone_id?:string; city_id?:string;
+  client_id?:string;
   created_at?:string;
   zones?: { name:string };
   cities?: { name:string };
@@ -80,6 +83,8 @@ export default function OutletManagementPage() {
   const [outlets,  setOutlets]  = useState<Outlet[]>([]);
   const [zones,    setZones]    = useState<Zone[]>([]);
   const [cities,   setCities]   = useState<City[]>([]);
+  const { user } = useAuth();
+  const isPlatformAdmin = user?.role === 'super_admin' || user?.role === 'admin';
   const [loading,  setLoading]  = useState(true);
   const [error,    setError]    = useState<string|null>(null);
 
@@ -99,6 +104,7 @@ export default function OutletManagementPage() {
     name:'', store_code:'', owner_name:'', phone:'', address:'',
     store_type:'', zone_id:'', city_id:'', lat:'', lng:'',
     rating: 'good', remarks: '',
+    client_id: '',
   };
   const [form,    setForm]    = useState(emptyForm);
   const [saving,  setSaving]  = useState(false);
@@ -191,6 +197,7 @@ export default function OutletManagementPage() {
       zone_id: o.zone_id || '', city_id: o.city_id || '',
       lat: o.lat?.toString() || '', lng: o.lng?.toString() || '',
       rating: 'good', remarks: '',
+      client_id: o.client_id || '',
     });
     setSaveErr(null); setSaveOk(false); setFormErrs({});
     setShowEdit(true);
@@ -304,6 +311,15 @@ export default function OutletManagementPage() {
       <div style={{ gridColumn:'1 / -1' }}>{F('address', 'Address')}</div>
       {F('lat', 'Latitude (optional)', 'number')}
       {F('lng', 'Longitude (optional)', 'number')}
+      {isPlatformAdmin && (
+        <div style={{ gridColumn:'1 / -1' }}>
+          <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>Client Organization</div>
+          <ClientSelect 
+            value={form.client_id || ''} 
+            onChange={(id) => setForm(p => ({ ...p, client_id: id }))} 
+          />
+        </div>
+      )}
     </div>
   );
 

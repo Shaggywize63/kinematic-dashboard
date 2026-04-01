@@ -1,6 +1,8 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import api from '@/lib/api';
+import ClientSelect from '@/components/ClientSelect';
+import { useAuth } from '@/hooks/useAuth';
 
 const C = {
   bg: 'var(--bg)', 
@@ -29,8 +31,8 @@ const C = {
   orange: '#FF7A30'
 };
 
-interface Asset { id:string; name:string; asset_code?:string; category?:string; description?:string; quantity:number; unit?:string; is_active:boolean; }
-const BLANK = { name:'', asset_code:'', category:'', description:'', quantity:'0', unit:'pcs', is_active:true };
+interface Asset { id:string; name:string; asset_code?:string; category?:string; description?:string; quantity:number; unit?:string; is_active:boolean; client_id?:string; }
+const BLANK = { name:'', asset_code:'', category:'', description:'', quantity:'0', unit:'pcs', is_active:true, client_id:'' };
 const CATEGORIES = ['Display Stand','Promotional Material','Branding Kit','Sampling Kit','Demo Unit','Uniform','Equipment','Vehicle','Other'];
 const UNITS = ['pcs','set','kg','units','carton','box','pair'];
 
@@ -51,6 +53,8 @@ const CatColor = (cat?:string) => {
 
 export default function AssetManagement() {
   const [assets, setAssets] = useState<Asset[]>([]);
+  const { user } = useAuth();
+  const isPlatformAdmin = user?.role === 'super_admin' || user?.role === 'admin';
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
   const [search, setSearch] = useState('');
@@ -76,14 +80,14 @@ export default function AssetManagement() {
   const openAdd = () => { setEditing(null); setForm({...BLANK}); setFErr(''); setShowModal(true); };
   const openEdit = (a:Asset) => {
     setEditing(a);
-    setForm({ name:a.name, asset_code:a.asset_code||'', category:a.category||'', description:a.description||'', quantity:String(a.quantity), unit:a.unit||'pcs', is_active:a.is_active });
+    setForm({ name:a.name, asset_code:a.asset_code||'', category:a.category||'', description:a.description||'', quantity:String(a.quantity), unit:a.unit||'pcs', is_active:a.is_active, client_id:a.client_id||'' });
     setFErr(''); setShowModal(true);
   };
 
   const save = async () => {
     if(!form.name.trim()){setFErr('Asset name is required');return;}
     setSaving(true); setFErr('');
-    const payload:any = { name:form.name.trim(), asset_code:form.asset_code||null, category:form.category||null, description:form.description||null, quantity:parseInt(form.quantity)||0, unit:form.unit||'pcs', is_active:form.is_active };
+    const payload:any = { name:form.name.trim(), asset_code:form.asset_code||null, category:form.category||null, description:form.description||null, quantity:parseInt(form.quantity)||0, unit:form.unit||'pcs', is_active:form.is_active, client_id:form.client_id||null };
     try {
       if(editing) await api.patch(`/api/v1/assets/${editing.id}`, payload);
       else await api.post('/api/v1/assets', payload);
@@ -206,6 +210,15 @@ export default function AssetManagement() {
               <div><Label t="Quantity"/><input style={inp} type="number" min="0" placeholder="0" value={form.quantity} onChange={e=>setForm(p=>({...p,quantity:e.target.value}))}/></div>
               <div><Label t="Unit"/><select style={inp} value={form.unit} onChange={e=>setForm(p=>({...p,unit:e.target.value}))}>{UNITS.map(u=><option key={u} value={u}>{u}</option>)}</select></div>
               <div style={{gridColumn:'1/-1'}}><Label t="Description"/><textarea style={{...inp,resize:'none'}} rows={3} placeholder="Asset details, condition, notes..." value={form.description} onChange={e=>setForm(p=>({...p,description:e.target.value}))}/></div>
+              {isPlatformAdmin && (
+                <div style={{gridColumn:'1 / -1'}}>
+                  <Label t="Client Organization" req/>
+                  <ClientSelect 
+                    value={form.client_id || ''} 
+                    onChange={(id) => setForm(p => ({ ...p, client_id: id }))} 
+                  />
+                </div>
+              )}
             </div>
 
             {editing && (

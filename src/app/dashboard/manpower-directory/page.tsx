@@ -2,6 +2,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import api from '@/lib/api';
 import CitySelect from '@/components/CitySelect';
+import ClientSelect from '@/components/ClientSelect';
+import { useAuth } from '@/hooks/useAuth';
 import { fmtHrs } from '@/lib/utils';
 
 const C = {
@@ -46,6 +48,7 @@ interface FormData {
   zone_id: string; role: string; supervisor_id: string; joined_date: string; city: string;
   permissions: string[];
   assigned_cities: string[];
+  client_id?: string;
 }
 interface BulkRow {
   name: string; employee_id: string; mobile?: string; password?: string;
@@ -58,6 +61,7 @@ const EMPTY_FORM: FormData = {
   zone_id:'', role:'executive', supervisor_id:'', joined_date:'', city:'',
   permissions: [],
   assigned_cities: [],
+  client_id: '',
 };
 
 /* ── Helpers ── */
@@ -169,6 +173,9 @@ export default function ManpowerDirectoryPage() {
   const [bulkDone, setBulkDone] = useState(false);
   const [bulkErr,  setBulkErr]  = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
+  
+  const { user } = useAuth();
+  const isPlatformAdmin = user?.role === 'super_admin' || user?.role === 'admin';
 
   /* ── fetch ── */
   const fetchData = useCallback(async () => {
@@ -237,6 +244,7 @@ export default function ManpowerDirectoryPage() {
         role:form.role, employee_id:form.employee_id, zone_id:form.zone_id||undefined,
         supervisor_id:form.supervisor_id||undefined, joined_date:form.joined_date||undefined, city:form.city||undefined,
         permissions: form.permissions, assigned_cities: form.assigned_cities,
+        client_id: form.client_id
       });
       setShowAdd(false); setForm(EMPTY_FORM); fetchData();
     } catch(e:any){ setFErr(e.message||'Failed'); } finally{ setSaving(false); }
@@ -263,6 +271,7 @@ export default function ManpowerDirectoryPage() {
         employee_id:form.employee_id||null, is_active:editTarget.is_active, city:form.city||null,
         role:form.role, app_password:form.app_password||undefined,
         permissions: form.permissions, assigned_cities: form.assigned_cities,
+        client_id: form.client_id
       });
       setShowEdit(false); setEditT(null); setSelected(null); fetchData();
     } catch(e:any){ setFErr(e.message||'Failed'); } finally{ setSaving(false); }
@@ -507,6 +516,16 @@ export default function ManpowerDirectoryPage() {
                   </select>
                 </Field>
               )}
+              {isPlatformAdmin && (
+                <div style={{gridColumn:'1/-1', marginTop: 8}}>
+                   <Field label="Client Organization">
+                      <ClientSelect 
+                        value={form.client_id || ''} 
+                        onChange={(id) => setF('client_id', id)} 
+                      />
+                   </Field>
+                </div>
+              )}
             </div>
             <div style={{display:'flex',gap:10,marginTop:20}}>
               <button onClick={()=>setShowAdd(false)} style={{flex:1,padding:'12px',background:C.s3,border:`1px solid ${C.border}`,color:C.gray,borderRadius:12,fontSize:13,fontWeight:600,cursor:'pointer'}}>Cancel</button>
@@ -593,8 +612,18 @@ export default function ManpowerDirectoryPage() {
                   )}
                 </div>
               )}
+              
+              {isPlatformAdmin && (
+                <div style={{gridColumn:'1/-1', marginTop: 8}}>
+                  <label style={{ display: 'block', color: C.gray, fontSize: 11, marginBottom: 8, fontWeight: 700, textTransform: 'uppercase' }}>CLIENT</label>
+                  <ClientSelect 
+                    value={form.client_id || ''} 
+                    onChange={(id) => setForm(p => ({ ...p, client_id: id }))} 
+                  />
+                </div>
+              )}
             </div>
-            <div style={{display:'flex',gap:10,marginTop:10}}>
+            <div style={{display:'flex',gap:10,marginTop:20}}>
               <button onClick={()=>setShowEdit(false)} style={{flex:1,padding:'11px',background:C.s3,border:`1px solid ${C.border}`,color:C.gray,borderRadius:11,fontSize:13,fontWeight:600}}>Cancel</button>
               <button onClick={handleEdit} disabled={saving} style={{flex:2,padding:'11px',background:C.blue,border:'none',color:'#fff',borderRadius:11,fontSize:13,fontWeight:700,cursor:saving?'not-allowed':'pointer'}}>
                 {saving?<Spin/>:'Save Changes'}

@@ -1,6 +1,8 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import api from '@/lib/api';
+import ClientSelect from '@/components/ClientSelect';
+import { useAuth } from '@/hooks/useAuth';
 
 const INDIAN_STATES = [
   "Andaman and Nicobar Islands", "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chandigarh", "Chhattisgarh", "Dadra and Nagar Haveli and Daman and Diu", 
@@ -30,7 +32,7 @@ const C = {
 };
 
 interface City { id:string; name:string; state?:string; country?:string; is_active:boolean; created_at:string; }
-const BLANK = { name:'', state:'', country:'India', is_active:true };
+const BLANK = { name:'', state:'', country:'India', is_active:true, client_id: '' };
 
 const Spinner = () => <div style={{width:15,height:15,border:'2.5px solid rgba(255,255,255,0.18)',borderTopColor:'#fff',borderRadius:'50%',animation:'kspin .65s linear infinite',flexShrink:0}}/>;
 const Label = ({t,req}:{t:string;req?:boolean}) => <div style={{fontSize:11,fontWeight:700,color:C.gray,letterSpacing:'0.7px',textTransform:'uppercase',marginBottom:7}}>{t}{req&&<span style={{color:C.red}}> *</span>}</div>;
@@ -53,6 +55,9 @@ export default function CityManagement() {
   const [saving, setSaving] = useState(false);
   const [fErr, setFErr] = useState('');
 
+  const { user } = useAuth();
+  const isPlatformAdmin = user?.role === 'super_admin' || user?.role === 'admin';
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -66,7 +71,7 @@ export default function CityManagement() {
   useEffect(()=>{ load(); },[load]);
 
   const openAdd = () => { setEditing(null); setForm({...BLANK}); setFErr(''); setShowModal(true); };
-  const openEdit = (c:City) => { setEditing(c); setForm({name:c.name,state:c.state||'',country:c.country||'India',is_active:c.is_active}); setFErr(''); setShowModal(true); };
+  const openEdit = (c:City) => { setEditing(c); setForm({name:c.name,state:c.state||'',country:c.country||'India',is_active:c.is_active, client_id: (c as any).client_id || ''}); setFErr(''); setShowModal(true); };
 
   const save = async () => {
     if(!form.name.trim()){setFErr('City name is required');return;}
@@ -177,6 +182,15 @@ export default function CityManagement() {
               </div>
               <div><Label t="Country"/><input style={inp} placeholder="India" value={form.country} onChange={e=>setForm(p=>({...p,country:e.target.value}))}/></div>
             </div>
+            {isPlatformAdmin && (
+              <div style={{marginBottom:14}}>
+                <Label t="Client Organization" req/>
+                <ClientSelect 
+                  value={form.client_id || ''} 
+                  onChange={(id) => setForm(p => ({ ...p, client_id: id }))} 
+                />
+              </div>
+            )}
             {editing && (
               <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:20}}>
                 <div onClick={()=>setForm(p=>({...p,is_active:!p.is_active}))} style={{width:40,height:22,borderRadius:11,background:form.is_active?C.red:`${C.grayd}`,cursor:'pointer',position:'relative',transition:'background .2s'}}>

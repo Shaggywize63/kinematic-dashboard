@@ -98,14 +98,37 @@ export default function ClientManagement() {
   useEffect(() => { load(); }, [load]);
 
   const openAdd = () => { setEditing(null); setForm({ ...BLANK }); setFErr(''); setShowModal(true); };
-  const openEdit = (c: Client) => { setEditing(c); setForm({ name: c.name, contact_person: c.contact_person || '', email: c.email || '', phone: c.phone || '', password: '', is_active: c.is_active, modules: c.modules || [] }); setFErr(''); setShowModal(true); };
+  const openEdit = (c: Client) => { 
+    // Filter out any legacy module IDs that might exist in the database (e.g. master_data)
+    // but are not part of the new 20-module granular architecture.
+    const validIds = (c.modules || []).filter(m => MODULES.some(mod => mod.id === m));
+    setEditing(c); 
+    setForm({ 
+      name: c.name, 
+      contact_person: c.contact_person || '', 
+      email: c.email || '', 
+      phone: c.phone || '', 
+      password: '', 
+      is_active: c.is_active, 
+      modules: validIds 
+    }); 
+    setFErr(''); 
+    setShowModal(true); 
+  };
 
   const save = async () => {
     if (!form.name.trim()) { setFErr('Client name is required'); return; }
     setSaving(true); setFErr('');
+    
+    // Final verification: ensure we only send recognized module IDs to the API
+    const finalForm = {
+      ...form,
+      modules: form.modules.filter(m => MODULES.some(mod => mod.id === m))
+    };
+
     try {
-      if (editing) await clientsFetch('PATCH', `/api/v1/clients/${editing.id}`, form);
-      else await clientsFetch('POST', '/api/v1/clients', form);
+      if (editing) await clientsFetch('PATCH', `/api/v1/clients/${editing.id}`, finalForm);
+      else await clientsFetch('POST', '/api/v1/clients', finalForm);
       setShowModal(false); load();
     } catch (e: any) { setFErr(e.response?.data?.error || e.message || 'Save failed'); }
     finally { setSaving(false); }

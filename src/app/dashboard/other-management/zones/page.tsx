@@ -2,6 +2,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '@/lib/api';
 import CitySelect from '@/components/CitySelect';
+import ClientSelect from '@/components/ClientSelect';
+import { useAuth } from '@/hooks/useAuth';
 
 const C = {
   bg: 'var(--bg)', 
@@ -25,9 +27,9 @@ const C = {
   yellowD: 'var(--yellowD)',
 };
 
-interface Zone { id:string; name:string; city?:string; state?:string; meeting_lat?:number; meeting_lng?:number; meeting_address?:string; geofence_radius?:number; is_active:boolean; city_id?:string; }
+interface Zone { id:string; name:string; city?:string; state?:string; meeting_lat?:number; meeting_lng?:number; meeting_address?:string; geofence_radius?:number; is_active:boolean; city_id?:string; client_id?:string; }
 interface City { id:string; name:string; }
-const BLANK = { name:'', city:'', state:'', city_id:'', meeting_lat:'', meeting_lng:'', meeting_address:'', geofence_radius:'100', is_active:true };
+const BLANK = { name:'', city:'', state:'', city_id:'', meeting_lat:'', meeting_lng:'', meeting_address:'', geofence_radius:'100', is_active:true, client_id:'' };
 
 const Spinner = () => <div style={{width:15,height:15,border:'2.5px solid rgba(255,255,255,0.18)',borderTopColor:'#fff',borderRadius:'50%',animation:'kspin .65s linear infinite',flexShrink:0}}/>;
 const Label = ({t,req}:{t:string;req?:boolean}) => <div style={{fontSize:11,fontWeight:700,color:C.gray,letterSpacing:'0.7px',textTransform:'uppercase',marginBottom:7}}>{t}{req&&<span style={{color:C.red}}> *</span>}</div>;
@@ -41,6 +43,8 @@ const Overlay = ({onClose,children}:{onClose:()=>void;children:React.ReactNode})
 
 export default function ZoneManagement() {
   const [zones, setZones] = useState<Zone[]>([]);
+  const { user } = useAuth();
+  const isPlatformAdmin = user?.role === 'super_admin' || user?.role === 'admin';
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
   const [search, setSearch] = useState('');
@@ -65,14 +69,14 @@ export default function ZoneManagement() {
   const openAdd = () => { setEditing(null); setForm({...BLANK}); setFErr(''); setShowModal(true); };
   const openEdit = (z:Zone) => {
     setEditing(z);
-    setForm({ name:z.name, city:z.city||'', state:z.state||'', city_id:z.city_id||'', meeting_lat:z.meeting_lat!=null?String(z.meeting_lat):'', meeting_lng:z.meeting_lng!=null?String(z.meeting_lng):'', meeting_address:z.meeting_address||'', geofence_radius:z.geofence_radius!=null?String(z.geofence_radius):'100', is_active:z.is_active });
+    setForm({ name:z.name, city:z.city||'', state:z.state||'', city_id:z.city_id||'', meeting_lat:z.meeting_lat!=null?String(z.meeting_lat):'', meeting_lng:z.meeting_lng!=null?String(z.meeting_lng):'', meeting_address:z.meeting_address||'', geofence_radius:z.geofence_radius!=null?String(z.geofence_radius):'100', is_active:z.is_active, client_id:z.client_id||'' });
     setFErr(''); setShowModal(true);
   };
 
   const save = async () => {
     if(!form.name.trim()){setFErr('Zone name is required');return;}
     setSaving(true); setFErr('');
-    const payload:any = { name:form.name, city:form.city, state:form.state, is_active:form.is_active, meeting_address:form.meeting_address, geofence_radius:form.geofence_radius?Number(form.geofence_radius):100 };
+    const payload:any = { name:form.name, city:form.city, state:form.state, is_active:form.is_active, meeting_address:form.meeting_address, geofence_radius:form.geofence_radius?Number(form.geofence_radius):100, client_id:form.client_id||null };
     if(form.city_id) payload.city_id = form.city_id;
     if(form.meeting_lat) payload.meeting_lat = parseFloat(form.meeting_lat);
     if(form.meeting_lng) payload.meeting_lng = parseFloat(form.meeting_lng);
@@ -191,6 +195,15 @@ export default function ZoneManagement() {
               <div style={{marginBottom:12}}><Label t="Meeting Address"/><input style={inp} placeholder="e.g. Lokhandwala, Andheri West" value={form.meeting_address} onChange={e=>setForm(p=>({...p,meeting_address:e.target.value}))}/></div>
               <div><Label t="Geofence Radius (meters)"/><input style={inp} type="number" min="50" max="5000" placeholder="100" value={form.geofence_radius} onChange={e=>setForm(p=>({...p,geofence_radius:e.target.value}))}/></div>
             </div>
+            {isPlatformAdmin && (
+              <div style={{marginBottom:18}}>
+                <Label t="Client Organization" req/>
+                <ClientSelect 
+                  value={form.client_id || ''} 
+                  onChange={(id) => setForm(p => ({ ...p, client_id: id }))} 
+                />
+              </div>
+            )}
 
             {editing && (
               <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:20}}>
