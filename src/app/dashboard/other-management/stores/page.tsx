@@ -514,30 +514,34 @@ export default function OutletManagementPage() {
                     onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
                     📋
                   </button>
-                  <button title="Edit outlet" onClick={() => openEdit(o)}
-                    style={{ width:30, height:30, borderRadius:8, border:`1px solid ${C.border}`,
-                      background:'transparent', cursor:'pointer', fontSize:13,
-                      display:'flex', alignItems:'center', justifyContent:'center' }}
-                    onMouseEnter={e => (e.currentTarget.style.background = C.s3)}
-                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                    ✏️
-                  </button>
+                  {isPlatformAdmin && (
+                    <button title="Edit outlet" onClick={() => openEdit(o)}
+                      style={{ width: 30, height: 30, borderRadius: 8, border: `1px solid ${C.border}`,
+                        background: 'transparent', cursor: 'pointer', fontSize: 13,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = C.s3)}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                      ✏️
+                    </button>
+                  )}
                   <button title={o.is_active ? 'Deactivate' : 'Activate'} onClick={() => toggleActive(o)}
-                    style={{ width:30, height:30, borderRadius:8, border:`1px solid ${C.border}`,
-                      background:'transparent', cursor:'pointer', fontSize:13,
-                      display:'flex', alignItems:'center', justifyContent:'center' }}
+                    style={{ width: 30, height: 30, borderRadius: 8, border: `1px solid ${C.border}`,
+                      background: 'transparent', cursor: 'pointer', fontSize: 13,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                     onMouseEnter={e => (e.currentTarget.style.background = C.s3)}
                     onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
                     {o.is_active ? '⏸' : '▶️'}
                   </button>
-                  <button title="Delete outlet" onClick={() => setDeleteConfirm({show:true, item:o})}
-                    style={{ width:30, height:30, borderRadius:8, border:`1px solid ${C.border}`,
-                      background:'transparent', cursor:'pointer', fontSize:13,
-                      display:'flex', alignItems:'center', justifyContent:'center' }}
-                    onMouseEnter={e => { e.currentTarget.style.background = C.s3; e.currentTarget.style.color = C.red; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'inherit'; }}>
-                    🗑️
-                  </button>
+                  {isPlatformAdmin && (
+                    <button title="Delete outlet" onClick={() => setDeleteConfirm({show:true, item:o})}
+                      style={{ width: 30, height: 30, borderRadius: 8, border: `1px solid ${C.border}`,
+                        background: 'transparent', cursor: 'pointer', fontSize: 13,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                      onMouseEnter={e => { e.currentTarget.style.background = C.s3; e.currentTarget.style.color = C.red; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'inherit'; }}>
+                      🗑️
+                    </button>
+                  )}
                 </div>
               </div>
             ))}

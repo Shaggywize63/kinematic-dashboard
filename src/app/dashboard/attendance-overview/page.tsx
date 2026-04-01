@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { parseISO, isValid } from 'date-fns';
 import api from '@/lib/api';
 import ConfirmModal from '@/components/ConfirmModal';
+import { useAuth } from '@/hooks/useAuth';
 
 /* ── DateRangePicker component ── */
 function DateRangePicker({ from, to, onChange }: { from: string; to: string; onChange: (f: string, t: string) => void }) {
@@ -168,6 +169,7 @@ const parseDate = (iso?: string | null): number | null => {
 
 /* ═══════════════════════════════════════════════════ */
 export default function AttendancePage() {
+  const { user } = useAuth();
   const [records,  setRecords]  = useState<AttendanceRecord[]>([]);
   const [users,    setUsers]    = useState<any[]>([]);
   const [loading,  setLoading]  = useState(true);
@@ -1013,12 +1015,14 @@ export default function AttendancePage() {
                         <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
                       </svg>
                     </button>
-                    <button className="kbtn" onClick={() => setDelRec(r)}
-                      style={{ width: 30, height: 30, borderRadius: 8, background: C.redD, border: `1px solid ${C.redB}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.red }}>
-                      <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round">
-                        <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" /><path d="M10 11v6M14 11v6" /><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2" />
-                      </svg>
-                    </button>
+                    {user?.role !== 'client' && (
+                      <button className="kbtn" onClick={() => setDelRec(r)}
+                        style={{ width: 30, height: 30, borderRadius: 8, background: C.redD, border: `1px solid ${C.redB}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.red }}>
+                        <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round">
+                          <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" /><path d="M10 11v6M14 11v6" /><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2" />
+                        </svg>
+                      </button>
+                    )}
                   </div>
                 </div>
               );

@@ -308,10 +308,26 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     setUserName(u.name || u.email || 'Admin');
     setUserRole(u.role || '');
     setUserPerms(u.permissions || []);
+    
     if (typeof window !== 'undefined') {
       const savedTheme = localStorage.getItem('kinematic-theme') || 'dark';
       document.documentElement.setAttribute('data-theme', savedTheme);
-      setToken(localStorage.getItem('kinematic_token') || '');
+      const t = localStorage.getItem('kinematic_token') || '';
+      setToken(t);
+
+      // Forever Fix: Re-fetch profile to sync permissions (handle stale sessions)
+      if (t) {
+        api.get('/api/v1/auth/me', { headers: { Authorization: `Bearer ${t}` } })
+          .then(res => {
+            const fresh = res.data?.data || res.data;
+            if (fresh && fresh.id) {
+              const updatedUser = { ...u, ...fresh };
+              setUserPerms(updatedUser.permissions || []);
+              localStorage.setItem('kinematic_user', JSON.stringify(updatedUser));
+            }
+          })
+          .catch(e => console.error('Profile sync failed:', e));
+      }
     }
     if (pathname.startsWith('/dashboard/other-management')) setOtherOpen(true);
   }, [pathname, router]);

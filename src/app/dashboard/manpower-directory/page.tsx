@@ -481,15 +481,19 @@ export default function ManpowerDirectoryPage() {
                 </div>
                 
                 <div style={{display:'flex',justifyContent:'flex-end',gap:6}} onClick={e=>e.stopPropagation()}>
-                    <button className="btn-icon" onClick={()=>openEdit(u)} style={{width:28,height:28,borderRadius:8,background:C.blueD,border:`1px solid rgba(62,158,255,0.2)`,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color:C.blue}}>
-                      <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                    </button>
+                    {isPlatformAdmin && (
+                      <button className="btn-icon" onClick={()=>openEdit(u)} style={{width:28,height:28,borderRadius:8,background:C.blueD,border:`1px solid rgba(62,158,255,0.2)`,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color:C.blue}}>
+                        <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                      </button>
+                    )}
                     <button className="btn-icon" onClick={()=>toggleActive(u)} style={{width:28,height:28,borderRadius:8,background:u.is_active?'rgba(0,217,126,0.1)':'rgba(122,139,160,0.1)',border:`1px solid ${u.is_active?'rgba(0,217,126,0.2)':'rgba(122,139,160,0.2)'}`,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color:u.is_active?C.green:C.gray}}>
                       <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round"><path d="M18.36 6.64a9 9 0 11-12.73 0M12 2v10"/></svg>
                     </button>
-                    <button className="btn-icon" onClick={()=>setDeleteConfirm({show:true, item:u})} style={{width:28,height:28,borderRadius:8,background:C.s3,border:`1px solid ${C.border}`,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color:C.gray}}>
-                      <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" onMouseEnter={e=>e.currentTarget.parentElement!.style.color=C.red} onMouseLeave={e=>e.currentTarget.parentElement!.style.color=C.gray}><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
-                    </button>
+                    {isPlatformAdmin && (
+                      <button className="btn-icon" onClick={()=>setDeleteConfirm({show:true, item:u})} style={{width:28,height:28,borderRadius:8,background:C.s3,border:`1px solid ${C.border}`,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color:C.gray}}>
+                        <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" onMouseEnter={e=>e.currentTarget.parentElement!.style.color=C.red} onMouseLeave={e=>e.currentTarget.parentElement!.style.color=C.gray}><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+                      </button>
+                    )}
                 </div>
               </div>
             ))}
@@ -737,7 +741,9 @@ export default function ManpowerDirectoryPage() {
                </div>
             </div>
             <div style={{display:'flex',gap:10}}>
-              <button onClick={()=>{openEdit(selected);setSelected(null);}} style={{flex:1,padding:'12px',background:C.blueD,border:`1px solid rgba(62,158,255,0.2)`,color:C.blue,borderRadius:12,fontSize:13,fontWeight:700}}>Edit Profile</button>
+              {isPlatformAdmin && (
+                <button onClick={()=>{openEdit(selected);setSelected(null);}} style={{flex:1,padding:'12px',background:C.blueD,border:`1px solid rgba(62,158,255,0.2)`,color:C.blue,borderRadius:12,fontSize:13,fontWeight:700}}>Edit Profile</button>
+              )}
               <button onClick={()=>{toggleActive(selected);setSelected(null);}} style={{flex:1,padding:'12px',background:selected.is_active?C.redD:'rgba(0,217,126,0.1)',border:`1px solid ${selected.is_active?C.redB:'rgba(0,217,126,0.2)'}`,color:selected.is_active?C.red:C.green,borderRadius:12,fontSize:13,fontWeight:700}}>
                 {selected.is_active?'Deactivate':'Activate'}
               </button>

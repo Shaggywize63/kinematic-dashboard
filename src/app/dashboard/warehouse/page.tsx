@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '@/lib/api';
 import CitySelect from '@/components/CitySelect';
+import { useAuth } from '@/hooks/useAuth';
 
 /* ── colour tokens (Kinematic design system) ── */
 const C = {
@@ -253,6 +254,8 @@ export default function WarehousePage() {
   const [loading,   setLoading]   = useState(true);
   const [mvLoad,    setMvLoad]    = useState(false);
   const [err,       setErr]       = useState('');
+  const { user } = useAuth();
+  const isPlatformAdmin = user?.role === 'super_admin' || user?.role === 'admin';
 
   const [mvFilter,  setMvFilter]  = useState('all');
 
@@ -441,7 +444,9 @@ export default function WarehousePage() {
           <h1 style={{ fontFamily: 'Syne, sans-serif', fontSize: 26, fontWeight: 800, color: C.white, margin: 0 }}>Warehouse Management</h1>
           <p style={{ color: C.gray, fontSize: 13, marginTop: 4 }}>Stock movements, inventory tracking & warehouse control</p>
         </div>
-        <button style={btnPrimStyle} onClick={openAddWh}>+ Add Warehouse</button>
+        {isPlatformAdmin && (
+          <button style={btnPrimStyle} onClick={openAddWh}>+ Add Warehouse</button>
+        )}
       </div>
 
       {/* ── KPI bar ── */}
@@ -495,8 +500,12 @@ export default function WarehousePage() {
                 )}
                 {/* row actions */}
                 <div style={{ display: 'flex', gap: 6, marginTop: 10 }} onClick={e => e.stopPropagation()}>
-                  <button style={{ ...btnSecStyle, flex: 1, padding: '6px 10px', fontSize: 11 }} onClick={() => openEditWh(wh)}>✎ Edit</button>
-                  <button style={{ ...btnBase, flex: 1, padding: '6px 10px', fontSize: 11, background: C.redD, color: C.red, border: `1px solid ${C.redB}` }} onClick={() => setDeleteWh(wh)}>✕ Delete</button>
+                  {isPlatformAdmin && (
+                    <>
+                      <button style={{ ...btnSecStyle, flex: 1, padding: '6px 10px', fontSize: 11 }} onClick={() => openEditWh(wh)}>✎ Edit</button>
+                      <button style={{ ...btnBase, flex: 1, padding: '6px 10px', fontSize: 11, background: C.redD, color: C.red, border: `1px solid ${C.redB}` }} onClick={() => setDeleteWh(wh)}>✕ Delete</button>
+                    </>
+                  )}
                 </div>
               </div>
             ))}
@@ -519,7 +528,9 @@ export default function WarehousePage() {
                   <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 18, fontWeight: 700, color: C.white }}>{selWh.name}</div>
                   <div style={{ fontSize: 12, color: C.gray, marginTop: 2 }}>{selWh.warehouse_code} · {selWh.type} · {selWh.city}</div>
                 </div>
-                <button style={btnPrimStyle} onClick={openAddMv}>+ Log Movement</button>
+                {isPlatformAdmin && (
+                  <button style={btnPrimStyle} onClick={openAddMv}>+ Log Movement</button>
+                )}
               </div>
 
               {/* filter tabs */}
@@ -592,14 +603,18 @@ export default function WarehousePage() {
 
                         {/* actions */}
                         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-                          <button onClick={() => openEditMv(mv)} title="Edit movement"
-                            style={{ background: C.blueD, border: `1px solid ${C.blue}33`, borderRadius: 7, padding: '5px 10px', color: C.blue, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-                            ✎ Edit
-                          </button>
-                          <button onClick={() => setDeleteMv(mv)} title="Delete movement"
-                            style={{ background: C.redD, border: `1px solid ${C.redB}`, borderRadius: 7, padding: '5px 10px', color: C.red, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-                            ✕
-                          </button>
+                          {isPlatformAdmin && (
+                            <>
+                              <button onClick={() => openEditMv(mv)} title="Edit movement"
+                                style={{ background: C.blueD, border: `1px solid ${C.blue}33`, borderRadius: 7, padding: '5px 10px', color: C.blue, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                                ✎ Edit
+                              </button>
+                              <button onClick={() => setDeleteMv(mv)} title="Delete movement"
+                                style={{ background: C.redD, border: `1px solid ${C.redB}`, borderRadius: 7, padding: '5px 10px', color: C.red, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                                ✕
+                              </button>
+                            </>
+                          )}
                         </div>
                       </div>
                     );

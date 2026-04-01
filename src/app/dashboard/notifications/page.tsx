@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '@/lib/api';
 import CitySelect from '@/components/CitySelect';
+import { useAuth } from '@/hooks/useAuth';
 
 const C = {
   red: '#E01E2C', 
@@ -40,6 +41,8 @@ export default function NotificationsPage() {
   const [sending,setSending]=useState(false);
   const [page,setPage]=useState(1);
   const [total,setTotal]=useState(0);
+  const { user } = useAuth();
+  const isPlatformAdmin = user?.role === 'super_admin' || user?.role === 'admin';
 
   const fetchAll = useCallback(async(p: number = 1)=>{
     try {
@@ -223,9 +226,11 @@ export default function NotificationsPage() {
                 <td style={{padding:'14px 12px'}}><div style={{display:'flex',alignItems:'center',gap:8}}><div style={{flex:1,height:5,background:C.s4,borderRadius:3}}><div style={{width:`${h.recipients_count?Math.round(h.read_count/h.recipients_count*100):0}%`,height:'100%',background:C.green,borderRadius:3}}/></div><span style={{fontSize:11,fontWeight:600}}>{h.read_count}/{h.recipients_count}</span></div></td>
                 <td style={{padding:'14px 12px',color:C.gray}}>{new Date(h.created_at).toLocaleString('en-IN')}</td>
                 <td style={{padding:'14px 12px',textAlign:'right'}}>
-                  <button onClick={()=>handleDelete(h.id)} style={{background:'rgba(224,30,44,0.1)',border:`1px solid ${C.red}44`,color:C.red,cursor:'pointer',fontSize:12,padding:'6px 12px',borderRadius:8,display:'inline-flex',alignItems:'center',gap:6,fontWeight:600}} title="Delete Broadcast">
-                    <span>🗑️</span> Delete
-                  </button>
+                  {isPlatformAdmin && (
+                    <button onClick={()=>handleDelete(h.id)} style={{background:'rgba(224,30,44,0.1)',border:`1px solid ${C.red}44`,color:C.red,cursor:'pointer',fontSize:12,padding:'6px 12px',borderRadius:8,display:'inline-flex',alignItems:'center',gap:6,fontWeight:600}} title="Delete Broadcast">
+                      <span>🗑️</span> Delete
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}

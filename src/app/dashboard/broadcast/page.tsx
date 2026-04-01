@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '@/lib/api';
+import { useAuth } from '@/hooks/useAuth';
 
 const C = {
   bg: 'var(--bg)', s1: 'var(--s1)', s2: 'var(--s2)', s3: 'var(--s3)', s4: 'var(--s4)',
@@ -116,6 +117,8 @@ function TogglePill({
 }
 
 export default function BroadcastPage() {
+  const { user } = useAuth();
+  const isPlatformAdmin = user?.role === 'super_admin' || user?.role === 'admin';
   const [questions, setQuestions] = useState<BroadcastQuestion[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -240,12 +243,14 @@ export default function BroadcastPage() {
           <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 20, fontWeight: 800 }}>Broadcast Questions</div>
           <div style={{ fontSize: 13, color: C.gray, marginTop: 3 }}>Send questions to field executives & supervisors</div>
         </div>
-        <button
-          onClick={() => { setForm(defaultForm()); setShowCreate(true); }}
-          style={{ background: C.red, color: '#fff', border: 'none', borderRadius: 12, padding: '11px 20px', fontSize: 13, fontWeight: 700, fontFamily: "'Syne',sans-serif", cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 8px 24px var(--primary-shadow)', whiteSpace: 'nowrap' }}
-        >
-          + New Question
-        </button>
+        {isPlatformAdmin && (
+          <button
+            onClick={() => { setForm(defaultForm()); setShowCreate(true); }}
+            style={{ background: C.red, color: '#fff', border: 'none', borderRadius: 12, padding: '11px 20px', fontSize: 13, fontWeight: 700, fontFamily: "'Syne',sans-serif", cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 8px 24px var(--primary-shadow)', whiteSpace: 'nowrap' }}
+          >
+            + New Question
+          </button>
+        )}
       </div>
 
       {/* Stats */}
@@ -296,7 +301,7 @@ export default function BroadcastPage() {
           <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '1.2px', color: C.grayd, textTransform: 'uppercase', marginBottom: 12 }}>
             ACTIVE ({active.length})
           </div>
-          {active.map((q, qi) => <QuestionCard key={q.id} q={q} qi={qi} expanded={expandedId === q.id} onExpand={() => setExpandedId(expandedId === q.id ? null : q.id)} onDelete={() => setDeleteId(q.id)} onToggleStatus={() => handleToggleStatus(q)} closingId={closingId} />)}
+          {active.map((q, qi) => <QuestionCard key={q.id} q={q} qi={qi} expanded={expandedId === q.id} onExpand={() => setExpandedId(expandedId === q.id ? null : q.id)} onDelete={() => setDeleteId(q.id)} onToggleStatus={() => handleToggleStatus(q)} closingId={closingId} isPlatformAdmin={isPlatformAdmin} />)}
         </div>
       )}
 
@@ -306,7 +311,7 @@ export default function BroadcastPage() {
           <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '1.2px', color: C.grayd, textTransform: 'uppercase', marginBottom: 12 }}>
             CLOSED ({closed.length})
           </div>
-          {closed.map((q, qi) => <QuestionCard key={q.id} q={q} qi={active.length + qi} expanded={expandedId === q.id} onExpand={() => setExpandedId(expandedId === q.id ? null : q.id)} onDelete={() => setDeleteId(q.id)} onToggleStatus={() => handleToggleStatus(q)} closingId={closingId} />)}
+          {closed.map((q, qi) => <QuestionCard key={q.id} q={q} qi={active.length + qi} expanded={expandedId === q.id} onExpand={() => setExpandedId(expandedId === q.id ? null : q.id)} onDelete={() => setDeleteId(q.id)} onToggleStatus={() => handleToggleStatus(q)} closingId={closingId} isPlatformAdmin={isPlatformAdmin} />)}
         </div>
       )}
 
@@ -502,11 +507,12 @@ function downloadCSV(q: BroadcastQuestion) {
 }
 
 function QuestionCard({
-  q, qi, expanded, onExpand, onDelete, onToggleStatus, closingId,
+  q, qi, expanded, onExpand, onDelete, onToggleStatus, closingId, isPlatformAdmin,
 }: {
   q: BroadcastQuestion; qi: number; expanded: boolean;
   onExpand: () => void; onDelete: () => void;
   onToggleStatus: () => void; closingId: string | null;
+  isPlatformAdmin: boolean;
 }) {
   const total = q.tally?.reduce((a, t) => a + t.count, 0) || 0;
   const maxCount = q.tally ? Math.max(...q.tally.map(t => t.count), 1) : 1;
@@ -617,19 +623,23 @@ function QuestionCard({
             ↓ CSV
           </button>
         )}
-        <button
-          onClick={onToggleStatus}
-          disabled={closingId === q.id}
-          style={{ flex: 1, background: isClosed ? 'rgba(0,217,126,0.08)' : 'rgba(255,184,0,0.08)', border: `1px solid ${isClosed ? C.green + '30' : C.yellow + '30'}`, borderRadius: 9, padding: '7px 12px', color: isClosed ? C.green : C.yellow, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}
-        >
-          {closingId === q.id ? '...' : isClosed ? 'Reopen' : 'Close'}
-        </button>
-        <button
-          onClick={onDelete}
-          style={{ background: C.redD, border: `1px solid ${C.redB}`, borderRadius: 9, padding: '7px 12px', color: C.red, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
-        >
-          Delete
-        </button>
+        {isPlatformAdmin && (
+          <>
+            <button
+              onClick={onToggleStatus}
+              disabled={closingId === q.id}
+              style={{ flex: 1, background: isClosed ? 'rgba(0,217,126,0.08)' : 'rgba(255,184,0,0.08)', border: `1px solid ${isClosed ? C.green + '30' : C.yellow + '30'}`, borderRadius: 9, padding: '7px 12px', color: isClosed ? C.green : C.yellow, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}
+            >
+              {closingId === q.id ? '...' : isClosed ? 'Reopen' : 'Close'}
+            </button>
+            <button
+              onClick={onDelete}
+              style={{ background: C.redD, border: `1px solid ${C.redB}`, borderRadius: 9, padding: '7px 12px', color: C.red, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+            >
+              Delete
+            </button>
+          </>
+        )}
       </div>
     </div>
   );

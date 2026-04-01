@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import ConfirmModal from '@/components/ConfirmModal';
+import { useAuth } from '@/hooks/useAuth';
 
 /* ─── Constants ──────────────────────────────────────────────────────────── */
 const C = {
@@ -112,6 +113,7 @@ const inpStyle:React.CSSProperties = {
    FORM LIST VIEW
 ══════════════════════════════════════════════════════════════════════════ */
 function FormList({ onOpen, onCreate }:{ onOpen:(f:BForm)=>void; onCreate:()=>void }) {
+  const { user } = useAuth();
   const [forms,   setForms]   = useState<BForm[]>([]);
   const [loading, setLoading] = useState(true);
   const [search,  setSearch]  = useState('');
@@ -238,7 +240,9 @@ function FormList({ onOpen, onCreate }:{ onOpen:(f:BForm)=>void; onCreate:()=>vo
                     ✏️ Edit
                   </button>
                   <button onClick={e => duplicate(f, e)} style={{ padding:'8px 10px', background:C.s3, border:`1px solid ${C.border}`, borderRadius:8, color:C.gray, fontSize:12, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }} title="Duplicate">⧉</button>
-                  <button onClick={e => showDeleteModal(f, e)} style={{ padding:'8px 10px', background:C.s3, border:`1px solid ${C.redB}`, borderRadius:8, color:C.red, fontSize:12, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }} title="Delete">🗑</button>
+                  {user?.role !== 'client' && (
+                    <button onClick={e => showDeleteModal(f, e)} style={{ padding:'8px 10px', background:C.s3, border:`1px solid ${C.redB}`, borderRadius:8, color:C.red, fontSize:12, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }} title="Delete">🗑</button>
+                  )}
                 </div>
               </div>
             </div>
@@ -354,6 +358,7 @@ function CreateFormModal({ onCreated, onClose }:{ onCreated:(f:BForm)=>void; onC
    QUESTION PROPERTIES PANEL
 ══════════════════════════════════════════════════════════════════════════ */
 function PropertiesPanel({ q, onChange, onDelete }:{ q:BQuestion; onChange:(q:BQuestion)=>void; onDelete:()=>void }) {
+  const { user } = useAuth();
   const hasOptions = ['radio','checkbox','dropdown'].includes(q.qtype);
   const [newOpt, setNewOpt] = useState('');
 
@@ -371,7 +376,9 @@ function PropertiesPanel({ q, onChange, onDelete }:{ q:BQuestion; onChange:(q:BQ
         <div style={{ fontSize:13, fontWeight:700, color:C.white, display:'flex', alignItems:'center', gap:7 }}>
           <span>{typeInfo(q.qtype).icon}</span> {typeInfo(q.qtype).label}
         </div>
-        <button onClick={onDelete} style={{ background:'none', border:'none', color:C.red, cursor:'pointer', fontSize:13, padding:'2px 6px', borderRadius:6 }}>🗑</button>
+        {user?.role !== 'client' && (
+          <button onClick={onDelete} style={{ background:'none', border:'none', color:C.red, cursor:'pointer', fontSize:13, padding:'2px 6px', borderRadius:6 }}>🗑</button>
+        )}
       </div>
 
       <div style={{ padding:'14px 16px', display:'flex', flexDirection:'column', gap:14, flex:1 }}>
