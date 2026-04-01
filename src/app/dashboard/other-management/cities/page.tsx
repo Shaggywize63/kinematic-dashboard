@@ -59,13 +59,15 @@ export default function CityManagement() {
   const [deleteConfirm, setDeleteConfirm] = useState<{show:boolean; item:City|null}>({show:false, item:null});
   const [deleting, setDeleting] = useState(false);
 
-  const { user, isPlatformAdmin, token } = useAuth();
+  const { isPlatformAdmin, token } = useAuth();
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const resp = await api.get('/api/v1/cities');
-      const clResp = isPlatformAdmin ? await api.get('/api/v1/misc/clients') : null;
+      const [resp, clResp] = await Promise.all([
+        api.get<any>('/api/v1/cities', { headers: { Authorization: `Bearer ${token}` } }),
+        isPlatformAdmin ? api.get<any>('/api/v1/misc/clients', { headers: { Authorization: `Bearer ${token}` } }) : Promise.resolve(null),
+      ]);
       
       const pick = (r: any) => {
         if (!r) return [];
