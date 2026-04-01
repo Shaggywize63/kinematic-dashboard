@@ -56,6 +56,11 @@ interface Outlet {
   zones?: { name:string };
   cities?: { name:string };
 }
+interface BulkStoreRow {
+  name: string; store_code: string; owner_name?: string; phone?: string;
+  address?: string; city_name?: string; zone_name?: string; store_type?: string;
+  _status: 'pending' | 'success' | 'error'; _error?: string;
+}
 
 /* ── Atoms ── */
 const Spin = () => (
@@ -114,6 +119,12 @@ export default function OutletManagementPage() {
   const [formErrs, setFormErrs] = useState<Record<string,string>>({});
   const [deleteConfirm, setDeleteConfirm] = useState<{show:boolean; item:Outlet|null}>({show:false, item:null});
   const [deleting, setDeleting] = useState(false);
+  const [showBulk,  setShowBulk] = useState(false);
+  const [bulkRows,  setBulkRows] = useState<BulkStoreRow[]>([]);
+  const [bulkBusy,  setBulkBusy] = useState(false);
+  const [bulkDone,  setBulkDone] = useState(false);
+  const [bulkErr,   setBulkErr]  = useState<string|null>(null);
+  const fileRef = useState<any>(null)[0]; // Actually use useRef
 
   const token = typeof window !== 'undefined' ? localStorage.getItem('kinematic_token') || '' : '';
   const authH = { Authorization:`Bearer ${token}`, 'Content-Type':'application/json' };
@@ -137,6 +148,97 @@ export default function OutletManagementPage() {
   }, [token]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  /* ── Bulk Helpers ── */
+  const parseCSV = (text: string): Record<string,string>[] => {
+    const lines = text.split(/\r?\n/).filter(l => l.trim());
+    if (lines.length < 2) return [];
+    const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g,'').toLowerCase().replace(/ /g,'_'));
+    return lines.slice(1).map(line => {
+      const vals: string[] = []; let cur='', inQ=false;
+      for (let i=0; i<line.length; i++) {
+        if (line[i]==='"') inQ=!inQ;
+        else if (line[i]===',' && !inQ) { vals.push(cur.trim()); cur=''; }
+        else cur+=line[i];
+      }
+      vals.push(cur.trim());
+      const obj: any = {};
+      headers.forEach((h,i) => { obj[h] = (vals[i]||'').replace(/^"|"$/g,''); });
+      return obj;
+    });
+  };
+
+  const onFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]; if (!file) return;
+    setBulkErr(null); setBulkDone(false);
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const parsed = parseCSV(ev.target?.result as string);
+      if (!parsed.length) { setBulkErr('No valid rows found.'); return; }
+      setBulkRows(parsed.map(r => ({
+        name: r.name || r.outlet_name || '',
+        store_code: r.store_code || r.code || '',
+        owner_name: r.owner_name || '',
+        phone: r.phone || '',
+        address: r.address || '',
+        city_name: r.city || r.city_name || '',
+        zone_name: r.zone || r.zone_name || '',
+        store_type: r.type || r.store_type || '',
+        _status: (r.name || r.outlet_name) ? 'pending' : 'error',
+        _error: (r.name || r.outlet_name) ? undefined : 'Name is required'
+      })));
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
+  const downloadTemplate = () => {
+    const headers = 'name*,store_code*,owner_name,phone,address,city_name*,zone_name,store_type';
+    const row = 'Shiv Stores,S-001,Amit Shah,9876543210,"123 Main St, Mumbai",Mumbai,Zone A,Grocery';
+    const csv = [headers, row].join('\n');
+    const a = document.createElement('a');
+    a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+    a.download = 'outlet_bulk_template.csv';
+    a.click();
+  };
+
+  const runBulk = async () => {
+    setBulkBusy(true);
+    const rows = [...bulkRows];
+    for (let i=0; i<rows.length; i++) {
+      if (rows[i]._status !== 'pending') continue;
+      try {
+        const cityObj = cities.find(c => c.name.toLowerCase() === rows[i].city_name?.toLowerCase());
+        const zoneObj = zones.find(z => z.name.toLowerCase() === rows[i].zone_name?.toLowerCase());
+        const res = await fetch(`${apiBase}/api/v1/stores`, {
+          method:'POST', headers:authH,
+          body: JSON.stringify({
+            name: rows[i].name,
+            store_code: rows[i].store_code,
+            owner_name: rows[i].owner_name,
+            phone: rows[i].phone,
+            address: rows[i].address,
+            city_id: cityObj?.id || null,
+            zone_id: zoneObj?.id || null,
+            store_type: rows[i].store_type || 'Kirana / General Store',
+            is_active: true
+          }),
+        });
+        if (!res.ok) {
+          const json = await res.json();
+          throw new Error(json.error || json.message || 'Failed');
+        }
+        rows[i] = { ...rows[i], _status: 'success' };
+      } catch (e: any) {
+        rows[i] = { ...rows[i], _status: 'error', _error: e.message };
+      }
+      setBulkRows([...rows]);
+    }
+    setBulkBusy(false); setBulkDone(true);
+    fetchAll();
+  };
+
+  const resetBulk = () => { setBulkRows([]); setBulkDone(false); setBulkErr(null); setShowBulk(false); };
 
   /* ── Derived ── */
   const safeOutlets = Array.isArray(outlets) ? outlets : [];
@@ -367,13 +469,21 @@ export default function OutletManagementPage() {
               All retail & trade outlets in your network
             </div>
           </div>
-          <div style={{ display:'flex', gap:8 }}>
+          <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={fetchAll}
               style={{ padding:'8px 14px', background:C.s3, border:`1px solid ${C.border}`, borderRadius:10,
                 color:C.gray, fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:"'DM Sans',sans-serif",
                 display:'flex', alignItems:'center', gap:6 }}>
               ↺ Refresh
             </button>
+            {(isPlatformAdmin || user?.role === 'client') && (
+              <button onClick={() => setShowBulk(true)}
+                style={{ padding:'8px 14px', background:C.s3, border:`1px solid ${C.border}`, borderRadius:10,
+                  color:C.blue, fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:"'DM Sans',sans-serif",
+                  display:'flex', alignItems:'center', gap:6 }}>
+                📦 Bulk Upload
+              </button>
+            )}
             <button onClick={() => { setForm(emptyForm); setSaveErr(null); setSaveOk(false); setFormErrs({}); setShowAdd(true); }}
               style={{ padding:'8px 16px', background:C.red, border:'none', borderRadius:10,
                 color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif",
@@ -685,6 +795,78 @@ export default function OutletManagementPage() {
         itemName={deleteConfirm.item?.name}
         loading={deleting}
       />
+
+      {/* ── Bulk Modal ── */}
+      {showBulk && (
+        <div style={overlay} onClick={e => e.target === e.currentTarget && resetBulk()}>
+          <div style={{ ...mbox, maxWidth: 800 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
+              <div>
+                <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 20, fontWeight: 800 }}>Bulk Upload Outlets</div>
+                <div style={{ fontSize: 13, color: C.gray, marginTop: 4 }}>Add multiple outlets at once via CSV</div>
+              </div>
+              <button onClick={resetBulk} style={{ background: 'none', border: 'none', color: C.gray, fontSize: 20, cursor: 'pointer' }}>✕</button>
+            </div>
+
+            {bulkErr && <div style={{ color: C.red, fontSize: 13, marginBottom: 16 }}>⚠ {bulkErr}</div>}
+
+            {bulkRows.length === 0 ? (
+              <div style={{ border: `2px dashed ${C.border}`, borderRadius: 16, padding: 40, textAlign: 'center' }}>
+                <div style={{ fontSize: 40, marginBottom: 10 }}>📄</div>
+                <div style={{ fontSize: 15, fontWeight: 700 }}>Select stores CSV</div>
+                <div style={{ fontSize: 13, color: C.gray, marginTop: 10, marginBottom: 20 }}>Click below to upload your store network data</div>
+                <input type="file" accept=".csv" onChange={onFile} style={{ display: 'none' }} id="bulk-store-file" />
+                <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+                  <label htmlFor="bulk-store-file" style={{ ...btnP, padding: '10px 20px', cursor: 'pointer', flex: 'unset' }}>Choose File</label>
+                  <button onClick={downloadTemplate} style={{ ...btnS, padding: '10px 20px', flex: 'unset' }}>Download Template</button>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', background: C.s3, padding: '12px 16px', borderRadius: 12, marginBottom: 16 }}>
+                  <div style={{ fontSize: 13 }}>{bulkRows.length} rows detected</div>
+                  <div style={{ fontSize: 13, color: C.green }}>{bulkRows.filter(r => r._status === 'success').length} success</div>
+                </div>
+                <div style={{ maxHeight: 350, overflowY: 'auto', border: `1px solid ${C.border}`, borderRadius: 14 }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                    <thead style={{ background: C.s3, position: 'sticky', top: 0, zIndex: 10 }}>
+                      <tr style={{ textAlign: 'left' }}>
+                        <th style={{ padding: '12px 16px' }}>Name</th>
+                        <th style={{ padding: '12px 16px' }}>Code</th>
+                        <th style={{ padding: '12px 16px' }}>Address</th>
+                        <th style={{ padding: '12px 16px' }}>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {bulkRows.map((r, i) => (
+                        <tr key={i} style={{ borderTop: `1px solid ${C.border}`, background: r._status === 'error' ? 'rgba(224,30,44,0.05)' : 'transparent' }}>
+                          <td style={{ padding: '12px 16px', fontWeight: 700 }}>{r.name}</td>
+                          <td style={{ padding: '12px 16px', color: C.gray }}>{r.store_code}</td>
+                          <td style={{ padding: '12px 16px', color: C.grayd }}>{r.address}</td>
+                          <td style={{ padding: '12px 16px', fontWeight: 800, color: r._status === 'success' ? C.green : r._status === 'error' ? C.red : C.yellow }}>
+                            {r._status.toUpperCase()}
+                            {r._error && <div style={{ fontSize: 10, fontWeight: 400, marginTop: 2 }}>{r._error}</div>}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+                  <button onClick={resetBulk} style={btnS}>Cancel</button>
+                  {!bulkDone ? (
+                    <button onClick={runBulk} disabled={bulkBusy} style={{ ...btnP, flex: 2, opacity: bulkBusy ? 0.7 : 1 }}>
+                      {bulkBusy ? 'Processing...' : 'Start Upload'}
+                    </button>
+                  ) : (
+                    <button onClick={resetBulk} style={{ ...btnP, flex: 2 }}>Close</button>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </>
   );
 }
