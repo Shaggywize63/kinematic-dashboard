@@ -23,10 +23,10 @@ const C = {
 };
 
 const ROLE_DEFAULTS: Record<string, string[]> = {
-  admin: ['analytics', 'live_tracking', 'broadcast', 'attendance', 'orders', 'work_activities', 'users', 'hr', 'visit_logs', 'inventory', 'resources', 'grievances', 'form_builder', 'master_data', 'clients', 'settings'],
-  sub_admin: ['analytics', 'live_tracking', 'broadcast', 'attendance', 'orders', 'work_activities', 'users', 'hr', 'visit_logs', 'inventory', 'resources', 'grievances', 'form_builder', 'master_data', 'clients', 'settings'],
+  admin: ['analytics', 'live_tracking', 'broadcast', 'attendance', 'orders', 'work_activities', 'users', 'hr', 'visit_logs', 'inventory', 'skus', 'assets', 'grievances', 'form_builder', 'cities', 'zones', 'stores', 'activities', 'clients', 'settings'],
+  sub_admin: ['analytics', 'live_tracking', 'broadcast', 'attendance', 'orders', 'work_activities', 'users', 'hr', 'visit_logs', 'inventory', 'skus', 'assets', 'grievances', 'form_builder', 'cities', 'zones', 'stores', 'activities', 'clients', 'settings'],
   city_manager: ['analytics', 'live_tracking', 'attendance', 'orders', 'work_activities', 'visit_logs'],
-  warehouse_manager: ['inventory', 'resources'],
+  warehouse_manager: ['inventory', 'skus', 'assets'],
   hr: ['analytics', 'users', 'hr'],
   mis: ['analytics', 'visit_logs'],
   client: []
@@ -311,8 +311,10 @@ export default function SettingsPage() {
                         {id: 'orders', l: 'Route Plan'}, {id: 'work_activities', l: 'Work Activities'},
                         {id: 'users', l: 'Manpower'}, {id: 'hr', l: 'HR & Payroll'}, 
                         {id: 'visit_logs', l: 'Visit Logs'}, {id: 'inventory', l: 'Warehouse'}, 
-                        {id: 'resources', l: 'SKU & Asset'}, {id: 'grievances', l: 'Grievances'}, 
-                        {id: 'form_builder', l: 'Form Builder'}, {id: 'master_data', l: 'Master Data'},
+                        {id: 'skus', l: 'SKU Management'}, {id: 'assets', l: 'Asset Management'}, 
+                        {id: 'grievances', l: 'Grievances'}, {id: 'form_builder', l: 'Form Builder'}, 
+                        {id: 'cities', l: 'Cities'}, {id: 'zones', l: 'Zones'},
+                        {id: 'stores', l: 'Outlets'}, {id: 'activities', l: 'Activities'},
                         {id: 'clients', l: 'Clients'}, {id: 'settings', l: 'Settings'}
                       ].map(m => (
                         <label key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, background: C.s4, padding: '8px 12px', borderRadius: 8, cursor: 'pointer', border: `1px solid ${form.permissions.includes(m.id) ? C.blue : C.border}`, transition: 'all 0.2s' }}>
