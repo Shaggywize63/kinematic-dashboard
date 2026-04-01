@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import { Client } from '@/types';
+import ConfirmModal from '@/components/ConfirmModal';
 
 // Uses the Next.js proxy routes (/api/v1/clients) which seed the modules table
 // before forwarding to the Supabase edge function, preventing FK constraint errors.
@@ -84,6 +85,8 @@ export default function ClientManagement() {
   const [form, setForm] = useState({ ...BLANK });
   const [saving, setSaving] = useState(false);
   const [fErr, setFErr] = useState('');
+  const [deleteConfirm, setDeleteConfirm] = useState<{show:boolean; item:Client|null}>({show:false, item:null});
+  const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -134,6 +137,20 @@ export default function ClientManagement() {
     finally { setSaving(false); }
   };
 
+  const handleDelete = async () => {
+    if(!deleteConfirm.item) return;
+    setDeleting(true);
+    try {
+      await clientsFetch('DELETE', `/api/v1/clients/${deleteConfirm.item.id}`);
+      setDeleteConfirm({show:false, item:null});
+      load();
+    } catch(e:any){
+      alert(e.response?.data?.error || e.message || 'Delete failed');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const toggleModule = (id: string) => {
     setForm(p => {
       const modules = p.modules.includes(id) 
@@ -179,7 +196,7 @@ export default function ClientManagement() {
 
       {/* Table */}
       <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 16, overflow: 'hidden' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr 1.5fr 150px 80px', padding: '12px 20px', borderBottom: `1px solid ${C.border}`, gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr 1.5fr 150px 110px', padding: '12px 20px', borderBottom: `1px solid ${C.border}`, gap: 12 }}>
           {['Client Name', 'Contact Person', 'Email / Phone', 'Module Access', 'Actions'].map(h => (
             <div key={h} style={{ fontSize: 11, fontWeight: 700, color: C.grayd, letterSpacing: '0.8px', textTransform: 'uppercase' }}>{h}</div>
           ))}
@@ -193,7 +210,7 @@ export default function ClientManagement() {
             {search ? 'No clients match your search.' : 'No clients yet. Add your first client to enable multi-tenancy.'}
           </div>
         ) : filtered.map((c, i) => (
-          <div key={c.id} style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr 1.5fr 150px 80px', padding: '16px 20px', borderBottom: i < filtered.length - 1 ? `1px solid ${C.border}` : 'none', gap: 12, alignItems: 'center' }}
+          <div key={c.id} style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr 1.5fr 150px 110px', padding: '16px 20px', borderBottom: i < filtered.length - 1 ? `1px solid ${C.border}` : 'none', gap: 12, alignItems: 'center' }}
             onMouseEnter={e => e.currentTarget.style.background = C.s3}
             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
           >
@@ -218,8 +235,13 @@ export default function ClientManagement() {
                 onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.gray; }}>
                 <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4z"/></svg>
               </button>
-              <button onClick={() => openEdit(c)} style={{ width: 32, height: 32, border: `1px solid ${C.border}`, borderRadius: 10, background: 'transparent', cursor: 'pointer', color: c.is_active ? C.green : C.gray, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <button onClick={() => openEdit(c)} title={c.is_active?'Deactivate':'Activate'} style={{ width: 32, height: 32, border: `1px solid ${C.border}`, borderRadius: 10, background: 'transparent', cursor: 'pointer', color: c.is_active ? C.green : C.gray, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: c.is_active ? C.green : C.gray }} />
+              </button>
+              <button onClick={() => setDeleteConfirm({show:true, item:c})} title="Delete Client" style={{ width: 32, height: 32, border: `1px solid ${C.border}`, borderRadius: 10, background: 'transparent', cursor: 'pointer', color: C.gray, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = C.red; e.currentTarget.style.color = C.red; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.gray; }}>
+                <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
               </button>
             </div>
           </div>
@@ -229,7 +251,14 @@ export default function ClientManagement() {
       {/* Modal */}
       {showModal && (
         <Overlay onClose={() => setShowModal(false)}>
-          <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 24, padding: 32, width: '100%', maxWidth: 800, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 40px rgba(0,0,0,0.4)' }}>
+          <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 24, padding: 32, width: '100%', maxWidth: 800, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 40px rgba(0,0,0,0.4)', position:'relative' }}>
+            {/* Close Button (X) */}
+            <button onClick={() => setShowModal(false)} style={{ position:'absolute', top:22, right:22, width:36, height:36, borderRadius:12, border:'none', background:C.s3, color:C.gray, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}
+              onMouseEnter={e => { e.currentTarget.style.color = C.white; e.currentTarget.style.background = C.border; }}
+              onMouseLeave={e => { e.currentTarget.style.color = C.gray; e.currentTarget.style.background = C.s3; }}>
+              <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+
             <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 22, fontWeight: 800, marginBottom: 8 }}>{editing ? 'Edit Client' : 'Add New Client'}</div>
             <p style={{ fontSize: 13, color: C.gray, marginBottom: 28 }}>{editing ? `Update configurations for ${editing.name}` : 'Setup a new isolated client environment'}</p>
             
@@ -273,6 +302,16 @@ export default function ClientManagement() {
           </div>
         </Overlay>
       )}
+
+      <ConfirmModal
+        show={deleteConfirm.show}
+        onClose={() => setDeleteConfirm({show:false, item:null})}
+        onConfirm={handleDelete}
+        title="Delete Client"
+        message="Are you sure you want to permanently delete this client"
+        itemName={deleteConfirm.item?.name}
+        loading={deleting}
+      />
     </div>
   );
 }

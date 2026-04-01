@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { parseISO, isValid } from 'date-fns';
 import api from '@/lib/api';
+import ConfirmModal from '@/components/ConfirmModal';
 
 /* ── DateRangePicker component ── */
 function DateRangePicker({ from, to, onChange }: { from: string; to: string; onChange: (f: string, t: string) => void }) {
@@ -412,7 +413,7 @@ export default function AttendancePage() {
         override_reason: 'Deleted by admin',
       });
       setDelRec(null); setDetail(null); load();
-    } catch (e: any) { setErr(e.message); }
+    } catch (e: any) { alert(e.message); }
     finally { setSaving(false); }
   };
 
@@ -1036,14 +1037,12 @@ export default function AttendancePage() {
       {/* ══════ ADD OVERRIDE MODAL ══════ */}
       {showAdd && (
         <Overlay onClose={() => setShowAdd(false)}>
-          <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 22, width: '100%', maxWidth: 500, padding: 28, maxHeight: '90vh', overflowY: 'auto', color: C.white }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 22 }}>
-              <div>
-                <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 20, fontWeight: 800 }}>Add Attendance Override</div>
-                <div style={{ fontSize: 12, color: C.gray, marginTop: 3 }}>Manually set attendance for an executive</div>
-              </div>
-              <button onClick={() => setShowAdd(false)} style={{ background: C.s3, border: `1px solid ${C.border}`, borderRadius: 9, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: C.gray, fontSize: 15 }}>✕</button>
-            </div>
+          <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 24, padding: 32, width: '100%', maxWidth: 500, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 40px rgba(0,0,0,0.4)', position:'relative' }}>
+            <button onClick={() => setShowAdd(false)} style={{ position:'absolute', top:22, right:22, width:36, height:36, borderRadius:12, border:'none', background:C.s3, color:C.gray, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}
+              onMouseEnter={e => { e.currentTarget.style.color = C.white; e.currentTarget.style.background = C.border; }}
+              onMouseLeave={e => { e.currentTarget.style.color = C.gray; e.currentTarget.style.background = C.s3; }}>✕</button>
+            <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 20, fontWeight: 800, marginBottom: 8 }}>Manual Attendance</div>
+            <p style={{ fontSize: 13, color: C.gray, marginBottom: 24 }}>Manually mark attendance session for an executive</p>
 
             {fErr && <div style={{ background: C.redD, border: `1px solid ${C.redB}`, borderRadius: 10, padding: '10px 14px', fontSize: 13, color: C.red, marginBottom: 16 }}>{fErr}</div>}
 
@@ -1072,14 +1071,12 @@ export default function AttendancePage() {
       {/* ══════ EDIT MODAL ══════ */}
       {editRec && (
         <Overlay onClose={() => setEditRec(null)}>
-          <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 22, width: '100%', maxWidth: 500, padding: 28, maxHeight: '90vh', overflowY: 'auto', color: C.white }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 22 }}>
-              <div>
-                <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 20, fontWeight: 800 }}>Edit Attendance</div>
-                <div style={{ fontSize: 12, color: C.gray, marginTop: 3 }}>{editRec.users?.name} · {fmtDate(editRec.date)}</div>
-              </div>
-              <button onClick={() => setEditRec(null)} style={{ background: C.s3, border: `1px solid ${C.border}`, borderRadius: 9, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: C.gray, fontSize: 15 }}>✕</button>
-            </div>
+          <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 24, padding: 32, width: '100%', maxWidth: 500, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 40px rgba(0,0,0,0.4)', position:'relative' }}>
+            <button onClick={() => setEditRec(null)} style={{ position:'absolute', top:22, right:22, width:36, height:36, borderRadius:12, border:'none', background:C.s3, color:C.gray, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}
+              onMouseEnter={e => { e.currentTarget.style.color = C.white; e.currentTarget.style.background = C.border; }}
+              onMouseLeave={e => { e.currentTarget.style.color = C.gray; e.currentTarget.style.background = C.s3; }}>✕</button>
+            <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 20, fontWeight: 800, marginBottom: 8 }}>Update Record</div>
+            <p style={{ fontSize: 13, color: C.gray, marginBottom: 24 }}>Modify attendance for <strong style={{ color: C.white }}>{editRec.users?.name}</strong></p>
 
             {fErr && <div style={{ background: C.redD, border: `1px solid ${C.redB}`, borderRadius: 10, padding: '10px 14px', fontSize: 13, color: C.red, marginBottom: 16 }}>{fErr}</div>}
 
@@ -1247,12 +1244,15 @@ export default function AttendancePage() {
                 <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 20, fontWeight: 800 }}>Export Attendance</div>
                 <div style={{ fontSize: 12, color: C.gray, marginTop: 3 }}>Downloads a CSV with city-wise, role-wise & executive-wise breakdown</div>
               </div>
-              <button onClick={() => setShowExport(false)} style={{ width: 32, height: 32, borderRadius: 9, background: C.s3, border: `1px solid ${C.border}`, cursor: 'pointer', color: C.gray, fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>✕</button>
             </div>
 
             {expErr && (
               <div style={{ background: C.redD, border: `1px solid ${C.redB}`, borderRadius: 10, padding: '10px 14px', fontSize: 13, color: C.red, marginBottom: 16 }}>{expErr}</div>
             )}
+
+            <button onClick={() => setShowExport(false)} style={{ position:'absolute', top:22, right:22, width:36, height:36, borderRadius:12, border:'none', background:C.s3, color:C.gray, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}
+              onMouseEnter={e => { e.currentTarget.style.color = C.white; e.currentTarget.style.background = C.border; }}
+              onMouseLeave={e => { e.currentTarget.style.color = C.gray; e.currentTarget.style.background = C.s3; }}>✕</button>
 
             {/* date range */}
             <div style={{ fontSize: 11, fontWeight: 700, color: C.gray, letterSpacing: '0.8px', textTransform: 'uppercase' as const, marginBottom: 8 }}>Date Range</div>
@@ -1313,6 +1313,15 @@ export default function AttendancePage() {
         </Overlay>
       )}
 
+      <ConfirmModal
+        show={!!delRec}
+        onClose={() => setDelRec(null)}
+        onConfirm={handleDelete}
+        title="Delete Record"
+        message="Are you sure you want to delete this attendance record? This will mark the user as absent for this date."
+        itemName={delRec?.users?.name}
+        loading={saving}
+      />
     </>
   );
 }

@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback, useRef } from 'react';
+import ConfirmModal from '@/components/ConfirmModal';
 
 /* ─── Constants ──────────────────────────────────────────────────────────── */
 const C = {
@@ -245,32 +246,19 @@ function FormList({ onOpen, onCreate }:{ onOpen:(f:BForm)=>void; onCreate:()=>vo
         </div>
       )}
 
-      {deleteForm && (
-        <DeleteFormModal formName={deleteForm.title} onDelete={confirmDelete} onClose={() => setDeleteForm(null)} loading={deleting} />
-      )}
+      <ConfirmModal
+        show={!!deleteForm}
+        onClose={() => setDeleteForm(null)}
+        onConfirm={confirmDelete}
+        title="Delete Form"
+        message="Are you sure you want to delete the form? This will permanently remove all associated pages, questions, and submissions."
+        itemName={deleteForm?.title}
+        loading={deleting}
+      />
     </div>
   );
 }
 
-function DeleteFormModal({ formName, onDelete, onClose, loading }:{ formName:string; onDelete:()=>void; onClose:()=>void; loading:boolean }) {
-  return (
-    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.75)', zIndex:300, display:'flex', alignItems:'center', justifyContent:'center' }}>
-      <div style={{ background:C.s2, border:`1px solid ${C.border}`, borderRadius:20, padding:32, width:400, boxShadow:'0 32px 100px rgba(0,0,0,.9)' }}>
-        <div style={{ fontSize:40, textAlign:'center', marginBottom:16 }}>⚠️</div>
-        <div style={{ fontFamily:"'Syne',sans-serif", fontSize:20, fontWeight:800, color:C.white, marginBottom:12, textAlign:'center' }}>Delete Form?</div>
-        <div style={{ fontSize:14, color:C.gray, textAlign:'center', marginBottom:24, lineHeight:1.5 }}>
-          Are you sure you want to delete <strong style={{ color:C.white }}>{formName}</strong>? This will permanently remove all associated pages, questions, and submissions. This action cannot be undone.
-        </div>
-        <div style={{ display:'flex', gap:10 }}>
-          <button onClick={onClose} disabled={loading} style={{ flex:1, padding:'10px', background:C.s3, border:`1px solid ${C.border}`, borderRadius:10, color:C.gray, fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", opacity:loading?0.5:1 }}>Cancel</button>
-          <button onClick={onDelete} disabled={loading} style={{ flex:1, padding:'10px', background:C.red, border:'none', borderRadius:10, color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", opacity:loading?0.6:1, display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
-            {loading?<><Spin size={14}/>Deleting…</>:'Delete'}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 /* ══════════════════════════════════════════════════════════════════════════
    CREATE FORM MODAL
@@ -306,9 +294,11 @@ function CreateFormModal({ onCreated, onClose }:{ onCreated:(f:BForm)=>void; onC
   };
 
   return (
-    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.75)', zIndex:300, display:'flex', alignItems:'center', justifyContent:'center' }}>
-      <div style={{ background:C.s2, border:`1px solid ${C.border}`, borderRadius:20, padding:32, width:420, boxShadow:'0 32px 100px rgba(0,0,0,.9)' }}>
-        <div style={{ fontFamily:"'Syne',sans-serif", fontSize:20, fontWeight:800, color:C.white, marginBottom:24 }}>New Form</div>
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.75)', zIndex:300, display:'flex', alignItems:'center', justifyContent:'center', backdropFilter:'blur(4px)' }}>
+      <div style={{ background:C.s2, border:`1px solid ${C.border}`, borderRadius:22, padding:32, width:440, boxShadow:'0 32px 100px rgba(0,0,0,.9)', position:'relative' }}>
+        <button onClick={onClose} style={{ position:'absolute', top:20, right:20, width:32, height:32, borderRadius:9, background:C.s3, border:`1px solid ${C.border}`, cursor:'pointer', color:C.gray, fontSize:16, display:'flex', alignItems:'center', justifyContent:'center' }}>✕</button>
+        <div style={{ fontFamily:"'Syne',sans-serif", fontSize:20, fontWeight:800, color:C.white, marginBottom:6 }}>New Form</div>
+        <p style={{ fontSize:13, color:C.gray, marginBottom:24 }}>Create a custom data collection form</p>
 
         <div style={{ marginBottom:14 }}>
           <label style={{ fontSize:12, color:C.gray, display:'block', marginBottom:6 }}>Form Title <span style={{ color:C.red }}>*</span></label>
@@ -569,6 +559,8 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
   const [tab,       setTab]      = useState<'build'|'settings'|'logic'>('build');
   const [saving,    setSaving]   = useState(false);
   const [saved,     setSaved]    = useState(false);
+  const [deleteQModal, setDeleteQModal] = useState<{show:boolean; id:string; label:string}>({show:false, id:'', label:''});
+  const [deletingQ, setDeletingQ] = useState(false);
 
   /* Load form data */
   const loadForm = useCallback(async () => {
@@ -615,10 +607,19 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
   };
 
   /* Delete question */
-  const deleteQ = async (id:string) => {
-    await apiFetch(`/api/v1/builder/questions/${id}`, { method:'DELETE' }).catch(()=>{});
-    setQs(p => p.filter(q => q.id!==id));
-    setSelQ(null);
+  const doDeleteQ = async () => {
+    if(!deleteQModal.id) return;
+    setDeletingQ(true);
+    try {
+      await apiFetch(`/api/v1/builder/questions/${deleteQModal.id}`, { method:'DELETE' });
+      setQs(p => p.filter(q => q.id!==deleteQModal.id));
+      setSelQ(null);
+      setDeleteQModal({show:false, id:'', label:''});
+    } catch(e:any){
+      alert(e.message);
+    } finally {
+      setDeletingQ(false);
+    }
   };
 
   /* Reorder questions */
@@ -751,7 +752,7 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
 
           {/* Right — Properties */}
           {selectedQ ? (
-            <PropertiesPanel q={selectedQ} onChange={updateQ} onDelete={() => deleteQ(selectedQ.id)}/>
+            <PropertiesPanel q={selectedQ} onChange={updateQ} onDelete={() => setDeleteQModal({show:true, id:selectedQ.id, label:selectedQ.label})}/>
           ) : (
             <div style={{ width:280, flexShrink:0, background:C.s2, borderLeft:`1px solid ${C.border}`, display:'flex', alignItems:'center', justifyContent:'center', color:C.grayd, fontSize:13, textAlign:'center', padding:24 }}>
               <div><div style={{ fontSize:32, marginBottom:10 }}>👆</div>Select a field to edit its properties</div>
@@ -759,6 +760,16 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
           )}
         </div>
       )}
+
+      <ConfirmModal
+        show={deleteQModal.show}
+        onClose={() => setDeleteQModal({show:false, id:'', label:''})}
+        onConfirm={doDeleteQ}
+        title="Delete Question"
+        message="Are you sure you want to permanently delete this field"
+        itemName={deleteQModal.label}
+        loading={deletingQ}
+      />
 
       {/* Settings tab */}
       {tab==='settings' && (

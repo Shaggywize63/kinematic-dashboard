@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import api from '@/lib/api';
 import CitySelect from '@/components/CitySelect';
 import ClientSelect from '@/components/ClientSelect';
+import ConfirmModal from '@/components/ConfirmModal';
 import { useAuth } from '@/hooks/useAuth';
 import { fmtHrs } from '@/lib/utils';
 
@@ -172,6 +173,8 @@ export default function ManpowerDirectoryPage() {
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkDone, setBulkDone] = useState(false);
   const [bulkErr,  setBulkErr]  = useState('');
+  const [deleteConfirm, setDeleteConfirm] = useState<{show:boolean; item:FieldExecutive|null}>({show:false, item:null});
+  const [deleting, setDeleting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   
   const { user } = useAuth();
@@ -279,6 +282,21 @@ export default function ManpowerDirectoryPage() {
   const toggleActive = async (fe: FieldExecutive) => {
     try { await api.patch(`/api/v1/users/${fe.id}`,{is_active:!fe.is_active}); fetchData(); }
     catch(e:any){ setError(e.message); }
+  };
+
+  const handleDelete = async () => {
+    if(!deleteConfirm.item) return;
+    setDeleting(true);
+    try {
+      await api.delete(`/api/v1/users/${deleteConfirm.item.id}`);
+      setDeleteConfirm({show:false, item:null});
+      setSelected(null);
+      fetchData();
+    } catch(e:any){
+      alert(e.response?.data?.error || e.message || 'Delete failed');
+    } finally {
+      setDeleting(false);
+    }
   };
 
   /* ── BULK ── */
@@ -468,6 +486,9 @@ export default function ManpowerDirectoryPage() {
                     </button>
                     <button className="btn-icon" onClick={()=>toggleActive(u)} style={{width:28,height:28,borderRadius:8,background:u.is_active?'rgba(0,217,126,0.1)':'rgba(122,139,160,0.1)',border:`1px solid ${u.is_active?'rgba(0,217,126,0.2)':'rgba(122,139,160,0.2)'}`,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color:u.is_active?C.green:C.gray}}>
                       <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round"><path d="M18.36 6.64a9 9 0 11-12.73 0M12 2v10"/></svg>
+                    </button>
+                    <button className="btn-icon" onClick={()=>setDeleteConfirm({show:true, item:u})} style={{width:28,height:28,borderRadius:8,background:C.s3,border:`1px solid ${C.border}`,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color:C.gray}}>
+                      <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" onMouseEnter={e=>e.currentTarget.parentElement!.style.color=C.red} onMouseLeave={e=>e.currentTarget.parentElement!.style.color=C.gray}><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
                     </button>
                 </div>
               </div>
@@ -795,6 +816,16 @@ export default function ManpowerDirectoryPage() {
           </div>
         </Modal>
       )}
+
+      <ConfirmModal
+        show={deleteConfirm.show}
+        onClose={() => setDeleteConfirm({show:false, item:null})}
+        onConfirm={handleDelete}
+        title="Delete Staff Member"
+        message="Are you sure you want to permanently delete this member"
+        itemName={deleteConfirm.item?.name}
+        loading={deleting}
+      />
     </>
   );
 }

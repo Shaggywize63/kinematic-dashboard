@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '@/lib/api';
 import ClientSelect from '@/components/ClientSelect';
+import ConfirmModal from '@/components/ConfirmModal';
 import { useAuth } from '@/hooks/useAuth';
 
 const C = {
@@ -85,6 +86,8 @@ export default function ActivityManagement() {
   const [form, setForm] = useState({...BLANK});
   const [saving, setSaving] = useState(false);
   const [fErr, setFErr] = useState('');
+  const [deleteConfirm, setDeleteConfirm] = useState<{show:boolean; item:Activity|null}>({show:false, item:null});
+  const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -139,6 +142,20 @@ export default function ActivityManagement() {
 
   const toggle = async (a:Activity) => {
     try { await api.patch(`/api/v1/activities/${a.id}`, {is_active:!a.is_active}); load(); } catch{}
+  };
+
+  const handleDelete = async () => {
+    if(!deleteConfirm.item) return;
+    setDeleting(true);
+    try {
+      await api.delete(`/api/v1/activities/${deleteConfirm.item.id}`);
+      setDeleteConfirm({show:false, item:null});
+      load();
+    } catch(e:any){
+      alert(e.response?.data?.error || e.message || 'Delete failed');
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const filtered = acts.filter(a => a.name.toLowerCase().includes(search.toLowerCase()) || (a.type||'').toLowerCase().includes(search.toLowerCase()));
@@ -201,10 +218,15 @@ export default function ActivityManagement() {
                     onMouseLeave={e=>{e.currentTarget.style.borderColor=C.border;e.currentTarget.style.color=C.gray;}}>
                     <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4z"/></svg>
                   </button>
-                  <button onClick={()=>toggle(a)} style={{width:28,height:28,border:`1px solid ${C.border}`,borderRadius:8,background:'transparent',cursor:'pointer',color:a.is_active?C.red:C.green,display:'flex',alignItems:'center',justifyContent:'center'}}
+                  <button onClick={()=>toggle(a)} title={a.is_active?'Deactivate':'Activate'} style={{width:28,height:28,border:`1px solid ${C.border}`,borderRadius:8,background:'transparent',cursor:'pointer',color:a.is_active?C.red:C.green,display:'flex',alignItems:'center',justifyContent:'center'}}
                     onMouseEnter={e=>e.currentTarget.style.borderColor=a.is_active?C.red:C.green}
                     onMouseLeave={e=>e.currentTarget.style.borderColor=C.border}>
                     <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>{a.is_active?<path d="M18 6L6 18M6 6l12 12"/>:<path d="M20 6L9 17l-5-5"/>}</svg>
+                  </button>
+                  <button onClick={()=>setDeleteConfirm({show:true, item:a})} title="Delete Activity" style={{width:28,height:28,border:`1px solid ${C.border}`,borderRadius:8,background:'transparent',cursor:'pointer',color:C.gray,display:'flex',alignItems:'center',justifyContent:'center'}}
+                    onMouseEnter={e=>{e.currentTarget.style.borderColor=C.red;e.currentTarget.style.color=C.red;}}
+                    onMouseLeave={e=>{e.currentTarget.style.borderColor=C.border;e.currentTarget.style.color=C.gray;}}>
+                    <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
                   </button>
                 </div>
               </div>
@@ -224,7 +246,14 @@ export default function ActivityManagement() {
       {/* Modal */}
       {showModal && (
         <Overlay onClose={()=>setShowModal(false)}>
-          <div style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:20,padding:28,width:'100%',maxWidth:480}}>
+          <div style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:20,padding:28,width:'100%',maxWidth:480,position:'relative'}}>
+            {/* Close Button (X) */}
+            <button onClick={()=>setShowModal(false)} style={{position:'absolute',top:18,right:18,width:32,height:32,borderRadius:'50%',border:'none',background:C.s3,color:C.gray,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}
+              onMouseEnter={e=>{e.currentTarget.style.color=C.white;e.currentTarget.style.background=C.border;}}
+              onMouseLeave={e=>{e.currentTarget.style.color=C.gray;e.currentTarget.style.background=C.s3;}}>
+              <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+
             <div style={{fontFamily:"'Syne',sans-serif",fontSize:20,fontWeight:800,marginBottom:6}}>{editing?'Edit Activity':'Add Activity'}</div>
             <div style={{fontSize:13,color:C.gray,marginBottom:24}}>{editing?`Editing ${editing.name}`:'Create a new activity type for field execs'}</div>
             {fErr && <div style={{background:C.redD,border:`1px solid ${C.redB}`,borderRadius:10,padding:'10px 14px',color:C.red,fontSize:13,marginBottom:16}}>{fErr}</div>}
@@ -299,6 +328,16 @@ export default function ActivityManagement() {
           </div>
         </Overlay>
       )}
+
+      <ConfirmModal
+        show={deleteConfirm.show}
+        onClose={() => setDeleteConfirm({show:false, item:null})}
+        onConfirm={handleDelete}
+        title="Delete Activity"
+        message="Are you sure you want to delete the activity"
+        itemName={deleteConfirm.item?.name}
+        loading={deleting}
+      />
     </div>
   );
 }

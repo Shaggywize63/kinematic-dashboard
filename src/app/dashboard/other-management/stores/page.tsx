@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import api from '@/lib/api';
 import CitySelect from '@/components/CitySelect';
 import ClientSelect from '@/components/ClientSelect';
+import ConfirmModal from '@/components/ConfirmModal';
 import { useAuth } from '@/hooks/useAuth';
 
 const C = {
@@ -111,6 +112,8 @@ export default function OutletManagementPage() {
   const [saveErr, setSaveErr] = useState<string|null>(null);
   const [saveOk,  setSaveOk]  = useState(false);
   const [formErrs, setFormErrs] = useState<Record<string,string>>({});
+  const [deleteConfirm, setDeleteConfirm] = useState<{show:boolean; item:Outlet|null}>({show:false, item:null});
+  const [deleting, setDeleting] = useState(false);
 
   const token = typeof window !== 'undefined' ? localStorage.getItem('kinematic_token') || '' : '';
   const authH = { Authorization:`Bearer ${token}`, 'Content-Type':'application/json' };
@@ -234,7 +237,27 @@ export default function OutletManagementPage() {
         body: JSON.stringify({ is_active: !o.is_active }),
       });
       fetchAll();
-    } catch {}
+    } catch { }
+  };
+
+  const doDelete = async () => {
+    if (!deleteConfirm.item) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`${apiBase}/api/v1/stores/${deleteConfirm.item.id}`, {
+        method: 'DELETE', headers: authH
+      });
+      if (!res.ok) {
+        const json = await res.json();
+        throw new Error(json.error || json.message || 'Delete failed');
+      }
+      setDeleteConfirm({ show: false, item: null });
+      fetchAll();
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setDeleting(false);
+    }
   };
 
   /* ── Shared styles ── */
@@ -507,6 +530,14 @@ export default function OutletManagementPage() {
                     onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
                     {o.is_active ? '⏸' : '▶️'}
                   </button>
+                  <button title="Delete outlet" onClick={() => setDeleteConfirm({show:true, item:o})}
+                    style={{ width:30, height:30, borderRadius:8, border:`1px solid ${C.border}`,
+                      background:'transparent', cursor:'pointer', fontSize:13,
+                      display:'flex', alignItems:'center', justifyContent:'center' }}
+                    onMouseEnter={e => { e.currentTarget.style.background = C.s3; e.currentTarget.style.color = C.red; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'inherit'; }}>
+                    🗑️
+                  </button>
                 </div>
               </div>
             ))}
@@ -640,6 +671,16 @@ export default function OutletManagementPage() {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        show={deleteConfirm.show}
+        onClose={() => setDeleteConfirm({ show: false, item: null })}
+        onConfirm={doDelete}
+        title="Delete Outlet"
+        message="Are you sure you want to permanently delete this outlet"
+        itemName={deleteConfirm.item?.name}
+        loading={deleting}
+      />
     </>
   );
 }
