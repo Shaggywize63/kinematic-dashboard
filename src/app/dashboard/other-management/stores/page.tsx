@@ -59,6 +59,7 @@ interface Outlet {
 interface BulkStoreRow {
   name: string; store_code: string; owner_name?: string; phone?: string;
   address?: string; city_name?: string; zone_name?: string; store_type?: string;
+  lat?: string; lng?: string; client_id?: string;
   _status: 'pending' | 'success' | 'error'; _error?: string;
 }
 
@@ -184,6 +185,9 @@ export default function OutletManagementPage() {
         city_name: r.city || r.city_name || '',
         zone_name: r.zone || r.zone_name || '',
         store_type: r.type || r.store_type || '',
+        lat: r.lat || r.latitude || '',
+        lng: r.lng || r.longitude || r.long || '',
+        client_id: isPlatformAdmin ? (r.client_id || r.client || '') : undefined,
         _status: (r.name || r.outlet_name) ? 'pending' : 'error',
         _error: (r.name || r.outlet_name) ? undefined : 'Name is required'
       })));
@@ -193,8 +197,9 @@ export default function OutletManagementPage() {
   };
 
   const downloadTemplate = () => {
-    const headers = 'name*,store_code*,owner_name,phone,address,city_name*,zone_name,store_type';
-    const row = 'Shiv Stores,S-001,Amit Shah,9876543210,"123 Main St, Mumbai",Mumbai,Zone A,Grocery';
+    let headers = 'name*,store_code*,owner_name,phone,address,city_name*,zone_name,store_type,latitude,longitude';
+    if (isPlatformAdmin) headers += ',client_id';
+    const row = 'Shiv Stores,S-001,Amit Shah,9876543210,"123 Main St, Mumbai",Mumbai,Zone A,Grocery,19.076,72.877';
     const csv = [headers, row].join('\n');
     const a = document.createElement('a');
     a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
@@ -221,6 +226,9 @@ export default function OutletManagementPage() {
             city_id: cityObj?.id || null,
             zone_id: zoneObj?.id || null,
             store_type: rows[i].store_type || 'Kirana / General Store',
+            lat: rows[i].lat ? parseFloat(rows[i].lat as string) : null,
+            lng: rows[i].lng ? parseFloat(rows[i].lng as string) : null,
+            client_id: isPlatformAdmin ? (rows[i].client_id || null) : user?.client_id || null,
             is_active: true
           }),
         });
@@ -833,7 +841,7 @@ export default function OutletManagementPage() {
                       <tr style={{ textAlign: 'left' }}>
                         <th style={{ padding: '12px 16px' }}>Name</th>
                         <th style={{ padding: '12px 16px' }}>Code</th>
-                        <th style={{ padding: '12px 16px' }}>Address</th>
+                        <th style={{ padding: '12px 16px' }}>Coordinates</th>
                         <th style={{ padding: '12px 16px' }}>Status</th>
                       </tr>
                     </thead>
@@ -842,7 +850,9 @@ export default function OutletManagementPage() {
                         <tr key={i} style={{ borderTop: `1px solid ${C.border}`, background: r._status === 'error' ? 'rgba(224,30,44,0.05)' : 'transparent' }}>
                           <td style={{ padding: '12px 16px', fontWeight: 700 }}>{r.name}</td>
                           <td style={{ padding: '12px 16px', color: C.gray }}>{r.store_code}</td>
-                          <td style={{ padding: '12px 16px', color: C.grayd }}>{r.address}</td>
+                          <td style={{ padding: '12px 16px', color: C.grayd }}>
+                             {r.lat && r.lng ? `${parseFloat(r.lat).toFixed(3)}, ${parseFloat(r.lng).toFixed(3)}` : '—'}
+                          </td>
                           <td style={{ padding: '12px 16px', fontWeight: 800, color: r._status === 'success' ? C.green : r._status === 'error' ? C.red : C.yellow }}>
                             {r._status.toUpperCase()}
                             {r._error && <div style={{ fontSize: 10, fontWeight: 400, marginTop: 2 }}>{r._error}</div>}
