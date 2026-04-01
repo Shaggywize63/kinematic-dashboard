@@ -31,6 +31,7 @@ const MODULES = [
   { id: 'users',           label: 'Manpower & HR' },
   { id: 'visit_logs',      label: 'Visit Logs' },
   { id: 'inventory',       label: 'Warehouse & Inventory' },
+  { id: 'resources',       label: 'Resources Management' },
   { id: 'grievances',      label: 'Grievance Management' },
   { id: 'form_builder',    label: 'Form Builder' },
   { id: 'broadcast',       label: 'Broadcasts' },
