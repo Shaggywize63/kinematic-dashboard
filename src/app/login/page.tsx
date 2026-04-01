@@ -24,7 +24,7 @@ export default function LoginPage() {
       const res = await api.login(email, password) as {
         success: boolean;
         data: {
-          user: { id: string; name: string; role: string; org_id: string };
+          user: { id: string; name: string; role: string; org_id: string; permissions: string[] };
           access_token: string;
           expires_at: number;
         };
