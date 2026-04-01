@@ -318,7 +318,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       // Forever Fix: Re-fetch profile to sync permissions (handle stale sessions)
       if (t) {
         api.get('/api/v1/auth/me', { headers: { Authorization: `Bearer ${t}` } })
-          .then(res => {
+          .then((res: any) => {
             const fresh = res.data?.data || res.data;
             if (fresh && fresh.id) {
               const updatedUser = { ...u, ...fresh };
@@ -523,6 +523,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* Main */}
       <main style={{ marginLeft:sideW, flex:1, minHeight:'100vh', padding:'28px 32px', transition:'margin-left .2s cubic-bezier(.4,0,.2,1)' }}>
         {children}
+        <div className="mt-8 pt-4 border-t border-white/10 text-[10px] text-white/30 text-center">
+          System Identity Registry: v5-HYDRA-RESOLV | API: {process.env.NEXT_PUBLIC_API_URL || 'LOCAL'}
+        </div>
       </main>
 
       {/* Kinematic AI — floats over every page */}

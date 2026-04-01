@@ -149,7 +149,7 @@ export default function LoginPage() {
         </div>
 
         <p style={{ textAlign:'center', marginTop:20, fontSize:11, color:'#2E445E' }}>
-          Kinematic v1.0 · Role-based access controlled by your admin
+          Kinematic v1.0 | v5-HYDRA-RESOLV · Role-based access controlled by your admin
         </p>
       </div>
     </main>
