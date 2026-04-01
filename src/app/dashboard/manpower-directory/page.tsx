@@ -190,19 +190,19 @@ export default function ManpowerDirectoryPage() {
         api.get<any>('/api/v1/users?limit=1000'),
         api.get<any>('/api/v1/zones'),
         api.get<any>('/api/v1/users?role=supervisor&limit=200'),
-        api.get<any>('/api/v1/users?role=city_manager&limit=100'),
+        api.get<any>('/api/v1/users?role=client_manager&limit=200'),
         api.get<any>('/api/v1/cities'),
         api.get<any>('/api/v1/clients'),
       ]);
       const pick = (r: any): any[] => {
+        if (!r) return [];
         if (Array.isArray(r)) return r;
-        if (Array.isArray(r?.data)) return r.data;
         if (Array.isArray(r?.data?.data)) return r.data.data;
-        return r?.users || [];
+        if (Array.isArray(r?.data)) return r.data;
+        if (Array.isArray(r?.results)) return r.results;
+        return [];
       };
-      setStaff(pick(uR).filter((u:any) =>
-        ['executive', 'field_executive', 'field-executive', 'supervisor'].includes(u.role)
-      ));
+      setStaff(pick(uR).filter((u:any) => u.role === 'fe'));
       setZones(pick(zR));
       setSups(pick(sR));
       setCMs(pick(cR));

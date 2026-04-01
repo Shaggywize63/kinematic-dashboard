@@ -61,13 +61,20 @@ export default function ZoneManagement() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const pick = (r:any) => Array.isArray(r?.data?.data)?r.data.data:Array.isArray(r?.data)?r.data:[];
+      const pick = (r:any) => {
+        if (!r) return [];
+        if (Array.isArray(r)) return r;
+        if (Array.isArray(r?.data?.data)) return r.data.data;
+        if (Array.isArray(r?.data)) return r.data;
+        if (Array.isArray(r?.results)) return r.results;
+        return [];
+      };
       const [zr, clR] = await Promise.all([
         api.get<any>('/api/v1/zones'),
-        isPlatformAdmin ? api.get<any>('/api/v1/clients') : Promise.resolve({ data: [] }),
+        isPlatformAdmin ? api.get<any>('/api/v1/clients') : Promise.resolve(null),
       ]);
       setZones(pick(zr));
-      setClients(pick(clR));
+      if (clR) setClients(pick(clR));
       setErr('');
     } catch(e:any){ setErr(e.message||'Failed to load zones'); }
     finally { setLoading(false); }

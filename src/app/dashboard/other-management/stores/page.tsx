@@ -143,22 +143,19 @@ export default function OutletManagementPage() {
         api.get<any>('/api/v1/cities', { headers }),
         isPlatformAdmin ? api.get<any>('/api/v1/clients', { headers }) : Promise.resolve({ data: [] }),
       ]);
-      if (oRes.status === 'fulfilled') {
-        const d = Array.isArray(oRes.value?.data?.data) ? oRes.value.data.data : Array.isArray(oRes.value?.data) ? oRes.value.data : [];
-        setOutlets(d);
-      }
-      if (zRes.status === 'fulfilled') {
-        const d = Array.isArray(zRes.value?.data?.data) ? zRes.value.data.data : Array.isArray(zRes.value?.data) ? zRes.value.data : [];
-        setZones(d);
-      }
-      if (cRes.status === 'fulfilled') {
-        const d = Array.isArray(cRes.value?.data?.data) ? cRes.value.data.data : Array.isArray(cRes.value?.data) ? cRes.value.data : [];
-        setCities(d);
-      }
-      if (clRes.status === 'fulfilled') {
-        const d = Array.isArray(clRes.value?.data?.data) ? clRes.value.data.data : Array.isArray(clRes.value?.data) ? clRes.value.data : [];
-        setClients(d);
-      }
+
+      const pick = (v: any) => {
+        if (Array.isArray(v)) return v;
+        if (Array.isArray(v?.data?.data)) return v.data.data;
+        if (Array.isArray(v?.data)) return v.data;
+        if (Array.isArray(v?.results)) return v.results;
+        return [];
+      };
+
+      if (oRes.status === 'fulfilled') setOutlets(pick(oRes.value));
+      if (zRes.status === 'fulfilled') setZones(pick(zRes.value));
+      if (cRes.status === 'fulfilled') setCities(pick(cRes.value));
+      if (clRes.status === 'fulfilled') setClients(pick(clRes.value));
     } catch(e:any) { setError(e?.message || 'Failed to load'); }
     finally { setLoading(false); }
   }, [token, isPlatformAdmin]);

@@ -65,13 +65,20 @@ export default function CityManagement() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [r, clR] = await Promise.all([
-        api.get<any>('/api/v1/cities'),
-        isPlatformAdmin ? api.get<any>('/api/v1/clients') : Promise.resolve({ data: [] }),
-      ]);
-      const pick = (res: any) => Array.isArray(res?.data?.data) ? res.data.data : Array.isArray(res?.data) ? res.data : [];
-      setCities(pick(r));
-      setClients(pick(clR));
+      const resp = await api.get('/api/v1/cities');
+      const clResp = isPlatformAdmin ? await api.get('/api/v1/clients') : null;
+      
+      const pick = (r: any) => {
+        if (!r) return [];
+        if (Array.isArray(r)) return r;
+        if (Array.isArray(r?.data?.data)) return r.data.data;
+        if (Array.isArray(r?.data)) return r.data;
+        if (Array.isArray(r?.results)) return r.results;
+        return [];
+      };
+
+      setCities(pick(resp));
+      if (clResp) setClients(pick(clResp));
       setErr('');
     } catch(e:any){ setErr(e.message||'Failed to load cities'); }
     finally { setLoading(false); }
