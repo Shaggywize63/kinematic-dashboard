@@ -350,7 +350,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { href: '/dashboard/attendance-overview', label: 'Attendance',    icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z', module: 'attendance' },
     { href: '/dashboard/route-plan',          label: 'Route Plan',    icon: 'M9 20l-5.44-2.72A2 2 0 013 15.49V4.5a2 2 0 012.89-1.8L9 4 M9 20l6-3 M9 4v16 M15 1l5.44 2.72A2 2 0 0121 5.51v10.98a2 2 0 01-2.89 1.8L15 17 M15 1v16', module: 'orders' },
     { href: '/dashboard/work-activities',     label: 'Work Activities', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 012-2h2a2 2 0 012 2 M9 12l2 2 4-4', module: 'work_activities' },
-    { href: '/dashboard/reports',             label: 'Reports',         icon: 'M9 17v-2m3 2v-4m3 4v-6m2 10H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z', module: 'reports' },
   ]);
 
   const visibleMgt = filterNav([
