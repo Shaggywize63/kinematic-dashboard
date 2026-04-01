@@ -23,11 +23,11 @@ const C = {
 };
 
 const ROLE_DEFAULTS: Record<string, string[]> = {
-  admin: ['analytics', 'attendance', 'orders', 'work_activities', 'users', 'visit_logs', 'inventory', 'resources', 'grievances', 'form_builder', 'broadcast'],
-  sub_admin: ['analytics', 'attendance', 'orders', 'work_activities', 'users', 'visit_logs', 'inventory', 'resources', 'grievances', 'form_builder', 'broadcast'],
-  city_manager: ['analytics', 'attendance', 'orders', 'work_activities', 'visit_logs'],
+  admin: ['analytics', 'live_tracking', 'broadcast', 'attendance', 'orders', 'work_activities', 'users', 'hr', 'visit_logs', 'inventory', 'resources', 'grievances', 'form_builder', 'master_data', 'clients', 'settings'],
+  sub_admin: ['analytics', 'live_tracking', 'broadcast', 'attendance', 'orders', 'work_activities', 'users', 'hr', 'visit_logs', 'inventory', 'resources', 'grievances', 'form_builder', 'master_data', 'clients', 'settings'],
+  city_manager: ['analytics', 'live_tracking', 'attendance', 'orders', 'work_activities', 'visit_logs'],
   warehouse_manager: ['inventory', 'resources'],
-  hr: ['analytics', 'users'],
+  hr: ['analytics', 'users', 'hr'],
   mis: ['analytics', 'visit_logs'],
   client: []
 };
@@ -306,12 +306,14 @@ export default function SettingsPage() {
                     <div style={{ fontSize: 12, fontWeight: 800, color: C.white, marginBottom: 12, fontFamily: "'Syne', sans-serif" }}>Module Permissions (Pre-filled based on role)</div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
                       {[
-                        {id: 'analytics', l: 'Analytics'}, {id: 'attendance', l: 'Attendance'}, 
+                        {id: 'analytics', l: 'Analytics'}, {id: 'live_tracking', l: 'Live Tracking'}, 
+                        {id: 'broadcast', l: 'Broadcast'}, {id: 'attendance', l: 'Attendance'}, 
                         {id: 'orders', l: 'Route Plan'}, {id: 'work_activities', l: 'Work Activities'},
-                        {id: 'users', l: 'Manpower & HR'}, {id: 'visit_logs', l: 'Visit Logs'},
-                        {id: 'inventory', l: 'Warehouse'}, {id: 'resources', l: 'Resources Management'},
-                        {id: 'grievances', l: 'Grievances'}, {id: 'form_builder', l: 'Form Builder'},
-                        {id: 'broadcast', l: 'Broadcast'}
+                        {id: 'users', l: 'Manpower'}, {id: 'hr', l: 'HR & Payroll'}, 
+                        {id: 'visit_logs', l: 'Visit Logs'}, {id: 'inventory', l: 'Warehouse'}, 
+                        {id: 'resources', l: 'SKU & Asset'}, {id: 'grievances', l: 'Grievances'}, 
+                        {id: 'form_builder', l: 'Form Builder'}, {id: 'master_data', l: 'Master Data'},
+                        {id: 'clients', l: 'Clients'}, {id: 'settings', l: 'Settings'}
                       ].map(m => (
                         <label key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, background: C.s4, padding: '8px 12px', borderRadius: 8, cursor: 'pointer', border: `1px solid ${form.permissions.includes(m.id) ? C.blue : C.border}`, transition: 'all 0.2s' }}>
                           <input type="checkbox" checked={form.permissions.includes(m.id)} 

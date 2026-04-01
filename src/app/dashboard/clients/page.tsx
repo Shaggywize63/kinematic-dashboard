@@ -25,16 +25,21 @@ const C = {
 
 const MODULES = [
   { id: 'analytics',       label: 'Analytics & Tracking' },
+  { id: 'live_tracking',   label: 'Live Tracking' },
+  { id: 'broadcast',       label: 'Broadcasts' },
   { id: 'attendance',      label: 'Attendance' },
   { id: 'orders',          label: 'Route Planning (Orders)' },
   { id: 'work_activities', label: 'Work Activities' },
-  { id: 'users',           label: 'Manpower & HR' },
+  { id: 'users',           label: 'Manpower Management' },
+  { id: 'hr',              label: 'HR & Payroll' },
   { id: 'visit_logs',      label: 'Visit Logs' },
   { id: 'inventory',       label: 'Warehouse & Inventory' },
-  { id: 'resources',       label: 'Resources Management' },
+  { id: 'resources',       label: 'SKU & Asset Management' },
   { id: 'grievances',      label: 'Grievance Management' },
   { id: 'form_builder',    label: 'Form Builder' },
-  { id: 'broadcast',       label: 'Broadcasts' },
+  { id: 'master_data',     label: 'Master Data (Zones/Cities/etc.)' },
+  { id: 'clients',         label: 'Client Management' },
+  { id: 'settings',        label: 'System Settings' },
 ];
 
 const BLANK = { name: '', contact_person: '', email: '', phone: '', password: '', is_active: true, modules: [] as string[] };
