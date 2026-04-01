@@ -23,12 +23,12 @@ const C = {
 };
 
 const ROLE_DEFAULTS: Record<string, string[]> = {
-  admin: ['analytics', 'inventory', 'users', 'reports'],
-  sub_admin: ['analytics', 'inventory', 'users', 'reports'],
-  city_manager: ['analytics', 'reports'],
+  admin: ['analytics', 'inventory', 'users'],
+  sub_admin: ['analytics', 'inventory', 'users'],
+  city_manager: ['analytics'],
   warehouse_manager: ['inventory'],
-  hr: ['analytics', 'reports'],
-  mis: ['analytics', 'reports'],
+  hr: ['analytics'],
+  mis: ['analytics'],
   client: []
 };
 
@@ -307,7 +307,7 @@ export default function SettingsPage() {
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
                       {[
                         {id: 'analytics', l: 'Analytics'}, {id: 'users', l: 'Users'}, 
-                        {id: 'inventory', l: 'Inventory'}, {id: 'reports', l: 'Reports'}
+                        {id: 'inventory', l: 'Inventory'}
                       ].map(m => (
                         <label key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, background: C.s4, padding: '8px 12px', borderRadius: 8, cursor: 'pointer', border: `1px solid ${form.permissions.includes(m.id) ? C.blue : C.border}`, transition: 'all 0.2s' }}>
                           <input type="checkbox" checked={form.permissions.includes(m.id)} 
