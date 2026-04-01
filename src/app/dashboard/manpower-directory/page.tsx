@@ -200,9 +200,13 @@ export default function ManpowerDirectoryPage() {
         if (Array.isArray(r?.data?.data)) return r.data.data;
         return [];
       };
-      setStaff(pick(uR).filter((u:any) => u.role === 'fe'));
+      setStaff(pick(uR).filter((u:any) => 
+        (u.role || '').toLowerCase().trim() === 'executive' || 
+        (u.role || '').toLowerCase().trim() === 'fe' ||
+        (u.role || '').toLowerCase().trim() === 'field_executive'
+      ));
       setZones(pick(zR));
-      setSups(pick(sR));
+      setSups(pick(sR).filter((u:any) => (u.role || '').toLowerCase().trim() === 'supervisor'));
       setCMs(pick(cR));
       setCities(pick(cityR).filter((c:any) => c.is_active));
       setClients(pick(clR));
