@@ -167,10 +167,10 @@ export default function ClientManagement() {
               <div>{c.email || '—'}</div>
               <div style={{ fontSize: 11, marginTop: 2 }}>{c.phone || ''}</div>
             </div>
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: C.blue }}>{c.modules?.length || 0} Modules Assigned</div>
-              <div style={{ fontSize: 9, color: C.grayd, marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {c.modules?.map(m => MODULES.find(mod => mod.id === m)?.label).filter(Boolean).join(', ') || 'None'}
+            <div style={{ padding: '4px 8px', background: c.modules?.length ? 'rgba(62,158,255,0.1)' : 'transparent', border: `1px solid ${c.modules?.length ? 'rgba(62,158,255,0.2)' : 'transparent'}`, borderRadius: 8 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: c.modules?.length ? C.blue : C.grayd }}>{c.modules?.length || 0} Modules Assigned</div>
+              <div style={{ fontSize: 10, color: C.grayd, marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {c.modules?.map(m => MODULES.find(mod => mod.id === m)?.label).filter(Boolean).join(', ') || 'No access granted'}
               </div>
             </div>
             <div style={{ display: 'flex', gap: 6 }}>
@@ -190,7 +190,7 @@ export default function ClientManagement() {
       {/* Modal */}
       {showModal && (
         <Overlay onClose={() => setShowModal(false)}>
-          <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 24, padding: 32, width: '100%', maxWidth: 500, maxHeight: '90vh', overflowY: 'auto' }}>
+          <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 24, padding: 32, width: '100%', maxWidth: 800, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 40px rgba(0,0,0,0.4)' }}>
             <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 22, fontWeight: 800, marginBottom: 8 }}>{editing ? 'Edit Client' : 'Add New Client'}</div>
             <p style={{ fontSize: 13, color: C.gray, marginBottom: 28 }}>{editing ? `Update configurations for ${editing.name}` : 'Setup a new isolated client environment'}</p>
             
@@ -212,8 +212,8 @@ export default function ClientManagement() {
             </div>
 
             <div style={{ marginBottom: 28 }}>
-              <Label t="Module Access" />
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, background: C.s3, borderRadius: 14, padding: 14, border: `1px solid ${C.border}` }}>
+              <Label t="Module Access Control" />
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, background: C.s3, borderRadius: 16, padding: 16, border: `1px solid ${C.border}` }}>
                 {MODULES.map(m => (
                   <div key={m.id} onClick={() => toggleModule(m.id)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 8, cursor: 'pointer', background: form.modules.includes(m.id) ? 'rgba(62,158,255,0.1)' : 'transparent', border: `1px solid ${form.modules.includes(m.id) ? C.blue : 'transparent'}`, transition: 'all .15s' }}>
                     <div style={{ width: 16, height: 16, borderRadius: 4, background: form.modules.includes(m.id) ? C.blue : C.s4, border: `1.5px solid ${form.modules.includes(m.id) ? C.blue : C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
