@@ -91,8 +91,7 @@ export default function OutletManagementPage() {
   const [zones,    setZones]    = useState<Zone[]>([]);
   const [cities,   setCities]   = useState<City[]>([]);
   const [clients,  setClients]  = useState<any[]>([]);
-  const { user } = useAuth();
-  const isPlatformAdmin = user?.role === 'super_admin' || user?.role === 'admin';
+  const { user, isPlatformAdmin, token } = useAuth();
   const [loading,  setLoading]  = useState(true);
   const [error,    setError]    = useState<string|null>(null);
 
@@ -128,12 +127,12 @@ export default function OutletManagementPage() {
   const [bulkErr,   setBulkErr]  = useState<string|null>(null);
   const fileRef = useState<any>(null)[0]; // Actually use useRef
 
-  const token = typeof window !== 'undefined' ? localStorage.getItem('kinematic_token') || '' : '';
   const authH = { Authorization:`Bearer ${token}`, 'Content-Type':'application/json' };
   const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
 
   /* ── Fetch ── */
   const fetchAll = useCallback(async () => {
+    if (!token) return;
     setLoading(true); setError(null);
     try {
       const headers = { Authorization:`Bearer ${token}` };

@@ -26,5 +26,16 @@ export function useAuth() {
     router.push('/login');
   }, [router]);
 
-  return { user, loading, logout, isAuthenticated: !!user };
+  const token = typeof window !== 'undefined' ? localStorage.getItem('kinematic_token') : null;
+  const role = user?.role?.toLowerCase();
+  const isPlatformAdmin = ['super_admin', 'admin', 'main_admin', 'sub_admin', 'platform_admin'].includes(role || '');
+
+  return { 
+    user, 
+    loading, 
+    logout, 
+    isAuthenticated: !!user,
+    token,
+    isPlatformAdmin
+  };
 }

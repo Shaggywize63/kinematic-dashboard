@@ -45,8 +45,7 @@ const Overlay = ({onClose,children}:{onClose:()=>void;children:React.ReactNode})
 export default function ZoneManagement() {
   const [zones, setZones] = useState<Zone[]>([]);
   const [clients, setClients] = useState<any[]>([]);
-  const { user } = useAuth();
-  const isPlatformAdmin = user?.role === 'super_admin' || user?.role === 'admin';
+  const { user, isPlatformAdmin, token } = useAuth();
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
   const [search, setSearch] = useState('');

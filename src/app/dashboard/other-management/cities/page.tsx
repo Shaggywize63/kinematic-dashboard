@@ -59,8 +59,7 @@ export default function CityManagement() {
   const [deleteConfirm, setDeleteConfirm] = useState<{show:boolean; item:City|null}>({show:false, item:null});
   const [deleting, setDeleting] = useState(false);
 
-  const { user } = useAuth();
-  const isPlatformAdmin = user?.role === 'super_admin' || user?.role === 'admin';
+  const { user, isPlatformAdmin, token } = useAuth();
 
   const load = useCallback(async () => {
     setLoading(true);

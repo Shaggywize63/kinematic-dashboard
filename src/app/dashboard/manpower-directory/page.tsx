@@ -179,8 +179,7 @@ export default function ManpowerDirectoryPage() {
   const [deleting, setDeleting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   
-  const { user } = useAuth();
-  const isPlatformAdmin = user?.role === 'super_admin' || user?.role === 'admin';
+  const { user, isPlatformAdmin, token } = useAuth();
 
   /* ── fetch ── */
   const fetchData = useCallback(async () => {
