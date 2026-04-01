@@ -635,7 +635,7 @@ export default function OutletManagementPage() {
                 {isPlatformAdmin && (
                    <div>
                      {o.client_id ? (
-                       <Badge label={clients.find(c => c.id === o.client_id)?.name || o.client_id.slice(0,8).toUpperCase()} color={C.purple} />
+                       <Badge label={clients.find(cl => cl.id?.toLowerCase().trim() === o.client_id?.toLowerCase().trim())?.name || o.client_id.slice(0,8).toUpperCase()} color={C.purple} />
                      ) : (
                        <span style={{ fontSize:11, color:C.grayd }}>System</span>
                      )}
@@ -668,7 +668,7 @@ export default function OutletManagementPage() {
                   <button title={o.is_active ? 'Deactivate' : 'Activate'} onClick={() => toggleActive(o)}
                     style={{ width: 30, height: 30, borderRadius: 8, border: `1px solid ${C.border}`,
                       background: 'transparent', cursor: 'pointer', fontSize: 13,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                      display:'flex', alignItems:'center', justifyContent:'center' }}
                     onMouseEnter={e => (e.currentTarget.style.background = C.s3)}
                     onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
                     {o.is_active ? '⏸' : '▶️'}

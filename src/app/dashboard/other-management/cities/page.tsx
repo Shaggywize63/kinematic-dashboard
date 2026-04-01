@@ -153,7 +153,7 @@ export default function CityManagement() {
       <div style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:16,overflow:'hidden'}}>
         <div style={{display:'grid',gridTemplateColumns:isPlatformAdmin?'1fr 1fr 1fr 1fr 100px 80px':'1fr 1fr 1fr 100px 80px',padding:'12px 20px',borderBottom:`1px solid ${C.border}`,gap:12}}>
           {isPlatformAdmin ? (
-            ['City Name','State','Country','Client','Status','Actions'].map(h=>(
+            ['City Name','State','Country',`Client (${clients.length})`,'Status','Actions'].map(h=>(
               <div key={h} style={{fontSize:11,fontWeight:700,color:C.grayd,letterSpacing:'0.8px',textTransform:'uppercase'}}>{h}</div>
             ))
           ) : (
@@ -182,7 +182,7 @@ export default function CityManagement() {
               <div>
                 {(c as any).client_id ? (
                   <span style={{display:'inline-flex',padding:'3px 9px',borderRadius:6,background:C.blueD,color:C.blue,fontSize:10,fontWeight:800}}>
-                    {clients.find(cl => cl.id === (c as any).client_id)?.name || (c as any).client_id.slice(0,8).toUpperCase()}
+                    {clients.find(cl => cl.id?.toLowerCase().trim() === (c as any).client_id?.toLowerCase().trim())?.name || (c as any).client_id.slice(0,8).toUpperCase()}
                   </span>
                 ) : <span style={{fontSize:11,color:C.grayd}}>System</span>}
               </div>

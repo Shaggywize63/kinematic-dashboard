@@ -156,7 +156,7 @@ export default function ZoneManagement() {
       <div style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:16,overflow:'hidden'}}>
         <div style={{display:'grid',gridTemplateColumns:isPlatformAdmin?'1fr 1fr 1fr 140px 100px 90px 80px':'1fr 1fr 1fr 140px 90px 80px',padding:'12px 20px',borderBottom:`1px solid ${C.border}`,gap:12}}>
           {isPlatformAdmin ? (
-            ['Zone Name','City','Geofence','Meeting Point','Client','Status','Actions'].map(h=>(
+            ['Zone Name','City','Geofence','Meeting Point',`Client (${clients.length})`,'Status','Actions'].map(h=>(
               <div key={h} style={{fontSize:11,fontWeight:700,color:C.grayd,letterSpacing:'0.8px',textTransform:'uppercase'}}>{h}</div>
             ))
           ) : (
@@ -183,7 +183,7 @@ export default function ZoneManagement() {
               <div>
                 {z.client_id ? (
                   <span style={{display:'inline-flex',padding:'3px 9px',borderRadius:6,background:C.blueD,color:C.blue,fontSize:10,fontWeight:800,border:`1px solid ${C.blue}22`}}>
-                    {clients.find(c => c.id === z.client_id)?.name || z.client_id.slice(0,8).toUpperCase()}
+                    {clients.find(cl => cl.id?.toLowerCase().trim() === z.client_id?.toLowerCase().trim())?.name || z.client_id.slice(0,8).toUpperCase()}
                   </span>
                 ) : <span style={{fontSize:11,color:C.grayd}}>System</span>}
               </div>
