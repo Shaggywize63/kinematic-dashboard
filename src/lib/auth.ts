@@ -40,6 +40,7 @@ export function getRoleLabel(role: string): string {
   const labels: Record<string, string> = {
     super_admin: 'Super Admin',
     admin: 'Admin',
+    main_admin: 'Main Admin',
     sub_admin: 'Sub-Admin',
     hr: 'HR Manager',
     program_manager: 'Program Manager',
