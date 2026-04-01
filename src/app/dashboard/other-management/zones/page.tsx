@@ -44,6 +44,7 @@ const Overlay = ({onClose,children}:{onClose:()=>void;children:React.ReactNode})
 
 export default function ZoneManagement() {
   const [zones, setZones] = useState<Zone[]>([]);
+  const [clients, setClients] = useState<any[]>([]);
   const { user } = useAuth();
   const isPlatformAdmin = user?.role === 'super_admin' || user?.role === 'admin';
   const [loading, setLoading] = useState(true);
@@ -61,8 +62,13 @@ export default function ZoneManagement() {
     setLoading(true);
     try {
       const pick = (r:any) => Array.isArray(r?.data?.data)?r.data.data:Array.isArray(r?.data)?r.data:[];
-      const zr = await api.get<any>('/api/v1/zones');
-      setZones(pick(zr)); setErr('');
+      const [zr, clR] = await Promise.all([
+        api.get<any>('/api/v1/zones'),
+        isPlatformAdmin ? api.get<any>('/api/v1/clients') : Promise.resolve({ data: [] }),
+      ]);
+      setZones(pick(zr));
+      setClients(pick(clR));
+      setErr('');
     } catch(e:any){ setErr(e.message||'Failed to load zones'); }
     finally { setLoading(false); }
   }, []);
@@ -170,7 +176,7 @@ export default function ZoneManagement() {
               <div>
                 {z.client_id ? (
                   <span style={{display:'inline-flex',padding:'3px 9px',borderRadius:6,background:C.blueD,color:C.blue,fontSize:10,fontWeight:800,border:`1px solid ${C.blue}22`}}>
-                    {z.client_id.slice(0,8).toUpperCase()}
+                    {clients.find(c => c.id === z.client_id)?.name || z.client_id.slice(0,8).toUpperCase()}
                   </span>
                 ) : <span style={{fontSize:11,color:C.grayd}}>System</span>}
               </div>

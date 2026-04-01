@@ -140,6 +140,7 @@ function parseCSV(text: string): Record<string,string>[] {
 /* ══════════════════════════════════════════════════════ */
 export default function ManpowerDirectoryPage() {
   const [staff,    setStaff]   = useState<FieldExecutive[]>([]);
+  const [clients,  setClients] = useState<any[]>([]);
   const [zones,    setZones]   = useState<Zone[]>([]);
   const [sups,     setSups]    = useState<FieldExecutive[]>([]);
   const [cms,      setCMs]     = useState<FieldExecutive[]>([]);
@@ -185,12 +186,13 @@ export default function ManpowerDirectoryPage() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [uR,zR,sR,cR, cityR] = await Promise.all([
+      const [uR,zR,sR,cR, cityR, clR] = await Promise.all([
         api.get<any>('/api/v1/users?limit=1000'),
         api.get<any>('/api/v1/zones'),
         api.get<any>('/api/v1/users?role=supervisor&limit=200'),
         api.get<any>('/api/v1/users?role=city_manager&limit=100'),
         api.get<any>('/api/v1/cities'),
+        api.get<any>('/api/v1/clients'),
       ]);
       const pick = (r: any): any[] => {
         if (Array.isArray(r)) return r;
@@ -205,6 +207,7 @@ export default function ManpowerDirectoryPage() {
       setSups(pick(sR));
       setCMs(pick(cR));
       setCities(pick(cityR).filter((c:any) => c.is_active));
+      setClients(pick(clR));
       setError('');
     } catch(e:any) { setError(e.message||'Failed to load'); }
     finally { setLoading(false); }
@@ -262,7 +265,8 @@ export default function ManpowerDirectoryPage() {
       zone_id:fe.zone_id||'', role:fe.role, supervisor_id:fe.supervisor_id||'', 
       joined_date:'', city:fe.city||fe.zones?.city||'', app_password:fe.app_password||'',
       permissions: fe.permissions || [],
-      assigned_cities: fe.assigned_cities || []
+      assigned_cities: fe.assigned_cities || [],
+      client_id: fe.client_id || ''
     });
     setFErr(''); setShowEdit(true);
   };
@@ -463,7 +467,7 @@ export default function ManpowerDirectoryPage() {
                       {u.role.replace('_',' ')} · {u.employee_id||u.id.slice(0,8)}
                       {isPlatformAdmin && u.client_id && (
                         <span style={{ marginLeft:8, display:'inline-flex', padding:'1px 6px', borderRadius:4, background:C.purpleD, color:C.purple, fontSize:9, fontWeight:800 }}>
-                          {u.client_id.slice(0,8).toUpperCase()}
+                          {clients.find(c => c.id === u.client_id)?.name || u.client_id.slice(0,8).toUpperCase()}
                         </span>
                       ) }
                     </div>

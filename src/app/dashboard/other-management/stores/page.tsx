@@ -90,6 +90,7 @@ export default function OutletManagementPage() {
   const [outlets,  setOutlets]  = useState<Outlet[]>([]);
   const [zones,    setZones]    = useState<Zone[]>([]);
   const [cities,   setCities]   = useState<City[]>([]);
+  const [clients,  setClients]  = useState<any[]>([]);
   const { user } = useAuth();
   const isPlatformAdmin = user?.role === 'super_admin' || user?.role === 'admin';
   const [loading,  setLoading]  = useState(true);
@@ -136,17 +137,31 @@ export default function OutletManagementPage() {
     setLoading(true); setError(null);
     try {
       const headers = { Authorization:`Bearer ${token}` };
-      const [oRes, zRes, cRes] = await Promise.allSettled([
+      const [oRes, zRes, cRes, clRes] = await Promise.allSettled([
         api.get<any>('/api/v1/stores', { headers }),
         api.get<any>('/api/v1/zones',  { headers }),
         api.get<any>('/api/v1/cities', { headers }),
+        isPlatformAdmin ? api.get<any>('/api/v1/clients', { headers }) : Promise.resolve({ data: [] }),
       ]);
-      if (oRes.status === 'fulfilled') setOutlets((oRes.value?.data ?? oRes.value) || []);
-      if (zRes.status === 'fulfilled') setZones((zRes.value?.data  ?? zRes.value)  || []);
-      if (cRes.status === 'fulfilled') setCities((cRes.value?.data ?? cRes.value)  || []);
+      if (oRes.status === 'fulfilled') {
+        const d = Array.isArray(oRes.value?.data?.data) ? oRes.value.data.data : Array.isArray(oRes.value?.data) ? oRes.value.data : [];
+        setOutlets(d);
+      }
+      if (zRes.status === 'fulfilled') {
+        const d = Array.isArray(zRes.value?.data?.data) ? zRes.value.data.data : Array.isArray(zRes.value?.data) ? zRes.value.data : [];
+        setZones(d);
+      }
+      if (cRes.status === 'fulfilled') {
+        const d = Array.isArray(cRes.value?.data?.data) ? cRes.value.data.data : Array.isArray(cRes.value?.data) ? cRes.value.data : [];
+        setCities(d);
+      }
+      if (clRes.status === 'fulfilled') {
+        const d = Array.isArray(clRes.value?.data?.data) ? clRes.value.data.data : Array.isArray(clRes.value?.data) ? clRes.value.data : [];
+        setClients(d);
+      }
     } catch(e:any) { setError(e?.message || 'Failed to load'); }
     finally { setLoading(false); }
-  }, [token]);
+  }, [token, isPlatformAdmin]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
@@ -623,7 +638,7 @@ export default function OutletManagementPage() {
                 {isPlatformAdmin && (
                    <div>
                      {o.client_id ? (
-                       <Badge label={o.client_id.slice(0,8).toUpperCase()} color={C.purple} />
+                       <Badge label={clients.find(c => c.id === o.client_id)?.name || o.client_id.slice(0,8).toUpperCase()} color={C.purple} />
                      ) : (
                        <span style={{ fontSize:11, color:C.grayd }}>System</span>
                      )}

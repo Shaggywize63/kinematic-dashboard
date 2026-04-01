@@ -47,6 +47,7 @@ const Overlay = ({onClose,children}:{onClose:()=>void;children:React.ReactNode})
 
 export default function CityManagement() {
   const [cities, setCities] = useState<City[]>([]);
+  const [clients, setClients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
   const [search, setSearch] = useState('');
@@ -64,9 +65,14 @@ export default function CityManagement() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await api.get<any>('/api/v1/cities');
-      const d = Array.isArray(r?.data?.data) ? r.data.data : Array.isArray(r?.data) ? r.data : [];
-      setCities(d); setErr('');
+      const [r, clR] = await Promise.all([
+        api.get<any>('/api/v1/cities'),
+        isPlatformAdmin ? api.get<any>('/api/v1/clients') : Promise.resolve({ data: [] }),
+      ]);
+      const pick = (res: any) => Array.isArray(res?.data?.data) ? res.data.data : Array.isArray(res?.data) ? res.data : [];
+      setCities(pick(r));
+      setClients(pick(clR));
+      setErr('');
     } catch(e:any){ setErr(e.message||'Failed to load cities'); }
     finally { setLoading(false); }
   }, []);
@@ -169,7 +175,7 @@ export default function CityManagement() {
               <div>
                 {(c as any).client_id ? (
                   <span style={{display:'inline-flex',padding:'3px 9px',borderRadius:6,background:C.blueD,color:C.blue,fontSize:10,fontWeight:800}}>
-                    {(c as any).client_id.slice(0,8).toUpperCase()}
+                    {clients.find(cl => cl.id === (c as any).client_id)?.name || (c as any).client_id.slice(0,8).toUpperCase()}
                   </span>
                 ) : <span style={{fontSize:11,color:C.grayd}}>System</span>}
               </div>
