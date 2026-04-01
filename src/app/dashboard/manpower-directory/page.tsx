@@ -192,14 +192,13 @@ export default function ManpowerDirectoryPage() {
         api.get<any>('/api/v1/users?role=supervisor&limit=200'),
         api.get<any>('/api/v1/users?role=client_manager&limit=200'),
         api.get<any>('/api/v1/cities'),
-        api.get<any>('/api/v1/clients'),
+        api.get<any>('/api/v1/misc/clients'),
       ]);
       const pick = (r: any): any[] => {
         if (!r) return [];
         if (Array.isArray(r)) return r;
-        if (Array.isArray(r?.data?.data)) return r.data.data;
         if (Array.isArray(r?.data)) return r.data;
-        if (Array.isArray(r?.results)) return r.results;
+        if (Array.isArray(r?.data?.data)) return r.data.data;
         return [];
       };
       setStaff(pick(uR).filter((u:any) => u.role === 'fe'));

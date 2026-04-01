@@ -66,14 +66,13 @@ export default function CityManagement() {
     setLoading(true);
     try {
       const resp = await api.get('/api/v1/cities');
-      const clResp = isPlatformAdmin ? await api.get('/api/v1/clients') : null;
+      const clResp = isPlatformAdmin ? await api.get('/api/v1/misc/clients') : null;
       
       const pick = (r: any) => {
         if (!r) return [];
         if (Array.isArray(r)) return r;
-        if (Array.isArray(r?.data?.data)) return r.data.data;
         if (Array.isArray(r?.data)) return r.data;
-        if (Array.isArray(r?.results)) return r.results;
+        if (Array.isArray(r?.data?.data)) return r.data.data;
         return [];
       };
 

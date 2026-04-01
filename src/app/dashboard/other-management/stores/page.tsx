@@ -141,14 +141,14 @@ export default function OutletManagementPage() {
         api.get<any>('/api/v1/stores', { headers }),
         api.get<any>('/api/v1/zones',  { headers }),
         api.get<any>('/api/v1/cities', { headers }),
-        isPlatformAdmin ? api.get<any>('/api/v1/clients', { headers }) : Promise.resolve({ data: [] }),
+        isPlatformAdmin ? api.get<any>('/api/v1/misc/clients', { headers }) : Promise.resolve(null),
       ]);
 
       const pick = (v: any) => {
+        if (!v) return [];
         if (Array.isArray(v)) return v;
-        if (Array.isArray(v?.data?.data)) return v.data.data;
         if (Array.isArray(v?.data)) return v.data;
-        if (Array.isArray(v?.results)) return v.results;
+        if (Array.isArray(v?.data?.data)) return v.data.data;
         return [];
       };
 
