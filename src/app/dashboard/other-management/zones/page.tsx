@@ -141,16 +141,22 @@ export default function ZoneManagement() {
 
       {/* Table */}
       <div style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:16,overflow:'hidden'}}>
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 140px 90px 80px',padding:'12px 20px',borderBottom:`1px solid ${C.border}`,gap:12}}>
-          {['Zone Name','City','Geofence','Meeting Point','Status','Actions'].map(h=>(
-            <div key={h} style={{fontSize:11,fontWeight:700,color:C.grayd,letterSpacing:'0.8px',textTransform:'uppercase'}}>{h}</div>
-          ))}
+        <div style={{display:'grid',gridTemplateColumns:isPlatformAdmin?'1fr 1fr 1fr 140px 100px 90px 80px':'1fr 1fr 1fr 140px 90px 80px',padding:'12px 20px',borderBottom:`1px solid ${C.border}`,gap:12}}>
+          {isPlatformAdmin ? (
+            ['Zone Name','City','Geofence','Meeting Point','Client','Status','Actions'].map(h=>(
+              <div key={h} style={{fontSize:11,fontWeight:700,color:C.grayd,letterSpacing:'0.8px',textTransform:'uppercase'}}>{h}</div>
+            ))
+          ) : (
+            ['Zone Name','City','Geofence','Meeting Point','Status','Actions'].map(h=>(
+              <div key={h} style={{fontSize:11,fontWeight:700,color:C.grayd,letterSpacing:'0.8px',textTransform:'uppercase'}}>{h}</div>
+            ))
+          )}
         </div>
         {loading ? <div style={{padding:40,textAlign:'center'}}><Spinner/></div>
         : err ? <div style={{padding:40,textAlign:'center',color:C.red,fontSize:13}}>{err}</div>
         : filtered.length===0 ? <div style={{padding:48,textAlign:'center',color:C.grayd,fontSize:13}}>{search?'No zones match.':'No zones yet.'}</div>
         : filtered.map((z,i)=>(
-          <div key={z.id} style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 140px 90px 80px',padding:'14px 20px',borderBottom:i<filtered.length-1?`1px solid ${C.border}`:'none',gap:12,alignItems:'center'}}
+          <div key={z.id} style={{display:'grid',gridTemplateColumns:isPlatformAdmin?'1fr 1fr 1fr 140px 100px 90px 80px':'1fr 1fr 1fr 140px 90px 80px',padding:'14px 20px',borderBottom:i<filtered.length-1?`1px solid ${C.border}`:'none',gap:12,alignItems:'center'}}
             onMouseEnter={e=>e.currentTarget.style.background=C.s3}
             onMouseLeave={e=>e.currentTarget.style.background='transparent'}
           >
@@ -160,6 +166,15 @@ export default function ZoneManagement() {
             <div style={{fontSize:12,color:C.gray}}>
               {z.meeting_lat&&z.meeting_lng ? <span style={{color:C.blue}}>{z.meeting_lat.toFixed(4)}, {z.meeting_lng.toFixed(4)}</span> : <span style={{color:C.grayd}}>Not set</span>}
             </div>
+            {isPlatformAdmin && (
+              <div>
+                {z.client_id ? (
+                  <span style={{display:'inline-flex',padding:'3px 9px',borderRadius:6,background:C.blueD,color:C.blue,fontSize:10,fontWeight:800,border:`1px solid ${C.blue}22`}}>
+                    {z.client_id.slice(0,8).toUpperCase()}
+                  </span>
+                ) : <span style={{fontSize:11,color:C.grayd}}>System</span>}
+              </div>
+            )}
             <div>
               <span style={{display:'inline-flex',alignItems:'center',gap:5,padding:'3px 10px',borderRadius:20,fontSize:11,fontWeight:700,background:z.is_active?C.greenD:`rgba(122,139,160,0.1)`,color:z.is_active?C.green:C.gray}}>
                 <div style={{width:5,height:5,borderRadius:'50%',background:'currentColor'}}/>

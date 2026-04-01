@@ -42,6 +42,7 @@ interface FieldExecutive {
   created_at: string;
   permissions?: string[];
   assigned_cities?: string[];
+  client_id?: string;
   is_checked_in?: boolean; today_cc?: number; today_ecc?: number; hours_worked?: number;
 }
 interface FormData {
@@ -458,7 +459,14 @@ export default function ManpowerDirectoryPage() {
                   <div style={{width:44,height:44,borderRadius:13,background:u.role==='supervisor'?C.yellowD:C.blueD,display:'flex',alignItems:'center',justifyContent:'center',fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:18,color:u.role==='supervisor'?C.yellow:C.blue,flexShrink:0}}>{u.name?.[0]||u.role?.[0].toUpperCase()}</div>
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{fontSize:14,fontWeight:700,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{u.name}</div>
-                    <div style={{fontSize:11,color:C.grayd,marginTop:2}}>{u.role.replace('_',' ')} · {u.employee_id||u.id.slice(0,8)}</div>
+                    <div style={{fontSize:11,color:C.grayd,marginTop:2}}>
+                      {u.role.replace('_',' ')} · {u.employee_id||u.id.slice(0,8)}
+                      {isPlatformAdmin && u.client_id && (
+                        <span style={{ marginLeft:8, display:'inline-flex', padding:'1px 6px', borderRadius:4, background:C.purpleD, color:C.purple, fontSize:9, fontWeight:800 }}>
+                          {u.client_id.slice(0,8).toUpperCase()}
+                        </span>
+                      ) }
+                    </div>
                   </div>
                   <span style={{fontSize:10,fontWeight:700,padding:'3px 8px',borderRadius:20,flexShrink:0,background:u.is_checked_in?'rgba(0,217,126,0.12)':!u.is_active?'rgba(122,139,160,0.1)':'rgba(224,30,44,0.1)',color:u.is_checked_in?C.green:!u.is_active?C.gray:C.red}}>{u.is_checked_in?'● Active':!u.is_active?'Inactive':'Absent'}</span>
                 </div>

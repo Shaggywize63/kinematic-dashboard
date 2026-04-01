@@ -573,17 +573,19 @@ export default function OutletManagementPage() {
         ) : (
           <Card style={{ padding:0, overflow:'hidden' }}>
             {/* Table header */}
-            <div style={{ display:'grid', gridTemplateColumns:'2fr 1.2fr 1.2fr 1.2fr 1fr 1fr 100px',
+            <div style={{ display:'grid', gridTemplateColumns:isPlatformAdmin ? '2fr 1fr 1fr 1fr 1fr 1fr 1fr 100px' : '2fr 1.2fr 1.2fr 1.2fr 1fr 1fr 100px',
               gap:8, padding:'10px 20px', borderBottom:`1px solid ${C.border}`,
               fontSize:10, color:C.grayd, fontWeight:700, letterSpacing:'0.7px', textTransform:'uppercase' }}>
-              {['Outlet','Type','Zone','Owner / Phone','Code','Status','Actions'].map(h => (
-                <span key={h}>{h}</span>
-              ))}
+              {isPlatformAdmin ? (
+                ['Outlet','Type','Zone','Owner / Phone','Code','Client','Status','Actions'].map(h => <span key={h}>{h}</span>)
+              ) : (
+                ['Outlet','Type','Zone','Owner / Phone','Code','Status','Actions'].map(h => <span key={h}>{h}</span>)
+              )}
             </div>
             {/* Rows */}
             {filtered.map((o, i) => (
               <div key={o.id} className="km-tr"
-                style={{ display:'grid', gridTemplateColumns:'2fr 1.2fr 1.2fr 1.2fr 1fr 1fr 100px',
+                style={{ display:'grid', gridTemplateColumns:isPlatformAdmin ? '2fr 1fr 1fr 1fr 1fr 1fr 1fr 100px' : '2fr 1.2fr 1.2fr 1.2fr 1fr 1fr 100px',
                   gap:8, padding:'14px 20px', alignItems:'center',
                   borderBottom: i < filtered.length - 1 ? `1px solid ${C.border}` : 'none',
                   transition:'background .13s' }}>
@@ -615,9 +617,18 @@ export default function OutletManagementPage() {
                 </div>
 
                 {/* Code */}
-                <span style={{ fontSize:11, color:C.grayd, fontFamily:'monospace' }}>
-                  {o.store_code || '—'}
-                </span>
+                <div style={{ fontSize:12, fontFamily:'monospace', color:C.gray }}>{o.store_code || '—'}</div>
+                
+                {/* Client Highlight */}
+                {isPlatformAdmin && (
+                   <div>
+                     {o.client_id ? (
+                       <Badge label={o.client_id.slice(0,8).toUpperCase()} color={C.purple} />
+                     ) : (
+                       <span style={{ fontSize:11, color:C.grayd }}>System</span>
+                     )}
+                   </div>
+                )}
 
                 {/* Status */}
                 <Badge label={o.is_active ? 'Active' : 'Inactive'} color={o.is_active ? C.green : C.red}/>

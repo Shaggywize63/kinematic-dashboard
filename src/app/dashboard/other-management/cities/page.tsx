@@ -138,10 +138,16 @@ export default function CityManagement() {
 
       {/* Table */}
       <div style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:16,overflow:'hidden'}}>
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 100px 80px',padding:'12px 20px',borderBottom:`1px solid ${C.border}`,gap:12}}>
-          {['City Name','State','Country','Status','Actions'].map(h=>(
-            <div key={h} style={{fontSize:11,fontWeight:700,color:C.grayd,letterSpacing:'0.8px',textTransform:'uppercase'}}>{h}</div>
-          ))}
+        <div style={{display:'grid',gridTemplateColumns:isPlatformAdmin?'1fr 1fr 1fr 1fr 100px 80px':'1fr 1fr 1fr 100px 80px',padding:'12px 20px',borderBottom:`1px solid ${C.border}`,gap:12}}>
+          {isPlatformAdmin ? (
+            ['City Name','State','Country','Client','Status','Actions'].map(h=>(
+              <div key={h} style={{fontSize:11,fontWeight:700,color:C.grayd,letterSpacing:'0.8px',textTransform:'uppercase'}}>{h}</div>
+            ))
+          ) : (
+            ['City Name','State','Country','Status','Actions'].map(h=>(
+              <div key={h} style={{fontSize:11,fontWeight:700,color:C.grayd,letterSpacing:'0.8px',textTransform:'uppercase'}}>{h}</div>
+            ))
+          )}
         </div>
         {loading ? (
           <div style={{padding:40,textAlign:'center'}}><Spinner/></div>
@@ -152,13 +158,22 @@ export default function CityManagement() {
             {search ? 'No cities match your search.' : 'No cities yet. Add your first city.'}
           </div>
         ) : filtered.map((c,i)=>(
-          <div key={c.id} style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 100px 80px',padding:'14px 20px',borderBottom:i<filtered.length-1?`1px solid ${C.border}`:'none',gap:12,alignItems:'center'}}
+          <div key={c.id} style={{display:'grid',gridTemplateColumns:isPlatformAdmin?'1fr 1fr 1fr 1fr 100px 80px':'1fr 1fr 1fr 100px 80px',padding:'14px 20px',borderBottom:i<filtered.length-1?`1px solid ${C.border}`:'none',gap:12,alignItems:'center'}}
             onMouseEnter={e=>e.currentTarget.style.background=C.s3}
             onMouseLeave={e=>e.currentTarget.style.background='transparent'}
           >
             <div style={{fontWeight:600,fontSize:14}}>{c.name}</div>
             <div style={{fontSize:13,color:C.gray}}>{c.state||'—'}</div>
             <div style={{fontSize:13,color:C.gray}}>{c.country||'India'}</div>
+            {isPlatformAdmin && (
+              <div>
+                {(c as any).client_id ? (
+                  <span style={{display:'inline-flex',padding:'3px 9px',borderRadius:6,background:C.blueD,color:C.blue,fontSize:10,fontWeight:800}}>
+                    {(c as any).client_id.slice(0,8).toUpperCase()}
+                  </span>
+                ) : <span style={{fontSize:11,color:C.grayd}}>System</span>}
+              </div>
+            )}
             <div>
               <span style={{display:'inline-flex',alignItems:'center',gap:5,padding:'3px 10px',borderRadius:20,fontSize:11,fontWeight:700,background:c.is_active?C.greenD:`rgba(122,139,160,0.1)`,color:c.is_active?C.green:C.gray}}>
                 <div style={{width:5,height:5,borderRadius:'50%',background:'currentColor'}}/>
