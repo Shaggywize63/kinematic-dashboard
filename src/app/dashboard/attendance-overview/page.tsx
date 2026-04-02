@@ -19,10 +19,10 @@ function DateRangePicker({ from, to, onChange }: { from: string; to: string; onC
   }, []);
 
   const presets = [
-    { l: 'Today', f: new Date().toISOString().split('T')[0], t: new Date().toISOString().split('T')[0] },
-    { l: 'Yesterday', f: new Date(Date.now() - 86400000).toISOString().split('T')[0], t: new Date(Date.now() - 86400000).toISOString().split('T')[0] },
-    { l: 'Last 7 Days', f: new Date(Date.now() - 6 * 86400000).toISOString().split('T')[0], t: new Date().toISOString().split('T')[0] },
-    { l: 'Last 30 Days', f: new Date(Date.now() - 29 * 86400000).toISOString().split('T')[0], t: new Date().toISOString().split('T')[0] },
+    { l: 'Today', f: new Date(Date.now() + 5.5 * 3600000).toISOString().split('T')[0], t: new Date(Date.now() + 5.5 * 3600000).toISOString().split('T')[0] },
+    { l: 'Yesterday', f: new Date(Date.now() + 5.5 * 3600000 - 86400000).toISOString().split('T')[0], t: new Date(Date.now() + 5.5 * 3600000 - 86400000).toISOString().split('T')[0] },
+    { l: 'Last 7 Days', f: new Date(Date.now() + 5.5 * 3600000 - 6 * 86400000).toISOString().split('T')[0], t: new Date(Date.now() + 5.5 * 3600000).toISOString().split('T')[0] },
+    { l: 'Last 30 Days', f: new Date(Date.now() + 5.5 * 3600000 - 29 * 86400000).toISOString().split('T')[0], t: new Date(Date.now() + 5.5 * 3600000).toISOString().split('T')[0] },
   ];
 
   return (
@@ -105,7 +105,7 @@ interface FormData {
   notes: string;
 }
 
-const _today = new Date().toISOString().split('T')[0];
+const _today = new Date(new Date().getTime() + 5.5 * 3600000).toISOString().split('T')[0];
 const BLANK: FormData = {
   user_id: '', date: _today, status: 'checked_in',
   checkin_date: _today, checkin_at: '', checkin_selfie_url: '',
