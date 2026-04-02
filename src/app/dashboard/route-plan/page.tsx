@@ -1107,6 +1107,7 @@ function MappingView({ users, activities, mapping, onRefresh }: { users: FEUser[
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [selectedActivity, setSelectedActivity] = useState<string>(searchParams.get('activity_id') || '');
+  const [showBulk, setShowBulk] = useState(false);
 
   useEffect(() => {
     const aid = searchParams.get('activity_id');
@@ -1135,20 +1136,36 @@ function MappingView({ users, activities, mapping, onRefresh }: { users: FEUser[
 
   return (
     <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 16, padding: 24 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h3 style={{ fontFamily: "'Syne', sans-serif", fontSize: 18, fontWeight: 800, margin: 0, color: C.white }}>Activity-FE Mapping</h3>
           <p style={{ fontSize: 12, color: C.gray, marginTop: 4 }}>Assign Field Executives to specific activities to enable route planning.</p>
         </div>
-        <select 
-          value={selectedActivity} 
-          onChange={e => setSelectedActivity(e.target.value)}
-          style={{ background: C.s3, border: `1px solid ${C.border}`, borderRadius: 9, padding: '9px 14px', color: C.white, fontSize: 13, outline: 'none', minWidth: 200 }}
-        >
-          <option value="">Select Activity to Map…</option>
-          {activities.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-        </select>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <button onClick={() => setShowBulk(true)}
+            style={{ background: C.s3, border: `1px solid ${C.border}`, borderRadius: 9, padding: '9px 14px', color: C.blue, fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 7 }}>
+            <Icon d={IC.upload} s={14} c={C.blue} /> Bulk Assign
+          </button>
+          <select 
+            value={selectedActivity} 
+            onChange={e => setSelectedActivity(e.target.value)}
+            style={{ background: C.s3, border: `1px solid ${C.border}`, borderRadius: 9, padding: '9px 14px', color: C.white, fontSize: 13, outline: 'none', minWidth: 200 }}
+          >
+            <option value="">Select Activity to Map…</option>
+            {activities.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+          </select>
+        </div>
       </div>
+
+      {showBulk && (
+        <MappingBulkUpload 
+          onClose={() => setShowBulk(false)} 
+          onRefresh={onRefresh} 
+          users={users} 
+          activities={activities} 
+          mapping={mapping} 
+        />
+      )}
 
       {!selectedActivity ? (
         <div style={{ padding: 60, textAlign: 'center', background: C.s3, borderRadius: 12, border: `1px dashed ${C.border}` }}>
@@ -1187,6 +1204,122 @@ function MappingView({ users, activities, mapping, onRefresh }: { users: FEUser[
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+function MappingBulkUpload({ onClose, onRefresh, users, activities, mapping }: { onClose: () => void, onRefresh: () => void, users: FEUser[], activities: Activity[], mapping: Record<string, string[]> }) {
+  const [rows, setRows]     = useState<any[]>([]);
+  const [err, setErr]       = useState<string|null>(null);
+  const [busy, setBusy]     = useState(false);
+  const [done, setDone]     = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const downloadTemplate = () => {
+    const lines = [
+      'activity_name,fe_employee_id',
+      '# Example:',
+      `${activities[0]?.name || 'Sales'},${users[0]?.employee_id || 'FE-001'}`,
+      `${activities[0]?.name || 'Sales'},${users[1]?.employee_id || 'FE-002'}`,
+      `${activities[1]?.name || 'Audit'},${users[0]?.employee_id || 'FE-001'}`,
+    ];
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'activity_mapping_template.csv'; a.click();
+  };
+
+  const onFile = (e: any) => {
+    const file = e.target.files?.[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try {
+        const text = ev.target?.result as string;
+        const lines = text.trim().split("\n");
+        const headers = lines[0].split(",").map(h => h.trim().toLowerCase());
+        const data = lines.slice(1).filter(l => l.trim() && !l.trim().startsWith("#")).map(l => {
+          const vals = l.split(",");
+          const obj: any = {};
+          headers.forEach((h, i) => { obj[h] = (vals[i] || "").trim().replace(/^"|"$/g, ""); });
+          return obj;
+        });
+        setRows(data); setErr(null);
+      } catch { setErr('Failed to parse CSV'); }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleImport = async () => {
+    if (!rows.length) return;
+    setBusy(true); setErr(null);
+    try {
+      const grouped: Record<string, Set<string>> = {};
+      
+      // Group by activity_id
+      rows.forEach(r => {
+        const activity = activities.find(a => a.name.toLowerCase() === (r.activity_name || '').toLowerCase());
+        const user = users.find(u => u.employee_id === r.fe_employee_id);
+        if (activity && user) {
+          if (!grouped[activity.id]) grouped[activity.id] = new Set(mapping[activity.id] || []);
+          grouped[activity.id].add(user.id);
+        }
+      });
+
+      // Send requests
+      for (const aid of Object.keys(grouped)) {
+        await api.post('/api/v1/activity-mappings', {
+          activity_id: aid,
+          user_ids: Array.from(grouped[aid]),
+        });
+      }
+      setDone(true);
+      setTimeout(() => { onRefresh(); onClose(); }, 1500);
+    } catch (e: any) {
+      setErr(e.message || 'Import failed');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const overlay: React.CSSProperties = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.82)', zIndex: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, backdropFilter: 'blur(5px)' };
+  const mbox: React.CSSProperties = { background: C.s2, border: `1px solid ${C.borderL}`, borderRadius: 20, padding: 28, width: '100%', maxWidth: 500, boxShadow: '0 24px 64px rgba(0,0,0,0.7)', color: C.white };
+
+  return (
+    <div style={overlay} onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={mbox}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <h3 style={{ fontFamily: "'Syne', sans-serif", fontSize: 20, fontWeight: 800, margin: 0 }}>Bulk Activity Mapping</h3>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: C.gray, fontSize: 20, cursor: 'pointer' }}>✕</button>
+        </div>
+
+        {err && <div style={{ background: C.redD, border: `1px solid ${C.redB}`, color: C.red, padding: '10px 14px', borderRadius: 9, fontSize: 13, marginBottom: 16 }}>{err}</div>}
+        {done && <div style={{ background: C.greenD, border: `1px solid ${C.greenB}`, color: C.green, padding: '10px 14px', borderRadius: 9, fontSize: 13, marginBottom: 16 }}>✓ Bulk mapping completed!</div>}
+
+        {!rows.length ? (
+          <div style={{ border: `2px dashed ${C.border}`, borderRadius: 16, padding: 32, textAlign: 'center' }}>
+            <div style={{ fontSize: 32, marginBottom: 10 }}>📄</div>
+            <div style={{ fontSize: 14, color: C.gray, marginBottom: 20 }}>Upload a CSV with <b>activity_name</b> and <b>fe_employee_id</b> columns.</div>
+            <input type="file" accept=".csv" onChange={onFile} style={{ display: 'none' }} id="bulk-map-file" />
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+              <label htmlFor="bulk-map-file" style={{ background: C.red, color: '#fff', padding: '9px 18px', borderRadius: 9, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Choose CSV</label>
+              <button onClick={downloadTemplate} style={{ background: C.s3, border: `1px solid ${C.border}`, color: C.white, padding: '9px 18px', borderRadius: 9, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Template</button>
+            </div>
+          </div>
+        ) : (
+          <div>
+            <div style={{ background: C.s3, padding: 14, borderRadius: 12, marginBottom: 20 }}>
+              <div style={{ fontSize: 13, color: C.white, fontWeight: 700 }}>{rows.length} rows detected</div>
+              <div style={{ fontSize: 12, color: C.gray, marginTop: 4 }}>Example: {rows[0].activity_name} → {rows[0].fe_employee_id}</div>
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setRows([])} style={{ flex: 1, background: C.s3, border: `1px solid ${C.border}`, color: C.gray, padding: '11px', borderRadius: 11, fontSize: 13, fontWeight: 600 }}>Reset</button>
+              <button onClick={handleImport} disabled={busy || done} 
+                style={{ flex: 1, background: C.blue, color: '#fff', border: 'none', padding: '11px', borderRadius: 11, fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, opacity: busy ? 0.7 : 1 }}>
+                {busy ? <div style={{ width: 14, height: 14, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} /> : 'Apply Mapping'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
