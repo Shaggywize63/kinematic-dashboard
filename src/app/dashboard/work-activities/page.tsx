@@ -147,7 +147,7 @@ function OutletPanel({
           rows.push([...baseRow, '—', '—', '']);
         } else {
           for (const r of responses) {
-            const label = r.form_fields?.label || r.field_key?.replace(/_/g, ' ') || '';
+            const label = r.builder_questions?.title || r.field_key?.replace(/_/g, ' ') || '';
             const val = r.value_text ?? r.value_number?.toString() ?? (r.value_bool !== null && r.value_bool !== undefined ? (r.value_bool ? 'Yes' : 'No') : '');
             rows.push([...baseRow, label, val, r.photo_url || '']);
           }
@@ -307,7 +307,7 @@ function OutletPanel({
                                 return (
                                   <div key={idx} style={{ padding: '10px 12px', background: C.s4, borderRadius: 9, border: `1px solid ${C.border}` }}>
                                     <div style={{ fontSize: 10, color: C.grayd, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 4 }}>
-                                      {r.form_fields?.label || r.field_key?.replace(/_/g, ' ') || `Field ${idx + 1}`}
+                                      {r.builder_questions?.title || r.field_key?.replace(/_/g, ' ') || `Field ${idx + 1}`}
                                     </div>
                                     {val && <div style={{ fontSize: 14, color: C.white }}>{val}</div>}
                                     {r.photo_url && (
@@ -394,9 +394,27 @@ export default function WorkActivitiesPage() {
     setFELoading(true); setErr('');
     try {
       const r = await api.getAdminSubmissions(buildParams(page)) as any;
-      const rows = Array.isArray(r) ? r : (r?.data ?? r?.submissions ?? []);
-      setFEActivities(rows);
-      setFETotal(r?.total || r?.count || rows.length);
+      const rows: FormActivity[] = Array.isArray(r) ? r : (r?.data ?? r?.submissions ?? []);
+      
+      // Group by user + outlet + date to show 1 row per check-in session
+      const grouped: Record<string, FormActivity> = {};
+      const order: string[] = [];
+      
+      rows.forEach(s => {
+        const dateKey = s.checkin_at?.split('T')[0] || s.submitted_at?.split('T')[0] || '';
+        const groupKey = `${s.user_id}_${s.outlet_id}_${dateKey}`;
+        if (!grouped[groupKey]) {
+          grouped[groupKey] = s;
+          order.push(groupKey);
+        } else {
+          // If we have multiple form templates in one visit, we could aggregate here 
+          // but for now 1 row is what user wants.
+        }
+      });
+
+      const finalRows = order.map(k => grouped[k]);
+      setFEActivities(finalRows);
+      setFETotal(r?.total || r?.count || finalRows.length);
       setFEPage(page);
     } catch (e: any) { setErr(e.message || 'Failed to load'); }
     finally { setFELoading(false); }
