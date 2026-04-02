@@ -182,7 +182,9 @@ export default function ZoneManagement() {
               <div>
                 {z.client_id ? (
                   <span style={{display:'inline-flex',padding:'3px 9px',borderRadius:6,background:C.blueD,color:C.blue,fontSize:10,fontWeight:800,border:`1px solid ${C.blue}22`}}>
-                    {clients.find(cl => cl.id?.toLowerCase().trim() === z.client_id?.toLowerCase().trim())?.name || z.client_id.slice(0,8).toUpperCase()}
+                    {clients.find(cl => cl.id?.toLowerCase().trim() === (z as any).client_id?.toLowerCase().trim())?.name || 
+                     clients.find(cl => cl.id?.replace(/-/g,'').toLowerCase().substring(0,8) === (z as any).client_id?.toString().toLowerCase())?.name ||
+                     (z as any).client_id?.slice(0,8).toUpperCase()}
                   </span>
                 ) : <span style={{fontSize:11,color:C.grayd}}>System</span>}
               </div>
