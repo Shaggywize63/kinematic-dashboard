@@ -182,7 +182,8 @@ export default function CityManagement() {
               <div>
                 {(c as any).client_id ? (
                   <span style={{display:'inline-flex',padding:'3px 9px',borderRadius:6,background:C.blueD,color:C.blue,fontSize:10,fontWeight:800}}>
-                    {clients.find(cl => cl.id?.toLowerCase().trim() === (c as any).client_id?.toLowerCase().trim())?.name || 
+                    {(c as any).clients?.name || 
+                     clients.find(cl => cl.id?.toLowerCase().trim() === (c as any).client_id?.toLowerCase().trim())?.name || 
                      clients.find(cl => cl.id?.replace(/-/g,'').toLowerCase().substring(0,8) === (c as any).client_id?.toString().toLowerCase())?.name ||
                      (c as any).client_id.slice(0,8).toUpperCase()}
                   </span>
