@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import api from '@/lib/api';
-import { getStoredUser } from '@/lib/auth';
-import { useClient } from '@/context/ClientContext';
+import api from '../../lib/api';
+import { getStoredUser } from '../../lib/auth';
+import { useClient } from '../../context/ClientContext';
 
 /* ── palette ─────────────────────────────────────────────── */
 const C = {

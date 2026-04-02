@@ -1,5 +1,5 @@
 
-import { AuthSession, AuthUser } from '@/types';
+import { AuthSession, AuthUser } from '../types';
 
 const TOKEN_KEY = 'kinematic_token';
 const USER_KEY  = 'kinematic_user';

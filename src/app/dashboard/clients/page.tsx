@@ -1,8 +1,8 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
-import { Client } from '@/types';
-import ConfirmModal from '@/components/ConfirmModal';
-import { useAuth } from '@/hooks/useAuth';
+import { Client } from '../../../types';
+import ConfirmModal from '../../../components/ConfirmModal';
+import { useAuth } from '../../../hooks/useAuth';
 
 // Uses the Next.js proxy routes (/api/v1/clients) which seed the modules table
 // before forwarding to the Supabase edge function, preventing FK constraint errors.

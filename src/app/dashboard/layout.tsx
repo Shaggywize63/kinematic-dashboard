@@ -2,10 +2,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { getStoredUser, isSessionValid, clearSession, getRoleLabel } from '@/lib/auth';
-import api from '@/lib/api';
-import { ClientProvider, useClient } from '@/context/ClientContext';
-import ClientSelect from '@/components/ClientSelect';
+import { getStoredUser, isSessionValid, clearSession, getRoleLabel } from '../../lib/auth';
+import api from '../../lib/api';
+import { ClientProvider, useClient } from '../../context/ClientContext';
+import ClientSelect from '../../components/ClientSelect';
 function GlobalClientFilter({ isPlatformAdmin }: { isPlatformAdmin: boolean }) {
   const { selectedClientId, setSelectedClientId } = useClient();
   if (!isPlatformAdmin) return null;

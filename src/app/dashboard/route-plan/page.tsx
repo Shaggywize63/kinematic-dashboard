@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { api } from '@/lib/api';
+import { api } from '../../../lib/api';
 
 /* ── COLOURS ─────────────────────────────────────────────── */
 const C = {

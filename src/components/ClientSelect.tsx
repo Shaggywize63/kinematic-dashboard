@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
-import api from '@/lib/api';
+import api from '../lib/api';
 
 const C = {
   s3: 'var(--s3)', border: 'var(--border)', white: 'var(--text)', gray: 'var(--textSec)', grayd: 'var(--textTert)',

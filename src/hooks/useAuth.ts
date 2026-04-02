@@ -1,8 +1,8 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { AuthUser } from '@/types';
-import { getStoredUser, clearSession, isSessionValid } from '@/lib/auth';
+import { AuthUser } from '../types';
+import { getStoredUser, clearSession, isSessionValid } from '../lib/auth';
 
 export function useAuth() {
   const [user, setUser] = useState<AuthUser | null>(null);

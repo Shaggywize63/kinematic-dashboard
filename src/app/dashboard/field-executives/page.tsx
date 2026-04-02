@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback, useRef } from 'react';
-import api from '@/lib/api';
-import CitySelect from '@/components/CitySelect';
+import api from '../../../lib/api';
+import CitySelect from '../../../components/CitySelect';
 
 const C = {
   red:'#E01E2C', redD:'rgba(224,30,44,0.08)', redB:'rgba(224,30,44,0.2)',

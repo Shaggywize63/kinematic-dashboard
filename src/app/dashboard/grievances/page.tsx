@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
-import api from '@/lib/api';
+import api from '../../../lib/api';
 
 const C = {
   red: '#E01E2C', 

@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback, useRef } from 'react';
-import ConfirmModal from '@/components/ConfirmModal';
-import { useAuth } from '@/hooks/useAuth';
+import ConfirmModal from '../../../components/ConfirmModal';
+import { useAuth } from '../../../hooks/useAuth';
 
 /* ─── Constants ──────────────────────────────────────────────────────────── */
 const C = {

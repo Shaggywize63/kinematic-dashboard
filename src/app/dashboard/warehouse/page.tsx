@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { api } from '@/lib/api';
-import CitySelect from '@/components/CitySelect';
-import { useAuth } from '@/hooks/useAuth';
+import { api } from '../../../lib/api';
+import CitySelect from '../../../components/CitySelect';
+import { useAuth } from '../../../hooks/useAuth';
 
 /* ── colour tokens (Kinematic design system) ── */
 const C = {

@@ -1,9 +1,9 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
-import api from '@/lib/api';
-import ClientSelect from '@/components/ClientSelect';
-import ConfirmModal from '@/components/ConfirmModal';
-import { useAuth } from '@/hooks/useAuth';
+import api from '../../../../lib/api';
+import ClientSelect from '../../../../components/ClientSelect';
+import ConfirmModal from '../../../../components/ConfirmModal';
+import { useAuth } from '../../../../hooks/useAuth';
 
 const C = {
   bg: 'var(--bg)', 

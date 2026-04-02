@@ -1,8 +1,8 @@
 'use client';
 import { useState, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import api from '@/lib/api';
-import { saveSession } from '@/lib/auth';
+import api from '../../lib/api';
+import { saveSession } from '../../lib/auth';
 
 export default function LoginPage() {
   const [email, setEmail]       = useState('');

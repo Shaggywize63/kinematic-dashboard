@@ -1,8 +1,8 @@
 'use client';
 import { useState, useEffect } from 'react';
-import api from '@/lib/api';
-import { getStoredUser } from '@/lib/auth';
-import { useClient } from '@/context/ClientContext';
+import api from '../../../lib/api';
+import { getStoredUser } from '../../../lib/auth';
+import { useClient } from '../../../context/ClientContext';
 
 const C = {
   bg: 'var(--bg)', 

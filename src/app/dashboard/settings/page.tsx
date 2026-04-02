@@ -1,8 +1,8 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
-import api from '@/lib/api';
-import CitySelect from '@/components/CitySelect';
-import { AuthUser } from '@/types';
+import api from '../../../lib/api';
+import CitySelect from '../../../components/CitySelect';
+import { AuthUser } from '../../../types';
 
 const C = {
   bg: 'var(--bg)', 
