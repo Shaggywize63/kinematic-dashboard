@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import api from '@/lib/api';
 import { getStoredUser } from '@/lib/auth';
+import { useClient } from '@/context/ClientContext';
 
 const C = {
   bg: 'var(--bg)', 
@@ -36,6 +37,7 @@ interface Visit {
 }
 
 export default function VisitLogsPage() {
+  const { selectedClientId } = useClient();
   const [visits, setVisits] = useState<Visit[]>([]);
   const [loading, setLoading] = useState(true);
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -44,7 +46,7 @@ export default function VisitLogsPage() {
     setLoading(true);
     try {
       // Endpoint /api/v1/visits/team returns all visits for the org
-      const res = await api.getVisitLogTeam(date) as any;
+      const res = await api.getVisitLogTeam(date, selectedClientId || '') as any;
       setVisits(res.data || []);
     } catch (err) {
       console.error('Failed to fetch visits', err);
@@ -55,7 +57,7 @@ export default function VisitLogsPage() {
 
   useEffect(() => {
     fetchVisits();
-  }, [date]);
+  }, [date, selectedClientId]);
 
   const getRatingColor = (r: string) => {
     switch (r.toLowerCase()) {

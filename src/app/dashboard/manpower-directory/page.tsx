@@ -5,6 +5,7 @@ import CitySelect from '@/components/CitySelect';
 import ClientSelect from '@/components/ClientSelect';
 import ConfirmModal from '@/components/ConfirmModal';
 import { useAuth } from '@/hooks/useAuth';
+import { useClient } from '@/context/ClientContext';
 import { fmtHrs } from '@/lib/utils';
 
 const C = {
@@ -180,17 +181,19 @@ export default function ManpowerDirectoryPage() {
   const fileRef = useRef<HTMLInputElement>(null);
   
   const { user, isPlatformAdmin, token } = useAuth();
+  const { selectedClientId } = useClient();
 
   /* ── fetch ── */
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
+      const qs = selectedClientId ? `&client_id=${selectedClientId}` : '';
       const [uR,zR,sR,cR, cityR, clR] = await Promise.all([
-        api.get<any>('/api/v1/users?limit=1000'),
-        api.get<any>('/api/v1/zones'),
-        api.get<any>('/api/v1/users?role=supervisor&limit=200'),
-        api.get<any>('/api/v1/users?role=client_manager&limit=200'),
-        api.get<any>('/api/v1/cities'),
+        api.get<any>(`/api/v1/users?limit=1000${qs}`),
+        api.get<any>(`/api/v1/zones?limit=500${qs}`),
+        api.get<any>(`/api/v1/users?role=supervisor&limit=200${qs}`),
+        api.get<any>(`/api/v1/users?role=client_manager&limit=200${qs}`),
+        api.get<any>(`/api/v1/cities?limit=200${qs}`),
         api.get<any>('/api/v1/misc/clients'),
       ]);
       const pick = (r: any): any[] => {
@@ -211,13 +214,14 @@ export default function ManpowerDirectoryPage() {
       setError('');
     } catch(e:any) { setError(e.message||'Failed to load'); }
     finally { setLoading(false); }
-  }, []);
+  }, [selectedClientId]);
 
   useEffect(() => {
-    if (user?.client_id && !form.client_id && !showEdit) {
-      setForm(p => ({ ...p, client_id: user.client_id }));
+    const effectiveClientId = selectedClientId || user?.client_id;
+    if (effectiveClientId && !form.client_id && !showEdit) {
+      setForm(p => ({ ...p, client_id: effectiveClientId }));
     }
-  }, [user, form.client_id, showEdit]);
+  }, [user, selectedClientId, form.client_id, showEdit]);
 
   useEffect(()=>{ fetchData(); },[fetchData]);
 

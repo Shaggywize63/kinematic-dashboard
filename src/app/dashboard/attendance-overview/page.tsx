@@ -5,6 +5,7 @@ import { parseISO, isValid } from 'date-fns';
 import api from '@/lib/api';
 import ConfirmModal from '@/components/ConfirmModal';
 import { useAuth } from '@/hooks/useAuth';
+import { useClient } from '@/context/ClientContext';
 
 /* ── DateRangePicker component ── */
 function DateRangePicker({ from, to, onChange }: { from: string; to: string; onChange: (f: string, t: string) => void }) {
@@ -237,14 +238,22 @@ export default function AttendancePage() {
   };
 
   /* ── fetch ── */
+  const { selectedClientId } = useClient();
+
+  /* ── fetch ── */
   const load = useCallback(async () => {
     setLoading(true);
     try {
       // Fetch attendance + all users
-      const qs = fromDate === toDate ? `date=${fromDate}` : `from_date=${fromDate}&to_date=${toDate}`;
+      let qs = fromDate === toDate ? `date=${fromDate}` : `from_date=${fromDate}&to_date=${toDate}`;
+      if (selectedClientId) qs += `&client_id=${selectedClientId}`;
+      
+      let usersQs = 'limit=500';
+      if (selectedClientId) usersQs += `&client_id=${selectedClientId}`;
+
       const [attRes, usersRes] = await Promise.all([
         api.get<any>(`/api/v1/attendance/team?${qs}`),
-        api.get<any>('/api/v1/users?limit=500'),
+        api.get<any>(`/api/v1/users?${usersQs}`),
       ]);
 
       const pick = (r: any) => {
@@ -294,7 +303,7 @@ export default function AttendancePage() {
     } catch (e: any) {
       setErr(e.message || 'Failed to load attendance');
     } finally { setLoading(false); }
-  }, [fromDate, toDate]);
+  }, [fromDate, toDate, selectedClientId]);
 
   useEffect(() => { load(); }, [load]);
 

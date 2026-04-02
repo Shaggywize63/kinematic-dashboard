@@ -5,6 +5,7 @@ import CitySelect from '@/components/CitySelect';
 import ClientSelect from '@/components/ClientSelect';
 import ConfirmModal from '@/components/ConfirmModal';
 import { useAuth } from '@/hooks/useAuth';
+import { useClient } from '@/context/ClientContext';
 
 const C = {
   bg: 'var(--bg)', 
@@ -46,6 +47,7 @@ export default function ZoneManagement() {
   const [zones, setZones] = useState<Zone[]>([]);
   const [clients, setClients] = useState<any[]>([]);
   const { user, isPlatformAdmin, token } = useAuth();
+  const { selectedClientId } = useClient();
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
   const [search, setSearch] = useState('');
@@ -69,15 +71,21 @@ export default function ZoneManagement() {
         return [];
       };
       const [zr, clR] = await Promise.all([
-        api.get<any>('/api/v1/zones'),
-        isPlatformAdmin ? api.get<any>('/api/v1/clients') : Promise.resolve(null),
+        api.get<any>(`/api/v1/zones${selectedClientId ? `?client_id=${selectedClientId}` : ''}`),
+        isPlatformAdmin ? api.get<any>('/api/v1/misc/clients') : Promise.resolve(null),
       ]);
       setZones(pick(zr));
       if (clR) setClients(pick(clR));
       setErr('');
     } catch(e:any){ setErr(e.message||'Failed to load zones'); }
     finally { setLoading(false); }
-  }, []);
+  }, [selectedClientId, isPlatformAdmin]);
+
+  useEffect(() => {
+    if (selectedClientId && !form.client_id && !editing) {
+      setForm(p => ({ ...p, client_id: selectedClientId }));
+    }
+  }, [selectedClientId, form.client_id, editing]);
 
   useEffect(()=>{ load(); },[load]);
 
@@ -91,7 +99,8 @@ export default function ZoneManagement() {
   const save = async () => {
     if(!form.name.trim()){setFErr('Zone name is required');return;}
     setSaving(true); setFErr('');
-    const payload:any = { name:form.name, city:form.city, state:form.state, is_active:form.is_active, meeting_address:form.meeting_address, geofence_radius:form.geofence_radius?Number(form.geofence_radius):100, client_id:form.client_id||null };
+    const cid = form.client_id || selectedClientId || null;
+    const payload:any = { name:form.name, city:form.city, state:form.state, is_active:form.is_active, meeting_address:form.meeting_address, geofence_radius:form.geofence_radius?Number(form.geofence_radius):100, client_id:cid };
     if(form.city_id) payload.city_id = form.city_id;
     if(form.meeting_lat) payload.meeting_lat = parseFloat(form.meeting_lat);
     if(form.meeting_lng) payload.meeting_lng = parseFloat(form.meeting_lng);

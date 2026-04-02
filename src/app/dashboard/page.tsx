@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import api from '@/lib/api';
 import { getStoredUser } from '@/lib/auth';
+import { useClient } from '@/context/ClientContext';
 
 /* ── palette ─────────────────────────────────────────────── */
 const C = {
@@ -415,17 +416,14 @@ export default function DashboardPage() {
   const [currUser, setCurrUser] = useState<any>(null);
   const userName = currUser?.name || 'Admin';
 
-  useEffect(() => {
-    const u = getStoredUser();
-    setCurrUser(u);
-  }, []);
-
+  const { selectedClientId } = useClient();
   const [isInitialLoad, setIsInitialLoad] = useState(true);
 
   const loadInit = useCallback(async () => {
     setLAtt(true); setLSumm(true); setLWeek(true);
     try {
-      const r = await api.get<any>('/api/v1/analytics/dashboard-init');
+      const qs = selectedClientId ? `?client_id=${selectedClientId}` : '';
+      const r = await api.get<any>(`/api/v1/analytics/dashboard-init${qs}`);
       if (r?.data || r) {
         const d = r.data || r;
         setAtt({ summary: d.attendance, executives: [] });
@@ -436,12 +434,13 @@ export default function DashboardPage() {
       setLAtt(false); setLSumm(false); setLWeek(false);
       setIsInitialLoad(false);
     }
-  }, []);
+  }, [selectedClientId]);
 
   const loadRange = useCallback(async (f:string, t:string) => {
     if (isInitialLoad && f === (new Date(Date.now() - 6 * 86400000).toISOString().split('T')[0]) && t === (new Date().toISOString().split('T')[0])) return;
     setLWeek(true); setLCity(true); setLOutlet(true); setLSumm(true);
-    const qs = `?from=${f}&to=${t}`;
+    let qs = `?from=${f}&to=${t}`;
+    if (selectedClientId) qs += `&client_id=${selectedClientId}`;
     try {
       const [wRes, cRes, oRes, sRes] = await Promise.allSettled([
         api.get<any>(`/api/v1/analytics/weekly-contacts${qs}`),
@@ -455,16 +454,21 @@ export default function DashboardPage() {
       if (sRes.status === 'fulfilled') setSumm(sRes.value?.data ?? sRes.value);
     } catch { }
     setLWeek(false); setLCity(false); setLOutlet(false); setLSumm(false);
-  }, [isInitialLoad]);
+  }, [isInitialLoad, selectedClientId]);
 
 
 
 
+
+  useEffect(() => {
+    const u = getStoredUser();
+    setCurrUser(u);
+  }, []);
 
   useEffect(() => { loadInit(); }, [loadInit]);
   useEffect(() => { 
     if (!isInitialLoad) loadRange(from, to); 
-  }, [from, to, loadRange, isInitialLoad]);
+  }, [from, to, loadRange, isInitialLoad, selectedClientId]);
 
   const handleRefresh = () => {
     loadInit();

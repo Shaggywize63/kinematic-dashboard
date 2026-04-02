@@ -4,6 +4,7 @@ import api from '@/lib/api';
 import ClientSelect from '@/components/ClientSelect';
 import ConfirmModal from '@/components/ConfirmModal';
 import { useAuth } from '@/hooks/useAuth';
+import { useClient } from '@/context/ClientContext';
 
 const INDIAN_STATES = [
   "Andaman and Nicobar Islands", "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chandigarh", "Chhattisgarh", "Dadra and Nagar Haveli and Daman and Diu", 
@@ -60,12 +61,14 @@ export default function CityManagement() {
   const [deleting, setDeleting] = useState(false);
 
   const { isPlatformAdmin, token } = useAuth();
+  const { selectedClientId } = useClient();
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
+      const qs = selectedClientId ? `?client_id=${selectedClientId}` : '';
       const [resp, clResp] = await Promise.all([
-        api.get<any>('/api/v1/cities', { headers: { Authorization: `Bearer ${token}` } }),
+        api.get<any>(`/api/v1/cities${qs}`, { headers: { Authorization: `Bearer ${token}` } }),
         isPlatformAdmin ? api.get<any>('/api/v1/misc/clients', { headers: { Authorization: `Bearer ${token}` } }) : Promise.resolve(null),
       ]);
       
@@ -82,7 +85,13 @@ export default function CityManagement() {
       setErr('');
     } catch(e:any){ setErr(e.message||'Failed to load cities'); }
     finally { setLoading(false); }
-  }, []);
+  }, [selectedClientId, token, isPlatformAdmin]);
+
+  useEffect(() => {
+    if (selectedClientId && !form.client_id && !editing) {
+      setForm(p => ({ ...p, client_id: selectedClientId }));
+    }
+  }, [selectedClientId, form.client_id, editing]);
 
   useEffect(()=>{ load(); },[load]);
 
@@ -94,8 +103,11 @@ export default function CityManagement() {
     if(!form.state){setFErr('State is required');return;}
     setSaving(true); setFErr('');
     try {
-      if(editing) await api.patch(`/api/v1/cities/${editing.id}`, form);
-      else await api.post('/api/v1/cities', form);
+      const payload = { ...form };
+      if (!payload.client_id && selectedClientId) payload.client_id = selectedClientId;
+      
+      if(editing) await api.patch(`/api/v1/cities/${editing.id}`, payload);
+      else await api.post('/api/v1/cities', payload);
       setShowModal(false); load();
     } catch(e:any){ setFErr(e.response?.data?.error||e.message||'Save failed'); }
     finally { setSaving(false); }

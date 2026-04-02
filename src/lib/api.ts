@@ -144,14 +144,21 @@ class ApiClient {
 
   // ── Visit Logs ────────────────────────────────────────────────────────────
   getVisitLogs() { return this.get('/api/v1/visits'); }
-  getVisitLogTeam(date: string) { return this.get(`/api/v1/visits/team?date=${date}`); }
+  getVisitLogTeam(date: string, clientId?: string) {
+    let qs = `?date=${date}`;
+    if (clientId) qs += `&client_id=${clientId}`;
+    return this.get(`/api/v1/visits/team${qs}`);
+  }
 
   // ── Users / Zones ─────────────────────────────────────────────────────────
   getUsers(params?: Record<string, string>) {
     const qs = params ? '?' + new URLSearchParams(params).toString() : '';
     return this.get(`/api/v1/users${qs}`);
   }
-  getZones() { return this.get('/api/v1/zones'); }
+  getZones(params?: Record<string, string>) {
+    const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+    return this.get(`/api/v1/zones${qs}`);
+  }
   getCities(params?: Record<string, string>) {
     const qs = params ? '?' + new URLSearchParams(params).toString() : '';
     return this.get(`/api/v1/cities${qs}`);

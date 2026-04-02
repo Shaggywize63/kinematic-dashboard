@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import api from '@/lib/api';
+import { useClient } from '@/context/ClientContext';
 
 const C = {
   bg: 'var(--bg)', 
@@ -365,11 +366,17 @@ export default function WorkActivitiesPage() {
   const [err, setErr] = useState('');
   const LIMIT = 25;
 
+  const { selectedClientId } = useClient();
+
   useEffect(() => {
-    api.getUsers({ limit: '500' }).then((r: any) => setUsers(Array.isArray(r) ? r : (r?.data ?? r?.users ?? []))).catch(() => {});
-    api.getCities({ limit: '200' }).then((r: any) => setCities(Array.isArray(r) ? r : (r?.data ?? r?.cities ?? []))).catch(() => {});
-    api.getZones().then((r: any) => setZones(Array.isArray(r) ? r : (r?.data ?? r?.zones ?? []))).catch(() => {});
-  }, []);
+    const qs = selectedClientId ? `?client_id=${selectedClientId}` : '';
+    api.getUsers({ limit: '500', client_id: selectedClientId || '' }).then((r: any) => setUsers(Array.isArray(r) ? r : (r?.data ?? r?.users ?? []))).catch(() => {});
+    api.getCities({ limit: '200', client_id: selectedClientId || '' }).then((r: any) => setCities(Array.isArray(r) ? r : (r?.data ?? r?.cities ?? []))).catch(() => {});
+    api.get(`/api/v1/zones?limit=500${qs.replace('?','&')}`).then((r: any) => {
+       const pick = (res: any) => Array.isArray(res) ? res : (res?.data ?? res?.zones ?? []);
+       setZones(pick(r));
+    }).catch(() => {});
+  }, [selectedClientId]);
 
   const buildParams = useCallback((page: number) => {
     const p: Record<string, string> = { page: String(page), limit: String(LIMIT) };
@@ -379,8 +386,9 @@ export default function WorkActivitiesPage() {
     if (zoneFilter) p.zone_id = zoneFilter;
     if (dateFrom) p.date_from = dateFrom;
     if (dateTo) p.date_to = dateTo;
+    if (selectedClientId) p.client_id = selectedClientId;
     return p;
-  }, [search, userFilter, cityFilter, zoneFilter, dateFrom, dateTo]);
+  }, [search, userFilter, cityFilter, zoneFilter, dateFrom, dateTo, selectedClientId]);
 
   const loadFE = useCallback(async (page = 1) => {
     setFELoading(true); setErr('');
@@ -397,13 +405,14 @@ export default function WorkActivitiesPage() {
   const loadSV = useCallback(async (page = 1) => {
     setSvLoading(true);
     try {
-      const r = await api.get<any>(`/api/v1/visits/team?page=${page}&limit=${LIMIT}`);
+      const qs = selectedClientId ? `&client_id=${selectedClientId}` : '';
+      const r = await api.get<any>(`/api/v1/visits/team?page=${page}&limit=${LIMIT}${qs}`);
       const d = r as any;
       const rows = Array.isArray(d) ? d : (d?.data ?? d?.visits ?? []);
       setSvActivities(rows); setSvTotal(d?.total || d?.count || rows.length); setSvPage(page);
     } catch { setSvActivities([]); setSvTotal(0); }
     finally { setSvLoading(false); }
-  }, []);
+  }, [selectedClientId]);
 
   useEffect(() => { if (tab === 'fe') loadFE(1); else loadSV(1); }, [tab, loadFE, loadSV]);
 

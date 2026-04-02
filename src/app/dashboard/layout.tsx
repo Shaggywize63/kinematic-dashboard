@@ -4,6 +4,21 @@ import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { getStoredUser, isSessionValid, clearSession, getRoleLabel } from '@/lib/auth';
 import api from '@/lib/api';
+import { ClientProvider, useClient } from '@/context/ClientContext';
+import ClientSelect from '@/components/ClientSelect';
+function GlobalClientFilter({ isPlatformAdmin }: { isPlatformAdmin: boolean }) {
+  const { selectedClientId, setSelectedClientId } = useClient();
+  if (!isPlatformAdmin) return null;
+  return (
+    <div style={{ width: 220, flexShrink: 0 }}>
+      <ClientSelect
+        value={selectedClientId}
+        onChange={(id) => setSelectedClientId(id)}
+        placeholder="Filter by Client..."
+      />
+    </div>
+  );
+}
 
 const C = {
   bg: 'var(--bg)', 
@@ -393,6 +408,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   ]);
 
   return (
+    <ClientProvider>
     <div style={{ display:'flex', minHeight:'100vh', background:C.bg, fontFamily:"'DM Sans',sans-serif" }}>
 
       {/* Sidebar */}
@@ -521,8 +537,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </aside>
 
       {/* Main */}
-      <main style={{ marginLeft:sideW, flex:1, minHeight:'100vh', padding:'28px 32px', transition:'margin-left .2s cubic-bezier(.4,0,.2,1)' }}>
-        {children}
+      <main style={{ marginLeft:sideW, flex:1, minHeight:'100vh', padding:0, transition:'margin-left .2s cubic-bezier(.4,0,.2,1)', display:'flex', flexDirection:'column' }}>
+        {/* Page Header with Global Filter */}
+        <header style={{ height:68, background:C.s1, borderBottom:`1px solid ${C.border}`, display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0 32px', flexShrink:0, position:'sticky', top:0, zIndex:90, backdropFilter:'blur(10px)' }}>
+          <div style={{ fontSize:14, fontWeight:700, color:C.white, letterSpacing:'-0.2px' }}>
+            {pathname.split('/').pop()?.split('-').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' ') || 'Dashboard'}
+          </div>
+          <GlobalClientFilter isPlatformAdmin={['super_admin', 'admin', 'main_admin', 'platform_admin'].includes(userRole)} />
+        </header>
+
+        <div style={{ padding:'24px 32px', flex:1 }}>
+          {children}
+        </div>
         <div className="mt-8 pt-4 border-t border-white/10 text-[10px] text-white/30 text-center">
           System Identity Registry: v8-AMBIG-FIX | API: {process.env.NEXT_PUBLIC_API_URL || 'PRODUCTION'}
         </div>
@@ -531,5 +557,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* Kinematic AI — floats over every page */}
       {token && <KinematicAI token={token}/>}
     </div>
+    </ClientProvider>
   );
 }

@@ -5,6 +5,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, AreaChart, Area
 } from 'recharts';
+import { useClient } from '@/context/ClientContext';
 
 const C = { 
   red: 'var(--primary)', 
@@ -205,10 +206,13 @@ export default function AnalyticsPage() {
   const [heatmapLoading, setHeatmapLoading] = useState(true);
   const [error,          setError]          = useState('');
 
+  const { selectedClientId } = useClient();
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     setHeatmapLoading(true);
-    const qs = `?from=${from}&to=${to}`;
+    let qs = `?from=${from}&to=${to}`;
+    if (selectedClientId) qs += `&client_id=${selectedClientId}`;
     try {
       const [summRes, heatRes, trendRes] = await Promise.all([
         api.get<any>(`/api/v1/analytics/summary${qs}`),
@@ -236,7 +240,7 @@ export default function AnalyticsPage() {
       setLoading(false);
       setHeatmapLoading(false);
     }
-  }, [from, to]);
+  }, [from, to, selectedClientId]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 

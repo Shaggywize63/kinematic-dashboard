@@ -4,6 +4,7 @@ import api from '@/lib/api';
 import ClientSelect from '@/components/ClientSelect';
 import ConfirmModal from '@/components/ConfirmModal';
 import { useAuth } from '@/hooks/useAuth';
+import { useClient } from '@/context/ClientContext';
 
 const C = {
   bg: 'var(--bg)', 
@@ -77,6 +78,7 @@ const TypeBadge = ({t}:{t?:string}) => {
 export default function ActivityManagement() {
   const [acts, setActs] = useState<Activity[]>([]);
   const { user } = useAuth();
+  const { selectedClientId } = useClient();
   const isPlatformAdmin = user?.role === 'super_admin' || user?.role === 'admin';
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
@@ -92,12 +94,19 @@ export default function ActivityManagement() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await api.get<any>('/api/v1/activities');
+      const qs = selectedClientId ? `?client_id=${selectedClientId}` : '';
+      const r = await api.get<any>(`/api/v1/activities${qs}`);
       const d = Array.isArray(r?.data?.data)?r.data.data:Array.isArray(r?.data)?r.data:[];
       setActs(d); setErr('');
     } catch(e:any){ setErr(e.message||'Failed to load activities'); }
     finally { setLoading(false); }
-  }, []);
+  }, [selectedClientId]);
+
+  useEffect(() => {
+    if (selectedClientId && !form.client_id && !editing) {
+      setForm(p => ({ ...p, client_id: selectedClientId }));
+    }
+  }, [selectedClientId, form.client_id, editing]);
 
   useEffect(()=>{ load(); },[load]);
 
@@ -130,7 +139,7 @@ export default function ActivityManagement() {
       is_active:form.is_active,
       is_geofenced:form.is_geofenced,
       geofence_radius:form.geofence_radius,
-      client_id:form.client_id||null
+      client_id:form.client_id || selectedClientId || null
     };
     try {
       if(editing) await api.patch(`/api/v1/activities/${editing.id}`, payload);

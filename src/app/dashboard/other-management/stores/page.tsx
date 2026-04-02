@@ -5,6 +5,7 @@ import CitySelect from '@/components/CitySelect';
 import ClientSelect from '@/components/ClientSelect';
 import ConfirmModal from '@/components/ConfirmModal';
 import { useAuth } from '@/hooks/useAuth';
+import { useClient } from '@/context/ClientContext';
 
 const C = {
   bg: 'var(--bg)', 
@@ -92,6 +93,7 @@ export default function OutletManagementPage() {
   const [cities,   setCities]   = useState<City[]>([]);
   const [clients,  setClients]  = useState<any[]>([]);
   const { user, isPlatformAdmin, token } = useAuth();
+  const { selectedClientId } = useClient();
   const [loading,  setLoading]  = useState(true);
   const [error,    setError]    = useState<string|null>(null);
 
@@ -135,11 +137,12 @@ export default function OutletManagementPage() {
     if (!token) return;
     setLoading(true); setError(null);
     try {
+      const qs = selectedClientId ? `?client_id=${selectedClientId}` : '';
       const headers = { Authorization:`Bearer ${token}` };
       const [oRes, zRes, cRes, clRes] = await Promise.allSettled([
-        api.get<any>('/api/v1/stores', { headers }),
-        api.get<any>('/api/v1/zones',  { headers }),
-        api.get<any>('/api/v1/cities', { headers }),
+        api.get<any>(`/api/v1/stores${qs}`, { headers }),
+        api.get<any>(`/api/v1/zones${qs}`,  { headers }),
+        api.get<any>(`/api/v1/cities${qs}`, { headers }),
         isPlatformAdmin ? api.get<any>('/api/v1/misc/clients', { headers }) : Promise.resolve(null),
       ]);
 
@@ -157,7 +160,13 @@ export default function OutletManagementPage() {
       if (clRes.status === 'fulfilled') setClients(pick(clRes.value));
     } catch(e:any) { setError(e?.message || 'Failed to load'); }
     finally { setLoading(false); }
-  }, [token, isPlatformAdmin]);
+  }, [token, isPlatformAdmin, selectedClientId]);
+
+  useEffect(() => {
+    if (selectedClientId && !form.client_id && !showEdit) {
+      setForm(p => ({ ...p, client_id: selectedClientId }));
+    }
+  }, [selectedClientId, form.client_id, showEdit]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
@@ -239,7 +248,7 @@ export default function OutletManagementPage() {
             store_type: rows[i].store_type || 'Kirana / General Store',
             lat: rows[i].lat ? parseFloat(rows[i].lat as string) : null,
             lng: rows[i].lng ? parseFloat(rows[i].lng as string) : null,
-            client_id: isPlatformAdmin ? (rows[i].client_id || null) : user?.client_id || null,
+            client_id: isPlatformAdmin ? (rows[i].client_id || selectedClientId || null) : user?.client_id || null,
             is_active: true
           }),
         });
@@ -301,6 +310,7 @@ export default function OutletManagementPage() {
           zone_id:  form.zone_id  || null,
           city_id:  form.city_id  || null,
           store_type: form.store_type || null,
+          client_id: form.client_id || selectedClientId || null,
         }),
       });
       const json = await res.json();
@@ -340,6 +350,7 @@ export default function OutletManagementPage() {
           zone_id:  form.zone_id  || null,
           city_id:  form.city_id  || null,
           store_type: form.store_type || null,
+          client_id: form.client_id || selectedClientId || null,
         }),
       });
       const json = await res.json();
