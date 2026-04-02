@@ -109,7 +109,7 @@ export default function ConfirmModal({ show, onClose, onConfirm, title, message,
         {/* Content */}
         <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 22, fontWeight: 800, marginBottom: 8, color: C.white }}>{title}</div>
         <div style={{ fontSize: 14, color: C.gray, lineHeight: 1.5, marginBottom: 32 }}>
-          {message} {itemName && <span style={{ fontWeight: 700, color: C.white }}>"{itemName}"</span>}? This action cannot be undone.
+          {message} {itemName && <span style={{ fontWeight: 700, color: C.white }}>&quot;{itemName}&quot;</span>}? This action cannot be undone.
         </div>
 
         {/* Actions */}
