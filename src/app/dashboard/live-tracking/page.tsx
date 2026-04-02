@@ -24,6 +24,7 @@ interface FELoc {
   checkin_at?: string; checkout_at?: string;
   total_hours?: number; address?: string;
   today_engagements?: number; today_tff?: number;
+  battery_percentage?: number;
 }
 interface Outlet {
   id: string; name: string; store_type?: string;
@@ -115,7 +116,7 @@ function LiveMap({
         const c = STATUS_COLOR[fe.status] || C.grayd;
         const sel = selectedId === fe.id;
         const html = `<div style="width:32px;height:32px;border-radius:50%;background:${c};border:${sel?'3px solid var(--text)':'2px solid var(--s1)'};display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;color:#000;box-shadow:0 2px 12px rgba(0,0,0,.6);${sel?'transform:scale(1.2)':''}">${fe.name[0]}</div>`;
-        const popup = popupHtml(fe.name, fe.role, c, fe.status, fe.zone_name, fe.checkin_at, fe.today_engagements, fe.today_tff);
+        const popup = popupHtml(fe.name, fe.role, c, fe.status, fe.zone_name, fe.checkin_at, fe.today_engagements, fe.today_tff, fe.battery_percentage);
         addMarker(fe.lat!, fe.lng!, html, popup, fe.id, 'fe');
       });
     }
@@ -125,7 +126,7 @@ function LiveMap({
       supervisors.filter(s => s.lat && s.lng).forEach(sup => {
         const c = STATUS_COLOR[sup.status] || C.grayd;
         const html = `<div style="width:32px;height:32px;border-radius:8px;background:${C.blue};border:2px solid var(--s1);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;color:#fff;box-shadow:0 2px 12px rgba(0,0,0,.6)">${sup.name[0]}</div>`;
-        const popup = popupHtml(sup.name, 'Supervisor', c, sup.status, sup.zone_name, sup.checkin_at);
+        const popup = popupHtml(sup.name, 'Supervisor', c, sup.status, sup.zone_name, sup.checkin_at, undefined, undefined, sup.battery_percentage);
         addMarker(sup.lat!, sup.lng!, html, popup, sup.id, 'supervisor');
       });
     }
@@ -157,12 +158,15 @@ function LiveMap({
 
   }, [mapLoaded, fes, supervisors, outlets, warehouses, activeLayers, selectedId, onSelect]);
 
-  const popupHtml = (name:string, role:string, color:string, status:string, zone?:string, checkinAt?:string, engagements?:number, tff?:number) =>
+  const popupHtml = (name:string, role:string, color:string, status:string, zone?:string, checkinAt?:string, engagements?:number, tff?:number, battery?:number) =>
     `<div style="font-family:DM Sans,sans-serif;font-size:12px;color:var(--text);background:var(--s1);padding:10px 12px;border-radius:8px;min-width:160px">
       <div style="font-weight:700;margin-bottom:2px">${name}</div>
       <div style="color:var(--text-dim);font-size:11px;margin-bottom:6px">${role}${zone?` · ${zone}`:''}</div>
-      <div style="display:inline-flex;padding:2px 8px;border-radius:20px;background:${color}20;color:${color};font-size:10px;font-weight:700;text-transform:capitalize">${status.replace('_',' ')}</div>
-      ${tff!=null?`<div style="color:var(--text-dim);font-size:10px;margin-top:2px">TFF (Total forms filled): ${tff||0}</div>`:''}
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+        <div style="display:inline-flex;padding:2px 8px;border-radius:20px;background:${color}20;color:${color};font-size:10px;font-weight:700;text-transform:capitalize">${status.replace('_',' ')}</div>
+        ${battery != null ? `<div style="font-size:10px;color:${battery < 20 ? C.red : C.grayd};display:flex;align-items:center;gap:3px">🔋 ${battery}%</div>` : ''}
+      </div>
+      ${tff!=null?`<div style="color:var(--text-dim);font-size:10px;margin-top:2px">TFF (Forms filled): ${tff||0}</div>`:''}
     </div>`;
 
   return (
@@ -439,6 +443,11 @@ export default function LiveTrackingPage() {
                       </div>
                       <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:3 }}>
                         <Dot color={STATUS_COLOR[fe.status]||C.grayd} size={7}/>
+                        {fe.battery_percentage != null && (
+                          <div style={{ fontSize:8, color:fe.battery_percentage < 20 ? C.red : C.grayd, fontWeight:600 }}>
+                            {fe.battery_percentage}% 🔋
+                          </div>
+                        )}
                         {fe.lat && fe.lng && <span style={{ fontSize:9, color:C.green }}>📍</span>}
                       </div>
                     </div>
@@ -470,7 +479,15 @@ export default function LiveTrackingPage() {
                         <div style={{ fontSize:13, fontWeight:700, color:C.white }}>{s.name}</div>
                         <div style={{ fontSize:10, color:C.grayd, marginTop:1 }}>{s.zone_name||'No zone'}</div>
                       </div>
-                      <Dot color={STATUS_COLOR[s.status]||C.grayd} size={7}/>
+                      <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:3 }}>
+                        <Dot color={STATUS_COLOR[s.status]||C.grayd} size={7}/>
+                        {s.battery_percentage != null && (
+                          <div style={{ fontSize:8, color:s.battery_percentage < 20 ? C.red : C.grayd, fontWeight:600 }}>
+                            {s.battery_percentage}% 🔋
+                          </div>
+                        )}
+                        {s.lat && s.lng && <span style={{ fontSize:9, color:C.green }}>📍</span>}
+                      </div>
                     </div>
                   ))}
                 </>
