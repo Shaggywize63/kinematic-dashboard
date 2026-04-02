@@ -176,7 +176,7 @@ export default function NotificationsPage() {
                <input type="checkbox" checked={sendPush} onChange={e=>setSendPush(e.target.checked)} style={{width:18,height:18,accentColor:C.red,cursor:'pointer'}}/>
                <div>
                  <div style={{fontSize:14,fontWeight:600,color:C.white}}>Send as Push Notification</div>
-                 <div style={{fontSize:12,color:C.gray,marginTop:2}}>Pop up on the recipient's lock screen (alerts via Firebase)</div>
+                 <div style={{fontSize:12,color:C.gray,marginTop:2}}>Pop up on the recipient&apos;s lock screen (alerts via Firebase)</div>
                </div>
             </label>
 

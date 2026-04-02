@@ -170,14 +170,14 @@ export default function VisitLogsPage() {
                 <div>
                   <div style={{ fontSize: 10, fontWeight: 800, color: C.gray, letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: 8 }}>Manager Remarks</div>
                   <div style={{ fontSize: 13, color: C.white, lineHeight: 1.5, fontStyle: 'italic' }}>
-                    "{v.remarks || 'No remarks provided'}"
+                    &quot;{v.remarks || 'No remarks provided'}&quot;
                   </div>
                 </div>
                 <div style={{ borderLeft: `1px solid ${C.border}`, paddingLeft: 20 }}>
                   <div style={{ fontSize: 10, fontWeight: 800, color: C.gray, letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: 8 }}>FE Response / Feedback</div>
                   {v.visit_response ? (
                     <div style={{ color: C.green }}>
-                        <div style={{ fontSize: 13, fontWeight: 500 }}>"{v.visit_response}"</div>
+                        <div style={{ fontSize: 13, fontWeight: 500 }}>&quot;{v.visit_response}&quot;</div>
                         <div style={{ fontSize: 10, marginTop: 4, opacity: 0.7 }}>Responded at {new Date(v.visit_response_at!).toLocaleString('en-IN')}</div>
                     </div>
                   ) : (
