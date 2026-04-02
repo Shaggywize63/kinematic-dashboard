@@ -133,7 +133,7 @@ function OutletPanel({
       for (const f of forms) {
         const detail = allDetails[f.id];
         const responses: any[] = detail?.form_responses || [];
-        const formTitle = f.activities?.name || f.form_templates?.title || 'Form';
+        const formTitle = f.activities?.name || (f as any).builder_forms?.title || f.form_templates?.title || 'Form';
         const baseRow = [
           outlet.outlet_name,
           outlet.user_name || '',
@@ -276,8 +276,8 @@ function OutletPanel({
                   const isExpanded = expandedId === f.id;
                   const detail = details[f.id];
                   const isLoadingDetail = detailLoading === f.id;
-                  const formTitle = f.activities?.name || f.form_templates?.title || 'Form';
-                  const subTitle = f.activities?.name && f.form_templates?.title ? f.form_templates.title : null;
+                  const formTitle = f.activities?.name || (f as any).builder_forms?.title || f.form_templates?.title || 'Form';
+                  const subTitle = f.activities?.name && ((f as any).builder_forms?.title || f.form_templates?.title) ? ((f as any).builder_forms?.title || f.form_templates?.title) : null;
 
                   return (
                     <div key={f.id} style={{ background: C.s3, border: `1px solid ${isExpanded ? C.blue + '50' : C.border}`, borderRadius: 12, overflow: 'hidden', transition: 'border-color 0.15s' }}>
@@ -452,7 +452,7 @@ export default function WorkActivitiesPage() {
     const headers = ['Employee ID', 'Name', 'Activity', 'Outlet', 'Checkin Time', 'Date'];
     const rows = feActivities.map(a => [
       a.users?.employee_id || '', a.users?.name || '',
-      a.activities?.name || a.form_templates?.title || '',
+      a.activities?.name || (a as any).builder_forms?.title || a.form_templates?.title || '',
       a.store_name || a.outlet_name || '',
       fmt(a.checkin_at || a.submitted_at), fmtDate(a.checkin_at || a.submitted_at),
     ]);
