@@ -1,11 +1,11 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
-import api from '@/lib/api';
+import api from '../../../lib/api';
 import {
   XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, AreaChart, Area
 } from 'recharts';
-import { useClient } from '@/context/ClientContext';
+import { useClient } from '../../../context/ClientContext';
 
 const C = { 
   red: 'var(--primary)', 
