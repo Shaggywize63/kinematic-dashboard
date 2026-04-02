@@ -112,10 +112,10 @@ export default function OutletManagementPage() {
   const emptyForm = {
     name:'', store_code:'', owner_name:'', phone:'', address:'',
     store_type:'', zone_id:'', city_id:'', lat:'', lng:'',
-    rating: 'good', remarks: '',
     client_id: '',
   };
   const [form,    setForm]    = useState(emptyForm);
+  const [visitForm, setVisitForm] = useState({ rating: 'good', remarks: '' });
   const [saving,  setSaving]  = useState(false);
   const [saveErr, setSaveErr] = useState<string|null>(null);
   const [saveOk,  setSaveOk]  = useState(false);
@@ -304,7 +304,11 @@ export default function OutletManagementPage() {
       const res = await fetch(`${apiBase}/api/v1/stores`, {
         method:'POST', headers:authH,
         body: JSON.stringify({
-          ...form,
+          name: form.name,
+          store_code: form.store_code,
+          owner_name: form.owner_name,
+          phone: form.phone,
+          address: form.address,
           lat: form.lat ? parseFloat(form.lat) : null,
           lng: form.lng ? parseFloat(form.lng) : null,
           zone_id:  form.zone_id  || null,
@@ -330,7 +334,6 @@ export default function OutletManagementPage() {
       address: o.address || '', store_type: o.store_type || '',
       zone_id: o.zone_id || '', city_id: o.city_id || '',
       lat: o.lat?.toString() || '', lng: o.lng?.toString() || '',
-      rating: 'good', remarks: '',
       client_id: o.client_id || '',
     });
     setSaveErr(null); setSaveOk(false); setFormErrs({});
@@ -344,7 +347,11 @@ export default function OutletManagementPage() {
       const res = await fetch(`${apiBase}/api/v1/stores/${selOutlet.id}`, {
         method:'PATCH', headers:authH,
         body: JSON.stringify({
-          ...form,
+          name: form.name,
+          store_code: form.store_code,
+          owner_name: form.owner_name,
+          phone: form.phone,
+          address: form.address,
           lat: form.lat ? parseFloat(form.lat) : null,
           lng: form.lng ? parseFloat(form.lng) : null,
           zone_id:  form.zone_id  || null,
@@ -748,17 +755,17 @@ export default function OutletManagementPage() {
                 <label style={{ display:'block', fontSize:11, fontWeight:700, color:C.gray, textTransform:'uppercase', marginBottom:8 }}>Rating</label>
                 <div style={{ display:'flex', gap:8 }}>
                   {['excellent','good','average','poor'].map(r => (
-                    <button key={r} onClick={() => setForm({...form, rating: r})}
-                      style={{ flex:1, padding:'8px 0', borderRadius:8, border:`1px solid ${form.rating === r ? C.blue : C.border}`, background: form.rating === r ? `${C.blue}15` : 'transparent', color: form.rating === r ? C.blue : C.gray, fontSize:11, fontWeight:700, textTransform:'capitalize', transition:'all .15s' }}>
+                    <button key={r} onClick={() => setVisitForm(p => ({ ...p, rating: r }))}
+                      style={{ flex:1, padding:'8px 0', borderRadius:8, border:`1px solid ${visitForm.rating === r ? C.blue : C.border}`, background: visitForm.rating === r ? `${C.blue}15` : 'transparent', color: visitForm.rating === r ? C.blue : C.gray, fontSize:11, fontWeight:700, textTransform:'capitalize', transition:'all .15s' }}>
                       {r}
                     </button>
                   ))}
                 </div>
               </div>
-
+ 
               <div>
                 <label style={{ display:'block', fontSize:11, fontWeight:700, color:C.gray, textTransform:'uppercase', marginBottom:8 }}>Remarks / Notes</label>
-                <textarea value={form.remarks || ''} onChange={e => setForm({...form, remarks: e.target.value})} 
+                <textarea value={visitForm.remarks || ''} onChange={e => setVisitForm(p => ({ ...p, remarks: e.target.value }))} 
                   placeholder="Describe the objective and outcome of the visit..."
                   style={{ width:'100%', minHeight:100, background:C.s3, border:`1px solid ${C.border}`, borderRadius:10, padding:'12px', color:C.white, fontSize:13, outline:'none' }} />
               </div>
@@ -784,8 +791,8 @@ export default function OutletManagementPage() {
                   try {
                     await api.post('/api/v1/visits', { 
                       outlet_id: selOutlet.id, 
-                      rating: form.rating || 'good', 
-                      remarks: form.remarks 
+                      rating: visitForm.rating || 'good', 
+                      remarks: visitForm.remarks 
                     });
                     setSaveOk(true);
                     setTimeout(() => setShowVisit(false), 1500);
