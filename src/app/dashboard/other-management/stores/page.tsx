@@ -106,7 +106,6 @@ export default function OutletManagementPage() {
   // Modals
   const [showAdd,  setShowAdd]  = useState(false);
   const [showEdit, setShowEdit] = useState(false);
-  const [showVisit, setShowVisit] = useState(false);
   const [selOutlet, setSelOutlet] = useState<any>(null);
 
   const emptyForm = {
@@ -115,7 +114,6 @@ export default function OutletManagementPage() {
     client_id: '',
   };
   const [form,    setForm]    = useState(emptyForm);
-  const [visitForm, setVisitForm] = useState({ rating: 'good', remarks: '' });
   const [saving,  setSaving]  = useState(false);
   const [saveErr, setSaveErr] = useState<string|null>(null);
   const [saveOk,  setSaveOk]  = useState(false);
@@ -664,14 +662,6 @@ export default function OutletManagementPage() {
 
                 {/* Actions */}
                 <div style={{ display:'flex', gap:5 }}>
-                  <button title="Log field visit" onClick={() => { setSelOutlet(o); setShowVisit(true); setSaveErr(null); setSaveOk(false); }}
-                    style={{ width:30, height:30, borderRadius:8, border:`1px solid ${C.blue}40`,
-                      background:'transparent', cursor:'pointer', fontSize:13,
-                      display:'flex', alignItems:'center', justifyContent:'center', color:C.blue }}
-                    onMouseEnter={e => (e.currentTarget.style.background = `${C.blue}10`)}
-                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                    📋
-                  </button>
                   {isPlatformAdmin && (
                     <button title="Edit outlet" onClick={() => openEdit(o)}
                       style={{ width: 30, height: 30, borderRadius: 8, border: `1px solid ${C.border}`,
@@ -730,80 +720,6 @@ export default function OutletManagementPage() {
               <button style={btnS} onClick={() => setShowAdd(false)}>Cancel</button>
               <button style={btnP} onClick={doAdd} disabled={saving || !form.name}>
                 {saving ? <Spin/> : '+ Create Outlet'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ══ LOG VISIT MODAL ══ */}
-      {showVisit && selOutlet && (
-        <div style={overlay} onClick={e => e.target === e.currentTarget && setShowVisit(false)}>
-          <div style={{ ...mbox, maxWidth: 450 }}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:22 }}>
-              <div>
-                <div style={{ fontFamily:"'Syne',sans-serif", fontSize:18, fontWeight:800, color:C.white }}>Log Field Visit</div>
-                <div style={{ fontSize:12, color:C.gray, marginTop:2 }}>Recording visit for: {selOutlet.name}</div>
-              </div>
-              <button onClick={() => setShowVisit(false)}
-                style={{ background:'transparent', border:`1px solid ${C.border}`, borderRadius:8,
-                  width:30, height:30, cursor:'pointer', color:C.gray, fontSize:16 }}>×</button>
-            </div>
-            
-            <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
-              <div>
-                <label style={{ display:'block', fontSize:11, fontWeight:700, color:C.gray, textTransform:'uppercase', marginBottom:8 }}>Rating</label>
-                <div style={{ display:'flex', gap:8 }}>
-                  {['excellent','good','average','poor'].map(r => (
-                    <button key={r} onClick={() => setVisitForm(p => ({ ...p, rating: r }))}
-                      style={{ flex:1, padding:'8px 0', borderRadius:8, border:`1px solid ${visitForm.rating === r ? C.blue : C.border}`, background: visitForm.rating === r ? `${C.blue}15` : 'transparent', color: visitForm.rating === r ? C.blue : C.gray, fontSize:11, fontWeight:700, textTransform:'capitalize', transition:'all .15s' }}>
-                      {r}
-                    </button>
-                  ))}
-                </div>
-              </div>
- 
-              <div>
-                <label style={{ display:'block', fontSize:11, fontWeight:700, color:C.gray, textTransform:'uppercase', marginBottom:8 }}>Remarks / Notes</label>
-                <textarea value={visitForm.remarks || ''} onChange={e => setVisitForm(p => ({ ...p, remarks: e.target.value }))} 
-                  placeholder="Describe the objective and outcome of the visit..."
-                  style={{ width:'100%', minHeight:100, background:C.s3, border:`1px solid ${C.border}`, borderRadius:10, padding:'12px', color:C.white, fontSize:13, outline:'none' }} />
-              </div>
-
-              <div style={{ display:'flex', gap:10, alignItems:'center', background:C.s3, padding:12, borderRadius:10, border:`1px solid ${C.border}` }}>
-                <span style={{ fontSize:18 }}>📸</span>
-                <div style={{ flex:1 }}>
-                  <div style={{ fontSize:12, fontWeight:600, color:C.white }}>Store Selfie</div>
-                  <div style={{ fontSize:10, color:C.grayd }}>Capture photo for verification</div>
-                </div>
-                <button style={{ background:C.s4, border:`1px solid ${C.border}`, color:C.gray, padding:'5px 10px', borderRadius:6, fontSize:11, fontWeight:600 }}>Upload</button>
-              </div>
-            </div>
-
-            {saveErr && <div style={{ marginTop:14, background:C.redD, border:`1px solid ${C.redB}`, borderRadius:10, padding:'10px 14px', fontSize:13, color:C.red }}>{saveErr}</div>}
-            {saveOk  && <div style={{ marginTop:14, background:C.greenD, border:`1px solid ${C.green}28`, borderRadius:10, padding:'10px 14px', fontSize:13, color:C.green }}>✓ Visit logged successfully!</div>}
-            
-            <div style={{ display:'flex', gap:10, marginTop:24 }}>
-              <button style={btnS} onClick={() => setShowVisit(false)}>Cancel</button>
-              <button style={{ ...btnP, background:C.blue, boxShadow:`0 4px 16px ${C.blue}30` }} 
-                onClick={async () => {
-                  setSaving(true);
-                  try {
-                    await api.post('/api/v1/visits', { 
-                      outlet_id: selOutlet.id, 
-                      rating: visitForm.rating || 'good', 
-                      remarks: visitForm.remarks 
-                    });
-                    setSaveOk(true);
-                    setTimeout(() => setShowVisit(false), 1500);
-                  } catch (e: any) {
-                    setSaveErr(e.message || 'Failed to log visit');
-                  } finally {
-                    setSaving(false);
-                  }
-                }} 
-                disabled={saving}>
-                {saving ? <Spin/> : 'Complete Visit'}
               </button>
             </div>
           </div>
