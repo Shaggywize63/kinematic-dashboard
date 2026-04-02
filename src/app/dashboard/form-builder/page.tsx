@@ -497,28 +497,29 @@ function QuestionCard({ q, index, isSelected, onSelect, onMoveUp, onMoveDown, is
 
   const renderPreview = () => {
     switch (q.qtype) {
-      case 'short_text':  return <div style={{ ...previewInp, opacity:.4 }}>{q.placeholder||'Short answer…'}</div>;
-      case 'long_text':   return <div style={{ ...previewInp, height:54, opacity:.4, display:'flex', alignItems:'flex-start', paddingTop:8 }}>{q.placeholder||'Long answer…'}</div>;
-      case 'number':      return <div style={{ ...previewInp, opacity:.4 }}>{q.placeholder||'0'}</div>;
-      case 'email':       return <div style={{ ...previewInp, opacity:.4 }}>name@example.com</div>;
-      case 'phone':       return <div style={{ ...previewInp, opacity:.4 }}>+91 XXXXXXXXXX</div>;
-      case 'radio':       return <div style={{ display:'flex', flexDirection:'column', gap:6 }}>{(q.options.length?q.options:[{label:'Option 1'},{label:'Option 2'}]).map((o:any,i:number) => <div key={i} style={{ display:'flex', alignItems:'center', gap:8, fontSize:13, color:C.gray }}><div style={{ width:14, height:14, borderRadius:'50%', border:`2px solid ${C.border}` }}/>{o.label}</div>)}</div>;
-      case 'checkbox':    return <div style={{ display:'flex', flexDirection:'column', gap:6 }}>{(q.options.length?q.options:[{label:'Option 1'},{label:'Option 2'}]).map((o:any,i:number) => <div key={i} style={{ display:'flex', alignItems:'center', gap:8, fontSize:13, color:C.gray }}><div style={{ width:14, height:14, borderRadius:4, border:`2px solid ${C.border}` }}/>{o.label}</div>)}</div>;
-      case 'dropdown':    return <div style={{ ...previewInp, display:'flex', justifyContent:'space-between', alignItems:'center', opacity:.5 }}><span>Select an option</span><span>▾</span></div>;
+      case 'short_text':  return <input disabled style={{ ...previewInp, opacity:.4 }} value={q.placeholder||'Short answer…'} readOnly/>;
+      case 'long_text':   return <textarea disabled style={{ ...previewInp, height:54, opacity:.4, resize:'none' }} value={q.placeholder||'Long answer…'} readOnly/>;
+      case 'number':      return <input type="number" disabled style={{ ...previewInp, opacity:.4 }} placeholder={q.placeholder||'0'}/>;
+      case 'email':       return <input type="email" disabled style={{ ...previewInp, opacity:.4 }} placeholder="name@example.com"/>;
+      case 'phone':       return <input type="tel" disabled style={{ ...previewInp, opacity:.4 }} placeholder="+91 XXXXXXXXXX"/>;
+      case 'radio':       return <div style={{ display:'flex', flexDirection:'column', gap:6 }}>{(q.options.length?q.options:[{label:'Option 1'},{label:'Option 2'}]).map((o:any,i:number) => <div key={i} style={{ display:'flex', alignItems:'center', gap:8, fontSize:13, color:C.gray }}><div style={{ width:16, height:16, borderRadius:'50%', border:`2px solid ${C.border}`, display:'flex', alignItems:'center', justifyContent:'center' }}><div style={{ width:8, height:8, borderRadius:'50%', background:isSelected?C.red:C.border }}/></div>{o.label}</div>)}</div>;
+      case 'checkbox':    return <div style={{ display:'flex', flexDirection:'column', gap:6 }}>{(q.options.length?q.options:[{label:'Option 1'},{label:'Option 2'}]).map((o:any,i:number) => <div key={i} style={{ display:'flex', alignItems:'center', gap:8, fontSize:13, color:C.gray }}><div style={{ width:16, height:16, borderRadius:4, border:`2px solid ${C.border}`, background:isSelected?`${C.red}20`:'transparent', display:'flex', alignItems:'center', justifyContent:'center' }}><span style={{ color:C.red, fontSize:10 }}>{isSelected?'✓':''}</span></div>{o.label}</div>)}</div>;
+      case 'dropdown':    return <div style={{ ...previewInp, display:'flex', justifyContent:'space-between', alignItems:'center', opacity:.5 }}><span>Select an option</span><span style={{ fontSize:10 }}>▼</span></div>;
       case 'yes_no':      return <div style={{ display:'flex', gap:8 }}><div style={{ padding:'6px 18px', borderRadius:8, background:`${C.green}18`, color:C.green, fontSize:13, fontWeight:700, border:`1px solid ${C.green}30` }}>Yes</div><div style={{ padding:'6px 18px', borderRadius:8, background:`${C.red}18`, color:C.red, fontSize:13, fontWeight:700, border:`1px solid ${C.red}30` }}>No</div></div>;
-      case 'rating':      return <div style={{ display:'flex', gap:4 }}>{Array.from({length:q.validation?.max||5}).map((_,i) => <span key={i} style={{ fontSize:20, color:C.grayd }}>★</span>)}</div>;
-      case 'date':        return <div style={{ ...previewInp, opacity:.4 }}>DD / MM / YYYY</div>;
-      case 'time':        return <div style={{ ...previewInp, opacity:.4 }}>HH : MM</div>;
-      case 'image':       return <div style={{ border:`2px dashed ${C.border}`, borderRadius:10, padding:'16px', textAlign:'center', color:C.grayd, fontSize:13 }}>📷 Tap to capture photo</div>;
-      case 'file':        return <div style={{ border:`2px dashed ${C.border}`, borderRadius:10, padding:'16px', textAlign:'center', color:C.grayd, fontSize:13 }}>📎 Tap to upload file</div>;
-      case 'signature':   return <div style={{ border:`2px dashed ${C.border}`, borderRadius:10, padding:'16px', textAlign:'center', color:C.grayd, fontSize:13, height:60 }}>✍️ Signature area</div>;
-      case 'location':    return <div style={{ border:`2px dashed ${C.border}`, borderRadius:10, padding:'10px 14px', color:C.grayd, fontSize:13, display:'flex', alignItems:'center', gap:8 }}>📍 GPS will auto-capture location</div>;
+      case 'rating':      return <div style={{ display:'flex', gap:4 }}>{Array.from({length:q.validation?.max||5}).map((_,i) => <span key={i} style={{ fontSize:20, color:i<3?C.yellow:C.grayd }}>★</span>)}</div>;
+      case 'date':        return <input type="date" disabled style={{ ...previewInp, opacity:.6 }}/>;
+      case 'time':        return <input type="time" disabled style={{ ...previewInp, opacity:.6 }}/>;
+      case 'datetime':    return <input type="datetime-local" disabled style={{ ...previewInp, opacity:.6 }}/>;
+      case 'image':       return <div style={{ border:`2px dashed ${C.border}`, borderRadius:12, padding:'24px', textAlign:'center', color:C.gray, background:`${C.s2}80`, display:'flex', flexDirection:'column', gap:8, alignItems:'center' }}><span style={{ fontSize:24 }}>📷</span><div style={{ fontSize:13, fontWeight:600 }}>Image Upload / Camera</div><div style={{ fontSize:11, color:C.grayd }}>Max {q.media_config?.max_files||1} photos · Compression enabled</div></div>;
+      case 'file':        return <div style={{ border:`2px dashed ${C.border}`, borderRadius:12, padding:'20px', textAlign:'center', color:C.gray, background:`${C.s2}80`, display:'flex', gap:10, alignItems:'center', justifyContent:'center' }}><span style={{ fontSize:20 }}>📎</span><div style={{ fontSize:13, fontWeight:600 }}>Click to upload any file</div></div>;
+      case 'signature':   return <div style={{ border:`2px solid ${C.border}`, background:C.s4, borderRadius:12, padding:14, height:100, display:'flex', flexDirection:'column', justifyContent:'center', alignItems:'center', color:C.grayd, position:'relative' }}><div style={{ borderBottom:`1.5px dashed ${C.grayd}`, width:'80%', marginBottom:10 }}/><span style={{ fontSize:12 }}>Sign here</span><span style={{ position:'absolute', top:10, right:12, fontSize:16, opacity:0.3 }}>✍️</span></div>;
+      case 'location':    return <div style={{ border:`1px solid ${C.border}`, background:`${C.blue}10`, borderRadius:10, padding:'12px 14px', color:C.blue, fontSize:13, display:'flex', alignItems:'center', gap:10 }}><span style={{ fontSize:18 }}>📍</span>GPS Location (Auto-capture)</div>;
       case 'section_header': return null;
-      case 'consent':     return <div style={{ background:`${C.blue}08`, border:`1px solid ${C.blue}20`, borderRadius:10, padding:'12px 14px', fontSize:12, color:C.gray, lineHeight:1.6 }}>☐ I agree to the terms and consent to data collection</div>;
+      case 'consent':     return <div style={{ background:`${C.blue}08`, border:`1px solid ${C.blue}20`, borderRadius:10, padding:'12px 14px', fontSize:12, color:C.gray, lineHeight:1.6, display:'flex', gap:10, alignItems:'flex-start' }}><input type="checkbox" disabled checked/><div style={{ opacity:0.8 }}>I agree to the terms and data collection consent policy.</div></div>;
       default: return null;
     }
   };
-  const previewInp:React.CSSProperties = { background:C.s4, border:`1px solid ${C.border}`, borderRadius:8, padding:'8px 12px', fontSize:13, color:C.gray };
+  const previewInp:React.CSSProperties = { background:C.s4, border:`1.5px solid ${C.border}`, borderRadius:10, padding:'10px 14px', fontSize:13, color:C.white, fontFamily:"'DM Sans',sans-serif", outline:'none' };
 
   if (q.qtype === 'section_header') return (
     <div onClick={onSelect} style={{ padding:'10px 18px', cursor:'pointer', borderBottom:`2px solid ${isSelected?C.red:C.borderL}`, background:isSelected?C.redD:'transparent', transition:'all .13s' }}>

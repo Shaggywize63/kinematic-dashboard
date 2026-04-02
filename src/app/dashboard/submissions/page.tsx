@@ -31,6 +31,8 @@ export default function SubmissionsPage() {
   const [total, setTotal] = useState(0);
   const [filter, setFilter] = useState('all');
   const [selected, setSelected] = useState<Submission | null>(null);
+  const [details, setDetails] = useState<any>(null);
+  const [loadingDetails, setLoadingDetails] = useState(false);
   const limit = 20;
 
   const fetchData = useCallback(async () => {
@@ -39,7 +41,6 @@ export default function SubmissionsPage() {
       const params: Record<string, string> = { page: String(page), limit: String(limit) };
       if (filter === 'tff') params.is_tff = 'true';
       if (filter === 'non_tff') params.is_tff = 'false';
-      // FIXED: correct endpoint is /api/v1/builder/forms/admin/submissions
       const qs = new URLSearchParams(params).toString();
       const res = await api.get<PaginatedResult>(`/api/v1/builder/forms/admin/submissions?${qs}`);
       const d = res as any;
@@ -55,8 +56,53 @@ export default function SubmissionsPage() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  const viewDetails = async (s: Submission) => {
+    setSelected(s);
+    setLoadingDetails(true);
+    setDetails(null);
+    try {
+      const res = await api.get<any>(`/api/v1/forms/submissions/${s.id}`);
+      setDetails(res);
+    } catch (e: any) {
+      console.error(e);
+    } finally {
+      setLoadingDetails(false);
+    }
+  };
+
   const tffCount = submissions.filter(s => s.is_converted).length;
   const nonTff = submissions.filter(s => !s.is_converted).length;
+
+  const renderValue = (r: any) => {
+    const qt = (r.form_fields?.qtype || '').toLowerCase();
+    const val = r.value_text || r.value_number || r.value_bool || r.value_json;
+
+    if (qt === 'image' || qt === 'photo' || qt === 'camera' || r.photo_url) {
+      return (
+        <div style={{ marginTop: 8 }}>
+          <img src={r.photo_url || val} alt="Submission" style={{ maxWidth: '100%', borderRadius: 12, border: `1px solid ${C.border}` }} 
+               onClick={() => window.open(r.photo_url || val, '_blank')} />
+        </div>
+      );
+    }
+    if (qt === 'signature' && val) {
+      return (
+        <div style={{ marginTop: 8, background: '#fff', borderRadius: 8, padding: 4 }}>
+          <img src={val} alt="Signature" style={{ maxWidth: '100%', height: 60, objectFit: 'contain' }} />
+        </div>
+      );
+    }
+    if (qt === 'yes_no') {
+      const isYes = String(val).toLowerCase() === 'yes' || val === true;
+      return (
+        <span style={{ color: isYes ? C.green : C.red, fontWeight: 700 }}>
+          {isYes ? '✓ Yes' : '✕ No'}
+        </span>
+      );
+    }
+    if (typeof val === 'object' && val !== null) return JSON.stringify(val);
+    return String(val ?? '—');
+  };
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
@@ -138,7 +184,7 @@ export default function SubmissionsPage() {
                       {new Date(s.submitted_at).toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' })}
                     </td>
                     <td style={{ padding:'12px 16px' }}>
-                      <button onClick={() => setSelected(s)}
+                      <button onClick={() => viewDetails(s)}
                         style={{ fontSize:12, color:C.blue, background:'none', border:'none', cursor:'pointer', fontFamily:"'DM Sans',sans-serif", fontWeight:600 }}>
                         View
                       </button>
@@ -171,26 +217,53 @@ export default function SubmissionsPage() {
       {/* Detail modal */}
       {selected && (
         <div onClick={e => { if (e.target === e.currentTarget) setSelected(null); }}
-          style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.75)', zIndex:300, display:'flex', alignItems:'center', justifyContent:'center', padding:24 }}>
-          <div style={{ background:'#0E1420', border:`1px solid ${C.border}`, borderRadius:22, width:'100%', maxWidth:480, padding:28, position:'relative' }}>
-            <button onClick={() => setSelected(null)}
-              style={{ position:'absolute', top:16, right:16, background:C.s2, border:`1px solid ${C.border}`, borderRadius:9, width:32, height:32, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', color:C.gray, fontSize:16 }}>✕</button>
-            <div style={{ fontFamily:"'Syne',sans-serif", fontSize:18, fontWeight:800, marginBottom:20 }}>Submission Details</div>
-            <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-              {[
-                ['FE', selected.users?.name],
-                ['Employee ID', selected.users?.employee_id],
-                ['Outlet', selected.outlet_name],
-                ['Template', selected.form_templates?.name],
-                ['Activity', selected.activities?.name],
-                ['TFF', selected.is_converted ? 'Yes' : 'No'],
-                ['Submitted', new Date(selected.submitted_at).toLocaleString('en-IN')],
-              ].filter(([,v]) => v).map(([k, v]) => (
-                <div key={String(k)} style={{ display:'flex', justifyContent:'space-between', fontSize:13, padding:'8px 0', borderBottom:`1px solid ${C.border}40` }}>
-                  <span style={{ color:C.gray }}>{k}</span>
-                  <span style={{ fontWeight:600 }}>{String(v)}</span>
-                </div>
-              ))}
+          style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.85)', zIndex:300, display:'flex', alignItems:'center', justifyContent:'center', padding:24, backdropFilter: 'blur(4px)' }}>
+          <div style={{ background:'#0E1420', border:`1px solid ${C.border}`, borderRadius:24, width:'100%', maxWidth:540, maxHeight:'90vh', overflowY:'auto', padding:0, position:'relative', boxShadow: '0 20px 50px rgba(0,0,0,0.5)' }}>
+            <div style={{ padding: '24px 28px', borderBottom: `1px solid ${C.border}`, position:'sticky', top:0, background:'#0E1420', zIndex:10, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+               <h3 style={{ fontFamily:"'Syne',sans-serif", fontSize:20, fontWeight:800, margin:0 }}>Submission Details</h3>
+               <button onClick={() => setSelected(null)}
+                style={{ background:C.s2, border:`1px solid ${C.border}`, borderRadius:10, width:36, height:36, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', color:C.gray, fontSize:18 }}>✕</button>
+            </div>
+            
+            <div style={{ padding: 28 }}>
+              {/* Info Grid */}
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:20, marginBottom:32 }}>
+                {[
+                  ['FE Name', selected.users?.name],
+                  ['Outlet', selected.outlet_name],
+                  ['Form', selected.form_templates?.name],
+                  ['Timestamp', new Date(selected.submitted_at).toLocaleString('en-IN')],
+                ].map(([k,v]) => (
+                  <div key={k}>
+                    <div style={{ fontSize:11, color:C.gray, textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:4 }}>{k}</div>
+                    <div style={{ fontSize:14, fontWeight:600 }}>{v || '—'}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Answers */}
+              <div style={{ borderTop: `1.5px solid ${C.border}`, paddingTop: 24 }}>
+                <h4 style={{ fontSize:15, fontWeight:800, marginBottom:16, color:C.blue }}>Form Responses</h4>
+                {loadingDetails ? (
+                  <div style={{ padding: 20, textAlign:'center', color:C.grayd }}>Loading responses...</div>
+                ) : details?.form_responses?.length > 0 ? (
+                  <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
+                    {details.form_responses.map((r: any, idx: number) => (
+                      <div key={idx} style={{ background: C.s2, padding: 16, borderRadius: 12, border: `1px solid ${C.border}80` }}>
+                        <div style={{ display:'flex', gap:10, marginBottom:8 }}>
+                          <span style={{ fontSize:12, fontWeight:800, color:C.gray }}>{idx + 1}.</span>
+                          <span style={{ fontSize:14, fontWeight:700, color:C.white }}>{r.form_fields?.label || r.field_key}</span>
+                        </div>
+                        <div style={{ paddingLeft: 22, fontSize:14 }}>
+                          {renderValue(r)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ padding: 20, textAlign:'center', color:C.grayd }}>No responses found for this submission</div>
+                )}
+              </div>
             </div>
           </div>
         </div>
