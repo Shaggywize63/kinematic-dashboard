@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '@/lib/api';
 
-const C = { red:'#E01E2C',green:'#00D97E',yellow:'#FFB800',blue:'#3E9EFF',purple:'#9B6EFF',gray:'#7A8BA0',grayd:'#2E445E',s2:'#131B2A',border:'#1E2D45' };
+const C = { red:'#E01E2C',green:'#00D97E',yellow:'#FFB800',blue:'#3E9EFF',purple:'#9B6EFF',gray:'#7A8BA0',grayd:'#2E445E',s2:'#131B2A',border:'#1E2D45',white:'#FFFFFF' };
 
 interface Submission {
   id: string;
@@ -14,6 +14,10 @@ interface Submission {
   users?: { name: string; employee_id: string };
   activities?: { name: string };
   form_templates?: { name: string };
+  checkin_photo?: string;
+  checkin_at?: string;
+  checkin_lat?: number;
+  checkin_lng?: number;
 }
 
 interface PaginatedResult {
@@ -230,16 +234,46 @@ export default function SubmissionsPage() {
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:20, marginBottom:32 }}>
                 {[
                   ['FE Name', selected.users?.name],
-                  ['Outlet', selected.outlet_name],
+                  ['Outlet', (selected as any).store_name || selected.outlet_name],
                   ['Form', selected.form_templates?.name],
                   ['Timestamp', new Date(selected.submitted_at).toLocaleString('en-IN')],
                 ].map(([k,v]) => (
-                  <div key={k}>
-                    <div style={{ fontSize:11, color:C.gray, textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:4 }}>{k}</div>
-                    <div style={{ fontSize:14, fontWeight:600 }}>{v || '—'}</div>
+                  <div key={String(k)}>
+                    <div style={{ fontSize:11, color:C.gray, textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:4 }}>{String(k)}</div>
+                    <div style={{ fontSize:14, fontWeight:600 }}>{String(v || '—')}</div>
                   </div>
                 ))}
               </div>
+
+              {/* Check-in Details */}
+              {(selected as any).checkin_photo || (selected as any).checkin_at ? (
+                <div style={{ marginBottom: 32, padding: 16, background: `${C.blue}08`, borderRadius: 16, border: `1px solid ${C.blue}20` }}>
+                  <h4 style={{ fontSize:13, fontWeight:800, marginBottom:14, color:C.blue, letterSpacing:'0.5px' }}>CHECK-IN VERIFICATION</h4>
+                  <div style={{ display:'flex', gap:20 }}>
+                    {(selected as any).checkin_photo && (
+                      <img src={(selected as any).checkin_photo} alt="Check-in" style={{ width: 120, height: 120, objectFit: 'cover', borderRadius: 12, border: `1px solid ${C.border}` }} onClick={() => window.open((selected as any).checkin_photo, '_blank')} />
+                    )}
+                    <div style={{ display:'flex', flexDirection:'column', gap:10, justifyContent:'center' }}>
+                      {(selected as any).checkin_at && (
+                        <div>
+                          <div style={{ fontSize:10, color:C.gray, textTransform:'uppercase' }}>Check-in Time</div>
+                          <div style={{ fontSize:13, fontWeight:600 }}>{new Date((selected as any).checkin_at).toLocaleString('en-IN')}</div>
+                        </div>
+                      )}
+                      {((selected as any).checkin_lat && (selected as any).checkin_lng) && (
+                        <div>
+                          <div style={{ fontSize:10, color:C.gray, textTransform:'uppercase' }}>Coordinates</div>
+                          <a href={`https://www.google.com/maps?q=${(selected as any).checkin_lat},${(selected as any).checkin_lng}`} target="_blank" rel="noreferrer" 
+                             style={{ fontSize:13, fontWeight:600, color:C.blue, textDecoration:'none', display:'flex', alignItems:'center', gap:4 }}>
+                            <span>{(selected as any).checkin_lat.toFixed(4)}, {(selected as any).checkin_lng.toFixed(4)}</span>
+                            <span style={{ fontSize:10 }}>↗</span>
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
 
               {/* Answers */}
               <div style={{ borderTop: `1.5px solid ${C.border}`, paddingTop: 24 }}>
