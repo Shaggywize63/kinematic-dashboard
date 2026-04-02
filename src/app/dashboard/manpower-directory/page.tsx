@@ -44,6 +44,7 @@ interface FieldExecutive {
   permissions?: string[];
   assigned_cities?: string[];
   client_id?: string;
+  email?: string;
   is_checked_in?: boolean; today_cc?: number; today_ecc?: number; hours_worked?: number;
 }
 interface FormData {
@@ -52,9 +53,10 @@ interface FormData {
   permissions: string[];
   assigned_cities: string[];
   client_id?: string;
+  email: string;
 }
 interface BulkRow {
-  name: string; employee_id: string; mobile?: string; password?: string;
+  name: string; employee_id: string; mobile?: string; email?: string; password?: string;
   role?: string; city?: string;
   _status: 'pending' | 'success' | 'error'; _error?: string;
 }
@@ -65,6 +67,7 @@ const EMPTY_FORM: FormData = {
   permissions: [],
   assigned_cities: [],
   client_id: '',
+  email: '',
 };
 
 /* ── Helpers ── */
@@ -256,13 +259,30 @@ export default function ManpowerDirectoryPage() {
     if (!form.name||!form.employee_id) { setFErr('Name and Employee ID are required.'); return; }
     setSaving(true); setFErr('');
     try {
+      // 1. Mobile Format Validation
+      if (form.mobile && (form.mobile.length !== 10 || !/^\d+$/.test(form.mobile))) {
+        setFErr('Mobile number must be exactly 10 digits.');
+        setSaving(false); return;
+      }
+      // 2. Email Validation
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (form.email && !emailRegex.test(form.email)) {
+        setFErr('Please enter a valid email address.');
+        setSaving(false); return;
+      }
+      // 3. Duplication Check
+      const dupMobile = staff.find(u => u.mobile === form.mobile && form.mobile !== '');
+      const dupEmail = staff.find(u => u.email?.toLowerCase().trim() === form.email.toLowerCase().trim() && form.email !== '');
+      if (dupMobile) { setFErr(`Mobile number ${form.mobile} is already registered with ${dupMobile.name}.`); setSaving(false); return; }
+      if (dupEmail) { setFErr(`Email ${form.email} is already registered with ${dupEmail.name}.`); setSaving(false); return; }
+
       await api.post('/api/v1/users',{
         name:form.name, mobile:form.mobile||undefined, password:form.password||undefined,
         app_password:form.app_password||undefined,
         role:form.role, employee_id:form.employee_id, zone_id:form.zone_id||undefined,
         supervisor_id:form.supervisor_id||undefined, joined_date:form.joined_date||undefined, city:form.city||undefined,
         permissions: form.permissions, assigned_cities: form.assigned_cities,
-        client_id: form.client_id
+        client_id: form.client_id, email: form.email || undefined
       });
       setShowAdd(false); setForm(EMPTY_FORM); fetchData();
     } catch(e:any){ setFErr(e.message||'Failed'); } finally{ setSaving(false); }
@@ -277,7 +297,8 @@ export default function ManpowerDirectoryPage() {
       joined_date:'', city:fe.city||fe.zones?.city||'', app_password:fe.app_password||'',
       permissions: fe.permissions || [],
       assigned_cities: fe.assigned_cities || [],
-      client_id: fe.client_id || ''
+      client_id: fe.client_id || '',
+      email: fe.email || '',
     });
     setFErr(''); setShowEdit(true);
   };
@@ -285,12 +306,29 @@ export default function ManpowerDirectoryPage() {
     if (!editTarget) return;
     setSaving(true); setFErr('');
     try {
+      // 1. Mobile Format Validation
+      if (form.mobile && (form.mobile.length !== 10 || !/^\d+$/.test(form.mobile))) {
+        setFErr('Mobile number must be exactly 10 digits.');
+        setSaving(false); return;
+      }
+      // 2. Email Validation
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (form.email && !emailRegex.test(form.email)) {
+        setFErr('Please enter a valid email address.');
+        setSaving(false); return;
+      }
+      // 3. Duplication Check
+      const dupMobile = staff.find(u => u.id !== editTarget.id && u.mobile === form.mobile && form.mobile !== '');
+      const dupEmail = staff.find(u => u.id !== editTarget.id && u.email?.toLowerCase().trim() === form.email.toLowerCase().trim() && form.email !== '');
+      if (dupMobile) { setFErr(`Mobile number ${form.mobile} is already registered with ${dupMobile.name}.`); setSaving(false); return; }
+      if (dupEmail) { setFErr(`Email ${form.email} is already registered with ${dupEmail.name}.`); setSaving(false); return; }
+
       await api.patch(`/api/v1/users/${editTarget.id}`,{ 
         name:form.name, zone_id:form.zone_id||null, supervisor_id:form.supervisor_id||null, 
         employee_id:form.employee_id||null, is_active:editTarget.is_active, city:form.city||null,
         role:form.role, app_password:form.app_password||undefined,
         permissions: form.permissions, assigned_cities: form.assigned_cities,
-        client_id: form.client_id
+        client_id: form.client_id, email: form.email || undefined
       });
       setShowEdit(false); setEditT(null); setSelected(null); fetchData();
     } catch(e:any){ setFErr(e.message||'Failed'); } finally{ setSaving(false); }
@@ -323,13 +361,27 @@ export default function ManpowerDirectoryPage() {
     reader.onload = ev => {
       const rows = parseCSV(ev.target?.result as string);
       if (!rows.length) { setBulkErr('No valid rows found. Check the file format.'); return; }
-      setBulk(rows.map(r => ({
-        name: r['name']||'', employee_id: r['employee_id']||'',
-        mobile: r['mobile']||undefined, password: r['password']||undefined,
-        role: r['role']||'executive', city: r['city']||undefined,
-        _status: (!r['name']||!r['employee_id']) ? 'error' : 'pending',
-        _error: (!r['name']||!r['employee_id']) ? 'Name and Employee ID required' : undefined,
-      })));
+      setBulk(rows.map(r => {
+        const m = r['mobile']?.trim() || '';
+        const e = r['email']?.trim() || '';
+        const name = r['name']?.trim() || '';
+        const eid = r['employee_id']?.trim() || '';
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        
+        let err = '';
+        if (!name || !eid) err = 'Name and Employee ID required';
+        else if (m && !/^\d{10}$/.test(m)) err = 'Mobile must be 10 digits';
+        else if (e && !emailRegex.test(e)) err = 'Invalid email address';
+
+        return {
+          name, employee_id: eid,
+          mobile: m || undefined, email: e || undefined,
+          password: r['password']||undefined,
+          role: r['role']||'executive', city: r['city']||undefined,
+          _status: err ? 'error' : 'pending',
+          _error: err || undefined,
+        };
+      }));
     };
     reader.readAsText(file);
     e.target.value='';
@@ -341,7 +393,15 @@ export default function ManpowerDirectoryPage() {
     for (let i=0; i<rows.length; i++) {
       if (rows[i]._status!=='pending') continue;
       try {
-        await api.post('/api/v1/users',{ name:rows[i].name, employee_id:rows[i].employee_id, mobile:rows[i].mobile||undefined, password:rows[i].password||undefined, role:rows[i].role||'executive', city:rows[i].city||undefined });
+        await api.post('/api/v1/users',{ 
+          name:rows[i].name, 
+          employee_id:rows[i].employee_id, 
+          mobile:rows[i].mobile||undefined, 
+          email:rows[i].email||undefined,
+          password:rows[i].password||undefined, 
+          role:rows[i].role||'executive', 
+          city:rows[i].city||undefined 
+        });
         rows[i]={...rows[i],_status:'success'};
       } catch(e:any){ rows[i]={...rows[i],_status:'error',_error:e.message||'Failed'}; }
       setBulk([...rows]);
@@ -546,6 +606,7 @@ export default function ManpowerDirectoryPage() {
                 </select>
               </Field>
               <div style={{gridColumn:'1/-1'}}><Field label="Mobile Number"><input className="kinp" style={inp} placeholder="10-digit mobile (optional)" value={form.mobile} onChange={e=>setF('mobile',e.target.value)} maxLength={10}/></Field></div>
+              <div style={{gridColumn:'1/-1'}}><Field label="Email Address"><input className="kinp" style={inp} type="email" placeholder="e.g. rajiv@kinematic.com" value={form.email} onChange={e=>setF('email',e.target.value)}/></Field></div>
               <div style={{gridColumn:'1/-1'}}><Field label="Login Password" required><input className="kinp" style={inp} type="text" placeholder="Enter password for app/web login" value={form.password} onChange={e=>{setF('password',e.target.value); setF('app_password',e.target.value);}}/></Field></div>
               <Field label="City">
                 <CitySelect value={form.city} onChange={(v, c) => setF('city', v)} placeholder="e.g. Mumbai" />
@@ -594,15 +655,21 @@ export default function ManpowerDirectoryPage() {
               <button onClick={()=>setShowEdit(false)} style={{width:32,height:32,borderRadius:9,background:C.s3,border:`1px solid ${C.border}`,cursor:'pointer',color:C.gray,fontSize:16}}>✕</button>
             </div>
             {formErr && <div style={{background:C.redD,border:`1px solid ${C.redB}`,borderRadius:10,padding:'10px 14px',fontSize:13,color:C.red,marginBottom:16}}>{formErr}</div>}
-            <Field label="Full Name" required><input className="kinp" style={inp} value={form.name} onChange={e=>setF('name',e.target.value)}/></Field>
+            
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
-               <Field label="Employee ID" required><input className="kinp" style={inp} value={form.employee_id} onChange={e=>setF('employee_id',e.target.value)}/></Field>
-               <Field label="Role">
-                  <select className="kinp" style={{...inp,appearance:'none' as const}} value={form.role} onChange={e=>setF('role',e.target.value)}>
-                    <option value="executive">Field Executive</option>
-                    <option value="supervisor">Supervisor</option>
-                  </select>
-                </Field>
+              <div style={{gridColumn:'1/-1'}}><Field label="Full Name" required><input className="kinp" style={inp} value={form.name} onChange={e=>setF('name',e.target.value)}/></Field></div>
+              <div style={{gridColumn:'1/-1'}}><Field label="Email Address"><input className="kinp" style={inp} type="email" placeholder="e.g. rajiv@kinematic.com" value={form.email} onChange={e=>setF('email',e.target.value)}/></Field></div>
+              <div style={{gridColumn:'1/-1'}}><Field label="Mobile Number"><input className="kinp" style={inp} value={form.mobile} onChange={e=>setF('mobile',e.target.value)} maxLength={10}/></Field></div>
+              
+              <Field label="Employee ID" required><input className="kinp" style={inp} value={form.employee_id} onChange={e=>setF('employee_id',e.target.value)}/></Field>
+              <Field label="Role">
+                <select className="kinp" style={{...inp,appearance:'none' as const}} value={form.role} onChange={e=>setF('role',e.target.value)}>
+                  <option value="executive">Field Executive</option>
+                  <option value="supervisor">Supervisor</option>
+                  <option value="client_manager">Client Manager</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </Field>
               <Field label="Zone">
                 <select className="kinp" style={{...inp,appearance:'none' as const}} value={form.zone_id} onChange={e=>setF('zone_id',e.target.value)}>
                   <option value="">No zone</option>
@@ -746,6 +813,10 @@ export default function ManpowerDirectoryPage() {
               )}
             </div>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:20}}>
+               <div style={{gridColumn:'1/-1', background:C.s3,borderRadius:12,padding:12}}>
+                  <div style={{fontSize:10,color:C.gray,textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:4}}>Email Address</div>
+                  <div style={{fontSize:13,fontWeight:600}}>{selected.email||'—'}</div>
+               </div>
                <div style={{background:C.s3,borderRadius:12,padding:12}}>
                   <div style={{fontSize:10,color:C.gray,textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:4}}>Mobile</div>
                   <div style={{fontSize:13,fontWeight:600}}>{selected.mobile||'—'}</div>
