@@ -201,9 +201,7 @@ export default function ManpowerDirectoryPage() {
         return [];
       };
       setStaff(pick(uR).filter((u:any) => 
-        (u.role || '').toLowerCase().trim() === 'executive' || 
-        (u.role || '').toLowerCase().trim() === 'fe' ||
-        (u.role || '').toLowerCase().trim() === 'field_executive'
+        ['executive', 'fe', 'field_executive', 'supervisor'].includes((u.role || '').toLowerCase().trim())
       ));
       setZones(pick(zR));
       setSups(pick(sR).filter((u:any) => (u.role || '').toLowerCase().trim() === 'supervisor'));
@@ -214,6 +212,13 @@ export default function ManpowerDirectoryPage() {
     } catch(e:any) { setError(e.message||'Failed to load'); }
     finally { setLoading(false); }
   }, []);
+
+  useEffect(() => {
+    if (user?.client_id && !form.client_id && !showEdit) {
+      setForm(p => ({ ...p, client_id: user.client_id }));
+    }
+  }, [user, form.client_id, showEdit]);
+
   useEffect(()=>{ fetchData(); },[fetchData]);
 
   const supMap: Record<string,string> = {};

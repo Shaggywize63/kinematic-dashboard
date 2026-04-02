@@ -1,4 +1,3 @@
-
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
@@ -28,7 +27,9 @@ export function useAuth() {
 
   const token = typeof window !== 'undefined' ? localStorage.getItem('kinematic_token') : null;
   const role = user?.role?.toLowerCase();
-  const isPlatformAdmin = ['super_admin', 'admin', 'main_admin', 'sub_admin', 'platform_admin'].includes(role || '');
+  
+  // Expanded logic: allows ANY administrative rank to resolve organization names and manage manpower
+  const isPlatformAdmin = ['super_admin', 'admin', 'main_admin', 'sub_admin', 'platform_admin', 'hr', 'city_manager'].includes(role || '');
 
   return { 
     user, 

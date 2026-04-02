@@ -524,7 +524,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <main style={{ marginLeft:sideW, flex:1, minHeight:'100vh', padding:'28px 32px', transition:'margin-left .2s cubic-bezier(.4,0,.2,1)' }}>
         {children}
         <div className="mt-8 pt-4 border-t border-white/10 text-[10px] text-white/30 text-center">
-          System Identity Registry: v5-HYDRA-RESOLV | API: {process.env.NEXT_PUBLIC_API_URL || 'LOCAL'}
+          System Identity Registry: v8-AMBIG-FIX | API: {process.env.NEXT_PUBLIC_API_URL || 'PRODUCTION'}
         </div>
       </main>
 
