@@ -88,7 +88,7 @@ const STATUS_COLOR:Record<string,string> = {
 /* ─── Types ──────────────────────────────────────────────────────────────── */
 interface BForm { id:string; title:string; description?:string; status:string; version:number; icon:string; cover_color:string; created_at:string; _pages?:BPage[]; _questions?:BQuestion[]; }
 interface BPage { id:string; form_id:string; title:string; description?:string; page_order:number; }
-interface BQuestion { id:string; form_id:string; page_id?:string; qtype:string; label:string; placeholder?:string; helper_text?:string; is_required:boolean; q_order:number; options:any[]; validation:any; logic:any[]; prefill_key?:string; media_config:any; }
+interface BQuestion { id:string; form_id:string; page_id?:string; qtype:string; label:string; placeholder?:string; helper_text?:string; is_required:boolean; q_order:number; options:any[]; validation:any; logic:any[]; prefill_key?:string; media_config:any; keyboard_type?:string; image_count?:number; camera_only?:boolean; depends_on_id?:string; depends_on_value?:string; is_consent?:boolean; }
 interface BSubmission { id:string; form_id:string; submitted_by?:string; status:string; submitted_at:string; answers:any; }
 
 /* ─── Atoms ──────────────────────────────────────────────────────────────── */
@@ -357,7 +357,7 @@ function CreateFormModal({ onCreated, onClose }:{ onCreated:(f:BForm)=>void; onC
 /* ══════════════════════════════════════════════════════════════════════════
    QUESTION PROPERTIES PANEL
 ══════════════════════════════════════════════════════════════════════════ */
-function PropertiesPanel({ q, onChange, onDelete }:{ q:BQuestion; onChange:(q:BQuestion)=>void; onDelete:()=>void }) {
+function PropertiesPanel({ q, allQs, onChange, onDelete }:{ q:BQuestion; allQs:BQuestion[]; onChange:(q:BQuestion)=>void; onDelete:()=>void }) {
   const { user } = useAuth();
   const hasOptions = ['radio','checkbox','dropdown'].includes(q.qtype);
   const [newOpt, setNewOpt] = useState('');
@@ -401,6 +401,19 @@ function PropertiesPanel({ q, onChange, onDelete }:{ q:BQuestion; onChange:(q:BQ
           <label style={{ fontSize:11, color:C.gray, display:'block', marginBottom:5 }}>Helper Text</label>
           <input style={inpStyle} value={q.helper_text||''} onChange={e => onChange({ ...q, helper_text:e.target.value })} placeholder="Optional hint…"/>
         </div>
+
+        {/* Keyboard Type (for text inputs) */}
+        {['short_text','phone','number'].includes(q.qtype) && (
+          <div>
+            <label style={{ fontSize:11, color:C.gray, display:'block', marginBottom:5 }}>Keyboard Layout</label>
+            <select style={{ ...inpStyle, appearance:'none' as any }} value={q.keyboard_type||''} onChange={e => onChange({ ...q, keyboard_type:e.target.value })}>
+              <option value="">Default</option>
+              <option value="text">Text</option>
+              <option value="number">Number Pad</option>
+              <option value="phone">Phone Pad</option>
+            </select>
+          </div>
+        )}
 
         {/* Required toggle */}
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'10px 12px', background:C.s3, borderRadius:10, border:`1px solid ${C.border}` }}>
@@ -447,13 +460,41 @@ function PropertiesPanel({ q, onChange, onDelete }:{ q:BQuestion; onChange:(q:BQ
           <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
             <div>
               <label style={{ fontSize:11, color:C.gray, display:'block', marginBottom:5 }}>Max Photos</label>
-              <input type="number" style={{ ...inpStyle, width:80 }} min={1} max={10} value={q.media_config?.max_files||1}
-                onChange={e => onChange({ ...q, media_config:{ ...q.media_config, max_files:+e.target.value } })}/>
+              <input type="number" style={{ ...inpStyle, width:80 }} min={1} max={10} value={q.image_count||1}
+                onChange={e => onChange({ ...q, image_count:+e.target.value })}/>
             </div>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'8px 12px', background:C.s3, borderRadius:10, border:`1px solid ${C.border}` }}>
               <span style={{ fontSize:12, color:C.white }}>Camera only</span>
-              <Tog val={!!q.media_config?.camera_only} onChange={v => onChange({ ...q, media_config:{ ...q.media_config, camera_only:v } })}/>
+              <Tog val={!!q.camera_only} onChange={v => onChange({ ...q, camera_only:v })}/>
             </div>
+          </div>
+        )}
+
+        {/* Conditional Logic */}
+        <div style={{ borderTop:`1px solid ${C.border}`, paddingTop:14, marginTop:6 }}>
+          <label style={{ fontSize:11, color:C.gray, display:'block', marginBottom:8, fontWeight:700, textTransform:'uppercase' }}>Visibility Logic</label>
+          <div style={{ marginBottom:10 }}>
+            <label style={{ fontSize:10, color:C.grayd, display:'block', marginBottom:4 }}>Show if parent field...</label>
+            <select style={{ ...inpStyle, appearance:'none' as any, fontSize:12 }} value={q.depends_on_id||''} onChange={e => onChange({ ...q, depends_on_id:e.target.value||undefined })}>
+              <option value="">Always Visible</option>
+              {allQs.filter(other => other.id !== q.id && !['section_header'].includes(other.qtype)).map(other => (
+                <option key={other.id} value={other.id}>{other.label}</option>
+              ))}
+            </select>
+          </div>
+          {q.depends_on_id && (
+            <div>
+              <label style={{ fontSize:10, color:C.grayd, display:'block', marginBottom:4 }}>Equals value...</label>
+              <input style={{ ...inpStyle, fontSize:12 }} value={q.depends_on_value||''} onChange={e => onChange({ ...q, depends_on_value:e.target.value })} placeholder="e.g. Yes"/>
+            </div>
+          )}
+        </div>
+
+        {/* Consent Type */}
+        {q.qtype === 'consent' && (
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'10px 12px', background:C.s3, borderRadius:10, border:`1px solid ${C.border}` }}>
+            <div style={{ fontSize:12, fontWeight:700, color:C.white }}>Mandatory</div>
+            <Tog val={!!q.is_consent} onChange={v => onChange({ ...q, is_consent:v, is_required:v })}/>
           </div>
         )}
 
@@ -760,7 +801,7 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
 
           {/* Right — Properties */}
           {selectedQ ? (
-            <PropertiesPanel q={selectedQ} onChange={updateQ} onDelete={() => setDeleteQModal({show:true, id:selectedQ.id, label:selectedQ.label})}/>
+            <PropertiesPanel q={selectedQ} allQs={questions} onChange={updateQ} onDelete={() => setDeleteQModal({show:true, id:selectedQ.id, label:selectedQ.label})}/>
           ) : (
             <div style={{ width:280, flexShrink:0, background:C.s2, borderLeft:`1px solid ${C.border}`, display:'flex', alignItems:'center', justifyContent:'center', color:C.grayd, fontSize:13, textAlign:'center', padding:24 }}>
               <div><div style={{ fontSize:32, marginBottom:10 }}>👆</div>Select a field to edit its properties</div>
