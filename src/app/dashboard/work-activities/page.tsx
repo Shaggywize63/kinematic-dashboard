@@ -243,7 +243,7 @@ function OutletPanel({
 /* ── Main Page ───────────────────────────────────────────────── */
 export default function WorkActivitiesPage() {
   const [tab, setTab] = useState<'fe' | 'supervisor'>('fe');
-  const [feActivities, setFEActivities] = useState<FormActivity[]>([]);
+  const [feActivities, setFEActivities] = useState<{ rows: FormActivity[], grouped: Record<string, FormActivity[]>, order: string[] }>({ rows: [], grouped: {}, order: [] });
   const [feLoading, setFELoading] = useState(false);
   const [feTotal, setFETotal] = useState(0);
   const [fePage, setFEPage] = useState(1);
@@ -310,9 +310,7 @@ export default function WorkActivitiesPage() {
         grouped[key].push(s);
       });
 
-      setFEActivities(rows);
-      (setFEActivities as any).grouped = grouped;
-      (setFEActivities as any).order = order;
+      setFEActivities({ rows, grouped, order });
       
       setFETotal(r?.total || r?.count || rows.length);
       setFEPage(page);
@@ -335,9 +333,9 @@ export default function WorkActivitiesPage() {
   useEffect(() => { if (tab === 'fe') loadFE(1); else loadSV(1); }, [tab, loadFE, loadSV]);
 
   const downloadCSV = () => {
-    if (!feActivities.length) return;
+    if (!feActivities.rows.length) return;
     const headers = ['Employee ID', 'Name', 'Activity', 'Outlet', 'Submitted At', 'Date'];
-    const rows = feActivities.map(a => [
+    const rows = feActivities.rows.map(a => [
       a.users?.employee_id || '', a.users?.name || '',
       a.activities?.name || (a as any).builder_forms?.title || a.form_templates?.title || '',
       a.store_name || a.outlet_name || '',
@@ -470,28 +468,28 @@ export default function WorkActivitiesPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
               {feLoading ? (
                 <div style={{ padding: 50, display: 'flex', justifyContent: 'center' }}><Spinner /></div>
-              ) : feActivities.length === 0 ? (
+              ) : feActivities.rows.length === 0 ? (
                 <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 16, padding: 60, textAlign: 'center', color: C.grayd, fontSize: 14 }}>
                   <div style={{ fontSize: 32, marginBottom: 12 }}>📋</div>
                   <div style={{ fontWeight: 600, marginBottom: 6 }}>No form submissions found</div>
                   <div style={{ fontSize: 12 }}>Use filters above or check the mobile app data.</div>
                 </div>
-              ) : (feActivities as any).order?.map((outletName: string) => (
+              ) : feActivities.order?.map((outletName: string) => (
                 <div key={outletName} style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 20, overflow: 'hidden' }}>
                   {/* Outlet Header */}
                   <div style={{ padding: '18px 24px', background: C.s3, borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
                       <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 18, fontWeight: 800, color: C.white }}>{outletName}</div>
                       <div style={{ fontSize: 11, color: C.gray, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                        {(setFEActivities as any).grouped[outletName].length} Forms
+                        {feActivities.grouped[outletName].length} Forms
                       </div>
                     </div>
                   </div>
 
                   {/* Submissions List */}
                   <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    {(setFEActivities as any).grouped[outletName].map((a: any, i: number) => (
-                      <div key={a.id} style={{ padding: '24px', borderBottom: i < (setFEActivities as any).grouped[outletName].length - 1 ? `1px solid ${C.border}40` : 'none', background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)' }}>
+                    {feActivities.grouped[outletName].map((a: any, i: number) => (
+                      <div key={a.id} style={{ padding: '24px', borderBottom: i < feActivities.grouped[outletName].length - 1 ? `1px solid ${C.border}40` : 'none', background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)' }}>
                         <div style={{ display: 'flex', gap: 20 }}>
                           {/* Submission Meta */}
                           <div style={{ width: 220, flexShrink: 0 }}>

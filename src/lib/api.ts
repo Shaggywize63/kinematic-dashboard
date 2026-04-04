@@ -102,6 +102,10 @@ class ApiClient {
   getSubmission(id: string) {
     return this.get(`/api/v1/forms/submissions/${id}`);
   }
+  getForms(params?: Record<string, string>) {
+    const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+    return this.get(`/api/v1/forms${qs}`);
+  }
 
   // ── Grievances ────────────────────────────────────────────────────────────
   // FIXED: correct endpoints — GET /grievances (admin), PATCH /grievances/:id
