@@ -104,7 +104,7 @@ class ApiClient {
   }
   getForms(params?: Record<string, string>) {
     const qs = params ? '?' + new URLSearchParams(params).toString() : '';
-    return this.get(`/api/v1/forms${qs}`);
+    return this.get(`/api/v1/forms/templates${qs}`);
   }
 
   // ── Grievances ────────────────────────────────────────────────────────────
