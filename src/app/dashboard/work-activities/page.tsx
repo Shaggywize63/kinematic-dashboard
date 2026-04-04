@@ -116,7 +116,6 @@ function OutletPanel({
     if (!forms.length) return;
     setDownloading(true);
     try {
-      // Fetch details for any forms not yet loaded
       const missing = forms.filter(f => !details[f.id]);
       const fetched = await Promise.all(
         missing.map(f => api.getSubmission(f.id).then((r: any) => ({ id: f.id, data: r?.data || r })).catch(() => ({ id: f.id, data: null })))
@@ -125,7 +124,6 @@ function OutletPanel({
       fetched.forEach(({ id, data }) => { if (data) allDetails[id] = data; });
       setDetails(allDetails);
 
-      // Build CSV rows — one row per field response
       const escCSV = (v: string) => `"${String(v ?? '').replace(/"/g, '""')}"`;
       const headers = ['Outlet', 'FE Name', 'Employee ID', 'Checkin Time', 'Form / Activity', 'Submitted At', 'Field', 'Value', 'Photo URL'];
       const rows: string[][] = [];
@@ -169,13 +167,8 @@ function OutletPanel({
 
   return (
     <>
-      {/* Backdrop */}
       <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.78)', backdropFilter: 'blur(4px)', zIndex: 999 }} />
-
-      {/* Panel */}
       <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: '100%', maxWidth: 640, background: C.s2, display: 'flex', flexDirection: 'column', zIndex: 1000, boxShadow: '-24px 0 80px rgba(0,0,0,0.6)' }}>
-
-        {/* Header */}
         <div style={{ padding: '22px 26px 18px', borderBottom: `1px solid ${C.border}`, background: C.s3, flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
             <div style={{ minWidth: 0 }}>
@@ -188,28 +181,17 @@ function OutletPanel({
             <button onClick={onClose} style={{ width: 34, height: 34, borderRadius: 9, background: C.s4, border: 'none', color: C.white, fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>✕</button>
           </div>
         </div>
-
-        {/* Scrollable body */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '20px 26px' }}>
-
-          {/* ── Checkin Card ── */}
+          {/* Legacy Checkin info in panel — keep as is for historical context if needed */}
           <div style={{ background: C.s3, border: `1px solid ${C.border}`, borderRadius: 16, marginBottom: 20, overflow: 'hidden' }}>
             <div style={{ padding: '14px 18px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 8 }}>
               <div style={{ width: 8, height: 8, borderRadius: '50%', background: C.green }} />
               <div style={{ fontSize: 11, fontWeight: 700, color: C.grayd, textTransform: 'uppercase', letterSpacing: '1px' }}>Check-in Details</div>
             </div>
             <div style={{ padding: '16px 18px', display: 'flex', gap: 16, alignItems: 'flex-start' }}>
-              {/* Photo */}
-              <div
-                onClick={() => outlet.checkin_photo && setPhotoZoom(true)}
-                style={{ flexShrink: 0, cursor: outlet.checkin_photo ? 'zoom-in' : 'default' }}
-              >
+              <div onClick={() => outlet.checkin_photo && setPhotoZoom(true)} style={{ flexShrink: 0, cursor: outlet.checkin_photo ? 'zoom-in' : 'default' }}>
                 {outlet.checkin_photo ? (
-                  <img
-                    src={outlet.checkin_photo}
-                    alt="checkin"
-                    style={{ width: 90, height: 90, borderRadius: 12, objectFit: 'cover', border: `1px solid ${C.border}` }}
-                  />
+                  <img src={outlet.checkin_photo} alt="checkin" style={{ width: 90, height: 90, borderRadius: 12, objectFit: 'cover', border: `1px solid ${C.border}` }} />
                 ) : (
                   <div style={{ width: 90, height: 90, borderRadius: 12, background: C.s4, border: `2px dashed ${C.border}`, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
                     <span style={{ fontSize: 26 }}>📷</span>
@@ -217,52 +199,27 @@ function OutletPanel({
                   </div>
                 )}
               </div>
-
-              {/* Checkin meta */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, flex: 1 }}>
                 <div>
                   <div style={{ fontSize: 10, color: C.grayd, fontWeight: 700, textTransform: 'uppercase', marginBottom: 3 }}>Time</div>
                   <div style={{ fontSize: 14, color: C.white, fontWeight: 600 }}>{fmt(outlet.checkin_at)}</div>
                   <div style={{ fontSize: 11, color: C.gray }}>{fmtDate(outlet.checkin_at)}</div>
                 </div>
-                {(outlet.checkin_lat && outlet.checkin_lng) ? (
-                  <div>
-                    <div style={{ fontSize: 10, color: C.grayd, fontWeight: 700, textTransform: 'uppercase', marginBottom: 3 }}>GPS Location</div>
-                    <a
-                      href={`https://maps.google.com/?q=${outlet.checkin_lat},${outlet.checkin_lng}`}
-                      target="_blank" rel="noreferrer"
-                      style={{ fontSize: 12, color: C.blue, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}
-                    >
-                      📍 {Number(outlet.checkin_lat).toFixed(5)}, {Number(outlet.checkin_lng).toFixed(5)} ↗
-                    </a>
-                  </div>
-                ) : (
-                  <div>
-                    <div style={{ fontSize: 10, color: C.grayd, fontWeight: 700, textTransform: 'uppercase', marginBottom: 3 }}>GPS Location</div>
-                    <div style={{ fontSize: 12, color: C.grayd }}>Not captured</div>
-                  </div>
-                )}
               </div>
             </div>
           </div>
 
-          {/* ── Forms Section ── */}
           <div style={{ marginBottom: 10 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: C.grayd, textTransform: 'uppercase', letterSpacing: '1px' }}>
                 Forms Submitted {!loading && `(${forms.length})`}
               </div>
               {!loading && forms.length > 0 && (
-                <button
-                  onClick={downloadAllForms}
-                  disabled={downloading}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: downloading ? C.s4 : C.blueD, border: `1px solid ${C.blue}40`, borderRadius: 8, color: downloading ? C.grayd : C.blue, fontSize: 12, fontWeight: 600, cursor: downloading ? 'default' : 'pointer', transition: 'all 0.15s' }}
-                >
+                <button onClick={downloadAllForms} disabled={downloading} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: downloading ? C.s4 : C.blueD, border: `1px solid ${C.blue}40`, borderRadius: 8, color: downloading ? C.grayd : C.blue, fontSize: 12, fontWeight: 600, cursor: downloading ? 'default' : 'pointer', transition: 'all 0.15s' }}>
                   {downloading ? <><Spinner /> Preparing…</> : <>↓ Download All Forms</>}
                 </button>
               )}
             </div>
-
             {loading ? (
               <div style={{ display: 'flex', justifyContent: 'center', padding: 32 }}><Spinner /></div>
             ) : forms.length === 0 ? (
@@ -278,14 +235,9 @@ function OutletPanel({
                   const isLoadingDetail = detailLoading === f.id;
                   const formTitle = f.activities?.name || (f as any).builder_forms?.title || f.form_templates?.title || 'Form';
                   const subTitle = f.activities?.name && ((f as any).builder_forms?.title || f.form_templates?.title) ? ((f as any).builder_forms?.title || f.form_templates?.title) : null;
-
                   return (
                     <div key={f.id} style={{ background: C.s3, border: `1px solid ${isExpanded ? C.blue + '50' : C.border}`, borderRadius: 12, overflow: 'hidden', transition: 'border-color 0.15s' }}>
-                      {/* Form header row */}
-                      <div
-                        onClick={() => toggleForm(f.id)}
-                        style={{ padding: '13px 16px', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}
-                      >
+                      <div onClick={() => toggleForm(f.id)} style={{ padding: '13px 16px', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
                         <div style={{ width: 34, height: 34, borderRadius: 8, background: C.blueD, border: `1px solid ${C.blue}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, flexShrink: 0 }}>📋</div>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: 13, fontWeight: 600, color: C.white, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{formTitle}</div>
@@ -294,8 +246,6 @@ function OutletPanel({
                         </div>
                         <div style={{ fontSize: 16, color: C.grayd, transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', flexShrink: 0 }}>▾</div>
                       </div>
-
-                      {/* Expanded responses */}
                       {isExpanded && (
                         <div style={{ borderTop: `1px solid ${C.border}`, padding: '14px 16px' }}>
                           {isLoadingDetail ? (
@@ -331,8 +281,6 @@ function OutletPanel({
           </div>
         </div>
       </div>
-
-      {/* Photo zoom overlay */}
       {photoZoom && outlet.checkin_photo && (
         <div onClick={() => setPhotoZoom(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'zoom-out', padding: 24 }}>
           <img src={outlet.checkin_photo} alt="checkin full" style={{ maxWidth: '100%', maxHeight: '90vh', borderRadius: 14, objectFit: 'contain' }} />
@@ -353,7 +301,7 @@ export default function WorkActivitiesPage() {
   const [svLoading, setSvLoading] = useState(false);
   const [svTotal, setSvTotal] = useState(0);
   const [svPage, setSvPage] = useState(1);
-  const [outletPanel, setOutletPanel] = useState<Parameters<typeof OutletPanel>[0]['outlet'] | null>(null);
+  const [outletPanel, setOutletPanel] = useState<any>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [cities, setCities] = useState<City[]>([]);
   const [zones, setZones] = useState<Zone[]>([]);
@@ -396,25 +344,23 @@ export default function WorkActivitiesPage() {
       const r = await api.getAdminSubmissions(buildParams(page)) as any;
       const rows: FormActivity[] = Array.isArray(r) ? r : (r?.data ?? r?.submissions ?? []);
       
-      // Group by user + outlet + date to show 1 row per check-in session
-      const grouped: Record<string, FormActivity> = {};
+      const grouped: Record<string, FormActivity[]> = {};
       const order: string[] = [];
       
       rows.forEach(s => {
-        const dateKey = s.checkin_at?.split('T')[0] || s.submitted_at?.split('T')[0] || '';
-        const groupKey = `${s.user_id}_${s.outlet_id}_${dateKey}`;
-        if (!grouped[groupKey]) {
-          grouped[groupKey] = s;
-          order.push(groupKey);
-        } else {
-          // If we have multiple form templates in one visit, we could aggregate here 
-          // but for now 1 row is what user wants.
+        const key = s.store_name || s.outlet_name || 'Individual Submissions';
+        if (!grouped[key]) {
+          grouped[key] = [];
+          order.push(key);
         }
+        grouped[key].push(s);
       });
 
-      const finalRows = order.map(k => grouped[k]);
-      setFEActivities(finalRows);
-      setFETotal(r?.total || r?.count || finalRows.length);
+      setFEActivities(rows);
+      (setFEActivities as any).grouped = grouped;
+      (setFEActivities as any).order = order;
+      
+      setFETotal(r?.total || r?.count || rows.length);
       setFEPage(page);
     } catch (e: any) { setErr(e.message || 'Failed to load'); }
     finally { setFELoading(false); }
@@ -434,27 +380,14 @@ export default function WorkActivitiesPage() {
 
   useEffect(() => { if (tab === 'fe') loadFE(1); else loadSV(1); }, [tab, loadFE, loadSV]);
 
-  const openPanel = (a: FormActivity) => {
-    setOutletPanel({
-      outlet_id: a.outlet_id,
-      outlet_name: a.store_name || a.outlet_name || 'Unknown Outlet',
-      user_name: a.users?.name,
-      user_id: a.user_id,
-      checkin_photo: a.checkin_photo,
-      checkin_at: a.checkin_at,
-      checkin_lat: a.checkin_lat,
-      checkin_lng: a.checkin_lng,
-    });
-  };
-
   const downloadCSV = () => {
     if (!feActivities.length) return;
-    const headers = ['Employee ID', 'Name', 'Activity', 'Outlet', 'Checkin Time', 'Date'];
+    const headers = ['Employee ID', 'Name', 'Activity', 'Outlet', 'Submitted At', 'Date'];
     const rows = feActivities.map(a => [
       a.users?.employee_id || '', a.users?.name || '',
       a.activities?.name || (a as any).builder_forms?.title || a.form_templates?.title || '',
       a.store_name || a.outlet_name || '',
-      fmt(a.checkin_at || a.submitted_at), fmtDate(a.checkin_at || a.submitted_at),
+      fmt(a.submitted_at), fmtDate(a.submitted_at),
     ]);
     const csv = [headers, ...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
@@ -478,7 +411,7 @@ export default function WorkActivitiesPage() {
 
         <div style={{ marginBottom: 24 }}>
           <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 26, fontWeight: 800, color: C.white, marginBottom: 4 }}>Work Activities</div>
-          <div style={{ fontSize: 13, color: C.gray }}>Click any row to see check-in details and all forms submitted at that outlet</div>
+          <div style={{ fontSize: 13, color: C.gray }}>View field submissions grouped by outlet. Captured data is visible inline.</div>
         </div>
 
         {err && <div style={{ background: C.redD, border: `1px solid ${C.redB}`, borderRadius: 11, padding: '11px 16px', fontSize: 13, color: C.red, marginBottom: 18 }}>{err}</div>}
@@ -550,68 +483,82 @@ export default function WorkActivitiesPage() {
               </div>
             </div>
 
-            <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 16, overflow: 'hidden' }}>
-              {/* Header */}
-              <div style={{ display: 'grid', gridTemplateColumns: '2.5fr 1.8fr 2fr 80px 1.2fr', padding: '11px 20px', borderBottom: `1px solid ${C.border}`, background: C.s3 }}>
-                {['Executive', 'Activity', 'Outlet', 'Check-in', 'Time'].map(h => (
-                  <div key={h} style={{ fontSize: 10, fontWeight: 700, color: C.grayd, letterSpacing: '0.7px', textTransform: 'uppercase' as const }}>{h}</div>
-                ))}
-              </div>
-
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
               {feLoading ? (
                 <div style={{ padding: 50, display: 'flex', justifyContent: 'center' }}><Spinner /></div>
               ) : feActivities.length === 0 ? (
-                <div style={{ padding: 60, textAlign: 'center', color: C.grayd, fontSize: 14 }}>
+                <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 16, padding: 60, textAlign: 'center', color: C.grayd, fontSize: 14 }}>
                   <div style={{ fontSize: 32, marginBottom: 12 }}>📋</div>
                   <div style={{ fontWeight: 600, marginBottom: 6 }}>No form submissions found</div>
                   <div style={{ fontSize: 12 }}>Use filters above or check the mobile app data.</div>
                 </div>
-              ) : feActivities.map((a, i) => (
-                <div key={a.id} className="wa-row"
-                  onClick={() => openPanel(a)}
-                  style={{ display: 'grid', gridTemplateColumns: '2.5fr 1.8fr 2fr 80px 1.2fr', padding: '14px 20px', borderBottom: i < feActivities.length - 1 ? `1px solid ${C.border}` : 'none', alignItems: 'center', background: C.s2 }}>
-
-                  {/* Executive */}
-                  <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                    <div style={{ width: 34, height: 34, borderRadius: 10, background: C.greenD, border: `1px solid rgba(0,217,126,0.15)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 14, color: C.green, flexShrink: 0 }}>
-                      {(a.users?.name?.[0] || '?').toUpperCase()}
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: C.white }}>{a.users?.name || '—'}</div>
-                      <div style={{ fontSize: 11, color: C.grayd }}>{a.users?.employee_id || ''}</div>
-                    </div>
-                  </div>
-
-                  {/* Activity */}
-                  <div>
-                    <div style={{ fontSize: 13, color: C.white, fontWeight: 500 }}>{a.activities?.name || a.form_templates?.title || '—'}</div>
-                    {a.activities?.name && a.form_templates?.title && (
-                      <div style={{ fontSize: 11, color: C.grayd }}>{a.form_templates.title}</div>
-                    )}
-                  </div>
-
-                  {/* Outlet */}
-                  <div style={{ fontSize: 13, color: (a.store_name || a.outlet_name) ? C.white : C.grayd }}>
-                    {a.store_name || a.outlet_name || '—'}
-                  </div>
-
-                  {/* Checkin photo thumbnail */}
-                  <div>
-                    {a.checkin_photo ? (
-                      <img src={a.checkin_photo} alt="checkin"
-                        style={{ width: 48, height: 48, borderRadius: 9, objectFit: 'cover', border: `1px solid ${C.border}` }}
-                        onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                    ) : (
-                      <div style={{ width: 48, height: 48, borderRadius: 9, background: C.s3, border: `1.5px dashed ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>
-                        📷
+              ) : (feActivities as any).order?.map((outletName: string) => (
+                <div key={outletName} style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 20, overflow: 'hidden' }}>
+                  {/* Outlet Header */}
+                  <div style={{ padding: '18px 24px', background: C.s3, borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
+                      <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 18, fontWeight: 800, color: C.white }}>{outletName}</div>
+                      <div style={{ fontSize: 11, color: C.gray, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        {(setFEActivities as any).grouped[outletName].length} Forms
                       </div>
-                    )}
+                    </div>
                   </div>
 
-                  {/* Checkin time */}
-                  <div style={{ fontSize: 12, color: C.grayd }}>
-                    <div style={{ color: C.white, fontWeight: 600 }}>{fmt(a.checkin_at || a.submitted_at)}</div>
-                    <div>{fmtDate(a.checkin_at || a.submitted_at)}</div>
+                  {/* Submissions List */}
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    {(setFEActivities as any).grouped[outletName].map((a: any, i: number) => (
+                      <div key={a.id} style={{ padding: '24px', borderBottom: i < (setFEActivities as any).grouped[outletName].length - 1 ? `1px solid ${C.border}40` : 'none', background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)' }}>
+                        <div style={{ display: 'flex', gap: 20 }}>
+                          {/* Submission Meta */}
+                          <div style={{ width: 220, flexShrink: 0 }}>
+                            <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 16 }}>
+                              <div style={{ width: 28, height: 28, borderRadius: 8, background: C.greenD, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: C.green }}>
+                                {a.users?.name?.[0] || '?'}
+                              </div>
+                              <div style={{ minWidth: 0 }}>
+                                <div style={{ fontSize: 13, fontWeight: 700, color: C.white, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.users?.name}</div>
+                                <div style={{ fontSize: 11, color: C.grayd }}>{a.users?.employee_id}</div>
+                              </div>
+                            </div>
+                            
+                            <div style={{ padding: '12px', background: C.s3, borderRadius: 12, border: `1px solid ${C.border}` }}>
+                              <div style={{ fontSize: 10, color: C.grayd, fontWeight: 700, textTransform: 'uppercase', marginBottom: 6 }}>Form Template</div>
+                              <div style={{ fontSize: 12, color: C.white, fontWeight: 600, marginBottom: 12 }}>{a.activities?.name || a.form_templates?.title}</div>
+                              <div style={{ fontSize: 10, color: C.grayd, fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }}>Submission Time</div>
+                              <div style={{ fontSize: 11, color: C.white }}>{fmtDate(a.submitted_at)} · {fmt(a.submitted_at)}</div>
+                            </div>
+                          </div>
+
+                          {/* Captured Data */}
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: 10, color: C.grayd, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 12 }}>Captured Form Data</div>
+                            {a.form_responses && a.form_responses.length > 0 ? (
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
+                                {a.form_responses.map((r: any, idx: number) => {
+                                  const label = r.builder_questions?.title || r.field_key?.replace(/_/g, ' ') || 'Untitled';
+                                  const val = r.value_text ?? r.value_number?.toString() ?? (r.value_bool !== null ? (r.value_bool ? 'Yes' : 'No') : '—');
+                                  return (
+                                    <div key={idx} style={{ padding: '12px', background: C.s4, borderRadius: 12, border: `1px solid ${C.border}` }}>
+                                      <div style={{ fontSize: 9, color: C.gray, fontWeight: 800, textTransform: 'uppercase', marginBottom: 4 }}>{label}</div>
+                                      <div style={{ fontSize: 13, color: C.white }}>{val}</div>
+                                      {r.photo_url && (
+                                        <div style={{ marginTop: 8 }}>
+                                          <img src={r.photo_url} alt="res" style={{ width: 40, height: 40, borderRadius: 6, objectFit: 'cover', cursor: 'pointer' }} onClick={() => window.open(r.photo_url, '_blank')} />
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <div style={{ padding: '30px', textAlign: 'center', background: C.s3, borderRadius: 16, border: `1px dashed ${C.border}`, color: C.grayd, fontSize: 12 }}>
+                                No form responses recorded.
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               ))}
@@ -619,11 +566,9 @@ export default function WorkActivitiesPage() {
 
             {feTotal > LIMIT && !feLoading && (
               <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 16 }}>
-                <button className="wa-btn" onClick={() => loadFE(fePage - 1)} disabled={fePage <= 1}
-                  style={{ padding: '8px 16px', background: C.s2, border: `1px solid ${C.border}`, color: fePage <= 1 ? C.grayd : C.white, borderRadius: 9, fontSize: 13, opacity: fePage <= 1 ? 0.4 : 1 }}>← Prev</button>
+                <button className="wa-btn" onClick={() => loadFE(fePage - 1)} disabled={fePage <= 1} style={{ padding: '8px 16px', background: C.s2, border: `1px solid ${C.border}`, color: fePage <= 1 ? C.grayd : C.white, borderRadius: 9, fontSize: 13, opacity: fePage <= 1 ? 0.4 : 1 }}>← Prev</button>
                 <span style={{ padding: '8px 16px', color: C.gray, fontSize: 13 }}>Page {fePage} of {Math.ceil(feTotal / LIMIT)}</span>
-                <button className="wa-btn" onClick={() => loadFE(fePage + 1)} disabled={fePage >= Math.ceil(feTotal / LIMIT)}
-                  style={{ padding: '8px 16px', background: C.s2, border: `1px solid ${C.border}`, color: fePage >= Math.ceil(feTotal / LIMIT) ? C.grayd : C.white, borderRadius: 9, fontSize: 13, opacity: fePage >= Math.ceil(feTotal / LIMIT) ? 0.4 : 1 }}>Next →</button>
+                <button className="wa-btn" onClick={() => loadFE(fePage + 1)} disabled={fePage >= Math.ceil(feTotal / LIMIT)} style={{ padding: '8px 16px', background: C.s2, border: `1px solid ${C.border}`, color: fePage >= Math.ceil(feTotal / LIMIT) ? C.grayd : C.white, borderRadius: 9, fontSize: 13, opacity: fePage >= Math.ceil(feTotal / LIMIT) ? 0.4 : 1 }}>Next →</button>
               </div>
             )}
           </div>
@@ -652,8 +597,7 @@ export default function WorkActivitiesPage() {
                   <div style={{ fontWeight: 600 }}>No store visits found</div>
                 </div>
               ) : svActivities.map((v, i) => (
-                <div key={v.id} className="wa-row"
-                  style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr 1.5fr 1fr 1fr', padding: '13px 20px', borderBottom: i < svActivities.length - 1 ? `1px solid ${C.border}` : 'none', alignItems: 'center', background: C.s2 }}>
+                <div key={v.id} className="wa-row" style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr 1.5fr 1fr 1fr', padding: '13px 20px', borderBottom: i < svActivities.length - 1 ? `1px solid ${C.border}` : 'none', alignItems: 'center', background: C.s2 }}>
                   <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                     <div style={{ width: 32, height: 32, borderRadius: 9, background: C.blueD, border: `1px solid rgba(62,158,255,0.15)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 13, color: C.blue, flexShrink: 0 }}>
                       {(v.users?.name?.[0] || '?').toUpperCase()}
@@ -676,18 +620,15 @@ export default function WorkActivitiesPage() {
 
             {svTotal > LIMIT && !svLoading && (
               <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 16 }}>
-                <button className="wa-btn" onClick={() => loadSV(svPage - 1)} disabled={svPage <= 1}
-                  style={{ padding: '8px 16px', background: C.s2, border: `1px solid ${C.border}`, color: svPage <= 1 ? C.grayd : C.white, borderRadius: 9, fontSize: 13, opacity: svPage <= 1 ? 0.4 : 1 }}>← Prev</button>
+                <button className="wa-btn" onClick={() => loadSV(svPage - 1)} disabled={svPage <= 1} style={{ padding: '8px 16px', background: C.s2, border: `1px solid ${C.border}`, color: svPage <= 1 ? C.grayd : C.white, borderRadius: 9, fontSize: 13, opacity: svPage <= 1 ? 0.4 : 1 }}>← Prev</button>
                 <span style={{ padding: '8px 16px', color: C.gray, fontSize: 13 }}>Page {svPage} of {Math.ceil(svTotal / LIMIT)}</span>
-                <button className="wa-btn" onClick={() => loadSV(svPage + 1)} disabled={svPage >= Math.ceil(svTotal / LIMIT)}
-                  style={{ padding: '8px 16px', background: C.s2, border: `1px solid ${C.border}`, color: svPage >= Math.ceil(svTotal / LIMIT) ? C.grayd : C.white, borderRadius: 9, fontSize: 13, opacity: svPage >= Math.ceil(svTotal / LIMIT) ? 0.4 : 1 }}>Next →</button>
+                <button className="wa-btn" onClick={() => loadSV(svPage + 1)} disabled={svPage >= Math.ceil(svTotal / LIMIT)} style={{ padding: '8px 16px', background: C.s2, border: `1px solid ${C.border}`, color: svPage >= Math.ceil(svTotal / LIMIT) ? C.grayd : C.white, borderRadius: 9, fontSize: 13, opacity: svPage >= Math.ceil(svTotal / LIMIT) ? 0.4 : 1 }}>Next →</button>
               </div>
             )}
           </div>
         )}
       </div>
 
-      {/* Outlet side panel */}
       {outletPanel && <OutletPanel outlet={outletPanel} onClose={() => setOutletPanel(null)} />}
     </>
   );
