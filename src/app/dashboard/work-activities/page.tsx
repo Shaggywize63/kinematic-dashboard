@@ -61,6 +61,77 @@ function Spinner() {
   return <div style={{ width: 18, height: 18, border: '2.5px solid rgba(255,255,255,0.1)', borderTopColor: C.blue, borderRadius: '50%', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />;
 }
 
+/* ── Submission Modal ────────────────────────────────────────── */
+function SubmissionModal({ submission, onClose }: { submission: FormActivity | null; onClose: () => void }) {
+  if (!submission) return null;
+  const formTitle = submission.activities?.name || submission.form_templates?.title || 'Form Submission';
+  
+  return (
+    <>
+      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)', zIndex: 2000, animation: 'fadeIn 0.2s ease-out' }} />
+      <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: '90%', maxWidth: 800, maxHeight: '85vh', background: C.s2, borderRadius: 24, display: 'flex', flexDirection: 'column', zIndex: 2001, boxShadow: '0 32px 100px rgba(0,0,0,0.8)', overflow: 'hidden', border: `1px solid ${C.border}`, animation: 'modalIn 0.3s cubic-bezier(0.16, 1, 0.3, 1)' }}>
+        
+        {/* Modal Header */}
+        <div style={{ padding: '24px 32px', borderBottom: `1px solid ${C.border}`, background: C.s3, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <div style={{ fontSize: 10, color: C.blue, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1.5px', marginBottom: 6 }}>Submission Details</div>
+            <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 22, fontWeight: 800, color: C.white }}>{formTitle}</div>
+          </div>
+          <button onClick={onClose} style={{ width: 36, height: 36, borderRadius: 12, background: C.s4, border: 'none', color: C.white, fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>✕</button>
+        </div>
+
+        {/* Modal Content */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '32px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginBottom: 32 }}>
+            <div style={{ padding: '16px', background: C.s3, borderRadius: 16, border: `1px solid ${C.border}` }}>
+              <div style={{ fontSize: 10, color: C.grayd, fontWeight: 800, textTransform: 'uppercase', marginBottom: 8 }}>Field Executive</div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: C.white }}>{submission.users?.name}</div>
+              <div style={{ fontSize: 12, color: C.grayd, marginTop: 2 }}>{submission.users?.employee_id}</div>
+            </div>
+            <div style={{ padding: '16px', background: C.s3, borderRadius: 16, border: `1px solid ${C.border}` }}>
+              <div style={{ fontSize: 10, color: C.grayd, fontWeight: 800, textTransform: 'uppercase', marginBottom: 8 }}>Submitted At</div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: C.white }}>{fmtDate(submission.submitted_at)}</div>
+              <div style={{ fontSize: 12, color: C.grayd, marginTop: 2 }}>{fmt(submission.submitted_at)}</div>
+            </div>
+          </div>
+
+          <div style={{ fontSize: 11, fontWeight: 800, color: C.grayd, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 16 }}>Captured Data</div>
+          
+          {submission.form_responses && submission.form_responses.length > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {submission.form_responses.map((r: any, idx: number) => {
+                const label = r.builder_questions?.title || r.field_key?.replace(/_/g, ' ') || 'Untitled';
+                const val = r.value_text ?? r.value_number?.toString() ?? (r.value_bool !== null ? (r.value_bool ? 'Yes' : 'No') : null);
+                return (
+                  <div key={idx} style={{ padding: '16px 20px', background: C.s3, borderRadius: 16, border: `1px solid ${C.border}` }}>
+                    <div style={{ fontSize: 10, color: C.grayd, fontWeight: 800, textTransform: 'uppercase', marginBottom: 6 }}>{label}</div>
+                    {val && <div style={{ fontSize: 15, color: C.white }}>{val}</div>}
+                    {r.photo_url && (
+                      <div style={{ marginTop: val ? 12 : 0 }}>
+                        <img src={r.photo_url} alt="res" style={{ maxWidth: '100%', borderRadius: 12, border: `1px solid ${C.border}`, cursor: 'pointer' }} onClick={() => window.open(r.photo_url, '_blank')} />
+                      </div>
+                    )}
+                    {!val && !r.photo_url && <div style={{ fontSize: 14, color: C.grayd }}>—</div>}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div style={{ padding: '60px', textAlign: 'center', background: C.s3, borderRadius: 20, border: `1px dashed ${C.border}`, color: C.grayd }}>
+              <div style={{ fontSize: 32, marginBottom: 12 }}>📋</div>
+              <div>No responses found for this submission.</div>
+            </div>
+          )}
+        </div>
+      </div>
+      <style>{`
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes modalIn { from { opacity: 0; transform: translate(-50%, -48%) scale(0.96); } to { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
+      `}</style>
+    </>
+  );
+}
+
 /* ── Outlet Side Panel ───────────────────────────────────────── */
 function OutletPanel({
   outlet, onClose,
@@ -263,6 +334,7 @@ export default function WorkActivitiesPage() {
   const [zoneFilter, setZoneFilter] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [activeSubmission, setActiveSubmission] = useState<FormActivity | null>(null);
   const [err, setErr] = useState('');
   const LIMIT = 25;
 
@@ -346,6 +418,24 @@ export default function WorkActivitiesPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url;
     a.download = `work_activities_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click(); URL.revokeObjectURL(url);
+  };
+
+  const downloadGroupCSV = (outletName: string) => {
+    const group = feActivities.grouped[outletName];
+    if (!group?.length) return;
+    const headers = ['Employee ID', 'Name', 'Activity', 'Outlet', 'Submitted At', 'Date'];
+    const rows = group.map(a => [
+      a.users?.employee_id || '', a.users?.name || '',
+      a.activities?.name || a.form_templates?.title || '',
+      a.store_name || a.outlet_name || '',
+      fmt(a.submitted_at), fmtDate(a.submitted_at),
+    ]);
+    const csv = [headers, ...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url;
+    a.download = `${outletName.replace(/[^a-z0-9]/gi, '_')}_${new Date().toISOString().slice(0,10)}.csv`;
     a.click(); URL.revokeObjectURL(url);
   };
 
@@ -454,6 +544,8 @@ export default function WorkActivitiesPage() {
           </div>
         )}
 
+        <SubmissionModal submission={activeSubmission} onClose={() => setActiveSubmission(null)} />
+
         {/* ── FE Tab ── */}
         {tab === 'fe' && (
           <div>
@@ -481,64 +573,29 @@ export default function WorkActivitiesPage() {
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
                       <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 18, fontWeight: 800, color: C.white }}>{outletName}</div>
                       <div style={{ fontSize: 11, color: C.gray, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                        {feActivities.grouped[outletName].length} Forms
+                        {feActivities.grouped[outletName].length} Submissions
                       </div>
                     </div>
+                    <button onClick={(e) => { e.stopPropagation(); downloadGroupCSV(outletName); }} className="wa-btn" style={{ padding: '6px 12px', background: C.s4, border: `1px solid ${C.border}`, color: C.gray, borderRadius: 8, fontSize: 11, fontWeight: 600 }}>↓ Export Group</button>
                   </div>
 
                   {/* Submissions List */}
                   <div style={{ display: 'flex', flexDirection: 'column' }}>
                     {feActivities.grouped[outletName].map((a: any, i: number) => (
-                      <div key={a.id} style={{ padding: '24px', borderBottom: i < feActivities.grouped[outletName].length - 1 ? `1px solid ${C.border}40` : 'none', background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)' }}>
-                        <div style={{ display: 'flex', gap: 20 }}>
-                          {/* Submission Meta */}
-                          <div style={{ width: 220, flexShrink: 0 }}>
-                            <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 16 }}>
-                              <div style={{ width: 28, height: 28, borderRadius: 8, background: C.greenD, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: C.green }}>
-                                {a.users?.name?.[0] || '?'}
-                              </div>
-                              <div style={{ minWidth: 0 }}>
-                                <div style={{ fontSize: 13, fontWeight: 700, color: C.white, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.users?.name}</div>
-                                <div style={{ fontSize: 11, color: C.grayd }}>{a.users?.employee_id}</div>
-                              </div>
-                            </div>
-                            
-                            <div style={{ padding: '12px', background: C.s3, borderRadius: 12, border: `1px solid ${C.border}` }}>
-                              <div style={{ fontSize: 10, color: C.grayd, fontWeight: 700, textTransform: 'uppercase', marginBottom: 6 }}>Form Template</div>
-                              <div style={{ fontSize: 12, color: C.white, fontWeight: 600, marginBottom: 12 }}>{a.activities?.name || a.form_templates?.title}</div>
-                              <div style={{ fontSize: 10, color: C.grayd, fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }}>Submission Time</div>
-                              <div style={{ fontSize: 11, color: C.white }}>{fmtDate(a.submitted_at)} · {fmt(a.submitted_at)}</div>
-                            </div>
-                          </div>
-
-                          {/* Captured Data */}
-                          <div style={{ flex: 1 }}>
-                            <div style={{ fontSize: 10, color: C.grayd, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 12 }}>Captured Form Data</div>
-                            {a.form_responses && a.form_responses.length > 0 ? (
-                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
-                                {a.form_responses.map((r: any, idx: number) => {
-                                  const label = r.builder_questions?.title || r.field_key?.replace(/_/g, ' ') || 'Untitled';
-                                  const val = r.value_text ?? r.value_number?.toString() ?? (r.value_bool !== null ? (r.value_bool ? 'Yes' : 'No') : '—');
-                                  return (
-                                    <div key={idx} style={{ padding: '12px', background: C.s4, borderRadius: 12, border: `1px solid ${C.border}` }}>
-                                      <div style={{ fontSize: 9, color: C.gray, fontWeight: 800, textTransform: 'uppercase', marginBottom: 4 }}>{label}</div>
-                                      <div style={{ fontSize: 13, color: C.white }}>{val}</div>
-                                      {r.photo_url && (
-                                        <div style={{ marginTop: 8 }}>
-                                          <img src={r.photo_url} alt="res" style={{ width: 40, height: 40, borderRadius: 6, objectFit: 'cover', cursor: 'pointer' }} onClick={() => window.open(r.photo_url, '_blank')} />
-                                        </div>
-                                      )}
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            ) : (
-                              <div style={{ padding: '30px', textAlign: 'center', background: C.s3, borderRadius: 16, border: `1px dashed ${C.border}`, color: C.grayd, fontSize: 12 }}>
-                                No form responses recorded.
-                              </div>
-                            )}
-                          </div>
+                      <div key={a.id} onClick={() => setActiveSubmission(a)} className="wa-row" style={{ padding: '16px 24px', borderBottom: i < feActivities.grouped[outletName].length - 1 ? `1px solid ${C.border}40` : 'none', display: 'flex', alignItems: 'center', gap: 20 }}>
+                        <div style={{ width: 34, height: 34, borderRadius: 9, background: C.blueD, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>📋</div>
+                        <div style={{ width: 140, flexShrink: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: C.white, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.users?.name}</div>
+                          <div style={{ fontSize: 11, color: C.grayd }}>{a.users?.employee_id}</div>
                         </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: C.blue }}>{a.activities?.name || a.form_templates?.title}</div>
+                        </div>
+                        <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: C.white }}>{fmt(a.submitted_at)}</div>
+                          <div style={{ fontSize: 11, color: C.grayd }}>{fmtDate(a.submitted_at)}</div>
+                        </div>
+                        <div style={{ color: C.grayd, fontSize: 16 }}>›</div>
                       </div>
                     ))}
                   </div>
