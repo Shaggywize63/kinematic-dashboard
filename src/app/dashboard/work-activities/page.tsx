@@ -505,8 +505,17 @@ export default function WorkActivitiesPage() {
               <div style={{ fontSize: 10, color: C.grayd, marginBottom: 5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>To</div>
               <input type="date" style={baseInp} value={dateTo} onChange={e => setDateTo(e.target.value)} />
             </div>
+            {tab === 'fe' && (
+              <div>
+                <div style={{ fontSize: 10, color: C.grayd, marginBottom: 5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Activity</div>
+                <select style={{ ...baseInp, appearance: 'none' as const }} value={selectedTemplateId || ''} onChange={e => setSelectedTemplateId(e.target.value || null)}>
+                  <option value="">All Activities</option>
+                  {formTemplates.map(ft => <option key={ft.id} value={ft.id}>{ft.title}</option>)}
+                </select>
+              </div>
+            )}
             <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-              <button className="wa-btn" onClick={() => { setSearch(''); setUserFilter(''); setCityFilter(''); setZoneFilter(''); setDateFrom(''); setDateTo(''); }}
+              <button className="wa-btn" onClick={() => { setSearch(''); setUserFilter(''); setCityFilter(''); setZoneFilter(''); setDateFrom(''); setDateTo(''); setSelectedTemplateId(null); }}
                 style={{ padding: '9px 14px', background: C.s3, border: `1px solid ${C.border}`, borderRadius: 9, color: C.gray, fontSize: 12, fontWeight: 600 }}>
                 ✕ Clear
               </button>
@@ -514,35 +523,6 @@ export default function WorkActivitiesPage() {
           </div>
         </div>
 
-        {/* Form List Selector */}
-        {tab === 'fe' && (
-          <div style={{ marginBottom: 24 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: C.grayd, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 12 }}>Form Library</div>
-            <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 10, scrollbarWidth: 'none' }}>
-              <div 
-                onClick={() => setSelectedTemplateId(null)}
-                style={{ 
-                  flexShrink: 0, padding: '16px', width: 160, borderRadius: 16, background: !selectedTemplateId ? C.blueD : C.s2, border: `1px solid ${!selectedTemplateId ? C.blue : C.border}`, cursor: 'pointer', transition: 'all 0.2s'
-                }}>
-                <div style={{ fontSize: 24, marginBottom: 8 }}>📊</div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: !selectedTemplateId ? C.white : C.gray }}>All Activities</div>
-                <div style={{ fontSize: 10, color: C.grayd, marginTop: 4 }}>View everything</div>
-              </div>
-              {formTemplates.map(ft => (
-                <div 
-                  key={ft.id}
-                  onClick={() => setSelectedTemplateId(ft.id)}
-                  style={{ 
-                    flexShrink: 0, padding: '16px', width: 160, borderRadius: 16, background: selectedTemplateId === ft.id ? C.blueD : C.s2, border: `1px solid ${selectedTemplateId === ft.id ? C.blue : C.border}`, cursor: 'pointer', transition: 'all 0.2s'
-                  }}>
-                  <div style={{ fontSize: 24, marginBottom: 8 }}>{ft.icon || '📋'}</div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: selectedTemplateId === ft.id ? C.white : C.gray, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ft.title}</div>
-                  <div style={{ fontSize: 10, color: C.grayd, marginTop: 4 }}>{ft.description || 'Survey form'}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
         <SubmissionModal submission={activeSubmission} onClose={() => setActiveSubmission(null)} />
 
