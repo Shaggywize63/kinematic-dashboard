@@ -349,7 +349,23 @@ export default function WorkActivitiesPage() {
        const pick = (res: any) => Array.isArray(res) ? res : (res?.data ?? res?.zones ?? []);
        setZones(pick(r));
     }).catch(() => {});
-    api.getForms({ client_id: selectedClientId || '' }).then((r: any) => setFormTemplates(Array.isArray(r) ? r : (r?.data ?? r?.forms ?? []))).catch(() => {});
+    api.getForms({ client_id: selectedClientId || '' }).then((r: any) => {
+      const forms = Array.isArray(r) ? r : (r?.data ?? r?.forms ?? []);
+      setFormTemplates(prev => {
+        const existingIds = new Set(prev.map(p => p.id));
+        const newItems = forms.filter((f: any) => !existingIds.has(f.id));
+        return [...prev, ...newItems];
+      });
+    }).catch(() => {});
+
+    api.getActivities({ client_id: selectedClientId || '' }).then((r: any) => {
+      const acts = Array.isArray(r) ? r : (r?.data ?? r?.activities ?? []);
+      setFormTemplates(prev => {
+        const existingIds = new Set(prev.map(p => p.id));
+        const newItems = acts.filter((a: any) => !existingIds.has(a.id)).map((a: any) => ({ ...a, title: a.name }));
+        return [...prev, ...newItems];
+      });
+    }).catch(() => {});
   }, [selectedClientId]);
 
   const buildParams = useCallback((page: number) => {
@@ -511,7 +527,7 @@ export default function WorkActivitiesPage() {
                 <div style={{ fontSize: 10, color: C.grayd, marginBottom: 5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Activity</div>
                 <select style={{ ...baseInp, appearance: 'none' as const }} value={selectedTemplateId || ''} onChange={e => setSelectedTemplateId(e.target.value || null)}>
                   <option value="">All Activities</option>
-                  {formTemplates.map(ft => <option key={ft.id} value={ft.id}>{ft.title}</option>)}
+                  {formTemplates.map(ft => <option key={ft.id} value={ft.id}>{ft.title || ft.name}</option>)}
                 </select>
               </div>
             )}
