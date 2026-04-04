@@ -39,6 +39,7 @@ interface FormActivity {
   users?: { name: string; employee_id?: string };
   activities?: { name: string };
   form_templates?: { title: string };
+  builder_forms?: { title: string };
   gps?: string;
   form_responses?: any[];
 }
@@ -64,7 +65,7 @@ function Spinner() {
 /* ── Submission Modal ────────────────────────────────────────── */
 function SubmissionModal({ submission, onClose }: { submission: FormActivity | null; onClose: () => void }) {
   if (!submission) return null;
-  const formTitle = submission.activities?.name || submission.form_templates?.title || 'Form Submission';
+  const formTitle = submission.activities?.name || submission.builder_forms?.title || submission.form_templates?.title || 'Form Submission';
   
   return (
     <>
@@ -569,7 +570,7 @@ export default function WorkActivitiesPage() {
                           <div style={{ fontSize: 11, color: C.grayd }}>{a.users?.employee_id}</div>
                         </div>
                         <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: C.blue }}>{a.activities?.name || a.form_templates?.title}</div>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: C.blue }}>{a.activities?.name || a.builder_forms?.title || a.form_templates?.title || 'Form'}</div>
                         </div>
                         <div style={{ textAlign: 'right', flexShrink: 0 }}>
                           <div style={{ fontSize: 12, fontWeight: 600, color: C.white }}>{fmt(a.submitted_at)}</div>
