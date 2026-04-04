@@ -245,37 +245,7 @@ export default function SubmissionsPage() {
                 ))}
               </div>
 
-              {/* Check-in Details */}
-              {(selected as any).checkin_photo || (selected as any).checkin_at ? (
-                <div style={{ marginBottom: 32, padding: 16, background: `${C.blue}08`, borderRadius: 16, border: `1px solid ${C.blue}20` }}>
-                  <h4 style={{ fontSize:13, fontWeight:800, marginBottom:14, color:C.blue, letterSpacing:'0.5px' }}>CHECK-IN VERIFICATION</h4>
-                  <div style={{ display:'flex', gap:20 }}>
-                    {(selected as any).checkin_photo && (
-                      <img src={(selected as any).checkin_photo} alt="Check-in" style={{ width: 120, height: 120, objectFit: 'cover', borderRadius: 12, border: `1px solid ${C.border}` }} onClick={() => window.open((selected as any).checkin_photo, '_blank')} />
-                    )}
-                    <div style={{ display:'flex', flexDirection:'column', gap:10, justifyContent:'center' }}>
-                      {(selected as any).checkin_at && (
-                        <div>
-                          <div style={{ fontSize:10, color:C.gray, textTransform:'uppercase' }}>Check-in Time</div>
-                          <div style={{ fontSize:13, fontWeight:600 }}>{new Date((selected as any).checkin_at).toLocaleString('en-IN')}</div>
-                        </div>
-                      )}
-                      {((selected as any).checkin_lat && (selected as any).checkin_lng) && (
-                        <div>
-                          <div style={{ fontSize:10, color:C.gray, textTransform:'uppercase' }}>Coordinates</div>
-                          <a href={`https://www.google.com/maps?q=${(selected as any).checkin_lat},${(selected as any).checkin_lng}`} target="_blank" rel="noreferrer" 
-                             style={{ fontSize:13, fontWeight:600, color:C.blue, textDecoration:'none', display:'flex', alignItems:'center', gap:4 }}>
-                            <span>{(selected as any).checkin_lat.toFixed(4)}, {(selected as any).checkin_lng.toFixed(4)}</span>
-                            <span style={{ fontSize:10 }}>↗</span>
-                          </a>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-
-              {/* Answers */}
+               /* Check-in Details removed as per simplified UI requirements */
               <div style={{ borderTop: `1.5px solid ${C.border}`, paddingTop: 24 }}>
                 <h4 style={{ fontSize:15, fontWeight:800, marginBottom:16, color:C.blue }}>Form Responses</h4>
                 {loadingDetails ? (

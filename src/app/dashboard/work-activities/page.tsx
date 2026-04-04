@@ -36,25 +36,11 @@ interface FormActivity {
   outlet_name?: string;
   store_name?: string;
   user_id: string;
-  checkin_photo?: string | null;
-  checkin_at?: string | null;
-  checkin_lat?: number | null;
-  checkin_lng?: number | null;
   users?: { name: string; employee_id?: string };
   activities?: { name: string };
   form_templates?: { title: string };
   gps?: string;
   form_responses?: any[];
-}
-
-interface StoreVisit {
-  id: string;
-  visited_at: string;
-  outlet_name?: string;
-  notes?: string;
-  user_id: string;
-  users?: { name: string; employee_id?: string; zones?: { name?: string } };
-  lat?: number; lng?: number;
 }
 
 function fmt(ts?: string | null) {
@@ -79,7 +65,7 @@ function Spinner() {
 function OutletPanel({
   outlet, onClose,
 }: {
-  outlet: { outlet_id?: string; outlet_name: string; user_name?: string; user_id: string; checkin_photo?: string | null; checkin_at?: string | null; checkin_lat?: number | null; checkin_lng?: number | null };
+  outlet: { outlet_id?: string; outlet_name: string; user_name?: string; user_id: string };
   onClose: () => void;
 }) {
   const [forms, setForms] = useState<FormActivity[]>([]);
@@ -87,7 +73,6 @@ function OutletPanel({
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [details, setDetails] = useState<Record<string, any>>({});
   const [detailLoading, setDetailLoading] = useState<string | null>(null);
-  const [photoZoom, setPhotoZoom] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -125,7 +110,7 @@ function OutletPanel({
       setDetails(allDetails);
 
       const escCSV = (v: string) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-      const headers = ['Outlet', 'FE Name', 'Employee ID', 'Checkin Time', 'Form / Activity', 'Submitted At', 'Field', 'Value', 'Photo URL'];
+      const headers = ['Outlet', 'FE Name', 'Employee ID', 'Form / Activity', 'Submitted At', 'Field', 'Value', 'Photo URL'];
       const rows: string[][] = [];
 
       for (const f of forms) {
@@ -136,7 +121,6 @@ function OutletPanel({
           outlet.outlet_name,
           outlet.user_name || '',
           f.users?.employee_id || '',
-          outlet.checkin_at ? new Date(outlet.checkin_at).toLocaleString('en-IN') : '',
           formTitle,
           f.submitted_at ? new Date(f.submitted_at).toLocaleString('en-IN') : '',
         ];
@@ -172,43 +156,16 @@ function OutletPanel({
         <div style={{ padding: '22px 26px 18px', borderBottom: `1px solid ${C.border}`, background: C.s3, flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 10, color: C.blue, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 4 }}>Outlet Visit</div>
+              <div style={{ fontSize: 10, color: C.blue, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 4 }}>Outlet Submissions</div>
               <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 19, fontWeight: 800, color: C.white, marginBottom: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {outlet.outlet_name}
               </div>
-              {outlet.user_name && <div style={{ fontSize: 12, color: C.gray }}>by {outlet.user_name}</div>}
+              {outlet.user_name && <div style={{ fontSize: 12, color: C.gray }}>Assigned to {outlet.user_name}</div>}
             </div>
             <button onClick={onClose} style={{ width: 34, height: 34, borderRadius: 9, background: C.s4, border: 'none', color: C.white, fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>✕</button>
           </div>
         </div>
         <div style={{ flex: 1, overflowY: 'auto', padding: '20px 26px' }}>
-          {/* Legacy Checkin info in panel — keep as is for historical context if needed */}
-          <div style={{ background: C.s3, border: `1px solid ${C.border}`, borderRadius: 16, marginBottom: 20, overflow: 'hidden' }}>
-            <div style={{ padding: '14px 18px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={{ width: 8, height: 8, borderRadius: '50%', background: C.green }} />
-              <div style={{ fontSize: 11, fontWeight: 700, color: C.grayd, textTransform: 'uppercase', letterSpacing: '1px' }}>Check-in Details</div>
-            </div>
-            <div style={{ padding: '16px 18px', display: 'flex', gap: 16, alignItems: 'flex-start' }}>
-              <div onClick={() => outlet.checkin_photo && setPhotoZoom(true)} style={{ flexShrink: 0, cursor: outlet.checkin_photo ? 'zoom-in' : 'default' }}>
-                {outlet.checkin_photo ? (
-                  <img src={outlet.checkin_photo} alt="checkin" style={{ width: 90, height: 90, borderRadius: 12, objectFit: 'cover', border: `1px solid ${C.border}` }} />
-                ) : (
-                  <div style={{ width: 90, height: 90, borderRadius: 12, background: C.s4, border: `2px dashed ${C.border}`, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
-                    <span style={{ fontSize: 26 }}>📷</span>
-                    <span style={{ fontSize: 9, color: C.grayd, textAlign: 'center', lineHeight: 1.3 }}>No photo</span>
-                  </div>
-                )}
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, flex: 1 }}>
-                <div>
-                  <div style={{ fontSize: 10, color: C.grayd, fontWeight: 700, textTransform: 'uppercase', marginBottom: 3 }}>Time</div>
-                  <div style={{ fontSize: 14, color: C.white, fontWeight: 600 }}>{fmt(outlet.checkin_at)}</div>
-                  <div style={{ fontSize: 11, color: C.gray }}>{fmtDate(outlet.checkin_at)}</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
           <div style={{ marginBottom: 10 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: C.grayd, textTransform: 'uppercase', letterSpacing: '1px' }}>
@@ -233,15 +190,13 @@ function OutletPanel({
                   const isExpanded = expandedId === f.id;
                   const detail = details[f.id];
                   const isLoadingDetail = detailLoading === f.id;
-                  const formTitle = f.activities?.name || (f as any).builder_forms?.title || f.form_templates?.title || 'Form';
-                  const subTitle = f.activities?.name && ((f as any).builder_forms?.title || f.form_templates?.title) ? ((f as any).builder_forms?.title || f.form_templates?.title) : null;
+                  const formTitle = f.activities?.name || f.form_templates?.title || 'Form';
                   return (
                     <div key={f.id} style={{ background: C.s3, border: `1px solid ${isExpanded ? C.blue + '50' : C.border}`, borderRadius: 12, overflow: 'hidden', transition: 'border-color 0.15s' }}>
                       <div onClick={() => toggleForm(f.id)} style={{ padding: '13px 16px', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
                         <div style={{ width: 34, height: 34, borderRadius: 8, background: C.blueD, border: `1px solid ${C.blue}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, flexShrink: 0 }}>📋</div>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: 13, fontWeight: 600, color: C.white, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{formTitle}</div>
-                          {subTitle && <div style={{ fontSize: 11, color: C.grayd }}>{subTitle}</div>}
                           <div style={{ fontSize: 11, color: C.grayd, marginTop: 2 }}>{fmtDate(f.submitted_at)} · {fmt(f.submitted_at)}</div>
                         </div>
                         <div style={{ fontSize: 16, color: C.grayd, transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', flexShrink: 0 }}>▾</div>
@@ -261,7 +216,7 @@ function OutletPanel({
                                     </div>
                                     {val && <div style={{ fontSize: 14, color: C.white }}>{val}</div>}
                                     {r.photo_url && (
-                                      <img src={r.photo_url} alt="response" style={{ marginTop: val ? 8 : 0, maxWidth: '100%', maxHeight: 220, borderRadius: 8, border: `1px solid ${C.border}`, objectFit: 'cover', display: 'block' }} />
+                                      <img src={r.photo_url} alt="response" style={{ marginTop: val ? 8 : 0, maxWidth: '100%', maxHeight: 220, borderRadius: 8, border: `1px solid ${C.border}`, objectFit: 'cover', display: 'block' }} onClick={() => window.open(r.photo_url, '_blank')} />
                                     )}
                                     {!val && !r.photo_url && <div style={{ fontSize: 13, color: C.grayd }}>—</div>}
                                   </div>
@@ -281,11 +236,6 @@ function OutletPanel({
           </div>
         </div>
       </div>
-      {photoZoom && outlet.checkin_photo && (
-        <div onClick={() => setPhotoZoom(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'zoom-out', padding: 24 }}>
-          <img src={outlet.checkin_photo} alt="checkin full" style={{ maxWidth: '100%', maxHeight: '90vh', borderRadius: 14, objectFit: 'contain' }} />
-        </div>
-      )}
     </>
   );
 }
@@ -297,7 +247,7 @@ export default function WorkActivitiesPage() {
   const [feLoading, setFELoading] = useState(false);
   const [feTotal, setFETotal] = useState(0);
   const [fePage, setFEPage] = useState(1);
-  const [svActivities, setSvActivities] = useState<StoreVisit[]>([]);
+  const [svActivities, setSvActivities] = useState<any[]>([]);
   const [svLoading, setSvLoading] = useState(false);
   const [svTotal, setSvTotal] = useState(0);
   const [svPage, setSvPage] = useState(1);
@@ -305,6 +255,8 @@ export default function WorkActivitiesPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [cities, setCities] = useState<City[]>([]);
   const [zones, setZones] = useState<Zone[]>([]);
+  const [formTemplates, setFormTemplates] = useState<any[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [userFilter, setUserFilter] = useState('');
   const [cityFilter, setCityFilter] = useState('');
@@ -324,6 +276,7 @@ export default function WorkActivitiesPage() {
        const pick = (res: any) => Array.isArray(res) ? res : (res?.data ?? res?.zones ?? []);
        setZones(pick(r));
     }).catch(() => {});
+    api.getForms({ client_id: selectedClientId || '' }).then((r: any) => setFormTemplates(Array.isArray(r) ? r : (r?.data ?? r?.forms ?? []))).catch(() => {});
   }, [selectedClientId]);
 
   const buildParams = useCallback((page: number) => {
@@ -334,9 +287,10 @@ export default function WorkActivitiesPage() {
     if (zoneFilter) p.zone_id = zoneFilter;
     if (dateFrom) p.date_from = dateFrom;
     if (dateTo) p.date_to = dateTo;
+    if (selectedTemplateId) p.activity_id = selectedTemplateId;
     if (selectedClientId) p.client_id = selectedClientId;
     return p;
-  }, [search, userFilter, cityFilter, zoneFilter, dateFrom, dateTo, selectedClientId]);
+  }, [search, userFilter, cityFilter, zoneFilter, dateFrom, dateTo, selectedTemplateId, selectedClientId]);
 
   const loadFE = useCallback(async (page = 1) => {
     setFELoading(true); setErr('');
@@ -472,6 +426,36 @@ export default function WorkActivitiesPage() {
           </div>
         </div>
 
+        {/* Form List Selector */}
+        {tab === 'fe' && (
+          <div style={{ marginBottom: 24 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.grayd, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 12 }}>Form Library</div>
+            <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 10, scrollbarWidth: 'none' }}>
+              <div 
+                onClick={() => setSelectedTemplateId(null)}
+                style={{ 
+                  flexShrink: 0, padding: '16px', width: 160, borderRadius: 16, background: !selectedTemplateId ? C.blueD : C.s2, border: `1px solid ${!selectedTemplateId ? C.blue : C.border}`, cursor: 'pointer', transition: 'all 0.2s'
+                }}>
+                <div style={{ fontSize: 24, marginBottom: 8 }}>📊</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: !selectedTemplateId ? C.white : C.gray }}>All Activities</div>
+                <div style={{ fontSize: 10, color: C.grayd, marginTop: 4 }}>View everything</div>
+              </div>
+              {formTemplates.map(ft => (
+                <div 
+                  key={ft.id}
+                  onClick={() => setSelectedTemplateId(ft.id)}
+                  style={{ 
+                    flexShrink: 0, padding: '16px', width: 160, borderRadius: 16, background: selectedTemplateId === ft.id ? C.blueD : C.s2, border: `1px solid ${selectedTemplateId === ft.id ? C.blue : C.border}`, cursor: 'pointer', transition: 'all 0.2s'
+                  }}>
+                  <div style={{ fontSize: 24, marginBottom: 8 }}>{ft.icon || '📋'}</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: selectedTemplateId === ft.id ? C.white : C.gray, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ft.title}</div>
+                  <div style={{ fontSize: 10, color: C.grayd, marginTop: 4 }}>{ft.description || 'Survey form'}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* ── FE Tab ── */}
         {tab === 'fe' && (
           <div>
@@ -578,13 +562,13 @@ export default function WorkActivitiesPage() {
         {tab === 'supervisor' && (
           <div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-              <div style={{ fontSize: 13, color: C.grayd, fontWeight: 600 }}>{svLoading ? 'Loading…' : `${svTotal} total store visits`}</div>
+              <div style={{ fontSize: 13, color: C.grayd, fontWeight: 600 }}>{svLoading ? 'Loading…' : `${svTotal} total activities`}</div>
               <button className="wa-btn" onClick={() => loadSV(svPage)} style={{ padding: '8px 12px', background: C.s2, border: `1px solid ${C.border}`, color: C.gray, borderRadius: 9, fontSize: 13 }}>↻ Refresh</button>
             </div>
 
             <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 16, overflow: 'hidden' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr 1.5fr 1fr 1fr', padding: '11px 20px', borderBottom: `1px solid ${C.border}`, background: C.s3 }}>
-                {['Supervisor', 'Outlet Visited', 'Notes', 'Zone', 'Time'].map(h => (
+                {['User', 'Activity Name', 'Notes', 'Zone', 'Time'].map(h => (
                   <div key={h} style={{ fontSize: 10, fontWeight: 700, color: C.grayd, letterSpacing: '0.7px', textTransform: 'uppercase' as const }}>{h}</div>
                 ))}
               </div>
@@ -594,7 +578,7 @@ export default function WorkActivitiesPage() {
               ) : svActivities.length === 0 ? (
                 <div style={{ padding: 60, textAlign: 'center', color: C.grayd, fontSize: 14 }}>
                   <div style={{ fontSize: 32, marginBottom: 12 }}>🏪</div>
-                  <div style={{ fontWeight: 600 }}>No store visits found</div>
+                  <div style={{ fontWeight: 600 }}>No activities found</div>
                 </div>
               ) : svActivities.map((v, i) => (
                 <div key={v.id} className="wa-row" style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr 1.5fr 1fr 1fr', padding: '13px 20px', borderBottom: i < svActivities.length - 1 ? `1px solid ${C.border}` : 'none', alignItems: 'center', background: C.s2 }}>
@@ -607,7 +591,7 @@ export default function WorkActivitiesPage() {
                       <div style={{ fontSize: 11, color: C.grayd }}>{v.users?.employee_id || ''}</div>
                     </div>
                   </div>
-                  <div style={{ fontSize: 13, color: v.outlet_name ? C.white : C.grayd }}>{v.outlet_name || '—'}</div>
+                  <div style={{ fontSize: 13, color: v.outlet_name ? C.white : C.grayd }}>{v.outlet_name || 'Generic Activity'}</div>
                   <div style={{ fontSize: 12, color: C.gray, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{v.notes || '—'}</div>
                   <div style={{ fontSize: 12, color: C.gray }}>{v.users?.zones?.name || '—'}</div>
                   <div style={{ fontSize: 12, color: C.grayd }}>
@@ -620,9 +604,9 @@ export default function WorkActivitiesPage() {
 
             {svTotal > LIMIT && !svLoading && (
               <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 16 }}>
-                <button className="wa-btn" onClick={() => loadSV(svPage - 1)} disabled={svPage <= 1} style={{ padding: '8px 16px', background: C.s2, border: `1px solid ${C.border}`, color: svPage <= 1 ? C.grayd : C.white, borderRadius: 9, fontSize: 13, opacity: svPage <= 1 ? 0.4 : 1 }}>← Prev</button>
+                <button className="wa-btn" onClick={() => loadSV(svPage - 1)} disabled={svPage <= 1} style={{ padding: '8px 16px', background: C.s2, border: `1px solid ${C.border}`, color: svPage <= 1 ? C.grayd : C.white, borderRadius: 9, fontSize: 13, opacity: fePage <= 1 ? 0.4 : 1 }}>← Prev</button>
                 <span style={{ padding: '8px 16px', color: C.gray, fontSize: 13 }}>Page {svPage} of {Math.ceil(svTotal / LIMIT)}</span>
-                <button className="wa-btn" onClick={() => loadSV(svPage + 1)} disabled={svPage >= Math.ceil(svTotal / LIMIT)} style={{ padding: '8px 16px', background: C.s2, border: `1px solid ${C.border}`, color: svPage >= Math.ceil(svTotal / LIMIT) ? C.grayd : C.white, borderRadius: 9, fontSize: 13, opacity: svPage >= Math.ceil(svTotal / LIMIT) ? 0.4 : 1 }}>Next →</button>
+                <button className="wa-btn" onClick={() => loadSV(svPage + 1)} disabled={svPage >= Math.ceil(svTotal / LIMIT)} style={{ padding: '8px 16px', background: C.s2, border: `1px solid ${C.border}`, color: svPage >= Math.ceil(svTotal / LIMIT) ? C.grayd : C.white, borderRadius: 9, fontSize: 13, opacity: fePage >= Math.ceil(svTotal / LIMIT) ? 0.4 : 1 }}>Next →</button>
               </div>
             )}
           </div>
