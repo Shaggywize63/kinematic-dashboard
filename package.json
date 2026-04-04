@@ -1,6 +1,6 @@
 {
   "name": "kinematic-dashboard",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Kinematic Field Force Management - Admin Dashboard",
   "private": true,
   "scripts": {
@@ -33,6 +33,6 @@
     "eslint-config-next": "14.2.3"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": "20.x"
   }
 }
