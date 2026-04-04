@@ -1,6 +1,6 @@
 {
   "name": "kinematic-dashboard",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Kinematic Field Force Management - Admin Dashboard",
   "private": true,
   "scripts": {
