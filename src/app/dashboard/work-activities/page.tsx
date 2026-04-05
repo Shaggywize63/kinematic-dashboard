@@ -67,16 +67,21 @@ function SubmissionModal({ submission: initialSubmission, onClose }: { submissio
   const [submission, setSubmission] = useState<FormActivity | null>(initialSubmission);
   const [loading, setLoading] = useState(false);
 
+  const fetchFullData = useCallback(() => {
+    if (!initialSubmission?.id) return;
+    setLoading(true);
+    api.getSubmission(initialSubmission.id).then((r: any) => {
+      const data = r?.data || r;
+      if (data) setSubmission(prev => ({ ...prev, ...data }));
+    }).catch(() => {}).finally(() => setLoading(false));
+  }, [initialSubmission?.id]);
+
   useEffect(() => {
     setSubmission(initialSubmission);
     if (initialSubmission && (!initialSubmission.form_responses || initialSubmission.form_responses.length === 0)) {
-      setLoading(true);
-      api.getSubmission(initialSubmission.id).then((r: any) => {
-        const data = r?.data || r;
-        if (data) setSubmission(prev => ({ ...prev, ...data }));
-      }).catch(() => {}).finally(() => setLoading(false));
+      fetchFullData();
     }
-  }, [initialSubmission]);
+  }, [initialSubmission, fetchFullData]);
 
   if (!initialSubmission) return null;
   const displaySub = submission || initialSubmission;
@@ -111,7 +116,15 @@ function SubmissionModal({ submission: initialSubmission, onClose }: { submissio
             </div>
           </div>
 
-          <div style={{ fontSize: 11, fontWeight: 800, color: C.grayd, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 16 }}>Captured Data</div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 800, color: C.grayd, textTransform: 'uppercase', letterSpacing: '1px' }}>Captured Data</div>
+            <button 
+              onClick={() => fetchFullData()} 
+              style={{ background: 'none', border: 'none', color: C.blue, fontSize: 10, fontWeight: 800, textTransform: 'uppercase', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+            >
+              ↻ Refresh
+            </button>
+          </div>
           
           {loading ? (
             <div style={{ padding: '60px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
