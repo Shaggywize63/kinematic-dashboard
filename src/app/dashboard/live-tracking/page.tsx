@@ -249,7 +249,7 @@ export default function LiveTrackingPage() {
         // FE Role Filter: Include anyone not explicitly restricted (Admin/Client)
         setFEs(locs.filter((l: FELoc) => {
           const r = (l.role || '').toLowerCase().replace(/_/g, '-');
-          const isRestricted = ['admin', 'main-admin', 'client'].includes(r);
+          const isRestricted = ['admin', 'main-admin', 'client', 'super-admin'].includes(r);
           const isSupervisor = ['supervisor', 'city-manager', 'program-manager', 'hr'].includes(r);
           return !isRestricted && !isSupervisor;
         }));
@@ -288,16 +288,25 @@ export default function LiveTrackingPage() {
   const q = search.toLowerCase();
 
   const filteredFEs = fes.filter(fe => {
-    const matchSearch = !search || fe.name?.toLowerCase().includes(q) || fe.employee_id?.toLowerCase().includes(q) || fe.zone_name?.toLowerCase().includes(q);
-    const matchStatus = statusFilter === 'all' || fe.status === statusFilter;
-    const matchZone   = zoneFilter === 'all' || zones.find(z => z.name === fe.zone_name)?.id === zoneFilter;
-    return matchSearch && matchStatus && matchZone;
+    const name = (fe.name || '').toLowerCase();
+    const eid  = (fe.employee_id || '').toLowerCase();
+    const zn   = (fe.zone_name || '').toLowerCase();
+    const stat = fe.status || 'absent';
+    
+    const matchSearch = !search || name.includes(q) || eid.includes(q) || zn.includes(q);
+    const matchStatus = statusFilter === 'all' || stat === statusFilter;
+    const matchZone   = zoneFilter === 'all' || (fe.zone_name && zones.find(z => z.name === fe.zone_name)?.id === zoneFilter);
+    
+    return !!matchSearch && !!matchStatus && !!matchZone;
   });
 
   const filteredSups = supervisors.filter(s => {
-    const matchSearch = !search || s.name?.toLowerCase().includes(q);
-    const matchStatus = statusFilter === 'all' || s.status === statusFilter;
-    return matchSearch && matchStatus;
+    const name = (s.name || '').toLowerCase();
+    const stat = s.status || 'absent';
+    
+    const matchSearch = !search || name.includes(q);
+    const matchStatus = statusFilter === 'all' || stat === statusFilter;
+    return !!matchSearch && !!matchStatus;
   });
 
   const filteredOutlets = outlets.filter(o => {
@@ -471,11 +480,11 @@ export default function LiveTrackingPage() {
                       <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:3 }}>
                         <Dot color={STATUS_COLOR[fe.status]||C.grayd} size={7}/>
                         {fe.battery_percentage != null && (
-                          <div style={{ fontSize:8, color:fe.battery_percentage < 20 ? C.red : C.grayd, fontWeight:600 }}>
+                          <div style={{ fontSize:10, color:fe.battery_percentage < 20 ? C.red : C.grayd, fontWeight:600, display:'flex', alignItems:'center', gap:3 }}>
                             {fe.battery_percentage}% 🔋
                           </div>
                         )}
-                        {fe.lat && fe.lng && <span style={{ fontSize:9, color:C.green }}>📍</span>}
+                        {fe.lat && fe.lng && <span style={{ fontSize:10, color:C.green }}>📍</span>}
                       </div>
                     </div>
                   ))}
@@ -516,11 +525,11 @@ export default function LiveTrackingPage() {
                       <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:3 }}>
                         <Dot color={STATUS_COLOR[s.status]||C.grayd} size={7}/>
                         {s.battery_percentage != null && (
-                          <div style={{ fontSize:8, color:s.battery_percentage < 20 ? C.red : C.grayd, fontWeight:600 }}>
+                          <div style={{ fontSize:10, color:s.battery_percentage < 20 ? C.red : C.grayd, fontWeight:600, display:'flex', alignItems:'center', gap:3 }}>
                             {s.battery_percentage}% 🔋
                           </div>
                         )}
-                        {s.lat && s.lng && <span style={{ fontSize:9, color:C.green }}>📍</span>}
+                        {s.lat && s.lng && <span style={{ fontSize:10, color:C.green }}>📍</span>}
                       </div>
                     </div>
                   ))}
@@ -655,7 +664,14 @@ export default function LiveTrackingPage() {
                       {(selFE.name||'?')[0]}
                     </div>
                     <div style={{ flex:1 }}>
-                      <div style={{ fontFamily:"'Syne',sans-serif", fontSize:15, fontWeight:800, color:C.white }}>{selFE.name}</div>
+                      <div style={{ fontFamily:"'Syne',sans-serif", fontSize:15, fontWeight:800, color:C.white, display:'flex', alignItems:'center', gap:8 }}>
+                        {selFE.name}
+                        {selFE.battery_percentage != null && (
+                          <span style={{ fontSize:11, color:selFE.battery_percentage < 20 ? C.red : C.gray, fontWeight:600 }}>
+                            🔋 {selFE.battery_percentage}%
+                          </span>
+                        )}
+                      </div>
                       <div style={{ fontSize:11, color:C.gray, marginTop:2 }}>{selFE.employee_id||''} · {selFE.zone_name||'No zone'}</div>
                     </div>
                     {[
