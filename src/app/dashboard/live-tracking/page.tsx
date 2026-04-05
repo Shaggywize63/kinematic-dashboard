@@ -22,6 +22,7 @@ interface FELoc {
   status: 'active'|'on_break'|'checked_out'|'absent';
   lat: number|null; lng: number|null;
   checkin_at?: string; checkout_at?: string;
+  last_location_updated_at?: string;
   total_hours?: number; address?: string;
   today_engagements?: number; today_tff?: number;
   battery_percentage?: number;
@@ -116,7 +117,7 @@ function LiveMap({
         const c = STATUS_COLOR[fe.status] || C.grayd;
         const sel = selectedId === fe.id;
         const html = `<div style="width:32px;height:32px;border-radius:50%;background:${c};border:${sel?'3px solid var(--text)':'2px solid var(--s1)'};display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;color:#000;box-shadow:0 2px 12px rgba(0,0,0,.6);${sel?'transform:scale(1.2)':''}">${fe.name[0]}</div>`;
-        const popup = popupHtml(fe.name, fe.role, c, fe.status, fe.zone_name, fe.checkin_at, fe.today_engagements, fe.today_tff, fe.battery_percentage);
+        const popup = popupHtml(fe.name, fe.role, c, fe.status, fe.zone_name, fe.checkin_at, fe.today_engagements, fe.today_tff, fe.battery_percentage, fe.last_location_updated_at);
         addMarker(fe.lat!, fe.lng!, html, popup, fe.id, 'fe');
       });
     }
@@ -126,7 +127,7 @@ function LiveMap({
       supervisors.filter(s => s.lat && s.lng).forEach(sup => {
         const c = STATUS_COLOR[sup.status] || C.grayd;
         const html = `<div style="width:32px;height:32px;border-radius:8px;background:${C.blue};border:2px solid var(--s1);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;color:#fff;box-shadow:0 2px 12px rgba(0,0,0,.6)">${sup.name[0]}</div>`;
-        const popup = popupHtml(sup.name, 'Supervisor', c, sup.status, sup.zone_name, sup.checkin_at, undefined, undefined, sup.battery_percentage);
+        const popup = popupHtml(sup.name, 'Supervisor', c, sup.status, sup.zone_name, sup.checkin_at, undefined, undefined, sup.battery_percentage, sup.last_location_updated_at);
         addMarker(sup.lat!, sup.lng!, html, popup, sup.id, 'supervisor');
       });
     }
@@ -158,9 +159,15 @@ function LiveMap({
 
   }, [mapLoaded, fes, supervisors, outlets, warehouses, activeLayers, selectedId, onSelect]);
 
-  const popupHtml = (name:string, role:string, color:string, status:string, zone?:string, checkinAt?:string, engagements?:number, tff?:number, battery?:number) =>
-    `<div style="font-family:DM Sans,sans-serif;font-size:12px;color:var(--text);background:var(--s1);padding:10px 12px;border-radius:8px;min-width:160px">
-      <div style="font-weight:700;margin-bottom:2px">${name}</div>
+  const popupHtml = (name:string, role:string, color:string, status:string, zone?:string, checkinAt?:string, engagements?:number, tff?:number, battery?:number, lastSeen?:string) => {
+    const diff = lastSeen ? Math.round((new Date().getTime() - new Date(lastSeen).getTime()) / 60000) : null;
+    const isStale = diff != null && diff > 10;
+    
+    return `<div style="font-family:DM Sans,sans-serif;font-size:12px;color:var(--text);background:var(--s1);padding:10px 12px;border-radius:8px;min-width:160px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div style="font-weight:700;margin-bottom:2px">${name}</div>
+        ${diff != null ? `<div style="font-size:9px;color:${isStale?C.red:C.grayd}">${diff === 0 ? 'Just now' : `${diff}m ago`}</div>` : ''}
+      </div>
       <div style="color:var(--text-dim);font-size:11px;margin-bottom:6px">${role}${zone?` · ${zone}`:''}</div>
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
         <div style="display:inline-flex;padding:2px 8px;border-radius:20px;background:${color}20;color:${color};font-size:10px;font-weight:700;text-transform:capitalize">${status.replace('_',' ')}</div>
@@ -168,6 +175,7 @@ function LiveMap({
       </div>
       ${tff!=null?`<div style="color:var(--text-dim);font-size:10px;margin-top:2px">TFF (Forms filled): ${tff||0}</div>`:''}
     </div>`;
+  };
 
   return (
     <>
@@ -266,9 +274,9 @@ export default function LiveTrackingPage() {
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  // Auto-refresh every 60s
+  // Auto-refresh every 30s for better live tracking
   useEffect(() => {
-    const id = setInterval(fetchAll, 60000);
+    const id = setInterval(fetchAll, 30000);
     return () => clearInterval(id);
   }, [fetchAll]);
 
@@ -447,7 +455,14 @@ export default function LiveTrackingPage() {
                       </div>
                       <div style={{ flex:1, minWidth:0 }}>
                         <div style={{ fontSize:13, fontWeight:700, color:C.white, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{fe.name}</div>
-                        <div style={{ fontSize:10, color:C.grayd, marginTop:1 }}>{fe.employee_id||''} {fe.zone_name?`· ${fe.zone_name}`:''}</div>
+                        <div style={{ fontSize:10, color:C.grayd, marginTop:1 }}>
+                          {fe.employee_id||''} {fe.zone_name?`· ${fe.zone_name}`:''}
+                          {fe.last_location_updated_at && (
+                            <span style={{ marginLeft:6, color: (new Date().getTime() - new Date(fe.last_location_updated_at).getTime()) > 600000 ? C.red : C.grayd }}>
+                              • {Math.round((new Date().getTime() - new Date(fe.last_location_updated_at).getTime()) / 60000)}m ago
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:3 }}>
                         <Dot color={STATUS_COLOR[fe.status]||C.grayd} size={7}/>
@@ -485,7 +500,14 @@ export default function LiveTrackingPage() {
                       </div>
                       <div style={{ flex:1, minWidth:0 }}>
                         <div style={{ fontSize:13, fontWeight:700, color:C.white }}>{s.name}</div>
-                        <div style={{ fontSize:10, color:C.grayd, marginTop:1 }}>{s.zone_name||'No zone'}</div>
+                        <div style={{ fontSize:10, color:C.grayd, marginTop:1 }}>
+                          {s.zone_name||'No zone'}
+                          {s.last_location_updated_at && (
+                            <span style={{ marginLeft:6, color: (new Date().getTime() - new Date(s.last_location_updated_at).getTime()) > 600000 ? C.red : C.grayd }}>
+                              • {Math.round((new Date().getTime() - new Date(s.last_location_updated_at).getTime()) / 60000)}m ago
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:3 }}>
                         <Dot color={STATUS_COLOR[s.status]||C.grayd} size={7}/>
