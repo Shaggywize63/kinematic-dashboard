@@ -114,9 +114,10 @@ function LiveMap({
     // FEs
     if (activeLayers.has('fe')) {
       fes.filter(fe => fe.lat && fe.lng).forEach(fe => {
-        const c = STATUS_COLOR[fe.status] || C.grayd;
+        // Use a default gray for unknown or stale status
+        const c = STATUS_COLOR[fe.status] || '#94a3b8'; // slate-400
         const sel = selectedId === fe.id;
-        const html = `<div style="width:32px;height:32px;border-radius:50%;background:${c};border:${sel?'3px solid var(--text)':'2px solid var(--s1)'};display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;color:#000;box-shadow:0 2px 12px rgba(0,0,0,.6);${sel?'transform:scale(1.2)':''}">${fe.name[0]}</div>`;
+        const html = `<div style="width:32px;height:32px;border-radius:50%;background:${c};border:${sel?'3px solid var(--text)':'2px solid var(--s1)'};display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;color:#000;box-shadow:0 2px 12px rgba(0,0,0,.6);${sel?'transform:scale(1.2)':''}">${fe.name?.[0] || '?'}</div>`;
         const popup = popupHtml(fe.name, fe.role, c, fe.status, fe.zone_name, fe.checkin_at, fe.today_engagements, fe.today_tff, fe.battery_percentage, fe.last_location_updated_at);
         addMarker(fe.lat!, fe.lng!, html, popup, fe.id, 'fe');
       });
@@ -245,14 +246,17 @@ export default function LiveTrackingPage() {
       if (locRes.status === 'fulfilled') {
         const locs: FELoc[] = (locRes.value?.data ?? locRes.value)?.locations || (locRes.value?.data ?? locRes.value) || [];
         
+        // FE Role Filter: Include anyone not explicitly restricted (Admin/Client)
         setFEs(locs.filter((l: FELoc) => {
           const r = (l.role || '').toLowerCase().replace(/_/g, '-');
-          return ['executive', 'field-executive', 'fe'].includes(r) || !l.role;
+          const isRestricted = ['admin', 'main-admin', 'client'].includes(r);
+          const isSupervisor = ['supervisor', 'city-manager', 'program-manager', 'hr'].includes(r);
+          return !isRestricted && !isSupervisor;
         }));
         
         setSupervisors(locs.filter((l: FELoc) => {
           const r = (l.role || '').toLowerCase().replace(/_/g, '-');
-          return ['supervisor', 'city-manager', 'program-manager', 'hr', 'admin', 'sub-admin', 'main-admin'].includes(r);
+          return ['supervisor', 'city-manager', 'program-manager', 'hr'].includes(r);
         }));
       }
       if (outletRes.status === 'fulfilled') {
