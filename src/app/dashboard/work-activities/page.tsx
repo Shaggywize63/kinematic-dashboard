@@ -63,9 +63,24 @@ function Spinner() {
 }
 
 /* ── Submission Modal ────────────────────────────────────────── */
-function SubmissionModal({ submission, onClose }: { submission: FormActivity | null; onClose: () => void }) {
-  if (!submission) return null;
-  const formTitle = submission.activities?.name || submission.builder_forms?.title || submission.form_templates?.title || 'Form Submission';
+function SubmissionModal({ submission: initialSubmission, onClose }: { submission: FormActivity | null; onClose: () => void }) {
+  const [submission, setSubmission] = useState<FormActivity | null>(initialSubmission);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    setSubmission(initialSubmission);
+    if (initialSubmission && (!initialSubmission.form_responses || initialSubmission.form_responses.length === 0)) {
+      setLoading(true);
+      api.getSubmission(initialSubmission.id).then((r: any) => {
+        const data = r?.data || r;
+        if (data) setSubmission(prev => ({ ...prev, ...data }));
+      }).catch(() => {}).finally(() => setLoading(false));
+    }
+  }, [initialSubmission]);
+
+  if (!initialSubmission) return null;
+  const displaySub = submission || initialSubmission;
+  const formTitle = displaySub.activities?.name || displaySub.builder_forms?.title || displaySub.form_templates?.title || 'Form Submission';
   
   return (
     <>
@@ -86,21 +101,26 @@ function SubmissionModal({ submission, onClose }: { submission: FormActivity | n
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginBottom: 32 }}>
             <div style={{ padding: '16px', background: C.s3, borderRadius: 16, border: `1px solid ${C.border}` }}>
               <div style={{ fontSize: 10, color: C.grayd, fontWeight: 800, textTransform: 'uppercase', marginBottom: 8 }}>Field Executive</div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: C.white }}>{submission.users?.name}</div>
-              <div style={{ fontSize: 12, color: C.grayd, marginTop: 2 }}>{submission.users?.employee_id}</div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: C.white }}>{displaySub.users?.name}</div>
+              <div style={{ fontSize: 12, color: C.grayd, marginTop: 2 }}>{displaySub.users?.employee_id}</div>
             </div>
             <div style={{ padding: '16px', background: C.s3, borderRadius: 16, border: `1px solid ${C.border}` }}>
               <div style={{ fontSize: 10, color: C.grayd, fontWeight: 800, textTransform: 'uppercase', marginBottom: 8 }}>Submitted At</div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: C.white }}>{fmtDate(submission.submitted_at)}</div>
-              <div style={{ fontSize: 12, color: C.grayd, marginTop: 2 }}>{fmt(submission.submitted_at)}</div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: C.white }}>{fmtDate(displaySub.submitted_at)}</div>
+              <div style={{ fontSize: 12, color: C.grayd, marginTop: 2 }}>{fmt(displaySub.submitted_at)}</div>
             </div>
           </div>
 
           <div style={{ fontSize: 11, fontWeight: 800, color: C.grayd, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 16 }}>Captured Data</div>
           
-          {submission.form_responses && submission.form_responses.length > 0 ? (
+          {loading ? (
+            <div style={{ padding: '60px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+              <Spinner />
+              <div style={{ fontSize: 13, color: C.grayd }}>Fetching latest data…</div>
+            </div>
+          ) : (displaySub.form_responses && displaySub.form_responses.length > 0) ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {submission.form_responses.map((r: any, idx: number) => {
+              {displaySub.form_responses.map((r: any, idx: number) => {
                 const label = r.builder_questions?.title || r.field_key?.replace(/_/g, ' ') || 'Untitled';
                 const val = r.value_text ?? r.value_number?.toString() ?? (r.value_bool !== null ? (r.value_bool ? 'Yes' : 'No') : null);
                 return (
