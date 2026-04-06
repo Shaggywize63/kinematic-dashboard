@@ -26,6 +26,7 @@ interface FELoc {
   total_hours?: number; address?: string;
   today_engagements?: number; today_tff?: number;
   battery_percentage?: number;
+  device_model?: string; device_brand?: string; os_version?: string;
 }
 interface Outlet {
   id: string; name: string; store_type?: string;
@@ -118,7 +119,7 @@ function LiveMap({
         const c = STATUS_COLOR[fe.status] || '#94a3b8'; // slate-400
         const sel = selectedId === fe.id;
         const html = `<div style="width:32px;height:32px;border-radius:50%;background:${c};border:${sel?'3px solid var(--text)':'2px solid var(--s1)'};display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;color:#000;box-shadow:0 2px 12px rgba(0,0,0,.6);${sel?'transform:scale(1.2)':''}">${fe.name?.[0] || '?'}</div>`;
-        const popup = popupHtml(fe.name, fe.role, c, fe.status, fe.zone_name, fe.checkin_at, fe.today_engagements, fe.today_tff, fe.battery_percentage, fe.last_location_updated_at);
+        const popup = popupHtml(fe.name, fe.role, c, fe.status, fe.zone_name, fe.checkin_at, fe.today_engagements, fe.today_tff, fe.battery_percentage, fe.last_location_updated_at, fe.device_model, fe.os_version);
         addMarker(fe.lat!, fe.lng!, html, popup, fe.id, 'fe');
       });
     }
@@ -128,7 +129,7 @@ function LiveMap({
       supervisors.filter(s => s.lat && s.lng).forEach(sup => {
         const c = STATUS_COLOR[sup.status] || C.grayd;
         const html = `<div style="width:32px;height:32px;border-radius:8px;background:${C.blue};border:2px solid var(--s1);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;color:#fff;box-shadow:0 2px 12px rgba(0,0,0,.6)">${sup.name[0]}</div>`;
-        const popup = popupHtml(sup.name, 'Supervisor', c, sup.status, sup.zone_name, sup.checkin_at, undefined, undefined, sup.battery_percentage, sup.last_location_updated_at);
+        const popup = popupHtml(sup.name, 'Supervisor', c, sup.status, sup.zone_name, sup.checkin_at, undefined, undefined, sup.battery_percentage, sup.last_location_updated_at, sup.device_model, sup.os_version);
         addMarker(sup.lat!, sup.lng!, html, popup, sup.id, 'supervisor');
       });
     }
@@ -160,7 +161,7 @@ function LiveMap({
 
   }, [mapLoaded, fes, supervisors, outlets, warehouses, activeLayers, selectedId, onSelect]);
 
-  const popupHtml = (name:string, role:string, color:string, status:string, zone?:string, checkinAt?:string, engagements?:number, tff?:number, battery?:number, lastSeen?:string) => {
+  const popupHtml = (name:string, role:string, color:string, status:string, zone?:string, checkinAt?:string, engagements?:number, tff?:number, battery?:number, lastSeen?:string, device?:string, os?:string) => {
     const diff = lastSeen ? Math.round((new Date().getTime() - new Date(lastSeen).getTime()) / 60000) : null;
     const isStale = diff != null && diff > 10;
     
@@ -170,6 +171,7 @@ function LiveMap({
         ${diff != null ? `<div style="font-size:10px;font-weight:600;color:${isStale?C.red:C.green}">${diff === 0 ? 'Live Now' : `${diff}m ago`}</div>` : ''}
       </div>
       <div style="color:var(--text-dim);font-size:11px;margin-bottom:8px">${role}${zone?` · ${zone}`:''}</div>
+      ${(device || os) ? `<div style="color:var(--text-dim);font-size:10px;margin-bottom:6px;display:flex;align-items:center;gap:4px">📱 ${device || 'Device'}${os ? ` · Android ${os}` : ''}</div>` : ''}
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;gap:8px">
         <div style="display:inline-flex;padding:2px 8px;border-radius:20px;background:${color}20;color:${color};font-size:10px;font-weight:700;text-transform:capitalize">${status.replace('_',' ')}</div>
         ${battery != null ? `<div style="font-size:10px;color:${battery < 20 ? C.red : C.green};display:flex;align-items:center;gap:3px;background:${battery < 20 ? C.redD : C.greenD};padding:2px 6px;border-radius:6px">🔋 ${battery}%</div>` : ''}
@@ -671,6 +673,12 @@ export default function LiveTrackingPage() {
                           </span>
                         )}
                       </div>
+                      {(selFE.device_model || selFE.os_version) && (
+                        <div style={{ fontSize:10, color:C.grayd, marginTop:1, display:'flex', alignItems:'center', gap:4 }}>
+                          📱 {selFE.device_brand ? selFE.device_brand + ' ' : ''}{selFE.device_model || 'Device'}
+                          {selFE.os_version && <span> · Android {selFE.os_version}</span>}
+                        </div>
+                      )}
                       <div style={{ fontSize:11, color:C.gray, marginTop:2 }}>{selFE.employee_id||''} · {selFE.zone_name||'No zone'}</div>
                     </div>
                     {[
