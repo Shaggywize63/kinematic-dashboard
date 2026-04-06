@@ -134,18 +134,22 @@ function SubmissionModal({ submission: initialSubmission, onClose }: { submissio
           ) : (displaySub.form_responses && displaySub.form_responses.length > 0) ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {displaySub.form_responses.map((r: any, idx: number) => {
-                const label = r.builder_questions?.title || r.field_key?.replace(/_/g, ' ') || 'Untitled';
-                const val = r.value_text ?? r.value_number?.toString() ?? (r.value_bool !== null ? (r.value_bool ? 'Yes' : 'No') : null);
+                const field = r.form_fields || r.builder_questions;
+                const label = field?.title || field?.label || r.field_key?.replace(/_/g, ' ') || 'Untitled';
+                const val = r.value_text ?? r.value_number?.toString() ?? (r.value_bool !== null && r.value_bool !== undefined ? (r.value_bool ? 'Yes' : 'No') : null);
+                const qt = (field?.qtype || field?.field_type || '').toLowerCase();
+                const src = r.photo_url || (qt === 'photo' || qt === 'image' || qt === 'signature' ? r.value_text : null);
+                
                 return (
                   <div key={idx} style={{ padding: '16px 20px', background: C.s3, borderRadius: 16, border: `1px solid ${C.border}` }}>
                     <div style={{ fontSize: 10, color: C.grayd, fontWeight: 800, textTransform: 'uppercase', marginBottom: 6 }}>{label}</div>
-                    {val && <div style={{ fontSize: 15, color: C.white }}>{val}</div>}
-                    {r.photo_url && (
+                    {val && !src && <div style={{ fontSize: 15, color: C.white }}>{val}</div>}
+                    {src && (
                       <div style={{ marginTop: val ? 12 : 0 }}>
-                        <img src={r.photo_url} alt="res" style={{ maxWidth: '100%', borderRadius: 12, border: `1px solid ${C.border}`, cursor: 'pointer' }} onClick={() => window.open(r.photo_url, '_blank')} />
+                        <img src={src} alt="res" style={{ maxWidth: '100%', borderRadius: 12, border: `1px solid ${C.border}`, cursor: 'pointer' }} onClick={() => window.open(src, '_blank')} />
                       </div>
                     )}
-                    {!val && !r.photo_url && <div style={{ fontSize: 14, color: C.grayd }}>—</div>}
+                    {!val && !src && <div style={{ fontSize: 14, color: C.grayd }}>—</div>}
                   </div>
                 );
               })}
@@ -313,17 +317,22 @@ function OutletPanel({
                           ) : detail?.form_responses?.length > 0 ? (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                               {detail.form_responses.map((r: any, idx: number) => {
+                                const field = r.form_fields || r.builder_questions;
+                                const label = field?.title || field?.label || r.field_key?.replace(/_/g, ' ') || `Field ${idx + 1}`;
                                 const val = r.value_text || r.value_number?.toString() || (r.value_bool !== null && r.value_bool !== undefined ? (r.value_bool ? 'Yes' : 'No') : null);
+                                const qt = (field?.qtype || field?.field_type || '').toLowerCase();
+                                const src = r.photo_url || (qt === 'photo' || qt === 'image' || qt === 'signature' ? r.value_text : null);
+
                                 return (
                                   <div key={idx} style={{ padding: '10px 12px', background: C.s4, borderRadius: 9, border: `1px solid ${C.border}` }}>
                                     <div style={{ fontSize: 10, color: C.grayd, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 4 }}>
-                                      {r.builder_questions?.title || r.field_key?.replace(/_/g, ' ') || `Field ${idx + 1}`}
+                                      {label}
                                     </div>
-                                    {val && <div style={{ fontSize: 14, color: C.white }}>{val}</div>}
-                                    {r.photo_url && (
-                                      <img src={r.photo_url} alt="response" style={{ marginTop: val ? 8 : 0, maxWidth: '100%', maxHeight: 220, borderRadius: 8, border: `1px solid ${C.border}`, objectFit: 'cover', display: 'block' }} onClick={() => window.open(r.photo_url, '_blank')} />
+                                    {val && !src && <div style={{ fontSize: 14, color: C.white }}>{val}</div>}
+                                    {src && (
+                                      <img src={src} alt="response" style={{ marginTop: val ? 8 : 0, maxWidth: '100%', maxHeight: 220, borderRadius: 8, border: `1px solid ${C.border}`, objectFit: 'cover', display: 'block', cursor: 'pointer' }} onClick={() => window.open(src, '_blank')} />
                                     )}
-                                    {!val && !r.photo_url && <div style={{ fontSize: 13, color: C.grayd }}>—</div>}
+                                    {!val && !src && <div style={{ fontSize: 13, color: C.grayd }}>—</div>}
                                   </div>
                                 );
                               })}

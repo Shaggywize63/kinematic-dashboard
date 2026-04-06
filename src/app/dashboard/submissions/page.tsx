@@ -78,14 +78,17 @@ export default function SubmissionsPage() {
   const nonTff = submissions.filter(s => !s.is_converted).length;
 
   const renderValue = (r: any) => {
-    const qt = (r.form_fields?.qtype || '').toLowerCase();
+    // Support both old and new backend metadata naming
+    const field = r.form_fields || r.builder_questions;
+    const qt = (field?.qtype || field?.field_type || '').toLowerCase();
     const val = r.value_text || r.value_number || r.value_bool || r.value_json;
 
-    if (qt === 'image' || qt === 'photo' || qt === 'camera' || r.photo_url) {
+    if (qt === 'image' || qt === 'photo' || qt === 'camera' || r.photo_url || (typeof val === 'string' && val.startsWith('http'))) {
+      const src = r.photo_url || val;
       return (
         <div style={{ marginTop: 8 }}>
-          <img src={r.photo_url || val} alt="Submission" style={{ maxWidth: '100%', borderRadius: 12, border: `1px solid ${C.border}` }} 
-               onClick={() => window.open(r.photo_url || val, '_blank')} />
+          <img src={src} alt="Submission" style={{ maxWidth: '100%', borderRadius: 12, border: `1px solid ${C.border}` }} 
+               onClick={() => window.open(src, '_blank')} />
         </div>
       );
     }
