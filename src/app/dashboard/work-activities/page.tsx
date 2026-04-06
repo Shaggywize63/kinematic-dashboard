@@ -238,7 +238,8 @@ function OutletPanel({
           rows.push([...baseRow, '—', '—', '']);
         } else {
           for (const r of responses) {
-            const label = r.builder_questions?.title || r.field_key?.replace(/_/g, ' ') || '';
+            const field = r.form_fields || r.builder_questions;
+            const label = field?.title || field?.label || r.field_key?.replace(/_/g, ' ') || '';
             const val = r.value_text ?? r.value_number?.toString() ?? (r.value_bool !== null && r.value_bool !== undefined ? (r.value_bool ? 'Yes' : 'No') : '');
             rows.push([...baseRow, label, val, r.photo_url || '']);
           }
