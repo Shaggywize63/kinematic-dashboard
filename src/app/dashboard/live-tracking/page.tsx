@@ -164,17 +164,16 @@ function LiveMap({
     const diff = lastSeen ? Math.round((new Date().getTime() - new Date(lastSeen).getTime()) / 60000) : null;
     const isStale = diff != null && diff > 10;
     
-    return `<div style="font-family:DM Sans,sans-serif;font-size:12px;color:var(--text);background:var(--s1);padding:10px 12px;border-radius:8px;min-width:160px">
+    return `<div style="font-family:DM Sans,sans-serif;font-size:12px;color:var(--text);background:var(--s1);padding:10px 12px;border-radius:12px;min-width:180px;border:1px solid ${isStale?C.red+'30':C.border}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start">
-        <div style="font-weight:700;margin-bottom:2px">${name}</div>
-        ${diff != null ? `<div style="font-size:9px;color:${isStale?C.red:C.grayd}">${diff === 0 ? 'Just now' : `${diff}m ago`}</div>` : ''}
+        <div style="font-weight:700;margin-bottom:2px;color:${isStale?C.gray:C.white}">${name}</div>
+        ${diff != null ? `<div style="font-size:10px;font-weight:600;color:${isStale?C.red:C.green}">${diff === 0 ? 'Live Now' : `${diff}m ago`}</div>` : ''}
       </div>
-      <div style="color:var(--text-dim);font-size:11px;margin-bottom:6px">${role}${zone?` · ${zone}`:''}</div>
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+      <div style="color:var(--text-dim);font-size:11px;margin-bottom:8px">${role}${zone?` · ${zone}`:''}</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;gap:8px">
         <div style="display:inline-flex;padding:2px 8px;border-radius:20px;background:${color}20;color:${color};font-size:10px;font-weight:700;text-transform:capitalize">${status.replace('_',' ')}</div>
-        ${battery != null ? `<div style="font-size:10px;color:${battery < 20 ? C.red : C.grayd};display:flex;align-items:center;gap:3px">🔋 ${battery}%</div>` : ''}
+        ${battery != null ? `<div style="font-size:10px;color:${battery < 20 ? C.red : C.green};display:flex;align-items:center;gap:3px;background:${battery < 20 ? C.redD : C.greenD};padding:2px 6px;border-radius:6px">🔋 ${battery}%</div>` : ''}
       </div>
-      ${tff!=null?`<div style="color:var(--text-dim);font-size:10px;margin-top:2px">TFF (Forms filled): ${tff||0}</div>`:''}
     </div>`;
   };
 
