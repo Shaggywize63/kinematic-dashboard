@@ -439,6 +439,10 @@ function CreateFormModal({ onCreated, onClose }:{ onCreated:(f:BForm)=>void; onC
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
   const [activities, setActivities] = useState<any[]>([]);
+  
+  // AI Magic State
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [aiBusy, setAiBusy] = useState(false);
 
   useEffect(() => {
     apiFetch<any>('/api/v1/activities').then(d => {
@@ -448,6 +452,31 @@ function CreateFormModal({ onCreated, onClose }:{ onCreated:(f:BForm)=>void; onC
 
   const ICONS = ['📋','📊','🏪','👤','📦','🔍','✅','⚠️','📸','🗂️','📝','🔧'];
   const COLORS = [C.red,'#3E9EFF','#00D97E','#FFB800','#9B6EFF','#00C9B1','#FF7A30','#FF6B9D'];
+
+  const magicFill = async () => {
+    if (!aiPrompt.trim()) return;
+    setAiBusy(true); setErr('');
+    try {
+      const res = await apiFetch<any>('/api/v1/ai/recommend-form-details', {
+        method: 'POST',
+        body: JSON.stringify({ prompt: aiPrompt, activities })
+      });
+      const d = res;
+      setForm(p => ({
+        ...p,
+        title: d.title || p.title,
+        description: d.description || p.description,
+        activity_id: d.activity_id || p.activity_id,
+        icon: d.icon || p.icon,
+        cover_color: d.cover_color || p.cover_color
+      }));
+      setAiPrompt('');
+    } catch (e: any) {
+      setErr('Magic Fill failed: ' + e.message);
+    } finally {
+      setAiBusy(false);
+    }
+  };
 
   const create = async () => {
     if (!form.title.trim()) { setErr('Form title is required'); return; }
@@ -465,54 +494,78 @@ function CreateFormModal({ onCreated, onClose }:{ onCreated:(f:BForm)=>void; onC
   };
 
   return (
-    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.75)', zIndex:300, display:'flex', alignItems:'center', justifyContent:'center', backdropFilter:'blur(4px)' }}>
-      <div style={{ background:C.s2, border:`1px solid ${C.border}`, borderRadius:22, padding:32, width:440, boxShadow:'0 32px 100px rgba(0,0,0,.9)', position:'relative' }}>
-        <button onClick={onClose} style={{ position:'absolute', top:20, right:20, width:32, height:32, borderRadius:9, background:C.s3, border:`1px solid ${C.border}`, cursor:'pointer', color:C.gray, fontSize:16, display:'flex', alignItems:'center', justifyContent:'center' }}>✕</button>
-        <div style={{ fontFamily:"'Syne',sans-serif", fontSize:20, fontWeight:800, color:C.white, marginBottom:6 }}>New Form</div>
-        <p style={{ fontSize:13, color:C.gray, marginBottom:24 }}>Create a custom data collection form</p>
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.75)', zIndex:300, display:'flex', alignItems:'center', justifyContent:'center', backdropFilter:'blur(20px)' }}>
+      <div style={{ background:C.s2, border:`1px solid ${C.border}`, borderRadius:28, padding:32, width:460, boxShadow:'0 32px 100px rgba(0,0,0,.9)', position:'relative' }}>
+        <button onClick={onClose} style={{ position:'absolute', top:24, right:24, width:32, height:32, borderRadius:12, background:C.s3, border:`1px solid ${C.border}`, cursor:'pointer', color:C.gray, fontSize:16, display:'flex', alignItems:'center', justifyContent:'center' }}>✕</button>
+        <div style={{ fontFamily:"'Syne',sans-serif", fontSize:24, fontWeight:800, color:C.white, marginBottom:6 }}>Create Form</div>
+        <p style={{ fontSize:13, color:C.gray, marginBottom:28 }}>Setup your form manually or use AI to auto-fill details.</p>
+
+        {/* AI Magic Section */}
+        <div style={{ marginBottom:30, padding:'16px', background:`linear-gradient(135deg, ${C.blue}08, ${C.purple}08)`, border:`1px solid ${C.blue}25`, borderRadius:18, position:'relative' }}>
+          <label style={{ fontSize:10, fontWeight:800, color:C.blue, textTransform:'uppercase', letterSpacing:1, display:'block', marginBottom:10 }}>✨ AI Magic Detailer</label>
+          <div style={{ display:'flex', gap:10 }}>
+            <input 
+              style={{ ...inpStyle, fontSize:12, background:C.s4 }} 
+              placeholder="e.g. Audit for luxury outlets..." 
+              value={aiPrompt}
+              onChange={e => setAiPrompt(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && magicFill()}
+            />
+            <button 
+              onClick={magicFill} 
+              disabled={aiBusy || !aiPrompt.trim()}
+              style={{ background:C.blue, color:'#fff', border:'none', borderRadius:10, padding:'0 14px', fontSize:11, fontWeight:800, cursor:'pointer', opacity:aiBusy?0.6:1, display:'flex', alignItems:'center', gap:6 }}>
+              {aiBusy ? <Spin size={12}/> : 'Magic Fill'}
+            </button>
+          </div>
+          <div style={{ fontSize:10, color:C.grayd, marginTop:8, fontStyle:'italic' }}>Describe your form to auto-fill title, activity, and description.</div>
+        </div>
+
+        <div style={{ height:'1px', background:C.border, marginBottom:28 }} />
 
         <div style={{ marginBottom:14 }}>
-          <label style={{ fontSize:12, color:C.gray, display:'block', marginBottom:6 }}>Form Title <span style={{ color:C.red }}>*</span></label>
+          <label style={{ fontSize:12, color:C.gray, display:'block', marginBottom:8, fontWeight:600 }}>Form Title <span style={{ color:C.red }}>*</span></label>
           <input style={inpStyle} placeholder="e.g. Outlet Audit Form" value={form.title} onChange={e => setForm(p => ({...p, title:e.target.value}))} autoFocus/>
         </div>
         <div style={{ marginBottom:16 }}>
-          <label style={{ fontSize:12, color:C.gray, display:'block', marginBottom:6 }}>Linked Activity</label>
+          <label style={{ fontSize:12, color:C.gray, display:'block', marginBottom:8, fontWeight:600 }}>Linked Activity</label>
           <select style={{...inpStyle, appearance:'none' as any}} value={form.activity_id} onChange={e => setForm(p => ({...p, activity_id:e.target.value}))}>
             <option value="">None (Standalone Form)</option>
             {activities.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
           </select>
         </div>
         <div style={{ marginBottom:18 }}>
-          <label style={{ fontSize:12, color:C.gray, display:'block', marginBottom:6 }}>Description</label>
-          <textarea style={{ ...inpStyle, resize:'none' as any }} rows={2} placeholder="Optional description…" value={form.description} onChange={e => setForm(p => ({...p, description:e.target.value}))}/>
+          <label style={{ fontSize:12, color:C.gray, display:'block', marginBottom:8, fontWeight:600 }}>Description</label>
+          <textarea style={{ ...inpStyle, resize:'none' as any }} rows={2} placeholder="Briefly describe what this form collects…" value={form.description} onChange={e => setForm(p => ({...p, description:e.target.value}))}/>
         </div>
 
-        <div style={{ marginBottom:16 }}>
-          <label style={{ fontSize:12, color:C.gray, display:'block', marginBottom:8 }}>Icon</label>
-          <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-            {ICONS.map(ic => (
-              <div key={ic} onClick={() => setForm(p => ({...p, icon:ic}))}
-                style={{ width:38, height:38, borderRadius:10, background:form.icon===ic?`${form.cover_color}25`:C.s3, border:`1.5px solid ${form.icon===ic?form.cover_color:C.border}`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:20, cursor:'pointer', transition:'all .13s' }}>
-                {ic}
-              </div>
-            ))}
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:20, marginBottom:28 }}>
+          <div>
+            <label style={{ fontSize:12, color:C.gray, display:'block', marginBottom:10, fontWeight:600 }}>Icon</label>
+            <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+              {ICONS.slice(0, 6).map(ic => (
+                <div key={ic} onClick={() => setForm(p => ({...p, icon:ic}))}
+                  style={{ width:34, height:34, borderRadius:10, background:form.icon===ic?`${form.cover_color}25`:C.s3, border:`1.5px solid ${form.icon===ic?form.cover_color:C.border}`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, cursor:'pointer', transition:'all .13s' }}>
+                  {ic}
+                </div>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label style={{ fontSize:12, color:C.gray, display:'block', marginBottom:10, fontWeight:600 }}>Color</label>
+            <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+              {COLORS.slice(0, 6).map(c => (
+                <div key={c} onClick={() => setForm(p => ({...p, cover_color:c}))}
+                  style={{ width:24, height:24, borderRadius:'50%', background:c, cursor:'pointer', border:`2.5px solid ${form.cover_color===c?'#fff':'transparent'}`, transition:'all .13s' }}/>
+              ))}
+            </div>
           </div>
         </div>
 
-        <div style={{ marginBottom:24 }}>
-          <label style={{ fontSize:12, color:C.gray, display:'block', marginBottom:8 }}>Color</label>
-          <div style={{ display:'flex', gap:8 }}>
-            {COLORS.map(c => (
-              <div key={c} onClick={() => setForm(p => ({...p, cover_color:c}))}
-                style={{ width:28, height:28, borderRadius:'50%', background:c, cursor:'pointer', border:`2.5px solid ${form.cover_color===c?'#fff':'transparent'}`, transition:'border .13s' }}/>
-            ))}
-          </div>
-        </div>
-
-        {err && <div style={{ fontSize:12, color:C.red, marginBottom:12 }}>⚠ {err}</div>}
-        <div style={{ display:'flex', gap:10 }}>
-          <button onClick={onClose} style={{ flex:1, padding:'10px', background:C.s3, border:`1px solid ${C.border}`, borderRadius:10, color:C.gray, fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>Cancel</button>
-          <button onClick={create} disabled={saving} style={{ flex:1, padding:'10px', background:C.red, border:'none', borderRadius:10, color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", opacity:saving?0.6:1, display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
+        {err && <div style={{ fontSize:12, color:C.red, marginBottom:16, background:`${C.red}10`, padding:'8px 12px', borderRadius:10, border:`1px solid ${C.red}20` }}>⚠ {err}</div>}
+        <div style={{ display:'flex', gap:12 }}>
+          <button onClick={onClose} style={{ flex:1, padding:'12px', background:C.s3, border:`1px solid ${C.border}`, borderRadius:12, color:C.gray, fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>Cancel</button>
+          <button onClick={create} disabled={saving} style={{ flex:1, padding:'12px', background:C.red, border:'none', borderRadius:12, color:'#fff', fontSize:13, fontWeight:800, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", opacity:saving?0.6:1, display:'flex', alignItems:'center', justifyContent:'center', gap:8, boxShadow:`0 8px 24px ${C.redB}` }}>
             {saving?<><Spin/>Creating…</>:'Create Form'}
           </button>
         </div>
