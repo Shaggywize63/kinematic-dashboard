@@ -44,42 +44,43 @@ class ApiClient {
     // --- DEMO MODE INTERCEPTION (STRICTLY FOR DASHBOARD DATA) ---
     const userEmail = this.getUserEmail();
     if (userEmail === demo.DEMO_USER_EMAIL) {
-      if (path.includes('/analytics/summary')) return demo.mockSummary(new Date().toISOString().split('T')[0]) as T;
-      if (path.includes('/analytics/activity-feed')) return demo.mockFeed() as T;
-      if (path.includes('/analytics/tff-trends')) return demo.mockTrends() as T;
-      if (path.includes('/analytics/contact-heatmap')) return demo.mockHeatmap() as T;
-      if (path.includes('/analytics/dashboard-init')) return demo.mockDashboardInit() as T;
-      if (path.includes('/analytics/mobile-home')) return demo.mockDashboardInit() as T; 
+      // --- DEBUG LOG FOR DEMO MODE ---
+      if (typeof window !== 'undefined') {
+        console.log(`[Kinematic Demo] Intercepting: ${path}`);
+      }
+
+      if (path.includes('analytics/summary')) return demo.mockSummary(new Date().toISOString().split('T')[0]) as T;
+      if (path.includes('analytics/activity-feed')) return demo.mockFeed() as T;
+      if (path.includes('analytics/tff-trends')) return demo.mockTrends() as T;
+      if (path.includes('analytics/contact-heatmap')) return demo.mockHeatmap() as T;
+      if (path.includes('analytics/dashboard-init')) return demo.mockDashboardInit() as T;
+      if (path.includes('analytics/mobile-home')) return demo.mockDashboardInit() as T; 
       
-      // NEW EXPANDED ROUTES
-      if (path.includes('/analytics/live-locations')) return demo.mockLocations() as T;
-      if (path.includes('/attendance/team')) return demo.mockAttendanceTeam() as T;
-      if (path.includes('/users') && !path.includes('/auth')) return demo.mockUsers() as T;
-      if (path.includes('/visits/team')) return demo.mockVisitLogs() as T;
-      if (path.includes('/forms/admin/submissions')) return demo.mockSubmissions() as T;
-      if (path.includes('/forms/submissions/')) return demo.mockSubmissionDetails() as T;
-      if (path.includes('/sos')) return demo.mockSOS() as T;
-      if (path.includes('/grievances')) return demo.mockGrievances() as T;
-      if (path.includes('/broadcast')) return demo.mockBroadcast() as T;
+      if (path.includes('analytics/live-locations')) return demo.mockLocations() as T;
+      if (path.includes('attendance/team')) return demo.mockAttendanceTeam() as T;
+      if (path.includes('users') && !path.includes('auth')) return demo.mockUsers() as T;
+      if (path.includes('visits/team')) return demo.mockVisitLogs() as T;
+      if (path.includes('forms/admin/submissions')) return demo.mockSubmissions() as T;
+      if (path.includes('forms/submissions/')) return demo.mockSubmissionDetails() as T;
+      if (path.includes('sos')) return demo.mockSOS() as T;
+      if (path.includes('grievances')) return demo.mockGrievances() as T;
+      if (path.includes('broadcast')) return demo.mockBroadcast() as T;
       
-      // NEW DEMO INTERCEPTIONS FOR STABILITY
-      if (path.includes('/stores')) return demo.mockStores() as T;
-      if (path.includes('/orders/route-plan')) return demo.mockRoutePlans() as T;
-      if (path.includes('/forms/templates')) return demo.mockFormTemplates() as T;
-      if (path.includes('/activities')) return demo.mockActivities() as T;
-      if (path.includes('/assets')) return demo.mockAssets() as T;
-      if (path.includes('/misc/security/alerts/all')) return demo.mockSecurityAlerts() as T;
-      if (path.includes('/warehouses/summary')) return demo.mockWarehouseSummary() as T;
-      if (path.includes('/warehouses') && path.includes('/movements')) return demo.mockMovements() as T;
-      if (path.includes('/warehouses')) return demo.mockWarehouseSummary().data as T;
-      if (path.includes('/cities')) return demo.mockCities() as T;
-      if (path.includes('/zones')) return demo.mockZones() as T;
-      if (path.includes('/clients')) return demo.mockClients() as T;
-      if (path.includes('/skus')) return demo.mockInventory() as T;
-      if (path.includes('/stores')) return demo.mockStores() as T;
-      if (path.includes('/activities')) return demo.mockActivities() as T;
-      if (path.includes('/assets')) return demo.mockAssets() as T;
-      if (path.includes('/inventory') || path.includes('/stock')) return demo.mockInventory() as T;
+      if (path.includes('warehouses/summary')) return demo.mockWarehouseSummary() as T;
+      if (path.includes('warehouses') && path.includes('movements')) return demo.mockMovements() as T;
+      if (path.includes('warehouses')) return demo.mockWarehouseSummary() as T;
+
+      if (path.includes('stores')) return demo.mockStores() as T;
+      if (path.includes('orders/route-plan')) return demo.mockRoutePlans() as T;
+      if (path.includes('forms/templates')) return demo.mockFormTemplates() as T;
+      if (path.includes('activities')) return demo.mockActivities() as T;
+      if (path.includes('assets')) return demo.mockAssets() as T;
+      if (path.includes('misc/security/alerts/all')) return demo.mockSecurityAlerts() as T;
+      if (path.includes('cities')) return demo.mockCities() as T;
+      if (path.includes('zones')) return demo.mockZones() as T;
+      if (path.includes('clients')) return demo.mockClients() as T;
+      if (path.includes('skus')) return demo.mockInventory() as T;
+      if (path.includes('inventory') || path.includes('stock')) return demo.mockInventory() as T;
     }
 
 
