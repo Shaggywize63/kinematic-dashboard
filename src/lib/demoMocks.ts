@@ -117,37 +117,41 @@ export const mockAttendanceTeam = () => ({
   success: true,
   data: [
     { 
-      id: 'fe1', name: 'Arjun Sharma', display_status: 'present', 
+      id: 'fe1', name: 'Arjun Sharma', display_status: 'present', status: 'checked_in',
       checkin_at: new Date().toISOString().replace(/T.*/, 'T09:15:00Z'), 
       total_hours: 4.5, 
-      selfie_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=400&fit=crop',
+      checkin_selfie_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=400&fit=crop',
       checkin_address: 'Koramangala 4th Block, Bangalore', 
-      latitude: 12.9352, longitude: 77.6245,
+      checkin_lat: 12.9352, checkin_lng: 77.6245,
       zones: { name: 'Bangalore North' },
       users: { name: 'Arjun Sharma', employee_id: 'KIN-001' } 
     },
     { 
-      id: 'fe2', name: 'Priya Patel', display_status: 'present', 
+      id: 'fe2', name: 'Priya Patel', display_status: 'present', status: 'checked_out',
       checkin_at: new Date().toISOString().replace(/T.*/, 'T09:30:00Z'), 
-      total_hours: 4.2, 
-      selfie_url: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&h=400&fit=crop',
+      checkout_at: new Date().toISOString().replace(/T.*/, 'T18:30:00Z'),
+      total_hours: 9.0, 
+      checkin_selfie_url: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&h=400&fit=crop',
+      checkout_selfie_url: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&h=400&fit=crop',
       checkin_address: 'Mumbai West, Near Station', 
-      latitude: 19.0760, longitude: 72.8777,
+      checkin_lat: 19.0760, checkin_lng: 72.8777,
+      checkout_lat: 19.0765, checkout_lng: 72.8780,
       zones: { name: 'Mumbai West' },
       users: { name: 'Priya Patel', employee_id: 'KIN-002' } 
     },
     { 
-      id: 'fe3', name: 'Rahul Verma', display_status: 'on_break', 
+      id: 'fe3', name: 'Rahul Verma', display_status: 'on_break', status: 'checked_in',
       checkin_at: new Date().toISOString().replace(/T.*/, 'T09:00:00Z'), 
       total_hours: 4.8, 
-      selfie_url: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&h=400&fit=crop',
+      checkin_selfie_url: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&h=400&fit=crop',
       checkin_address: 'Delhi Central, Connaught Place',
-      latitude: 28.6139, longitude: 77.2090, 
+      checkin_lat: 28.6139, checkin_lng: 77.2090, 
       zones: { name: 'Delhi Central' },
       users: { name: 'Rahul Verma', employee_id: 'KIN-003' } 
     }
   ]
 });
+
 
 export const mockStores = () => ({
   success: true,
