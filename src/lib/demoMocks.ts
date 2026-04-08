@@ -116,12 +116,90 @@ export const mockUsers = () => ({
 export const mockAttendanceTeam = () => ({
   success: true,
   data: [
-    { id: 'fe1', name: 'Arjun Sharma', display_status: 'present', checkin_at: '2024-04-08T09:15:00Z', total_hours: 4.5, users: { name: 'Arjun Sharma', employee_id: 'KIN-001' } },
-    { id: 'fe2', name: 'Priya Patel', display_status: 'present', checkin_at: '2024-04-08T09:30:00Z', total_hours: 4.2, users: { name: 'Priya Patel', employee_id: 'KIN-002' } },
-    { id: 'fe3', name: 'Rahul Verma', display_status: 'on_break', checkin_at: '2024-04-08T09:00:00Z', total_hours: 4.8, users: { name: 'Rahul Verma', employee_id: 'KIN-003' } },
-    { id: 'fe4', name: 'Sneha Rao', display_status: 'present', checkin_at: '2024-04-08T10:00:00Z', total_hours: 3.7, users: { name: 'Sneha Rao', employee_id: 'KIN-004' } },
-    { id: 'fe5', name: 'Amit Singh', display_status: 'checked_out', checkin_at: '2024-04-08T08:45:00Z', checkout_at: '2024-04-08T13:00:00Z', total_hours: 4.25, users: { name: 'Amit Singh', employee_id: 'KIN-005' } }
+    { 
+      id: 'fe1', name: 'Arjun Sharma', display_status: 'present', 
+      checkin_at: new Date().toISOString().replace(/T.*/, 'T09:15:00Z'), 
+      total_hours: 4.5, 
+      selfie_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=400&fit=crop',
+      checkin_address: 'Koramangala 4th Block, Bangalore', 
+      latitude: 12.9352, longitude: 77.6245,
+      zones: { name: 'Bangalore North' },
+      users: { name: 'Arjun Sharma', employee_id: 'KIN-001' } 
+    },
+    { 
+      id: 'fe2', name: 'Priya Patel', display_status: 'present', 
+      checkin_at: new Date().toISOString().replace(/T.*/, 'T09:30:00Z'), 
+      total_hours: 4.2, 
+      selfie_url: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&h=400&fit=crop',
+      checkin_address: 'Mumbai West, Near Station', 
+      latitude: 19.0760, longitude: 72.8777,
+      zones: { name: 'Mumbai West' },
+      users: { name: 'Priya Patel', employee_id: 'KIN-002' } 
+    },
+    { 
+      id: 'fe3', name: 'Rahul Verma', display_status: 'on_break', 
+      checkin_at: new Date().toISOString().replace(/T.*/, 'T09:00:00Z'), 
+      total_hours: 4.8, 
+      selfie_url: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&h=400&fit=crop',
+      checkin_address: 'Delhi Central, Connaught Place',
+      latitude: 28.6139, longitude: 77.2090, 
+      zones: { name: 'Delhi Central' },
+      users: { name: 'Rahul Verma', employee_id: 'KIN-003' } 
+    }
   ]
+});
+
+export const mockStores = () => ({
+  success: true,
+  data: [
+    { id: 'st1', name: 'Reliance Fresh', code: 'REL-001', address: 'Indiranagar 80ft Rd', city: 'Bangalore', zones: { name: 'Bangalore East' } },
+    { id: 'st2', name: 'Big Bazaar', code: 'BB-042', address: 'Phoenix Marketcity', city: 'Mumbai', zones: { name: 'Mumbai North' } },
+    { id: 'st3', name: 'Star Market', code: 'SM-109', address: 'Select Citywalk', city: 'Delhi', zones: { name: 'Delhi Central' } }
+  ]
+});
+
+export const mockFormTemplates = () => ({
+  success: true,
+  data: [
+    { id: 't1', name: 'Daily Store Audit', description: 'Standard compliance check', fields_count: 12, created_at: new Date().toISOString() },
+    { id: 't2', name: 'Product Secondary Audit', description: 'Shelf visibility check', fields_count: 8, created_at: new Date().toISOString() },
+    { id: 't3', name: 'Competitor Intel', description: 'Weekly pricing audit', fields_count: 5, created_at: new Date().toISOString() }
+  ]
+});
+
+export const mockRoutePlans = () => ({
+  success: true,
+  data: [
+    { id: 'rp1', date: new Date().toISOString().split('T')[0], executive: { name: 'Arjun Sharma' }, status: 'active', stores_count: 8, progress: 4 },
+    { id: 'rp2', date: new Date().toISOString().split('T')[0], executive: { name: 'Priya Patel' }, status: 'active', stores_count: 6, progress: 2 }
+  ]
+});
+
+export const mockActivities = () => ({
+  success: true,
+  data: [
+    { id: 'a1', name: 'Stock Checking', type: 'audit', points: 10 },
+    { id: 'a2', name: 'Shelf Banner Setup', type: 'marketing', points: 25 },
+    { id: 'a3', name: 'Client Feedback', type: 'survey', points: 15 }
+  ]
+});
+
+export const mockAssets = () => ({
+  success: true,
+  data: [
+    { id: 'as1', name: 'Shelf Talker v2', category: 'POSM', stock: 1200 },
+    { id: 'as2', name: 'Floor Stand - Large', category: 'Display', stock: 150 },
+    { id: 'as3', name: 'Brio Coffee Machine', category: 'Infra', stock: 12 }
+  ]
+});
+
+export const mockSecurityAlerts = () => ({
+  success: true,
+  data: [
+    { id: 'sa1', type: 'MOCK_LOCATION', action: 'attendance_checkin', created_at: new Date().toISOString(), user: { name: 'Arjun Sharma', employee_id: 'KIN-001' }, lat: 12.9716, lng: 77.5946 },
+    { id: 'sa2', type: 'VPN_DETECTED', action: 'form_submission', created_at: new Date().toISOString(), user: { name: 'Priya Patel', employee_id: 'KIN-002' }, lat: 19.0760, lng: 72.8777 }
+  ],
+  totalCount: 2
 });
 
 export const mockVisitLogs = () => ({

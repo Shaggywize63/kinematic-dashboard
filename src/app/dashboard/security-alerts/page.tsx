@@ -66,7 +66,7 @@ export default function SecurityAlertsPage() {
     <div className="flex flex-col gap-6 pb-10">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-white">Security Alerts</h1>
+          <h1 className="text-2xl font-bold text-[var(--text)]">Security Alerts</h1>
           <p className="text-sm text-gray-400 mt-1">Monitoring mock location and VPN violations across the field force.</p>
         </div>
         <button 
@@ -112,7 +112,7 @@ export default function SecurityAlertsPage() {
                 alerts.map((alert) => (
                   <tr key={alert.id} className="hover:bg-white/[0.02] transition-colors">
                     <td className="px-6 py-4">
-                      <div className="font-bold text-white">{alert.user?.name || 'Unknown User'}</div>
+                      <div className="font-bold text-[var(--text)]">{alert.user?.name || 'Unknown User'}</div>
                       <div className="text-[11px] text-gray-500 uppercase flex items-center gap-2 mt-0.5">
                         <span className="bg-s3 px-1.5 py-0.5 rounded border border-border">{alert.user?.employee_id || 'N/A'}</span>
                         <span>{alert.user?.zones?.name || 'No Zone'}</span>
@@ -157,7 +157,7 @@ export default function SecurityAlertsPage() {
         {total > limit && (
           <div className="px-6 py-4 bg-s3/30 border-t border-border flex items-center justify-between">
             <div className="text-xs text-gray-500">
-              Showing <span className="text-white font-bold">{alerts.length}</span> of <span className="text-white font-bold">{total}</span> alerts
+              Showing <span className="text-[var(--text)] font-bold">{alerts.length}</span> of <span className="text-[var(--text)] font-bold">{total}</span> alerts
             </div>
             <div className="flex gap-2">
               <button

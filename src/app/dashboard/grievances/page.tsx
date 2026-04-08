@@ -107,7 +107,7 @@ export default function GrievancesPage() {
           { l:'Under Review', v:grievances.filter(g=>g.status==='under_review').length, c:C.blue },
           { l:'Resolved', v:grievances.filter(g=>g.status==='resolved').length, c:C.green },
         ].map((s, i) => (
-          <div key={i} style={{ background:'#0E1420', border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
+          <div key={i} style={{ background:'var(--s1)', border:`1px solid ${C.border}`, borderRadius:16, padding:20 }}>
             <div style={{ fontFamily:"'Syne',sans-serif", fontSize:30, fontWeight:800, color:s.c }}>{s.v}</div>
             <div style={{ fontSize:12, color:C.gray, marginTop:6 }}>{s.l}</div>
           </div>
@@ -115,7 +115,7 @@ export default function GrievancesPage() {
       </div>
 
       {/* List */}
-      <div style={{ background:'#0E1420', border:`1px solid ${C.border}`, borderRadius:16, overflow:'hidden' }}>
+      <div style={{ background:'var(--s1)', border:`1px solid ${C.border}`, borderRadius:16, overflow:'hidden' }}>
         {/* Filters */}
         <div style={{ padding:'14px 18px', borderBottom:`1px solid ${C.border}`, display:'flex', gap:8, flexWrap:'wrap' }}>
           {[['all','All'],['pending','Pending'],['under_review','Under Review'],['resolved','Resolved'],['dismissed','Dismissed']].map(([f, l]) => (
@@ -170,7 +170,7 @@ export default function GrievancesPage() {
       {selected && (
         <div onClick={e => { if (e.target === e.currentTarget) setSelected(null); }}
           style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.75)', zIndex:300, display:'flex', alignItems:'center', justifyContent:'center', padding:24 }}>
-          <div style={{ background:'#0E1420', border:`1px solid ${C.border}`, borderRadius:22, width:'100%', maxWidth:520, padding:28, position:'relative' }}>
+          <div style={{ background:'var(--s1)', border:`1px solid ${C.border}`, borderRadius:22, width:'100%', maxWidth:520, padding:28, position:'relative' }}>
             <button onClick={() => setSelected(null)}
               style={{ position:'absolute', top:16, right:16, background:C.s2, border:`1px solid ${C.border}`, borderRadius:9, width:32, height:32, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', color:C.gray, fontSize:16 }}>✕</button>
 

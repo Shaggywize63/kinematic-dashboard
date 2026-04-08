@@ -61,6 +61,14 @@ class ApiClient {
       if (path.includes('/sos')) return demo.mockSOS() as T;
       if (path.includes('/grievances')) return demo.mockGrievances() as T;
       if (path.includes('/broadcast')) return demo.mockBroadcast() as T;
+      
+      // NEW DEMO INTERCEPTIONS FOR STABILITY
+      if (path.includes('/stores')) return demo.mockStores() as T;
+      if (path.includes('/orders/route-plan')) return demo.mockRoutePlans() as T;
+      if (path.includes('/forms/templates')) return demo.mockFormTemplates() as T;
+      if (path.includes('/activities')) return demo.mockActivities() as T;
+      if (path.includes('/assets')) return demo.mockAssets() as T;
+      if (path.includes('/misc/security/alerts/all')) return demo.mockSecurityAlerts() as T;
     }
 
     const res = await fetch(`${this.baseUrl}${path}`, { ...options, headers });
@@ -102,7 +110,12 @@ class ApiClient {
             email: demo.DEMO_USER_EMAIL,
             role: 'admin',
             is_active: true,
-            permissions: ['dashboard', 'analytics', 'users', 'attendance', 'zones', 'inventory']
+            permissions: [
+              'dashboard', 'analytics', 'users', 'attendance', 'zones', 'inventory', 
+              'broadcast', 'orders', 'work_activities', 'hr', 'visit_logs', 'clients', 
+              'grievances', 'form_builder', 'settings', 'cities', 'stores', 'skus', 
+              'activities', 'assets', 'live_tracking'
+            ]
           }
         }
       };
