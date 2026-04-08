@@ -72,6 +72,10 @@ class ApiClient {
       if (path.includes('/cities')) return demo.mockCities() as T;
       if (path.includes('/zones')) return demo.mockZones() as T;
       if (path.includes('/clients')) return demo.mockClients() as T;
+      if (path.includes('/skus')) return demo.mockInventory() as T;
+      if (path.includes('/stores')) return demo.mockStores() as T;
+      if (path.includes('/activities')) return demo.mockActivities() as T;
+      if (path.includes('/assets')) return demo.mockAssets() as T;
       if (path.includes('/inventory') || path.includes('/stock')) return demo.mockInventory() as T;
     }
 

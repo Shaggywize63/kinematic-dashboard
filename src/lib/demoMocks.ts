@@ -209,9 +209,26 @@ export const mockSecurityAlerts = () => ({
 export const mockVisitLogs = () => ({
   success: true,
   data: [
-    { id: 'v1', visitor_name: 'Manish Kumar', visitor_role: 'Operations Manager', executive: { name: 'Arjun Sharma' }, rating: 'Excellent', remarks: 'Good shelf discipline. Product display is perfect.', visited_at: new Date().toISOString(), visit_response: 'Thanks, working on the inventory update now.' },
-    { id: 'v2', visitor_name: 'Anita Desai', visitor_role: 'Supervisor', executive: { name: 'Priya Patel' }, rating: 'Good', remarks: 'Store compliance met. Need focus on SKU expansion.', visited_at: new Date(Date.now() - 3600000).toISOString(), visit_response: null },
-    { id: 'v3', visitor_name: 'Manish Kumar', visitor_role: 'Operations Manager', executive: { name: 'Rahul Verma' }, rating: 'Average', remarks: 'Uniform missing. Grooming standards need improvement.', visited_at: new Date(Date.now() - 7200000).toISOString(), visit_response: 'Noted. Will ensure from tomorrow.' }
+    { 
+      id: 'v1', 
+      visitor_name: 'Manish Kumar', visitor_role: 'Operations Manager', 
+      executive: { name: 'Arjun Sharma' }, 
+      users: { name: 'Arjun Sharma', role: 'executive' },
+      rating: 'Excellent', remarks: 'Good shelf discipline. Product display is perfect.', 
+      visited_at: new Date().toISOString(), 
+      visit_response: 'Thanks, working on the inventory update now.',
+      stores: { name: 'Reliance Fresh - Koramangala' }
+    },
+    { 
+      id: 'v2', 
+      visitor_name: 'Anita Desai', visitor_role: 'Supervisor', 
+      executive: { name: 'Priya Patel' }, 
+      users: { name: 'Priya Patel', role: 'executive' },
+      rating: 'Good', remarks: 'Store compliance met. Need focus on SKU expansion.', 
+      visited_at: new Date(Date.now() - 3600000).toISOString(), 
+      visit_response: null,
+      stores: { name: 'Big Bazaar - Indiranagar' }
+    }
   ]
 });
 
@@ -223,7 +240,7 @@ export const mockSubmissions = () => ({
     { id: 's2', submitted_at: new Date(Date.now() - 1800000).toISOString(), is_converted: false, outlet_name: 'Big Bazaar - Indiranagar', users: { name: 'Priya Patel' }, form_templates: { name: 'Merchandising' }, activities: { name: 'Merchandising' } },
     { id: 's3', submitted_at: new Date(Date.now() - 3600000).toISOString(), is_converted: true, outlet_name: 'Star Market - HSR', users: { name: 'Rahul Verma' }, form_templates: { name: 'Product Audit' }, activities: { name: 'Store Visit' } },
     { id: 's4', submitted_at: new Date(Date.now() - 7200000).toISOString(), is_converted: true, outlet_name: 'Metro Cash & Carry', users: { name: 'Sneha Rao' }, form_templates: { name: 'Compliance Checklist' }, activities: { name: 'Compliance' } },
-    { id: 's5', submitted_at: new Date(Date.now() - 10800000).toISOString(), is_converted: false, outlet_name: 'Smart - Jayanagar', users: { name: 'Amit Singh' }, form_templates: { name: 'Stock Repo' }, activities: { name: 'Inventory' } }
+    { id: 's5', submitted_at: new Date(Date.now() - 10800000).toISOString(), is_converted: false, outlet_name: 'Amit Singh', users: { name: 'Amit Singh' }, form_templates: { name: 'Stock Repo' }, activities: { name: 'Inventory' } }
   ]
 });
 
@@ -256,7 +273,18 @@ export const mockGrievances = () => ({
 export const mockBroadcast = () => ({
   success: true,
   data: [
-    { id: 'b1', title: 'Eid Mubarak!', message: 'Wishing everyone a happy and prosperous Eid. Enjoy the holiday!', created_at: new Date().toISOString(), status: 'active' }
+    { 
+      id: 'b1', 
+      question: 'Are you using the new inventory tracking system?', 
+      options: [{label:'Yes', value:'yes'}, {label:'No', value:'no'}],
+      target_roles: ['executive'],
+      status: 'active',
+      created_at: new Date().toISOString(),
+      response_count: 12,
+      tally: [{label:'Yes', count:10, index:0}, {label:'No', count:2, index:1}],
+      target_zone_ids: [],
+      target_cities: []
+    }
   ]
 });
 
@@ -264,8 +292,7 @@ export const mockCities = () => ({
   success: true,
   data: [
     { id: 'c1', name: 'Bangalore', state: 'Karnataka', is_active: true },
-    { id: 'c2', name: 'Mumbai', state: 'Maharashtra', is_active: true },
-    { id: 'c3', name: 'Delhi', state: 'Delhi', is_active: true }
+    { id: 'c2', name: 'Mumbai', state: 'Maharashtra', is_active: true }
   ]
 });
 
@@ -273,8 +300,7 @@ export const mockZones = () => ({
   success: true,
   data: [
     { id: 'z1', name: 'Koramangala 4th Block', city: 'Bangalore', is_active: true },
-    { id: 'z2', name: 'Andheri East', city: 'Mumbai', is_active: true },
-    { id: 'z3', name: 'Connaught Place', city: 'Delhi', is_active: true }
+    { id: 'z2', name: 'Andheri East', city: 'Mumbai', is_active: true }
   ]
 });
 
@@ -282,17 +308,14 @@ export const mockClients = () => ({
   success: true,
   data: [
     { id: 'cl1', name: 'Hindustan Unilever', is_active: true },
-    { id: 'cl2', name: 'ITC Limited', is_active: true },
-    { id: 'cl3', name: 'Nestle India', is_active: true }
+    { id: 'cl2', name: 'ITC Limited', is_active: true }
   ]
 });
 
 export const mockInventory = () => ({
   success: true,
   data: [
-    { id: 'i1', name: 'Clinic Plus 5ml', sku: 'CP-001', category: 'Shampoo', stock: 4500 },
-    { id: 'i2', name: 'Lux Rose 100g', sku: 'LX-402', category: 'Soap', stock: 1200 },
-    { id: 'i3', name: 'Pepsodent 150g', sku: 'PP-109', category: 'Oral Care', stock: 850 }
+    { id: 'i1', name: 'Clinic Plus 5ml', sku_code: 'CP-001', category: 'Shampoo', is_active: true, unit: 'pcs', price: 1.50, created_at: new Date().toISOString() },
+    { id: 'i2', name: 'Lux Rose 100g', sku_code: 'LX-402', category: 'Soap', is_active: true, unit: 'pcs', price: 35.00, created_at: new Date().toISOString() }
   ]
 });
-

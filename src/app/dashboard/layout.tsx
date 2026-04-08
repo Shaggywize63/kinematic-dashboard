@@ -177,11 +177,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [router]);
 
   const handleLogout = () => { clearSession(); router.push('/login'); };
-  const isActive = (href: string) => href === '/dashboard' ? pathname === '/dashboard' : pathname.startsWith(href);
-  const sideW = collapsed ? 64 : 220;
-
   const userRole = user?.role || '';
   const userPerms = user?.permissions || [];
+  const isActive = (href: string) => href === '/dashboard' ? pathname === '/dashboard' : pathname.startsWith(href);
+  const sideW = collapsed ? 64 : 220;
 
   const filterNav = (items: any[]) => {
     if (['super_admin', 'admin', 'main_admin'].includes(userRole)) return items;
@@ -194,15 +193,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       { href: '/dashboard/analytics', label: 'Analytics', icon: 'M18 20V10 M12 20V4 M6 20v-6', module: 'analytics' },
       { href: '/dashboard/live-tracking', label: 'Live Tracking', icon: 'M12 22s-8-4.5-8-11.8A8 8 0 0112 2a8 8 0 018 8.2c0 7.3-8 11.8-8 11.8z M12 13a3 3 0 100-6 3 3 0 000 6z', module: 'live_tracking' },
       { href: '/dashboard/broadcast', label: 'Broadcast', icon: 'M12 19V5 M5 12l7-7 7 7', module: 'broadcast' },
+      { href: '/dashboard/visit-logs', label: 'Visit Logs', icon: 'M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z', module: 'visit_logs' },
     ])},
     { label: 'Operations', items: filterNav([
       { href: '/dashboard/attendance-overview', label: 'Attendance', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z', module: 'attendance' },
-      { href: '/dashboard/route-plan', label: 'Route Plan', icon: 'M9 20l-5.44-2.72A2 2 0 013 15.49V4.5a2 2 0 012.89-1.8L9 4 M9 20l6-3 M9 4v16 M15 1l5.44 2.72A2 2 0 0121 5.51v10.98a2 2 0 01-2.89 1.8L15 17 M15 1v16', module: 'orders' },
+      { href: '/dashboard/route-plan', label: 'Route Plan', icon: 'M9 20l-5.44-2.72A2 2 0 013 15.49V4.5a2 2 0 012.89-1.8L9 4 M9 4v16 M15 1l5.44 2.72A2 2 0 0121 5.51v10.98a2 2 0 01-2.89 1.8L15 17 M15 1v16', module: 'orders' },
       { href: '/dashboard/work-activities', label: 'Work Activities', icon: 'M12 2v20 M2 12h20 M5 5l14 14 M19 5L5 14', module: 'work_activities' },
-      { href: '/dashboard/visits', label: 'Visit Logs', icon: 'M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z', module: 'visit_logs' },
     ])},
     { label: 'People & Support', items: filterNav([
-      { href: '/dashboard/users', label: 'Manpower', icon: 'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 7a4 4 0 100-8 4 4 0 000 8z M23 21v-2a4 4 0 00-3-3.87 M16 3.13a4 4 0 010 7.75', module: 'users' },
+      { href: '/dashboard/manpower-directory', label: 'Manpower', icon: 'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 7a4 4 0 100-8 4 4 0 000 8z M23 21v-2a4 4 0 00-3-3.87 M16 3.13a4 4 0 010 7.75', module: 'users' },
       { href: '/dashboard/grievances', label: 'Grievances', icon: 'M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z M12 9v4 M12 17h.01', module: 'grievances' },
     ])},
     { label: 'Business', items: filterNav([
@@ -210,16 +209,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       { href: '/dashboard/warehouse', label: 'Warehouse', icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4', module: 'inventory' },
     ])},
     { label: 'System Management', items: filterNav([
-      { href: '/dashboard/form-builder', label: 'Form Builder', icon: 'M12 5v14 M5 12h14', module: 'form_builder' },
+      { href: '/dashboard/other-management/cities', label: 'Cities', icon: 'M3 21h18 M3 7v1a3 3 0 006 0V7m6 0v1a3 3 0 006 0V7', module: 'cities' },
+      { href: '/dashboard/other-management/zones', label: 'Zones', icon: 'M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z M12 10a3 3 0 100-6 3 3 0 000 6z', module: 'zones' },
+      { href: '/dashboard/other-management/stores', label: 'Outlets', icon: 'M3 21h18 M9 8h10 M9 12h10 M9 16h10 M3 4h18', module: 'stores' },
+      { href: '/dashboard/other-management/skus', label: 'SKU Management', icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4', module: 'skus' },
+      { href: '/dashboard/other-management/activities', label: 'Activities', icon: 'M12 2v20 M2 12h20', module: 'activities' },
+      { href: '/dashboard/other-management/assets', label: 'Assets', icon: 'M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z', module: 'assets' },
       { href: '/dashboard/security-alerts', label: 'Security Alerts', icon: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z', module: 'live_tracking' },
-      { href: '/dashboard/cities', label: 'Cities', icon: 'M3 21h18 M3 7v1a3 3 0 006 0V7m6 0v1a3 3 0 006 0V7', module: 'cities' },
-      { href: '/dashboard/zones', label: 'Zones', icon: 'M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z M12 10a3 3 0 100-6 3 3 0 000 6z', module: 'zones' },
-      { href: '/dashboard/outlets', label: 'Outlets', icon: 'M3 21h18 M9 8h10 M9 12h10 M9 16h10 M3 4h18', module: 'stores' },
-      { href: '/dashboard/skus', label: 'SKU Management', icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4', module: 'inventory' },
-      { href: '/dashboard/activity-types', label: 'Activities', icon: 'M12 2v20 M2 12h20', module: 'activities' },
-      { href: '/dashboard/assets', label: 'Assets', icon: 'M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z', module: 'assets' },
     ])},
   ];
+
 
 
   return (
