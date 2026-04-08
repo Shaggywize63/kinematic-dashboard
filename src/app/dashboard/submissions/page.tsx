@@ -15,9 +15,10 @@ interface Submission {
   activities?: { name: string };
   form_templates?: { name: string };
   checkin_photo?: string;
-  checkin_at?: string;
-  checkin_lat?: number;
-  checkin_lng?: number;
+  check_in_at?: string;
+  check_out_at?: string;
+  check_in_gps?: string;
+  check_out_gps?: string;
 }
 
 interface PaginatedResult {
@@ -240,6 +241,8 @@ export default function SubmissionsPage() {
                   ['Outlet', (selected as any).store_name || selected.outlet_name],
                   ['Form', selected.form_templates?.name],
                   ['Timestamp', new Date(selected.submitted_at).toLocaleString('en-IN')],
+                  ['Check-in', selected.check_in_at ? new Date(selected.check_in_at).toLocaleTimeString('en-IN') : '—'],
+                  ['Check-out', selected.check_out_at ? new Date(selected.check_out_at).toLocaleTimeString('en-IN') : '—'],
                 ].map(([k,v]) => (
                   <div key={String(k)}>
                     <div style={{ fontSize:11, color:C.gray, textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:4 }}>{String(k)}</div>
@@ -247,6 +250,33 @@ export default function SubmissionsPage() {
                   </div>
                 ))}
               </div>
+
+              {selected.check_in_at && selected.check_out_at && (
+                <div style={{ marginBottom: 32, padding: '14px 20px', background: 'rgba(0,217,126,0.06)', border: `1px solid ${C.green}30`, borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div>
+                    <div style={{ fontSize: 10, color: C.green, fontWeight: 800, textTransform: 'uppercase', marginBottom: 2 }}>Activity Session Duration</div>
+                    <div style={{ fontSize: 20, fontWeight: 900, color: C.green, fontFamily: "'Syne', sans-serif" }}>
+                      {(() => {
+                        const start = new Date(selected.check_in_at).getTime();
+                        const end = new Date(selected.check_out_at).getTime();
+                        const diff = Math.floor((end - start) / 1000);
+                        const h = Math.floor(diff / 3600);
+                        const m = Math.floor((diff % 3600) / 60);
+                        const s = diff % 60;
+                        return `${h ? h+'h ' : ''}${m ? m+'m ' : ''}${s}s`;
+                      })()}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    {selected.check_in_gps && (
+                      <a href={`https://www.google.com/maps?q=${selected.check_in_gps}`} target="_blank" rel="noreferrer" style={{ padding: '6px 12px', background: C.s2, border: `1px solid ${C.border}`, color: C.blue, borderRadius: 8, fontSize: 11, fontWeight: 600, textDecoration: 'none' }}>📍 In</a>
+                    )}
+                    {selected.check_out_gps && (
+                      <a href={`https://www.google.com/maps?q=${selected.check_out_gps}`} target="_blank" rel="noreferrer" style={{ padding: '6px 12px', background: C.s2, border: `1px solid ${C.border}`, color: C.blue, borderRadius: 8, fontSize: 11, fontWeight: 600, textDecoration: 'none' }}>📍 Out</a>
+                    )}
+                  </div>
+                </div>
+              )}
 
                /* Check-in Details removed as per simplified UI requirements */
               <div style={{ borderTop: `1.5px solid ${C.border}`, paddingTop: 24 }}>

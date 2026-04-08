@@ -518,7 +518,14 @@ function CreateFormModal({ onCreated, onClose }:{ onCreated:(f:BForm)=>void; onC
               {aiBusy ? <Spin size={12}/> : 'Magic Fill'}
             </button>
           </div>
-          <div style={{ fontSize:10, color:C.grayd, marginTop:8, fontStyle:'italic' }}>Describe your form to auto-fill title, activity, and description.</div>
+          <div style={{ fontSize:10, color:C.grayd, marginTop:8, fontStyle:'italic', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+            <span>Describe your form to auto-fill details.</span>
+            <span 
+              onClick={() => window.dispatchEvent(new CustomEvent('km-open-ai'))} 
+              style={{ color:C.blue, cursor:'pointer', fontWeight:700, borderLeft:`1px solid ${C.border}`, paddingLeft:10 }}>
+              Need help? Consult Kinematic AI →
+            </span>
+          </div>
         </div>
 
         <div style={{ height:'1px', background:C.border, marginBottom:28 }} />

@@ -75,83 +75,170 @@ function KinematicAI({ token }: { token: string }) {
   const [live,    setLive]    = useState<Record<string,any>>({});
   const [ready,   setReady]   = useState(false);
   const endRef  = useRef<HTMLDivElement>(null);
-  const taRef   = useRef<HTMLTextAreaElement>(null);
+  const pathname = usePathname();
 
   const fetchLive = useCallback(async () => {
-    setReady(false);
     try {
-      const hdrs = { Authorization:`Bearer ${token}` };
-      const today = new Date().toISOString().split('T')[0];
-      const [a,l,w,s] = await Promise.allSettled([
-        api.get<any>('/api/v1/analytics/attendance-today',{headers:hdrs}),
-        api.get<any>('/api/v1/analytics/live-locations',  {headers:hdrs}),
-        api.get<any>('/api/v1/analytics/weekly-contacts', {headers:hdrs}),
-        api.get<any>(`/api/v1/analytics/summary?date=${today}`,{headers:hdrs}),
+      const hdrs = { Authorization: `Bearer ${token}` };
+      const [a, l, s, w] = await Promise.allSettled([
+        fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/analytics/attendance/summary`, { headers: hdrs }).then(r => r.json()),
+        fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/live-tracking/locations`, { headers: hdrs }).then(r => r.json()),
+        fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/analytics/summary`, { headers: hdrs }).then(r => r.json()),
+        fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/analytics/performance/weekly`, { headers: hdrs }).then(r => r.json())
       ]);
-      const ctx: Record<string,any> = {};
-      if(a.status==='fulfilled') ctx.att  = a.value?.data??a.value;
-      if(l.status==='fulfilled') ctx.locs = l.value?.data??l.value;
-      if(w.status==='fulfilled') ctx.week = w.value?.data??w.value;
-      if(s.status==='fulfilled') ctx.summ = s.value?.data??s.value;
+      
+      const ctx: any = {};
+      if (a.status === 'fulfilled') ctx.att = a.value?.data || a.value;
+      if (l.status === 'fulfilled') ctx.locs = l.value?.data || l.value;
+      if (s.status === 'fulfilled') ctx.summ = s.value?.data || s.value;
+      if (w.status === 'fulfilled') ctx.week = w.value?.data || w.value;
+      
       setLive(ctx);
-    } catch{}
-    setReady(true);
-  },[token]);
+      setReady(true);
+    } catch (e) { console.error('AI Data Context Error:', e); }
+  }, [token]);
 
-  useEffect(()=>{ if(open&&!ready) fetchLive(); },[open, ready, fetchLive]);
-  useEffect(()=>{ endRef.current?.scrollIntoView({behavior:'smooth'}); },[msgs]);
+  useEffect(() => { if (open && !ready) fetchLive(); }, [open, ready, fetchLive]);
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [msgs]);
+
+  useEffect(() => {
+    const h = () => setOpen(true);
+    window.addEventListener('km-open-ai', h);
+    return () => window.removeEventListener('km-open-ai', h);
+  }, []);
 
   const sys = () => {
-    const today = new Date().toLocaleDateString('en-IN',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
-    const att  = live.att?.summary||{};
-    const locs = live.locs?.locations||[];
-    const week = live.week||{};
-    const summ = live.summ||{};
-    const fes  = locs.filter((l:any)=>l.status==='active');
-    return `You are Kinematic AI — operations assistant for Kinematic field force platform by Horizonn Tech Studio.\nToday: ${today}\n\n## LIVE DATA\n### Attendance\n- Total FEs: ${att.total??'unknown'}\n- Present: ${att.present??'unknown'}\n- On Break: ${att.on_break??'unknown'}\n- Checked Out: ${att.checked_out??'unknown'}\n- Absent: ${att.absent??'unknown'}\n\n### Active FEs Now\n${fes.length>0?fes.map((f:any)=>`- ${f.name} · ${f.zone_name||'—'} · ${f.status}`).join('\n'):'- None active'}\n\n### Today Performance\n- TFF: ${summ.total_tff??0}\n\n### This Week\n- TFF: ${week.total_tff??0}\n- ${(week.days||[]).map((d:any)=>`${d.short_label}: TFF=${d.tff}`).join(', ')||'No data'}\n\nBe concise, data-driven, use **bold** for numbers. Generate structured reports when asked. Don't make up data.`;
+    const today = new Date().toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    const att = live.att?.data || live.att?.summary || {};
+    const locs = live.locs?.data?.locations || live.locs?.locations || [];
+    const week = live.week?.data || live.week || {};
+    const summ = live.summ?.data || live.summ || {};
+    const fes = locs.filter((l: any) => l.status === 'active');
+    
+    return `You are Kinematic AI — premium operations assistant for the Kinematic field force platform.
+Current Context: User is viewing ${pathname}
+Today: ${today}
+
+## LIVE OPERATIONS DATA
+### Attendance Summary
+- Total FEs: ${att.total || '0'}
+- Present: ${att.present || '0'}
+- On Break: ${att.on_break || '0'}
+- Absent: ${att.absent || '0'}
+
+### Active Field Force (${fes.length})
+${fes.slice(0, 10).map((f: any) => `- ${f.name} (${f.zone_name || 'Global'}) · ${f.status}`).join('\n') || '- No active FEs currently.'}
+
+### Performance Metrics
+- Today Total TFF: ${summ.total_tff || 0}
+- Weekly TFF Trend: ${(week.days || []).map((d: any) => `${d.short_label}:${d.tff}`).join(', ') || 'Processing...'}
+
+Be elite, professional, and data-driven. Use **bold** for key metrics. Proactively suggest optimizations. If the user is on the Form Builder page, offer help in designing logical audits or surveys.`;
   };
 
   const send = async (text?: string) => {
-    const q=(text||input).trim(); if(!q||busy) return;
+    const q = (text || input).trim(); if (!q || busy) return;
     setInput('');
-    const um={role:'user',content:q,ts:new Date()};
-    const lm={role:'assistant',content:'',loading:true};
-    setMsgs(p=>[...p,um,lm]); setBusy(true);
+    const um = { role: 'user', content: q };
+    const lm = { role: 'assistant', content: '', loading: true };
+    setMsgs(p => [...p, um, lm]); setBusy(true);
     try {
-      const r=await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/ai/chat`,{
-        method:'POST',
-        headers:{'Content-Type':'application/json', Authorization:`Bearer ${token}`},
-        body:JSON.stringify({messages:[um], system:sys()}),
+      const r = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/ai/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ messages: [...msgs.filter(m => !m.loading), um].slice(-6), system: sys() }),
       });
-      const d=await r.json();
-      const reply=d?.data?.text||'Sorry, could not respond.';
-      setMsgs(p=>p.map((m,i)=>i===p.length-1?{role:'assistant',content:reply,ts:new Date()}:m));
-    } catch(e:any){
-      setMsgs(p=>p.map((m,i)=>i===p.length-1?{role:'assistant',content:`Error: ${e.message}`,ts:new Date()}:m));
-    } finally{setBusy(false);}
+      const d = await r.json();
+      const reply = d?.data?.text || 'I apologize, but I am unable to process that right now.';
+      setMsgs(p => p.map((m, i) => i === p.length - 1 ? { role: 'assistant', content: reply } : m));
+    } catch (e: any) {
+      setMsgs(p => p.map((m, i) => i === p.length - 1 ? { role: 'assistant', content: `Connectivity Error: ${e.message}` } : m));
+    } finally { setBusy(false); }
   };
 
   return (
     <>
-      <button onClick={()=>setOpen(o=>!o)} title="Kinematic AI" style={{ position:'fixed', bottom:24, right:24, zIndex:1000, width:50, height:50, borderRadius:'50%', background:open?C.s3:C.red, color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', boxShadow:'0 4px 22px rgba(224,30,44,.45)', cursor:'pointer' }}>{open?'✕':'✦'}</button>
-      {open&&(
-        <div style={{ position:'fixed', bottom:86, right:24, zIndex:999, width:380, height:560, background:C.s2, border:`1px solid ${C.border}`, borderRadius:18, display:'flex', flexDirection:'column', boxShadow:'0 20px 70px rgba(0,0,0,.75)', overflow:'hidden' }}>
-          <div style={{padding:'13px 14px',borderBottom:`1px solid ${C.border}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-             <div style={{fontWeight:800, color:C.white, fontSize:13}}>Kinematic AI</div>
-             <button onClick={()=>setMsgs([])} style={{background:'transparent', border:'none', color:C.grayd, fontSize:10, cursor:'pointer'}}>Clear</button>
+      <style>{`
+        @keyframes km-ai-pulse { 0% { box-shadow: 0 0 0 0 rgba(224,30,44,0.4); } 70% { box-shadow: 0 0 0 15px rgba(224,30,44,0); } 100% { box-shadow: 0 0 0 0 rgba(224,30,44,0); } }
+        @keyframes km-ai-shimmer { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
+      `}</style>
+      <button 
+        onClick={() => setOpen(o => !o)} 
+        style={{ 
+          position: 'fixed', bottom: 30, right: 30, zIndex: 1000, width: 60, height: 60, borderRadius: '22px', 
+          background: open ? C.s3 : `linear-gradient(135deg, ${C.red}, #FF4D4D)`, color: '#fff', 
+          display: 'flex', alignItems: 'center', justifyContent: 'center', 
+          boxShadow: open ? 'none' : '0 10px 30px rgba(224,30,44,0.4)', cursor: 'pointer', border: 'none',
+          animation: !open ? 'km-ai-pulse 2s infinite' : 'none', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+        }}>
+        <span style={{ fontSize: 24, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))' }}>{open ? '✕' : '✦'}</span>
+      </button>
+
+      {open && (
+        <div style={{ 
+          position: 'fixed', bottom: 105, right: 30, zIndex: 999, width: 420, height: 620, 
+          background: 'rgba(26,27,30,0.85)', backdropFilter: 'blur(24px)', border: `1px solid ${C.blue}20`, 
+          borderRadius: 32, display: 'flex', flexDirection: 'column', 
+          boxShadow: '0 40px 100px rgba(0,0,0,0.6)', overflow: 'hidden', animation: 'km-ai-slide .4s ease-out'
+        }}>
+          <div style={{ padding: '24px 28px', borderBottom: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)' }}>
+             <div>
+               <div style={{ fontWeight: 900, color: C.white, fontSize: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+                 <div style={{ width: 8, height: 8, borderRadius: '50%', background: C.green, boxShadow: `0 0 10px ${C.green}` }} />
+                 Kinematic AI
+               </div>
+               <div style={{ fontSize: 10, color: C.blue, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1.5, marginTop: 4 }}>Operations Assistant</div>
+             </div>
+             <button onClick={() => setMsgs([])} style={{ background: 'rgba(255,255,255,0.05)', border: `1px solid ${C.border}`, color: C.grayd, fontSize: 10, cursor: 'pointer', padding: '6px 12px', borderRadius: 10, fontWeight: 700 }}>Reset Cache</button>
           </div>
-          <div style={{flex:1, overflowY:'auto', padding:'15px'}}>
-            {msgs.length === 0 && <div style={{color:C.grayd, textAlign:'center', marginTop:100}}>How can I help you today?</div>}
-            {msgs.map((m,i)=>(
-              <div key={i} style={{marginBottom:15, textAlign:m.role==='user'?'right':'left'}}>
-                <div style={{display:'inline-block', background:m.role==='user'?C.redD:C.s3, padding:'8px 12px', borderRadius:12, fontSize:12, color:C.white, maxWidth:'80%'}} dangerouslySetInnerHTML={{__html:md(m.content||'...')}} />
+          
+          <div style={{ flex: 1, overflowY: 'auto', padding: '24px', display: 'flex', flexDirection: 'column', gap: 20, scrollBehavior: 'smooth' }}>
+            {msgs.length === 0 && (
+              <div style={{ textAlign: 'center', marginTop: 140 }}>
+                <div style={{ fontSize: 40, marginBottom: 16 }}>✦</div>
+                <div style={{ color: C.white, fontWeight: 700, fontSize: 18, marginBottom: 8 }}>How can I optimize your operations?</div>
+                <div style={{ color: C.grayd, fontSize: 13, maxWidth: 280, margin: '0 auto', lineHeight: 1.5 }}>I have access to your live attendance, performance data, and field activities.</div>
+              </div>
+            )}
+            {msgs.map((m, i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
+                <div style={{ 
+                  padding: '12px 18px', borderRadius: 20, fontSize: 14, lineHeight: 1.6, maxWidth: '85%',
+                  background: m.role === 'user' ? `linear-gradient(135deg, ${C.red}, ${C.red}DD)` : 'rgba(255,255,255,0.05)',
+                  color: C.white, border: m.role === 'user' ? 'none' : `1px solid rgba(255,255,255,0.05)`,
+                  boxShadow: m.role === 'user' ? '0 10px 20px rgba(224,30,44,0.15)' : 'none',
+                  animation: m.loading ? 'km-ai-shimmer 1.5s infinite' : 'none'
+                }}>
+                  {m.loading ? (
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.white }} />
+                      <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.white, opacity: 0.6 }} />
+                      <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.white, opacity: 0.3 }} />
+                    </div>
+                  ) : (
+                    <div dangerouslySetInnerHTML={{ __html: md(m.content) }} className="km-chat-content" />
+                  )}
+                </div>
               </div>
             ))}
             <div ref={endRef} />
           </div>
-          <div style={{padding:'10px', borderTop:`1px solid ${C.border}`, display:'flex', gap:8}}>
-            <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==='Enter'&&send()} style={{flex:1, background:C.s1, border:`1px solid ${C.border}`, borderRadius:8, padding:'8px', color:C.white}} placeholder="Type your message..." />
-            <button onClick={()=>send()} style={{background:C.red, border:'none', borderRadius:8, padding:'0 15px', color:'white'}}>Go</button>
+
+          <div style={{ padding: '20px 24px', background: 'rgba(0,0,0,0.2)', borderTop: `1px solid ${C.border}`, display: 'flex', gap: 12 }}>
+            <input 
+              value={input} 
+              onChange={e => setInput(e.target.value)} 
+              onKeyDown={e => e.key === 'Enter' && send()} 
+              disabled={busy}
+              style={{ flex: 1, background: 'rgba(255,255,255,0.03)', border: `1px solid ${C.border}`, borderRadius: 16, padding: '14px 20px', color: C.white, fontSize: 14, outline: 'none', transition: 'all 0.2s' }} 
+              placeholder="Ask anything about operations..." 
+            />
+            <button 
+              onClick={() => send()} 
+              disabled={busy || !input.trim()}
+              style={{ background: C.red, border: 'none', borderRadius: 16, width: 48, height: 48, color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: busy || !input.trim() ? 0.5 : 1 }}>
+              <Icon d="M5 12h14M12 5l7 7-7 7" size={20} />
+            </button>
           </div>
         </div>
       )}

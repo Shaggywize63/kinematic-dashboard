@@ -41,6 +41,10 @@ interface FormActivity {
   form_templates?: { title: string };
   builder_forms?: { title: string };
   gps?: string;
+  check_in_at?: string;
+  check_out_at?: string;
+  check_in_gps?: string;
+  check_out_gps?: string;
   form_responses?: any[];
 }
 
@@ -60,6 +64,18 @@ function fmtDate(ts?: string | null) {
 }
 function Spinner() {
   return <div style={{ width: 18, height: 18, border: '2.5px solid rgba(255,255,255,0.1)', borderTopColor: C.blue, borderRadius: '50%', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />;
+}
+
+function calcDuration(start?: string, end?: string) {
+  if (!start || !end) return null;
+  const s = new Date(start);
+  const e = new Date(end);
+  const diff = e.getTime() - s.getTime();
+  if (diff <= 0) return null;
+  const mins = Math.floor(diff / 60000);
+  const hrs = Math.floor(mins / 60);
+  if (hrs > 0) return `${hrs}h ${mins % 60}m`;
+  return `${mins}m`;
 }
 
 /* ── Submission Modal ────────────────────────────────────────── */
@@ -115,6 +131,60 @@ function SubmissionModal({ submission: initialSubmission, onClose }: { submissio
               <div style={{ fontSize: 12, color: C.grayd, marginTop: 2 }}>{fmt(displaySub.submitted_at)}</div>
             </div>
           </div>
+
+          {/* Activity Tracking Stats */}
+          {displaySub.check_in_at && (
+            <div style={{ padding: '16px 24px', background: 'rgba(62,158,255,0.06)', borderRadius: 20, border: `1px solid ${C.blue}20`, marginBottom: 32, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', gap: 24 }}>
+                <div>
+                  <div style={{ fontSize: 9, color: C.blue, fontWeight: 800, textTransform: 'uppercase', marginBottom: 4 }}>Check-in</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: C.white }}>{fmt(displaySub.check_in_at)}</div>
+                </div>
+                {displaySub.check_out_at && (
+                  <>
+                    <div style={{ width: 1, height: 24, background: `${C.blue}30`, alignSelf: 'center' }} />
+                    <div>
+                      <div style={{ fontSize: 9, color: C.blue, fontWeight: 800, textTransform: 'uppercase', marginBottom: 4 }}>Check-out</div>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: C.white }}>{fmt(displaySub.check_out_at)}</div>
+                    </div>
+                  </>
+                )}
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: 9, color: C.green, fontWeight: 800, textTransform: 'uppercase', marginBottom: 4 }}>Time Taken</div>
+                <div style={{ fontSize: 18, fontWeight: 900, color: C.green, fontFamily: "'Syne', sans-serif" }}>
+                  {calcDuration(displaySub.check_in_at, displaySub.check_out_at) || 'In-Progress'}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Geo-tagging Section */}
+          {(displaySub.check_in_gps || displaySub.check_out_gps) && (
+            <div style={{ marginBottom: 32 }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: C.grayd, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 12 }}>Activity Geo-tagging</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                {displaySub.check_in_gps && (
+                  <a href={`https://www.google.com/maps?q=${displaySub.check_in_gps}`} target="_blank" style={{ padding: '12px 16px', background: C.s3, borderRadius: 12, border: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
+                    <div style={{ width: 28, height: 28, borderRadius: 8, background: '#4CAF5020', color: '#4CAF50', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}>📍</div>
+                    <div>
+                      <div style={{ fontSize: 9, color: '#4CAF50', fontWeight: 800, textTransform: 'uppercase' }}>Check-in Location</div>
+                      <div style={{ fontSize: 11, color: C.white, fontWeight: 600 }}>View on Map</div>
+                    </div>
+                  </a>
+                )}
+                {displaySub.check_out_gps && (
+                  <a href={`https://www.google.com/maps?q=${displaySub.check_out_gps}`} target="_blank" style={{ padding: '12px 16px', background: C.s3, borderRadius: 12, border: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
+                    <div style={{ width: 28, height: 28, borderRadius: 8, background: '#E01E2C20', color: '#E01E2C', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}>📍</div>
+                    <div>
+                      <div style={{ fontSize: 9, color: '#E01E2C', fontWeight: 800, textTransform: 'uppercase' }}>Check-out Location</div>
+                      <div style={{ fontSize: 11, color: C.white, fontWeight: 600 }}>View on Map</div>
+                    </div>
+                  </a>
+                )}
+              </div>
+            </div>
+          )}
 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
             <div style={{ fontSize: 11, fontWeight: 800, color: C.grayd, textTransform: 'uppercase', letterSpacing: '1px' }}>Captured Data</div>
@@ -616,7 +686,29 @@ export default function WorkActivitiesPage() {
                         {feActivities.grouped[outletName].length} Submissions
                       </div>
                     </div>
-                    <button onClick={(e) => { e.stopPropagation(); downloadGroupCSV(outletName); }} className="wa-btn" style={{ padding: '6px 12px', background: C.s4, border: `1px solid ${C.border}`, color: C.gray, borderRadius: 8, fontSize: 11, fontWeight: 600 }}>↓ Export Group</button>
+                    
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                      {(() => {
+                        const group = feActivities.grouped[outletName];
+                        const checkIns = group.map(a => a.check_in_at).filter(Boolean) as string[];
+                        const checkOuts = group.map(a => a.check_out_at).filter(Boolean) as string[];
+                        if (checkIns.length > 0) {
+                          const minIn = new Date(Math.min(...checkIns.map(t => new Date(t).getTime()))).toISOString();
+                          const maxOut = checkOuts.length > 0 
+                            ? new Date(Math.max(...checkOuts.map(t => new Date(t).getTime()))).toISOString()
+                            : null;
+                          const duration = maxOut ? calcDuration(minIn, maxOut) : 'In-Progress';
+                          return (
+                            <div style={{ padding: '6px 14px', background: 'rgba(0,217,126,0.1)', border: `1px solid ${C.green}40`, borderRadius: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <div style={{ fontSize: 9, color: C.green, fontWeight: 800, textTransform: 'uppercase' }}>Visit Duration</div>
+                              <div style={{ fontSize: 14, fontWeight: 900, color: C.green, fontFamily: "'Syne', sans-serif" }}>{duration}</div>
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
+                      <button onClick={(e) => { e.stopPropagation(); downloadGroupCSV(outletName); }} className="wa-btn" style={{ padding: '6px 12px', background: C.s4, border: `1px solid ${C.border}`, color: C.gray, borderRadius: 8, fontSize: 11, fontWeight: 600 }}>↓ Export Group</button>
+                    </div>
                   </div>
 
                   {/* Submissions List */}
