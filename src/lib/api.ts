@@ -102,7 +102,7 @@ class ApiClient {
             email: demo.DEMO_USER_EMAIL,
             role: 'admin',
             is_active: true,
-            permissions: ['dashboard', 'analytics', 'users', 'attendance']
+            permissions: ['dashboard', 'analytics', 'users', 'attendance', 'zones', 'inventory']
           }
         }
       };
