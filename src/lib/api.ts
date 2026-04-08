@@ -1,3 +1,5 @@
+import * as demo from './demoMocks';
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 class ApiClient {
@@ -10,6 +12,14 @@ class ApiClient {
   private getToken(): string | null {
     if (typeof window === 'undefined') return null;
     return localStorage.getItem('kinematic_token');
+  }
+
+  private getUserEmail(): string | null {
+    if (typeof window === 'undefined') return null;
+    try {
+      const raw = localStorage.getItem('kinematic_user');
+      return raw ? JSON.parse(raw)?.email ?? null : null;
+    } catch { return null; }
   }
 
   private getOrgId(): string | null {
@@ -30,6 +40,28 @@ class ApiClient {
 
     const orgId = this.getOrgId();
     if (orgId && !headers['X-Org-Id']) headers['X-Org-Id'] = orgId;
+
+    // --- DEMO MODE INTERCEPTION (STRICTLY FOR DASHBOARD DATA) ---
+    const userEmail = this.getUserEmail();
+    if (userEmail === demo.DEMO_USER_EMAIL) {
+      if (path.includes('/analytics/summary')) return demo.mockSummary(new Date().toISOString().split('T')[0]) as T;
+      if (path.includes('/analytics/activity-feed')) return demo.mockFeed() as T;
+      if (path.includes('/analytics/tff-trends')) return demo.mockTrends() as T;
+      if (path.includes('/analytics/contact-heatmap')) return demo.mockHeatmap() as T;
+      if (path.includes('/analytics/dashboard-init')) return demo.mockDashboardInit() as T;
+      if (path.includes('/analytics/mobile-home')) return demo.mockDashboardInit() as T; 
+      
+      // NEW EXPANDED ROUTES
+      if (path.includes('/analytics/live-locations')) return demo.mockLocations() as T;
+      if (path.includes('/attendance/team')) return demo.mockAttendanceTeam() as T;
+      if (path.includes('/users') && !path.includes('/auth')) return demo.mockUsers() as T;
+      if (path.includes('/visits/team')) return demo.mockVisitLogs() as T;
+      if (path.includes('/forms/admin/submissions')) return demo.mockSubmissions() as T;
+      if (path.includes('/forms/submissions/')) return demo.mockSubmissionDetails() as T;
+      if (path.includes('/sos')) return demo.mockSOS() as T;
+      if (path.includes('/grievances')) return demo.mockGrievances() as T;
+      if (path.includes('/broadcast')) return demo.mockBroadcast() as T;
+    }
 
     const res = await fetch(`${this.baseUrl}${path}`, { ...options, headers });
 
@@ -57,6 +89,30 @@ class ApiClient {
 
   // ── Auth ──────────────────────────────────────────────────────────────────
   login(email: string, password: string) {
+    // --- DEMO LOGIN HIJACK ---
+    if (email.toLowerCase() === demo.DEMO_USER_EMAIL) {
+      const mockResult = {
+        success: true,
+        data: {
+          access_token: 'demo-token-jwt-placeholder',
+          user: {
+            id: 'demo-user-id',
+            org_id: 'demo-org-999',
+            name: 'Demo Admin',
+            email: demo.DEMO_USER_EMAIL,
+            role: 'admin',
+            is_active: true,
+            permissions: ['dashboard', 'analytics', 'users', 'attendance']
+          }
+        }
+      };
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('kinematic_token', mockResult.data.access_token);
+        localStorage.setItem('kinematic_user', JSON.stringify(mockResult.data.user));
+      }
+      return Promise.resolve(mockResult);
+    }
+
     return this.post<{ success: boolean; data: { user: object; access_token: string } }>(
       '/api/v1/auth/login',
       { email, password }
