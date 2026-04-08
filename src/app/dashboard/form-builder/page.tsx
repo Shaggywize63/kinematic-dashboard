@@ -118,6 +118,7 @@ function FormList({ onOpen, onCreate }:{ onOpen:(f:BForm)=>void; onCreate:()=>vo
   const [loading, setLoading] = useState(true);
   const [search,  setSearch]  = useState('');
   const [statusF, setStatusF] = useState('all');
+  const [showAIGen, setShowAIGen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -171,15 +172,21 @@ function FormList({ onOpen, onCreate }:{ onOpen:(f:BForm)=>void; onCreate:()=>vo
 
   return (
     <div style={{ padding:'28px 32px', overflowY:'auto', flex:1 }}>
+      {showAIGen && <AIGenerateModal onGenerated={onOpen} onClose={() => setShowAIGen(false)} />}
       {/* Header */}
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-end', marginBottom:24, flexWrap:'wrap', gap:12 }}>
         <div>
           <h1 style={{ fontFamily:"'Syne',sans-serif", fontSize:26, fontWeight:800, color:C.white, margin:0, letterSpacing:'-0.3px' }}>Form Builder</h1>
           <p style={{ fontSize:13, color:C.gray, margin:'4px 0 0', }}>Create and manage digital forms for field operations</p>
         </div>
-        <button onClick={onCreate} style={{ padding:'10px 20px', background:C.red, border:'none', borderRadius:10, color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", display:'flex', alignItems:'center', gap:8, boxShadow:`0 4px 18px ${C.redB}` }}>
-          + New Form
-        </button>
+        <div style={{ display:'flex', gap:12 }}>
+          <button onClick={() => setShowAIGen(true)} style={{ padding:'10px 20px', background:`linear-gradient(135deg, ${C.blue}, ${C.purple})`, border:'none', borderRadius:10, color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", display:'flex', alignItems:'center', gap:8, boxShadow:`0 4px 18px ${C.blue}25` }}>
+            ✨ AI Magic
+          </button>
+          <button onClick={onCreate} style={{ padding:'10px 20px', background:C.red, border:'none', borderRadius:10, color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", display:'flex', alignItems:'center', gap:8, boxShadow:`0 4px 18px ${C.redB}` }}>
+            + New Form
+          </button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -210,13 +217,24 @@ function FormList({ onOpen, onCreate }:{ onOpen:(f:BForm)=>void; onCreate:()=>vo
       {loading ? (
         <div style={{ display:'flex', justifyContent:'center', padding:60 }}><Spin size={24}/></div>
       ) : shown.length === 0 ? (
-        <div style={{ textAlign:'center', padding:'60px 20px', color:C.grayd }}>
-          <div style={{ fontSize:48, marginBottom:12 }}>📋</div>
-          <div style={{ fontSize:15, fontWeight:700, color:C.gray, marginBottom:8 }}>{search ? `No forms matching "${search}"` : 'No forms yet'}</div>
-          <div style={{ fontSize:13, color:C.grayd, marginBottom:20 }}>Create your first form to get started</div>
-          <button onClick={onCreate} style={{ padding:'10px 20px', background:C.red, border:'none', borderRadius:10, color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
-            + Create Form
-          </button>
+        <div style={{ textAlign:'center', padding:'80px 20px', display:'flex', flexDirection:'column', alignItems:'center' }}>
+          <div style={{ fontSize:60, marginBottom:20, animation:'km-pulse 2s infinite' }}>✨</div>
+          <h2 style={{ fontFamily:"'Syne',sans-serif", fontSize:24, fontWeight:800, color:C.white, marginBottom:8 }}>Start with AI or Build Manually</h2>
+          <p style={{ fontSize:14, color:C.gray, marginBottom:32, maxWidth:420, lineHeight:1.6 }}>Describe your field audit or survey challenge and let Claude design a professional multi-page form for you in seconds.</p>
+          
+          <div style={{ display:'flex', gap:20, flexWrap:'wrap', justifyContent:'center' }}>
+            <div onClick={() => setShowAIGen(true)} className="kbtn" style={{ width:240, background:C.s2, border:`1px solid ${C.blue}40`, padding:'30px 20px', borderRadius:20, cursor:'pointer', boxShadow:`0 10px 40px ${C.blue}15`, transition:'all .2s' }}>
+              <div style={{ fontSize:32, marginBottom:16 }}>🪄</div>
+              <div style={{ fontWeight:800, color:C.white, marginBottom:6 }}>AI Magic Synthesis</div>
+              <div style={{ fontSize:11, color:C.grayd }}>Describe a problem to get a full form structure.</div>
+            </div>
+
+            <div onClick={onCreate} className="kbtn" style={{ width:240, background:C.s2, border:`1px solid ${C.border}`, padding:'30px 20px', borderRadius:20, cursor:'pointer', transition:'all .2s' }}>
+              <div style={{ fontSize:32, marginBottom:16 }}>➕</div>
+              <div style={{ fontWeight:800, color:C.white, marginBottom:6 }}>Manual Creation</div>
+              <div style={{ fontSize:11, color:C.grayd }}>Build your form field by field from scratch.</div>
+            </div>
+          </div>
         </div>
       ) : (
         <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(280px, 1fr))', gap:16 }}>
@@ -259,6 +277,155 @@ function FormList({ onOpen, onCreate }:{ onOpen:(f:BForm)=>void; onCreate:()=>vo
         itemName={deleteForm?.title}
         loading={deleting}
       />
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   AI GENERATE MODAL
+   Premium, futuristic design for AI-driven synthesis
+══════════════════════════════════════════════════════════════════════════ */
+function AIGenerateModal({ onGenerated, onClose }:{ onGenerated:(f:BForm)=>void; onClose:()=>void }) {
+  const [problem, setProblem] = useState('');
+  const [status,  setStatus]  = useState<'idle'|'thinking'|'creating'|'finishing'>('idle');
+  const [stage,   setStage]   = useState('');
+  const [err,     setErr]     = useState('');
+
+  const STAGES = [
+    'Analyzing problem statement...',
+    'Identifying domain requirements...',
+    'Structuring multi-page canvas...',
+    'Synthesizing professional query types...',
+    'Optimizing field validations...',
+    'Applying Kinematic design tokens...',
+    'Finalizing AI synthesis...'
+  ];
+
+  useEffect(() => {
+    if (status === 'thinking') {
+      let i = 0;
+      const t = setInterval(() => {
+        setStage(STAGES[i % STAGES.length]);
+        i++;
+      }, 1500);
+      return () => clearInterval(t);
+    }
+  }, [status]);
+
+  const generate = async () => {
+    if (!problem.trim() || problem.length < 10) {
+      setErr('Please describe your challenge in at least 10 characters.');
+      return;
+    }
+    setErr('');
+    setStatus('thinking');
+    setStage(STAGES[0]);
+
+    try {
+      // 1. Get AI Structure
+      const res = await apiFetch<any>('/api/v1/ai/generate-form', { 
+        method:'POST', 
+        body: JSON.stringify({ problemStatement: problem }) 
+      });
+      
+      setStatus('creating');
+      const { form: aiForm, questions: aiQs } = res;
+
+      // 2. Create Form
+      const form = await apiFetch<BForm>('/api/v1/builder/forms', {
+        method:'POST',
+        body: JSON.stringify({ 
+          title: aiForm.title ||'AI Generated Form', 
+          description: aiForm.description,
+          icon: aiForm.icon || '✨',
+          cover_color: aiForm.cover_color || C.blue
+        })
+      });
+
+      // 3. Create Default Page
+      const page = await apiFetch<BPage>(`/api/v1/builder/forms/${form.id}/pages`, {
+        method:'POST',
+        body: JSON.stringify({ title: 'Standard Audit', page_order: 0 })
+      });
+
+      // 4. Create Questions sequentially
+      for (const [idx, q] of aiQs.entries()) {
+        await apiFetch(`/api/v1/builder/forms/${form.id}/questions`, {
+          method:'POST',
+          body: JSON.stringify({
+            ...q,
+            page_id: page.id,
+            q_order: idx,
+            options: q.options || [],
+            validation: {},
+            logic: [],
+            media_config: {}
+          })
+        });
+      }
+
+      setStatus('finishing');
+      setTimeout(() => onGenerated(form), 800);
+
+    } catch (e: any) {
+      console.error('AI Gen Failed:', e);
+      setErr(e.message || 'AI Synthesis failed. Please try a different prompt.');
+      setStatus('idle');
+    }
+  };
+
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.85)', zIndex:400, display:'flex', alignItems:'center', justifyContent:'center', backdropFilter:'blur(10px)' }}>
+      <div style={{ background:C.s2, border:`1px solid ${C.blue}40`, borderRadius:28, padding:'40px', width:520, boxShadow:`0 0 100px ${C.blue}20`, position:'relative', overflow:'hidden' }}>
+        
+        {/* Shimmer effect when thinking */}
+        {status !== 'idle' && (
+          <div style={{ position:'absolute', top:0, left:0, right:0, height:3, background:`linear-gradient(90deg, transparent, ${C.blue}, transparent)`, animation:'aiscan 2s linear infinite' }} />
+        )}
+
+        <button onClick={onClose} style={{ position:'absolute', top:24, right:24, background:'none', border:'none', color:C.gray, cursor:'pointer', fontSize:20 }}>✕</button>
+
+        <div style={{ textAlign:'center', marginBottom:32 }}>
+          <div style={{ fontSize:42, marginBottom:16, animation: status==='thinking' ? 'pulse 2s infinite' : 'none' }}>✨</div>
+          <h2 style={{ fontFamily:"'Syne',sans-serif", fontSize:24, fontWeight:800, color:C.white, margin:0 }}>AI Form Synthesis</h2>
+          <p style={{ fontSize:14, color:C.gray, marginTop:8 }}>Describe your field challenge and let Claude design the solution.</p>
+        </div>
+
+        {status === 'idle' ? (
+          <>
+            <div style={{ marginBottom:28 }}>
+              <label style={{ fontSize:11, fontWeight:700, color:C.blue, letterSpacing:'1px', textTransform:'uppercase', display:'block', marginBottom:10 }}>Problem Statement</label>
+              <textarea 
+                style={{ ...inpStyle, minHeight:120, fontSize:15, lineHeight:1.6, padding:16, border:`1.5px solid ${C.blue}30`, background:`${C.blue}05` }}
+                placeholder="e.g. I need to audit luxury furniture showrooms for display quality, inventory accuracy, and staff grooming standards across 10 cities."
+                value={problem}
+                onChange={e => setProblem(e.target.value)}
+              />
+            </div>
+
+            {err && <div style={{ background:`${C.red}15`, color:C.red, padding:'10px 14px', borderRadius:10, fontSize:13, marginBottom:20, border:`1px solid ${C.red}30` }}>{err}</div>}
+
+            <button onClick={generate} 
+              style={{ width:'100%', padding:'16px', background:`linear-gradient(135deg, ${C.blue}, ${C.purple})`, border:'none', borderRadius:14, color:'#fff', fontSize:15, fontWeight:800, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:10, boxShadow:`0 8px 24px ${C.blue}40` }}>
+              Generate Smart Form
+            </button>
+          </>
+        ) : (
+          <div style={{ textAlign:'center', padding:'20px 0' }}>
+            <div style={{ display:'flex', justifyContent:'center', marginBottom:24 }}><Spin size={40} /></div>
+            <div style={{ fontFamily:"'Syne',sans-serif", fontSize:18, fontWeight:700, color:C.white, marginBottom:8 }}>{stage}</div>
+            <div style={{ fontSize:13, color:C.grayd }}>Please wait while Claude synthesizes your requirements...</div>
+          </div>
+        )}
+
+        <style>{`
+          @keyframes aiscan { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+          @keyframes pulse { 0% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.1); opacity: 0.7; } 100% { transform: scale(1); opacity: 1; } }
+          @keyframes km-pulse { 0% { transform: scale(1); filter: drop-shadow(0 0 5px ${C.blue}40); } 50% { transform: scale(1.1); filter: drop-shadow(0 0 20px ${C.blue}80); } 100% { transform: scale(1); filter: drop-shadow(0 0 5px ${C.blue}40); } }
+          @keyframes fbspin { to { transform: rotate(360deg); } }
+          .kbtn:hover { border-color: ${C.blue} !important; transform: translateY(-4px); background: ${C.s3} !important; }
+        `}</style>
+      </div>
     </div>
   );
 }
