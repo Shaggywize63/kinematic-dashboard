@@ -319,3 +319,28 @@ export const mockInventory = () => ({
     { id: 'i2', name: 'Lux Rose 100g', sku_code: 'LX-402', category: 'Soap', is_active: true, unit: 'pcs', price: 35.00, created_at: new Date().toISOString() }
   ]
 });
+
+export const mockWarehouseSummary = () => ({
+  success: true,
+  data: {
+    warehouses: [
+      { id: 'wh1', name: 'Main Distribution Hub', warehouse_code: 'WH-DEL-01', type: 'distribution', city: 'Delhi', is_active: true, stats: { inbound: 450, outbound: 320, total_moves: 770 } },
+      { id: 'wh2', name: 'South Transit Point', warehouse_code: 'WH-BLR-02', type: 'transit', city: 'Bangalore', is_active: true, stats: { inbound: 120, outbound: 95, total_moves: 215 } },
+      { id: 'wh3', name: 'Mumbai Storage Center', warehouse_code: 'WH-MUM-01', type: 'storage', city: 'Mumbai', is_active: false, stats: { inbound: 0, outbound: 0, total_moves: 0 } }
+    ],
+    total_warehouses: 3,
+    active_warehouses: 2,
+    total_skus: 1560,
+    total_assets: 450,
+    total_movements_30d: 985
+  }
+});
+
+export const mockMovements = () => ({
+  success: true,
+  data: [
+    { id: 'm1', movement_type: 'inbound', quantity: 50, reference_no: 'PO-9912', from_location: 'Vendor A', to_location: 'Section A1', moved_at: new Date().toISOString(), sku: { id: 'i1', sku_code: 'CP-001', name: 'Clinic Plus 5ml' }, performer: { name: 'Arjun Sharma' } },
+    { id: 'm2', movement_type: 'outbound', quantity: 12, reference_no: 'ORD-440', from_location: 'Section B2', to_location: 'Reliance Fresh', moved_at: new Date(Date.now() - 3600000).toISOString(), asset: { id: 'ast1', asset_code: 'BRD-01', name: 'Branding Board' }, performer: { name: 'Priya Patel' } },
+    { id: 'm3', movement_type: 'transfer', quantity: 100, reference_no: 'TR-102', from_location: 'Main Block', to_location: 'South Block', moved_at: new Date(Date.now() - 7200000).toISOString(), sku: { id: 'i2', sku_code: 'LX-402', name: 'Lux Rose 100g' }, performer: { name: 'Rahul Verma' } }
+  ]
+});
