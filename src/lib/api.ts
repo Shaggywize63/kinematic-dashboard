@@ -244,7 +244,14 @@ class ApiClient {
     const qs = params ? '?' + new URLSearchParams(params).toString() : '';
     return this.get(`/api/v1/activities${qs}`);
   }
+
+  // ── Security Alerts ───────────────────────────────────────────────────────
+  getSecurityAlerts(params?: Record<string, string>) {
+    const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+    return this.get(`/api/v1/misc/security/alerts/all${qs}`);
+  }
 }
+
 
 export const api = new ApiClient(API_URL);
 export default api;
