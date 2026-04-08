@@ -255,3 +255,40 @@ export const mockBroadcast = () => ({
     { id: 'b1', title: 'Eid Mubarak!', message: 'Wishing everyone a happy and prosperous Eid. Enjoy the holiday!', created_at: new Date().toISOString(), status: 'active' }
   ]
 });
+
+export const mockCities = () => ({
+  success: true,
+  data: [
+    { id: 'c1', name: 'Bangalore', state: 'Karnataka', is_active: true },
+    { id: 'c2', name: 'Mumbai', state: 'Maharashtra', is_active: true },
+    { id: 'c3', name: 'Delhi', state: 'Delhi', is_active: true }
+  ]
+});
+
+export const mockZones = () => ({
+  success: true,
+  data: [
+    { id: 'z1', name: 'Koramangala 4th Block', city: 'Bangalore', is_active: true },
+    { id: 'z2', name: 'Andheri East', city: 'Mumbai', is_active: true },
+    { id: 'z3', name: 'Connaught Place', city: 'Delhi', is_active: true }
+  ]
+});
+
+export const mockClients = () => ({
+  success: true,
+  data: [
+    { id: 'cl1', name: 'Hindustan Unilever', is_active: true },
+    { id: 'cl2', name: 'ITC Limited', is_active: true },
+    { id: 'cl3', name: 'Nestle India', is_active: true }
+  ]
+});
+
+export const mockInventory = () => ({
+  success: true,
+  data: [
+    { id: 'i1', name: 'Clinic Plus 5ml', sku: 'CP-001', category: 'Shampoo', stock: 4500 },
+    { id: 'i2', name: 'Lux Rose 100g', sku: 'LX-402', category: 'Soap', stock: 1200 },
+    { id: 'i3', name: 'Pepsodent 150g', sku: 'PP-109', category: 'Oral Care', stock: 850 }
+  ]
+});
+
