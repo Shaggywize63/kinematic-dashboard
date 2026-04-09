@@ -1,4 +1,5 @@
 import * as demo from './demoMocks';
+import { isUUID } from './utils';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
@@ -41,7 +42,21 @@ class ApiClient {
     const orgId = this.getOrgId();
     if (orgId && !headers['X-Org-Id']) headers['X-Org-Id'] = orgId;
 
-    const res = await fetch(`${this.baseUrl}${path}`, { ...options, headers });
+    // GLOBAL PROTECTION: Strip non-UUID client_id from query string to prevent backend crashes
+    let safePath = path;
+    if (path.includes('client_id=')) {
+      safePath = path.replace(/client_id=([^&]*)/g, (match, val) => {
+        return isUUID(val) ? match : ''; // Remove if not uuid
+      })
+      .replace(/\?&/g, '?')  // Clean up ?&
+      .replace(/&&+/g, '&')  // Clean up &&
+      .replace(/[&?]$/, ''); // Clean up trailing & or ?
+      
+      // If we removed the only param, remove the ? too
+      if (safePath.endsWith('?')) safePath = safePath.slice(0, -1);
+    }
+
+    const res = await fetch(`${this.baseUrl}${safePath}`, { ...options, headers });
 
     if (res.status === 401) throw new Error('Unauthorized');
 
@@ -65,6 +80,16 @@ class ApiClient {
     return this.request<T>(path, { ...options, method: 'DELETE' });
   }
 
+  private sanitizeParams(params?: Record<string, string>) {
+    if (!params) return '';
+    const filtered = { ...params };
+    if (filtered.client_id && !isUUID(filtered.client_id)) {
+      delete filtered.client_id;
+    }
+    const qs = new URLSearchParams(filtered).toString();
+    return qs ? '?' + qs : '';
+  }
+
   // ── Auth ──────────────────────────────────────────────────────────────────
   login(email: string, password: string) {
     return this.post<{ success: boolean; data: { user: object; access_token: string } }>(
@@ -84,8 +109,7 @@ class ApiClient {
 
   // ── Field Executives ──────────────────────────────────────────────────────
   getFieldExecutives(params?: Record<string, string>) {
-    const qs = params ? '?' + new URLSearchParams(params).toString() : '';
-    return this.get(`/api/v1/users${qs}`);
+    return this.get(`/api/v1/users${this.sanitizeParams(params)}`);
   }
   getFieldExecutive(id: string) {
     return this.get(`/api/v1/users/${id}`);
@@ -96,25 +120,21 @@ class ApiClient {
 
   // ── Attendance ────────────────────────────────────────────────────────────
   getAttendanceTeam(params?: Record<string, string>) {
-    const qs = params ? '?' + new URLSearchParams(params).toString() : '';
-    return this.get(`/api/v1/attendance/team${qs}`);
+    return this.get(`/api/v1/attendance/team${this.sanitizeParams(params)}`);
   }
   getAttendanceHistory(params?: Record<string, string>) {
-    const qs = params ? '?' + new URLSearchParams(params).toString() : '';
-    return this.get(`/api/v1/attendance/history${qs}`);
+    return this.get(`/api/v1/attendance/history${this.sanitizeParams(params)}`);
   }
 
   // ── Forms (TFF Submissions) ────────────────────────────────────────────────
   getAdminSubmissions(params?: Record<string, string>) {
-    const qs = params ? '?' + new URLSearchParams(params).toString() : '';
-    return this.get(`/api/v1/forms/admin/submissions${qs}`);
+    return this.get(`/api/v1/forms/admin/submissions${this.sanitizeParams(params)}`);
   }
   getSubmission(id: string) {
     return this.get(`/api/v1/forms/submissions/${id}`);
   }
   getForms(params?: Record<string, string>) {
-    const qs = params ? '?' + new URLSearchParams(params).toString() : '';
-    return this.get(`/api/v1/forms/templates${qs}`);
+    return this.get(`/api/v1/forms/templates${this.sanitizeParams(params)}`);
   }
 
   // ── Grievances ────────────────────────────────────────────────────────────
@@ -128,8 +148,7 @@ class ApiClient {
 
   // ── Stock ─────────────────────────────────────────────────────────────────
   getStockAllocations(params?: Record<string, string>) {
-    const qs = params ? '?' + new URLSearchParams(params).toString() : '';
-    return this.get(`/api/v1/stock/allocations${qs}`);
+    return this.get(`/api/v1/stock/allocations${this.sanitizeParams(params)}`);
   }
   allocateStock(feId: string, items: Array<{ item_id: string; qty: number }>) {
     return this.post('/api/v1/stock/allocations', { fe_id: feId, items });
@@ -159,37 +178,31 @@ class ApiClient {
   // ── Visit Logs ────────────────────────────────────────────────────────────
   getVisitLogs() { return this.get('/api/v1/visits'); }
   getVisitLogTeam(date: string, clientId?: string) {
-    let qs = `?date=${date}`;
-    if (clientId) qs += `&client_id=${clientId}`;
-    return this.get(`/api/v1/visits/team${qs}`);
+    const params: Record<string, string> = { date };
+    if (clientId) params.client_id = clientId;
+    return this.get(`/api/v1/visits/team${this.sanitizeParams(params)}`);
   }
 
   // ── Users / Zones ─────────────────────────────────────────────────────────
   getUsers(params?: Record<string, string>) {
-    const qs = params ? '?' + new URLSearchParams(params).toString() : '';
-    return this.get(`/api/v1/users${qs}`);
+    return this.get(`/api/v1/users${this.sanitizeParams(params)}`);
   }
   getZones(params?: Record<string, string>) {
-    const qs = params ? '?' + new URLSearchParams(params).toString() : '';
-    return this.get(`/api/v1/zones${qs}`);
+    return this.get(`/api/v1/zones${this.sanitizeParams(params)}`);
   }
   getCities(params?: Record<string, string>) {
-    const qs = params ? '?' + new URLSearchParams(params).toString() : '';
-    return this.get(`/api/v1/cities${qs}`);
+    return this.get(`/api/v1/cities${this.sanitizeParams(params)}`);
   }
   getStores(params?: Record<string, string>) {
-    const qs = params ? '?' + new URLSearchParams(params).toString() : '';
-    return this.get(`/api/v1/stores${qs}`);
+    return this.get(`/api/v1/stores${this.sanitizeParams(params)}`);
   }
   getActivities(params?: Record<string, string>) {
-    const qs = params ? '?' + new URLSearchParams(params).toString() : '';
-    return this.get(`/api/v1/activities${qs}`);
+    return this.get(`/api/v1/activities${this.sanitizeParams(params)}`);
   }
 
   // ── Security Alerts ───────────────────────────────────────────────────────
   getSecurityAlerts(params?: Record<string, string>) {
-    const qs = params ? '?' + new URLSearchParams(params).toString() : '';
-    return this.get(`/api/v1/misc/security/alerts/all${qs}`);
+    return this.get(`/api/v1/misc/security/alerts/all${this.sanitizeParams(params)}`);
   }
 }
 

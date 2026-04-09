@@ -42,3 +42,7 @@ export function clamp(val: number, min: number, max: number): number {
 export function sleep(ms: number): Promise<void> {
   return new Promise(r => setTimeout(r, ms));
 }
+export function isUUID(str: string | null | undefined): boolean {
+  if (!str) return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(str);
+}

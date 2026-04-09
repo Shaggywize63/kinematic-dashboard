@@ -1,6 +1,7 @@
 
 'use client';
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { isUUID } from '@/lib/utils';
 
 interface ClientContextType {
   selectedClientId: string;
@@ -14,8 +15,11 @@ export function ClientProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const saved = localStorage.getItem('kinematic_selected_client');
-    if (saved) {
+    if (saved && isUUID(saved)) {
       setSelectedClientId(saved);
+    } else if (saved && saved !== '') {
+      // Clear invalid IDs (like 'cl1' or 'all')
+      localStorage.removeItem('kinematic_selected_client');
     }
   }, []);
 
