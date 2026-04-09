@@ -93,7 +93,7 @@ export default function SettingsPage() {
       
       const admins = allUsers.filter((u: any) => {
         const r = (u.role || '').toLowerCase().trim().replace(/-/g, '_');
-        return ['admin', 'sub_admin', 'city_manager', 'hr', 'mis', 'warehouse_manager', 'client', 'super_admin'].includes(r);
+        return ['admin', 'sub_admin', 'city_manager', 'hr', 'mis', 'warehouse_manager', 'client', 'super_admin', 'main_admin', 'master_admin'].includes(r) || r.includes('admin');
       });
       
       setUsers(admins);
