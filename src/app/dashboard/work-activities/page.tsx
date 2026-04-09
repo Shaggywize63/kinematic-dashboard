@@ -497,24 +497,26 @@ export default function WorkActivitiesPage() {
   const loadFE = useCallback(async (page = 1) => {
     setFELoading(true); setErr('');
     try {
-      const r = await api.getAdminSubmissions(buildParams(page)) as any;
-      const rows: FormActivity[] = Array.isArray(r) ? r : (r?.data ?? r?.submissions ?? []);
+      const resp = await api.getAdminSubmissions(buildParams(page)) as any;
+      const rows: FormActivity[] = Array.isArray(resp) ? resp : (resp?.data ?? resp?.submissions ?? []);
       
       const grouped: Record<string, FormActivity[]> = {};
       const order: string[] = [];
       
-      rows.forEach(s => {
-        const key = s.store_name || s.outlet_name || 'Individual Submissions';
-        if (!grouped[key]) {
-          grouped[key] = [];
-          order.push(key);
-        }
-        grouped[key].push(s);
-      });
+      if (Array.isArray(rows)) {
+        rows.forEach(s => {
+          const key = s.store_name || s.outlet_name || 'Individual Submissions';
+          if (!grouped[key]) {
+            grouped[key] = [];
+            order.push(key);
+          }
+          grouped[key].push(s);
+        });
+      }
 
       setFEActivities({ rows, grouped, order });
       
-      setFETotal(r?.total || r?.count || (r?.pagination?.total) || rows.length);
+      setFETotal(resp?.total || resp?.count || (resp?.pagination?.total) || rows.length);
       setFEPage(page);
     } catch (e: any) { setErr(e.message || 'Failed to load'); }
     finally { setFELoading(false); }
