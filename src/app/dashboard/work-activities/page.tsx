@@ -722,6 +722,11 @@ export default function WorkActivitiesPage() {
                         </div>
                         <div style={{ flex: 1 }}>
                           <div style={{ fontSize: 13, fontWeight: 600, color: C.blue }}>{a.activities?.name || a.builder_forms?.title || a.form_templates?.title || 'Form'}</div>
+                          {a.check_in_at && a.check_out_at && (
+                            <div style={{ fontSize: 10, color: C.green, fontWeight: 700, marginTop: 2 }}>
+                              ⏱ {calcDuration(a.check_in_at, a.check_out_at)}
+                            </div>
+                          )}
                         </div>
                         <div style={{ textAlign: 'right', flexShrink: 0 }}>
                           <div style={{ fontSize: 12, fontWeight: 600, color: C.white }}>{fmt(a.submitted_at)}</div>

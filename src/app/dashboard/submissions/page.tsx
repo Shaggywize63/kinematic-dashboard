@@ -167,7 +167,7 @@ export default function SubmissionsPage() {
             <table style={{ width:'100%', borderCollapse:'collapse' }}>
               <thead>
                 <tr style={{ borderBottom:`1px solid ${C.border}` }}>
-                  {['FE Name','Outlet','Template','Activity','TFF','Time','Details'].map(h => (
+                  {['FE Name','Outlet','Template','Activity','TFF','Time','Duration','Details'].map(h => (
                     <th key={h} style={{ padding:'10px 16px', textAlign:'left', fontSize:11, fontWeight:700, color:C.grayd, letterSpacing:'0.8px', textTransform:'uppercase' }}>{h}</th>
                   ))}
                 </tr>
@@ -191,9 +191,21 @@ export default function SubmissionsPage() {
                     <td style={{ padding:'12px 16px', fontSize:12, color:C.grayd }}>
                       {new Date(s.submitted_at).toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' })}
                     </td>
+                    <td style={{ padding:'12px 16px', fontSize:12, color:C.green, fontWeight:700 }}>
+                      {(() => {
+                        if (!s.check_in_at || !s.check_out_at) return '—';
+                        const start = new Date(s.check_in_at).getTime();
+                        const end = new Date(s.check_out_at).getTime();
+                        const diff = Math.floor((end - start) / 1000);
+                        if (diff <= 0) return '—';
+                        const m = Math.floor(diff / 60);
+                        const sec = diff % 60;
+                        return `${m}m ${sec}s`;
+                      })()}
+                    </td>
                     <td style={{ padding:'12px 16px' }}>
                       <button onClick={() => viewDetails(s)}
-                        style={{ fontSize:12, color:C.blue, background:'none', border:'none', cursor:'pointer', fontFamily:"'DM Sans',sans-serif", fontWeight:600 }}>
+                        style={{ fontSize:12, color:C.blue, background:'none', border:'none', cursor:'pointer', fontFamily:"DM Sans,sans-serif", fontWeight:600 }}>
                         View
                       </button>
                     </td>
