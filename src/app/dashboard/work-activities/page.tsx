@@ -498,7 +498,7 @@ export default function WorkActivitiesPage() {
     setFELoading(true); setErr('');
     try {
       const resp = await api.getAdminSubmissions(buildParams(page)) as any;
-      const rows: FormActivity[] = Array.isArray(resp) ? resp : (resp?.data ?? resp?.submissions ?? []);
+      const rows: FormActivity[] = Array.isArray(resp?.data) ? resp.data : (Array.isArray(resp) ? resp : (resp?.submissions ?? []));
       
       const grouped: Record<string, FormActivity[]> = {};
       const order: string[] = [];
@@ -516,8 +516,9 @@ export default function WorkActivitiesPage() {
 
       setFEActivities({ rows, grouped, order });
       
-      // FIX: Check nested pagination object from backend
-      setFETotal(resp?.pagination?.total || resp?.total || resp?.count || rows.length);
+      // FIX: Check for nested pagination object or direct count
+      const totalCount = resp?.pagination?.total ?? resp?.total ?? resp?.count ?? rows.length ?? 0;
+      setFETotal(totalCount);
       setFEPage(page);
     } catch (e: any) { setErr(e.message || 'Failed to load'); }
     finally { setFELoading(false); }
@@ -529,9 +530,10 @@ export default function WorkActivitiesPage() {
       const qs = selectedClientId ? `&client_id=${selectedClientId}` : '';
       const r = await api.get<any>(`/api/v1/visits/team?page=${page}&limit=${LIMIT}${qs}`);
       const d = r as any;
-      const rows = Array.isArray(d) ? d : (d?.data ?? d?.visits ?? []);
+      const rows = Array.isArray(d?.data) ? d.data : (Array.isArray(d) ? d : (d?.visits ?? []));
       setSvActivities(rows); 
-      setSvTotal(d?.pagination?.total || d?.total || d?.count || rows.length); 
+      const totalCount = d?.pagination?.total ?? d?.total ?? d?.count ?? rows.length ?? 0;
+      setSvTotal(totalCount); 
       setSvPage(page);
     } catch { setSvActivities([]); setSvTotal(0); }
     finally { setSvLoading(false); }
