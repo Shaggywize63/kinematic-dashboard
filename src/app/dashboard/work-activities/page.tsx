@@ -516,7 +516,8 @@ export default function WorkActivitiesPage() {
 
       setFEActivities({ rows, grouped, order });
       
-      setFETotal(resp?.total || resp?.count || (resp?.pagination?.total) || rows.length);
+      // FIX: Check nested pagination object from backend
+      setFETotal(resp?.pagination?.total || resp?.total || resp?.count || rows.length);
       setFEPage(page);
     } catch (e: any) { setErr(e.message || 'Failed to load'); }
     finally { setFELoading(false); }
@@ -529,7 +530,9 @@ export default function WorkActivitiesPage() {
       const r = await api.get<any>(`/api/v1/visits/team?page=${page}&limit=${LIMIT}${qs}`);
       const d = r as any;
       const rows = Array.isArray(d) ? d : (d?.data ?? d?.visits ?? []);
-      setSvActivities(rows); setSvTotal(d?.total || d?.count || rows.length); setSvPage(page);
+      setSvActivities(rows); 
+      setSvTotal(d?.pagination?.total || d?.total || d?.count || rows.length); 
+      setSvPage(page);
     } catch { setSvActivities([]); setSvTotal(0); }
     finally { setSvLoading(false); }
   }, [selectedClientId]);
