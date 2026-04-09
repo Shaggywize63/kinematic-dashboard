@@ -514,7 +514,7 @@ export default function WorkActivitiesPage() {
 
       setFEActivities({ rows, grouped, order });
       
-      setFETotal(r?.total || r?.count || rows.length);
+      setFETotal(r?.total || r?.count || (r?.pagination?.total) || rows.length);
       setFEPage(page);
     } catch (e: any) { setErr(e.message || 'Failed to load'); }
     finally { setFELoading(false); }
@@ -798,10 +798,10 @@ export default function WorkActivitiesPage() {
                   </div>
                   <div style={{ fontSize: 13, color: v.outlet_name ? C.white : C.grayd }}>{v.outlet_name || 'Generic Activity'}</div>
                   <div style={{ fontSize: 12, color: C.gray, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{v.notes || '—'}</div>
-                  <div style={{ fontSize: 12, color: C.gray }}>{v.users?.zones?.name || '—'}</div>
-                  <div style={{ fontSize: 12, color: C.grayd }}>
-                    <div style={{ color: C.white, fontWeight: 600 }}>{fmt(v.visited_at)}</div>
-                    <div>{fmtDate(v.visited_at)}</div>
+                  <div style={{ fontSize: 12, color: C.gray }}>{v.zones?.name || '—'}</div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: 12, color: C.white, fontWeight: 600 }}>{fmt(v.check_in_at)}</div>
+                    <div style={{ fontSize: 10, color: C.grayd }}>{fmtDate(v.check_in_at)}</div>
                   </div>
                 </div>
               ))}
@@ -809,16 +809,15 @@ export default function WorkActivitiesPage() {
 
             {svTotal > LIMIT && !svLoading && (
               <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 16 }}>
-                <button className="wa-btn" onClick={() => loadSV(svPage - 1)} disabled={svPage <= 1} style={{ padding: '8px 16px', background: C.s2, border: `1px solid ${C.border}`, color: svPage <= 1 ? C.grayd : C.white, borderRadius: 9, fontSize: 13, opacity: fePage <= 1 ? 0.4 : 1 }}>← Prev</button>
+                <button className="wa-btn" onClick={() => loadSV(svPage - 1)} disabled={svPage <= 1} style={{ padding: '8px 16px', background: C.s2, border: `1px solid ${C.border}`, color: svPage <= 1 ? C.grayd : C.white, borderRadius: 9, fontSize: 13 }}>← Prev</button>
                 <span style={{ padding: '8px 16px', color: C.gray, fontSize: 13 }}>Page {svPage} of {Math.ceil(svTotal / LIMIT)}</span>
-                <button className="wa-btn" onClick={() => loadSV(svPage + 1)} disabled={svPage >= Math.ceil(svTotal / LIMIT)} style={{ padding: '8px 16px', background: C.s2, border: `1px solid ${C.border}`, color: svPage >= Math.ceil(svTotal / LIMIT) ? C.grayd : C.white, borderRadius: 9, fontSize: 13, opacity: fePage >= Math.ceil(svTotal / LIMIT) ? 0.4 : 1 }}>Next →</button>
+                <button className="wa-btn" onClick={() => loadSV(svPage + 1)} disabled={svPage >= Math.ceil(svTotal / LIMIT)} style={{ padding: '8px 16px', background: C.s2, border: `1px solid ${C.border}`, color: svPage >= Math.ceil(svTotal / LIMIT) ? C.grayd : C.white, borderRadius: 9, fontSize: 13 }}>Next →</button>
               </div>
             )}
           </div>
         )}
-      </div>
 
-      {outletPanel && <OutletPanel outlet={outletPanel} onClose={() => setOutletPanel(null)} />}
+      </div>
     </>
   );
 }
