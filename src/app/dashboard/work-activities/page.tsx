@@ -699,9 +699,23 @@ export default function WorkActivitiesPage() {
                             : null;
                           const duration = maxOut ? calcDuration(minIn, maxOut) : 'In-Progress';
                           return (
-                            <div style={{ padding: '6px 14px', background: 'rgba(0,217,126,0.1)', border: `1px solid ${C.green}40`, borderRadius: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
-                              <div style={{ fontSize: 9, color: C.green, fontWeight: 800, textTransform: 'uppercase' }}>Visit Duration</div>
-                              <div style={{ fontSize: 14, fontWeight: 900, color: C.green, fontFamily: "'Syne', sans-serif" }}>{duration}</div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                              <div style={{ display: 'flex', gap: 12 }}>
+                                <div>
+                                  <div style={{ fontSize: 9, color: C.grayd, fontWeight: 800, textTransform: 'uppercase', marginBottom: 2 }}>First In</div>
+                                  <div style={{ fontSize: 13, fontWeight: 700, color: C.white }}>{fmt(minIn)}</div>
+                                </div>
+                                {maxOut && (
+                                  <div>
+                                    <div style={{ fontSize: 9, color: C.grayd, fontWeight: 800, textTransform: 'uppercase', marginBottom: 2 }}>Last Out</div>
+                                    <div style={{ fontSize: 13, fontWeight: 700, color: C.white }}>{fmt(maxOut)}</div>
+                                  </div>
+                                )}
+                              </div>
+                              <div style={{ padding: '6px 14px', background: 'rgba(0,217,126,0.1)', border: `1px solid ${C.green}40`, borderRadius: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <div style={{ fontSize: 9, color: C.green, fontWeight: 800, textTransform: 'uppercase' }}>Total Time Spent</div>
+                                <div style={{ fontSize: 14, fontWeight: 900, color: C.green, fontFamily: "'Syne', sans-serif" }}>{duration}</div>
+                              </div>
                             </div>
                           );
                         }
@@ -729,7 +743,6 @@ export default function WorkActivitiesPage() {
                           )}
                         </div>
                         <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                          <div style={{ fontSize: 12, fontWeight: 600, color: C.white }}>{fmt(a.submitted_at)}</div>
                           <div style={{ fontSize: 11, color: C.grayd }}>{fmtDate(a.submitted_at)}</div>
                         </div>
                         <div style={{ color: C.grayd, fontSize: 16 }}>›</div>
