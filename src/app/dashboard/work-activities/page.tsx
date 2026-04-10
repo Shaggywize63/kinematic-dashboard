@@ -488,7 +488,7 @@ export default function WorkActivitiesPage() {
     if (cityFilter) p.city_id = cityFilter;
     if (zoneFilter) p.zone_id = zoneFilter;
     if (dateFrom) p.date_from = dateFrom;
-    if (dateTo) p.date_to = `${dateTo}T23:59:59`;
+    if (dateTo) p.date_to = dateTo;
     if (selectedTemplateId) p.activity_id = selectedTemplateId;
     if (selectedClientId) p.client_id = selectedClientId;
     return p;
