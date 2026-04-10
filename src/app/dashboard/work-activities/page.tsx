@@ -78,6 +78,26 @@ function calcDuration(start?: string, end?: string) {
   return `${mins}m`;
 }
 
+function addDaysToISODate(dateISO: string, days: number): string {
+  const [y, m, d] = dateISO.split('-').map(Number);
+  const dt = new Date(y, (m || 1) - 1, d || 1);
+  dt.setDate(dt.getDate() + days);
+  const yyyy = dt.getFullYear();
+  const mm = String(dt.getMonth() + 1).padStart(2, '0');
+  const dd = String(dt.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function toLocalISODate(ts?: string | null): string | null {
+  if (!ts) return null;
+  const d = new Date(ts);
+  if (isNaN(d.getTime())) return null;
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 /* ── Submission Modal ────────────────────────────────────────── */
 function SubmissionModal({ submission: initialSubmission, onClose }: { submission: FormActivity | null; onClose: () => void }) {
   const [submission, setSubmission] = useState<FormActivity | null>(initialSubmission);
@@ -488,7 +508,9 @@ export default function WorkActivitiesPage() {
     if (cityFilter) p.city_id = cityFilter;
     if (zoneFilter) p.zone_id = zoneFilter;
     if (dateFrom) p.date_from = dateFrom;
-    if (dateTo) p.date_to = dateTo;
+    // Some backends treat date_to as an exclusive boundary.
+    // Send next day for inclusiveness, then enforce exact range client-side.
+    if (dateTo) p.date_to = addDaysToISODate(dateTo, 1);
     if (selectedTemplateId) p.activity_id = selectedTemplateId;
     // Note: client_id is intentionally omitted — the Railway backend
     // mistakenly uses the client_id value as an org_id filter, returning
@@ -500,7 +522,14 @@ export default function WorkActivitiesPage() {
     setFELoading(true); setErr('');
     try {
       const resp = await api.getAdminSubmissions(buildParams(page)) as any;
-      const rows: FormActivity[] = Array.isArray(resp?.data) ? resp.data : (Array.isArray(resp) ? resp : (resp?.submissions ?? []));
+      const rowsRaw: FormActivity[] = Array.isArray(resp?.data) ? resp.data : (Array.isArray(resp) ? resp : (resp?.submissions ?? []));
+      const rows = rowsRaw.filter((r) => {
+        const d = toLocalISODate(r.submitted_at);
+        if (!d) return true;
+        if (dateFrom && d < dateFrom) return false;
+        if (dateTo && d > dateTo) return false;
+        return true;
+      });
       
       const grouped: Record<string, FormActivity[]> = {};
       const order: string[] = [];
@@ -519,12 +548,14 @@ export default function WorkActivitiesPage() {
       setFEActivities({ rows, grouped, order });
       
       // FIX: Check for nested pagination object or direct count
-      const totalCount = resp?.pagination?.total ?? resp?.total ?? resp?.count ?? rows.length ?? 0;
+      const totalCount = (dateFrom || dateTo)
+        ? rows.length
+        : (resp?.pagination?.total ?? resp?.total ?? resp?.count ?? rows.length ?? 0);
       setFETotal(totalCount);
       setFEPage(page);
     } catch (e: any) { setErr(e.message || 'Failed to load'); }
     finally { setFELoading(false); }
-  }, [buildParams]);
+  }, [buildParams, dateFrom, dateTo]);
 
   const loadSV = useCallback(async (page = 1) => {
     setSvLoading(true);
