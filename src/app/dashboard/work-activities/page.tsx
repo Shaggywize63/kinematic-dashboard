@@ -48,6 +48,16 @@ interface FormActivity {
   form_responses?: any[];
 }
 
+function extractSubmissionRows(payload: any): FormActivity[] {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload?.rows)) return payload.rows;
+  if (Array.isArray(payload?.submissions)) return payload.submissions;
+  if (Array.isArray(payload?.data?.rows)) return payload.data.rows;
+  if (Array.isArray(payload?.data?.submissions)) return payload.data.submissions;
+  return [];
+}
+
 function fmt(ts?: string | null) {
   if (!ts) return '—';
   try {
@@ -278,8 +288,7 @@ function OutletPanel({
     const params: Record<string, string> = { limit: '50', user_id: outlet.user_id };
     if (outlet.outlet_id) params.outlet_id = outlet.outlet_id;
     api.getAdminSubmissions(params).then((r: any) => {
-      const rows = Array.isArray(r) ? r : (r?.data ?? r?.submissions ?? []);
-      setForms(rows);
+      setForms(extractSubmissionRows(r));
     }).catch(() => setForms([])).finally(() => setLoading(false));
   }, [outlet.outlet_id, outlet.user_id]);
 
@@ -522,7 +531,7 @@ export default function WorkActivitiesPage() {
     setFELoading(true); setErr('');
     try {
       const resp = await api.getAdminSubmissions(buildParams(page)) as any;
-      const rowsRaw: FormActivity[] = Array.isArray(resp?.data) ? resp.data : (Array.isArray(resp) ? resp : (resp?.submissions ?? []));
+      const rowsRaw: FormActivity[] = extractSubmissionRows(resp);
       const rows = rowsRaw.filter((r) => {
         const d = toLocalISODate(r.submitted_at);
         if (!d) return true;
@@ -550,7 +559,7 @@ export default function WorkActivitiesPage() {
       // FIX: Check for nested pagination object or direct count
       const totalCount = (dateFrom || dateTo)
         ? rows.length
-        : (resp?.pagination?.total ?? resp?.total ?? resp?.count ?? rows.length ?? 0);
+        : (resp?.pagination?.total ?? resp?.data?.pagination?.total ?? resp?.total ?? resp?.count ?? rows.length ?? 0);
       setFETotal(totalCount);
       setFEPage(page);
     } catch (e: any) { setErr(e.message || 'Failed to load'); }
