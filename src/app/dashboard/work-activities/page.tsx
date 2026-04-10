@@ -517,12 +517,34 @@ export default function WorkActivitiesPage() {
   const loadFE = useCallback(async (page = 1) => {
     setFELoading(true); setErr('');
     try {
-      const resp = await api.getAdminSubmissions(buildParams(page)) as any;
-      const rows: FormActivity[] = Array.isArray(resp?.data) ? resp.data : (Array.isArray(resp) ? resp : (resp?.submissions ?? []));
-      
+      const hasDateFilter = Boolean(dateFrom || dateTo);
+      const params = buildParams(page);
+
+      // Backend date filtering has been inconsistent for calendar-boundary submissions.
+      // When a date range is selected, fetch a wider slice and filter on client-side.
+      if (hasDateFilter) {
+        delete params.date_from;
+        delete params.date_to;
+        params.page = '1';
+        params.limit = '500';
+      }
+
+      const resp = await api.getAdminSubmissions(params) as any;
+      const rawRows: FormActivity[] = Array.isArray(resp?.data) ? resp.data : (Array.isArray(resp) ? resp : (resp?.submissions ?? []));
+
+      const rows = hasDateFilter
+        ? rawRows.filter((s) => {
+            const d = toLocalISODate(s.submitted_at);
+            if (!d) return false;
+            if (dateFrom && d < dateFrom) return false;
+            if (dateTo && d > dateTo) return false;
+            return true;
+          })
+        : rawRows;
+
       const grouped: Record<string, FormActivity[]> = {};
       const order: string[] = [];
-      
+
       if (Array.isArray(rows)) {
         rows.forEach(s => {
           const key = s.store_name || s.outlet_name || 'Individual Submissions';
@@ -535,9 +557,7 @@ export default function WorkActivitiesPage() {
       }
 
       setFEActivities({ rows, grouped, order });
-      
-      // FIX: Check for nested pagination object or direct count
-      const totalCount = (dateFrom || dateTo)
+      const totalCount = hasDateFilter
         ? rows.length
         : (resp?.pagination?.total ?? resp?.total ?? resp?.count ?? rows.length ?? 0);
       setFETotal(totalCount);
