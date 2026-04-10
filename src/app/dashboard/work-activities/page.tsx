@@ -507,14 +507,9 @@ export default function WorkActivitiesPage() {
     if (userFilter) p.user_id = userFilter;
     if (cityFilter) p.city_id = cityFilter;
     if (zoneFilter) p.zone_id = zoneFilter;
-    if (dateFrom) p.date_from = dateFrom;
-    // Some backends treat date_to as an exclusive boundary.
-    // Send next day for inclusiveness, then enforce exact range client-side.
-    if (dateTo) p.date_to = addDaysToISODate(dateTo, 1);
+    if (dateTo) p.date_to = dateTo;
     if (selectedTemplateId) p.activity_id = selectedTemplateId;
-    // Note: client_id is intentionally omitted — the Railway backend
-    // mistakenly uses the client_id value as an org_id filter, returning
-    // zero results. The org is determined from the JWT instead.
+    if (selectedClientId) p.client_id = selectedClientId;
     return p;
   }, [search, userFilter, cityFilter, zoneFilter, dateFrom, dateTo, selectedTemplateId]);
 
@@ -522,14 +517,7 @@ export default function WorkActivitiesPage() {
     setFELoading(true); setErr('');
     try {
       const resp = await api.getAdminSubmissions(buildParams(page)) as any;
-      const rowsRaw: FormActivity[] = Array.isArray(resp?.data) ? resp.data : (Array.isArray(resp) ? resp : (resp?.submissions ?? []));
-      const rows = rowsRaw.filter((r) => {
-        const d = toLocalISODate(r.submitted_at);
-        if (!d) return true;
-        if (dateFrom && d < dateFrom) return false;
-        if (dateTo && d > dateTo) return false;
-        return true;
-      });
+      const rows: FormActivity[] = Array.isArray(resp?.data) ? resp.data : (Array.isArray(resp) ? resp : (resp?.submissions ?? []));
       
       const grouped: Record<string, FormActivity[]> = {};
       const order: string[] = [];
