@@ -271,6 +271,15 @@ export default function WorkActivitiesPage() {
         )}
       </div>
 
+      <div style={{ marginBottom: '16px', fontSize: '11px', color: C.textSec, background: C.card, padding: '8px 16px', borderRadius: '10px', display: 'flex', gap: '16px', border: `1px solid ${C.border}` }}>
+          <span><b>ACTIVE FILTERS:</b></span>
+          <span>Date: {dateFrom} to {dateTo}</span>
+          {cityFilter && <span>City: {cities.find(c => c.id === cityFilter)?.name || cityFilter}</span>}
+          {userFilter && <span>Exec: {users.find(u => u.id === userFilter)?.name || userFilter}</span>}
+          {search && <span>Store: {search}</span>}
+          <span style={{ marginLeft: 'auto', color: C.accent }}>API Status: {loading ? 'FETCHING...' : 'READY'} | Records: {total}</span>
+      </div>
+
       {/* Main Grid: Outlet Visits */}
       <div style={{ display: 'grid', gap: '24px' }}>
         {loading ? (
@@ -282,6 +291,16 @@ export default function WorkActivitiesPage() {
                 <div style={{ color: C.textSec, marginTop: '8px', maxWidth: '300px', margin: '8px auto' }}>
                   No submissions found for the selected filters. {dateFrom === dateTo ? `Checking ${fmtDate(dateFrom)} only.` : `Checking from ${fmtDate(dateFrom)} to ${fmtDate(dateTo)}.`}
                 </div>
+                <button 
+                  onClick={() => {
+                    setSearch(''); setCityFilter(''); setUserFilter(''); setActivityFilter('');
+                    const d = new Date(); d.setDate(d.getDate() - 2); setDateFrom(d.toISOString().split('T')[0]);
+                    setDateTo(new Date().toISOString().split('T')[0]);
+                  }}
+                  style={{ marginTop: '20px', padding: '8px 20px', background: 'transparent', border: `1px solid ${C.accent}`, borderRadius: '8px', color: C.accent, cursor: 'pointer', fontWeight: 600 }}
+                >
+                  Clear All Filters
+                </button>
              </div>
         ) : groupedData.map((group, idx) => {
             const first = group[0];
