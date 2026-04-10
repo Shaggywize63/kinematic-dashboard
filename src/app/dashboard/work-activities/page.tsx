@@ -91,6 +91,8 @@ export default function WorkActivitiesPage() {
 
   // UI State
   const [expandedOutlet, setExpandedOutlet] = useState<string | null>(null);
+  const [detailedSub, setDetailedSub] = useState<any>(null);
+  const [viewingId, setViewingId] = useState<string | null>(null);
 
   // Initial Data
   useEffect(() => {
@@ -319,10 +321,15 @@ export default function WorkActivitiesPage() {
                                             </div>
                                         </div>
                                         <button 
-                                            onClick={(e) => { e.stopPropagation(); window.open(`/dashboard/submissions?id=${f.id}`, '_blank'); }}
+                                            onClick={async (e) => { 
+                                                e.stopPropagation(); 
+                                                setViewingId(f.id);
+                                                const res = await api.getSubmission(f.id);
+                                                setDetailedSub(res?.data || res || null);
+                                            }}
                                             style={{ padding: '6px 12px', background: 'transparent', border: `1px solid ${C.accent}`, borderRadius: '6px', color: C.accent, fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
                                         >
-                                            View Data
+                                            {viewingId === f.id ? 'Loading...' : 'View Data'}
                                         </button>
                                     </div>
                                 ))}
@@ -343,6 +350,46 @@ export default function WorkActivitiesPage() {
           </div>
       )}
 
+      {/* detail modal */}
+      {detailedSub && (
+          <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(5px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px' }} onClick={() => { setDetailedSub(null); setViewingId(null); }}>
+              <div style={{ background: C.card, width: '100%', maxWidth: '800px', maxHeight: '90vh', overflowY: 'auto', borderRadius: '24px', border: `1px solid ${C.border}`, padding: '40px' }} onClick={e => e.stopPropagation()}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '32px' }}>
+                      <h2 style={{ margin: 0, fontSize: '24px', fontWeight: 800 }}>Submission Details</h2>
+                      <button onClick={() => { setDetailedSub(null); setViewingId(null); }} style={{ background: 'transparent', border: 'none', color: C.textSec, cursor: 'pointer', fontSize: '24px' }}>×</button>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '40px' }}>
+                      <div style={{ padding: '16px', background: C.bg, borderRadius: '12px' }}>
+                          <div style={{ fontSize: '10px', color: C.accent, fontWeight: 800 }}>EXECUTIVE</div>
+                          <div style={{ fontWeight: 700 }}>{detailedSub.users?.name || 'FE'}</div>
+                      </div>
+                      <div style={{ padding: '16px', background: C.bg, borderRadius: '12px' }}>
+                          <div style={{ fontSize: '10px', color: C.accent, fontWeight: 800 }}>OUTLET</div>
+                          <div style={{ fontWeight: 700 }}>{detailedSub.outlet_name || 'Individual'}</div>
+                      </div>
+                      <div style={{ padding: '16px', background: C.bg, borderRadius: '12px' }}>
+                          <div style={{ fontSize: '10px', color: C.accent, fontWeight: 800 }}>TIME</div>
+                          <div style={{ fontWeight: 700 }}>{fmtTime(detailedSub.submitted_at)}</div>
+                      </div>
+                      <div style={{ padding: '16px', background: C.bg, borderRadius: '12px' }}>
+                          <div style={{ fontSize: '10px', color: C.accent, fontWeight: 800 }}>ADDRESS</div>
+                          <div style={{ fontWeight: 700, fontSize: '12px' }}>{detailedSub.address || 'GPS Only'}</div>
+                      </div>
+                  </div>
+
+                  <h3 style={{ fontSize: '12px', letterSpacing: '2px', color: C.textSec, marginBottom: '20px' }}>FORM RESPONSES</h3>
+                  <div style={{ display: 'grid', gap: '12px' }}>
+                      {(detailedSub.form_responses || []).map((r: any, idx: number) => (
+                          <div key={idx} style={{ padding: '20px', background: C.bg, borderRadius: '16px', border: `1px solid ${C.border}` }}>
+                              <div style={{ fontSize: '13px', fontWeight: 600, color: C.textSec, marginBottom: '8px' }}>{r.builder_questions?.label || 'Question'}</div>
+                              <div style={{ fontWeight: 700, fontSize: '15px' }}>{r.value_text || r.value_number || r.value_bool?.toString() || '—'}</div>
+                          </div>
+                      ))}
+                  </div>
+              </div>
+          </div>
+      )}
     </div>
   );
 }
