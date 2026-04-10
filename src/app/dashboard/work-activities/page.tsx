@@ -127,7 +127,7 @@ export default function WorkActivitiesPage() {
   const groupedData = useMemo(() => {
     const map = new Map<string, FormActivity[]>();
     data.forEach(item => {
-      const datePart = item.submitted_at.split('T')[0];
+      const datePart = item.submitted_at?.split('T')[0] || '1970-01-01';
       const key = `${item.outlet_name || 'Individual'}_${item.user_id}_${datePart}`;
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(item);
@@ -320,10 +320,6 @@ export default function WorkActivitiesPage() {
           </div>
       )}
 
-      <style jsx global>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
-        body { margin: 0; background: ${C.bg}; }
-      `}</style>
     </div>
   );
 }
