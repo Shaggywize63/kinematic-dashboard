@@ -490,9 +490,11 @@ export default function WorkActivitiesPage() {
     if (dateFrom) p.date_from = dateFrom;
     if (dateTo) p.date_to = dateTo;
     if (selectedTemplateId) p.activity_id = selectedTemplateId;
-    if (selectedClientId) p.client_id = selectedClientId;
+    // Note: client_id is intentionally omitted — the Railway backend
+    // mistakenly uses the client_id value as an org_id filter, returning
+    // zero results. The org is determined from the JWT instead.
     return p;
-  }, [search, userFilter, cityFilter, zoneFilter, dateFrom, dateTo, selectedTemplateId, selectedClientId]);
+  }, [search, userFilter, cityFilter, zoneFilter, dateFrom, dateTo, selectedTemplateId]);
 
   const loadFE = useCallback(async (page = 1) => {
     setFELoading(true); setErr('');
