@@ -275,7 +275,7 @@ export default function WorkActivitiesPage() {
           <span><b>ACTIVE FILTERS:</b></span>
           <span>Date: {dateFrom} to {dateTo}</span>
           {cityFilter && <span>City: {cities.find(c => c.id === cityFilter)?.name || cityFilter}</span>}
-          {userFilter && <span>Exec: {users.find(u => u.id === userFilter)?.name || userFilter}</span>}
+          {userFilter && <span>Exec: {users.find(u => u.id === userFilter)?.name || userFilter} ({userFilter.slice(0, 6)})</span>}
           {search && <span>Store: {search}</span>}
           <span style={{ marginLeft: 'auto', color: C.accent }}>API Status: {loading ? 'FETCHING...' : 'READY'} | Records: {total}</span>
       </div>
