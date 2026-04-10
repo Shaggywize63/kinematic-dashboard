@@ -110,9 +110,10 @@ export default function WorkActivitiesPage() {
         activity_id: activityFilter
       };
       const res: any = await api.getAdminSubmissions(params);
-      const rows = res?.data || res?.submissions || [];
-      setData(rows);
-      setTotal(res?.pagination?.total || rows.length);
+      // Backend returns { success: true, data: { data: [], pagination: {} } }
+      const rows = res?.data?.data || res?.data || res?.submissions || [];
+      setData(Array.isArray(rows) ? rows : []);
+      setTotal(res?.data?.pagination?.total || rows.length || 0);
       setPage(p);
     } catch {
       setData([]);
