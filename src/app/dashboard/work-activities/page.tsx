@@ -204,7 +204,23 @@ export default function WorkActivitiesPage() {
           </div>
         </div>
 
-        <div style={{ width: '180px' }}>
+        <div style={{ width: '150px' }}>
+          <label style={{ display: 'block', fontSize: '10px', fontWeight: 800, color: C.accent, textTransform: 'uppercase', marginBottom: '6px' }}>City</label>
+          <select value={cityFilter} onChange={e => setCityFilter(e.target.value)} style={{ width: '100%', background: 'transparent', border: `1px solid ${C.border}`, color: C.text, padding: '4px', borderRadius: '8px', fontSize: '12px', outline: 'none' }}>
+            <option value="">All Cities</option>
+            {cities.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </div>
+
+        <div style={{ width: '150px' }}>
+          <label style={{ display: 'block', fontSize: '10px', fontWeight: 800, color: C.accent, textTransform: 'uppercase', marginBottom: '6px' }}>Executive</label>
+          <select value={userFilter} onChange={e => setUserFilter(e.target.value)} style={{ width: '100%', background: 'transparent', border: `1px solid ${C.border}`, color: C.text, padding: '4px', borderRadius: '8px', fontSize: '12px', outline: 'none' }}>
+            <option value="">All Executives</option>
+            {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+          </select>
+        </div>
+
+        <div style={{ width: '150px' }}>
           <label style={{ display: 'block', fontSize: '10px', fontWeight: 800, color: C.accent, textTransform: 'uppercase', marginBottom: '6px' }}>Activity Type</label>
           <select value={activityFilter} onChange={e => setActivityFilter(e.target.value)} style={{ width: '100%', background: 'transparent', border: `1px solid ${C.border}`, color: C.text, padding: '4px', borderRadius: '8px', fontSize: '12px', outline: 'none' }}>
             <option value="">All Activities</option>
@@ -212,10 +228,10 @@ export default function WorkActivitiesPage() {
           </select>
         </div>
 
-        <div style={{ width: '220px' }}>
-          <label style={{ display: 'block', fontSize: '10px', fontWeight: 800, color: C.accent, textTransform: 'uppercase', marginBottom: '6px' }}>Search Executive / Store</label>
+        <div style={{ width: '180px' }}>
+          <label style={{ display: 'block', fontSize: '10px', fontWeight: 800, color: C.accent, textTransform: 'uppercase', marginBottom: '6px' }}>Search Store</label>
           <input 
-            placeholder="Search..." 
+            placeholder="Search store..." 
             value={search} 
             onChange={e => setSearch(e.target.value)} 
             style={{ width: '100%', background: 'transparent', border: `1px solid ${C.border}`, color: C.text, padding: '6px 12px', borderRadius: '8px', fontSize: '12px', outline: 'none' }} 
