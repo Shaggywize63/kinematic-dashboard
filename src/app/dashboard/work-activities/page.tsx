@@ -508,7 +508,7 @@ export default function WorkActivitiesPage() {
     if (cityFilter) p.city_id = cityFilter;
     if (zoneFilter) p.zone_id = zoneFilter;
     if (dateFrom) p.date_from = dateFrom;
-    if (dateTo) p.date_to = dateTo;
+    if (dateTo) p.date_to = addDaysToISODate(dateTo, 1);
     if (selectedTemplateId) p.activity_id = selectedTemplateId;
     if (selectedClientId) p.client_id = selectedClientId;
     return p;
@@ -518,7 +518,14 @@ export default function WorkActivitiesPage() {
     setFELoading(true); setErr('');
     try {
       const resp = await api.getAdminSubmissions(buildParams(page)) as any;
-      const rows: FormActivity[] = Array.isArray(resp?.data) ? resp.data : (Array.isArray(resp) ? resp : (resp?.submissions ?? []));
+      const rowsRaw: FormActivity[] = Array.isArray(resp?.data) ? resp.data : (Array.isArray(resp) ? resp : (resp?.submissions ?? []));
+      const rows = rowsRaw.filter((r) => {
+        const d = toLocalISODate(r.submitted_at);
+        if (!d) return true;
+        if (dateFrom && d < dateFrom) return false;
+        if (dateTo && d > dateTo) return false;
+        return true;
+      });
       
       const grouped: Record<string, FormActivity[]> = {};
       const order: string[] = [];
