@@ -507,11 +507,12 @@ export default function WorkActivitiesPage() {
     if (userFilter) p.user_id = userFilter;
     if (cityFilter) p.city_id = cityFilter;
     if (zoneFilter) p.zone_id = zoneFilter;
+    if (dateFrom) p.date_from = dateFrom;
     if (dateTo) p.date_to = dateTo;
     if (selectedTemplateId) p.activity_id = selectedTemplateId;
     if (selectedClientId) p.client_id = selectedClientId;
     return p;
-  }, [search, userFilter, cityFilter, zoneFilter, dateFrom, dateTo, selectedTemplateId]);
+  }, [search, userFilter, cityFilter, zoneFilter, dateFrom, dateTo, selectedTemplateId, selectedClientId]);
 
   const loadFE = useCallback(async (page = 1) => {
     setFELoading(true); setErr('');
