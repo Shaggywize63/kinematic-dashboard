@@ -42,24 +42,21 @@ class ApiClient {
     const orgId = this.getOrgId();
     if (orgId && !headers['X-Org-Id']) headers['X-Org-Id'] = orgId;
 
-    // GLOBAL PROTECTION: Strip non-UUID client_id from query string to prevent backend crashes
+    // GLOBAL PROTECTION: Strip invalid client_id, but ALLOW "Kinematic"
     let safePath = path;
     if (path.includes('client_id=')) {
       safePath = path.replace(/client_id=([^&]*)/g, (match, val) => {
-        return isUUID(val) ? match : ''; // Remove if not uuid
+        // ALLOW "Kinematic" and any UUID
+        return (val === 'Kinematic' || isUUID(val)) ? match : '';
       })
-      .replace(/\?&/g, '?')  // Clean up ?&
-      .replace(/&&+/g, '&')  // Clean up &&
-      .replace(/[&?]$/, ''); // Clean up trailing & or ?
-      
-      // If we removed the only param, remove the ? too
+      .replace(/\?&/g, '?')
+      .replace(/&&+/g, '&')
+      .replace(/[&?]$/, '');
       if (safePath.endsWith('?')) safePath = safePath.slice(0, -1);
     }
 
     const res = await fetch(`${this.baseUrl}${safePath}`, { ...options, headers });
-
     if (res.status === 401) throw new Error('Unauthorized');
-
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || data.message || 'Request failed');
     return data;
@@ -72,7 +69,6 @@ class ApiClient {
   put<T>(path: string, body: unknown, options: RequestInit = {}) {
     return this.request<T>(path, { ...options, method: 'PUT', body: JSON.stringify(body) });
   }
-  // ADDED: PATCH method (needed for grievances and other updates)
   patch<T>(path: string, body: unknown, options: RequestInit = {}) {
     return this.request<T>(path, { ...options, method: 'PATCH', body: JSON.stringify(body) });
   }
@@ -83,7 +79,8 @@ class ApiClient {
   private sanitizeParams(params?: Record<string, string>) {
     if (!params) return '';
     const filtered = { ...params };
-    if (filtered.client_id && !isUUID(filtered.client_id)) {
+    // ALLOW "Kinematic"
+    if (filtered.client_id && filtered.client_id !== 'Kinematic' && !isUUID(filtered.client_id)) {
       delete filtered.client_id;
     }
     const qs = new URLSearchParams(filtered).toString();
@@ -98,8 +95,6 @@ class ApiClient {
     );
   }
 
-  // ── Analytics ─────────────────────────────────────────────────────────────
-  // FIXED: correct endpoints are /analytics/summary and /analytics/activity-feed
   getAnalyticsSummary(period: string) {
     return this.get(`/api/v1/analytics/summary?period=${period}`);
   }
@@ -107,7 +102,6 @@ class ApiClient {
     return this.get('/api/v1/analytics/activity-feed');
   }
 
-  // ── Field Executives ──────────────────────────────────────────────────────
   getFieldExecutives(params?: Record<string, string>) {
     return this.get(`/api/v1/users${this.sanitizeParams(params)}`);
   }
@@ -118,7 +112,6 @@ class ApiClient {
     return this.patch(`/api/v1/users/${id}`, data);
   }
 
-  // ── Attendance ────────────────────────────────────────────────────────────
   getAttendanceTeam(params?: Record<string, string>) {
     return this.get(`/api/v1/attendance/team${this.sanitizeParams(params)}`);
   }
@@ -126,7 +119,6 @@ class ApiClient {
     return this.get(`/api/v1/attendance/history${this.sanitizeParams(params)}`);
   }
 
-  // ── Forms (TFF Submissions) ────────────────────────────────────────────────
   getAdminSubmissions(params?: Record<string, string>) {
     return this.get(`/api/v1/forms/admin/submissions${this.sanitizeParams(params)}`);
   }
@@ -137,8 +129,6 @@ class ApiClient {
     return this.get(`/api/v1/forms/templates${this.sanitizeParams(params)}`);
   }
 
-  // ── Grievances ────────────────────────────────────────────────────────────
-  // FIXED: correct endpoints — GET /grievances (admin), PATCH /grievances/:id
   getGrievances() {
     return this.get('/api/v1/grievances');
   }
@@ -146,7 +136,6 @@ class ApiClient {
     return this.patch(`/api/v1/grievances/${id}`, data);
   }
 
-  // ── Stock ─────────────────────────────────────────────────────────────────
   getStockAllocations(params?: Record<string, string>) {
     return this.get(`/api/v1/stock/allocations${this.sanitizeParams(params)}`);
   }
@@ -157,25 +146,20 @@ class ApiClient {
     return this.patch(`/api/v1/stock/items/${id}`, data);
   }
 
-  // ── Broadcast ─────────────────────────────────────────────────────────────
   getBroadcast() { return this.get('/api/v1/broadcast'); }
   createBroadcast(data: object) { return this.post('/api/v1/broadcast', data); }
   getBroadcastResponses(id: string) { return this.get(`/api/v1/broadcast/${id}/responses`); }
   closeBroadcast(id: string) { return this.patch(`/api/v1/broadcast/${id}/close`, {}); }
 
-  // ── Notifications ─────────────────────────────────────────────────────────
   getNotifications() { return this.get('/api/v1/notifications'); }
   markNotificationsRead() { return this.patch('/api/v1/notifications/read', {}); }
 
-  // ── Leaderboard ───────────────────────────────────────────────────────────
   getLeaderboard() { return this.get('/api/v1/leaderboard'); }
 
-  // ── SOS ───────────────────────────────────────────────────────────────────
   getSOSAlerts() { return this.get('/api/v1/sos'); }
   acknowledgeSOSAlert(id: string) { return this.patch(`/api/v1/sos/${id}/acknowledge`, {}); }
   resolveSOSAlert(id: string) { return this.patch(`/api/v1/sos/${id}/resolve`, {}); }
 
-  // ── Visit Logs ────────────────────────────────────────────────────────────
   getVisitLogs() { return this.get('/api/v1/visits'); }
   getVisitLogTeam(date: string, clientId?: string) {
     const params: Record<string, string> = { date };
@@ -183,7 +167,6 @@ class ApiClient {
     return this.get(`/api/v1/visits/team${this.sanitizeParams(params)}`);
   }
 
-  // ── Users / Zones ─────────────────────────────────────────────────────────
   getUsers(params?: Record<string, string>) {
     return this.get(`/api/v1/users${this.sanitizeParams(params)}`);
   }
@@ -200,12 +183,10 @@ class ApiClient {
     return this.get(`/api/v1/activities${this.sanitizeParams(params)}`);
   }
 
-  // ── Security Alerts ───────────────────────────────────────────────────────
   getSecurityAlerts(params?: Record<string, string>) {
     return this.get(`/api/v1/misc/security/alerts/all${this.sanitizeParams(params)}`);
   }
 }
-
 
 export const api = new ApiClient(API_URL);
 export default api;
