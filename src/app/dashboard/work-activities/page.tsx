@@ -286,8 +286,16 @@ export default function WorkActivitiesPage() {
         ) : groupedData.map((group, idx) => {
             const first = group[0];
             const last = group[group.length - 1];
-            const checkIn = first.check_in_at || first.submitted_at;
-            const checkOut = last.check_out_at || last.submitted_at;
+            
+            // Calculate the earliest possible start and latest possible end for the visit
+            const allStarts = group.flatMap(f => [f.check_in_at, f.submitted_at]).filter(Boolean).map(t => new Date(t!).getTime());
+            const allEnds = group.flatMap(f => [f.check_out_at, f.submitted_at]).filter(Boolean).map(t => new Date(t!).getTime());
+            
+            const startLimit = allStarts.length ? new Date(Math.min(...allStarts)).toISOString() : first.submitted_at;
+            const endLimit = allEnds.length ? new Date(Math.max(...allEnds)).toISOString() : (last.check_out_at || last.submitted_at);
+            
+            const checkIn = startLimit;
+            const checkOut = endLimit;
             const duration = calcDuration(checkIn, checkOut);
             const isExpanded = expandedOutlet === `${idx}`;
 
