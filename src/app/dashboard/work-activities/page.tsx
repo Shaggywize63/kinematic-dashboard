@@ -93,6 +93,7 @@ export default function WorkActivitiesPage() {
   const [expandedOutlet, setExpandedOutlet] = useState<string | null>(null);
   const [detailedSub, setDetailedSub] = useState<any>(null);
   const [viewingId, setViewingId] = useState<string | null>(null);
+  const [reportLoading, setReportLoading] = useState(false);
 
   // Initial Data
   useEffect(() => {
@@ -146,35 +147,57 @@ export default function WorkActivitiesPage() {
 
   const downloadReport = async () => {
     if (!data.length) return;
-    const headers = ['Date', 'Client', 'Executive', 'Employee ID', 'Outlet', 'Activity', 'Check In', 'Check Out', 'Duration', 'Responses'];
-    const rows = await Promise.all(groupedData.map(async (group) => {
-        const first = group[0];
-        const last = group[group.length - 1];
-        const checkIn = first.check_in_at || first.submitted_at;
-        const checkOut = last.check_out_at || last.submitted_at;
-        const duration = calcDuration(checkIn, checkOut);
+    setReportLoading(true);
+    try {
+        const params: any = {
+            client_id: selectedClientId || 'Kinematic',
+            date_from: dateFrom,
+            date_to: dateTo,
+            search,
+            user_id: userFilter,
+            city_id: cityFilter,
+            activity_id: activityFilter,
+            include_responses: 'true',
+            limit: '1000'
+        };
+        const res: any = await api.getAdminSubmissions(params);
+        const fullData = res?.data?.data || res?.data || [];
         
-        return group.map(f => [
-            fmtDate(f.submitted_at),
-            selectedClientId || 'Global',
-            f.users?.name || 'Unknown',
-            f.users?.employee_id || '-',
-            f.outlet_name || '-',
-            f.activities?.name || 'Form',
-            fmtTime(checkIn),
-            fmtTime(checkOut),
-            duration || '-',
-            'Details View Required'
-        ].map(v => `"${v}"`).join(',')).join('\n');
-    }));
+        const headers = ['Date', 'Client', 'Executive', 'Employee ID', 'Outlet', 'Activity', 'Address', 'Check In GPS', 'Check Out GPS', 'Check In Time', 'Check Out Time', 'Responses'];
+        
+        const csvRows = fullData.map((f: any) => {
+            const responsesStr = (f.form_responses || []).map((r: any) => 
+                `${r.builder_questions?.label || 'Q'}: ${r.value_text || r.value_number || r.value_bool || '—'}`
+            ).join(' | ');
 
-    const csvContent = headers.join(',') + '\n' + rows.join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Kinematic_WorkActivities_${dateFrom}_to_${dateTo}.csv`;
-    a.click();
+            return [
+                fmtDate(f.submitted_at),
+                selectedClientId || 'Global',
+                f.users?.name || 'Unknown',
+                f.users?.employee_id || '-',
+                f.outlet_name || '-',
+                f.activities?.name || 'Form',
+                f.address || '-',
+                f.check_in_gps || (f.latitude + ',' + f.longitude) || '-',
+                f.check_out_gps || '-',
+                fmtTime(f.check_in_at || f.submitted_at),
+                fmtTime(f.check_out_at || f.submitted_at),
+                responsesStr
+            ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(',');
+        });
+
+        const csvContent = headers.join(',') + '\n' + csvRows.join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Kinematic_WorkActivities_${dateFrom}_to_${dateTo}.csv`;
+        a.click();
+    } catch (err) {
+        console.error('Report Error:', err);
+    } finally {
+        setReportLoading(false);
+    }
   };
 
   return (
@@ -188,9 +211,10 @@ export default function WorkActivitiesPage() {
         </div>
         <button 
           onClick={downloadReport}
-          style={{ padding: '12px 24px', background: C.accent, borderRadius: '12px', color: C.text, border: 'none', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 10px 20px rgba(62,158,255,0.2)' }}
+          disabled={reportLoading}
+          style={{ padding: '12px 24px', background: reportLoading ? C.card : C.accent, borderRadius: '12px', color: C.text, border: 'none', fontWeight: 700, cursor: reportLoading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 10px 20px rgba(62,158,255,0.2)' }}
         >
-          <span>↓</span> Download Report
+          <span>↓</span> {reportLoading ? 'Preparing Report...' : 'Download Report'}
         </button>
       </div>
 
@@ -278,9 +302,10 @@ export default function WorkActivitiesPage() {
                         
                         <div style={{ flex: 1 }}>
                             <div style={{ fontSize: '20px', fontWeight: 800 }}>{first.outlet_name || 'Individual Visit'}</div>
-                            <div style={{ color: C.textSec, fontSize: '13px', marginTop: '4px', display: 'flex', gap: '12px' }}>
+                            <div style={{ color: C.textSec, fontSize: '13px', marginTop: '4px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
                                 <span>👤 {first.users?.name}</span>
                                 <span>📅 {fmtDate(first.submitted_at)}</span>
+                                <span style={{ opacity: 0.8 }}>📍 {first.address || 'Location Saved'}</span>
                             </div>
                         </div>
 
@@ -369,12 +394,16 @@ export default function WorkActivitiesPage() {
                           <div style={{ fontWeight: 700 }}>{detailedSub.outlet_name || 'Individual'}</div>
                       </div>
                       <div style={{ padding: '16px', background: C.bg, borderRadius: '12px' }}>
-                          <div style={{ fontSize: '10px', color: C.accent, fontWeight: 800 }}>TIME</div>
-                          <div style={{ fontWeight: 700 }}>{fmtTime(detailedSub.submitted_at)}</div>
-                      </div>
-                      <div style={{ padding: '16px', background: C.bg, borderRadius: '12px' }}>
                           <div style={{ fontSize: '10px', color: C.accent, fontWeight: 800 }}>ADDRESS</div>
                           <div style={{ fontWeight: 700, fontSize: '12px' }}>{detailedSub.address || 'GPS Only'}</div>
+                      </div>
+                      <div style={{ padding: '16px', background: C.bg, borderRadius: '12px' }}>
+                          <div style={{ fontSize: '10px', color: C.accent, fontWeight: 800 }}>CHECK-IN GPS</div>
+                          <div style={{ fontWeight: 700, fontSize: '11px' }}>{detailedSub.check_in_gps || detailedSub.latitude + ',' + detailedSub.longitude || '—'}</div>
+                      </div>
+                      <div style={{ padding: '16px', background: C.bg, borderRadius: '12px' }}>
+                          <div style={{ fontSize: '10px', color: C.accent, fontWeight: 800 }}>CHECK-OUT GPS</div>
+                          <div style={{ fontWeight: 700, fontSize: '11px' }}>{detailedSub.check_out_gps || 'Same as entry'}</div>
                       </div>
                   </div>
 
