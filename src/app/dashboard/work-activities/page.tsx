@@ -5,17 +5,17 @@ import { useClient } from '../../../context/ClientContext';
 
 // design tokens
 const C = {
-  bg: '#0F1115',
-  card: '#16191F',
-  cardH: '#1C2129',
-  border: '#262C36',
-  accent: '#3E9EFF',
-  accentD: 'rgba(62, 158, 255, 0.1)',
-  text: '#FFFFFF',
-  textSec: '#94A3B8',
-  textTert: '#64748B',
-  green: '#00D97E',
-  red: '#E01E2C',
+  bg: 'var(--bg)',
+  card: 'var(--s1)',
+  cardH: 'var(--s2)',
+  border: 'var(--border)',
+  accent: 'var(--primary)',
+  accentD: 'rgba(224, 30, 44, 0.1)',
+  text: 'var(--text)',
+  textSec: 'var(--text-dim)',
+  textTert: 'var(--text-dim)',
+  green: 'var(--green)',
+  red: 'var(--primary)',
 };
 
 interface User { id: string; name: string; employee_id?: string; role: string; city_id?: string; }
@@ -79,7 +79,13 @@ export default function WorkActivitiesPage() {
   const [search, setSearch] = useState('');
   const [userFilter, setUserFilter] = useState('');
   const [cityFilter, setCityFilter] = useState('');
-  const [dateFrom, setDateFrom] = useState(new Date().toISOString().split('T')[0]);
+  
+  // Default to showing last 3 days to ensure April 9th is visible
+  const [dateFrom, setDateFrom] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 2);
+    return d.toISOString().split('T')[0];
+  });
   const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0]);
   const [activityFilter, setActivityFilter] = useState('');
 
@@ -170,12 +176,12 @@ export default function WorkActivitiesPage() {
   };
 
   return (
-    <div style={{ padding: '32px', minHeight: '100vh', background: C.bg, color: C.text, fontFamily: "'Inter', sans-serif" }}>
+    <div style={{ padding: '32px', minHeight: '100vh', background: C.bg, color: C.text, fontFamily: "var(--font-dm-sans)" }}>
       
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '32px' }}>
         <div>
-          <h1 style={{ fontSize: '32px', fontWeight: 800, margin: 0, letterSpacing: '-1px' }}>Work Activities</h1>
+          <h1 style={{ fontSize: '32px', fontWeight: 800, margin: 0, letterSpacing: '-1px', fontFamily: 'var(--font-syne)' }}>Work Activities</h1>
           <p style={{ color: C.textSec, marginTop: '8px', fontSize: '14px' }}>Analyze field submissions grouped by outlet visits and track duration.</p>
         </div>
         <button 
