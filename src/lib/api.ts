@@ -120,7 +120,22 @@ class ApiClient {
   }
 
   getAdminSubmissions(params?: Record<string, string>) {
-    return this.get(`/api/v1/forms/admin/submissions${this.sanitizeParams(params)}`);
+    const qs = this.sanitizeParams(params);
+    // Use window.location.origin so this goes through the Next.js API route
+    // instead of Railway (which has a broken filter select clause → 400 errors).
+    const base = typeof window !== 'undefined' ? window.location.origin : this.baseUrl;
+    const token = this.getToken();
+    const orgId = this.getOrgId();
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    if (orgId) headers['X-Org-Id'] = orgId;
+    return fetch(`${base}/api/v1/forms/admin/submissions${qs}`, { headers })
+      .then(async res => {
+        if (res.status === 401) throw new Error('Unauthorized');
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || data.message || 'Request failed');
+        return data;
+      });
   }
   getSubmission(id: string) {
     return this.get(`/api/v1/forms/submissions/${id}`);
