@@ -277,8 +277,11 @@ export default function WorkActivitiesPage() {
              <div style={{ padding: '100px', textAlign: 'center', color: C.textSec }}>Loading visit logs...</div>
         ) : groupedData.length === 0 ? (
              <div style={{ padding: '100px', textAlign: 'center', background: C.card, border: `1px dashed ${C.border}`, borderRadius: '24px', color: C.textSec }}>
-               <h3 style={{ margin: 0 }}>No Visits Found</h3>
-               <p>Try adjusting your date range or selecting a different client.</p>
+                <div style={{ fontSize: '48px', marginBottom: '16px' }}>📂</div>
+                <div style={{ fontSize: '18px', fontWeight: 700, color: C.text }}>No Visits Found</div>
+                <div style={{ color: C.textSec, marginTop: '8px', maxWidth: '300px', margin: '8px auto' }}>
+                  No submissions found for the selected filters. {dateFrom === dateTo ? `Checking ${fmtDate(dateFrom)} only.` : `Checking from ${fmtDate(dateFrom)} to ${fmtDate(dateTo)}.`}
+                </div>
              </div>
         ) : groupedData.map((group, idx) => {
             const first = group[0];
@@ -310,7 +313,7 @@ export default function WorkActivitiesPage() {
                         </div>
 
                         <div style={{ textAlign: 'right', minWidth: '140px' }}>
-                            <div style={{ fontSize: '10px', fontWeight: 800, color: C.accent, marginBottom: '4px' }}>VISIT PERSISTENCE</div>
+                            <div style={{ fontSize: '10px', fontWeight: 800, color: C.accent, marginBottom: '4px' }}>VISIT DURATION</div>
                             <div style={{ fontSize: '16px', fontWeight: 900, color: C.green }}>{duration || 'Processing'}</div>
                         </div>
 
