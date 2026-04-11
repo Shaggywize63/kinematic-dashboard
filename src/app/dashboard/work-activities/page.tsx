@@ -22,6 +22,14 @@ interface User { id: string; name: string; employee_id?: string; role: string; c
 interface City { id: string; name: string; }
 interface Zone { id: string; name: string; city_id?: string; }
 
+interface FormAnswer {
+  question_id?: string;
+  label: string;
+  qtype: string;
+  value: any;
+  display?: string;
+}
+
 interface FormActivity {
   id: string;
   submitted_at: string;
@@ -30,11 +38,15 @@ interface FormActivity {
   user_id: string;
   users?: { name: string; employee_id?: string; city_id?: string };
   activities?: { name: string };
+  builder_forms?: { id: string; title: string };
   check_in_at?: string;
   check_out_at?: string;
   check_in_gps?: string;
   check_out_gps?: string;
   address?: string;
+  latitude?: number;
+  longitude?: number;
+  answers?: FormAnswer[];
   form_responses?: any[];
 }
 
@@ -48,6 +60,32 @@ function fmtDate(ts?: string | null) {
   if (!ts) return '—';
   const d = new Date(ts);
   return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function renderAnswerValue(answer: FormAnswer) {
+  const { qtype, value, display } = answer;
+  if (display && display !== '—') return display;
+  if (value === null || value === undefined || value === '') return '—';
+  if (qtype === 'image' || qtype === 'signature') {
+    const url = typeof value === 'string' ? value : (value?.url ?? null);
+    if (!url) return '—';
+    return (
+      <img src={url} alt={qtype} style={{ maxHeight: '80px', maxWidth: '120px', borderRadius: '6px', objectFit: 'cover', cursor: 'pointer' }}
+        onClick={() => window.open(url, '_blank')} />
+    );
+  }
+  if (qtype === 'file') {
+    const url = typeof value === 'string' ? value : (value?.url ?? null);
+    return url ? <a href={url} target="_blank" rel="noreferrer" style={{ color: 'var(--primary)', fontSize: '12px' }}>View File</a> : '—';
+  }
+  if (qtype === 'rating') return `${'★'.repeat(Number(value) || 0)}${'☆'.repeat(Math.max(0, 5 - (Number(value) || 0)))} (${value})`;
+  if (qtype === 'checkbox' && Array.isArray(value)) return value.join(', ') || '—';
+  if (qtype === 'yes_no' || qtype === 'consent') return value === true || value === 'true' || value === 'Yes' ? '✓ Yes' : '✗ No';
+  if (qtype === 'location' && typeof value === 'object') return `${value.lat ?? value.latitude ?? ''},${value.lng ?? value.longitude ?? ''}`;
+  if (qtype === 'section_header') return null;
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  if (Array.isArray(value)) return value.join(', ');
+  return String(value);
 }
 
 function calcDuration(start?: string, end?: string) {
@@ -371,20 +409,19 @@ export default function WorkActivitiesPage() {
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                                             <div style={{ width: '8px', height: '8px', background: C.accent, borderRadius: '50%' }} />
                                             <div>
-                                                <div style={{ fontWeight: 700, fontSize: '14px' }}>{f.activities?.name || 'Form Submission'}</div>
+                                                <div style={{ fontWeight: 700, fontSize: '14px' }}>{f.builder_forms?.title || f.activities?.name || 'Form Submission'}</div>
                                                 <div style={{ fontSize: '11px', color: C.textSec }}>Captured at {fmtTime(f.submitted_at)}</div>
                                             </div>
                                         </div>
-                                        <button 
-                                            onClick={async (e) => { 
-                                                e.stopPropagation(); 
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
                                                 setViewingId(f.id);
-                                                const res = await api.getSubmission(f.id);
-                                                setDetailedSub(res?.data || res || null);
+                                                setDetailedSub(f);
                                             }}
                                             style={{ padding: '6px 12px', background: 'transparent', border: `1px solid ${C.accent}`, borderRadius: '6px', color: C.accent, fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
                                         >
-                                            {viewingId === f.id ? 'Loading...' : 'View Data'}
+                                            View Data
                                         </button>
                                     </div>
                                 ))}
@@ -437,14 +474,32 @@ export default function WorkActivitiesPage() {
                       </div>
                   </div>
 
-                  <h3 style={{ fontSize: '12px', letterSpacing: '2px', color: C.textSec, marginBottom: '20px' }}>FORM RESPONSES</h3>
+                  <h3 style={{ fontSize: '12px', letterSpacing: '2px', color: C.textSec, marginBottom: '20px' }}>
+                      {detailedSub.builder_forms?.title ? `FORM: ${detailedSub.builder_forms.title}` : 'FORM RESPONSES'}
+                  </h3>
                   <div style={{ display: 'grid', gap: '12px' }}>
-                      {(detailedSub.form_responses || []).map((r: any, idx: number) => (
-                          <div key={idx} style={{ padding: '20px', background: C.bg, borderRadius: '16px', border: `1px solid ${C.border}` }}>
-                              <div style={{ fontSize: '13px', fontWeight: 600, color: C.textSec, marginBottom: '8px' }}>{r.builder_questions?.label || 'Question'}</div>
-                              <div style={{ fontWeight: 700, fontSize: '15px' }}>{r.value_text || r.value_number || r.value_bool?.toString() || '—'}</div>
-                          </div>
-                      ))}
+                      {(detailedSub.answers && detailedSub.answers.length > 0)
+                          ? detailedSub.answers
+                              .filter((a: FormAnswer) => a.qtype !== 'section_header')
+                              .map((a: FormAnswer, idx: number) => {
+                                  const rendered = renderAnswerValue(a);
+                                  if (rendered === null) return null;
+                                  return (
+                                      <div key={idx} style={{ padding: '20px', background: C.bg, borderRadius: '16px', border: `1px solid ${C.border}` }}>
+                                          <div style={{ fontSize: '13px', fontWeight: 600, color: C.textSec, marginBottom: '8px' }}>{a.label || 'Question'}</div>
+                                          <div style={{ fontWeight: 700, fontSize: '15px' }}>{rendered}</div>
+                                      </div>
+                                  );
+                              })
+                          : (detailedSub.form_responses && detailedSub.form_responses.length > 0)
+                          ? detailedSub.form_responses.map((r: any, idx: number) => (
+                              <div key={idx} style={{ padding: '20px', background: C.bg, borderRadius: '16px', border: `1px solid ${C.border}` }}>
+                                  <div style={{ fontSize: '13px', fontWeight: 600, color: C.textSec, marginBottom: '8px' }}>{r.builder_questions?.label || 'Question'}</div>
+                                  <div style={{ fontWeight: 700, fontSize: '15px' }}>{r.value_text || r.value_number || r.value_bool?.toString() || '—'}</div>
+                              </div>
+                          ))
+                          : <div style={{ padding: '20px', color: C.textSec, fontSize: '13px', textAlign: 'center' }}>No form responses recorded.</div>
+                      }
                   </div>
               </div>
           </div>
