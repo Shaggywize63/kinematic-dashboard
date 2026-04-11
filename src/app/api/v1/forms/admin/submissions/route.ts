@@ -7,6 +7,10 @@ import { NextRequest, NextResponse } from 'next/server';
 const EDGE_BASE = 'https://lnvxqjqfsxvtjvbzphou.supabase.co/functions/v1/api-proxy';
 const ANON_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxudnhxanFmc3h2dGp2YnpwaG91Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIwMzQyMDAsImV4cCI6MjA4NzYxMDIwMH0.D6EPi3BC4d0-bfzttbx5ObP0v0fb6HBYWz5HbmCWkJw';
 
+// Never cache — submissions data changes frequently and date filters must
+// always hit the upstream edge function fresh.
+export const dynamic = 'force-dynamic';
+
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, OPTIONS',
@@ -26,6 +30,7 @@ export async function GET(req: NextRequest) {
     const target = `${EDGE_BASE}/api/v1/forms/admin/submissions${search}`;
 
     const res = await fetch(target, {
+      cache: 'no-store',
       headers: {
         'Authorization': auth,
         'apikey': ANON_KEY,

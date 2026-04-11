@@ -76,10 +76,15 @@ function renderAnswerValue(
   onImageClick?: (urls: string[], index: number) => void
 ) {
   const { qtype, value, display } = answer;
-  if (display && display !== '—') return display;
-  if (value === null || value === undefined || value === '') return '—';
+
+  // Image/signature: always render visually — check qtype BEFORE display,
+  // because the edge function sets display to the raw URL string which would
+  // otherwise be returned as plain text.
   if (qtype === 'image' || qtype === 'signature') {
-    const urls = extractImageUrls(value);
+    // value may be a URL string, array of URLs, or object/array with .url field.
+    // Also accept display as a URL fallback when value is missing.
+    const src = value ?? display;
+    const urls = extractImageUrls(src);
     if (urls.length === 0) return '—';
     return (
       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '4px' }}>
@@ -97,6 +102,9 @@ function renderAnswerValue(
       </div>
     );
   }
+
+  if (display && display !== '—') return display;
+  if (value === null || value === undefined || value === '') return '—';
   if (qtype === 'file') {
     const url = typeof value === 'string' ? value : (value?.url ?? null);
     return url ? <a href={url} target="_blank" rel="noreferrer" style={{ color: 'var(--primary)', fontSize: '12px' }}>View File</a> : '—';
