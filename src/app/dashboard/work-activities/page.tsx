@@ -62,16 +62,39 @@ function fmtDate(ts?: string | null) {
   return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
-function renderAnswerValue(answer: FormAnswer) {
+function extractImageUrls(value: any): string[] {
+  if (!value) return [];
+  if (Array.isArray(value)) {
+    return value.map((v: any) => (typeof v === 'string' ? v : (v?.url ?? null))).filter(Boolean);
+  }
+  const url = typeof value === 'string' ? value : (value?.url ?? null);
+  return url ? [url] : [];
+}
+
+function renderAnswerValue(
+  answer: FormAnswer,
+  onImageClick?: (urls: string[], index: number) => void
+) {
   const { qtype, value, display } = answer;
   if (display && display !== '—') return display;
   if (value === null || value === undefined || value === '') return '—';
   if (qtype === 'image' || qtype === 'signature') {
-    const url = typeof value === 'string' ? value : (value?.url ?? null);
-    if (!url) return '—';
+    const urls = extractImageUrls(value);
+    if (urls.length === 0) return '—';
     return (
-      <img src={url} alt={qtype} style={{ maxHeight: '80px', maxWidth: '120px', borderRadius: '6px', objectFit: 'cover', cursor: 'pointer' }}
-        onClick={() => window.open(url, '_blank')} />
+      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '4px' }}>
+        {urls.map((url, i) => (
+          <img
+            key={i}
+            src={url}
+            alt={`${qtype} ${i + 1}`}
+            style={{ height: '90px', width: '110px', borderRadius: '8px', objectFit: 'cover', cursor: 'pointer', border: '2px solid var(--border)', transition: 'transform 0.15s' }}
+            onClick={() => onImageClick ? onImageClick(urls, i) : window.open(url, '_blank')}
+            onMouseOver={e => (e.currentTarget.style.transform = 'scale(1.04)')}
+            onMouseOut={e => (e.currentTarget.style.transform = 'scale(1)')}
+          />
+        ))}
+      </div>
     );
   }
   if (qtype === 'file') {
@@ -132,6 +155,7 @@ export default function WorkActivitiesPage() {
   const [detailedSub, setDetailedSub] = useState<any>(null);
   const [viewingId, setViewingId] = useState<string | null>(null);
   const [reportLoading, setReportLoading] = useState(false);
+  const [lightbox, setLightbox] = useState<{ urls: string[]; index: number } | null>(null);
 
   // Initial Data
   useEffect(() => {
@@ -482,7 +506,7 @@ export default function WorkActivitiesPage() {
                           ? detailedSub.answers
                               .filter((a: FormAnswer) => a.qtype !== 'section_header')
                               .map((a: FormAnswer, idx: number) => {
-                                  const rendered = renderAnswerValue(a);
+                                  const rendered = renderAnswerValue(a, (urls, i) => setLightbox({ urls, index: i }));
                                   if (rendered === null) return null;
                                   return (
                                       <div key={idx} style={{ padding: '20px', background: C.bg, borderRadius: '16px', border: `1px solid ${C.border}` }}>
@@ -503,6 +527,66 @@ export default function WorkActivitiesPage() {
                   </div>
               </div>
           </div>
+      )}
+
+      {/* Lightbox */}
+      {lightbox && (
+        <div
+          style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(0,0,0,0.95)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={() => setLightbox(null)}
+        >
+          {/* Close */}
+          <button
+            onClick={() => setLightbox(null)}
+            style={{ position: 'absolute', top: '20px', right: '28px', background: 'rgba(255,255,255,0.12)', border: 'none', color: '#fff', fontSize: '28px', cursor: 'pointer', borderRadius: '50%', width: '44px', height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}
+          >×</button>
+
+          {/* Counter */}
+          {lightbox.urls.length > 1 && (
+            <div style={{ position: 'absolute', top: '24px', left: '50%', transform: 'translateX(-50%)', color: 'rgba(255,255,255,0.7)', fontSize: '13px', fontWeight: 600, letterSpacing: '1px' }}>
+              {lightbox.index + 1} / {lightbox.urls.length}
+            </div>
+          )}
+
+          {/* Prev */}
+          {lightbox.urls.length > 1 && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setLightbox(lb => lb ? { ...lb, index: (lb.index - 1 + lb.urls.length) % lb.urls.length } : null); }}
+              style={{ position: 'absolute', left: '20px', background: 'rgba(255,255,255,0.12)', border: 'none', color: '#fff', fontSize: '28px', cursor: 'pointer', borderRadius: '50%', width: '52px', height: '52px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            >‹</button>
+          )}
+
+          {/* Image */}
+          <img
+            src={lightbox.urls[lightbox.index]}
+            alt={`Image ${lightbox.index + 1}`}
+            style={{ maxWidth: '90vw', maxHeight: '88vh', borderRadius: '12px', objectFit: 'contain', boxShadow: '0 24px 80px rgba(0,0,0,0.6)' }}
+            onClick={e => e.stopPropagation()}
+          />
+
+          {/* Next */}
+          {lightbox.urls.length > 1 && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setLightbox(lb => lb ? { ...lb, index: (lb.index + 1) % lb.urls.length } : null); }}
+              style={{ position: 'absolute', right: '20px', background: 'rgba(255,255,255,0.12)', border: 'none', color: '#fff', fontSize: '28px', cursor: 'pointer', borderRadius: '50%', width: '52px', height: '52px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            >›</button>
+          )}
+
+          {/* Thumbnail strip for multi-image */}
+          {lightbox.urls.length > 1 && (
+            <div style={{ position: 'absolute', bottom: '20px', left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: '8px' }} onClick={e => e.stopPropagation()}>
+              {lightbox.urls.map((url, i) => (
+                <img
+                  key={i}
+                  src={url}
+                  alt={`thumb ${i + 1}`}
+                  onClick={() => setLightbox(lb => lb ? { ...lb, index: i } : null)}
+                  style={{ width: '56px', height: '40px', objectFit: 'cover', borderRadius: '6px', cursor: 'pointer', border: i === lightbox.index ? '2px solid #fff' : '2px solid rgba(255,255,255,0.25)', opacity: i === lightbox.index ? 1 : 0.55, transition: 'all 0.15s' }}
+                />
+              ))}
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
