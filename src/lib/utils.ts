@@ -64,20 +64,34 @@ export function extractImageUrls(value: any): string[] {
 
     if (url.startsWith('http')) return url;
     
-    const labels = ['yes', 'no', 'true', 'false', '—', 'null', 'undefined', 'ok', 'no image', 'missing'];
+    const labels = ['yes', 'no', 'true', 'false', '—', 'null', 'undefined', 'ok', 'no image', 'missing', 'none'];
     if (labels.includes(url.toLowerCase())) return null;
 
-    if (url.includes('/') || url.includes('.')) {
+    // Supabase path pattern: form-responses/filename.jpg or kinematic-bucket/folder/img.png
+    const isSupabasePath = url.includes('/') && !url.startsWith('http') && !url.startsWith('data:');
+    
+    if (isSupabasePath) {
         if (url.includes('storage/v1/object/public/')) {
-            return url.startsWith('http') ? url : `${baseUrl}${url.startsWith('/') ? '' : '/'}${url}`;
+            return url.startsWith('/') ? `${baseUrl}${url}` : url.startsWith('http') ? url : `${baseUrl}/${url}`;
         }
-        if (url.startsWith('kinematic-') || url.startsWith('form-responses/')) {
-            const parts = url.split('/');
-            const b = parts[0];
-            const p = parts.slice(1).join('/');
-            return `${baseUrl}/storage/v1/object/public/${b}/${p}`;
+        
+        // Handle path-only strings from bucket root
+        const parts = url.split('/');
+        const firstPart = parts[0];
+        
+        // If first part looks like a known bucket or a common pattern
+        const buckets = ['form-responses', 'kinematic-attendance', 'kinematic-reports', 'kinematic-sos'];
+        if (buckets.includes(firstPart)) {
+            return `${baseUrl}/storage/v1/object/public/${url}`;
         }
+        
+        // Default to form-responses bucket
         return `${bucketUrl}${url.startsWith('/') ? url.slice(1) : url}`;
+    }
+
+    // Pure filename fallback
+    if (url.includes('.') && !url.includes(' ')) {
+        return `${bucketUrl}${url}`;
     }
 
     return null;

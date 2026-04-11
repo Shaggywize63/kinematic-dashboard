@@ -200,17 +200,17 @@ export default function SubmissionsPage() {
                     <td style={{ padding:'12px 16px', fontSize:12, color:C.grayd }}>
                       {new Date(s.submitted_at).toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' })}
                     </td>
-                    <td style={{ padding:'12px 16px', fontSize:12, color:C.green, fontWeight:700 }}>
-                      {(() => {
-                        if (!s.check_in_at || !s.check_out_at) return '—';
-                        const start = new Date(s.check_in_at).getTime();
-                        const end = new Date(s.check_out_at).getTime();
-                        const diff = Math.floor((end - start) / 1000);
-                        if (diff <= 0) return '—';
-                        const m = Math.floor(diff / 60);
-                        const sec = diff % 60;
-                        return `${m}m ${sec}s`;
-                      })()}
+                    <td style={{ padding:'12px 16px', fontSize:13, fontWeight:700, color:C.green }}>
+                      {s.duration_minutes ? `${s.duration_minutes}m` : (s.check_in_at && s.check_out_at) ? (() => {
+                        const diff = Math.floor((new Date(s.check_out_at).getTime() - new Date(s.check_in_at).getTime()) / 60000);
+                        return diff > 0 ? `${diff}m` : '—';
+                      })() : '—'}
+                    </td>
+                    <td style={{ padding:'12px 16px' }}>
+                      <div style={{ display:'flex', gap:4 }}>
+                        <span title="Check-in GPS" style={{ opacity: s.check_in_gps ? 1 : 0.2, cursor: s.check_in_gps ? 'pointer' : 'default' }} onClick={() => s.check_in_gps && window.open(`https://maps.google.com/?q=${s.check_in_gps}`)}>📍</span>
+                        <span title="Submission GPS" style={{ opacity: (s as any).gps ? 1 : 0.2, cursor: (s as any).gps ? 'pointer' : 'default' }} onClick={() => (s as any).gps && window.open(`https://maps.google.com/?q=${(s as any).gps}`)}>📡</span>
+                      </div>
                     </td>
                     <td style={{ padding:'12px 16px' }}>
                       <button onClick={() => viewDetails(s)}

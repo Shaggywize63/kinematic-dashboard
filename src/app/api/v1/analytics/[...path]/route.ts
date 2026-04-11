@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 // Proxy analytics requests to the Supabase edge function which has all env vars configured.
 // The Next.js deployment doesn't need SUPABASE_SERVICE_ROLE_KEY this way.
-const EDGE_BASE = 'https://lnvxqjqfsxvtjvbzphou.supabase.co/functions/v1/api-proxy';
-const ANON_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxudnhxanFmc3h2dGp2YnpwaG91Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIwMzQyMDAsImV4cCI6MjA4NzYxMDIwMH0.D6EPi3BC4d0-bfzttbx5ObP0v0fb6HBYWz5HbmCWkJw';
+const MAIN_API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -26,19 +25,24 @@ export async function GET(
     const auth    = req.headers.get('Authorization') ?? '';
     const orgId   = req.headers.get('X-Org-Id') ?? '';
 
-    const target = `${EDGE_BASE}/api/v1/analytics/${analyticsPath}${search}`;
+    // BUG FIX: Point to the Main API (Railway) instead of the stale Supabase Edge Function
+    const target = `${MAIN_API_URL}/api/v1/analytics/${analyticsPath}${search}`;
+
+    console.log(`[AnalyticsProxy] Proxying to: ${target}`);
 
     const res = await fetch(target, {
       headers: {
         'Authorization': auth,
-        'apikey': ANON_KEY,
         'X-Org-Id': orgId,
       },
+      // Ensure we don't cache stale analytics data
+      cache: 'no-store'
     });
 
     const data = await res.json();
     return NextResponse.json(data, { status: res.status, headers: CORS });
   } catch (e) {
+    console.error(`[AnalyticsProxy] Error:`, e);
     return NextResponse.json(
       { success: false, error: String(e) },
       { status: 500, headers: CORS }
