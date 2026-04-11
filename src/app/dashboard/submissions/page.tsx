@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import api from '../../../lib/api';
+import { extractImageUrls } from '../../../lib/utils';
 
 const C = { red:'#E01E2C',green:'#00D97E',yellow:'#FFB800',blue:'#3E9EFF',purple:'#9B6EFF',gray:'#7A8BA0',grayd:'#2E445E',s2:'#131B2A',border:'#1E2D45',white:'#FFFFFF' };
 
@@ -77,8 +78,6 @@ export default function SubmissionsPage() {
 
   const tffCount = submissions.filter(s => s.is_converted).length;
   const nonTff = submissions.filter(s => !s.is_converted).length;
-
-import { extractImageUrls } from '../../../lib/utils';
 
   const renderValue = (r: any) => {
     // Support both old and new backend metadata naming
