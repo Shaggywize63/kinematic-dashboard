@@ -46,3 +46,45 @@ export function isUUID(str: string | null | undefined): boolean {
   if (!str) return false;
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(str);
 }
+
+/**
+ * Normalizes absolute URLs and relative Supabase storage paths into full public URLs.
+ */
+export function extractImageUrls(value: any): string[] {
+  if (!value) return [];
+  
+  const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://ocqowueomujqmvshlyqj.supabase.co';
+  const bucket = 'kinematic-form-photos';
+  const bucketUrl = `${baseUrl}/storage/v1/object/public/${bucket}/`;
+
+  const normalize = (v: any): string | null => {
+    if (!v) return null;
+    let url = typeof v === 'string' ? v.trim() : (v?.url ?? null);
+    if (!url || typeof url !== 'string') return null;
+
+    if (url.startsWith('http')) return url;
+    
+    const labels = ['yes', 'no', 'true', 'false', '—', 'null', 'undefined', 'ok', 'no image', 'missing'];
+    if (labels.includes(url.toLowerCase())) return null;
+
+    if (url.includes('/') || url.includes('.')) {
+        if (url.includes('storage/v1/object/public/')) {
+            return url.startsWith('http') ? url : `${baseUrl}${url.startsWith('/') ? '' : '/'}${url}`;
+        }
+        if (url.startsWith('kinematic-') || url.startsWith('form-responses/')) {
+            const parts = url.split('/');
+            const b = parts[0];
+            const p = parts.slice(1).join('/');
+            return `${baseUrl}/storage/v1/object/public/${b}/${p}`;
+        }
+        return `${bucketUrl}${url.startsWith('/') ? url.slice(1) : url}`;
+    }
+
+    return null;
+  };
+
+  if (Array.isArray(value)) {
+    return value.map(normalize).filter((v): v is string => !!v);
+  }
+  return normalized ? [normalized] : [];
+}

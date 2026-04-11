@@ -78,25 +78,35 @@ export default function SubmissionsPage() {
   const tffCount = submissions.filter(s => s.is_converted).length;
   const nonTff = submissions.filter(s => !s.is_converted).length;
 
+import { extractImageUrls } from '../../../lib/utils';
+
   const renderValue = (r: any) => {
     // Support both old and new backend metadata naming
     const field = r.form_fields || r.builder_questions;
     const qt = (field?.qtype || field?.field_type || '').toLowerCase();
     const val = r.value_text || r.value_number || r.value_bool || r.value_json;
 
-    if (qt === 'image' || qt === 'photo' || qt === 'camera' || r.photo_url || (typeof val === 'string' && val.startsWith('http'))) {
+    if (qt === 'image' || qt === 'photo' || qt === 'camera' || r.photo_url) {
       const src = r.photo_url || val;
+      const urls = extractImageUrls(src);
+      if (urls.length === 0) return '—';
       return (
-        <div style={{ marginTop: 8 }}>
-          <img src={src} alt="Submission" style={{ maxWidth: '100%', borderRadius: 12, border: `1px solid ${C.border}` }} 
-               onClick={() => window.open(src, '_blank')} />
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '4px' }}>
+          {urls.map((url, i) => (
+            <img key={i} src={url} alt="Submission" style={{ maxWidth: '100%', maxHeight: '120px', borderRadius: 12, border: `1px solid ${C.border}`, cursor: 'pointer' }} 
+                 onClick={() => window.open(url, '_blank')} />
+          ))}
         </div>
       );
     }
-    if (qt === 'signature' && val) {
+    if (qt === 'signature') {
+      const urls = extractImageUrls(val);
+      if (urls.length === 0) return '—';
       return (
-        <div style={{ marginTop: 8, background: '#fff', borderRadius: 8, padding: 4 }}>
-          <img src={val} alt="Signature" style={{ maxWidth: '100%', height: 60, objectFit: 'contain' }} />
+        <div style={{ marginTop: 8, background: '#fff', borderRadius: 8, padding: 4, display: 'flex', gap: '8px' }}>
+          {urls.map((url, i) => (
+            <img key={i} src={url} alt="Signature" style={{ maxWidth: '100%', height: 60, objectFit: 'contain' }} />
+          ))}
         </div>
       );
     }
