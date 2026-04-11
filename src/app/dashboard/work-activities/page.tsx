@@ -1,832 +1,601 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import api from '../../../lib/api';
 import { useClient } from '../../../context/ClientContext';
 
+// design tokens
 const C = {
-  bg: 'var(--bg)', 
-  s2: 'var(--s2)', 
-  s3: 'var(--s3)', 
-  s4: 'var(--s4)',
-  border: 'var(--border)', 
-  borderL: 'var(--borderL)',
-  white: 'var(--text)', 
-  gray: 'var(--textSec)', 
-  grayd: 'var(--textTert)',
-  red: '#E01E2C', 
-  redD: 'var(--redD)', 
-  redB: 'rgba(224,30,44,0.2)',
-  green: '#00D97E', 
-  greenD: 'var(--greenD)',
-  blue: '#3E9EFF', 
-  blueD: 'var(--blueD)',
-  yellow: '#FFB800', 
-  yellowD: 'var(--yellowD)',
-  purple: '#9B6EFF',
+  bg: 'var(--bg)',
+  card: 'var(--s1)',
+  cardH: 'var(--s2)',
+  border: 'var(--border)',
+  accent: 'var(--primary)',
+  accentD: 'rgba(224, 30, 44, 0.1)',
+  text: 'var(--text)',
+  textSec: 'var(--text-dim)',
+  textTert: 'var(--text-dim)',
+  green: 'var(--green)',
+  red: 'var(--primary)',
 };
 
-interface User { id: string; name: string; employee_id?: string; role: string; }
+interface User { id: string; name: string; employee_id?: string; role: string; city_id?: string; }
 interface City { id: string; name: string; }
-interface Zone { id: string; name: string; city?: string; }
+interface Zone { id: string; name: string; city_id?: string; }
+
+interface FormAnswer {
+  question_id?: string;
+  label: string;
+  qtype: string;
+  value: any;
+  display?: string;
+}
 
 interface FormActivity {
   id: string;
   submitted_at: string;
   outlet_id?: string;
   outlet_name?: string;
-  store_name?: string;
   user_id: string;
-  users?: { name: string; employee_id?: string };
+  users?: { name: string; employee_id?: string; city_id?: string };
   activities?: { name: string };
-  form_templates?: { title: string };
-  builder_forms?: { title: string };
-  gps?: string;
+  builder_forms?: { id: string; title: string };
   check_in_at?: string;
   check_out_at?: string;
   check_in_gps?: string;
   check_out_gps?: string;
+  address?: string;
+  latitude?: number;
+  longitude?: number;
+  answers?: FormAnswer[];
   form_responses?: any[];
 }
 
-function fmt(ts?: string | null) {
+function fmtTime(ts?: string | null) {
   if (!ts) return '—';
-  try {
-    const d = new Date(ts);
-    return isNaN(d.getTime()) ? '—' : d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
-  } catch { return '—'; }
+  const d = new Date(ts);
+  return isNaN(d.getTime()) ? '—' : d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
 }
+
 function fmtDate(ts?: string | null) {
   if (!ts) return '—';
-  try {
-    const d = new Date(ts);
-    return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-  } catch { return '—'; }
+  const d = new Date(ts);
+  return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 }
-function Spinner() {
-  return <div style={{ width: 18, height: 18, border: '2.5px solid rgba(255,255,255,0.1)', borderTopColor: C.blue, borderRadius: '50%', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />;
+
+function extractImageUrls(value: any): string[] {
+  if (!value) return [];
+  if (Array.isArray(value)) {
+    return value.map((v: any) => (typeof v === 'string' ? v : (v?.url ?? null))).filter(Boolean);
+  }
+  const url = typeof value === 'string' ? value : (value?.url ?? null);
+  return url ? [url] : [];
+}
+
+function renderAnswerValue(
+  answer: FormAnswer,
+  onImageClick?: (urls: string[], index: number) => void
+) {
+  const { qtype, value, display } = answer;
+
+  // Image/signature: always render visually — check qtype BEFORE display,
+  // because the edge function sets display to the raw URL string which would
+  // otherwise be returned as plain text.
+  if (qtype === 'image' || qtype === 'signature') {
+    // value may be a URL string, array of URLs, or object/array with .url field.
+    // Also accept display as a URL fallback when value is missing.
+    const src = value ?? display;
+    const urls = extractImageUrls(src);
+    if (urls.length === 0) return '—';
+    return (
+      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '4px' }}>
+        {urls.map((url, i) => (
+          <img
+            key={i}
+            src={url}
+            alt={`${qtype} ${i + 1}`}
+            style={{ height: '90px', width: '110px', borderRadius: '8px', objectFit: 'cover', cursor: 'pointer', border: '2px solid var(--border)', transition: 'transform 0.15s' }}
+            onClick={() => onImageClick ? onImageClick(urls, i) : window.open(url, '_blank')}
+            onMouseOver={e => (e.currentTarget.style.transform = 'scale(1.04)')}
+            onMouseOut={e => (e.currentTarget.style.transform = 'scale(1)')}
+          />
+        ))}
+      </div>
+    );
+  }
+
+  if (display && display !== '—') return display;
+  if (value === null || value === undefined || value === '') return '—';
+  if (qtype === 'file') {
+    const url = typeof value === 'string' ? value : (value?.url ?? null);
+    return url ? <a href={url} target="_blank" rel="noreferrer" style={{ color: 'var(--primary)', fontSize: '12px' }}>View File</a> : '—';
+  }
+  if (qtype === 'rating') return `${'★'.repeat(Number(value) || 0)}${'☆'.repeat(Math.max(0, 5 - (Number(value) || 0)))} (${value})`;
+  if (qtype === 'checkbox' && Array.isArray(value)) return value.join(', ') || '—';
+  if (qtype === 'yes_no' || qtype === 'consent') return value === true || value === 'true' || value === 'Yes' ? '✓ Yes' : '✗ No';
+  if (qtype === 'location' && typeof value === 'object') return `${value.lat ?? value.latitude ?? ''},${value.lng ?? value.longitude ?? ''}`;
+  if (qtype === 'section_header') return null;
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  if (Array.isArray(value)) return value.join(', ');
+  return String(value);
 }
 
 function calcDuration(start?: string, end?: string) {
   if (!start || !end) return null;
-  const s = new Date(start);
-  const e = new Date(end);
-  const diff = e.getTime() - s.getTime();
-  if (diff <= 0) return null;
+  const s = new Date(start).getTime();
+  const e = new Date(end).getTime();
+  const diff = e - s;
+  if (diff <= 0) return '0m';
   const mins = Math.floor(diff / 60000);
   const hrs = Math.floor(mins / 60);
-  if (hrs > 0) return `${hrs}h ${mins % 60}m`;
-  return `${mins}m`;
+  return hrs > 0 ? `${hrs}h ${mins % 60}m` : `${mins}m`;
 }
 
-/* ── Submission Modal ────────────────────────────────────────── */
-function SubmissionModal({ submission: initialSubmission, onClose }: { submission: FormActivity | null; onClose: () => void }) {
-  const [submission, setSubmission] = useState<FormActivity | null>(initialSubmission);
-  const [loading, setLoading] = useState(false);
-
-  const fetchFullData = useCallback(() => {
-    if (!initialSubmission?.id) return;
-    setLoading(true);
-    api.getSubmission(initialSubmission.id).then((r: any) => {
-      const data = r?.data || r;
-      if (data) setSubmission(prev => ({ ...prev, ...data }));
-    }).catch(() => {}).finally(() => setLoading(false));
-  }, [initialSubmission?.id]);
-
-  useEffect(() => {
-    setSubmission(initialSubmission);
-    if (initialSubmission && (!initialSubmission.form_responses || initialSubmission.form_responses.length === 0)) {
-      fetchFullData();
-    }
-  }, [initialSubmission, fetchFullData]);
-
-  if (!initialSubmission) return null;
-  const displaySub = submission || initialSubmission;
-  const formTitle = displaySub.activities?.name || displaySub.builder_forms?.title || displaySub.form_templates?.title || 'Form Submission';
-  
-  return (
-    <>
-      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)', zIndex: 2000, animation: 'fadeIn 0.2s ease-out' }} />
-      <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: '90%', maxWidth: 800, maxHeight: '85vh', background: C.s2, borderRadius: 24, display: 'flex', flexDirection: 'column', zIndex: 2001, boxShadow: '0 32px 100px rgba(0,0,0,0.8)', overflow: 'hidden', border: `1px solid ${C.border}`, animation: 'modalIn 0.3s cubic-bezier(0.16, 1, 0.3, 1)' }}>
-        
-        {/* Modal Header */}
-        <div style={{ padding: '24px 32px', borderBottom: `1px solid ${C.border}`, background: C.s3, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div>
-            <div style={{ fontSize: 10, color: C.blue, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1.5px', marginBottom: 6 }}>Submission Details</div>
-            <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 22, fontWeight: 800, color: C.white }}>{formTitle}</div>
-          </div>
-          <button onClick={onClose} style={{ width: 36, height: 36, borderRadius: 12, background: C.s4, border: 'none', color: C.white, fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>✕</button>
-        </div>
-
-        {/* Modal Content */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '32px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginBottom: 32 }}>
-            <div style={{ padding: '16px', background: C.s3, borderRadius: 16, border: `1px solid ${C.border}` }}>
-              <div style={{ fontSize: 10, color: C.grayd, fontWeight: 800, textTransform: 'uppercase', marginBottom: 8 }}>Field Executive</div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: C.white }}>{displaySub.users?.name}</div>
-              <div style={{ fontSize: 12, color: C.grayd, marginTop: 2 }}>{displaySub.users?.employee_id}</div>
-            </div>
-            <div style={{ padding: '16px', background: C.s3, borderRadius: 16, border: `1px solid ${C.border}` }}>
-              <div style={{ fontSize: 10, color: C.grayd, fontWeight: 800, textTransform: 'uppercase', marginBottom: 8 }}>Submitted At</div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: C.white }}>{fmtDate(displaySub.submitted_at)}</div>
-              <div style={{ fontSize: 12, color: C.grayd, marginTop: 2 }}>{fmt(displaySub.submitted_at)}</div>
-            </div>
-          </div>
-
-          {/* Activity Tracking Stats */}
-          {displaySub.check_in_at && (
-            <div style={{ padding: '16px 24px', background: 'rgba(62,158,255,0.06)', borderRadius: 20, border: `1px solid ${C.blue}20`, marginBottom: 32, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', gap: 24 }}>
-                <div>
-                  <div style={{ fontSize: 9, color: C.blue, fontWeight: 800, textTransform: 'uppercase', marginBottom: 4 }}>Check-in</div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: C.white }}>{fmt(displaySub.check_in_at)}</div>
-                </div>
-                {displaySub.check_out_at && (
-                  <>
-                    <div style={{ width: 1, height: 24, background: `${C.blue}30`, alignSelf: 'center' }} />
-                    <div>
-                      <div style={{ fontSize: 9, color: C.blue, fontWeight: 800, textTransform: 'uppercase', marginBottom: 4 }}>Check-out</div>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: C.white }}>{fmt(displaySub.check_out_at)}</div>
-                    </div>
-                  </>
-                )}
-              </div>
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: 9, color: C.green, fontWeight: 800, textTransform: 'uppercase', marginBottom: 4 }}>Time Taken</div>
-                <div style={{ fontSize: 18, fontWeight: 900, color: C.green, fontFamily: "'Syne', sans-serif" }}>
-                  {calcDuration(displaySub.check_in_at, displaySub.check_out_at) || 'In-Progress'}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Geo-tagging Section */}
-          {(displaySub.check_in_gps || displaySub.check_out_gps) && (
-            <div style={{ marginBottom: 32 }}>
-              <div style={{ fontSize: 11, fontWeight: 800, color: C.grayd, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 12 }}>Activity Geo-tagging</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                {displaySub.check_in_gps && (
-                  <a href={`https://www.google.com/maps?q=${displaySub.check_in_gps}`} target="_blank" style={{ padding: '12px 16px', background: C.s3, borderRadius: 12, border: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
-                    <div style={{ width: 28, height: 28, borderRadius: 8, background: '#4CAF5020', color: '#4CAF50', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}>📍</div>
-                    <div>
-                      <div style={{ fontSize: 9, color: '#4CAF50', fontWeight: 800, textTransform: 'uppercase' }}>Check-in Location</div>
-                      <div style={{ fontSize: 11, color: C.white, fontWeight: 600 }}>View on Map</div>
-                    </div>
-                  </a>
-                )}
-                {displaySub.check_out_gps && (
-                  <a href={`https://www.google.com/maps?q=${displaySub.check_out_gps}`} target="_blank" style={{ padding: '12px 16px', background: C.s3, borderRadius: 12, border: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
-                    <div style={{ width: 28, height: 28, borderRadius: 8, background: '#E01E2C20', color: '#E01E2C', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}>📍</div>
-                    <div>
-                      <div style={{ fontSize: 9, color: '#E01E2C', fontWeight: 800, textTransform: 'uppercase' }}>Check-out Location</div>
-                      <div style={{ fontSize: 11, color: C.white, fontWeight: 600 }}>View on Map</div>
-                    </div>
-                  </a>
-                )}
-              </div>
-            </div>
-          )}
-
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-            <div style={{ fontSize: 11, fontWeight: 800, color: C.grayd, textTransform: 'uppercase', letterSpacing: '1px' }}>Captured Data</div>
-            <button 
-              onClick={() => fetchFullData()} 
-              style={{ background: 'none', border: 'none', color: C.blue, fontSize: 10, fontWeight: 800, textTransform: 'uppercase', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
-            >
-              ↻ Refresh
-            </button>
-          </div>
-          
-          {loading ? (
-            <div style={{ padding: '60px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
-              <Spinner />
-              <div style={{ fontSize: 13, color: C.grayd }}>Fetching latest data…</div>
-            </div>
-          ) : (displaySub.form_responses && displaySub.form_responses.length > 0) ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {displaySub.form_responses.map((r: any, idx: number) => {
-                const field = r.form_fields || r.builder_questions;
-                const label = field?.title || field?.label || r.field_key?.replace(/_/g, ' ') || 'Untitled';
-                const val = r.value_text ?? r.value_number?.toString() ?? (r.value_bool !== null && r.value_bool !== undefined ? (r.value_bool ? 'Yes' : 'No') : null);
-                const qt = (field?.qtype || field?.field_type || '').toLowerCase();
-                const src = r.photo_url || (qt === 'photo' || qt === 'image' || qt === 'signature' ? r.value_text : null);
-                
-                return (
-                  <div key={idx} style={{ padding: '16px 20px', background: C.s3, borderRadius: 16, border: `1px solid ${C.border}` }}>
-                    <div style={{ fontSize: 10, color: C.grayd, fontWeight: 800, textTransform: 'uppercase', marginBottom: 6 }}>{label}</div>
-                    {val && !src && <div style={{ fontSize: 15, color: C.white }}>{val}</div>}
-                    {src && (
-                      <div style={{ marginTop: val ? 12 : 0 }}>
-                        <img src={src} alt="res" style={{ maxWidth: '100%', borderRadius: 12, border: `1px solid ${C.border}`, cursor: 'pointer' }} onClick={() => window.open(src, '_blank')} />
-                      </div>
-                    )}
-                    {!val && !src && <div style={{ fontSize: 14, color: C.grayd }}>—</div>}
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div style={{ padding: '60px', textAlign: 'center', background: C.s3, borderRadius: 20, border: `1px dashed ${C.border}`, color: C.grayd }}>
-              <div style={{ fontSize: 32, marginBottom: 12 }}>📋</div>
-              <div>No responses found for this submission.</div>
-            </div>
-          )}
-        </div>
-      </div>
-      <style>{`
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes modalIn { from { opacity: 0; transform: translate(-50%, -48%) scale(0.96); } to { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
-      `}</style>
-    </>
-  );
-}
-
-/* ── Outlet Side Panel ───────────────────────────────────────── */
-function OutletPanel({
-  outlet, onClose,
-}: {
-  outlet: { outlet_id?: string; outlet_name: string; user_name?: string; user_id: string };
-  onClose: () => void;
-}) {
-  const [forms, setForms] = useState<FormActivity[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [details, setDetails] = useState<Record<string, any>>({});
-  const [detailLoading, setDetailLoading] = useState<string | null>(null);
-
-  useEffect(() => {
-    setLoading(true);
-    const params: Record<string, string> = { limit: '50', user_id: outlet.user_id };
-    if (outlet.outlet_id) params.outlet_id = outlet.outlet_id;
-    api.getAdminSubmissions(params).then((r: any) => {
-      const rows = Array.isArray(r) ? r : (r?.data ?? r?.submissions ?? []);
-      setForms(rows);
-    }).catch(() => setForms([])).finally(() => setLoading(false));
-  }, [outlet.outlet_id, outlet.user_id]);
-
-  const [downloading, setDownloading] = useState(false);
-
-  const toggleForm = async (id: string) => {
-    if (expandedId === id) { setExpandedId(null); return; }
-    setExpandedId(id);
-    if (details[id]) return;
-    setDetailLoading(id);
-    try {
-      const r: any = await api.getSubmission(id);
-      setDetails(p => ({ ...p, [id]: r?.data || r }));
-    } catch { /* noop */ } finally { setDetailLoading(null); }
-  };
-
-  const downloadAllForms = async () => {
-    if (!forms.length) return;
-    setDownloading(true);
-    try {
-      const missing = forms.filter(f => !details[f.id]);
-      const fetched = await Promise.all(
-        missing.map(f => api.getSubmission(f.id).then((r: any) => ({ id: f.id, data: r?.data || r })).catch(() => ({ id: f.id, data: null })))
-      );
-      const allDetails: Record<string, any> = { ...details };
-      fetched.forEach(({ id, data }) => { if (data) allDetails[id] = data; });
-      setDetails(allDetails);
-
-      const escCSV = (v: string) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-      const headers = ['Outlet', 'FE Name', 'Employee ID', 'Form / Activity', 'Submitted At', 'Field', 'Value', 'Photo URL'];
-      const rows: string[][] = [];
-
-      for (const f of forms) {
-        const detail = allDetails[f.id];
-        const responses: any[] = detail?.form_responses || [];
-        const formTitle = f.activities?.name || (f as any).builder_forms?.title || f.form_templates?.title || 'Form';
-        const baseRow = [
-          outlet.outlet_name,
-          outlet.user_name || '',
-          f.users?.employee_id || '',
-          formTitle,
-          f.submitted_at ? new Date(f.submitted_at).toLocaleString('en-IN') : '',
-        ];
-
-        if (responses.length === 0) {
-          rows.push([...baseRow, '—', '—', '']);
-        } else {
-          for (const r of responses) {
-            const field = r.form_fields || r.builder_questions;
-            const label = field?.title || field?.label || r.field_key?.replace(/_/g, ' ') || '';
-            const val = r.value_text ?? r.value_number?.toString() ?? (r.value_bool !== null && r.value_bool !== undefined ? (r.value_bool ? 'Yes' : 'No') : '');
-            rows.push([...baseRow, label, val, r.photo_url || '']);
-          }
-        }
-      }
-
-      const csv = [headers, ...rows].map(row => row.map(escCSV).join(',')).join('\n');
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${(outlet.outlet_name || 'outlet').replace(/[^a-z0-9]/gi, '_')}_forms_${new Date().toISOString().slice(0, 10)}.csv`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } finally {
-      setDownloading(false);
-    }
-  };
-
-  return (
-    <>
-      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.78)', backdropFilter: 'blur(4px)', zIndex: 999 }} />
-      <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: '100%', maxWidth: 640, background: C.s2, display: 'flex', flexDirection: 'column', zIndex: 1000, boxShadow: '-24px 0 80px rgba(0,0,0,0.6)' }}>
-        <div style={{ padding: '22px 26px 18px', borderBottom: `1px solid ${C.border}`, background: C.s3, flexShrink: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 10, color: C.blue, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 4 }}>Outlet Submissions</div>
-              <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 19, fontWeight: 800, color: C.white, marginBottom: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {outlet.outlet_name}
-              </div>
-              {outlet.user_name && <div style={{ fontSize: 12, color: C.gray }}>Assigned to {outlet.user_name}</div>}
-            </div>
-            <button onClick={onClose} style={{ width: 34, height: 34, borderRadius: 9, background: C.s4, border: 'none', color: C.white, fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>✕</button>
-          </div>
-        </div>
-        <div style={{ flex: 1, overflowY: 'auto', padding: '20px 26px' }}>
-          <div style={{ marginBottom: 10 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: C.grayd, textTransform: 'uppercase', letterSpacing: '1px' }}>
-                Forms Submitted {!loading && `(${forms.length})`}
-              </div>
-              {!loading && forms.length > 0 && (
-                <button onClick={downloadAllForms} disabled={downloading} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: downloading ? C.s4 : C.blueD, border: `1px solid ${C.blue}40`, borderRadius: 8, color: downloading ? C.grayd : C.blue, fontSize: 12, fontWeight: 600, cursor: downloading ? 'default' : 'pointer', transition: 'all 0.15s' }}>
-                  {downloading ? <><Spinner /> Preparing…</> : <>↓ Download All Forms</>}
-                </button>
-              )}
-            </div>
-            {loading ? (
-              <div style={{ display: 'flex', justifyContent: 'center', padding: 32 }}><Spinner /></div>
-            ) : forms.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '28px 0', color: C.grayd, fontSize: 13, border: `1px dashed ${C.border}`, borderRadius: 12 }}>
-                <div style={{ fontSize: 24, marginBottom: 8 }}>📋</div>
-                No forms submitted for this outlet.
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {forms.map(f => {
-                  const isExpanded = expandedId === f.id;
-                  const detail = details[f.id];
-                  const isLoadingDetail = detailLoading === f.id;
-                  const formTitle = f.activities?.name || f.form_templates?.title || 'Form';
-                  return (
-                    <div key={f.id} style={{ background: C.s3, border: `1px solid ${isExpanded ? C.blue + '50' : C.border}`, borderRadius: 12, overflow: 'hidden', transition: 'border-color 0.15s' }}>
-                      <div onClick={() => toggleForm(f.id)} style={{ padding: '13px 16px', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
-                        <div style={{ width: 34, height: 34, borderRadius: 8, background: C.blueD, border: `1px solid ${C.blue}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, flexShrink: 0 }}>📋</div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: C.white, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{formTitle}</div>
-                          <div style={{ fontSize: 11, color: C.grayd, marginTop: 2 }}>{fmtDate(f.submitted_at)} · {fmt(f.submitted_at)}</div>
-                        </div>
-                        <div style={{ fontSize: 16, color: C.grayd, transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', flexShrink: 0 }}>▾</div>
-                      </div>
-                      {isExpanded && (
-                        <div style={{ borderTop: `1px solid ${C.border}`, padding: '14px 16px' }}>
-                          {isLoadingDetail ? (
-                            <div style={{ display: 'flex', justifyContent: 'center', padding: 16 }}><Spinner /></div>
-                          ) : detail?.form_responses?.length > 0 ? (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                              {detail.form_responses.map((r: any, idx: number) => {
-                                const field = r.form_fields || r.builder_questions;
-                                const label = field?.title || field?.label || r.field_key?.replace(/_/g, ' ') || `Field ${idx + 1}`;
-                                const val = r.value_text || r.value_number?.toString() || (r.value_bool !== null && r.value_bool !== undefined ? (r.value_bool ? 'Yes' : 'No') : null);
-                                const qt = (field?.qtype || field?.field_type || '').toLowerCase();
-                                const src = r.photo_url || (qt === 'photo' || qt === 'image' || qt === 'signature' ? r.value_text : null);
-
-                                return (
-                                  <div key={idx} style={{ padding: '10px 12px', background: C.s4, borderRadius: 9, border: `1px solid ${C.border}` }}>
-                                    <div style={{ fontSize: 10, color: C.grayd, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 4 }}>
-                                      {label}
-                                    </div>
-                                    {val && !src && <div style={{ fontSize: 14, color: C.white }}>{val}</div>}
-                                    {src && (
-                                      <img src={src} alt="response" style={{ marginTop: val ? 8 : 0, maxWidth: '100%', maxHeight: 220, borderRadius: 8, border: `1px solid ${C.border}`, objectFit: 'cover', display: 'block', cursor: 'pointer' }} onClick={() => window.open(src, '_blank')} />
-                                    )}
-                                    {!val && !src && <div style={{ fontSize: 13, color: C.grayd }}>—</div>}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          ) : (
-                            <div style={{ textAlign: 'center', color: C.grayd, fontSize: 13, padding: '8px 0' }}>No responses recorded.</div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </>
-  );
-}
-
-/* ── Main Page ───────────────────────────────────────────────── */
+/* ── Activity View Wrap ───────────────────────────────────────── */
 export default function WorkActivitiesPage() {
-  const [tab, setTab] = useState<'fe' | 'supervisor'>('fe');
-  const [feActivities, setFEActivities] = useState<{ rows: FormActivity[], grouped: Record<string, FormActivity[]>, order: string[] }>({ rows: [], grouped: {}, order: [] });
-  const [feLoading, setFELoading] = useState(false);
-  const [feTotal, setFETotal] = useState(0);
-  const [fePage, setFEPage] = useState(1);
-  const [svActivities, setSvActivities] = useState<any[]>([]);
-  const [svLoading, setSvLoading] = useState(false);
-  const [svTotal, setSvTotal] = useState(0);
-  const [svPage, setSvPage] = useState(1);
-  const [outletPanel, setOutletPanel] = useState<any>(null);
+  const { selectedClientId } = useClient();
+  const [loading, setLoading] = useState(false);
+  const [data, setData] = useState<FormActivity[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const LIMIT = 50;
+
+  // Static Metadata
   const [users, setUsers] = useState<User[]>([]);
   const [cities, setCities] = useState<City[]>([]);
-  const [zones, setZones] = useState<Zone[]>([]);
-  const [formTemplates, setFormTemplates] = useState<any[]>([]);
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
+  const [activities, setActivities] = useState<any[]>([]);
+
+  // Filters
   const [search, setSearch] = useState('');
   const [userFilter, setUserFilter] = useState('');
   const [cityFilter, setCityFilter] = useState('');
-  const [zoneFilter, setZoneFilter] = useState('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-  const [activeSubmission, setActiveSubmission] = useState<FormActivity | null>(null);
-  const [err, setErr] = useState('');
-  const LIMIT = 25;
+  
+  // Default to showing last 3 days to ensure April 9th is visible
+  const [dateFrom, setDateFrom] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 2);
+    return d.toISOString().split('T')[0];
+  });
+  const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0]);
+  const [activityFilter, setActivityFilter] = useState('');
 
-  const { selectedClientId } = useClient();
+  // UI State
+  const [expandedOutlet, setExpandedOutlet] = useState<string | null>(null);
+  const [detailedSub, setDetailedSub] = useState<any>(null);
+  const [viewingId, setViewingId] = useState<string | null>(null);
+  const [reportLoading, setReportLoading] = useState(false);
+  const [lightbox, setLightbox] = useState<{ urls: string[]; index: number } | null>(null);
 
+  // Initial Data
   useEffect(() => {
-    const qs = selectedClientId ? `?client_id=${selectedClientId}` : '';
-    api.getUsers({ limit: '500', client_id: selectedClientId || '' }).then((r: any) => setUsers(Array.isArray(r) ? r : (r?.data ?? r?.users ?? []))).catch(() => {});
-    api.getCities({ limit: '200', client_id: selectedClientId || '' }).then((r: any) => setCities(Array.isArray(r) ? r : (r?.data ?? r?.cities ?? []))).catch(() => {});
-    api.get(`/api/v1/zones?limit=500${qs.replace('?','&')}`).then((r: any) => {
-       const pick = (res: any) => Array.isArray(res) ? res : (res?.data ?? res?.zones ?? []);
-       setZones(pick(r));
-    }).catch(() => {});
-    api.getForms({ client_id: selectedClientId || '' }).then((r: any) => {
-      const forms = Array.isArray(r) ? r : (r?.data ?? r?.forms ?? []);
-      setFormTemplates(prev => {
-        const existingIds = new Set(prev.map(p => p.id));
-        const newItems = forms.filter((f: any) => !existingIds.has(f.id));
-        return [...prev, ...newItems];
-      });
-    }).catch(() => {});
-
-    api.getActivities({ client_id: selectedClientId || '' }).then((r: any) => {
-      const acts = Array.isArray(r) ? r : (r?.data ?? r?.activities ?? []);
-      setFormTemplates(prev => {
-        const existingIds = new Set(prev.map(p => p.id));
-        const newItems = acts.filter((a: any) => !existingIds.has(a.id)).map((a: any) => ({ ...a, title: a.name }));
-        return [...prev, ...newItems];
-      });
-    }).catch(() => {});
+    const cid = selectedClientId || '';
+    api.getUsers({ limit: '500', client_id: cid }).then((r: any) => setUsers(Array.isArray(r) ? r : (r?.data || []))).catch(() => {});
+    api.getCities({ limit: '200', client_id: cid }).then((r: any) => setCities(Array.isArray(r) ? r : (r?.data || []))).catch(() => {});
+    api.getActivities({ client_id: cid }).then((r: any) => setActivities(Array.isArray(r) ? r : (r?.data || []))).catch(() => {});
   }, [selectedClientId]);
 
-  const buildParams = useCallback((page: number) => {
-    const p: Record<string, string> = { page: String(page), limit: String(LIMIT) };
-    if (search) p.search = search;
-    if (userFilter) p.user_id = userFilter;
-    if (cityFilter) p.city_id = cityFilter;
-    if (zoneFilter) p.zone_id = zoneFilter;
-    if (dateFrom) p.date_from = dateFrom;
-    if (dateTo) p.date_to = dateTo;
-    if (selectedTemplateId) p.activity_id = selectedTemplateId;
-    // Note: client_id is intentionally omitted — the Railway backend
-    // mistakenly uses the client_id value as an org_id filter, returning
-    // zero results. The org is determined from the JWT instead.
-    return p;
-  }, [search, userFilter, cityFilter, zoneFilter, dateFrom, dateTo, selectedTemplateId]);
-
-  const loadFE = useCallback(async (page = 1) => {
-    setFELoading(true); setErr('');
+  // Main Load
+  const loadData = useCallback(async (p = 1) => {
+    setLoading(true);
     try {
-      const resp = await api.getAdminSubmissions(buildParams(page)) as any;
-      const rows: FormActivity[] = Array.isArray(resp?.data) ? resp.data : (Array.isArray(resp) ? resp : (resp?.submissions ?? []));
-      
-      const grouped: Record<string, FormActivity[]> = {};
-      const order: string[] = [];
-      
-      if (Array.isArray(rows)) {
-        rows.forEach(s => {
-          const key = s.store_name || s.outlet_name || 'Individual Submissions';
-          if (!grouped[key]) {
-            grouped[key] = [];
-            order.push(key);
-          }
-          grouped[key].push(s);
+      const params: any = {
+        page: String(p),
+        limit: String(LIMIT),
+        client_id: selectedClientId || 'Kinematic',
+        date_from: dateFrom,
+        date_to: dateTo,
+        search,
+        user_id: userFilter,
+        city_id: cityFilter,
+        activity_id: activityFilter
+      };
+      const res: any = await api.getAdminSubmissions(params);
+      // Backend returns { success: true, data: { data: [], pagination: {} } }
+      const rows = res?.data?.data || res?.data || res?.submissions || [];
+      setData(Array.isArray(rows) ? rows : []);
+      setTotal(res?.data?.pagination?.total || rows.length || 0);
+      setPage(p);
+    } catch {
+      setData([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedClientId, dateFrom, dateTo, search, userFilter, cityFilter, activityFilter]);
+
+  useEffect(() => { loadData(1); }, [loadData]);
+
+  // Grouping Logic: (Outlet + User + Date)
+  const groupedData = useMemo(() => {
+    const map = new Map<string, FormActivity[]>();
+    data.forEach(item => {
+      const datePart = item.submitted_at?.split('T')[0] || '1970-01-01';
+      const key = `${item.outlet_name || 'Individual'}_${item.user_id}_${datePart}`;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(item);
+    });
+    return Array.from(map.values());
+  }, [data]);
+
+  const downloadReport = async () => {
+    if (!data.length) return;
+    setReportLoading(true);
+    try {
+        const params: any = {
+            client_id: selectedClientId || 'Kinematic',
+            date_from: dateFrom,
+            date_to: dateTo,
+            search,
+            user_id: userFilter,
+            city_id: cityFilter,
+            activity_id: activityFilter,
+            include_responses: 'true',
+            limit: '1000'
+        };
+        const res: any = await api.getAdminSubmissions(params);
+        const fullData = res?.data?.data || res?.data || [];
+        
+        const headers = ['Date', 'Client', 'Executive', 'Employee ID', 'Outlet', 'Activity', 'Address', 'Check In GPS', 'Check Out GPS', 'Check In Time', 'Check Out Time', 'Responses'];
+        
+        const csvRows = fullData.map((f: any) => {
+            const responsesStr = (f.form_responses || []).map((r: any) => 
+                `${r.builder_questions?.label || 'Q'}: ${r.value_text || r.value_number || r.value_bool || '—'}`
+            ).join(' | ');
+
+            return [
+                fmtDate(f.submitted_at),
+                selectedClientId || 'Global',
+                f.users?.name || 'Unknown',
+                f.users?.employee_id || '-',
+                f.outlet_name || '-',
+                f.activities?.name || 'Form',
+                f.address || '-',
+                f.check_in_gps || (f.latitude + ',' + f.longitude) || '-',
+                f.check_out_gps || '-',
+                fmtTime(f.check_in_at || f.submitted_at),
+                fmtTime(f.check_out_at || f.submitted_at),
+                responsesStr
+            ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(',');
         });
-      }
 
-      setFEActivities({ rows, grouped, order });
-      
-      // FIX: Check for nested pagination object or direct count
-      const totalCount = resp?.pagination?.total ?? resp?.total ?? resp?.count ?? rows.length ?? 0;
-      setFETotal(totalCount);
-      setFEPage(page);
-    } catch (e: any) { setErr(e.message || 'Failed to load'); }
-    finally { setFELoading(false); }
-  }, [buildParams]);
-
-  const loadSV = useCallback(async (page = 1) => {
-    setSvLoading(true);
-    try {
-      const qs = selectedClientId ? `&client_id=${selectedClientId}` : '';
-      const r = await api.get<any>(`/api/v1/visits/team?page=${page}&limit=${LIMIT}${qs}`);
-      const d = r as any;
-      const rows = Array.isArray(d?.data) ? d.data : (Array.isArray(d) ? d : (d?.visits ?? []));
-      setSvActivities(rows); 
-      const totalCount = d?.pagination?.total ?? d?.total ?? d?.count ?? rows.length ?? 0;
-      setSvTotal(totalCount); 
-      setSvPage(page);
-    } catch { setSvActivities([]); setSvTotal(0); }
-    finally { setSvLoading(false); }
-  }, [selectedClientId]);
-
-  useEffect(() => { if (tab === 'fe') loadFE(1); else loadSV(1); }, [tab, loadFE, loadSV]);
-
-  const downloadCSV = () => {
-    if (!feActivities.rows.length) return;
-    const headers = ['Employee ID', 'Name', 'Activity', 'Outlet', 'Submitted At', 'Date'];
-    const rows = feActivities.rows.map(a => [
-      a.users?.employee_id || '', a.users?.name || '',
-      a.activities?.name || (a as any).builder_forms?.title || a.form_templates?.title || '',
-      a.store_name || a.outlet_name || '',
-      fmt(a.submitted_at), fmtDate(a.submitted_at),
-    ]);
-    const csv = [headers, ...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url;
-    a.download = `work_activities_${new Date().toISOString().slice(0,10)}.csv`;
-    a.click(); URL.revokeObjectURL(url);
+        const csvContent = headers.join(',') + '\n' + csvRows.join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Kinematic_WorkActivities_${dateFrom}_to_${dateTo}.csv`;
+        a.click();
+    } catch (err) {
+        console.error('Report Error:', err);
+    } finally {
+        setReportLoading(false);
+    }
   };
-
-  const downloadGroupCSV = (outletName: string) => {
-    const group = feActivities.grouped[outletName];
-    if (!group?.length) return;
-    const headers = ['Employee ID', 'Name', 'Activity', 'Outlet', 'Submitted At', 'Date'];
-    const rows = group.map(a => [
-      a.users?.employee_id || '', a.users?.name || '',
-      a.activities?.name || a.form_templates?.title || '',
-      a.store_name || a.outlet_name || '',
-      fmt(a.submitted_at), fmtDate(a.submitted_at),
-    ]);
-    const csv = [headers, ...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url;
-    a.download = `${outletName.replace(/[^a-z0-9]/gi, '_')}_${new Date().toISOString().slice(0,10)}.csv`;
-    a.click(); URL.revokeObjectURL(url);
-  };
-
-  const feUsers = users.filter(u => ['executive','field_executive','field-executive'].includes(u.role));
-  const svUsers = users.filter(u => ['supervisor','city_manager','program_manager'].includes(u.role));
-  const filteredZones = cityFilter ? zones.filter(z => (z as any).city_id === cityFilter || z.city === cities.find(c => c.id === cityFilter)?.name) : zones;
-
-  const baseInp: React.CSSProperties = { background: C.s3, border: `1px solid ${C.border}`, color: C.white, borderRadius: 9, padding: '9px 13px', fontSize: 13, outline: 'none', fontFamily: "'DM Sans',sans-serif", width: '100%' };
 
   return (
-    <>
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}} .wa-row{transition:background 0.12s;cursor:pointer;} .wa-row:hover{background:${C.s4}!important;} .wa-btn{cursor:pointer;transition:opacity 0.15s;} .wa-btn:hover{opacity:0.78;}`}</style>
-
-      <div style={{ padding: '28px', maxWidth: 1300, margin: '0 auto', fontFamily: "'DM Sans',sans-serif" }}>
-
-        <div style={{ marginBottom: 24 }}>
-          <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 26, fontWeight: 800, color: C.white, marginBottom: 4 }}>Work Activities</div>
-          <div style={{ fontSize: 13, color: C.gray }}>View field submissions grouped by outlet. Captured data is visible inline.</div>
+    <div style={{ padding: '32px', minHeight: '100vh', background: C.bg, color: C.text, fontFamily: "var(--font-dm-sans)" }}>
+      
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '32px' }}>
+        <div>
+          <h1 style={{ fontSize: '32px', fontWeight: 800, margin: 0, letterSpacing: '-1px', fontFamily: 'var(--font-syne)' }}>Work Activities</h1>
+          <p style={{ color: C.textSec, marginTop: '8px', fontSize: '14px' }}>Analyze field submissions grouped by outlet visits and track duration.</p>
         </div>
-
-        {err && <div style={{ background: C.redD, border: `1px solid ${C.redB}`, borderRadius: 11, padding: '11px 16px', fontSize: 13, color: C.red, marginBottom: 18 }}>{err}</div>}
-
-        {/* Tabs */}
-        <div style={{ display: 'flex', gap: 10, marginBottom: 20, borderBottom: `1px solid ${C.border}`, paddingBottom: 12 }}>
-          {([{ key: 'fe', label: '📋 Field Executives', desc: 'Form Submissions' }, { key: 'supervisor', label: '🏪 Supervisors', desc: 'Store Visits' }] as const).map(t => (
-            <button key={t.key} className="wa-btn" onClick={() => setTab(t.key)}
-              style={{ padding: '10px 20px', background: tab === t.key ? C.s3 : 'transparent', border: `1px solid ${tab === t.key ? C.border : 'transparent'}`, borderRadius: 11, color: tab === t.key ? C.white : C.gray, fontFamily: "'DM Sans',sans-serif", fontWeight: 700, fontSize: 14, textAlign: 'left' as const }}>
-              {t.label}
-              <div style={{ fontSize: 11, color: C.grayd, fontWeight: 400, marginTop: 2 }}>{t.desc}</div>
-            </button>
-          ))}
-        </div>
-
-        {/* Filters */}
-        <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 16, padding: '16px 20px', marginBottom: 20 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(148px, 1fr))', gap: 12 }}>
-            <div>
-              <div style={{ fontSize: 10, color: C.grayd, marginBottom: 5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Search</div>
-              <input style={baseInp} placeholder="Name, outlet…" value={search} onChange={e => setSearch(e.target.value)} />
-            </div>
-            <div>
-              <div style={{ fontSize: 10, color: C.grayd, marginBottom: 5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{tab === 'fe' ? 'Executive' : 'Supervisor'}</div>
-              <select style={{ ...baseInp, appearance: 'none' as const }} value={userFilter} onChange={e => setUserFilter(e.target.value)}>
-                <option value="">All</option>
-                {(tab === 'fe' ? feUsers : svUsers).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <div style={{ fontSize: 10, color: C.grayd, marginBottom: 5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>City</div>
-              <select style={{ ...baseInp, appearance: 'none' as const }} value={cityFilter} onChange={e => { setCityFilter(e.target.value); setZoneFilter(''); }}>
-                <option value="">All Cities</option>
-                {cities.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <div style={{ fontSize: 10, color: C.grayd, marginBottom: 5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Zone</div>
-              <select style={{ ...baseInp, appearance: 'none' as const }} value={zoneFilter} onChange={e => setZoneFilter(e.target.value)}>
-                <option value="">All Zones</option>
-                {filteredZones.map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <div style={{ fontSize: 10, color: C.grayd, marginBottom: 5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>From</div>
-              <input type="date" style={baseInp} value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
-            </div>
-            <div>
-              <div style={{ fontSize: 10, color: C.grayd, marginBottom: 5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>To</div>
-              <input type="date" style={baseInp} value={dateTo} onChange={e => setDateTo(e.target.value)} />
-            </div>
-            {tab === 'fe' && (
-              <div>
-                <div style={{ fontSize: 10, color: C.grayd, marginBottom: 5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Activity</div>
-                <select style={{ ...baseInp, appearance: 'none' as const }} value={selectedTemplateId || ''} onChange={e => setSelectedTemplateId(e.target.value || null)}>
-                  <option value="">All Activities</option>
-                  {formTemplates.map(ft => <option key={ft.id} value={ft.id}>{ft.title || ft.name}</option>)}
-                </select>
-              </div>
-            )}
-            <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-              <button className="wa-btn" onClick={() => { setSearch(''); setUserFilter(''); setCityFilter(''); setZoneFilter(''); setDateFrom(''); setDateTo(''); setSelectedTemplateId(null); }}
-                style={{ padding: '9px 14px', background: C.s3, border: `1px solid ${C.border}`, borderRadius: 9, color: C.gray, fontSize: 12, fontWeight: 600 }}>
-                ✕ Clear
-              </button>
-            </div>
-          </div>
-        </div>
-
-
-        <SubmissionModal submission={activeSubmission} onClose={() => setActiveSubmission(null)} />
-
-        {/* ── FE Tab ── */}
-        {tab === 'fe' && (
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-              <div style={{ fontSize: 13, color: C.grayd, fontWeight: 600 }}>{feLoading ? 'Loading…' : `${feTotal} total submissions`}</div>
-              <div style={{ display: 'flex', gap: 10 }}>
-                <button className="wa-btn" onClick={downloadCSV} style={{ padding: '8px 12px', background: C.blueD, border: `1px solid ${C.blue}`, color: C.blue, borderRadius: 9, fontSize: 13, fontWeight: 600 }}>↓ CSV</button>
-                <button className="wa-btn" onClick={() => loadFE(fePage)} style={{ padding: '8px 12px', background: C.s2, border: `1px solid ${C.border}`, color: C.gray, borderRadius: 9, fontSize: 13 }}>↻ Refresh</button>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-              {feLoading ? (
-                <div style={{ padding: 50, display: 'flex', justifyContent: 'center' }}><Spinner /></div>
-              ) : feActivities.rows.length === 0 ? (
-                <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 16, padding: 60, textAlign: 'center', color: C.grayd, fontSize: 14 }}>
-                  <div style={{ fontSize: 32, marginBottom: 12 }}>📋</div>
-                  <div style={{ fontWeight: 600, marginBottom: 6 }}>No form submissions found</div>
-                  <div style={{ fontSize: 12 }}>Use filters above or check the mobile app data.</div>
-                </div>
-              ) : feActivities.order?.map((outletName: string) => (
-                <div key={outletName} style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 20, overflow: 'hidden' }}>
-                  {/* Outlet Header */}
-                  <div style={{ padding: '18px 24px', background: C.s3, borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
-                      <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 18, fontWeight: 800, color: C.white }}>{outletName}</div>
-                      <div style={{ fontSize: 11, color: C.gray, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                        {feActivities.grouped[outletName].length} Submissions
-                      </div>
-                    </div>
-                    
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                      {(() => {
-                        const group = feActivities.grouped[outletName];
-                        const checkIns = group.map(a => a.check_in_at).filter(Boolean) as string[];
-                        const checkOuts = group.map(a => a.check_out_at).filter(Boolean) as string[];
-                        if (checkIns.length > 0) {
-                          const minIn = new Date(Math.min(...checkIns.map(t => new Date(t).getTime()))).toISOString();
-                          const maxOut = checkOuts.length > 0 
-                            ? new Date(Math.max(...checkOuts.map(t => new Date(t).getTime()))).toISOString()
-                            : null;
-                          const duration = maxOut ? calcDuration(minIn, maxOut) : 'In-Progress';
-                          return (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                              <div style={{ display: 'flex', gap: 12 }}>
-                                <div>
-                                  <div style={{ fontSize: 9, color: C.grayd, fontWeight: 800, textTransform: 'uppercase', marginBottom: 2 }}>First In</div>
-                                  <div style={{ fontSize: 13, fontWeight: 700, color: C.white }}>{fmt(minIn)}</div>
-                                </div>
-                                {maxOut && (
-                                  <div>
-                                    <div style={{ fontSize: 9, color: C.grayd, fontWeight: 800, textTransform: 'uppercase', marginBottom: 2 }}>Last Out</div>
-                                    <div style={{ fontSize: 13, fontWeight: 700, color: C.white }}>{fmt(maxOut)}</div>
-                                  </div>
-                                )}
-                              </div>
-                              <div style={{ padding: '6px 14px', background: 'rgba(0,217,126,0.1)', border: `1px solid ${C.green}40`, borderRadius: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
-                                <div style={{ fontSize: 9, color: C.green, fontWeight: 800, textTransform: 'uppercase' }}>Total Time Spent</div>
-                                <div style={{ fontSize: 14, fontWeight: 900, color: C.green, fontFamily: "'Syne', sans-serif" }}>{duration}</div>
-                              </div>
-                            </div>
-                          );
-                        }
-                        return null;
-                      })()}
-                      <button onClick={(e) => { e.stopPropagation(); downloadGroupCSV(outletName); }} className="wa-btn" style={{ padding: '6px 12px', background: C.s4, border: `1px solid ${C.border}`, color: C.gray, borderRadius: 8, fontSize: 11, fontWeight: 600 }}>↓ Export Group</button>
-                    </div>
-                  </div>
-
-                  {/* Submissions List */}
-                  <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    {feActivities.grouped[outletName].map((a: any, i: number) => (
-                      <div key={a.id} onClick={() => setActiveSubmission(a)} className="wa-row" style={{ padding: '16px 24px', borderBottom: i < feActivities.grouped[outletName].length - 1 ? `1px solid ${C.border}40` : 'none', display: 'flex', alignItems: 'center', gap: 20 }}>
-                        <div style={{ width: 34, height: 34, borderRadius: 9, background: C.blueD, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>📋</div>
-                        <div style={{ width: 140, flexShrink: 0 }}>
-                          <div style={{ fontSize: 13, fontWeight: 700, color: C.white, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.users?.name}</div>
-                          <div style={{ fontSize: 11, color: C.grayd }}>{a.users?.employee_id}</div>
-                        </div>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: C.blue }}>{a.activities?.name || a.builder_forms?.title || a.form_templates?.title || 'Form'}</div>
-                          {a.check_in_at && a.check_out_at && (
-                            <div style={{ fontSize: 10, color: C.green, fontWeight: 700, marginTop: 2 }}>
-                              ⏱ {calcDuration(a.check_in_at, a.check_out_at)}
-                            </div>
-                          )}
-                        </div>
-                        <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                          <div style={{ fontSize: 11, color: C.grayd }}>{fmtDate(a.submitted_at)}</div>
-                        </div>
-                        <div style={{ color: C.grayd, fontSize: 16 }}>›</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {feTotal > LIMIT && !feLoading && (
-              <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 16 }}>
-                <button className="wa-btn" onClick={() => loadFE(fePage - 1)} disabled={fePage <= 1} style={{ padding: '8px 16px', background: C.s2, border: `1px solid ${C.border}`, color: fePage <= 1 ? C.grayd : C.white, borderRadius: 9, fontSize: 13, opacity: fePage <= 1 ? 0.4 : 1 }}>← Prev</button>
-                <span style={{ padding: '8px 16px', color: C.gray, fontSize: 13 }}>Page {fePage} of {Math.ceil(feTotal / LIMIT)}</span>
-                <button className="wa-btn" onClick={() => loadFE(fePage + 1)} disabled={fePage >= Math.ceil(feTotal / LIMIT)} style={{ padding: '8px 16px', background: C.s2, border: `1px solid ${C.border}`, color: fePage >= Math.ceil(feTotal / LIMIT) ? C.grayd : C.white, borderRadius: 9, fontSize: 13, opacity: fePage >= Math.ceil(feTotal / LIMIT) ? 0.4 : 1 }}>Next →</button>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ── Supervisor Tab ── */}
-        {tab === 'supervisor' && (
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-              <div style={{ fontSize: 13, color: C.grayd, fontWeight: 600 }}>{svLoading ? 'Loading…' : `${svTotal} total activities`}</div>
-              <button className="wa-btn" onClick={() => loadSV(svPage)} style={{ padding: '8px 12px', background: C.s2, border: `1px solid ${C.border}`, color: C.gray, borderRadius: 9, fontSize: 13 }}>↻ Refresh</button>
-            </div>
-
-            <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 16, overflow: 'hidden' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr 1.5fr 1fr 1fr', padding: '11px 20px', borderBottom: `1px solid ${C.border}`, background: C.s3 }}>
-                {['User', 'Activity Name', 'Notes', 'Zone', 'Time'].map(h => (
-                  <div key={h} style={{ fontSize: 10, fontWeight: 700, color: C.grayd, letterSpacing: '0.7px', textTransform: 'uppercase' as const }}>{h}</div>
-                ))}
-              </div>
-
-              {svLoading ? (
-                <div style={{ padding: 50, display: 'flex', justifyContent: 'center' }}><Spinner /></div>
-              ) : svActivities.length === 0 ? (
-                <div style={{ padding: 60, textAlign: 'center', color: C.grayd, fontSize: 14 }}>
-                  <div style={{ fontSize: 32, marginBottom: 12 }}>🏪</div>
-                  <div style={{ fontWeight: 600 }}>No activities found</div>
-                </div>
-              ) : svActivities.map((v, i) => (
-                <div key={v.id} className="wa-row" style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr 1.5fr 1fr 1fr', padding: '13px 20px', borderBottom: i < svActivities.length - 1 ? `1px solid ${C.border}` : 'none', alignItems: 'center', background: C.s2 }}>
-                  <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                    <div style={{ width: 32, height: 32, borderRadius: 9, background: C.blueD, border: `1px solid rgba(62,158,255,0.15)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 13, color: C.blue, flexShrink: 0 }}>
-                      {(v.users?.name?.[0] || '?').toUpperCase()}
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: C.white }}>{v.users?.name || '—'}</div>
-                      <div style={{ fontSize: 11, color: C.grayd }}>{v.users?.employee_id || ''}</div>
-                    </div>
-                  </div>
-                  <div style={{ fontSize: 13, color: v.outlet_name ? C.white : C.grayd }}>{v.outlet_name || 'Generic Activity'}</div>
-                  <div style={{ fontSize: 12, color: C.gray, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{v.notes || '—'}</div>
-                  <div style={{ fontSize: 12, color: C.gray }}>{v.zones?.name || '—'}</div>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: 12, color: C.white, fontWeight: 600 }}>{fmt(v.check_in_at)}</div>
-                    <div style={{ fontSize: 10, color: C.grayd }}>{fmtDate(v.check_in_at)}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {svTotal > LIMIT && !svLoading && (
-              <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 16 }}>
-                <button className="wa-btn" onClick={() => loadSV(svPage - 1)} disabled={svPage <= 1} style={{ padding: '8px 16px', background: C.s2, border: `1px solid ${C.border}`, color: svPage <= 1 ? C.grayd : C.white, borderRadius: 9, fontSize: 13 }}>← Prev</button>
-                <span style={{ padding: '8px 16px', color: C.gray, fontSize: 13 }}>Page {svPage} of {Math.ceil(svTotal / LIMIT)}</span>
-                <button className="wa-btn" onClick={() => loadSV(svPage + 1)} disabled={svPage >= Math.ceil(svTotal / LIMIT)} style={{ padding: '8px 16px', background: C.s2, border: `1px solid ${C.border}`, color: svPage >= Math.ceil(svTotal / LIMIT) ? C.grayd : C.white, borderRadius: 9, fontSize: 13 }}>Next →</button>
-              </div>
-            )}
-          </div>
-        )}
-
+        <button 
+          onClick={downloadReport}
+          disabled={reportLoading}
+          style={{ padding: '12px 24px', background: reportLoading ? C.card : C.accent, borderRadius: '12px', color: C.text, border: 'none', fontWeight: 700, cursor: reportLoading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 10px 20px rgba(62,158,255,0.2)' }}
+        >
+          <span>↓</span> {reportLoading ? 'Preparing Report...' : 'Download Report'}
+        </button>
       </div>
-    </>
+
+      {/* Universal Sticky Filter Bar */}
+      <div style={{ position: 'sticky', top: '16px', zIndex: 100, background: 'rgba(22, 25, 31, 0.8)', backdropFilter: 'blur(20px)', border: `1px solid ${C.border}`, borderRadius: '20px', padding: '16px 24px', display: 'flex', gap: '20px', alignItems: 'center', marginBottom: '32px', boxShadow: '0 20px 40px rgba(0,0,0,0.4)' }}>
+        
+        <div style={{ flex: 1 }}>
+          <label style={{ display: 'block', fontSize: '10px', fontWeight: 800, color: C.accent, textTransform: 'uppercase', marginBottom: '6px' }}>Date Window</label>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={{ background: 'transparent', border: `1px solid ${C.border}`, color: C.text, padding: '4px 8px', borderRadius: '8px', fontSize: '12px' }} />
+            <span style={{ color: C.textTert }}>to</span>
+            <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} style={{ background: 'transparent', border: `1px solid ${C.border}`, color: C.text, padding: '4px 8px', borderRadius: '8px', fontSize: '12px' }} />
+          </div>
+        </div>
+
+        <div style={{ width: '150px' }}>
+          <label style={{ display: 'block', fontSize: '10px', fontWeight: 800, color: C.accent, textTransform: 'uppercase', marginBottom: '6px' }}>City</label>
+          <select value={cityFilter} onChange={e => setCityFilter(e.target.value)} style={{ width: '100%', background: 'transparent', border: `1px solid ${C.border}`, color: C.text, padding: '4px', borderRadius: '8px', fontSize: '12px', outline: 'none' }}>
+            <option value="">All Cities</option>
+            {cities.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </div>
+
+        <div style={{ width: '150px' }}>
+          <label style={{ display: 'block', fontSize: '10px', fontWeight: 800, color: C.accent, textTransform: 'uppercase', marginBottom: '6px' }}>Executive</label>
+          <select value={userFilter} onChange={e => setUserFilter(e.target.value)} style={{ width: '100%', background: 'transparent', border: `1px solid ${C.border}`, color: C.text, padding: '4px', borderRadius: '8px', fontSize: '12px', outline: 'none' }}>
+            <option value="">All Executives</option>
+            {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+          </select>
+        </div>
+
+        <div style={{ width: '150px' }}>
+          <label style={{ display: 'block', fontSize: '10px', fontWeight: 800, color: C.accent, textTransform: 'uppercase', marginBottom: '6px' }}>Activity Type</label>
+          <select value={activityFilter} onChange={e => setActivityFilter(e.target.value)} style={{ width: '100%', background: 'transparent', border: `1px solid ${C.border}`, color: C.text, padding: '4px', borderRadius: '8px', fontSize: '12px', outline: 'none' }}>
+            <option value="">All Activities</option>
+            {activities.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+          </select>
+        </div>
+
+        <div style={{ width: '180px' }}>
+          <label style={{ display: 'block', fontSize: '10px', fontWeight: 800, color: C.accent, textTransform: 'uppercase', marginBottom: '6px' }}>Search Store</label>
+          <input 
+            placeholder="Search store..." 
+            value={search} 
+            onChange={e => setSearch(e.target.value)} 
+            style={{ width: '100%', background: 'transparent', border: `1px solid ${C.border}`, color: C.text, padding: '6px 12px', borderRadius: '8px', fontSize: '12px', outline: 'none' }} 
+          />
+        </div>
+
+        {selectedClientId === 'Kinematic' && (
+           <div style={{ borderLeft: `1px solid ${C.border}`, paddingLeft: '20px' }}>
+             <span style={{ padding: '6px 12px', background: C.red, borderRadius: '8px', fontSize: '10px', fontWeight: 900 }}>GLOBAL VIEW</span>
+           </div>
+        )}
+      </div>
+
+      <div style={{ marginBottom: '16px', fontSize: '11px', color: C.textSec, background: C.card, padding: '8px 16px', borderRadius: '10px', display: 'flex', gap: '16px', border: `1px solid ${C.border}` }}>
+          <span><b>ACTIVE FILTERS:</b></span>
+          <span>Date: {dateFrom} to {dateTo}</span>
+          {cityFilter && <span>City: {cities.find(c => c.id === cityFilter)?.name || cityFilter}</span>}
+          {userFilter && <span>Exec: {users.find(u => u.id === userFilter)?.name || userFilter} ({userFilter.slice(0, 6)})</span>}
+          {search && <span>Store: {search}</span>}
+          <span style={{ marginLeft: 'auto', color: C.accent }}>API Status: {loading ? 'FETCHING...' : 'READY'} | Records: {total}</span>
+      </div>
+
+      {/* Main Grid: Outlet Visits */}
+      <div style={{ display: 'grid', gap: '24px' }}>
+        {loading ? (
+             <div style={{ padding: '100px', textAlign: 'center', color: C.textSec }}>Loading visit logs...</div>
+        ) : groupedData.length === 0 ? (
+             <div style={{ padding: '100px', textAlign: 'center', background: C.card, border: `1px dashed ${C.border}`, borderRadius: '24px', color: C.textSec }}>
+                <div style={{ fontSize: '48px', marginBottom: '16px' }}>📂</div>
+                <div style={{ fontSize: '18px', fontWeight: 700, color: C.text }}>No Visits Found</div>
+                <div style={{ color: C.textSec, marginTop: '8px', maxWidth: '300px', margin: '8px auto' }}>
+                  No submissions found for the selected filters. {dateFrom === dateTo ? `Checking ${fmtDate(dateFrom)} only.` : `Checking from ${fmtDate(dateFrom)} to ${fmtDate(dateTo)}.`}
+                </div>
+                <button 
+                  onClick={() => {
+                    setSearch(''); setCityFilter(''); setUserFilter(''); setActivityFilter('');
+                    const d = new Date(); d.setDate(d.getDate() - 2); setDateFrom(d.toISOString().split('T')[0]);
+                    setDateTo(new Date().toISOString().split('T')[0]);
+                  }}
+                  style={{ marginTop: '20px', padding: '8px 20px', background: 'transparent', border: `1px solid ${C.accent}`, borderRadius: '8px', color: C.accent, cursor: 'pointer', fontWeight: 600 }}
+                >
+                  Clear All Filters
+                </button>
+             </div>
+        ) : groupedData.map((group, idx) => {
+            const first = group[0];
+            const last = group[group.length - 1];
+            
+            // Calculate the earliest possible start and latest possible end for the visit
+            const allStarts = group.flatMap(f => [f.check_in_at, f.submitted_at]).filter(Boolean).map(t => new Date(t!).getTime());
+            const allEnds = group.flatMap(f => [f.check_out_at, f.submitted_at]).filter(Boolean).map(t => new Date(t!).getTime());
+            
+            const startLimit = allStarts.length ? new Date(Math.min(...allStarts)).toISOString() : first.submitted_at;
+            const endLimit = allEnds.length ? new Date(Math.max(...allEnds)).toISOString() : (last.check_out_at || last.submitted_at);
+            
+            const checkIn = startLimit;
+            const checkOut = endLimit;
+            const duration = calcDuration(checkIn, checkOut);
+            const isExpanded = expandedOutlet === `${idx}`;
+
+            return (
+                <div 
+                  key={idx} 
+                  style={{ background: C.card, borderRadius: '24px', border: `1px solid ${isExpanded ? C.accent : C.border}`, overflow: 'hidden', transition: 'all 0.3s cubic-bezier(0.16,1,0.3,1)' }}
+                >
+                    {/* Outlet Header */}
+                    <div 
+                      onClick={() => setExpandedOutlet(isExpanded ? null : `${idx}`)}
+                      style={{ padding: '24px 32px', display: 'flex', alignItems: 'center', gap: '32px', cursor: 'pointer' }}
+                    >
+                        <div style={{ width: '56px', height: '56px', background: C.accentD, color: C.accent, borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', flexShrink: 0 }}>🏪</div>
+                        
+                        <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: '20px', fontWeight: 800 }}>{first.outlet_name || 'Individual Visit'}</div>
+                            <div style={{ color: C.textSec, fontSize: '13px', marginTop: '4px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                                <span>👤 {first.users?.name}</span>
+                                <span>📅 {fmtDate(first.submitted_at)}</span>
+                                <span style={{ opacity: 0.8 }}>📍 {first.address || 'Location Saved'}</span>
+                            </div>
+                        </div>
+
+                        <div style={{ textAlign: 'right', minWidth: '140px' }}>
+                            <div style={{ fontSize: '10px', fontWeight: 800, color: C.accent, marginBottom: '4px' }}>VISIT DURATION</div>
+                            <div style={{ fontSize: '16px', fontWeight: 900, color: C.green }}>{duration || 'Processing'}</div>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '16px', textAlign: 'right', borderLeft: `1px solid ${C.border}`, paddingLeft: '32px' }}>
+                            <div>
+                                <div style={{ fontSize: '9px', color: C.textSec }}>CHECK IN</div>
+                                <div style={{ fontWeight: 700 }}>{fmtTime(checkIn)}</div>
+                            </div>
+                            <div>
+                                <div style={{ fontSize: '9px', color: C.textSec }}>LAST OUT</div>
+                                <div style={{ fontWeight: 700 }}>{fmtTime(checkOut)}</div>
+                            </div>
+                        </div>
+
+                        <div style={{ fontSize: '24px', transform: isExpanded ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.4s' }}>⌄</div>
+                    </div>
+
+                    {/* Expandable Form Details */}
+                    {isExpanded && (
+                        <div style={{ background: C.bg, padding: '32px', borderTop: `1px solid ${C.border}` }}>
+                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
+                                <h4 style={{ margin: 0, textTransform: 'uppercase', fontSize: '12px', letterSpacing: '2px', color: C.textSec }}>Submissions ({group.length})</h4>
+                             </div>
+                             
+                             <div style={{ display: 'grid', gap: '16px' }}>
+                                {group.map((f, fIdx) => (
+                                    <div key={f.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', background: C.card, borderRadius: '12px', border: `1px solid ${C.border}` }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                                            <div style={{ width: '8px', height: '8px', background: C.accent, borderRadius: '50%' }} />
+                                            <div>
+                                                <div style={{ fontWeight: 700, fontSize: '14px' }}>{f.builder_forms?.title || f.activities?.name || 'Form Submission'}</div>
+                                                <div style={{ fontSize: '11px', color: C.textSec }}>Captured at {fmtTime(f.submitted_at)}</div>
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setViewingId(f.id);
+                                                setDetailedSub(f);
+                                            }}
+                                            style={{ padding: '6px 12px', background: 'transparent', border: `1px solid ${C.accent}`, borderRadius: '6px', color: C.accent, fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
+                                        >
+                                            View Data
+                                        </button>
+                                    </div>
+                                ))}
+                             </div>
+                        </div>
+                    )}
+                </div>
+            )
+        })}
+      </div>
+
+      {/* Pagination */}
+      {total > LIMIT && (
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', marginTop: '48px' }}>
+              <button disabled={page === 1} onClick={() => loadData(page - 1)} style={{ padding: '10px 20px', background: C.card, borderRadius: '10px', border: `1px solid ${C.border}`, color: page === 1 ? C.textTert : C.text, cursor: page === 1 ? 'default' : 'pointer' }}>Previous</button>
+              <div style={{ alignSelf: 'center', fontSize: '14px', fontWeight: 600 }}>Page {page} of {Math.ceil(total / LIMIT)}</div>
+              <button disabled={page >= Math.ceil(total / LIMIT)} onClick={() => loadData(page + 1)} style={{ padding: '10px 20px', background: C.card, borderRadius: '10px', border: `1px solid ${C.border}`, color: page >= Math.ceil(total / LIMIT) ? C.textTert : C.text, cursor: page >= Math.ceil(total / LIMIT) ? 'default' : 'pointer' }}>Next</button>
+          </div>
+      )}
+
+      {/* detail modal */}
+      {detailedSub && (
+          <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(5px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px' }} onClick={() => { setDetailedSub(null); setViewingId(null); }}>
+              <div style={{ background: C.card, width: '100%', maxWidth: '800px', maxHeight: '90vh', overflowY: 'auto', borderRadius: '24px', border: `1px solid ${C.border}`, padding: '40px' }} onClick={e => e.stopPropagation()}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '32px' }}>
+                      <h2 style={{ margin: 0, fontSize: '24px', fontWeight: 800 }}>Submission Details</h2>
+                      <button onClick={() => { setDetailedSub(null); setViewingId(null); }} style={{ background: 'transparent', border: 'none', color: C.textSec, cursor: 'pointer', fontSize: '24px' }}>×</button>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '40px' }}>
+                      <div style={{ padding: '16px', background: C.bg, borderRadius: '12px' }}>
+                          <div style={{ fontSize: '10px', color: C.accent, fontWeight: 800 }}>EXECUTIVE</div>
+                          <div style={{ fontWeight: 700 }}>{detailedSub.users?.name || 'FE'}</div>
+                      </div>
+                      <div style={{ padding: '16px', background: C.bg, borderRadius: '12px' }}>
+                          <div style={{ fontSize: '10px', color: C.accent, fontWeight: 800 }}>OUTLET</div>
+                          <div style={{ fontWeight: 700 }}>{detailedSub.outlet_name || 'Individual'}</div>
+                      </div>
+                      <div style={{ padding: '16px', background: C.bg, borderRadius: '12px' }}>
+                          <div style={{ fontSize: '10px', color: C.accent, fontWeight: 800 }}>ADDRESS</div>
+                          <div style={{ fontWeight: 700, fontSize: '12px' }}>{detailedSub.address || 'GPS Only'}</div>
+                      </div>
+                      <div style={{ padding: '16px', background: C.bg, borderRadius: '12px' }}>
+                          <div style={{ fontSize: '10px', color: C.accent, fontWeight: 800 }}>CHECK-IN GPS</div>
+                          <div style={{ fontWeight: 700, fontSize: '11px' }}>{detailedSub.check_in_gps || detailedSub.latitude + ',' + detailedSub.longitude || '—'}</div>
+                      </div>
+                      <div style={{ padding: '16px', background: C.bg, borderRadius: '12px' }}>
+                          <div style={{ fontSize: '10px', color: C.accent, fontWeight: 800 }}>CHECK-OUT GPS</div>
+                          <div style={{ fontWeight: 700, fontSize: '11px' }}>{detailedSub.check_out_gps || 'Same as entry'}</div>
+                      </div>
+                  </div>
+
+                  <h3 style={{ fontSize: '12px', letterSpacing: '2px', color: C.textSec, marginBottom: '20px' }}>
+                      {detailedSub.builder_forms?.title ? `FORM: ${detailedSub.builder_forms.title}` : 'FORM RESPONSES'}
+                  </h3>
+                  <div style={{ display: 'grid', gap: '12px' }}>
+                      {(detailedSub.answers && detailedSub.answers.length > 0)
+                          ? detailedSub.answers
+                              .filter((a: FormAnswer) => a.qtype !== 'section_header')
+                              .map((a: FormAnswer, idx: number) => {
+                                  const rendered = renderAnswerValue(a, (urls, i) => setLightbox({ urls, index: i }));
+                                  if (rendered === null) return null;
+                                  return (
+                                      <div key={idx} style={{ padding: '20px', background: C.bg, borderRadius: '16px', border: `1px solid ${C.border}` }}>
+                                          <div style={{ fontSize: '13px', fontWeight: 600, color: C.textSec, marginBottom: '8px' }}>{a.label || 'Question'}</div>
+                                          <div style={{ fontWeight: 700, fontSize: '15px' }}>{rendered}</div>
+                                      </div>
+                                  );
+                              })
+                          : (detailedSub.form_responses && detailedSub.form_responses.length > 0)
+                          ? detailedSub.form_responses.map((r: any, idx: number) => (
+                              <div key={idx} style={{ padding: '20px', background: C.bg, borderRadius: '16px', border: `1px solid ${C.border}` }}>
+                                  <div style={{ fontSize: '13px', fontWeight: 600, color: C.textSec, marginBottom: '8px' }}>{r.builder_questions?.label || 'Question'}</div>
+                                  <div style={{ fontWeight: 700, fontSize: '15px' }}>{r.value_text || r.value_number || r.value_bool?.toString() || '—'}</div>
+                              </div>
+                          ))
+                          : <div style={{ padding: '20px', color: C.textSec, fontSize: '13px', textAlign: 'center' }}>No form responses recorded.</div>
+                      }
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {/* Lightbox */}
+      {lightbox && (
+        <div
+          style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(0,0,0,0.95)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={() => setLightbox(null)}
+        >
+          {/* Close */}
+          <button
+            onClick={() => setLightbox(null)}
+            style={{ position: 'absolute', top: '20px', right: '28px', background: 'rgba(255,255,255,0.12)', border: 'none', color: '#fff', fontSize: '28px', cursor: 'pointer', borderRadius: '50%', width: '44px', height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}
+          >×</button>
+
+          {/* Counter */}
+          {lightbox.urls.length > 1 && (
+            <div style={{ position: 'absolute', top: '24px', left: '50%', transform: 'translateX(-50%)', color: 'rgba(255,255,255,0.7)', fontSize: '13px', fontWeight: 600, letterSpacing: '1px' }}>
+              {lightbox.index + 1} / {lightbox.urls.length}
+            </div>
+          )}
+
+          {/* Prev */}
+          {lightbox.urls.length > 1 && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setLightbox(lb => lb ? { ...lb, index: (lb.index - 1 + lb.urls.length) % lb.urls.length } : null); }}
+              style={{ position: 'absolute', left: '20px', background: 'rgba(255,255,255,0.12)', border: 'none', color: '#fff', fontSize: '28px', cursor: 'pointer', borderRadius: '50%', width: '52px', height: '52px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            >‹</button>
+          )}
+
+          {/* Image */}
+          <img
+            src={lightbox.urls[lightbox.index]}
+            alt={`Image ${lightbox.index + 1}`}
+            style={{ maxWidth: '90vw', maxHeight: '88vh', borderRadius: '12px', objectFit: 'contain', boxShadow: '0 24px 80px rgba(0,0,0,0.6)' }}
+            onClick={e => e.stopPropagation()}
+          />
+
+          {/* Next */}
+          {lightbox.urls.length > 1 && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setLightbox(lb => lb ? { ...lb, index: (lb.index + 1) % lb.urls.length } : null); }}
+              style={{ position: 'absolute', right: '20px', background: 'rgba(255,255,255,0.12)', border: 'none', color: '#fff', fontSize: '28px', cursor: 'pointer', borderRadius: '50%', width: '52px', height: '52px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            >›</button>
+          )}
+
+          {/* Thumbnail strip for multi-image */}
+          {lightbox.urls.length > 1 && (
+            <div style={{ position: 'absolute', bottom: '20px', left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: '8px' }} onClick={e => e.stopPropagation()}>
+              {lightbox.urls.map((url, i) => (
+                <img
+                  key={i}
+                  src={url}
+                  alt={`thumb ${i + 1}`}
+                  onClick={() => setLightbox(lb => lb ? { ...lb, index: i } : null)}
+                  style={{ width: '56px', height: '40px', objectFit: 'cover', borderRadius: '6px', cursor: 'pointer', border: i === lightbox.index ? '2px solid #fff' : '2px solid rgba(255,255,255,0.25)', opacity: i === lightbox.index ? 1 : 0.55, transition: 'all 0.15s' }}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
