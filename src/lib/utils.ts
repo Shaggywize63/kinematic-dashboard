@@ -86,5 +86,6 @@ export function extractImageUrls(value: any): string[] {
   if (Array.isArray(value)) {
     return value.map(normalize).filter((v): v is string => !!v);
   }
-  return normalized ? [normalized] : [];
+  const result = normalize(value);
+  return result ? [result] : [];
 }
