@@ -53,7 +53,7 @@ export function isUUID(str: string | null | undefined): boolean {
 export function extractImageUrls(value: any): string[] {
   if (!value) return [];
   
-  const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://ocqowueomujqmvshlyqj.supabase.co';
+  const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://lnvxqjqfsxvtjvbzphou.supabase.co';
   const bucket = 'form-responses';
   const bucketUrl = `${baseUrl}/storage/v1/object/public/${bucket}/`;
 
