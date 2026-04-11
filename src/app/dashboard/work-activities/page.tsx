@@ -64,11 +64,40 @@ function fmtDate(ts?: string | null) {
 
 function extractImageUrls(value: any): string[] {
   if (!value) return [];
+  const bucketUrl = process.env.NEXT_PUBLIC_SUPABASE_URL 
+    ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/form-responses/`
+    : 'https://ocqowueomujqmvshlyqj.supabase.co/storage/v1/object/public/form-responses/'; // Fallback to project ID if env missing
+
+  const normalize = (v: any): string | null => {
+    if (!v) return null;
+    let url = typeof v === 'string' ? v.trim() : (v?.url ?? null);
+    if (!url || typeof url !== 'string') return null;
+
+    // 1. If it's already a full URL, use it
+    if (url.startsWith('http')) return url;
+    
+    // 2. If it's a Supabase storage path (no http, but has / or looks like a file)
+    // and it's not a common label like "Yes", "No", "—"
+    const labels = ['yes', 'no', 'true', 'false', '—', 'null', 'undefined'];
+    if (labels.includes(url.toLowerCase())) return null;
+
+    if (url.includes('/') || url.includes('.')) {
+        // If it starts with the bucket name, just prepend base
+        if (url.startsWith('form-responses/')) {
+            return `${process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://ocqowueomujqmvshlyqj.supabase.co'}/storage/v1/object/public/${url}`;
+        }
+        // Otherwise assume it's a file inside the bucket
+        return `${bucketUrl}${url}`;
+    }
+
+    return null;
+  };
+
   if (Array.isArray(value)) {
-    return value.map((v: any) => (typeof v === 'string' ? v : (v?.url ?? null))).filter(Boolean);
+    return value.map(normalize).filter((v): v is string => !!v);
   }
-  const url = typeof value === 'string' ? value : (value?.url ?? null);
-  return url ? [url] : [];
+  const normalized = normalize(value);
+  return normalized ? [normalized] : [];
 }
 
 function renderAnswerValue(
