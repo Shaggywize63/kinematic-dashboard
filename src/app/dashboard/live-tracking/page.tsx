@@ -1,6 +1,8 @@
 'use client';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../../../lib/api';
+import * as demoMocks from '../../../lib/demoMocks';
+import { getStoredUser } from '../../../lib/auth';
 
 const C = {
   bg: 'var(--bg)', s1: 'var(--s1)', s2: 'var(--s2)', s3: 'var(--s3)', s4: 'var(--s4)',
@@ -204,6 +206,7 @@ export default function LiveTrackingPage() {
   const [loading,     setLoading]     = useState(true);
   const [lastSync,    setLastSync]    = useState('');
   const [mapLoaded,   setMapLoaded]   = useState(false);
+  const [error,       setError]       = useState<string|null>(null);
 
   // Filters
   const [search,       setSearch]       = useState('');
@@ -214,9 +217,6 @@ export default function LiveTrackingPage() {
   // Selection
   const [selectedId,   setSelectedId]   = useState<string|null>(null);
   const [selectedType, setSelectedType] = useState<string|null>(null);
-
-  const token = typeof window !== 'undefined' ? localStorage.getItem('kinematic_token') || '' : '';
-  const headers = { Authorization: `Bearer ${token}` };
 
   /* ── Load Leaflet ── */
   useEffect(() => {
@@ -235,47 +235,71 @@ export default function LiveTrackingPage() {
   /* ── Fetch all data ── */
   const fetchAll = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
-      const hdrs = { Authorization: `Bearer ${token}` };
-      const [locRes, outletRes, whRes, zoneRes] = await Promise.allSettled([
-        api.get<any>('/api/v1/analytics/live-locations', { headers: hdrs }),
-        api.get<any>('/api/v1/stores?limit=500',         { headers: hdrs }),
-        api.get<any>('/api/v1/warehouses',               { headers: hdrs }),
-        api.get<any>('/api/v1/zones',                    { headers: hdrs }),
-      ]);
+      const user = getStoredUser();
+      const isDemo = user?.email === demoMocks.DEMO_USER_EMAIL;
 
-      if (locRes.status === 'fulfilled') {
-        const locs: FELoc[] = (locRes.value?.data ?? locRes.value)?.locations || (locRes.value?.data ?? locRes.value) || [];
-        
-        // FE Role Filter: Include anyone not explicitly restricted (Admin/Client)
+      if (isDemo) {
+        const locData = demoMocks.mockLocations();
+        const locs: FELoc[] = locData.data.locations as FELoc[];
         setFEs(locs.filter((l: FELoc) => {
           const r = (l.role || '').toLowerCase().replace(/_/g, '-');
           const isRestricted = ['admin', 'main-admin', 'client', 'super-admin'].includes(r);
           const isSupervisor = ['supervisor', 'city-manager', 'program-manager', 'hr'].includes(r);
           return !isRestricted && !isSupervisor;
         }));
-        
         setSupervisors(locs.filter((l: FELoc) => {
           const r = (l.role || '').toLowerCase().replace(/_/g, '-');
           return ['supervisor', 'city-manager', 'program-manager', 'hr'].includes(r);
         }));
+        setOutlets([]);
+        setWarehouses([]);
+        setZones([]);
+      } else {
+        const [locRes, outletRes, whRes, zoneRes] = await Promise.allSettled([
+          api.getLiveLocations(),
+          api.getStores({ limit: '500' }),
+          api.get<any>('/api/v1/warehouses'),
+          api.getZones(),
+        ]);
+
+        if (locRes.status === 'fulfilled') {
+          const locs: FELoc[] = (locRes.value?.data ?? locRes.value)?.locations || (locRes.value?.data ?? locRes.value) || [];
+          setFEs(locs.filter((l: FELoc) => {
+            const r = (l.role || '').toLowerCase().replace(/_/g, '-');
+            const isRestricted = ['admin', 'main-admin', 'client', 'super-admin'].includes(r);
+            const isSupervisor = ['supervisor', 'city-manager', 'program-manager', 'hr'].includes(r);
+            return !isRestricted && !isSupervisor;
+          }));
+          setSupervisors(locs.filter((l: FELoc) => {
+            const r = (l.role || '').toLowerCase().replace(/_/g, '-');
+            return ['supervisor', 'city-manager', 'program-manager', 'hr'].includes(r);
+          }));
+        } else {
+          setError(`Failed to load live locations: ${(locRes as PromiseRejectedResult).reason?.message || 'Unknown error'}`);
+        }
+
+        if (outletRes.status === 'fulfilled') {
+          const raw = outletRes.value?.data ?? outletRes.value;
+          setOutlets(Array.isArray(raw) ? raw : raw?.data || []);
+        }
+        if (whRes.status === 'fulfilled') {
+          const raw = whRes.value?.data ?? whRes.value;
+          setWarehouses(Array.isArray(raw) ? raw : raw?.data || []);
+        }
+        if (zoneRes.status === 'fulfilled') {
+          const raw = zoneRes.value?.data ?? zoneRes.value;
+          setZones(Array.isArray(raw) ? raw : []);
+        }
       }
-      if (outletRes.status === 'fulfilled') {
-        const raw = outletRes.value?.data ?? outletRes.value;
-        setOutlets(Array.isArray(raw) ? raw : raw?.data || []);
-      }
-      if (whRes.status === 'fulfilled') {
-        const raw = whRes.value?.data ?? whRes.value;
-        setWarehouses(Array.isArray(raw) ? raw : raw?.data || []);
-      }
-      if (zoneRes.status === 'fulfilled') {
-        const raw = zoneRes.value?.data ?? zoneRes.value;
-        setZones(Array.isArray(raw) ? raw : []);
-      }
+
       setLastSync(new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' }));
-    } catch {}
+    } catch (err: any) {
+      setError(err?.message || 'Failed to load live tracking data');
+    }
     setLoading(false);
-  }, [token]);
+  }, []);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
@@ -376,6 +400,14 @@ export default function LiveTrackingPage() {
             </button>
           </div>
         </div>
+
+        {/* ── Error banner ── */}
+        {error && (
+          <div style={{ padding:'10px 14px', background:C.redD, border:`1px solid ${C.redB}`,
+            borderRadius:10, fontSize:12, color:C.red, display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
+            ⚠️ {error}
+          </div>
+        )}
 
         {/* ── KPI strip ── */}
         <div style={{ display:'flex', gap:10, flexShrink:0 }}>

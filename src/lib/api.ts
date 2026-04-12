@@ -101,6 +101,22 @@ class ApiClient {
   getActivityFeed() {
     return this.get('/api/v1/analytics/activity-feed');
   }
+  getLiveLocations(params?: Record<string, string>) {
+    const base = typeof window !== 'undefined' ? window.location.origin : this.baseUrl;
+    const token = this.getToken();
+    const orgId = this.getOrgId();
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    if (orgId) headers['X-Org-Id'] = orgId;
+    const qs = this.sanitizeParams(params);
+    return fetch(`${base}/api/v1/analytics/live-locations${qs}`, { headers, cache: 'no-store' })
+      .then(async res => {
+        if (res.status === 401) throw new Error('Unauthorized');
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || data.message || 'Request failed');
+        return data;
+      });
+  }
 
   getFieldExecutives(params?: Record<string, string>) {
     return this.get(`/api/v1/users${this.sanitizeParams(params)}`);
