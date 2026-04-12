@@ -1,8 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../../../lib/api';
-import * as demoMocks from '../../../lib/demoMocks';
-import { getStoredUser } from '../../../lib/auth';
 
 const C = {
   bg: 'var(--bg)', s1: 'var(--s1)', s2: 'var(--s2)', s3: 'var(--s3)', s4: 'var(--s4)',
@@ -233,16 +231,34 @@ export default function LiveTrackingPage() {
   }, []);
 
   /* ── Fetch all data ── */
+  // Normalize a raw location object so battery_percentage is always populated
+  // regardless of what field name the backend uses.
+  const normalizeLoc = (l: any): FELoc => ({
+    ...l,
+    battery_percentage:
+      l.battery_percentage ??
+      l.battery_level ??
+      l.battery ??
+      l.batteryPercentage ??
+      l.batteryLevel ??
+      l.battery_pct ??
+      null,
+  });
+
   const fetchAll = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const user = getStoredUser();
-      const isDemo = user?.email === demoMocks.DEMO_USER_EMAIL;
+      const [locRes, outletRes, whRes, zoneRes] = await Promise.allSettled([
+        api.getLiveLocations(),
+        api.getStores({ limit: '500' }),
+        api.get<any>('/api/v1/warehouses'),
+        api.getZones(),
+      ]);
 
-      if (isDemo) {
-        const locData = demoMocks.mockLocations();
-        const locs: FELoc[] = locData.data.locations as FELoc[];
+      if (locRes.status === 'fulfilled') {
+        const rawLocs: any[] = (locRes.value?.data ?? locRes.value)?.locations || (locRes.value?.data ?? locRes.value) || [];
+        const locs: FELoc[] = rawLocs.map(normalizeLoc);
         setFEs(locs.filter((l: FELoc) => {
           const r = (l.role || '').toLowerCase().replace(/_/g, '-');
           const isRestricted = ['admin', 'main-admin', 'client', 'super-admin'].includes(r);
@@ -253,45 +269,21 @@ export default function LiveTrackingPage() {
           const r = (l.role || '').toLowerCase().replace(/_/g, '-');
           return ['supervisor', 'city-manager', 'program-manager', 'hr'].includes(r);
         }));
-        setOutlets([]);
-        setWarehouses([]);
-        setZones([]);
       } else {
-        const [locRes, outletRes, whRes, zoneRes] = await Promise.allSettled([
-          api.getLiveLocations(),
-          api.getStores({ limit: '500' }),
-          api.get<any>('/api/v1/warehouses'),
-          api.getZones(),
-        ]);
+        setError(`Failed to load live locations: ${(locRes as PromiseRejectedResult).reason?.message || 'Unknown error'}`);
+      }
 
-        if (locRes.status === 'fulfilled') {
-          const locs: FELoc[] = (locRes.value?.data ?? locRes.value)?.locations || (locRes.value?.data ?? locRes.value) || [];
-          setFEs(locs.filter((l: FELoc) => {
-            const r = (l.role || '').toLowerCase().replace(/_/g, '-');
-            const isRestricted = ['admin', 'main-admin', 'client', 'super-admin'].includes(r);
-            const isSupervisor = ['supervisor', 'city-manager', 'program-manager', 'hr'].includes(r);
-            return !isRestricted && !isSupervisor;
-          }));
-          setSupervisors(locs.filter((l: FELoc) => {
-            const r = (l.role || '').toLowerCase().replace(/_/g, '-');
-            return ['supervisor', 'city-manager', 'program-manager', 'hr'].includes(r);
-          }));
-        } else {
-          setError(`Failed to load live locations: ${(locRes as PromiseRejectedResult).reason?.message || 'Unknown error'}`);
-        }
-
-        if (outletRes.status === 'fulfilled') {
-          const raw = outletRes.value?.data ?? outletRes.value;
-          setOutlets(Array.isArray(raw) ? raw : raw?.data || []);
-        }
-        if (whRes.status === 'fulfilled') {
-          const raw = whRes.value?.data ?? whRes.value;
-          setWarehouses(Array.isArray(raw) ? raw : raw?.data || []);
-        }
-        if (zoneRes.status === 'fulfilled') {
-          const raw = zoneRes.value?.data ?? zoneRes.value;
-          setZones(Array.isArray(raw) ? raw : []);
-        }
+      if (outletRes.status === 'fulfilled') {
+        const raw = outletRes.value?.data ?? outletRes.value;
+        setOutlets(Array.isArray(raw) ? raw : raw?.data || []);
+      }
+      if (whRes.status === 'fulfilled') {
+        const raw = whRes.value?.data ?? whRes.value;
+        setWarehouses(Array.isArray(raw) ? raw : raw?.data || []);
+      }
+      if (zoneRes.status === 'fulfilled') {
+        const raw = zoneRes.value?.data ?? zoneRes.value;
+        setZones(Array.isArray(raw) ? raw : []);
       }
 
       setLastSync(new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' }));
