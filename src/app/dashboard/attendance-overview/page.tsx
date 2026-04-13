@@ -151,8 +151,13 @@ const fmt = (iso?: string) => {
   if (!iso) return '—';
   return new Date(iso).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
 };
-const fmtDate = (d: string) =>
-  new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+const fmtDate = (d: any) => {
+  if (!d) return '—';
+  const clean = String(d).trim().split('T')[0];
+  const date = new Date(clean);
+  if (isNaN(date.getTime())) return '—';
+  return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+};
 const fmtHrs = (h: number | null) => {
   if (h == null) return '—';
   const totalMinutes = Math.round(h * 60);
@@ -312,24 +317,23 @@ function AttendanceContent() {
         return r;
       });
 
-      // Add implicit absent rows for users with no attendance record ONLY if it's a single date view
-      if (f === t) {
-        const coveredIds = new Set(attArr.map((r: any) => r.user_id));
-        const absentRows = usersArr
-          .filter((u: any) => ['executive', 'field_executive', 'field-executive', 'supervisor', 'city_manager'].includes(u.role) && u.is_active && !coveredIds.has(u.id))
-          .map((u: any) => ({
-            id: null,
-            user_id: u.id,
-            date: f,
-            status: 'absent' as const,
-            checkin_at: null, checkout_at: null, total_hours: null,
-            users: { name: u.name, employee_id: u.employee_id, zones: u.zones, role: u.role },
-            _virtual: true,
-          }));
-        setRecords([...attArr, ...absentRows]);
-      } else {
-        setRecords(attArr);
-      }
+      // Add implicit absent rows for users with no attendance record (Pave the list)
+      const coveredIds = new Set(attArr.map((r: any) => r.user_id));
+      const absentRows = usersArr
+        .filter((u: any) => {
+          const r = (u.role || '').toLowerCase();
+          return ['executive', 'field_executive', 'field-executive', 'field_exec', 'supervisor', 'city_manager'].includes(r) && u.is_active && !coveredIds.has(u.id);
+        })
+        .map((u: any) => ({
+          id: null,
+          user_id: u.id,
+          date: f,
+          status: 'absent' as const,
+          checkin_at: null, checkout_at: null, total_hours: null,
+          users: { name: u.name, employee_id: u.employee_id, zones: u.zones, role: u.role },
+          _virtual: true,
+        }));
+      setRecords([...attArr, ...absentRows]);
       setErr('');
     } catch (e: any) {
       setErr(e.message || 'Failed to load attendance');
@@ -994,7 +998,7 @@ function AttendanceContent() {
             <div style={{ padding: 50, textAlign: 'center', color: C.grayd, fontSize: 14 }}>Loading…</div>
           ) : shown.length === 0 ? (
             <div style={{ padding: 50, textAlign: 'center', color: C.grayd, fontSize: 14 }}>
-              {currentRoleRecords.length === 0 ? `No attendance records for ${fmtDate(fromDate.trim())}` : 'No results match your filters.'}
+              {currentRoleRecords.length === 0 ? `No attendance records for ${isRange ? `${fmtDate(fromDate)} - ${fmtDate(toDate)}` : fmtDate(fromDate)}` : 'No results match your filters.'}
             </div>
           ) : (
             <div>
@@ -1022,7 +1026,7 @@ function AttendanceContent() {
                     {/* date if range */}
                     {isRange && (
                       <div style={{ fontSize: 12, fontWeight: 600, color: C.gray }}>
-                        {new Date(r.date.trim()).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+                        {fmtDate(r.date)}
                       </div>
                     )}
 
