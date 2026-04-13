@@ -948,12 +948,13 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
   const [activeType, setActiveType] = useState<string|null>(null);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(PointerSensor, { activationConstraint: { distance: 3 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
   const handleDragStart = (event: any) => {
     const { active } = event;
+    console.log('DragStart:', active.id);
     const id = String(active.id);
     setActiveId(id);
     if (id.startsWith('new-')) {
@@ -965,6 +966,7 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
 
   const handleDragEnd = async (event: any) => {
     const { active, over } = event;
+    console.log('DragEnd. Active:', active.id, 'Over:', over?.id);
     setActiveId(null);
     setActiveType(null);
     
@@ -1045,37 +1047,57 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
     const pageQs = questions.filter(q => q.page_id === selPage).sort((a,b) => a.q_order - b.q_order);
     const targetOrder = atIndex !== undefined ? atIndex : pageQs.length;
     
-    // Create new question
-    const newQ = await apiFetch<BQuestion>(`/api/v1/builder/forms/${form.id}/questions`, {
-      method:'POST',
-      body: JSON.stringify({ page_id:selPage, qtype, label:`New ${typeInfo(qtype).label}`, q_order:targetOrder, is_required:false, options:[], validation:{}, logic:[], media_config:{} })
-    });
+    // Optimistic UI update
+    const tempId = `temp-${Date.now()}`;
+    const optimisticQ: BQuestion = {
+      id: tempId,
+      page_id: selPage,
+      qtype,
+      label: `New ${typeInfo(qtype).label}`,
+      q_order: targetOrder,
+      is_required: false,
+      options: [],
+      validation: {},
+      logic: [],
+      media_config: {}
+    };
 
-    // Update local state and subsequent questions
-    let newSubset = [...pageQs];
-    if (atIndex !== undefined) {
-      newSubset.splice(atIndex, 0, newQ);
-    } else {
-      newSubset.push(newQ);
-    }
-
-    // Re-index only THIS page
-    const reindexedSubset = newSubset.map((q, i) => ({ ...q, q_order: i }));
-    
     setQs(prev => {
       const otherPageQs = prev.filter(q => q.page_id !== selPage);
-      return [...otherPageQs, ...reindexedSubset].sort((a,b) => a.q_order - b.q_order);
+      let newSubset = [...pageQs];
+      if (atIndex !== undefined) newSubset.splice(atIndex, 0, optimisticQ);
+      else newSubset.push(optimisticQ);
+      const reindexed = newSubset.map((q, i) => ({ ...q, q_order: i }));
+      return [...otherPageQs, ...reindexed].sort((a,b) => a.q_order - b.q_order);
     });
 
-    // Sync only shifted items to backend
-    reindexedSubset.forEach((q, i) => {
-      // Only sync if order actually changed (newQ or shifted)
-      if (q.id === newQ.id || pageQs[i-1]?.id !== q.id) {
-         apiFetch(`/api/v1/builder/questions/${q.id}`, { method:'PATCH', body: JSON.stringify({ q_order: i }) }).catch(()=>{});
-      }
-    });
+    try {
+      // Create new question on backend
+      const newQ = await apiFetch<BQuestion>(`/api/v1/builder/forms/${form.id}/questions`, {
+        method:'POST',
+        body: JSON.stringify({ page_id:selPage, qtype, label:`New ${typeInfo(qtype).label}`, q_order:targetOrder, is_required:false, options:[], validation:{}, logic:[], media_config:{} })
+      });
 
-    setSelQ(newQ.id);
+      // Replace temp ID with real ID and sync re-indexing
+      setQs(prev => {
+        const others = prev.filter(q => q.page_id !== selPage);
+        const currentBatch = prev.filter(q => q.page_id === selPage).sort((a,b) => a.q_order - b.q_order);
+        const fixedBatch = currentBatch.map(q => q.id === tempId ? newQ : q);
+        
+        // Sync re-indexing to backend for everyone in this batch
+        fixedBatch.forEach((q, i) => {
+          if (q.q_order !== i || q.id === newQ.id) {
+            apiFetch(`/api/v1/builder/questions/${q.id}`, { method:'PATCH', body: JSON.stringify({ q_order: i }) }).catch(()=>{});
+          }
+        });
+
+        return [...others, fixedBatch.map((q, i) => ({ ...q, q_order: i }))].flat().sort((a,b) => a.q_order - b.q_order);
+      });
+      setSelQ(newQ.id);
+    } catch (e: any) {
+      alert("Failed to add question: " + e.message);
+      loadForm(); // Rollback
+    }
   };
 
   /* Update question locally + save */
