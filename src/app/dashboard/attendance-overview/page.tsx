@@ -1005,7 +1005,7 @@ function AttendanceContent() {
               {shown.map((r, i) => {
                 const sm = statusMeta[r.status] || statusMeta.absent;
                 return (
-                  <div key={r.id || `${r.user_id}_${r.date}`} className="kcard" onClick={() => setDetail(r)}
+                  <div key={r.id || `${r.user_id}_${r.date || r.checkin_at || index}`} className="kcard" onClick={() => setDetail(r)}
                     style={{
                       display: 'grid',
                       gridTemplateColumns: !isRange ? '2fr 1.2fr 1fr 1fr 1fr 1fr 1.2fr 80px' : '1.8fr 1.1fr 1fr 0.8fr 0.9fr 1fr 0.9fr 1fr 80px',
@@ -1026,7 +1026,7 @@ function AttendanceContent() {
                     {/* date if range */}
                     {isRange && (
                       <div style={{ fontSize: 12, fontWeight: 600, color: C.gray }}>
-                        {fmtDate(r.date)}
+                        {fmtDate(r.date || r.checkin_at)}
                       </div>
                     )}
 
