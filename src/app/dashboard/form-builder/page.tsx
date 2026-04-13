@@ -10,6 +10,7 @@ import {
   useSensor,
   useSensors,
   DragOverlay,
+  useDraggable,
   defaultDropAnimationSideEffects
 } from '@dnd-kit/core';
 import {
@@ -820,7 +821,7 @@ function QuestionCard({ q, index, isSelected, onSelect, onMoveUp, onMoveDown, is
 
   return (
     <div onClick={onSelect}
-      style={{ background:isSelected?C.redD:C.s3, border:`1.5px solid ${isSelected?C.red:C.border}`, borderRadius:14, padding:'16px 18px', cursor:'pointer', transition:'all .15s', position:'relative' }}>
+      style={{ background:isSelected?C.redB:C.s3, border:`1.5px solid ${isSelected?C.red:C.border}`, borderRadius:14, padding:'16px 18px', cursor:'pointer', transition:'all .15s', position:'relative' }}>
       
       {/* Drag handle */}
       <div {...dragHandleProps} style={{ position:'absolute', left:-4, top:'50%', transform:'translateY(-50%)', padding:'10px 4px', cursor:'grab', color:C.grayd, opacity:isSelected?1:0.3 }}>
@@ -877,9 +878,42 @@ function SortableQuestionCard(props: any) {
   );
 }
 
+function DraggableSidebarItem({ item }: { item: any }) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: `new-${item.type}`,
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      {...listeners}
+      {...attributes}
+      style={{
+        padding: '7px 14px',
+        cursor: 'grab',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 9,
+        borderRadius: 8,
+        transition: 'all .1s',
+        fontSize: 12,
+        color: C.gray,
+        fontWeight: 600,
+        opacity: isDragging ? 0.3 : 1,
+        background: isDragging ? C.s3 : 'transparent',
+      }}
+      onMouseEnter={(e) => (e.currentTarget.style.background = C.s3)}
+      onMouseLeave={(e) => (e.currentTarget.style.background = isDragging ? C.s3 : 'transparent')}
+    >
+      <span style={{ fontSize: 14 }}>{item.icon}</span>
+      {item.label}
+    </div>
+  );
+}
+
 /* ══════════════════════════════════════════════════════════════════════════
    FORM BUILDER (Editor)
-══════════════════════════════════════════════════════════════════════════ */
+ ══════════════════════════════════════════════════════════════════════════ */
 function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void }) {
   const [form,      setForm]     = useState<BForm>(initialForm);
   const [pages,     setPages]    = useState<BPage[]>([]);
@@ -892,27 +926,56 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
   const [deleteQModal, setDeleteQModal] = useState<{show:boolean; id:string; label:string}>({show:false, id:'', label:''});
   const [deletingQ, setDeletingQ] = useState(false);
   const [activeId, setActiveId] = useState<string|null>(null);
+  const [activeType, setActiveType] = useState<string|null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
+  const handleDragStart = (event: any) => {
+    const { active } = event;
+    const id = String(active.id);
+    setActiveId(id);
+    if (id.startsWith('new-')) {
+      setActiveType(id.replace('new-', ''));
+    } else {
+      setActiveType(null);
+    }
+  };
+
   const handleDragEnd = async (event: any) => {
     const { active, over } = event;
     setActiveId(null);
-    if (!over || active.id === over.id) return;
+    setActiveType(null);
+    
+    if (!over) return;
+    const activeId = String(active.id);
 
-    const oldIdx = questions.findIndex(q => q.id === active.id);
+    // CASE 1: Adding a new question from sidebar
+    if (activeId.startsWith('new-')) {
+      const qtype = activeId.replace('new-', '');
+      let insertIndex = currentPageQs.length;
+      
+      // If dropped over a specific question, insert there
+      if (over.id !== 'canvas-root') {
+        const overIdx = currentPageQs.findIndex(q => q.id === over.id);
+        if (overIdx !== -1) insertIndex = overIdx + 1;
+      }
+      
+      await addQuestion(qtype, insertIndex);
+      return;
+    }
+
+    // CASE 2: Reordering existing questions
+    if (activeId === over.id) return;
+    const oldIdx = questions.findIndex(q => q.id === activeId);
     const newIdx = questions.findIndex(q => q.id === over.id);
 
     const newArr = arrayMove(questions, oldIdx, newIdx);
-    
-    // Update Oders correctly based on the new array index
     const updatedWithOrders = newArr.map((q, idx) => ({ ...q, q_order: idx }));
     setQs(updatedWithOrders);
 
-    // Save batch update to backend
     const updates = updatedWithOrders.filter((q, i) => questions[i]?.id !== q.id);
     for (const q of updates) {
       apiFetch(`/api/v1/builder/questions/${q.id}`, { method:'PATCH', body: JSON.stringify({ q_order: q.q_order }) }).catch(()=>{});
@@ -944,15 +1007,36 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
   useEffect(() => { loadForm(); }, [loadForm]);
 
 
-  /* Add question */
-  const addQuestion = async (qtype:string) => {
+  /* Add question with index */
+  const addQuestion = async (qtype:string, atIndex?: number) => {
     if (!selPage) return;
     const pageQs = questions.filter(q => q.page_id === selPage);
+    const targetOrder = atIndex !== undefined ? atIndex : pageQs.length;
+    
+    // Create new question
     const newQ = await apiFetch<BQuestion>(`/api/v1/builder/forms/${form.id}/questions`, {
       method:'POST',
-      body: JSON.stringify({ page_id:selPage, qtype, label:`New ${typeInfo(qtype).label}`, q_order:pageQs.length, is_required:false, options:[], validation:{}, logic:[], media_config:{} })
+      body: JSON.stringify({ page_id:selPage, qtype, label:`New ${typeInfo(qtype).label}`, q_order:targetOrder, is_required:false, options:[], validation:{}, logic:[], media_config:{} })
     });
-    setQs(p => [...p, newQ]);
+
+    // Update orders of subsequent questions if inserted in middle
+    if (atIndex !== undefined) {
+      const newAllQs = [...questions];
+      const pageInsertIdx = questions.findIndex(q => q.page_id === selPage && q.q_order >= targetOrder);
+      if (pageInsertIdx === -1) {
+        newAllQs.push(newQ);
+      } else {
+        newAllQs.splice(pageInsertIdx, 0, newQ);
+      }
+      const ordered = newAllQs.map((q, i) => ({ ...q, q_order: i }));
+      setQs(ordered);
+      // Backend sync for shifted items
+      ordered.slice(targetOrder + 1).forEach(q => {
+        apiFetch(`/api/v1/builder/questions/${q.id}`, { method:'PATCH', body: JSON.stringify({ q_order: q.q_order }) }).catch(()=>{});
+      });
+    } else {
+      setQs(p => [...p, newQ]);
+    }
     setSelQ(newQ.id);
   };
 
@@ -1020,8 +1104,7 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
 
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'calc(100vh - 80px)' }}>
-      {/* Top bar */}
-      <div style={{ background:C.s2, borderBottom:`1px solid ${C.border}`, padding:'10px 20px', display:'flex', alignItems:'center', gap:14, flexShrink:0 }}>
+      {/* Top bar */}<div style={{ background:C.s2, borderBottom:`1px solid ${C.border}`, padding:'10px 20px', display:'flex', alignItems:'center', gap:14, flexShrink:0 }}>
         <button onClick={onBack} style={{ background:C.s3, border:`1px solid ${C.border}`, borderRadius:8, color:C.gray, cursor:'pointer', fontSize:13, padding:'6px 12px', fontFamily:"'DM Sans',sans-serif", display:'flex', alignItems:'center', gap:6 }}>
           ← Back
         </button>
@@ -1051,56 +1134,50 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
 
       {/* Builder layout */}
       {tab==='build' && (
-        <div style={{ display:'flex', flex:1, minHeight:0 }}>
-          {/* Left — Field types */}
-          <div style={{ width:200, flexShrink:0, background:C.s2, borderRight:`1px solid ${C.border}`, overflowY:'auto', padding:'10px 0' }}>
-            {FIELD_GROUPS.map(group => (
-              <div key={group.label} style={{ marginBottom:4 }}>
-                <div style={{ padding:'6px 14px 4px', fontSize:10, color:C.grayd, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.8px' }}>{group.label}</div>
-                {group.items.map(item => (
-                  <div key={item.type} onClick={() => addQuestion(item.type)}
-                    style={{ padding:'7px 14px', cursor:'pointer', display:'flex', alignItems:'center', gap:9, borderRadius:0, transition:'background .1s', fontSize:12, color:C.gray, fontWeight:600 }}
-                    onMouseEnter={e => (e.currentTarget.style.background=C.s3)}
-                    onMouseLeave={e => (e.currentTarget.style.background='transparent')}>
-                    <span style={{ fontSize:14 }}>{item.icon}</span>
-                    {item.label}
-                  </div>
-                ))}
-              </div>
-            ))}
-          </div>
-
-          {/* Center — Canvas */}
-          <div style={{ flex:1, display:'flex', flexDirection:'column', minWidth:0 }}>
-            {/* Page tabs */}
-            <div style={{ background:C.s2, borderBottom:`1px solid ${C.border}`, padding:'0 20px', display:'flex', alignItems:'center', gap:2, flexShrink:0, overflowX:'auto' }}>
-              {pages.map(p => (
-                <button key={p.id} onClick={() => { setSelPage(p.id); setSelQ(null); }}
-                  style={{ padding:'10px 16px', border:'none', borderBottom:`2px solid ${selPage===p.id?C.red:'transparent'}`, background:'transparent', color:selPage===p.id?C.white:C.gray, fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", whiteSpace:'nowrap' }}>
-                  {p.title}
-                </button>
+        <DndContext 
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+        >
+          <div style={{ display:'flex', flex:1, minHeight:0 }}>
+            {/* Left — Field types */}
+            <div style={{ width:200, flexShrink:0, background:C.s2, borderRight:`1px solid ${C.border}`, overflowY:'auto', padding:'10px 0' }}>
+              {FIELD_GROUPS.map(group => (
+                <div key={group.label} style={{ marginBottom:4 }}>
+                  <div style={{ padding:'6px 14px 4px', fontSize:10, color:C.grayd, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.8px' }}>{group.label}</div>
+                  {group.items.map(item => (
+                    <DraggableSidebarItem key={item.type} item={item} />
+                  ))}
+                </div>
               ))}
-              <button onClick={addPage} style={{ padding:'8px 12px', border:'none', background:'transparent', color:C.grayd, fontSize:12, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", display:'flex', alignItems:'center', gap:4 }}>
-                + Page
-              </button>
             </div>
 
-            {/* Questions canvas */}
-            <div style={{ flex:1, overflowY:'auto', padding:'20px 24px', background:C.bg }}>
-              {currentPageQs.length === 0 ? (
-                <div style={{ border:`2px dashed ${C.border}`, borderRadius:16, padding:'48px', textAlign:'center', color:C.grayd }}>
-                  <div style={{ fontSize:36, marginBottom:12 }}>📋</div>
-                  <div style={{ fontSize:14, fontWeight:700, color:C.gray, marginBottom:6 }}>Empty page</div>
-                  <div style={{ fontSize:12 }}>Click any field type on the left to add it here</div>
-                </div>
-              ) : (
-                <div style={{ maxWidth:640, margin:'0 auto' }}>
-                  <DndContext 
-                    sensors={sensors}
-                    collisionDetection={closestCenter}
-                    onDragStart={(e) => setActiveId(e.active.id)}
-                    onDragEnd={handleDragEnd}
-                  >
+            {/* Center — Canvas */}
+            <div style={{ flex:1, display:'flex', flexDirection:'column', minWidth:0 }}>
+              {/* Page tabs */}
+              <div style={{ background:C.s2, borderBottom:`1px solid ${C.border}`, padding:'0 20px', display:'flex', alignItems:'center', gap:2, flexShrink:0, overflowX:'auto' }}>
+                {pages.map(p => (
+                  <button key={p.id} onClick={() => { setSelPage(p.id); setSelQ(null); }}
+                    style={{ padding:'10px 16px', border:'none', borderBottom:`2px solid ${selPage===p.id?C.red:'transparent'}`, background:'transparent', color:selPage===p.id?C.white:C.gray, fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", whiteSpace:'nowrap' }}>
+                    {p.title}
+                  </button>
+                ))}
+                <button onClick={addPage} style={{ padding:'8px 12px', border:'none', background:'transparent', color:C.grayd, fontSize:12, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", display:'flex', alignItems:'center', gap:4 }}>
+                  + Page
+                </button>
+              </div>
+
+              {/* Questions canvas */}
+              <div id="canvas-root" style={{ flex:1, overflowY:'auto', padding:'20px 24px', background:C.bg }}>
+                {currentPageQs.length === 0 ? (
+                  <div style={{ border:`2px dashed ${C.border}`, borderRadius:16, padding:'48px', textAlign:'center', color:C.grayd }}>
+                    <div style={{ fontSize:36, marginBottom:12 }}>📋</div>
+                    <div style={{ fontSize:14, fontWeight:700, color:C.gray, marginBottom:6 }}>Empty page</div>
+                    <div style={{ fontSize:12 }}>Drag any field type from the left sidebar to start building</div>
+                  </div>
+                ) : (
+                  <div style={{ maxWidth:640, margin:'0 auto' }}>
                     <SortableContext 
                       items={currentPageQs}
                       strategy={verticalListSortingStrategy}
@@ -1115,26 +1192,43 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
                         ))}
                       </div>
                     </SortableContext>
-                    
-                    <DragOverlay dropAnimation={{
-                      sideEffects: defaultDropAnimationSideEffects({
-                        styles: { active: { opacity: '0.5' } }
-                      })
-                    }}>
-                      {activeId ? (
-                        <div style={{ width: 640 }}>
-                          {(() => {
-                            const q = questions.find(qq => qq.id === activeId);
-                            if (!q) return null;
-                            const idx = currentPageQs.findIndex(qq => qq.id === activeId);
-                            return <QuestionCard q={q} index={idx} isSelected={true} onSelect={()=>{}} onMoveUp={()=>{}} onMoveDown={()=>{}} isFirst={false} isLast={false} />;
-                          })()}
-                        </div>
-                      ) : null}
-                    </DragOverlay>
-                  </DndContext>
-                </div>
-              )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Right — Properties */}
+            {selectedQ ? (
+              <PropertiesPanel q={selectedQ} allQs={questions} onChange={updateQ} onDelete={() => setDeleteQModal({show:true, id:selectedQ.id, label:selectedQ.label})}/>
+            ) : (
+              <div style={{ width:280, flexShrink:0, background:C.s2, borderLeft:`1px solid ${C.border}`, display:'flex', alignItems:'center', justifyContent:'center', color:C.grayd, fontSize:13, textAlign:'center', padding:24 }}>
+                <div><div style={{ fontSize:32, marginBottom:10 }}>👆</div>Select a field to edit its properties</div>
+              </div>
+            )}
+          </div>
+
+          <DragOverlay dropAnimation={{
+            sideEffects: defaultDropAnimationSideEffects({
+              styles: { active: { opacity: '0.5' } }
+            })
+          }}>
+            {activeId ? (
+              <div style={{ width: activeType ? 200 : 640 }}>
+                {activeType ? (
+                  <div style={{ padding:'10px 14px', background:C.s3, border:`1px solid ${C.blue}`, borderRadius:10, color:C.white, display:'flex', alignItems:'center', gap:10, boxShadow:`0 10px 40px rgba(0,0,0,.5)` }}>
+                    <span>{typeInfo(activeType).icon}</span>
+                    {typeInfo(activeType).label}
+                  </div>
+                ) : (() => {
+                  const q = questions.find(qq => qq.id === activeId);
+                  if (!q) return null;
+                  const idx = currentPageQs.findIndex(qq => qq.id === activeId);
+                  return <QuestionCard q={q} index={idx} isSelected={true} onSelect={()=>{}} onMoveUp={()=>{}} onMoveDown={()=>{}} isFirst={false} isLast={false} />;
+                })()}
+              </div>
+            ) : null}
+        </DndContext>
+      )}
             </div>
           </div>
 
