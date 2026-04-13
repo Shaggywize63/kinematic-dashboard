@@ -170,6 +170,7 @@ const parseDate = (iso?: string | null): number | null => {
 };
 
 /* ═══════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════ */
 function AttendanceContent() {
   const { user } = useAuth();
   const searchParams = useSearchParams();
@@ -846,7 +847,7 @@ function AttendanceContent() {
   /* ══════════════════════════ RENDER ══════════════════════════ */
   return (
     <>
-      <style>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         @keyframes kspin { to { transform: rotate(360deg); } }
         @keyframes kfade { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
         .kcard { transition: background .14s, border-color .14s; }
@@ -855,7 +856,7 @@ function AttendanceContent() {
         .kbtn { transition: opacity .13s, transform .13s; cursor: pointer; }
         .kbtn:hover { opacity: .82; }
         .kbtn:active { transform: scale(.96); }
-      `}</style>
+      ` }} />
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 22, animation: 'kfade .3s ease', color: C.white }}>
 
@@ -1076,7 +1077,6 @@ function AttendanceContent() {
                   </div>
                 );
               })}
-            </div>
             </div>
           )}
         </div>
