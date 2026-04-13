@@ -952,15 +952,17 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
     if (!over) return;
     const activeId = String(active.id);
 
+    // Filter to questions on current page only for correct indexing
+    const pageQs = questions.filter(q => q.page_id === selPage).sort((a,b) => a.q_order - b.q_order);
+
     // CASE 1: Adding a new question from sidebar
     if (activeId.startsWith('new-')) {
       const qtype = activeId.replace('new-', '');
-      let insertIndex = currentPageQs.length;
+      let insertIndex = pageQs.length;
       
-      // If dropped over a specific question, insert there
       if (over.id !== 'canvas-root') {
-        const overIdx = currentPageQs.findIndex(q => q.id === over.id);
-        if (overIdx !== -1) insertIndex = overIdx + 1;
+        const overIdx = pageQs.findIndex(q => q.id === over.id);
+        if (overIdx !== -1) insertIndex = overIdx; // Insert before the 'over' item
       }
       
       await addQuestion(qtype, insertIndex);
@@ -969,17 +971,27 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
 
     // CASE 2: Reordering existing questions
     if (activeId === over.id) return;
-    const oldIdx = questions.findIndex(q => q.id === activeId);
-    const newIdx = questions.findIndex(q => q.id === over.id);
+    const oldIdx = pageQs.findIndex(q => q.id === activeId);
+    const newIdx = pageQs.findIndex(q => q.id === over.id);
+    if (oldIdx === -1 || newIdx === -1) return;
 
-    const newArr = arrayMove(questions, oldIdx, newIdx);
-    const updatedWithOrders = newArr.map((q, idx) => ({ ...q, q_order: idx }));
-    setQs(updatedWithOrders);
+    const reorderedPageQs = arrayMove(pageQs, oldIdx, newIdx);
+    
+    // Update local state for all questions, swapping only the ones on this page
+    const updatedAllQs = questions.map(q => {
+      if (q.page_id !== selPage) return q;
+      const newPageIdx = reorderedPageQs.findIndex(rq => rq.id === q.id);
+      return { ...q, q_order: newPageIdx };
+    });
+    
+    setQs(updatedAllQs);
 
-    const updates = updatedWithOrders.filter((q, i) => questions[i]?.id !== q.id);
-    for (const q of updates) {
-      apiFetch(`/api/v1/builder/questions/${q.id}`, { method:'PATCH', body: JSON.stringify({ q_order: q.q_order }) }).catch(()=>{});
-    }
+    // Sync changed orders to backend
+    reorderedPageQs.forEach((q, i) => {
+      if (q.q_order !== i) {
+        apiFetch(`/api/v1/builder/questions/${q.id}`, { method:'PATCH', body: JSON.stringify({ q_order: i }) }).catch(()=>{});
+      }
+    });
   };
 
   /* Load form data */
@@ -997,8 +1009,9 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
         setPages([newPage]);
         setSelPage(newPage.id);
       } else {
-        setPages(pList.sort((a,b) => a.page_order - b.page_order));
-        setSelPage(p => p || pList[0]?.id || null);
+        const sortedPages = pList.sort((a,b) => a.page_order - b.page_order);
+        setPages(sortedPages);
+        setSelPage(prev => prev || sortedPages[0]?.id || null);
       }
       setQs(qList.sort((a,b) => a.q_order - b.q_order));
     } catch {}
@@ -1010,7 +1023,7 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
   /* Add question with index */
   const addQuestion = async (qtype:string, atIndex?: number) => {
     if (!selPage) return;
-    const pageQs = questions.filter(q => q.page_id === selPage);
+    const pageQs = questions.filter(q => q.page_id === selPage).sort((a,b) => a.q_order - b.q_order);
     const targetOrder = atIndex !== undefined ? atIndex : pageQs.length;
     
     // Create new question
@@ -1019,24 +1032,30 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
       body: JSON.stringify({ page_id:selPage, qtype, label:`New ${typeInfo(qtype).label}`, q_order:targetOrder, is_required:false, options:[], validation:{}, logic:[], media_config:{} })
     });
 
-    // Update orders of subsequent questions if inserted in middle
+    // Update local state and subsequent questions
+    let newSubset = [...pageQs];
     if (atIndex !== undefined) {
-      const newAllQs = [...questions];
-      const pageInsertIdx = questions.findIndex(q => q.page_id === selPage && q.q_order >= targetOrder);
-      if (pageInsertIdx === -1) {
-        newAllQs.push(newQ);
-      } else {
-        newAllQs.splice(pageInsertIdx, 0, newQ);
-      }
-      const ordered = newAllQs.map((q, i) => ({ ...q, q_order: i }));
-      setQs(ordered);
-      // Backend sync for shifted items
-      ordered.slice(targetOrder + 1).forEach(q => {
-        apiFetch(`/api/v1/builder/questions/${q.id}`, { method:'PATCH', body: JSON.stringify({ q_order: q.q_order }) }).catch(()=>{});
-      });
+      newSubset.splice(atIndex, 0, newQ);
     } else {
-      setQs(p => [...p, newQ]);
+      newSubset.push(newQ);
     }
+
+    // Re-index only THIS page
+    const reindexedSubset = newSubset.map((q, i) => ({ ...q, q_order: i }));
+    
+    setQs(prev => {
+      const otherPageQs = prev.filter(q => q.page_id !== selPage);
+      return [...otherPageQs, ...reindexedSubset].sort((a,b) => a.q_order - b.q_order);
+    });
+
+    // Sync only shifted items to backend
+    reindexedSubset.forEach((q, i) => {
+      // Only sync if order actually changed (newQ or shifted)
+      if (q.id === newQ.id || pageQs[i-1]?.id !== q.id) {
+         apiFetch(`/api/v1/builder/questions/${q.id}`, { method:'PATCH', body: JSON.stringify({ q_order: i }) }).catch(()=>{});
+      }
+    });
+
     setSelQ(newQ.id);
   };
 
