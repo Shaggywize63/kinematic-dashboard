@@ -153,7 +153,7 @@ const fmt = (iso?: string) => {
 };
 const fmtDate = (d: any) => {
   if (!d) return '—';
-  const clean = String(d).trim().split('T')[0];
+  const clean = String(d).trim().replace(' ', 'T').split('T')[0];
   const date = new Date(clean);
   if (isNaN(date.getTime())) return '—';
   return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -685,7 +685,12 @@ function AttendanceContent() {
   };
 
   /* 1. current Role records */
-  const currentRoleRecords = records.filter(r => (r.users?.role || '').toLowerCase() === roleFilter.toLowerCase());
+  const EXEC_ROLES = new Set(['executive', 'field_executive', 'field-executive', 'field_exec']);
+  const SUP_ROLES  = new Set(['supervisor', 'city_manager']);
+  const currentRoleRecords = records.filter(r => {
+    const role = (r.users?.role || '').toLowerCase();
+    return roleFilter === 'executive' ? EXEC_ROLES.has(role) : SUP_ROLES.has(role);
+  });
 
   /* 2. stats calculation */
   const stats = {
@@ -1005,7 +1010,7 @@ function AttendanceContent() {
               {shown.map((r, i) => {
                 const sm = statusMeta[r.status] || statusMeta.absent;
                 return (
-                  <div key={r.id || `${r.user_id}_${r.date || r.checkin_at || index}`} className="kcard" onClick={() => setDetail(r)}
+                  <div key={r.id || `${r.user_id}_${r.date || r.checkin_at || i}`} className="kcard" onClick={() => setDetail(r)}
                     style={{
                       display: 'grid',
                       gridTemplateColumns: !isRange ? '2fr 1.2fr 1fr 1fr 1fr 1fr 1.2fr 80px' : '1.8fr 1.1fr 1fr 0.8fr 0.9fr 1fr 0.9fr 1fr 80px',
