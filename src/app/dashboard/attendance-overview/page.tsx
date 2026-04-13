@@ -149,14 +149,35 @@ const statusMeta: Record<string, { label: string; color: string; bg: string }> =
 
 const fmt = (iso?: string) => {
   if (!iso) return '—';
-  return new Date(iso).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+  return new Date(iso.replace(' ', 'T')).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
 };
+
+// IST offset: UTC+05:30 = 19800000 ms
+const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+
+/**
+ * Convert any date/timestamp value to a plain YYYY-MM-DD string in IST timezone.
+ * Handles: "2026-04-12", "2026-04-12 07:14:05.605+00" (space sep),
+ *          "2026-04-12T00:00:00+00:00" (full ISO UTC), null, undefined.
+ * Returns empty string if the input cannot be parsed.
+ */
+const toISTDate = (val: any): string => {
+  if (!val) return '';
+  const s = String(val).trim();
+  // Already a plain YYYY-MM-DD — the DB `date` column always stores the IST calendar date,
+  // so accept it directly without UTC conversion.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  // Full timestamp (with or without T separator) — parse as UTC then shift to IST.
+  const ms = new Date(s.replace(' ', 'T')).getTime();
+  if (isNaN(ms)) return '';
+  return new Date(ms + IST_OFFSET_MS).toISOString().split('T')[0];
+};
+
 const fmtDate = (d: any) => {
-  if (!d) return '—';
-  const clean = String(d).trim().replace(' ', 'T').split('T')[0];
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(clean)) return '—';
+  const ymd = toISTDate(d);
+  if (!ymd) return '—';
   const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  const [year, mo, day] = clean.split('-');
+  const [year, mo, day] = ymd.split('-');
   const mIdx = parseInt(mo, 10) - 1;
   if (mIdx < 0 || mIdx > 11) return '—';
   return `${day} ${MONTHS[mIdx]} ${year}`;
@@ -311,12 +332,9 @@ function AttendanceContent() {
 
       // Enrich attendance records with user info if join didn't come back
       const attArr = pick(attRes).map((r: any) => {
-        // Always normalize date to pure YYYY-MM-DD.
-        // The API may return a full ISO timestamp ("2026-04-12T00:00:00+00:00") or a
-        // space-separated timestamp ("2026-04-12 07:14:05+00"), or omit the field entirely.
-        // We strip everything after the date portion so coveredPairs keys match rangeDates.
-        const rawDate = r.date || r.checkin_at;
-        const normDate = rawDate ? String(rawDate).trim().replace(' ', 'T').split('T')[0] : undefined;
+        // Normalize date to IST YYYY-MM-DD using toISTDate so coveredPairs
+        // keys always match rangeDates regardless of what the backend sends.
+        const normDate = toISTDate(r.date) || toISTDate(r.checkin_at) || undefined;
         r = { ...r, date: normDate };
         const u = userMap[r.user_id];
         if (r.users?.name) {
@@ -332,8 +350,9 @@ function AttendanceContent() {
       const ELIGIBLE_ROLES = ['executive', 'field_executive', 'field-executive', 'field_exec', 'supervisor', 'city_manager'];
       const eligibleUsers = usersArr.filter((u: any) => ELIGIBLE_ROLES.includes((u.role || '').toLowerCase()) && u.is_active);
 
-      // Build a set of "user_id|date" pairs that already have records
-      const coveredPairs = new Set(attArr.map((r: any) => `${r.user_id}|${r.date}`));
+      // Build a set of "user_id|YYYY-MM-DD(IST)" pairs that already have real records.
+      // Use toISTDate so the key always matches the YYYY-MM-DD values in rangeDates.
+      const coveredPairs = new Set(attArr.map((r: any) => `${r.user_id}|${toISTDate(r.date) || toISTDate(r.checkin_at)}`));
 
       // Enumerate every date in the range [f, t]
       const rangeDates: string[] = [];
@@ -1058,7 +1077,7 @@ function AttendanceContent() {
                     {/* date if range */}
                     {isRange && (
                       <div style={{ fontSize: 12, fontWeight: 600, color: C.gray }}>
-                        {fmtDate(r.date || r.checkin_at)}
+                        {fmtDate(r.date || toISTDate(r.checkin_at))}
                       </div>
                     )}
 
