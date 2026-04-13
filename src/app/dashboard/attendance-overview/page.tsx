@@ -6,6 +6,7 @@ import api from '../../../lib/api';
 import ConfirmModal from '../../../components/ConfirmModal';
 import { useAuth } from '../../../hooks/useAuth';
 import { useClient } from '../../../context/ClientContext';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 
 /* ── DateRangePicker component ── */
 function DateRangePicker({ from, to, onChange }: { from: string; to: string; onChange: (f: string, t: string) => void }) {
@@ -171,15 +172,30 @@ const parseDate = (iso?: string | null): number | null => {
 /* ═══════════════════════════════════════════════════ */
 export default function AttendancePage() {
   const { user } = useAuth();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  const urlFrom = searchParams.get('from');
+  const urlTo = searchParams.get('to');
+
   const [records,  setRecords]  = useState<AttendanceRecord[]>([]);
   const [users,    setUsers]    = useState<any[]>([]);
   const [loading,  setLoading]  = useState(true);
   const [err,      setErr]      = useState('');
-  const [fromDate,   setFrom]   = useState(new Date().toISOString().split('T')[0]);
-  const [toDate,     setTo]     = useState(new Date().toISOString().split('T')[0]);
+  const [fromDate,   setFrom]   = useState(urlFrom || new Date().toISOString().split('T')[0]);
+  const [toDate,     setTo]     = useState(urlTo || new Date().toISOString().split('T')[0]);
   const [statusFilter, setSF]   = useState('all');
   const [search,   setSearch]   = useState('');
   const [roleFilter, setRoleFilter] = useState<'executive' | 'supervisor'>('executive');
+
+  // Persistence Sync
+  useEffect(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('from', fromDate);
+    params.set('to', toDate);
+    router.replace(`${pathname}?${params.toString()}`);
+  }, [fromDate, toDate, pathname, router, searchParams]);
 
   /* modals */
   const [showAdd,    setShowAdd]    = useState(false);
@@ -942,8 +958,15 @@ export default function AttendancePage() {
         <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 18, overflow: 'hidden' }}>
 
           {/* table header */}
-          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.2fr 1fr 1fr 1fr 1fr 1fr 80px', gap: 0, padding: '11px 20px', borderBottom: `1px solid ${C.border}`, background: C.s3 }}>
-            {['Executive', 'Status', 'Selfie', 'Check-in', 'Check-out', 'Hours', 'Zone', 'Actions'].map(h => (
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: fromDate === toDate ? '2fr 1.2fr 1fr 1fr 1fr 1fr 1.2fr 80px' : '1.8fr 1.1fr 1fr 0.8fr 0.9fr 1fr 0.9fr 1fr 80px',
+            gap: 10, padding: '11px 20px', borderBottom: `1px solid ${C.border}`, background: C.s3
+          }}>
+            {(fromDate === toDate
+              ? ['Executive', 'Status', 'Selfie', 'Check-in', 'Check-out', 'Hours', 'Zone', 'Actions']
+              : ['Executive', 'Date', 'Status', 'Selfie', 'Check-in', 'Check-out', 'Hours', 'Zone', 'Actions']
+            ).map(h => (
               <div key={h} style={{ fontSize: 11, fontWeight: 700, color: C.grayd, letterSpacing: '0.7px', textTransform: 'uppercase' as const }}>{h}</div>
             ))}
           </div>
@@ -959,18 +982,29 @@ export default function AttendancePage() {
               const sm = statusMeta[r.status] || statusMeta.absent;
               return (
                 <div key={r.id || `${r.user_id}_${r.date}`} className="kcard" onClick={() => setDetail(r)}
-                  style={{ display: 'grid', gridTemplateColumns: '2fr 1.2fr 1fr 1fr 1fr 1fr 1fr 80px', gap: 0, padding: '13px 20px', borderBottom: i < shown.length - 1 ? `1px solid ${C.border}` : 'none', cursor: 'pointer', alignItems: 'center', background: C.s2 }}>
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: fromDate === toDate ? '2fr 1.2fr 1fr 1fr 1fr 1fr 1.2fr 80px' : '1.8fr 1.1fr 1fr 0.8fr 0.9fr 1fr 0.9fr 1fr 80px',
+                    gap: 10, padding: '13px 20px', borderBottom: i < shown.length - 1 ? `1px solid ${C.border}` : 'none', cursor: 'pointer', alignItems: 'center', background: C.s2
+                  }}>
 
                   {/* name */}
                   <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                     <div style={{ width: 34, height: 34, borderRadius: 10, background: C.blueD, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 14, color: C.blue, flexShrink: 0 }}>
                       {r.users?.name?.[0] || '?'}
                     </div>
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: C.white }}>{r.users?.name || r.user_id.slice(0, 8)}</div>
-                      <div style={{ fontSize: 11, color: C.grayd }}>{r.users?.employee_id || ''}</div>
+                    <div style={{ overflow: 'hidden' }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: C.white, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{r.users?.name || r.user_id.slice(0, 8)}</div>
+                      <div style={{ fontSize: 11, color: C.grayd }}>{r.users?.role || ''}</div>
                     </div>
                   </div>
+
+                  {/* date if range */}
+                  {fromDate !== toDate && (
+                    <div style={{ fontSize: 12, fontWeight: 600, color: C.gray }}>
+                      {new Date(r.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+                    </div>
+                  )}
 
                   {/* status */}
                   <span title={JSON.stringify(r, null, 2)} style={{ fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 20, display: 'inline-flex', alignItems: 'center', gap: 5, background: sm.bg, color: sm.color, width: 'fit-content', cursor: 'help' }}>
