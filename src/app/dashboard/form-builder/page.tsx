@@ -946,6 +946,8 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
   const [deletingQ, setDeletingQ] = useState(false);
   const [activeId, setActiveId] = useState<string|null>(null);
   const [activeType, setActiveType] = useState<string|null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string|null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 3 } }),
@@ -1017,6 +1019,7 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
 
   /* Load form data */
   const loadForm = useCallback(async () => {
+    setLoading(true); setLoadError(null);
     try {
       const [pData, qData] = await Promise.all([
         apiFetch<any>(`/api/v1/builder/forms/${form.id}/pages`),
@@ -1035,7 +1038,12 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
         setSelPage(prev => prev || sortedPages[0]?.id || null);
       }
       setQs(qList.sort((a,b) => a.q_order - b.q_order));
-    } catch {}
+    } catch (e: any) {
+      console.error('Failed to load form data:', e);
+      setLoadError(e.message || 'Unknown error');
+    } finally {
+      setLoading(false);
+    }
   }, [form.id]);
 
   useEffect(() => { loadForm(); }, [loadForm]);
@@ -1230,7 +1238,18 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
 
               {/* Questions canvas */}
               <CanvasDroppable id="canvas-root" isDraggingNew={!!activeType}>
-                {currentPageQs.length === 0 ? (
+                {loading ? (
+                  <div style={{ display:'flex', flex:1, alignItems:'center', justifyContent:'center', height:'100%', color:C.grayd }}>
+                    <Spin size={32} />
+                  </div>
+                ) : loadError ? (
+                  <div style={{ border:`2px dashed ${C.red}30`, borderRadius:16, padding:'48px', textAlign:'center', color:C.red, background:`${C.red}05` }}>
+                    <div style={{ fontSize:36, marginBottom:12 }}>⚠️</div>
+                    <div style={{ fontSize:15, fontWeight:800, color:C.white, marginBottom:8 }}>Data Loading Error</div>
+                    <div style={{ fontSize:12, maxWidth:300, margin:'0 auto', lineHeight:1.6, opacity:0.8 }}>{loadError}</div>
+                    <button onClick={loadForm} style={{ marginTop:20, padding:'8px 16px', background:C.s3, border:`1px solid ${C.border}`, borderRadius:10, color:C.white, fontSize:12, fontWeight:700, cursor:'pointer' }}>Retry Loading</button>
+                  </div>
+                ) : currentPageQs.length === 0 ? (
                   <div style={{ border:`2px dashed ${C.border}`, borderRadius:16, padding:'48px', textAlign:'center', color:C.grayd, pointerEvents:'none' }}>
                     <div style={{ fontSize:36, marginBottom:12 }}>📋</div>
                     <div style={{ fontSize:14, fontWeight:700, color:C.gray, marginBottom:6 }}>Empty page</div>
