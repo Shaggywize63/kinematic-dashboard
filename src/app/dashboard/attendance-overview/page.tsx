@@ -154,9 +154,12 @@ const fmt = (iso?: string) => {
 const fmtDate = (d: any) => {
   if (!d) return '—';
   const clean = String(d).trim().replace(' ', 'T').split('T')[0];
-  const date = new Date(clean);
-  if (isNaN(date.getTime())) return '—';
-  return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(clean)) return '—';
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const [year, mo, day] = clean.split('-');
+  const mIdx = parseInt(mo, 10) - 1;
+  if (mIdx < 0 || mIdx > 11) return '—';
+  return `${day} ${MONTHS[mIdx]} ${year}`;
 };
 const fmtHrs = (h: number | null) => {
   if (h == null) return '—';
@@ -308,10 +311,13 @@ function AttendanceContent() {
 
       // Enrich attendance records with user info if join didn't come back
       const attArr = pick(attRes).map((r: any) => {
-        // Normalize: ensure date is always populated (backend may omit the field)
-        if (!r.date && r.checkin_at) {
-          r = { ...r, date: String(r.checkin_at).replace(' ', 'T').split('T')[0] };
-        }
+        // Always normalize date to pure YYYY-MM-DD.
+        // The API may return a full ISO timestamp ("2026-04-12T00:00:00+00:00") or a
+        // space-separated timestamp ("2026-04-12 07:14:05+00"), or omit the field entirely.
+        // We strip everything after the date portion so coveredPairs keys match rangeDates.
+        const rawDate = r.date || r.checkin_at;
+        const normDate = rawDate ? String(rawDate).trim().replace(' ', 'T').split('T')[0] : undefined;
+        r = { ...r, date: normDate };
         const u = userMap[r.user_id];
         if (r.users?.name) {
           if (u) r.users.role = u.role;
