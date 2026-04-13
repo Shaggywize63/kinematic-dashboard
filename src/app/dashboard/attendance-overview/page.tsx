@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import { parseISO, isValid } from 'date-fns';
 import api from '../../../lib/api';
 import ConfirmModal from '../../../components/ConfirmModal';
@@ -170,12 +170,21 @@ const parseDate = (iso?: string | null): number | null => {
 };
 
 /* ═══════════════════════════════════════════════════ */
-export default function AttendancePage() {
+function AttendanceContent() {
   const { user } = useAuth();
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
 
+  // UNIVERSAL IST TODAY HELPER
+  const getISTToday = () => {
+    const d = new Date();
+    const utc = d.getTime() + (d.getTimezoneOffset() * 60000);
+    const ist = new Date(utc + (3600000 * 5.5));
+    return ist.toISOString().split('T')[0];
+  };
+
+  const _today = getISTToday();
   const urlFrom = searchParams.get('from');
   const urlTo = searchParams.get('to');
 
@@ -183,8 +192,8 @@ export default function AttendancePage() {
   const [users,    setUsers]    = useState<any[]>([]);
   const [loading,  setLoading]  = useState(true);
   const [err,      setErr]      = useState('');
-  const [fromDate,   setFrom]   = useState(urlFrom || new Date().toISOString().split('T')[0]);
-  const [toDate,     setTo]     = useState(urlTo || new Date().toISOString().split('T')[0]);
+  const [fromDate,   setFrom]   = useState(urlFrom || _today);
+  const [toDate,     setTo]     = useState(urlTo || _today);
   const [statusFilter, setSF]   = useState('all');
   const [search,   setSearch]   = useState('');
   const [roleFilter, setRoleFilter] = useState<'executive' | 'supervisor'>('executive');
@@ -192,10 +201,14 @@ export default function AttendancePage() {
   // Persistence Sync
   useEffect(() => {
     const params = new URLSearchParams(searchParams.toString());
-    params.set('from', fromDate);
-    params.set('to', toDate);
-    router.replace(`${pathname}?${params.toString()}`);
-  }, [fromDate, toDate, pathname, router, searchParams]);
+    const f = (fromDate || _today).trim();
+    const t = (toDate || _today).trim();
+    params.set('from', f);
+    params.set('to', t);
+    if (searchParams.get('from') !== f || searchParams.get('to') !== t) {
+      router.replace(`${pathname}?${params.toString()}`);
+    }
+  }, [fromDate, toDate, pathname, router, searchParams, _today]);
 
   /* modals */
   const [showAdd,    setShowAdd]    = useState(false);
@@ -248,9 +261,7 @@ export default function AttendancePage() {
       setF(field, publicUrl);
     } catch (e: any) {
       alert('Upload failed: ' + (e?.message || 'Unknown error'));
-    } finally {
-      setUploading(null);
-    }
+    } finally { setUploading(null); }
   };
 
   /* ── fetch ── */
@@ -258,18 +269,21 @@ export default function AttendancePage() {
 
   /* ── fetch ── */
   const load = useCallback(async () => {
-    setLoading(true);
     try {
-      // Fetch attendance + all users
-      let qs = fromDate === toDate ? `date=${fromDate}` : `from_date=${fromDate}&to_date=${toDate}`;
-      if (selectedClientId) qs += `&client_id=${selectedClientId}`;
+      setLoading(true);
+      const f = fromDate.trim();
+      const t = toDate.trim();
       
-      let usersQs = 'limit=500';
-      if (selectedClientId) usersQs += `&client_id=${selectedClientId}`;
+      // UNIVERSAL PARAMETERS: from and to
+      let qs = `from=${f}&to=${t}`;
+      
+      if (selectedClientId && selectedClientId !== 'all') {
+        qs += `&client_id=${selectedClientId}`;
+      }
 
       const [attRes, usersRes] = await Promise.all([
         api.get<any>(`/api/v1/attendance/team?${qs}`),
-        api.get<any>(`/api/v1/users?${usersQs}`),
+        api.get<any>(`/api/v1/users?limit=500${selectedClientId ? `&client_id=${selectedClientId}` : ''}`),
       ]);
 
       const pick = (r: any) => {
@@ -298,14 +312,14 @@ export default function AttendancePage() {
       });
 
       // Add implicit absent rows for users with no attendance record ONLY if it's a single date view
-      if (fromDate === toDate) {
+      if (f === t) {
         const coveredIds = new Set(attArr.map((r: any) => r.user_id));
         const absentRows = usersArr
           .filter((u: any) => ['executive', 'field_executive', 'field-executive', 'supervisor', 'city_manager'].includes(u.role) && u.is_active && !coveredIds.has(u.id))
           .map((u: any) => ({
             id: null,
             user_id: u.id,
-            date: fromDate,
+            date: f,
             status: 'absent' as const,
             checkin_at: null, checkout_at: null, total_hours: null,
             users: { name: u.name, employee_id: u.employee_id, zones: u.zones, role: u.role },
@@ -665,20 +679,10 @@ export default function AttendancePage() {
     setShowExport(false);
   };
 
-  /* ── filtered shown ── */
-  const shown = records.filter(r => {
-    const q = search.toLowerCase();
-    const matchSearch = !q
-      || (r.users?.name || '').toLowerCase().includes(q)
-      || (r.users?.employee_id || '').toLowerCase().includes(q)
-      || (r.users?.zones?.name || '').toLowerCase().includes(q);
-    const matchStatus = statusFilter === 'all' || r.status === statusFilter;
-    const matchRole = r.users?.role === roleFilter;
-    return matchSearch && matchStatus && matchRole;
-  });
+  /* 1. current Role records */
+  const currentRoleRecords = records.filter(r => (r.users?.role || '').toLowerCase() === roleFilter.toLowerCase());
 
-  const currentRoleRecords = records.filter(r => r.users?.role === roleFilter);
-
+  /* 2. stats calculation */
   const stats = {
     total:    currentRoleRecords.length,
     in:       currentRoleRecords.filter(r => r.status === 'checked_in').length,
@@ -686,6 +690,20 @@ export default function AttendancePage() {
     absent:   currentRoleRecords.filter(r => r.status === 'absent').length,
     half:     currentRoleRecords.filter(r => r.status === 'half_day').length,
   };
+
+  /* 3. final shown list */
+  const shown = currentRoleRecords.filter(r => {
+    const s = search.toLowerCase();
+    const matchSearch = !s || 
+      (r.users?.name || '').toLowerCase().includes(s) || 
+      (r.users?.employee_id || '').toLowerCase().includes(s) ||
+      (r.users?.zones?.name || '').toLowerCase().includes(s);
+
+    const matchStatus = statusFilter === 'all' || r.status === statusFilter;
+    return matchSearch && matchStatus;
+  });
+
+  const isRange = fromDate.trim() !== toDate.trim();
 
   /* ── inline form fields (NOT a component — avoids remount-on-render bug) ── */
   const sharedFormFields = (
@@ -960,10 +978,10 @@ export default function AttendancePage() {
           {/* table header */}
           <div style={{
             display: 'grid',
-            gridTemplateColumns: fromDate === toDate ? '2fr 1.2fr 1fr 1fr 1fr 1fr 1.2fr 80px' : '1.8fr 1.1fr 1fr 0.8fr 0.9fr 1fr 0.9fr 1fr 80px',
+            gridTemplateColumns: !isRange ? '2fr 1.2fr 1fr 1fr 1fr 1fr 1.2fr 80px' : '1.8fr 1.1fr 1fr 0.8fr 0.9fr 1fr 0.9fr 1fr 80px',
             gap: 10, padding: '11px 20px', borderBottom: `1px solid ${C.border}`, background: C.s3
           }}>
-            {(fromDate === toDate
+            {(!isRange
               ? ['Executive', 'Status', 'Selfie', 'Check-in', 'Check-out', 'Hours', 'Zone', 'Actions']
               : ['Executive', 'Date', 'Status', 'Selfie', 'Check-in', 'Check-out', 'Hours', 'Zone', 'Actions']
             ).map(h => (
@@ -975,101 +993,91 @@ export default function AttendancePage() {
             <div style={{ padding: 50, textAlign: 'center', color: C.grayd, fontSize: 14 }}>Loading…</div>
           ) : shown.length === 0 ? (
             <div style={{ padding: 50, textAlign: 'center', color: C.grayd, fontSize: 14 }}>
-              {currentRoleRecords.length === 0 ? `No attendance records for ${fmtDate(fromDate)}` : 'No results match your filters.'}
+              {currentRoleRecords.length === 0 ? `No attendance records for ${fmtDate(fromDate.trim())}` : 'No results match your filters.'}
             </div>
           ) : (
-            shown.map((r, i) => {
-              const sm = statusMeta[r.status] || statusMeta.absent;
-              return (
-                <div key={r.id || `${r.user_id}_${r.date}`} className="kcard" onClick={() => setDetail(r)}
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: fromDate === toDate ? '2fr 1.2fr 1fr 1fr 1fr 1fr 1.2fr 80px' : '1.8fr 1.1fr 1fr 0.8fr 0.9fr 1fr 0.9fr 1fr 80px',
-                    gap: 10, padding: '13px 20px', borderBottom: i < shown.length - 1 ? `1px solid ${C.border}` : 'none', cursor: 'pointer', alignItems: 'center', background: C.s2
-                  }}>
+            <div>
+              {shown.map((r, i) => {
+                const sm = statusMeta[r.status] || statusMeta.absent;
+                return (
+                  <div key={r.id || `${r.user_id}_${r.date}`} className="kcard" onClick={() => setDetail(r)}
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: !isRange ? '2fr 1.2fr 1fr 1fr 1fr 1fr 1.2fr 80px' : '1.8fr 1.1fr 1fr 0.8fr 0.9fr 1fr 0.9fr 1fr 80px',
+                      gap: 10, padding: '13px 20px', borderBottom: i < shown.length - 1 ? `1px solid ${C.border}` : 'none', cursor: 'pointer', alignItems: 'center', background: C.s2
+                    }}>
 
-                  {/* name */}
-                  <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                    <div style={{ width: 34, height: 34, borderRadius: 10, background: C.blueD, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 14, color: C.blue, flexShrink: 0 }}>
-                      {r.users?.name?.[0] || '?'}
-                    </div>
-                    <div style={{ overflow: 'hidden' }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: C.white, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{r.users?.name || r.user_id.slice(0, 8)}</div>
-                      <div style={{ fontSize: 11, color: C.grayd }}>{r.users?.role || ''}</div>
-                    </div>
-                  </div>
-
-                  {/* date if range */}
-                  {fromDate !== toDate && (
-                    <div style={{ fontSize: 12, fontWeight: 600, color: C.gray }}>
-                      {new Date(r.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
-                    </div>
-                  )}
-
-                  {/* status */}
-                  <span title={JSON.stringify(r, null, 2)} style={{ fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 20, display: 'inline-flex', alignItems: 'center', gap: 5, background: sm.bg, color: sm.color, width: 'fit-content', cursor: 'help' }}>
-                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: sm.color, flexShrink: 0 }} />
-                    {sm.label}
-                  </span>
-
-                  {/* selfie preview */}
-                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                    {r.checkin_selfie_url ? (
-                      <div style={{ position: 'relative', group: 'true' } as any}>
-                        <img src={r.checkin_selfie_url} alt="In" style={{ width: 40, height: 40, borderRadius: 8, objectFit: 'cover', border: `1px solid ${C.green}40` }} />
-                        <a href={r.checkin_selfie_url} target="_blank" rel="noreferrer" 
-                           style={{ position: 'absolute', bottom: -2, right: -2, background: C.s3, border: `1px solid ${C.border}`, borderRadius: '50%', width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, textDecoration: 'none' }}>
-                          👁️
-                        </a>
+                    {/* name */}
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                      <div style={{ width: 34, height: 34, borderRadius: 10, background: C.blueD, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 14, color: C.blue, flexShrink: 0 }}>
+                        {r.users?.name?.[0] || '?'}
                       </div>
-                    ) : <div style={{ width: 40, height: 40, borderRadius: 8, background: C.s3, border: `1px solid ${C.border}` }} />}
-                    
-                    {r.checkout_selfie_url ? (
-                      <div style={{ position: 'relative' }}>
-                        <img src={r.checkout_selfie_url} alt="Out" style={{ width: 40, height: 40, borderRadius: 8, objectFit: 'cover', border: `1px solid ${C.blue}40` }} />
-                        <a href={r.checkout_selfie_url} target="_blank" rel="noreferrer" 
-                           style={{ position: 'absolute', bottom: -2, right: -2, background: C.s3, border: `1px solid ${C.border}`, borderRadius: '50%', width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, textDecoration: 'none' }}>
-                          👁️
-                        </a>
+                      <div style={{ overflow: 'hidden' }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: C.white, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{r.users?.name || r.user_id.slice(0, 8)}</div>
+                        <div style={{ fontSize: 11, color: C.grayd }}>{r.users?.role || ''}</div>
                       </div>
-                    ) : null}
-                  </div>
+                    </div>
 
-                  {/* check-in */}
-                  <div style={{ fontSize: 13, color: r.checkin_at ? C.white : C.grayd }}>{fmt(r.checkin_at)}</div>
-
-                  {/* check-out */}
-                  <div style={{ fontSize: 13, color: r.checkout_at ? C.white : C.grayd }}>{fmt(r.checkout_at)}</div>
-
-                  {/* hours */}
-                  <div style={{ fontSize: 13, fontWeight: 700, color: (r.total_hours || calcHours(r)) ? C.green : C.grayd }}>
-                    {fmtHrs(calcHours(r))}
-                  </div>
-
-                  {/* zone */}
-                  <div style={{ fontSize: 12, color: C.gray }}>{r.users?.zones?.name || '—'}</div>
-
-                  {/* actions */}
-                  <div style={{ display: 'flex', gap: 6 }} onClick={e => e.stopPropagation()}>
-                    <button className="kbtn" onClick={() => openEdit(r)}
-                      style={{ width: 30, height: 30, borderRadius: 8, background: C.blueD, border: '1px solid rgba(62,158,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.blue }}>
-                      <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round">
-                        <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
-                        <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
-                      </svg>
-                    </button>
-                    {user?.role !== 'client' && (
-                      <button className="kbtn" onClick={() => setDelRec(r)}
-                        style={{ width: 30, height: 30, borderRadius: 8, background: C.redD, border: `1px solid ${C.redB}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.red }}>
-                        <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round">
-                          <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" /><path d="M10 11v6M14 11v6" /><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2" />
-                        </svg>
-                      </button>
+                    {/* date if range */}
+                    {isRange && (
+                      <div style={{ fontSize: 12, fontWeight: 600, color: C.gray }}>
+                        {new Date(r.date.trim()).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+                      </div>
                     )}
+
+                    {/* status */}
+                    <span title={JSON.stringify(r, null, 2)} style={{ fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 20, display: 'inline-flex', alignItems: 'center', gap: 5, background: sm.bg, color: sm.color, width: 'fit-content', cursor: 'help' }}>
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: sm.color, flexShrink: 0 }} />
+                      {sm.label}
+                    </span>
+
+                    {/* selfie preview */}
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      {r.checkin_selfie_url ? (
+                        <div style={{ position: 'relative' }}>
+                          <img src={r.checkin_selfie_url} alt="In" style={{ width: 40, height: 40, borderRadius: 8, objectFit: 'cover', border: `1px solid ${C.green}40` }} />
+                          <a href={r.checkin_selfie_url} target="_blank" rel="noreferrer" 
+                             style={{ position: 'absolute', bottom: -2, right: -2, background: C.s3, border: `1px solid ${C.border}`, borderRadius: '50%', width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, textDecoration: 'none' }}>
+                            👁️
+                          </a>
+                        </div>
+                      ) : <div style={{ width: 40, height: 40, borderRadius: 8, background: C.s3, border: `1px solid ${C.border}` }} />}
+                      
+                      {r.checkout_selfie_url ? (
+                        <div style={{ position: 'relative' }}>
+                          <img src={r.checkout_selfie_url} alt="Out" style={{ width: 40, height: 40, borderRadius: 8, objectFit: 'cover', border: `1px solid ${C.blue}40` }} />
+                          <a href={r.checkout_selfie_url} target="_blank" rel="noreferrer" 
+                             style={{ position: 'absolute', bottom: -2, right: -2, background: C.s3, border: `1px solid ${C.border}`, borderRadius: '50%', width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, textDecoration: 'none' }}>
+                            👁️
+                          </a>
+                        </div>
+                      ) : null}
+                    </div>
+
+                    {/* check-in */}
+                    <div style={{ fontSize: 13, color: r.checkin_at ? C.white : C.grayd }}>{fmt(r.checkin_at)}</div>
+
+                    {/* check-out */}
+                    <div style={{ fontSize: 13, color: r.checkout_at ? C.white : C.grayd }}>{fmt(r.checkout_at)}</div>
+
+                    {/* hours */}
+                    <div style={{ fontSize: 13, fontWeight: 700, color: (r.total_hours || calcHours(r)) ? C.green : C.grayd }}>
+                      {fmtHrs(calcHours(r))}
+                    </div>
+
+                    {/* zone */}
+                    <div style={{ fontSize: 12, color: C.gray }}>{r.users?.zones?.name || '—'}</div>
+
+                    {/* actions */}
+                    <div style={{ display: 'flex', gap: 6 }} onClick={e => e.stopPropagation()}>
+                      <button className="kbtn" onClick={() => openEdit(r)} style={{ padding: 8, background: C.s3, border: `1px solid ${C.border}`, borderRadius: 8, color: C.blue }} title="Edit"><svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" /></svg></button>
+                      <button className="kbtn" onClick={() => setDelRec(r)} style={{ padding: 8, background: C.s3, border: `1px solid ${C.border}`, borderRadius: 8, color: C.red }} title="Mark Absent"><svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round"><path d="M21 4H8l-7 8 7 8h13a2 2 0 002-2V6a2 2 0 00-2-2z" /><line x1="18" y1="9" x2="12" y2="15" /><line x1="12" y1="9" x2="18" y2="15" /></svg></button>
+                    </div>
                   </div>
-                </div>
-              );
-            })
+                );
+              })}
+            </div>
+            </div>
           )}
         </div>
 
@@ -1370,6 +1378,18 @@ export default function AttendancePage() {
         loading={saving}
       />
     </>
+  );
+}
+
+export default function AttendancePage() {
+  return (
+    <Suspense fallback={
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: 'var(--text-dim)', fontSize: 14 }}>
+        Loading dashboard…
+      </div>
+    }>
+      <AttendanceContent />
+    </Suspense>
   );
 }
 
