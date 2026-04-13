@@ -11,6 +11,7 @@ import {
   useSensors,
   DragOverlay,
   useDraggable,
+  useDroppable,
   defaultDropAnimationSideEffects
 } from '@dnd-kit/core';
 import {
@@ -911,9 +912,27 @@ function DraggableSidebarItem({ item }: { item: any }) {
   );
 }
 
+function CanvasDroppable({ id, children, isDraggingNew }: { id: string; children: React.ReactNode; isDraggingNew: boolean }) {
+  const { setNodeRef, isOver } = useDroppable({ id });
+  return (
+    <div ref={setNodeRef} id={id} style={{ 
+      flex: 1, 
+      overflowY: 'auto', 
+      padding: '20px 24px', 
+      background: C.bg, 
+      transition: 'all 0.2s',
+      position: 'relative',
+      boxShadow: isOver && isDraggingNew ? `inset 0 0 0 2px ${C.blue}60` : 'none',
+      backgroundColor: isOver && isDraggingNew ? `${C.blue}08` : C.bg
+    }}>
+      {children}
+    </div>
+  );
+}
+
 /* ══════════════════════════════════════════════════════════════════════════
    FORM BUILDER (Editor)
- ══════════════════════════════════════════════════════════════════════════ */
+══════════════════════════════════════════════════════════════════════════ */
 function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void }) {
   const [form,      setForm]     = useState<BForm>(initialForm);
   const [pages,     setPages]    = useState<BPage[]>([]);
@@ -1188,9 +1207,9 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
               </div>
 
               {/* Questions canvas */}
-              <div id="canvas-root" style={{ flex:1, overflowY:'auto', padding:'20px 24px', background:C.bg }}>
+              <CanvasDroppable id="canvas-root" isDraggingNew={!!activeType}>
                 {currentPageQs.length === 0 ? (
-                  <div style={{ border:`2px dashed ${C.border}`, borderRadius:16, padding:'48px', textAlign:'center', color:C.grayd }}>
+                  <div style={{ border:`2px dashed ${C.border}`, borderRadius:16, padding:'48px', textAlign:'center', color:C.grayd, pointerEvents:'none' }}>
                     <div style={{ fontSize:36, marginBottom:12 }}>📋</div>
                     <div style={{ fontSize:14, fontWeight:700, color:C.gray, marginBottom:6 }}>Empty page</div>
                     <div style={{ fontSize:12 }}>Drag any field type from the left sidebar to start building</div>
@@ -1213,7 +1232,7 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
                     </SortableContext>
                   </div>
                 )}
-              </div>
+              </CanvasDroppable>
             </div>
 
             {/* Right — Properties */}
