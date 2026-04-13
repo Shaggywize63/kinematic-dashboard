@@ -308,6 +308,10 @@ function AttendanceContent() {
 
       // Enrich attendance records with user info if join didn't come back
       const attArr = pick(attRes).map((r: any) => {
+        // Normalize: ensure date is always populated (backend may omit the field)
+        if (!r.date && r.checkin_at) {
+          r = { ...r, date: String(r.checkin_at).replace(' ', 'T').split('T')[0] };
+        }
         const u = userMap[r.user_id];
         if (r.users?.name) {
           if (u) r.users.role = u.role;
@@ -318,21 +322,38 @@ function AttendanceContent() {
       });
 
       // Add implicit absent rows for users with no attendance record (Pave the list)
-      const coveredIds = new Set(attArr.map((r: any) => r.user_id));
-      const absentRows = usersArr
-        .filter((u: any) => {
-          const r = (u.role || '').toLowerCase();
-          return ['executive', 'field_executive', 'field-executive', 'field_exec', 'supervisor', 'city_manager'].includes(r) && u.is_active && !coveredIds.has(u.id);
-        })
-        .map((u: any) => ({
-          id: null,
-          user_id: u.id,
-          date: f,
-          status: 'absent' as const,
-          checkin_at: null, checkout_at: null, total_hours: null,
-          users: { name: u.name, employee_id: u.employee_id, zones: u.zones, role: u.role },
-          _virtual: true,
-        }));
+      // For date ranges, generate one absent row per missing day per user.
+      const ELIGIBLE_ROLES = ['executive', 'field_executive', 'field-executive', 'field_exec', 'supervisor', 'city_manager'];
+      const eligibleUsers = usersArr.filter((u: any) => ELIGIBLE_ROLES.includes((u.role || '').toLowerCase()) && u.is_active);
+
+      // Build a set of "user_id|date" pairs that already have records
+      const coveredPairs = new Set(attArr.map((r: any) => `${r.user_id}|${r.date}`));
+
+      // Enumerate every date in the range [f, t]
+      const rangeDates: string[] = [];
+      const cur = new Date(f + 'T00:00:00Z');
+      const end = new Date(t + 'T00:00:00Z');
+      while (cur <= end) {
+        rangeDates.push(cur.toISOString().split('T')[0]);
+        cur.setUTCDate(cur.getUTCDate() + 1);
+      }
+
+      const absentRows: AttendanceRecord[] = [];
+      for (const u of eligibleUsers) {
+        for (const day of rangeDates) {
+          if (!coveredPairs.has(`${u.id}|${day}`)) {
+            absentRows.push({
+              id: null as any,
+              user_id: u.id,
+              date: day,
+              status: 'absent' as const,
+              checkin_at: undefined, checkout_at: undefined, total_hours: undefined,
+              users: { name: u.name, employee_id: u.employee_id, zones: u.zones, role: u.role },
+              _virtual: true,
+            });
+          }
+        }
+      }
       setRecords([...attArr, ...absentRows]);
       setErr('');
     } catch (e: any) {
