@@ -1246,20 +1246,8 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
                 })()}
               </div>
             ) : null}
+          </DragOverlay>
         </DndContext>
-      )}
-            </div>
-          </div>
-
-          {/* Right — Properties */}
-          {selectedQ ? (
-            <PropertiesPanel q={selectedQ} allQs={questions} onChange={updateQ} onDelete={() => setDeleteQModal({show:true, id:selectedQ.id, label:selectedQ.label})}/>
-          ) : (
-            <div style={{ width:280, flexShrink:0, background:C.s2, borderLeft:`1px solid ${C.border}`, display:'flex', alignItems:'center', justifyContent:'center', color:C.grayd, fontSize:13, textAlign:'center', padding:24 }}>
-              <div><div style={{ fontSize:32, marginBottom:10 }}>👆</div>Select a field to edit its properties</div>
-            </div>
-          )}
-        </div>
       )}
 
       <ConfirmModal
