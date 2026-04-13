@@ -2,6 +2,24 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import ConfirmModal from '../../../components/ConfirmModal';
 import { useAuth } from '../../../hooks/useAuth';
+import { 
+  DndContext, 
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragOverlay,
+  defaultDropAnimationSideEffects
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 /* ─── Constants ──────────────────────────────────────────────────────────── */
 const C = {
@@ -760,24 +778,24 @@ function PropertiesPanel({ q, allQs, onChange, onDelete }:{ q:BQuestion; allQs:B
 /* ══════════════════════════════════════════════════════════════════════════
    QUESTION CARD (Canvas)
 ══════════════════════════════════════════════════════════════════════════ */
-function QuestionCard({ q, index, isSelected, onSelect, onMoveUp, onMoveDown, isFirst, isLast }:{ q:BQuestion; index:number; isSelected:boolean; onSelect:()=>void; onMoveUp:()=>void; onMoveDown:()=>void; isFirst:boolean; isLast:boolean }) {
+function QuestionCard({ q, index, isSelected, onSelect, onMoveUp, onMoveDown, isFirst, isLast, dragHandleProps }:{ q:BQuestion; index:number; isSelected:boolean; onSelect:()=>void; onMoveUp:()=>void; onMoveDown:()=>void; isFirst:boolean; isLast:boolean, dragHandleProps?: any }) {
   const ti = typeInfo(q.qtype);
 
   const renderPreview = () => {
     switch (q.qtype) {
-      case 'short_text':  return <input disabled style={{ ...previewInp, opacity:.4 }} value={q.placeholder||'Short answer…'} readOnly/>;
-      case 'long_text':   return <textarea disabled style={{ ...previewInp, height:54, opacity:.4, resize:'none' }} value={q.placeholder||'Long answer…'} readOnly/>;
-      case 'number':      return <input type="number" disabled style={{ ...previewInp, opacity:.4 }} placeholder={q.placeholder||'0'}/>;
-      case 'email':       return <input type="email" disabled style={{ ...previewInp, opacity:.4 }} placeholder="name@example.com"/>;
-      case 'phone':       return <input type="tel" disabled style={{ ...previewInp, opacity:.4 }} placeholder="+91 XXXXXXXXXX"/>;
+      case 'short_text':  return <input readOnly style={{ ...previewInp, opacity:.4, pointerEvents:'none' }} value={q.placeholder||'Short answer…'}/>;
+      case 'long_text':   return <textarea readOnly style={{ ...previewInp, height:54, opacity:.4, resize:'none', pointerEvents:'none' }} value={q.placeholder||'Long answer…'}/>;
+      case 'number':      return <input type="number" readOnly style={{ ...previewInp, opacity:.4, pointerEvents:'none' }} placeholder={q.placeholder||'0'}/>;
+      case 'email':       return <input type="email" readOnly style={{ ...previewInp, opacity:.4, pointerEvents:'none' }} placeholder="name@example.com"/>;
+      case 'phone':       return <input type="tel" readOnly style={{ ...previewInp, opacity:.4, pointerEvents:'none' }} placeholder="+91 XXXXXXXXXX"/>;
       case 'radio':       return <div style={{ display:'flex', flexDirection:'column', gap:6 }}>{(q.options.length?q.options:[{label:'Option 1'},{label:'Option 2'}]).map((o:any,i:number) => <div key={i} style={{ display:'flex', alignItems:'center', gap:8, fontSize:13, color:C.gray }}><div style={{ width:16, height:16, borderRadius:'50%', border:`2px solid ${C.border}`, display:'flex', alignItems:'center', justifyContent:'center' }}><div style={{ width:8, height:8, borderRadius:'50%', background:isSelected?C.red:C.border }}/></div>{o.label}</div>)}</div>;
       case 'checkbox':    return <div style={{ display:'flex', flexDirection:'column', gap:6 }}>{(q.options.length?q.options:[{label:'Option 1'},{label:'Option 2'}]).map((o:any,i:number) => <div key={i} style={{ display:'flex', alignItems:'center', gap:8, fontSize:13, color:C.gray }}><div style={{ width:16, height:16, borderRadius:4, border:`2px solid ${C.border}`, background:isSelected?`${C.red}20`:'transparent', display:'flex', alignItems:'center', justifyContent:'center' }}><span style={{ color:C.red, fontSize:10 }}>{isSelected?'✓':''}</span></div>{o.label}</div>)}</div>;
       case 'dropdown':    return <div style={{ ...previewInp, display:'flex', justifyContent:'space-between', alignItems:'center', opacity:.5 }}><span>Select an option</span><span style={{ fontSize:10 }}>▼</span></div>;
       case 'yes_no':      return <div style={{ display:'flex', gap:8 }}><div style={{ padding:'6px 18px', borderRadius:8, background:`${C.green}18`, color:C.green, fontSize:13, fontWeight:700, border:`1px solid ${C.green}30` }}>Yes</div><div style={{ padding:'6px 18px', borderRadius:8, background:`${C.red}18`, color:C.red, fontSize:13, fontWeight:700, border:`1px solid ${C.red}30` }}>No</div></div>;
       case 'rating':      return <div style={{ display:'flex', gap:4 }}>{Array.from({length:q.validation?.max||5}).map((_,i) => <span key={i} style={{ fontSize:20, color:i<3?C.yellow:C.grayd }}>★</span>)}</div>;
-      case 'date':        return <input type="date" disabled style={{ ...previewInp, opacity:.6 }}/>;
-      case 'time':        return <input type="time" disabled style={{ ...previewInp, opacity:.6 }}/>;
-      case 'datetime':    return <input type="datetime-local" disabled style={{ ...previewInp, opacity:.6 }}/>;
+      case 'date':        return <input type="date" readOnly style={{ ...previewInp, opacity:.6, pointerEvents:'none' }}/>;
+      case 'time':        return <input type="time" readOnly style={{ ...previewInp, opacity:.6, pointerEvents:'none' }}/>;
+      case 'datetime':    return <input type="datetime-local" readOnly style={{ ...previewInp, opacity:.6, pointerEvents:'none' }}/>;
       case 'image':       return <div style={{ border:`2px dashed ${C.border}`, borderRadius:12, padding:'24px', textAlign:'center', color:C.gray, background:`${C.s2}80`, display:'flex', flexDirection:'column', gap:8, alignItems:'center' }}><span style={{ fontSize:24 }}>📷</span><div style={{ fontSize:13, fontWeight:600 }}>Image Upload / Camera</div><div style={{ fontSize:11, color:C.grayd }}>Max {q.media_config?.max_files||1} photos · Compression enabled</div></div>;
       case 'file':        return <div style={{ border:`2px dashed ${C.border}`, borderRadius:12, padding:'20px', textAlign:'center', color:C.gray, background:`${C.s2}80`, display:'flex', gap:10, alignItems:'center', justifyContent:'center' }}><span style={{ fontSize:20 }}>📎</span><div style={{ fontSize:13, fontWeight:600 }}>Click to upload any file</div></div>;
       case 'signature':   return <div style={{ border:`2px solid ${C.border}`, background:C.s4, borderRadius:12, padding:14, height:100, display:'flex', flexDirection:'column', justifyContent:'center', alignItems:'center', color:C.grayd, position:'relative' }}><div style={{ borderBottom:`1.5px dashed ${C.grayd}`, width:'80%', marginBottom:10 }}/><span style={{ fontSize:12 }}>Sign here</span><span style={{ position:'absolute', top:10, right:12, fontSize:16, opacity:0.3 }}>✍️</span></div>;
@@ -790,35 +808,71 @@ function QuestionCard({ q, index, isSelected, onSelect, onMoveUp, onMoveDown, is
   const previewInp:React.CSSProperties = { background:C.s4, border:`1.5px solid ${C.border}`, borderRadius:10, padding:'10px 14px', fontSize:13, color:C.white, fontFamily:"'DM Sans',sans-serif", outline:'none' };
 
   if (q.qtype === 'section_header') return (
-    <div onClick={onSelect} style={{ padding:'10px 18px', cursor:'pointer', borderBottom:`2px solid ${isSelected?C.red:C.borderL}`, background:isSelected?C.redD:'transparent', transition:'all .13s' }}>
-      <div style={{ fontFamily:"'Syne',sans-serif", fontSize:15, fontWeight:800, color:isSelected?C.red:C.white }}>{q.label}</div>
-      {q.helper_text && <div style={{ fontSize:12, color:C.gray, marginTop:2 }}>{q.helper_text}</div>}
+    <div onClick={onSelect} style={{ padding:'10px 18px', cursor:'pointer', borderBottom:`2px solid ${isSelected?C.red:C.borderL}`, background:isSelected?C.redD:'transparent', transition:'all .13s', position:'relative' }}>
+        {/* Drag handle */}
+      <div {...dragHandleProps} style={{ position:'absolute', left:-4, top:'50%', transform:'translateY(-50%)', padding:'10px 4px', cursor:'grab', color:C.grayd, opacity:isSelected?1:0.3 }}>
+        ⠿
+      </div>
+      <div style={{ fontFamily:"'Syne',sans-serif", fontSize:15, fontWeight:800, color:isSelected?C.red:C.white, marginLeft:12 }}>{q.label}</div>
+      {q.helper_text && <div style={{ fontSize:12, color:C.gray, marginTop:2, marginLeft:12 }}>{q.helper_text}</div>}
     </div>
   );
 
   return (
     <div onClick={onSelect}
       style={{ background:isSelected?C.redD:C.s3, border:`1.5px solid ${isSelected?C.red:C.border}`, borderRadius:14, padding:'16px 18px', cursor:'pointer', transition:'all .15s', position:'relative' }}>
-      {/* Type badge */}
-      <div style={{ position:'absolute', top:10, right:10, display:'flex', gap:4, alignItems:'center' }}>
-        <div style={{ fontSize:10, color:C.grayd, display:'flex', alignItems:'center', gap:4 }}>
-          <span>{ti.icon}</span><span style={{ fontWeight:600, textTransform:'capitalize' }}>{ti.label}</span>
-        </div>
-        {isSelected && (
-          <div style={{ display:'flex', gap:2, marginLeft:8 }}>
-            {!isFirst && <button onClick={e=>{e.stopPropagation();onMoveUp();}} style={{ background:C.s4, border:`1px solid ${C.border}`, borderRadius:4, color:C.gray, cursor:'pointer', fontSize:11, padding:'1px 6px' }}>↑</button>}
-            {!isLast  && <button onClick={e=>{e.stopPropagation();onMoveDown();}} style={{ background:C.s4, border:`1px solid ${C.border}`, borderRadius:4, color:C.gray, cursor:'pointer', fontSize:11, padding:'1px 6px' }}>↓</button>}
+      
+      {/* Drag handle */}
+      <div {...dragHandleProps} style={{ position:'absolute', left:-4, top:'50%', transform:'translateY(-50%)', padding:'10px 4px', cursor:'grab', color:C.grayd, opacity:isSelected?1:0.3 }}>
+        ⠿
+      </div>
+
+      <div style={{ marginLeft:12 }}>
+        {/* Type badge */}
+        <div style={{ position:'absolute', top:10, right:10, display:'flex', gap:4, alignItems:'center' }}>
+          <div style={{ fontSize:10, color:C.grayd, display:'flex', alignItems:'center', gap:4 }}>
+            <span>{ti.icon}</span><span style={{ fontWeight:600, textTransform:'capitalize' }}>{ti.label}</span>
           </div>
-        )}
+          {isSelected && (
+            <div style={{ display:'flex', gap:2, marginLeft:8 }}>
+              {!isFirst && <button onClick={e=>{e.stopPropagation();onMoveUp();}} style={{ background:C.s4, border:`1px solid ${C.border}`, borderRadius:4, color:C.gray, cursor:'pointer', fontSize:11, padding:'1px 6px' }}>↑</button>}
+              {!isLast  && <button onClick={e=>{e.stopPropagation();onMoveDown();}} style={{ background:C.s4, border:`1px solid ${C.border}`, borderRadius:4, color:C.gray, cursor:'pointer', fontSize:11, padding:'1px 6px' }}>↓</button>}
+            </div>
+          )}
+        </div>
+        {/* Label */}
+        <div style={{ display:'flex', alignItems:'center', gap:7, marginBottom:8 }}>
+          <span style={{ fontSize:12, fontWeight:800, color:isSelected?C.red:C.white }}>Q{index+1}</span>
+          <span style={{ fontSize:14, fontWeight:700, color:C.white, paddingRight:80 }}>{q.label}</span>
+          {q.is_required && <span style={{ fontSize:10, color:C.red, fontWeight:800 }}>*</span>}
+        </div>
+        {q.helper_text && <div style={{ fontSize:11, color:C.gray, marginBottom:8 }}>{q.helper_text}</div>}
+        {renderPreview()}
       </div>
-      {/* Label */}
-      <div style={{ display:'flex', alignItems:'center', gap:7, marginBottom:8 }}>
-        <span style={{ fontSize:12, fontWeight:800, color:isSelected?C.red:C.white }}>Q{index+1}</span>
-        <span style={{ fontSize:14, fontWeight:700, color:C.white, paddingRight:80 }}>{q.label}</span>
-        {q.is_required && <span style={{ fontSize:10, color:C.red, fontWeight:800 }}>*</span>}
-      </div>
-      {q.helper_text && <div style={{ fontSize:11, color:C.gray, marginBottom:8 }}>{q.helper_text}</div>}
-      {renderPreview()}
+    </div>
+  );
+}
+
+function SortableQuestionCard(props: any) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging
+  } = useSortable({ id: props.q.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 10 : 1,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} {...attributes}>
+      <QuestionCard {...props} dragHandleProps={listeners} />
     </div>
   );
 }
@@ -837,6 +891,33 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
   const [saved,     setSaved]    = useState(false);
   const [deleteQModal, setDeleteQModal] = useState<{show:boolean; id:string; label:string}>({show:false, id:'', label:''});
   const [deletingQ, setDeletingQ] = useState(false);
+  const [activeId, setActiveId] = useState<string|null>(null);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  const handleDragEnd = async (event: any) => {
+    const { active, over } = event;
+    setActiveId(null);
+    if (!over || active.id === over.id) return;
+
+    const oldIdx = questions.findIndex(q => q.id === active.id);
+    const newIdx = questions.findIndex(q => q.id === over.id);
+
+    const newArr = arrayMove(questions, oldIdx, newIdx);
+    
+    // Update Oders correctly based on the new array index
+    const updatedWithOrders = newArr.map((q, idx) => ({ ...q, q_order: idx }));
+    setQs(updatedWithOrders);
+
+    // Save batch update to backend
+    const updates = updatedWithOrders.filter((q, i) => questions[i]?.id !== q.id);
+    for (const q of updates) {
+      apiFetch(`/api/v1/builder/questions/${q.id}`, { method:'PATCH', body: JSON.stringify({ q_order: q.q_order }) }).catch(()=>{});
+    }
+  };
 
   /* Load form data */
   const loadForm = useCallback(async () => {
@@ -1013,14 +1094,45 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
                   <div style={{ fontSize:12 }}>Click any field type on the left to add it here</div>
                 </div>
               ) : (
-                <div style={{ display:'flex', flexDirection:'column', gap:10, maxWidth:640, margin:'0 auto' }}>
-                  {currentPageQs.map((q, i) => (
-                    <QuestionCard key={q.id} q={q} index={i} isSelected={selQ===q.id}
-                      onSelect={() => setSelQ(q.id)}
-                      onMoveUp={() => moveQ(q.id, 'up')}
-                      onMoveDown={() => moveQ(q.id, 'down')}
-                      isFirst={i===0} isLast={i===currentPageQs.length-1}/>
-                  ))}
+                <div style={{ maxWidth:640, margin:'0 auto' }}>
+                  <DndContext 
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragStart={(e) => setActiveId(e.active.id)}
+                    onDragEnd={handleDragEnd}
+                  >
+                    <SortableContext 
+                      items={currentPageQs}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                        {currentPageQs.map((q, i) => (
+                          <SortableQuestionCard key={q.id} q={q} index={i} isSelected={selQ===q.id}
+                            onSelect={() => setSelQ(q.id)}
+                            onMoveUp={() => moveQ(q.id, 'up')}
+                            onMoveDown={() => moveQ(q.id, 'down')}
+                            isFirst={i===0} isLast={i===currentPageQs.length-1}/>
+                        ))}
+                      </div>
+                    </SortableContext>
+                    
+                    <DragOverlay dropAnimation={{
+                      sideEffects: defaultDropAnimationSideEffects({
+                        styles: { active: { opacity: '0.5' } }
+                      })
+                    }}>
+                      {activeId ? (
+                        <div style={{ width: 640 }}>
+                          {(() => {
+                            const q = questions.find(qq => qq.id === activeId);
+                            if (!q) return null;
+                            const idx = currentPageQs.findIndex(qq => qq.id === activeId);
+                            return <QuestionCard q={q} index={idx} isSelected={true} onSelect={()=>{}} onMoveUp={()=>{}} onMoveDown={()=>{}} isFirst={false} isLast={false} />;
+                          })()}
+                        </div>
+                      ) : null}
+                    </DragOverlay>
+                  </DndContext>
                 </div>
               )}
             </div>
