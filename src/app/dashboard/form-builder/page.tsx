@@ -240,7 +240,7 @@ function FormList({ onOpen, onCreate }:{ onOpen:(f:BForm)=>void; onCreate:()=>vo
         <div style={{ textAlign:'center', padding:'80px 20px', display:'flex', flexDirection:'column', alignItems:'center' }}>
           <div style={{ fontSize:60, marginBottom:20, animation:'km-pulse 2s infinite' }}>✨</div>
           <h2 style={{ fontFamily:"'Syne',sans-serif", fontSize:24, fontWeight:800, color:C.white, marginBottom:8 }}>Start with AI or Build Manually</h2>
-          <p style={{ fontSize:14, color:C.gray, marginBottom:32, maxWidth:420, lineHeight:1.6 }}>Describe your field audit or survey challenge and let Claude design a professional multi-page form for you in seconds.</p>
+          <p style={{ fontSize:14, color:C.gray, marginBottom:32, maxWidth:420, lineHeight:1.6 }}>Describe your field audit or survey challenge and let Kini AI design a professional multi-page form for you in seconds.</p>
           
           <div style={{ display:'flex', gap:20, flexWrap:'wrap', justifyContent:'center' }}>
             <div onClick={() => setShowAIGen(true)} className="kbtn" style={{ width:240, background:C.s2, border:`1px solid ${C.blue}40`, padding:'30px 20px', borderRadius:20, cursor:'pointer', boxShadow:`0 10px 40px ${C.blue}15`, transition:'all .2s' }}>
@@ -408,7 +408,7 @@ function AIGenerateModal({ onGenerated, onClose }:{ onGenerated:(f:BForm)=>void;
         <div style={{ textAlign:'center', marginBottom:32 }}>
           <div style={{ fontSize:42, marginBottom:16, animation: status==='thinking' ? 'pulse 2s infinite' : 'none' }}>✨</div>
           <h2 style={{ fontFamily:"'Syne',sans-serif", fontSize:24, fontWeight:800, color:C.white, margin:0 }}>AI Form Synthesis</h2>
-          <p style={{ fontSize:14, color:C.gray, marginTop:8 }}>Describe your field challenge and let Claude design the solution.</p>
+          <p style={{ fontSize:14, color:C.gray, marginTop:8 }}>Describe your field challenge and let Kini AI design the solution.</p>
         </div>
 
         {status === 'idle' ? (
@@ -434,7 +434,7 @@ function AIGenerateModal({ onGenerated, onClose }:{ onGenerated:(f:BForm)=>void;
           <div style={{ textAlign:'center', padding:'20px 0' }}>
             <div style={{ display:'flex', justifyContent:'center', marginBottom:24 }}><Spin size={40} /></div>
             <div style={{ fontFamily:"'Syne',sans-serif", fontSize:18, fontWeight:700, color:C.white, marginBottom:8 }}>{stage}</div>
-            <div style={{ fontSize:13, color:C.grayd }}>Please wait while Claude synthesizes your requirements...</div>
+            <div style={{ fontSize:13, color:C.grayd }}>Please wait while Kini AI synthesizes your requirements...</div>
           </div>
         )}
 
@@ -543,7 +543,7 @@ function CreateFormModal({ onCreated, onClose }:{ onCreated:(f:BForm)=>void; onC
             <span 
               onClick={() => window.dispatchEvent(new CustomEvent('km-open-ai'))} 
               style={{ color:C.blue, cursor:'pointer', fontWeight:700, borderLeft:`1px solid ${C.border}`, paddingLeft:10 }}>
-              Need help? Consult Kinematic AI →
+              Need help? Consult Kini AI →
             </span>
           </div>
         </div>

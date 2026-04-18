@@ -115,7 +115,7 @@ function KinematicAI({ token }: { token: string }) {
     const summ = live.summ?.data || live.summ || {};
     const fes = locs.filter((l: any) => l.status === 'active');
     
-    return `You are Kinematic AI — premium operations assistant for the Kinematic field force platform.
+    return `You are Kini AI — premium operations assistant for the Kinematic field force platform.
 Current Context: User is viewing ${pathname}
 Today: ${today}
 
@@ -185,9 +185,9 @@ Be elite, professional, and data-driven. Use **bold** for key metrics. Proactive
              <div>
                <div style={{ fontWeight: 900, color: C.white, fontSize: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: C.green, boxShadow: `0 0 10px ${C.green}` }} />
-                 Kinematic AI
+                  Kini AI
                </div>
-               <div style={{ fontSize: 10, color: C.blue, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1.5, marginTop: 4 }}>Operations Assistant</div>
+                <div style={{ fontSize: 10, color: C.blue, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1.5, marginTop: 4 }}>Kini Operations Assistant</div>
              </div>
              <button onClick={() => setMsgs([])} style={{ background: 'rgba(255,255,255,0.05)', border: `1px solid ${C.border}`, color: C.grayd, fontSize: 10, cursor: 'pointer', padding: '6px 12px', borderRadius: 10, fontWeight: 700 }}>Reset Cache</button>
           </div>
