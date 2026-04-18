@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const EDGE_BASE = 'https://lnvxqjqfsxvtjvbzphou.supabase.co/functions/v1/api-proxy';
+const EDGE_BASE = 'https://kinematic-production.up.railway.app';
 const SUPA_REST = 'https://lnvxqjqfsxvtjvbzphou.supabase.co/rest/v1';
 const ANON_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxudnhxanFmc3h2dGp2YnpwaG91Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIwMzQyMDAsImV4cCI6MjA4NzYxMDIwMH0.D6EPi3BC4d0-bfzttbx5ObP0v0fb6HBYWz5HbmCWkJw';
 
@@ -73,7 +73,6 @@ async function fromBuilderSubmissions(
 async function fromFormResponses(sub: any, auth: string): Promise<boolean> {
   if (!sub.id) return false;
   try {
-    // Try the most common FK column names for the submission reference
     const candidates = [
       `${SUPA_REST}/form_responses?select=value_text,value_number,value_bool,builder_questions(id,label,qtype)&form_submission_id=eq.${sub.id}&limit=100`,
       `${SUPA_REST}/form_responses?select=value_text,value_number,value_bool,builder_questions(id,label,qtype)&submission_id=eq.${sub.id}&limit=100`,
@@ -85,7 +84,7 @@ async function fromFormResponses(sub: any, auth: string): Promise<boolean> {
       const rows: any[] = await r.json();
       if (Array.isArray(rows) && rows.length > 0) {
         sub.answers = rows
-          .filter((row) => row.builder_questions)  // skip rows with no question metadata
+          .filter((row) => row.builder_questions)
           .map(responseRowToAnswer);
         if (sub.answers.length > 0) return true;
       }
@@ -94,11 +93,6 @@ async function fromFormResponses(sub: any, auth: string): Promise<boolean> {
   return false;
 }
 
-/**
- * For every submission with missing answers, try two sources in order:
- * 1. builder_submissions  (new submissions — edge function path)
- * 2. form_responses       (old submissions — Railway path, separate answer rows)
- */
 async function enrichAnswers(submissions: any[], auth: string): Promise<void> {
   const missing = submissions.filter(
     (s) => !s.answers || (Array.isArray(s.answers) && s.answers.length === 0),
@@ -123,15 +117,15 @@ export async function GET(req: NextRequest) {
     const auth   = req.headers.get('Authorization') ?? '';
     const orgId  = req.headers.get('X-Org-Id') ?? '';
 
+    // Direct proxy to stabilized Railway backend
     const target = `${EDGE_BASE}/api/v1/forms/admin/submissions${search}`;
     const res = await fetch(target, {
       cache: 'no-store',
-      headers: { 'Authorization': auth, 'apikey': ANON_KEY, 'X-Org-Id': orgId },
+      headers: { 'Authorization': auth, 'X-Org-Id': orgId },
     });
 
     const data = await res.json();
 
-    // Resolve the submissions array regardless of wrapper shape
     const submissions: any[] =
       data?.data?.data ||
       data?.data ||
