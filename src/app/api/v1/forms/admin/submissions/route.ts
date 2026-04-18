@@ -25,8 +25,8 @@ function supaHeaders(auth: string) {
  * Convert a form_responses row (old Railway schema) into a FormAnswer object.
  */
 function responseRowToAnswer(row: any) {
-  const qtype = row.builder_questions?.qtype || 'text';
-  const label = row.builder_questions?.label || 'Question';
+  const qtype = row.qtype || row.builder_questions?.qtype || 'text';
+  const label = row.label || row.builder_questions?.label || 'Question';
   const value = row.value_text ?? row.value_number ?? row.value_bool ?? null;
   return { label, qtype, value, display: value != null ? String(value) : '—' };
 }
