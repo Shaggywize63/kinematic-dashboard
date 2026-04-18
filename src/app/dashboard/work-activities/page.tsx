@@ -515,13 +515,23 @@ export default function WorkActivitiesPage() {
                                       </div>
                                   );
                               })
-                          : (detailedSub.form_responses && detailedSub.form_responses.length > 0)
-                          ? detailedSub.form_responses.map((r: any, idx: number) => (
-                              <div key={idx} style={{ padding: '20px', background: C.bg, borderRadius: '16px', border: `1px solid ${C.border}` }}>
-                                  <div style={{ fontSize: '13px', fontWeight: 600, color: C.textSec, marginBottom: '8px' }}>{r.builder_questions?.label || 'Question'}</div>
-                                  <div style={{ fontWeight: 700, fontSize: '15px' }}>{r.value_text || r.value_number || r.value_bool?.toString() || '—'}</div>
-                              </div>
-                          ))
+                           : (detailedSub.form_responses && detailedSub.form_responses.length > 0)
+                           ? detailedSub.form_responses.map((r: any, idx: number) => {
+                               const answer: FormAnswer = {
+                                   label: r.builder_questions?.label || 'Question',
+                                   qtype: r.builder_questions?.qtype || r.qtype || 'text',
+                                   value: r.value_text ?? r.value_number ?? r.value_bool ?? null,
+                                   display: (r.value_text ?? r.value_number ?? r.value_bool ?? '—').toString()
+                               };
+                               const rendered = renderAnswerValue(answer, (urls, i) => setLightbox({ urls, index: i }));
+                               if (rendered === null) return null;
+                               return (
+                                   <div key={idx} style={{ padding: '20px', background: C.bg, borderRadius: '16px', border: `1px solid ${C.border}` }}>
+                                       <div style={{ fontSize: '13px', fontWeight: 600, color: C.textSec, marginBottom: '8px' }}>{answer.label}</div>
+                                       <div style={{ fontWeight: 700, fontSize: '15px' }}>{rendered}</div>
+                                   </div>
+                               );
+                           })
                           : <div style={{ padding: '20px', color: C.textSec, fontSize: '13px', textAlign: 'center' }}>No form responses recorded.</div>
                       }
                   </div>
