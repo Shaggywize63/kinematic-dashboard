@@ -322,9 +322,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <ClientProvider>
       <div style={{ display:'flex', minHeight:'100vh', background:C.bg, color:C.white }}>
         <aside style={{ width:sideW, background:C.side, borderRight:`1px solid ${C.border}`, position:'fixed', top:0, left:0, bottom:0, display:'flex', flexDirection:'column', transition:'width .2s' }}>
-          <div style={{ height:65, display:'flex', alignItems:'center', padding:'0 20px', borderBottom:`1px solid ${C.border}`, gap:10 }}>
-            <div style={{ width:32, height:32, background:C.red, borderRadius:8, display:'flex', alignItems:'center', justifyContent:'center', fontWeight:900 }}>K</div>
-            {!collapsed && <span style={{ fontWeight:800, fontSize:18 }}>Kinematic</span>}
+          <div style={{ height:65, display:'flex', alignItems:'center', padding:'0 20px', borderBottom:`1px solid ${C.border}`, gap:12 }}>
+            <img src="/logo-mark.png" alt="K" style={{ width:28, height:28, objectFit:'contain' }} />
+            {!collapsed && <span style={{ fontWeight:800, fontSize:18, letterSpacing:'-0.5px' }}>Kinematic</span>}
           </div>
           
           <nav style={{ flex:1, padding:'15px 0', overflowY:'auto' }}>

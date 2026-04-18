@@ -54,9 +54,11 @@ export default function LoginPage() {
 
       <div style={{ width:'100%', maxWidth:420, animation:'fadeIn 0.4s ease both' }}>
         <div style={{ textAlign:'center', marginBottom:40 }}>
-          <div style={{ width:76, height:76, background:'#E01E2C', borderRadius:24, display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 20px', boxShadow:'0 24px 70px rgba(224,30,44,0.38)' }}>
-            <span style={{ fontFamily:"'Syne',sans-serif", fontSize:40, fontWeight:800, color:'#fff', lineHeight:1 }}>K</span>
-          </div>
+          <img 
+            src="/logo-mark.png" 
+            alt="Kinematic Logo" 
+            style={{ width:80, height:80, display:'block', margin:'0 auto 20px', filter:'drop-shadow(0 12px 24px rgba(224,30,44,0.3))' }} 
+          />
           <h1 style={{ fontFamily:"'Syne',sans-serif", fontSize:32, fontWeight:800, color:'#E8EDF8', margin:'0 0 6px' }}>Kinematic</h1>
           <p style={{ fontSize:13, color:'#7A8BA0', margin:0, letterSpacing:'0.5px' }}>Field Force Management Platform</p>
         </div>
