@@ -1,4 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-  <rect width="100" height="100" rx="24" fill="#E01E2C"/>
-  <text x="50" y="72" font-family="Arial Black, sans-serif" font-size="65" font-weight="900" fill="white" text-anchor="middle">K</text>
+  <rect width="100" height="100" rx="22" fill="#FFFFFF"/>
+  <circle cx="36" cy="50" r="24" fill="#D01E2C"/>
+  <circle cx="66" cy="36" r="12" fill="#0A0E1A"/>
+  <circle cx="66" cy="64" r="12" fill="#0A0E1A"/>
 </svg>

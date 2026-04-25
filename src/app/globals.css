@@ -1,46 +1,60 @@
+/* Kinematic Brand Identity v1.0 — see BRAND.md */
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@200;400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
 
-@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&display=swap');
-
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --font-syne: 'Syne', sans-serif;
-  --font-dm-sans: 'DM Sans', sans-serif;
-  
-  /* Dark Mode (Default) */
-  --bg: #070D18;
-  --s1: #0A0F1D;
-  --s2: #0E1420;
-  --s3: #131B2A;
-  --s4: #1A2438;
-  --border: #1E2D45;
+  /* Brand families */
+  --font-manrope:   'Manrope', 'Segoe UI', 'Helvetica Neue', Roboto, Arial, sans-serif;
+  --font-inter:     'Inter', -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+  --font-jetbrains: 'JetBrains Mono', 'SF Mono', Consolas, Menlo, 'Courier New', monospace;
+
+  /* Brand palette — primaries */
+  --k-red:    #D01E2C;
+  --k-ink:    #0A0E1A;
+  --k-paper:  #FFFFFF;
+  /* Secondaries */
+  --k-navy:   #0E1A2E;
+  --k-stone:  #FAFAFB;
+  --k-rule:   #E4E6EB;
+  /* Functional (product UI only) */
+  --k-success: #0A8A4E;
+  --k-caution: #C97A00;
+  --k-info:    #0066FF;
+
+  /* Dark Mode (default) — built on Deep Navy */
+  --bg:       #0E1A2E;
+  --s1:       #0A0F1D;
+  --s2:       #0E1420;
+  --s3:       #131B2A;
+  --s4:       #1A2438;
+  --border:   #1E2D45;
   --border-l: #253650;
-  --text: #E8EDF8;
+  --text:     #E8EDF8;
   --text-dim: #7A8BA0;
-  --primary: #E01E2C;
-  --accent: #3E9EFF;
-  --green: #00D97E;
-  
+  --primary:  var(--k-red);
+  --accent:   var(--k-info);
+  --green:    var(--k-success);
+
   color-scheme: dark;
 }
 
 [data-theme="light"] {
-  --bg: #F8FAFC;
-  --s1: #FFFFFF;
-  --s2: #FFFFFF;
-  --s3: #F1F5F9;
-  --s4: #E2E8F0;
-  --border: #E2E8F0;
+  --bg:       var(--k-paper);
+  --s1:       var(--k-paper);
+  --s2:       var(--k-stone);
+  --s3:       #F1F5F9;
+  --s4:       #E2E8F0;
+  --border:   var(--k-rule);
   --border-l: #CBD5E1;
-  --text: #0F172A;
+  --text:     var(--k-ink);
   --text-dim: #64748B;
-  --primary: #E01E2C;
-  --accent: #1D5BBF;
-  --green: #059669;
-  
+  --primary:  var(--k-red);
+  --accent:   var(--k-info);
+  --green:    var(--k-success);
+
   color-scheme: light;
 }
 
@@ -50,11 +64,18 @@ html, body {
   height: 100%;
   background: var(--bg);
   color: var(--text);
-  font-family: var(--font-dm-sans);
+  /* Body always Inter — brand rule */
+  font-family: var(--font-inter);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   transition: background-color 0.2s ease, color 0.2s ease;
 }
+
+/* Headlines always Manrope — brand rule */
+h1, h2, h3, h4, h5, h6 { font-family: var(--font-manrope); letter-spacing: -0.01em; }
+
+/* Eyebrow / data labels */
+.font-mono, code, kbd, samp, pre { font-family: var(--font-jetbrains); }
 
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
