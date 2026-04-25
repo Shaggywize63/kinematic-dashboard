@@ -1,24 +1,42 @@
 import type { Config } from 'tailwindcss';
 
+// Kinematic Brand Identity v1.0 — see BRAND.md
 const config: Config = {
   content: ['./src/**/*.{js,ts,jsx,tsx,mdx}'],
   theme: {
     extend: {
       fontFamily: {
-        syne: ['var(--font-syne)', 'sans-serif'],
-        sans: ['var(--font-dm-sans)', 'sans-serif'],
+        // Brand families — Manrope (display), Inter (body), JetBrains Mono (data)
+        display: ['var(--font-manrope)', 'Manrope', 'Segoe UI', 'Helvetica Neue', 'Roboto', 'Arial', 'sans-serif'],
+        sans:    ['var(--font-inter)', 'Inter', '-apple-system', 'Segoe UI', 'Roboto', 'Arial', 'sans-serif'],
+        mono:    ['var(--font-jetbrains)', 'JetBrains Mono', 'SF Mono', 'Consolas', 'Menlo', 'Courier New', 'monospace'],
+        // Legacy aliases (kept for backwards compatibility during the rollout)
+        syne:    ['var(--font-manrope)', 'Manrope', 'sans-serif'],
       },
       colors: {
-        bg:     '#080B12',
+        // Brand primaries
+        'k-red':    '#D01E2C',  // Kinematic Red — Pantone 186 C
+        'k-ink':    '#0A0E1A',  // Kinematic Ink — Pantone Black 6 C
+        'k-paper':  '#FFFFFF',  // Paper White
+        // Brand secondaries
+        'k-navy':   '#0E1A2E',  // Deep Navy — Pantone 5395 C
+        'k-stone':  '#FAFAFB',  // Stone
+        'k-rule':   '#E4E6EB',  // Rule Grey
+        // Functional (product UI only — never marketing)
+        'k-success': '#0A8A4E',
+        'k-caution': '#C97A00',
+        'k-info':    '#0066FF',
+        // Legacy product UI tokens (mapped to brand)
+        bg:     '#0E1A2E',
         sur:    '#0E1420',
         s2:     '#131B2A',
         s3:     '#1A2438',
         border: '#1E2D45',
         blt:    '#253650',
-        red:    '#E01E2C',
-        green:  '#00D97E',
-        yellow: '#FFB800',
-        blue:   '#3E9EFF',
+        red:    '#D01E2C',
+        green:  '#0A8A4E',
+        yellow: '#C97A00',
+        blue:   '#0066FF',
         purple: '#9B6EFF',
         teal:   '#00CEC9',
         white:  '#E8EDF8',
