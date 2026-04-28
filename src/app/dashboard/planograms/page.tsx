@@ -84,9 +84,9 @@ export default function PlanogramsPage() {
             onClick={fetchAll}
             style={{
               padding: '9px 16px',
-              background: C.red,
-              color: '#fff',
-              border: 'none',
+              background: C.s2,
+              border: `1px solid ${C.border}`,
+              color: C.gray,
               borderRadius: 10,
               fontSize: 13,
               fontWeight: 600,
@@ -96,6 +96,22 @@ export default function PlanogramsPage() {
           >
             Refresh
           </button>
+          <Link
+            href="/dashboard/planograms/new"
+            style={{
+              padding: '9px 16px',
+              background: C.red,
+              color: '#fff',
+              border: 'none',
+              borderRadius: 10,
+              fontSize: 13,
+              fontWeight: 700,
+              fontFamily: "'DM Sans',sans-serif",
+              textDecoration: 'none',
+            }}
+          >
+            + New planogram
+          </Link>
         </div>
       </div>
 
@@ -289,7 +305,7 @@ export default function PlanogramsPage() {
   );
 }
 
-// ── Helper components ───────────────────────────────────────────────────────
+// ── Helper components ───────────────────────────────────────────────────
 
 function Kpi({ label, value, accent }: { label: string; value: string | number; accent: string }) {
   return (
