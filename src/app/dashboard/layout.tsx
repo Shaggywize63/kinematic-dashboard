@@ -22,15 +22,15 @@ function GlobalClientFilter({ isPlatformAdmin }: { isPlatformAdmin: boolean }) {
 }
 
 const C = {
-  bg: 'var(--bg)', 
-  side: 'var(--s1)', 
-  border: 'var(--border)', 
+  bg: 'var(--bg)',
+  side: 'var(--s1)',
+  border: 'var(--border)',
   borderL: 'var(--border-l)',
-  white: 'var(--text)', 
-  gray: 'var(--text-dim)', 
+  white: 'var(--text)',
+  gray: 'var(--text-dim)',
   grayd: 'var(--text-dim)',
-  red: 'var(--primary)', 
-  redD: 'rgba(224,30,44,0.12)', 
+  red: 'var(--primary)',
+  redD: 'rgba(224,30,44,0.12)',
   redB: 'rgba(224,30,44,0.2)',
   s1: 'var(--s1)', s2: 'var(--s2)', s3: 'var(--s3)', s4: 'var(--s4)',
   green: 'var(--green)', blue: 'var(--accent)',
@@ -86,13 +86,13 @@ function KinematicAI({ token }: { token: string }) {
         fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/analytics/summary`, { headers: hdrs }).then(r => r.json()),
         fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/analytics/performance/weekly`, { headers: hdrs }).then(r => r.json())
       ]);
-      
+
       const ctx: any = {};
       if (a.status === 'fulfilled') ctx.att = a.value?.data || a.value;
       if (l.status === 'fulfilled') ctx.locs = l.value?.data || l.value;
       if (s.status === 'fulfilled') ctx.summ = s.value?.data || s.value;
       if (w.status === 'fulfilled') ctx.week = w.value?.data || w.value;
-      
+
       setLive(ctx);
       setReady(true);
     } catch (e) { console.error('AI Data Context Error:', e); }
@@ -114,7 +114,7 @@ function KinematicAI({ token }: { token: string }) {
     const week = live.week?.data || live.week || {};
     const summ = live.summ?.data || live.summ || {};
     const fes = locs.filter((l: any) => l.status === 'active');
-    
+
     return `You are Kini AI — premium operations assistant for the Kinematic field force platform.
 Current Context: User is viewing ${pathname}
 Today: ${today}
@@ -162,12 +162,12 @@ Be elite, professional, and data-driven. Use **bold** for key metrics. Proactive
         @keyframes km-ai-pulse { 0% { box-shadow: 0 0 0 0 rgba(224,30,44,0.4); } 70% { box-shadow: 0 0 0 15px rgba(224,30,44,0); } 100% { box-shadow: 0 0 0 0 rgba(224,30,44,0); } }
         @keyframes km-ai-shimmer { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
       `}</style>
-      <button 
-        onClick={() => setOpen(o => !o)} 
-        style={{ 
-          position: 'fixed', bottom: 30, right: 30, zIndex: 1000, width: 60, height: 60, borderRadius: '22px', 
-          background: open ? C.s3 : `linear-gradient(135deg, ${C.red}, #FF4D4D)`, color: '#fff', 
-          display: 'flex', alignItems: 'center', justifyContent: 'center', 
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          position: 'fixed', bottom: 30, right: 30, zIndex: 1000, width: 60, height: 60, borderRadius: '22px',
+          background: open ? C.s3 : `linear-gradient(135deg, ${C.red}, #FF4D4D)`, color: '#fff',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
           boxShadow: open ? 'none' : '0 10px 30px rgba(224,30,44,0.4)', cursor: 'pointer', border: 'none',
           animation: !open ? 'km-ai-pulse 2s infinite' : 'none', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
         }}>
@@ -175,10 +175,10 @@ Be elite, professional, and data-driven. Use **bold** for key metrics. Proactive
       </button>
 
       {open && (
-        <div style={{ 
-          position: 'fixed', bottom: 105, right: 30, zIndex: 999, width: 420, height: 620, 
-          background: 'rgba(26,27,30,0.85)', backdropFilter: 'blur(24px)', border: `1px solid ${C.blue}20`, 
-          borderRadius: 32, display: 'flex', flexDirection: 'column', 
+        <div style={{
+          position: 'fixed', bottom: 105, right: 30, zIndex: 999, width: 420, height: 620,
+          background: 'rgba(26,27,30,0.85)', backdropFilter: 'blur(24px)', border: `1px solid ${C.blue}20`,
+          borderRadius: 32, display: 'flex', flexDirection: 'column',
           boxShadow: '0 40px 100px rgba(0,0,0,0.6)', overflow: 'hidden', animation: 'km-ai-slide .4s ease-out'
         }}>
           <div style={{ padding: '24px 28px', borderBottom: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)' }}>
@@ -191,7 +191,7 @@ Be elite, professional, and data-driven. Use **bold** for key metrics. Proactive
              </div>
              <button onClick={() => setMsgs([])} style={{ background: 'rgba(255,255,255,0.05)', border: `1px solid ${C.border}`, color: C.grayd, fontSize: 10, cursor: 'pointer', padding: '6px 12px', borderRadius: 10, fontWeight: 700 }}>Reset Cache</button>
           </div>
-          
+
           <div style={{ flex: 1, overflowY: 'auto', padding: '24px', display: 'flex', flexDirection: 'column', gap: 20, scrollBehavior: 'smooth' }}>
             {msgs.length === 0 && (
               <div style={{ textAlign: 'center', marginTop: 140 }}>
@@ -202,7 +202,7 @@ Be elite, professional, and data-driven. Use **bold** for key metrics. Proactive
             )}
             {msgs.map((m, i) => (
               <div key={i} style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
-                <div style={{ 
+                <div style={{
                   padding: '12px 18px', borderRadius: 20, fontSize: 14, lineHeight: 1.6, maxWidth: '85%',
                   background: m.role === 'user' ? `linear-gradient(135deg, ${C.red}, ${C.red}DD)` : 'rgba(255,255,255,0.05)',
                   color: C.white, border: m.role === 'user' ? 'none' : `1px solid rgba(255,255,255,0.05)`,
@@ -225,16 +225,16 @@ Be elite, professional, and data-driven. Use **bold** for key metrics. Proactive
           </div>
 
           <div style={{ padding: '20px 24px', background: 'rgba(0,0,0,0.2)', borderTop: `1px solid ${C.border}`, display: 'flex', gap: 12 }}>
-            <input 
-              value={input} 
-              onChange={e => setInput(e.target.value)} 
-              onKeyDown={e => e.key === 'Enter' && send()} 
+            <input
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && send()}
               disabled={busy}
-              style={{ flex: 1, background: 'rgba(255,255,255,0.03)', border: `1px solid ${C.border}`, borderRadius: 16, padding: '14px 20px', color: C.white, fontSize: 14, outline: 'none', transition: 'all 0.2s' }} 
-              placeholder="Ask anything about operations..." 
+              style={{ flex: 1, background: 'rgba(255,255,255,0.03)', border: `1px solid ${C.border}`, borderRadius: 16, padding: '14px 20px', color: C.white, fontSize: 14, outline: 'none', transition: 'all 0.2s' }}
+              placeholder="Ask anything about operations..."
             />
-            <button 
-              onClick={() => send()} 
+            <button
+              onClick={() => send()}
               disabled={busy || !input.trim()}
               style={{ background: C.red, border: 'none', borderRadius: 16, width: 48, height: 48, color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: busy || !input.trim() ? 0.5 : 1 }}>
               <Icon d="M5 12h14M12 5l7 7-7 7" size={20} />
@@ -272,8 +272,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const isPlatformAdmin = (() => {
     const role = (userRole || '').toLowerCase().trim().replace(/-/g, '_');
     const name = (user?.name || '').toLowerCase().trim();
-    return ['super_admin', 'admin', 'main_admin', 'sub_admin', 'master_admin'].includes(role) || 
-           role.includes('admin') || 
+    return ['super_admin', 'admin', 'main_admin', 'sub_admin', 'master_admin'].includes(role) ||
+           role.includes('admin') ||
            name === 'sagar';
   })();
 
@@ -291,6 +291,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     ])},
     { label: 'Operations', items: filterNav([
       { href: '/dashboard/other-management/activities', label: 'Activity Management', icon: 'M12 2v20 M2 12h20', module: 'activities' },
+      { href: '/dashboard/planograms', label: 'Planograms', icon: 'M3 5h18 M3 12h18 M3 19h18 M7 5v14 M17 5v14' },
       { href: '/dashboard/form-builder', label: 'Form Builder', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2 M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2', module: 'form_builder' },
       { href: '/dashboard/route-plan', label: 'Route Plan', icon: 'M9 20l-5.44-2.72A2 2 0 013 15.49V4.5a2 2 0 012.89-1.8L9 4 M9 4v16 M15 1l5.44 2.72A2 2 0 0121 5.51v10.98a2 2 0 01-2.89 1.8L15 17 M15 1v16', module: 'orders' },
       { href: '/dashboard/work-activities', label: 'Work Activities', icon: 'M12 2v20 M2 12h20 M5 5l14 14 M19 5L5 14', module: 'work_activities' },
@@ -326,7 +327,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <img src="/logo-mark.png" alt="K" style={{ width:28, height:28, objectFit:'contain' }} />
             {!collapsed && <span style={{ fontWeight:800, fontSize:18, letterSpacing:'-0.5px' }}>Kinematic</span>}
           </div>
-          
+
           <nav style={{ flex:1, padding:'15px 0', overflowY:'auto' }}>
             {navGroups.map((g, gi) => (
               <div key={gi} style={{ marginBottom:20 }}>
@@ -346,7 +347,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <div style={{ padding:20, borderTop:`1px solid ${C.border}` }}>
             {!collapsed && <div style={{ marginBottom:10, fontSize:12 }}>{user?.name || 'Admin'}</div>}
             <button onClick={handleLogout} style={{ width:'100%', padding:'10px', background:'transparent', border:`1px solid ${C.border}`, color:C.gray, borderRadius:8, cursor:'pointer' }}>Sign Out</button>
-            
+
             {/* DEFINITIVE DEPLOYMENT BADGE */}
             {user?.email === 'demo@kinematic.com' && (
               <div style={{ marginTop:15, padding:10, background:'rgba(255,59,48,0.1)', border:'1px solid rgba(255,59,48,0.2)', borderRadius:8, textAlign:'center' }}>
