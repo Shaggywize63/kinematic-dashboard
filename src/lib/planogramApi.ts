@@ -91,6 +91,7 @@ export const planogramApi = {
     api.post<Wrapped<ParsedPlanogram>>('/api/v1/planograms/parse', body),
 
   // Captures
+  listCaptures: () => api.get<Wrapped<Capture[]>>('/api/v1/planograms/captures'),
   getCapture: (id: string) =>
     api.get<Wrapped<{ capture: Capture; recognition: Recognition; compliance: Compliance }>>(
       `/api/v1/planograms/captures/${id}`,

@@ -65,6 +65,22 @@ export default function PlanogramsPage() {
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
           <Link
+            href="/dashboard/planograms/captures"
+            style={{
+              padding: '9px 16px',
+              background: C.s2,
+              border: `1px solid ${C.border}`,
+              color: C.gray,
+              borderRadius: 10,
+              fontSize: 13,
+              fontWeight: 600,
+              fontFamily: "'DM Sans',sans-serif",
+              textDecoration: 'none',
+            }}
+          >
+            Captures history
+          </Link>
+          <Link
             href="/dashboard/planograms/insights"
             style={{
               padding: '9px 16px',

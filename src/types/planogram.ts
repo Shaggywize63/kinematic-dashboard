@@ -92,6 +92,12 @@ export interface Capture {
   blur_score?: number;
   glare_score?: number;
   captured_at: string;
+
+  // Joined
+  fe?: { name: string };
+  store?: { name: string };
+  planogram?: { name: string };
+  compliance?: { score: number };
 }
 
 export interface TrendPoint {
