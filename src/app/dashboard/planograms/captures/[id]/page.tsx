@@ -73,9 +73,11 @@ export default function CaptureDetailPage() {
         <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 22, fontWeight: 800 }}>
           Shelf capture
         </div>
-        <div style={{ fontSize: 13, color: C.gray, marginTop: 3 }}>
-          {capture && new Date(capture.captured_at).toLocaleString()} · store{' '}
-          {capture?.store_id?.slice(0, 8) || '—'}
+        <div style={{ fontSize: 13, color: C.gray, marginTop: 4, display: 'flex', gap: 16 }}>
+          <span>📅 {capture && new Date(capture.captured_at).toLocaleString()}</span>
+          <span>🏬 Store: {capture?.store?.name || capture?.store_id?.slice(0, 8) || '—'}</span>
+          <span>👤 Auditor: {capture?.fe?.name || 'FE Executive'}</span>
+          <span>📍 {capture?.capture_lat?.toFixed(5)}, {capture?.capture_lng?.toFixed(5)}</span>
         </div>
       </div>
 
