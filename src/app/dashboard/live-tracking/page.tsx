@@ -308,10 +308,23 @@ export default function LiveTrackingPage() {
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  // Auto-refresh every 30s for better live tracking
+  // Auto-refresh every 60s, but pause when the tab is hidden so we don't
+  // hammer the API for users who left the dashboard open in a background
+  // tab. A single fetch fires immediately when the tab comes back.
   useEffect(() => {
-    const id = setInterval(fetchAll, 30000);
-    return () => clearInterval(id);
+    let id: ReturnType<typeof setInterval> | null = null;
+    const start = () => { if (!id) id = setInterval(fetchAll, 60000); };
+    const stop  = () => { if (id) { clearInterval(id); id = null; } };
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') { fetchAll(); start(); }
+      else { stop(); }
+    };
+    if (document.visibilityState === 'visible') start();
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      stop();
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
   }, [fetchAll]);
 
   /* ── Derived / filtered ── */
