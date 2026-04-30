@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../../../lib/api';
 import * as demoMocks from '../../../lib/demoMocks';
 import { getStoredUser } from '../../../lib/auth';
+import { LowBatteryKpi, LowBatteryAlert, LowBatteryFilter } from '../../../components/live-tracking/LowBattery';
 
 const C = {
   bg: 'var(--bg)', s1: 'var(--s1)', s2: 'var(--s2)', s3: 'var(--s3)', s4: 'var(--s4)',
@@ -218,6 +219,10 @@ export default function LiveTrackingPage() {
   const [selectedId,   setSelectedId]   = useState<string|null>(null);
   const [selectedType, setSelectedType] = useState<string|null>(null);
 
+  // Low Battery
+  const [lowBatteryFilter,    setLowBatteryFilter]    = useState(false);
+  const [lowBatteryDismissed, setLowBatteryDismissed] = useState(false);
+
   /* ── Load Leaflet ── */
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -321,8 +326,9 @@ export default function LiveTrackingPage() {
     const matchSearch = !search || name.includes(q) || eid.includes(q) || zn.includes(q);
     const matchStatus = statusFilter === 'all' || stat === statusFilter;
     const matchZone   = zoneFilter === 'all' || (fe.zone_name && zones.find(z => z.name === fe.zone_name)?.id === zoneFilter);
+    const matchBattery = !lowBatteryFilter || (fe.battery_percentage != null && fe.battery_percentage < 20);
     
-    return !!matchSearch && !!matchStatus && !!matchZone;
+    return !!matchSearch && !!matchStatus && !!matchZone && !!matchBattery;
   });
 
   const filteredSups = supervisors.filter(s => {
@@ -409,6 +415,9 @@ export default function LiveTrackingPage() {
           </div>
         )}
 
+        {/* ── Low Battery Alert ── */}
+        <LowBatteryAlert fes={fes} dismissed={lowBatteryDismissed} onDismiss={() => setLowBatteryDismissed(true)} />
+
         {/* ── KPI strip ── */}
         <div style={{ display:'flex', gap:10, flexShrink:0 }}>
           {[
@@ -424,6 +433,7 @@ export default function LiveTrackingPage() {
               <div style={{ fontSize:10, color:C.gray, marginTop:2 }}>{s.l}</div>
             </div>
           ))}
+          <LowBatteryKpi fes={fes} loading={loading} />
         </div>
 
         {/* ── Filters row ── */}
@@ -450,6 +460,8 @@ export default function LiveTrackingPage() {
             <option value="all">All Zones</option>
             {zones.map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
           </select>
+          {/* Low Battery filter */}
+          <LowBatteryFilter active={lowBatteryFilter} onToggle={() => setLowBatteryFilter(v => !v)} count={fes.filter(fe => fe.battery_percentage != null && fe.battery_percentage < 20).length} />
           {/* Layer toggles */}
           <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
             {LAYERS.map(l => (
