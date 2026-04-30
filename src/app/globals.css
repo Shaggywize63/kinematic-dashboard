@@ -91,3 +91,49 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-manrope); letter-spacing: -0.01
 .animate-fade-in  { animation: fadeIn  0.3s ease both; }
 .animate-fade-up  { animation: fadeUp  0.4s cubic-bezier(0.22,1,0.36,1) both; }
 .animate-slide-in { animation: slideIn 0.35s cubic-bezier(0.22,1,0.36,1) both; }
+
+/* ============================================================================
+   Mobile responsive overrides
+   The dashboard pages use inline styles with multi-column grids and flex rows.
+   These rules collapse them gracefully on small screens without touching the
+   per-page code. Selectors target the most common layout primitives.
+   ============================================================================ */
+@media (max-width: 1023px) {
+  /* Force any inline-styled CSS grid that uses ", 1fr)" templates to a single
+     column on small screens (covers KPI strips, card grids, etc.). */
+  [style*="grid-template-columns: repeat"] {
+    grid-template-columns: 1fr !important;
+  }
+  [style*="grid-template-columns:repeat"] {
+    grid-template-columns: 1fr !important;
+  }
+  /* Filter / toolbar rows (flex with gap) wrap to multiple lines */
+  [style*="display:flex"][style*="flex-wrap"],
+  [style*="display: flex"][style*="flex-wrap"] {
+    flex-wrap: wrap !important;
+  }
+  /* Tables in cards become horizontally scrollable instead of overflowing */
+  table { display: block; overflow-x: auto; max-width: 100%; }
+  /* Anything with a fixed min-width should not push the viewport */
+  [style*="min-width:1000"], [style*="min-width: 1000"],
+  [style*="min-width:1200"], [style*="min-width: 1200"] { min-width: 100% !important; }
+  /* Reduce big paddings */
+  [style*="padding:25"][style*="px"] { padding: 14px !important; }
+  [style*="padding:30"][style*="px"] { padding: 16px !important; }
+  /* Make the live-tracking sidebar (the FE list) full-width on mobile */
+  main [style*="width:280"][style*="flexShrink"],
+  main [style*="width: 280"][style*="flexShrink"] {
+    width: 100% !important;
+  }
+}
+
+@media (max-width: 640px) {
+  /* Even tighter stacking for phones */
+  [style*="display:flex"]:not([style*="flex-direction:column"]):not([style*="flex-direction: column"]) {
+    flex-wrap: wrap !important;
+  }
+  /* Inputs / selects: full-width on phones */
+  input, select, textarea { max-width: 100% !important; }
+  /* Cards and panels: edge-to-edge */
+  [style*="border-radius:16"], [style*="border-radius: 16"] { border-radius: 12px !important; }
+}

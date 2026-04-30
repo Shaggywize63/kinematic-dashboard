@@ -246,11 +246,28 @@ Be elite, professional, and data-driven. Use **bold** for key metrics. Proactive
   );
 }
 
+// Tracks viewport width so the layout can switch between desktop sidebar
+// and mobile drawer without re-renders on every resize tick.
+function useIsMobile(breakpoint = 1024) {
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia(`(max-width: ${breakpoint - 1}px)`);
+    const handler = () => setIsMobile(mq.matches);
+    handler();
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, [breakpoint]);
+  return isMobile;
+}
+
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<any>(null);
   const [collapsed, setCollapsed] = useState(false);
   const [otherOpen, setOtherOpen] = useState(false);
   const [token, setToken] = useState('');
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const isMobile = useIsMobile(1024);
   const router = useRouter();
   const pathname = usePathname();
 
@@ -267,7 +284,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const userRole = user?.role || '';
   const userPerms = user?.permissions || [];
   const isActive = (href: string) => href === '/dashboard' ? pathname === '/dashboard' : pathname.startsWith(href);
-  const sideW = collapsed ? 64 : 220;
+  // On mobile the sidebar lives in a drawer overlay (not in the document flow),
+  // so the main column gets zero left margin.
+  const sideW = isMobile ? 0 : (collapsed ? 64 : 220);
+  const drawerW = isMobile ? 240 : (collapsed ? 64 : 220);
+  const sidebarVisible = isMobile ? drawerOpen : true;
+
+  // Close drawer when navigation happens (pathname change)
+  useEffect(() => { if (isMobile) setDrawerOpen(false); }, [pathname, isMobile]);
 
   const isPlatformAdmin = (() => {
     const role = (userRole || '').toLowerCase().trim().replace(/-/g, '_');
@@ -322,21 +346,38 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <ClientProvider>
       <div style={{ display:'flex', minHeight:'100vh', background:C.bg, color:C.white }}>
-        <aside style={{ width:sideW, background:C.side, borderRight:`1px solid ${C.border}`, position:'fixed', top:0, left:0, bottom:0, display:'flex', flexDirection:'column', transition:'width .2s' }}>
+        {/* Mobile drawer scrim */}
+        {isMobile && drawerOpen && (
+          <div onClick={() => setDrawerOpen(false)} style={{
+            position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:998,
+          }}/>
+        )}
+
+        <aside style={{
+          width: isMobile ? drawerW : sideW,
+          background:C.side,
+          borderRight:`1px solid ${C.border}`,
+          position:'fixed', top:0, left:0, bottom:0,
+          display:'flex', flexDirection:'column',
+          transition:'transform .25s ease, width .2s',
+          transform: sidebarVisible ? 'translateX(0)' : `translateX(-${drawerW}px)`,
+          zIndex: isMobile ? 999 : 10,
+          boxShadow: isMobile && drawerOpen ? '4px 0 24px rgba(0,0,0,0.4)' : 'none',
+        }}>
           <div style={{ height:65, display:'flex', alignItems:'center', padding:'0 20px', borderBottom:`1px solid ${C.border}`, gap:12 }}>
             <img src="/logo-mark.png" alt="K" style={{ width:28, height:28, objectFit:'contain' }} />
-            {!collapsed && <span style={{ fontWeight:800, fontSize:18, letterSpacing:'-0.5px' }}>Kinematic</span>}
+            {(isMobile || !collapsed) && <span style={{ fontWeight:800, fontSize:18, letterSpacing:'-0.5px' }}>Kinematic</span>}
           </div>
 
           <nav style={{ flex:1, padding:'15px 0', overflowY:'auto' }}>
             {navGroups.map((g, gi) => (
               <div key={gi} style={{ marginBottom:20 }}>
-                {!collapsed && <div style={{ padding:'0 20px', fontSize:10, color:C.grayd, textTransform:'uppercase', letterSpacing:1, marginBottom:10 }}>{g.label}</div>}
+                {(isMobile || !collapsed) && <div style={{ padding:'0 20px', fontSize:10, color:C.grayd, textTransform:'uppercase', letterSpacing:1, marginBottom:10 }}>{g.label}</div>}
                 {g.items.map((i:any) => (
                   <Link key={i.href} href={i.href}>
                     <div style={{ display:'flex', alignItems:'center', padding:'10px 20px', gap:12, color:isActive(i.href)?C.red:C.gray, background:isActive(i.href)?C.redD:'transparent', cursor:'pointer' }}>
                       <Icon d={i.icon} size={18} />
-                      {!collapsed && <span style={{ fontSize:14 }}>{i.label}</span>}
+                      {(isMobile || !collapsed) && <span style={{ fontSize:14 }}>{i.label}</span>}
                     </div>
                   </Link>
                 ))}
@@ -345,7 +386,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </nav>
 
           <div style={{ padding:20, borderTop:`1px solid ${C.border}` }}>
-            {!collapsed && <div style={{ marginBottom:10, fontSize:12 }}>{user?.name || 'Admin'}</div>}
+            {(isMobile || !collapsed) && <div style={{ marginBottom:10, fontSize:12 }}>{user?.name || 'Admin'}</div>}
             <button onClick={handleLogout} style={{ width:'100%', padding:'10px', background:'transparent', border:`1px solid ${C.border}`, color:C.gray, borderRadius:8, cursor:'pointer' }}>Sign Out</button>
 
             {/* DEFINITIVE DEPLOYMENT BADGE */}
@@ -358,12 +399,29 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         </aside>
 
-        <main style={{ marginLeft:sideW, flex:1, display:'flex', flexDirection:'column' }}>
-          <header style={{ height:65, background:C.s1, borderBottom:`1px solid ${C.border}`, display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0 25px' }}>
-            <span style={{ fontWeight:700 }}>{pathname.split('/').pop()?.toUpperCase() || 'DASHBOARD'}</span>
+        <main style={{ marginLeft:sideW, flex:1, display:'flex', flexDirection:'column', minWidth:0 }}>
+          <header style={{
+            height:65, background:C.s1, borderBottom:`1px solid ${C.border}`,
+            display:'flex', alignItems:'center', justifyContent:'space-between',
+            padding: isMobile ? '0 14px' : '0 25px', gap:10,
+          }}>
+            <div style={{ display:'flex', alignItems:'center', gap:12, minWidth:0, flex:1 }}>
+              {isMobile && (
+                <button
+                  onClick={() => setDrawerOpen(o => !o)}
+                  aria-label="Open menu"
+                  style={{ background:'transparent', border:'none', color:C.white, cursor:'pointer', padding:6, display:'flex', alignItems:'center' }}
+                >
+                  <Icon d="M3 12h18 M3 6h18 M3 18h18" size={22} />
+                </button>
+              )}
+              <span style={{ fontWeight:700, fontSize: isMobile ? 13 : 15, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+                {pathname.split('/').pop()?.toUpperCase() || 'DASHBOARD'}
+              </span>
+            </div>
             <GlobalClientFilter isPlatformAdmin={isPlatformAdmin} />
           </header>
-          <div style={{ padding:25, flex:1 }}>{children}</div>
+          <div style={{ padding: isMobile ? 14 : 25, flex:1, minWidth:0 }}>{children}</div>
           <footer style={{ padding:15, borderTop:`1px solid ${C.border}`, textAlign:'center', fontSize:9, color:C.grayd }}>
             Kinematic Registry: STABLE-ENV | Interception Enabled
           </footer>
