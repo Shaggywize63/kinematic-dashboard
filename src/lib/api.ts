@@ -3,11 +3,26 @@ import { isUUID } from './utils';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
+// In-memory GET cache + in-flight request dedupe.
+// - Successful GETs are cached for `GET_CACHE_TTL_MS` (default 60s)
+// - Concurrent identical GETs share one network call
+// - Mutations (POST/PUT/PATCH/DELETE) clear the entire cache so the
+//   next read sees fresh data
+const GET_CACHE_TTL_MS = 60_000;
+type CacheEntry = { value: unknown; expiry: number };
+const responseCache = new Map<string, CacheEntry>();
+const inFlight = new Map<string, Promise<unknown>>();
+
 class ApiClient {
   private baseUrl: string;
 
   constructor(baseUrl: string) {
     this.baseUrl = baseUrl;
+  }
+
+  /** Drop everything in the GET cache. Called after every mutating request. */
+  clearCache() {
+    responseCache.clear();
   }
 
   private getToken(): string | null {
@@ -62,17 +77,42 @@ class ApiClient {
     return data;
   }
 
-  get<T>(path: string, options: RequestInit = {}) { return this.request<T>(path, options); }
+  get<T>(path: string, options: RequestInit = {}): Promise<T> {
+    const method = (options.method || 'GET').toUpperCase();
+    if (method !== 'GET' || (options as { noCache?: boolean }).noCache) {
+      return this.request<T>(path, options);
+    }
+    const key = `${this.getToken() || 'anon'}|${path}`;
+    const now = Date.now();
+    const cached = responseCache.get(key);
+    if (cached && cached.expiry > now) return Promise.resolve(cached.value as T);
+    const pending = inFlight.get(key) as Promise<T> | undefined;
+    if (pending) return pending;
+    const p = this.request<T>(path, options).then(value => {
+      responseCache.set(key, { value, expiry: Date.now() + GET_CACHE_TTL_MS });
+      inFlight.delete(key);
+      return value;
+    }).catch(err => {
+      inFlight.delete(key);
+      throw err;
+    });
+    inFlight.set(key, p as Promise<unknown>);
+    return p;
+  }
   post<T>(path: string, body: unknown, options: RequestInit = {}) {
+    this.clearCache();
     return this.request<T>(path, { ...options, method: 'POST', body: JSON.stringify(body) });
   }
   put<T>(path: string, body: unknown, options: RequestInit = {}) {
+    this.clearCache();
     return this.request<T>(path, { ...options, method: 'PUT', body: JSON.stringify(body) });
   }
   patch<T>(path: string, body: unknown, options: RequestInit = {}) {
+    this.clearCache();
     return this.request<T>(path, { ...options, method: 'PATCH', body: JSON.stringify(body) });
   }
   delete<T>(path: string, options: RequestInit = {}) {
+    this.clearCache();
     return this.request<T>(path, { ...options, method: 'DELETE' });
   }
 
