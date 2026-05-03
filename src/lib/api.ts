@@ -320,6 +320,10 @@ class ApiClient {
     return this.get(`/api/v1/misc/security/alerts/all${this.sanitizeParams(params)}`);
   }
 
+  // ── Distribution: GSTIN verify + states ──────────────────────────────
+  verifyGstin(gstin: string) { return this.post<{ success: boolean; data: any }>('/api/v1/distribution/gstin/verify', { gstin }); }
+  getDistStates() { return this.get('/api/v1/distribution/gstin/states'); }
+
   // ── Distribution: Brands ─────────────────────────────────────────────
   getBrands(params?: Record<string, string>) { return this.get(`/api/v1/distribution/brands${this.sanitizeParams(params)}`); }
   getBrand(id: string) { return this.get(`/api/v1/distribution/brands/${id}`); }
