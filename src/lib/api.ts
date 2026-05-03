@@ -320,6 +320,10 @@ class ApiClient {
     return this.get(`/api/v1/misc/security/alerts/all${this.sanitizeParams(params)}`);
   }
 
+  // ── Organisation (current user's org) ───────────────────────────────
+  getMyOrg() { return this.get('/api/v1/organisations/me'); }
+  updateMyOrg(data: object) { return this.patch('/api/v1/organisations/me', data); }
+
   // ── Distribution: GSTIN verify + states ──────────────────────────────
   verifyGstin(gstin: string) { return this.post<{ success: boolean; data: any }>('/api/v1/distribution/gstin/verify', { gstin }); }
   getDistStates() { return this.get('/api/v1/distribution/gstin/states'); }

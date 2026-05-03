@@ -127,9 +127,26 @@ export default function SettingsPage() {
     autoCheckout: 12,
     minAppVersion: '1.2.0',
     gpsAccuracy: 50,
-    orgName: 'Horizonn Tech Studio',
-    orgSupport: 'support@kinematic.com'
+    orgName: 'Kaiyo Technology Labs',
+    orgSupport: 's@kinematicapp.com',
   });
+
+  // Load org details on mount so the form reflects what's saved.
+  useEffect(() => {
+    (async () => {
+      try {
+        const r: any = await api.getMyOrg();
+        const o = r?.data || r;
+        if (o) {
+          setOpsRules((p) => ({
+            ...p,
+            orgName:    o.name || p.orgName,
+            orgSupport: o.settings?.support_email || p.orgSupport,
+          }));
+        }
+      } catch {/* fail-soft: keep defaults */}
+    })();
+  }, []);
 
   // Sync Theme Initial State
   useEffect(() => {
@@ -176,12 +193,19 @@ export default function SettingsPage() {
 
   const allCityNames = cities.map(c => c.name);
 
-  const handleSaveSettings = () => {
+  const handleSaveSettings = async () => {
     setSaving(true);
-    setTimeout(() => {
+    try {
+      await api.updateMyOrg({
+        name: opsRules.orgName,
+        support_email: opsRules.orgSupport,
+      });
+      alert('Organisation details saved');
+    } catch (e: any) {
+      alert(`Save failed: ${e.message || 'unknown error'}`);
+    } finally {
       setSaving(false);
-      alert('Settings updated successfully!');
-    }, 600);
+    }
   };
 
   const handleEditClick = (u: any) => {
