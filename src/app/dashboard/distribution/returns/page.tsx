@@ -45,7 +45,7 @@ export default function ReturnsPage() {
                 <tr key={r.id}>
                   <Td style={{ fontWeight: 700 }}>{r.return_no}</Td>
                   <Td>{r.outlet_id?.slice(0, 8)}…</Td>
-                  <Td>{r.original_invoice_id?.slice(0, 8)}…</Td>
+                  <Td><a href={`/dashboard/distribution/invoices/${r.original_invoice_id}`} style={{ color: 'var(--primary)' }}>{r.original_invoice_id?.slice(0, 8)}…</a></Td>
                   <Td><Pill color="amber">{r.reason_code}</Pill></Td>
                   <Td>{Array.isArray(r.photo_urls) ? r.photo_urls.length : 0}</Td>
                   <Td>{fmtDate(r.created_at)}</Td>

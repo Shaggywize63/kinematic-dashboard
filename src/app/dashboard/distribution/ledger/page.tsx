@@ -55,7 +55,17 @@ export default function LedgerPage() {
                 <tr key={e.id}>
                   <Td>{fmtDate(e.posted_at)}</Td>
                   <Td><Pill color={e.entry_type === 'invoice' ? 'amber' : e.entry_type === 'payment' ? 'green' : e.entry_type === 'credit_note' ? 'blue' : 'gray'}>{e.entry_type}</Pill></Td>
-                  <Td style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11 }}>{e.ref_table}/{e.ref_id?.slice(0, 8)}…</Td>
+                  <Td style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11 }}>
+                    {e.ref_table === 'invoices' ? (
+                      <a href={`/dashboard/distribution/invoices/${e.ref_id}`} style={{ color: 'var(--primary)' }}>invoice/{e.ref_id?.slice(0, 8)}…</a>
+                    ) : e.ref_table === 'payments' ? (
+                      <a href={`/dashboard/distribution/payments`} style={{ color: 'var(--primary)' }}>payment/{e.ref_id?.slice(0, 8)}…</a>
+                    ) : e.ref_table === 'returns' ? (
+                      <a href={`/dashboard/distribution/returns`} style={{ color: 'var(--primary)' }}>return/{e.ref_id?.slice(0, 8)}…</a>
+                    ) : (
+                      <span>{e.ref_table}/{e.ref_id?.slice(0, 8)}…</span>
+                    )}
+                  </Td>
                   <Td style={{ textAlign: 'right', color: Number(e.dr) > 0 ? 'var(--primary)' : 'var(--text-dim)' }}>{Number(e.dr) > 0 ? inr(e.dr) : '—'}</Td>
                   <Td style={{ textAlign: 'right', color: Number(e.cr) > 0 ? 'var(--green)' : 'var(--text-dim)' }}>{Number(e.cr) > 0 ? inr(e.cr) : '—'}</Td>
                   <Td style={{ textAlign: 'right', fontWeight: 700, fontFamily: 'JetBrains Mono, monospace' }}>{inr(e.running_balance)}</Td>

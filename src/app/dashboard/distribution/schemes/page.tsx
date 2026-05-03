@@ -73,8 +73,8 @@ export default function SchemesPage() {
             {loading ? <tr><Td>Loading…</Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td></tr> :
               items.map((s) => (
                 <tr key={s.id}>
-                  <Td style={{ fontWeight: 700, fontFamily: 'JetBrains Mono, monospace' }}>{s.code}</Td>
-                  <Td>{s.name}</Td>
+                  <Td style={{ fontWeight: 700, fontFamily: 'JetBrains Mono, monospace' }}><a href={`/dashboard/distribution/schemes/${s.id}`} style={{ color: 'var(--primary)' }}>{s.code}</a></Td>
+                  <Td><a href={`/dashboard/distribution/schemes/${s.id}`} style={{ color: 'var(--text)' }}>{s.name}</a></Td>
                   <Td><Pill color="blue">{s.type}</Pill></Td>
                   <Td>{s.priority}</Td>
                   <Td style={{ fontSize: 12 }}>{fmtDate(s.valid_from)} → {s.valid_to ? fmtDate(s.valid_to) : '∞'}</Td>

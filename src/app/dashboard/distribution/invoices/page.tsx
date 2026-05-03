@@ -46,7 +46,7 @@ export default function InvoicesPage() {
             {loading ? <tr><Td>Loading…</Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td></tr> :
               items.map((inv) => (
                 <tr key={inv.id}>
-                  <Td style={{ fontWeight: 700 }}>{inv.invoice_no}</Td>
+                  <Td style={{ fontWeight: 700 }}><a href={`/dashboard/distribution/invoices/${inv.id}`} style={{ color: 'var(--text)' }}>{inv.invoice_no}</a></Td>
                   <Td style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11 }}>{inv.irn ? inv.irn.slice(0, 12) + '…' : <Pill color="amber">pending</Pill>}</Td>
                   <Td>{inv.outlet_id?.slice(0, 8)}…</Td>
                   <Td>{fmtDate(inv.issued_at)}</Td>

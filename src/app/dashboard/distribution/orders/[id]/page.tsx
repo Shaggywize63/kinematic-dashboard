@@ -37,12 +37,36 @@ export default function OrderDetailPage() {
         title={`Order ${order.order_no}`}
         subtitle={fmtDate(order.placed_at)}
         right={
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <a href="/dashboard/distribution/orders" style={{ color: 'var(--text-dim)', fontSize: 13 }}>← All orders</a>
             {canApprove && <Btn onClick={approve} disabled={busy}>Approve</Btn>}
+            {order.status === 'approved' && (
+              <a href={`/dashboard/distribution/invoices?order_id=${order.id}`}>
+                <Btn>Issue invoice →</Btn>
+              </a>
+            )}
             {canCancel && <Btn variant="danger" onClick={cancel} disabled={busy}>Cancel</Btn>}
           </div>
         }
       />
+
+      {/* Cross-links */}
+      <Card style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', fontSize: 13 }}>
+          <span style={{ color: 'var(--text-dim)' }}>Linked to:</span>
+          <a href={`/dashboard/distribution/distributors/${order.distributor_id}`} style={{ color: 'var(--primary)', fontWeight: 700 }}>Distributor →</a>
+          <span style={{ color: 'var(--text-dim)' }}>·</span>
+          <a href={`/dashboard/distribution/payments?outlet_id=${order.outlet_id}`} style={{ color: 'var(--primary)', fontWeight: 700 }}>Outlet payments →</a>
+          <span style={{ color: 'var(--text-dim)' }}>·</span>
+          <a href={`/dashboard/distribution/ledger?outlet_id=${order.outlet_id}`} style={{ color: 'var(--primary)', fontWeight: 700 }}>Outlet ledger →</a>
+          {['invoiced', 'partially_invoiced'].includes(order.status) && (
+            <>
+              <span style={{ color: 'var(--text-dim)' }}>·</span>
+              <a href={`/dashboard/distribution/invoices?order_id=${order.id}`} style={{ color: 'var(--primary)', fontWeight: 700 }}>Invoice →</a>
+            </>
+          )}
+        </div>
+      </Card>
 
       {err && <Card style={{ marginBottom: 16, borderColor: 'var(--primary)' }}><div style={{ color: 'var(--primary)' }}>{err}</div></Card>}
 

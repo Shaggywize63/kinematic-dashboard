@@ -51,7 +51,7 @@ export default function PriceListsPage() {
             {loading ? <tr><Td>Loading…</Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td></tr> :
               items.map((pl) => (
                 <tr key={pl.id}>
-                  <Td style={{ fontWeight: 700 }}><a href={`/dashboard/distribution/price-lists/${pl.id}`} style={{ color: 'var(--text)' }}>{pl.name}</a></Td>
+                  <Td style={{ fontWeight: 700 }}><a href={`/dashboard/distribution/price-lists/${pl.id}`} style={{ color: 'var(--primary)' }}>{pl.name}</a></Td>
                   <Td>{pl.customer_class}</Td>
                   <Td>{pl.region}</Td>
                   <Td style={{ fontFamily: 'JetBrains Mono, monospace' }}>v{pl.version}</Td>

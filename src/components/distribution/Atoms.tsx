@@ -63,12 +63,12 @@ export function Btn({ onClick, children, variant = 'primary', disabled }: { onCl
   );
 }
 
-export function Th({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
-  return <th style={{ textAlign: 'left', padding: '10px 12px', fontSize: 11, color: C.dim, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 700, borderBottom: `1px solid ${C.border}`, ...style }}>{children}</th>;
+export function Th({ children, style, colSpan }: { children?: React.ReactNode; style?: React.CSSProperties; colSpan?: number }) {
+  return <th colSpan={colSpan} style={{ textAlign: 'left', padding: '10px 12px', fontSize: 11, color: C.dim, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 700, borderBottom: `1px solid ${C.border}`, ...style }}>{children}</th>;
 }
 
-export function Td({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
-  return <td style={{ padding: '10px 12px', fontSize: 13, color: C.text, borderBottom: `1px solid ${C.border}`, ...style }}>{children}</td>;
+export function Td({ children, style, colSpan }: { children?: React.ReactNode; style?: React.CSSProperties; colSpan?: number }) {
+  return <td colSpan={colSpan} style={{ padding: '10px 12px', fontSize: 13, color: C.text, borderBottom: `1px solid ${C.border}`, ...style }}>{children}</td>;
 }
 
 export function inr(n: number) {

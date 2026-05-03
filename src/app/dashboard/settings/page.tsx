@@ -23,14 +23,79 @@ const C = {
 };
 
 const ROLE_DEFAULTS: Record<string, string[]> = {
-  admin: ['analytics', 'live_tracking', 'broadcast', 'attendance', 'orders', 'work_activities', 'users', 'hr', 'visit_logs', 'inventory', 'skus', 'assets', 'grievances', 'form_builder', 'cities', 'zones', 'stores', 'activities', 'clients', 'settings'],
-  sub_admin: ['analytics', 'live_tracking', 'broadcast', 'attendance', 'orders', 'work_activities', 'users', 'hr', 'visit_logs', 'inventory', 'skus', 'assets', 'grievances', 'form_builder', 'cities', 'zones', 'stores', 'activities', 'clients', 'settings'],
-  city_manager: ['analytics', 'live_tracking', 'attendance', 'orders', 'work_activities', 'visit_logs'],
-  warehouse_manager: ['inventory', 'skus', 'assets'],
+  admin: [
+    'analytics', 'live_tracking', 'broadcast', 'attendance', 'orders', 'work_activities',
+    'users', 'hr', 'visit_logs', 'inventory', 'skus', 'assets', 'grievances', 'form_builder',
+    'cities', 'zones', 'stores', 'activities', 'clients', 'reports', 'planograms', 'settings',
+    'distribution', 'distribution_brands', 'distribution_distributors', 'distribution_pricing',
+    'distribution_schemes', 'distribution_orders', 'distribution_invoicing', 'distribution_payments',
+    'distribution_returns', 'distribution_ledger', 'distribution_consumer',
+  ],
+  sub_admin: [
+    'analytics', 'live_tracking', 'broadcast', 'attendance', 'orders', 'work_activities',
+    'users', 'hr', 'visit_logs', 'inventory', 'skus', 'assets', 'grievances', 'form_builder',
+    'cities', 'zones', 'stores', 'activities', 'clients', 'reports', 'planograms', 'settings',
+    'distribution', 'distribution_brands', 'distribution_distributors', 'distribution_pricing',
+    'distribution_schemes', 'distribution_orders', 'distribution_invoicing', 'distribution_payments',
+    'distribution_returns', 'distribution_ledger', 'distribution_consumer',
+  ],
+  city_manager: [
+    'analytics', 'live_tracking', 'attendance', 'orders', 'work_activities', 'visit_logs',
+    'distribution', 'distribution_orders', 'distribution_payments',
+  ],
+  warehouse_manager: ['inventory', 'skus', 'assets', 'distribution_invoicing', 'distribution_pricing'],
   hr: ['analytics', 'users', 'hr'],
-  mis: ['analytics', 'visit_logs'],
+  mis: ['analytics', 'visit_logs', 'reports', 'distribution_ledger'],
   client: []
 };
+
+// Module catalog — single source of truth. Any new module added here flows
+// through the settings UI grid + ROLE_DEFAULTS. Group is purely for visual
+// sectioning in the permissions form.
+interface ModuleEntry { id: string; l: string; group: 'Core' | 'Operations' | 'Business' | 'Distribution' | 'People' | 'System'; }
+const ALL_MODULES: ModuleEntry[] = [
+  // Core
+  { id: 'analytics',                 l: 'Analytics',          group: 'Core' },
+  { id: 'live_tracking',             l: 'Live Tracking',      group: 'Core' },
+  { id: 'attendance',                l: 'Attendance',         group: 'Core' },
+  { id: 'reports',                   l: 'Reports',            group: 'Core' },
+  // Operations
+  { id: 'orders',                    l: 'Route Plan',         group: 'Operations' },
+  { id: 'work_activities',           l: 'Work Activities',    group: 'Operations' },
+  { id: 'activities',                l: 'Activity Mgmt',      group: 'Operations' },
+  { id: 'visit_logs',                l: 'Visit Logs',         group: 'Operations' },
+  { id: 'form_builder',              l: 'Form Builder',       group: 'Operations' },
+  { id: 'planograms',                l: 'Planograms',         group: 'Operations' },
+  // Business
+  { id: 'clients',                   l: 'Clients',            group: 'Business' },
+  { id: 'inventory',                 l: 'Warehouse',          group: 'Business' },
+  { id: 'skus',                      l: 'SKU Management',     group: 'Business' },
+  { id: 'assets',                    l: 'Asset Management',   group: 'Business' },
+  // Distribution (11)
+  { id: 'distribution',              l: 'Overview',           group: 'Distribution' },
+  { id: 'distribution_brands',       l: 'Brands',             group: 'Distribution' },
+  { id: 'distribution_distributors', l: 'Distributors',       group: 'Distribution' },
+  { id: 'distribution_pricing',      l: 'Price Lists',        group: 'Distribution' },
+  { id: 'distribution_schemes',      l: 'Schemes',            group: 'Distribution' },
+  { id: 'distribution_orders',       l: 'Orders',             group: 'Distribution' },
+  { id: 'distribution_invoicing',    l: 'Invoicing',          group: 'Distribution' },
+  { id: 'distribution_payments',     l: 'Payments',           group: 'Distribution' },
+  { id: 'distribution_returns',      l: 'Returns',            group: 'Distribution' },
+  { id: 'distribution_ledger',       l: 'Ledger',             group: 'Distribution' },
+  { id: 'distribution_consumer',     l: 'Consumer',           group: 'Distribution' },
+  // People
+  { id: 'broadcast',                 l: 'Broadcast',          group: 'People' },
+  { id: 'users',                     l: 'Manpower',           group: 'People' },
+  { id: 'hr',                        l: 'HR & Payroll',       group: 'People' },
+  { id: 'grievances',                l: 'Grievances',         group: 'People' },
+  // System
+  { id: 'cities',                    l: 'Cities',             group: 'System' },
+  { id: 'zones',                     l: 'Zones',              group: 'System' },
+  { id: 'stores',                    l: 'Outlets',            group: 'System' },
+  { id: 'settings',                  l: 'Settings',           group: 'System' },
+];
+
+const MODULE_GROUPS: Array<ModuleEntry['group']> = ['Core', 'Operations', 'Business', 'Distribution', 'People', 'System'];
 
 export default function SettingsPage() {
   const [users, setUsers] = useState<AuthUser[]>([]);
@@ -303,32 +368,48 @@ export default function SettingsPage() {
                   </div>
 
                     <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 20, marginBottom: 20 }}>
-                    <div style={{ fontSize: 12, fontWeight: 800, color: C.white, marginBottom: 12, fontFamily: "'Syne', sans-serif" }}>Module Permissions (Pre-filled based on role)</div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
-                      {[
-                        {id: 'analytics', l: 'Analytics'}, {id: 'live_tracking', l: 'Live Tracking'}, 
-                        {id: 'broadcast', l: 'Broadcast'}, {id: 'attendance', l: 'Attendance'}, 
-                        {id: 'orders', l: 'Route Plan'}, {id: 'work_activities', l: 'Work Activities'},
-                        {id: 'users', l: 'Manpower'}, {id: 'hr', l: 'HR & Payroll'}, 
-                        {id: 'visit_logs', l: 'Visit Logs'}, {id: 'inventory', l: 'Warehouse'}, 
-                        {id: 'skus', l: 'SKU Management'}, {id: 'assets', l: 'Asset Management'}, 
-                        {id: 'grievances', l: 'Grievances'}, {id: 'form_builder', l: 'Form Builder'}, 
-                        {id: 'cities', l: 'Cities'}, {id: 'zones', l: 'Zones'},
-                        {id: 'stores', l: 'Outlets'}, {id: 'activities', l: 'Activities'},
-                        {id: 'clients', l: 'Clients'}, {id: 'settings', l: 'Settings'}
-                      ].map(m => (
-                        <label key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, background: C.s4, padding: '8px 12px', borderRadius: 8, cursor: 'pointer', border: `1px solid ${form.permissions.includes(m.id) ? C.blue : C.border}`, transition: 'all 0.2s' }}>
-                          <input type="checkbox" checked={form.permissions.includes(m.id)} 
-                            onChange={e => {
-                              const next = e.target.checked ? [...form.permissions, m.id] : form.permissions.filter(p => p !== m.id);
-                              setForm(p => ({...p, permissions: next}));
-                            }} 
-                            style={{ accentColor: C.blue }}
-                          />
-                          <span style={{ fontSize: 12, fontWeight: 600, color: form.permissions.includes(m.id) ? C.white : C.gray }}>{m.l}</span>
-                        </label>
-                      ))}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                      <div style={{ fontSize: 12, fontWeight: 800, color: C.white, fontFamily: "'Syne', sans-serif" }}>Module Permissions (Pre-filled based on role)</div>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button type="button" onClick={() => setForm(p => ({ ...p, permissions: ALL_MODULES.map(m => m.id) }))} style={{ background: 'transparent', border: `1px solid ${C.border}`, color: C.gray, padding: '4px 10px', borderRadius: 6, fontSize: 11, cursor: 'pointer' }}>Select all</button>
+                        <button type="button" onClick={() => setForm(p => ({ ...p, permissions: [] }))} style={{ background: 'transparent', border: `1px solid ${C.border}`, color: C.gray, padding: '4px 10px', borderRadius: 6, fontSize: 11, cursor: 'pointer' }}>Clear</button>
+                      </div>
                     </div>
+                    {MODULE_GROUPS.map(group => {
+                      const groupModules = ALL_MODULES.filter(m => m.group === group);
+                      const allChecked = groupModules.every(m => form.permissions.includes(m.id));
+                      return (
+                        <div key={group} style={{ marginBottom: 14 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                            <div style={{ fontSize: 10, fontWeight: 800, color: C.grayd, textTransform: 'uppercase', letterSpacing: '1px' }}>{group}</div>
+                            <button type="button"
+                              onClick={() => {
+                                const ids = groupModules.map(m => m.id);
+                                setForm(p => ({ ...p, permissions: allChecked
+                                  ? p.permissions.filter(x => !ids.includes(x))
+                                  : Array.from(new Set([...p.permissions, ...ids]))
+                                }));
+                              }}
+                              style={{ background: 'transparent', border: 'none', color: C.gray, fontSize: 10, cursor: 'pointer', textDecoration: 'underline' }}>
+                              {allChecked ? 'unselect group' : 'select group'}
+                            </button>
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                            {groupModules.map(m => (
+                              <label key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, background: C.s4, padding: '8px 12px', borderRadius: 8, cursor: 'pointer', border: `1px solid ${form.permissions.includes(m.id) ? C.blue : C.border}`, transition: 'all 0.2s' }}>
+                                <input type="checkbox" checked={form.permissions.includes(m.id)}
+                                  onChange={e => {
+                                    const next = e.target.checked ? [...form.permissions, m.id] : form.permissions.filter(p => p !== m.id);
+                                    setForm(p => ({ ...p, permissions: next }));
+                                  }}
+                                  style={{ accentColor: C.blue }} />
+                                <span style={{ fontSize: 12, fontWeight: 600, color: form.permissions.includes(m.id) ? C.white : C.gray }}>{m.l}</span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
 
                   {form.role === 'city_manager' && (

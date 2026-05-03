@@ -46,7 +46,7 @@ export default function PaymentsPage() {
               items.map((p) => (
                 <tr key={p.id}>
                   <Td style={{ fontWeight: 700 }}>{p.payment_no}</Td>
-                  <Td>{p.outlet_id?.slice(0, 8)}…</Td>
+                  <Td><a href={`/dashboard/distribution/ledger?outlet_id=${p.outlet_id}`} style={{ color: 'var(--primary)' }}>{p.outlet_id?.slice(0, 8)}…</a></Td>
                   <Td><Pill color={p.mode === 'cheque' ? 'amber' : p.mode === 'upi' ? 'blue' : 'gray'}>{p.mode}</Pill></Td>
                   <Td style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11 }}>{p.reference || (p.cheque_image_url ? 'cheque img' : '—')}</Td>
                   <Td>{fmtDate(p.received_at)}</Td>
