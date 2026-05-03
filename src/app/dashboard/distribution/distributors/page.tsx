@@ -91,6 +91,24 @@ export default function DistributorsPage() {
     setBusy(false);
   };
 
+  // Soft-delete via PATCH is_active=false; preserves outlets, orders, ledger entries
+  // that already reference this distributor. Hard-delete intentionally not exposed.
+  const remove = async (id: string, name: string) => {
+    if (!confirm(`Deactivate distributor "${name}"?\n\nOpen orders and ledger history are preserved. New orders cannot be placed against this distributor.`)) return;
+    try {
+      await api.updateDistributor(id, { is_active: false });
+      await load();
+    } catch (e: any) { alert(`Could not deactivate: ${e.message}`); }
+  };
+
+  const reactivate = async (id: string, name: string) => {
+    if (!confirm(`Reactivate "${name}"?`)) return;
+    try {
+      await api.updateDistributor(id, { is_active: true });
+      await load();
+    } catch (e: any) { alert(`Could not reactivate: ${e.message}`); }
+  };
+
   return (
     <div>
       <PageHeader title="Distributors" subtitle="Stockists, distributors, wholesalers" right={<Btn onClick={() => setShowForm((s) => !s)}>{showForm ? 'Cancel' : '+ Add Distributor'}</Btn>} />
@@ -165,10 +183,10 @@ export default function DistributorsPage() {
       <Card>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead><tr>
-            <Th>Distributor</Th><Th>Code</Th><Th>GSTIN</Th><Th>State</Th><Th>Class</Th><Th style={{ textAlign: 'right' }}>Credit Limit</Th><Th>Status</Th>
+            <Th>Distributor</Th><Th>Code</Th><Th>GSTIN</Th><Th>State</Th><Th>Class</Th><Th style={{ textAlign: 'right' }}>Credit Limit</Th><Th>Status</Th><Th />
           </tr></thead>
           <tbody>
-            {loading ? <tr><Td>Loading…</Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td></tr> :
+            {loading ? <tr><Td>Loading…</Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td></tr> :
               items.map((d) => (
                 <tr key={d.id}>
                   <Td style={{ fontWeight: 700 }}><a href={`/dashboard/distribution/distributors/${d.id}`} style={{ color: 'var(--text)' }}>{d.name}</a></Td>
@@ -178,6 +196,11 @@ export default function DistributorsPage() {
                   <Td>{d.customer_class || '—'}</Td>
                   <Td style={{ textAlign: 'right' }}>{inr(d.credit_limit)}</Td>
                   <Td><Pill color={d.is_active ? 'green' : 'gray'}>{d.is_active ? 'active' : 'inactive'}</Pill></Td>
+                  <Td style={{ textAlign: 'right' }}>
+                    {d.is_active
+                      ? <Btn variant="danger" onClick={() => remove(d.id, d.name)}>Delete</Btn>
+                      : <Btn variant="ghost"  onClick={() => reactivate(d.id, d.name)}>Reactivate</Btn>}
+                  </Td>
                 </tr>
               ))}
           </tbody>

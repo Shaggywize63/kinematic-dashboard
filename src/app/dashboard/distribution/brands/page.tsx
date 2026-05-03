@@ -87,6 +87,27 @@ export default function BrandsPage() {
     setBusy(false);
   };
 
+  // Soft-delete: backend flips is_active=false (preserves SKUs that reference the brand).
+  const remove = async (id: string, name: string) => {
+    if (!confirm(`Deactivate "${name}"?\n\nThe brand stays in the system for historical reporting but won't appear in new dropdowns. SKUs already linked to it are unaffected.`)) return;
+    try {
+      await api.deleteBrand(id);
+      await load();
+    } catch (e: any) {
+      alert(`Could not deactivate: ${e.message}`);
+    }
+  };
+
+  const reactivate = async (id: string, name: string) => {
+    if (!confirm(`Reactivate "${name}"?`)) return;
+    try {
+      await api.updateBrand(id, { is_active: true });
+      await load();
+    } catch (e: any) {
+      alert(`Could not reactivate: ${e.message}`);
+    }
+  };
+
   return (
     <div>
       <PageHeader title="Brands" subtitle="Brand identities with GSTIN and place-of-supply" right={<Btn onClick={() => setShowForm((s) => !s)}>{showForm ? 'Cancel' : '+ Add Brand'}</Btn>} />
@@ -163,11 +184,11 @@ export default function BrandsPage() {
       <Card>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead><tr>
-            <Th>Brand</Th><Th>Code</Th><Th>GSTIN</Th><Th>State</Th><Th>Status</Th><Th>Created</Th>
+            <Th>Brand</Th><Th>Code</Th><Th>GSTIN</Th><Th>State</Th><Th>Status</Th><Th>Created</Th><Th />
           </tr></thead>
           <tbody>
             {loading ? (
-              <tr><Td>Loading…</Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td></tr>
+              <tr><Td>Loading…</Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td></tr>
             ) : items.map((b) => (
               <tr key={b.id}>
                 <Td style={{ fontWeight: 700 }}>{b.name}</Td>
@@ -176,9 +197,14 @@ export default function BrandsPage() {
                 <Td>{b.state_code ? `${b.state_code} · ${stateName(b.state_code) || ''}` : '—'}</Td>
                 <Td><Pill color={b.is_active ? 'green' : 'gray'}>{b.is_active ? 'active' : 'inactive'}</Pill></Td>
                 <Td>{fmtDate(b.created_at)}</Td>
+                <Td style={{ textAlign: 'right' }}>
+                  {b.is_active
+                    ? <Btn variant="danger" onClick={() => remove(b.id, b.name)}>Delete</Btn>
+                    : <Btn variant="ghost"  onClick={() => reactivate(b.id, b.name)}>Reactivate</Btn>}
+                </Td>
               </tr>
             ))}
-            {!loading && !items.length && <tr><Td colSpan={6 as any} style={{ textAlign: 'center', color: 'var(--text-dim)' }}>No brands yet.</Td></tr>}
+            {!loading && !items.length && <tr><Td colSpan={7 as any} style={{ textAlign: 'center', color: 'var(--text-dim)' }}>No brands yet.</Td></tr>}
           </tbody>
         </table>
       </Card>
