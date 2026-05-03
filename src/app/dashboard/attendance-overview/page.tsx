@@ -6,6 +6,7 @@ import api from '../../../lib/api';
 import ConfirmModal from '../../../components/ConfirmModal';
 import { useAuth } from '../../../hooks/useAuth';
 import { useClient } from '../../../context/ClientContext';
+import { useRealtimeAttendance } from '../../../hooks/useRealtimeAttendance';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 
 /* ── DateRangePicker component ── */
@@ -387,6 +388,12 @@ function AttendanceContent() {
   }, [fromDate, toDate, selectedClientId]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Realtime push: when ANY attendance/breaks row changes for this org, the
+  // Supabase channel fires `load()` immediately. Combined with the visible-
+  // tab poll below, this gives instant supervisor updates with a 15s
+  // catch-up safety net (handles dropped websockets, tab-was-hidden, etc.).
+  useRealtimeAttendance(load);
 
   // Live-ish supervisor view: poll every 15 s while the tab is visible so
   // newly-marked attendance rows show up without a manual refresh. Pauses
