@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import api from '../../../../lib/api';
 import { Card, PageHeader, Pill, Th, Td, Btn, inr } from '../../../../components/distribution/Atoms';
 import { INDIA_STATES, parseGstinClient, stateName } from '../../../../lib/india';
+import PrefetchLink from '../../../../components/PrefetchLink';
 
 interface DistForm {
   name: string;
@@ -189,7 +190,10 @@ export default function DistributorsPage() {
             {loading ? <tr><Td>Loading…</Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td></tr> :
               items.map((d) => (
                 <tr key={d.id}>
-                  <Td style={{ fontWeight: 700 }}><a href={`/dashboard/distribution/distributors/${d.id}`} style={{ color: 'var(--text)' }}>{d.name}</a></Td>
+                  <Td style={{ fontWeight: 700 }}><PrefetchLink
+                        href={`/dashboard/distribution/distributors/${d.id}`}
+                        prefetch={() => api.getDistributor(d.id)}
+                        style={{ color: 'var(--text)' }}>{d.name}</PrefetchLink></Td>
                   <Td style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12 }}>{d.code}</Td>
                   <Td style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12 }}>{d.gstin || '—'}</Td>
                   <Td>{d.state_code ? `${d.state_code} · ${stateName(d.state_code) || ''}` : '—'}</Td>

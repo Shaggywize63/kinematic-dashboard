@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import api from '../../../../lib/api';
 import { Card, PageHeader, Pill, Th, Td, inr, fmtDate, statusColor } from '../../../../components/distribution/Atoms';
+import PrefetchLink from '../../../../components/PrefetchLink';
 
 const STATUSES = ['', 'placed', 'approved', 'invoiced', 'partially_invoiced', 'cancelled'];
 
@@ -44,7 +45,10 @@ export default function OrdersPage() {
             {loading ? <tr><Td>Loading…</Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td></tr> :
               filtered.map((o) => (
                 <tr key={o.id}>
-                  <Td><a href={`/dashboard/distribution/orders/${o.id}`} style={{ fontWeight: 700, color: 'var(--text)' }}>{o.order_no}</a></Td>
+                  <Td><PrefetchLink
+                        href={`/dashboard/distribution/orders/${o.id}`}
+                        prefetch={() => api.getDistOrder(o.id)}
+                        style={{ fontWeight: 700, color: 'var(--text)' }}>{o.order_no}</PrefetchLink></Td>
                   <Td>{(o.outlet_name || o.outlet_id?.slice(0, 8) + '…')}</Td>
                   <Td>{o.distributor_id?.slice(0, 8) || '—'}…</Td>
                   <Td>{o.salesman_id?.slice(0, 8) || '—'}…</Td>

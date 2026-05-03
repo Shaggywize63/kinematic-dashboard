@@ -388,6 +388,27 @@ function AttendanceContent() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Live-ish supervisor view: poll every 15 s while the tab is visible so
+  // newly-marked attendance rows show up without a manual refresh. Pauses
+  // immediately when the tab is hidden so we don't burn the API quota for
+  // a window the supervisor isn't looking at. Backend response is 304-able
+  // via the Cache-Control + ETag headers we set on /attendance/team, so the
+  // real network cost is tiny when nothing has changed.
+  useEffect(() => {
+    let timer: number | null = null;
+    const tick = () => {
+      if (document.visibilityState === 'visible') load();
+      timer = window.setTimeout(tick, 15_000);
+    };
+    timer = window.setTimeout(tick, 15_000);
+    const onVis = () => { if (document.visibilityState === 'visible') load(); };
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      if (timer) window.clearTimeout(timer);
+      document.removeEventListener('visibilitychange', onVis);
+    };
+  }, [load]);
+
   /* helper — merge a saved record back into the list, or prepend if new */
   const mergeRecord = (saved: AttendanceRecord) => {
     setRecords(prev => {
