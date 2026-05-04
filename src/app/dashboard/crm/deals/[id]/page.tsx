@@ -10,6 +10,7 @@ import WinProbabilityGauge from '../../../../../components/crm/WinProbabilityGau
 import NextBestActionCard from '../../../../../components/crm/NextBestActionCard';
 import AiDraftReplyPanel from '../../../../../components/crm/AiDraftReplyPanel';
 import ActivityTimeline from '../../../../../components/crm/ActivityTimeline';
+import DealEditModal from '../../../../../components/crm/DealEditModal';
 import { formatINR } from '../../../../../lib/formatCurrency';
 
 export default function DealDetailPage() {
@@ -25,6 +26,7 @@ export default function DealDetailPage() {
   const [loading, setLoading] = useState(true);
   const [nbaBusy, setNbaBusy] = useState(false);
   const [winBusy, setWinBusy] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
 
   const reload = async () => {
     if (!id) return;
@@ -95,21 +97,15 @@ export default function DealDetailPage() {
                     {deal.account_name || 'View account'}
                   </Link>
                 ) : 'No account'}
-                {deal.lead_id && (
-                  <>
-                    {' · '}
-                    <Link href={`/dashboard/crm/leads/${deal.lead_id}`} style={{ color: 'var(--primary)' }}>From lead</Link>
-                  </>
-                )}
+                {deal.lead_id && (<><span> · </span><Link href={`/dashboard/crm/leads/${deal.lead_id}`} style={{ color: 'var(--primary)' }}>From lead</Link></>)}
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              {deal.status === 'open' && (
-                <>
-                  <button onClick={win} style={{ background: 'var(--green, #10b981)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>Mark Won</button>
-                  <button onClick={lose} style={{ background: 'transparent', border: '1px solid var(--primary)', color: 'var(--primary)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer' }}>Mark Lost</button>
-                </>
-              )}
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button onClick={() => setEditOpen(true)} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>Edit</button>
+              {deal.status === 'open' && (<>
+                <button onClick={win} style={{ background: 'var(--green, #10b981)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>Mark Won</button>
+                <button onClick={lose} style={{ background: 'transparent', border: '1px solid var(--primary)', color: 'var(--primary)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer' }}>Mark Lost</button>
+              </>)}
               <button onClick={() => router.back()} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer' }}>Back</button>
             </div>
           </div>
@@ -157,9 +153,7 @@ export default function DealDetailPage() {
           )}
         </Card>
 
-        <Card title={`Activities (${activities.length})`}>
-          <ActivityTimeline activities={activities} />
-        </Card>
+        <Card title={`Activities (${activities.length})`}><ActivityTimeline activities={activities} /></Card>
 
         <Card title="History">
           {history.length === 0 ? (
@@ -199,6 +193,14 @@ export default function DealDetailPage() {
         </button>
         <NextBestActionCard action={nba} onLoad={loadNba} loading={nbaBusy} />
       </div>
+
+      <DealEditModal
+        deal={deal}
+        stages={stages}
+        open={editOpen}
+        onClose={() => setEditOpen(false)}
+        onSaved={(updated) => { setDeal(updated); reload(); }}
+      />
     </div>
   );
 }
@@ -225,7 +227,6 @@ const chipLink: React.CSSProperties = {
   background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--primary)',
   padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none', display: 'inline-block',
 };
-
 const rowLink: React.CSSProperties = {
   display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px',
   background: 'var(--s3)', borderRadius: 8, textDecoration: 'none', fontSize: 13,

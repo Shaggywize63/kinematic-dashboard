@@ -8,6 +8,7 @@ import type { Contact, Activity, Deal, Note, EmailLog } from '../../../../../typ
 import OwnerAvatar from '../../../../../components/crm/shared/OwnerAvatar';
 import WhatsAppButton from '../../../../../components/crm/shared/WhatsAppButton';
 import ActivityTimeline from '../../../../../components/crm/ActivityTimeline';
+import ContactEditModal from '../../../../../components/crm/ContactEditModal';
 import { formatINR } from '../../../../../lib/formatCurrency';
 
 export default function ContactDetailPage() {
@@ -19,6 +20,7 @@ export default function ContactDetailPage() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [emails, setEmails] = useState<EmailLog[]>([]);
   const [loading, setLoading] = useState(true);
+  const [editOpen, setEditOpen] = useState(false);
 
   const reload = async () => {
     if (!id) return;
@@ -70,6 +72,7 @@ export default function ContactDetailPage() {
               </div>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => setEditOpen(true)} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>Edit</button>
               <button onClick={() => router.back()} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer' }}>Back</button>
             </div>
           </div>
@@ -178,6 +181,13 @@ export default function ContactDetailPage() {
           </Card>
         )}
       </div>
+
+      <ContactEditModal
+        contact={c}
+        open={editOpen}
+        onClose={() => setEditOpen(false)}
+        onSaved={(updated) => { setC(updated); reload(); }}
+      />
     </div>
   );
 }
@@ -227,9 +237,7 @@ function Badge({ children, tone }: { children: React.ReactNode; tone: 'business'
     consumer: { bg: '#8b5cf6', fg: '#fff' },
     loyalty: { bg: '#f59e0b', fg: '#fff' },
   }[tone];
-  return (
-    <span style={{ background: colors.bg, color: colors.fg, fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 5, textTransform: 'uppercase', letterSpacing: 0.4 }}>{children}</span>
-  );
+  return (<span style={{ background: colors.bg, color: colors.fg, fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 5, textTransform: 'uppercase', letterSpacing: 0.4 }}>{children}</span>);
 }
 
 function Stat({ label, value }: { label: string; value: string }) {
@@ -245,7 +253,6 @@ const chipLink: React.CSSProperties = {
   background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--primary)',
   padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none', display: 'inline-block',
 };
-
 const rowLink: React.CSSProperties = {
   display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px',
   background: 'var(--s3)', borderRadius: 8, textDecoration: 'none', fontSize: 13,

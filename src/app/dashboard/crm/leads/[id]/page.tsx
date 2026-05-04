@@ -12,6 +12,7 @@ import LeadConvertModal from '../../../../../components/crm/LeadConvertModal';
 import AiDraftReplyPanel from '../../../../../components/crm/AiDraftReplyPanel';
 import OwnerAvatar from '../../../../../components/crm/shared/OwnerAvatar';
 import WhatsAppButton from '../../../../../components/crm/shared/WhatsAppButton';
+import LeadEditModal from '../../../../../components/crm/LeadEditModal';
 import { formatINR } from '../../../../../lib/formatCurrency';
 
 export default function LeadDetailPage() {
@@ -26,6 +27,7 @@ export default function LeadDetailPage() {
   const [loading, setLoading] = useState(true);
   const [scoring, setScoring] = useState(false);
   const [convertOpen, setConvertOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
 
   const reload = async () => {
     if (!id) return;
@@ -83,6 +85,7 @@ export default function LeadDetailPage() {
               </div>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => setEditOpen(true)} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>Edit</button>
               {!isConverted && (
                 <button onClick={() => setConvertOpen(true)} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>Convert</button>
               )}
@@ -102,15 +105,9 @@ export default function LeadDetailPage() {
         {isConverted && (lead.converted_account_id || lead.converted_contact_id || lead.converted_deal_id) && (
           <Card title="Converted To">
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              {lead.converted_contact_id && (
-                <Link href={`/dashboard/crm/contacts/${lead.converted_contact_id}`} style={chipLink}>→ Contact</Link>
-              )}
-              {lead.converted_account_id && (
-                <Link href={`/dashboard/crm/accounts/${lead.converted_account_id}`} style={chipLink}>→ Account</Link>
-              )}
-              {lead.converted_deal_id && (
-                <Link href={`/dashboard/crm/deals/${lead.converted_deal_id}`} style={chipLink}>→ Deal</Link>
-              )}
+              {lead.converted_contact_id && (<Link href={`/dashboard/crm/contacts/${lead.converted_contact_id}`} style={chipLink}>→ Contact</Link>)}
+              {lead.converted_account_id && (<Link href={`/dashboard/crm/accounts/${lead.converted_account_id}`} style={chipLink}>→ Account</Link>)}
+              {lead.converted_deal_id && (<Link href={`/dashboard/crm/deals/${lead.converted_deal_id}`} style={chipLink}>→ Deal</Link>)}
             </div>
           </Card>
         )}
@@ -144,10 +141,7 @@ export default function LeadDetailPage() {
           </Card>
         )}
 
-        <Card title="Activity Timeline">
-          <ActivityTimeline activities={activities} />
-        </Card>
-
+        <Card title="Activity Timeline"><ActivityTimeline activities={activities} /></Card>
         <AiDraftReplyPanel leadId={id} />
       </div>
 
@@ -168,6 +162,13 @@ export default function LeadDetailPage() {
         open={convertOpen}
         onClose={() => setConvertOpen(false)}
         onConverted={reload}
+      />
+
+      <LeadEditModal
+        lead={lead}
+        open={editOpen}
+        onClose={() => setEditOpen(false)}
+        onSaved={(updated) => { setLead(updated); reload(); }}
       />
     </div>
   );
@@ -218,7 +219,6 @@ const chipLink: React.CSSProperties = {
   background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--primary)',
   padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none',
 };
-
 const rowLink: React.CSSProperties = {
   display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px',
   background: 'var(--s3)', borderRadius: 8, textDecoration: 'none', fontSize: 13,

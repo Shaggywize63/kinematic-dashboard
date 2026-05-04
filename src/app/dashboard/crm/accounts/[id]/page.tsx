@@ -7,6 +7,7 @@ import { crmAccounts } from '../../../../../lib/crmApi';
 import type { Account, Contact, Deal, Activity, Note } from '../../../../../types/crm';
 import AccountSummaryCard from '../../../../../components/crm/AccountSummaryCard';
 import ActivityTimeline from '../../../../../components/crm/ActivityTimeline';
+import AccountEditModal from '../../../../../components/crm/AccountEditModal';
 import { formatINR } from '../../../../../lib/formatCurrency';
 
 export default function AccountDetailPage() {
@@ -18,6 +19,7 @@ export default function AccountDetailPage() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
+  const [editOpen, setEditOpen] = useState(false);
 
   const reload = async () => {
     if (!id) return;
@@ -55,7 +57,10 @@ export default function AccountDetailPage() {
               <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)' }}>{a.name}</div>
               {a.website && <a href={a.website} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: 'var(--accent, var(--primary))' }}>{a.website}</a>}
             </div>
-            <button onClick={() => router.back()} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer' }}>Back</button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => setEditOpen(true)} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>Edit</button>
+              <button onClick={() => router.back()} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer' }}>Back</button>
+            </div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, fontSize: 13 }}>
             <Field label="Industry" value={a.industry} />
@@ -67,9 +72,7 @@ export default function AccountDetailPage() {
           </div>
         </div>
 
-        {a.description && (
-          <Card title="About"><div style={{ fontSize: 13, color: 'var(--text)' }}>{a.description}</div></Card>
-        )}
+        {a.description && (<Card title="About"><div style={{ fontSize: 13, color: 'var(--text)' }}>{a.description}</div></Card>)}
 
         <Card title={`Contacts (${contacts.length})`}>
           {contacts.length === 0 ? (
@@ -110,9 +113,7 @@ export default function AccountDetailPage() {
           )}
         </Card>
 
-        <Card title={`Activities (${activities.length})`}>
-          <ActivityTimeline activities={activities} />
-        </Card>
+        <Card title={`Activities (${activities.length})`}><ActivityTimeline activities={activities} /></Card>
 
         {notes.length > 0 && (
           <Card title={`Notes (${notes.length})`}>
@@ -139,6 +140,13 @@ export default function AccountDetailPage() {
         </Card>
         <AccountSummaryCard accountId={a.id} initial={a.ai_summary} />
       </div>
+
+      <AccountEditModal
+        account={a}
+        open={editOpen}
+        onClose={() => setEditOpen(false)}
+        onSaved={(updated) => { setA(updated); reload(); }}
+      />
     </div>
   );
 }
