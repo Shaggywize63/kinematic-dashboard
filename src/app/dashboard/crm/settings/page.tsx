@@ -6,6 +6,7 @@ import { crmSettings } from '../../../../lib/crmApi';
 import type { BusinessType } from '../../../../types/crm';
 
 const SECTIONS = [
+  { href: '/dashboard/crm/settings/locations', title: 'States & Cities', desc: 'Centralised location list used by forms and filters.' },
   { href: '/dashboard/crm/settings/pipelines', title: 'Pipelines', desc: 'Configure deal pipelines.' },
   { href: '/dashboard/crm/settings/stages', title: 'Stages', desc: 'Manage stages within pipelines.' },
   { href: '/dashboard/crm/settings/sources', title: 'Lead Sources', desc: 'Where your leads come from.' },
@@ -55,7 +56,6 @@ export default function SettingsIndex() {
 
   return (
     <div>
-      {/* Business type selector */}
       <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 14 }}>
         <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)', marginBottom: 4 }}>Business Type</div>
         <p style={{ fontSize: 12, color: 'var(--text-dim)', margin: '0 0 12px' }}>

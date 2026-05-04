@@ -1,40 +1,15 @@
 import api from './api';
 import type {
-  Lead,
-  Contact,
-  Account,
-  Deal,
-  DealContact,
-  DealHistoryEntry,
-  Pipeline,
-  Stage,
-  Activity,
-  Note,
-  Task,
-  EmailTemplate,
-  EmailLog,
-  LeadSource,
-  AssignmentRule,
-  Territory,
-  Campaign,
-  Automation,
-  CustomField,
-  ImportJob,
-  LeadScore,
-  NextBestAction,
-  WinProbability,
-  AnalyticsSummary,
-  FunnelPoint,
-  PipelineValuePoint,
-  WinRatePoint,
-  ForecastPoint,
-  ActivityHeatPoint,
-  SourceROIRow,
-  ScoreDistributionPoint,
-  KiniContext,
-  KiniCard,
-  CrmSettings,
-  BusinessType,
+  Lead, Contact, Account, Deal, DealContact, DealHistoryEntry,
+  Pipeline, Stage, Activity, Note, Task,
+  EmailTemplate, EmailLog,
+  LeadSource, AssignmentRule, Territory, Campaign, Automation, CustomField,
+  ImportJob, LeadScore, NextBestAction, WinProbability,
+  AnalyticsSummary, FunnelPoint, PipelineValuePoint, WinRatePoint, ForecastPoint,
+  ActivityHeatPoint, SourceROIRow, ScoreDistributionPoint, StateCount,
+  KiniContext, KiniCard,
+  CrmSettings, BusinessType,
+  CrmState, CrmCity,
 } from '../types/crm';
 
 type Wrapped<T> = { success: boolean; data: T };
@@ -134,6 +109,14 @@ export const crmCampaigns = crud<Campaign>(`${BASE}/campaigns`);
 export const crmAutomations = crud<Automation>(`${BASE}/automations`);
 export const crmCustomFields = crud<CustomField>(`${BASE}/custom-fields`);
 
+export const crmStatesApi = {
+  ...crud<CrmState>(`${BASE}/states`),
+  cities: (id: string) => api.get<Wrapped<CrmCity[]>>(`${BASE}/states/${id}/cities`),
+  seedIndian: () => api.post<Wrapped<{ states: number; cities: number }>>(`${BASE}/states/seed-indian`, {}),
+};
+
+export const crmCitiesApi = crud<CrmCity>(`${BASE}/cities`);
+
 export const crmImport = {
   upload: (formData: FormData) => {
     const token = typeof window !== 'undefined' ? localStorage.getItem('kinematic_token') : null;
@@ -143,9 +126,7 @@ export const crmImport = {
     if (token) headers.Authorization = `Bearer ${token}`;
     if (orgId) headers['X-Org-Id'] = orgId;
     return fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}${BASE}/import/upload`, {
-      method: 'POST',
-      body: formData,
-      headers,
+      method: 'POST', body: formData, headers,
     }).then(async (r) => {
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || d.message || 'Upload failed');
@@ -153,51 +134,35 @@ export const crmImport = {
     });
   },
   preview: (body: { job_id: string; mapping: Record<string, string> }) =>
-    api.post<Wrapped<{ job: ImportJob; sample: Array<Record<string, unknown>> }>>(
-      `${BASE}/import/preview`,
-      body
-    ),
-  commit: (body: { job_id: string }) =>
-    api.post<Wrapped<ImportJob>>(`${BASE}/import/commit`, body),
+    api.post<Wrapped<{ job: ImportJob; sample: Array<Record<string, unknown>> }>>(`${BASE}/import/preview`, body),
+  commit: (body: { job_id: string }) => api.post<Wrapped<ImportJob>>(`${BASE}/import/commit`, body),
   getJob: (id: string) => api.get<Wrapped<ImportJob>>(`${BASE}/import/jobs/${id}`),
   listJobs: () => api.get<Wrapped<ImportJob[]>>(`${BASE}/import/jobs`),
 };
 
 export const crmAnalytics = {
-  dashboardSummary: () =>
-    api.get<Wrapped<AnalyticsSummary>>(`${BASE}/analytics/dashboard-summary`),
-  pipelineValue: () =>
-    api.get<Wrapped<PipelineValuePoint[]>>(`${BASE}/analytics/pipeline-value`),
+  dashboardSummary: () => api.get<Wrapped<AnalyticsSummary>>(`${BASE}/analytics/dashboard-summary`),
+  pipelineValue: () => api.get<Wrapped<PipelineValuePoint[]>>(`${BASE}/analytics/pipeline-value`),
   funnel: () => api.get<Wrapped<FunnelPoint[]>>(`${BASE}/analytics/funnel`),
   winRate: (by: 'rep' | 'source' | 'stage' = 'rep') =>
     api.get<Wrapped<WinRatePoint[]>>(`${BASE}/analytics/win-rate${qs({ by })}`),
-  salesCycle: () =>
-    api.get<Wrapped<Array<{ stage: string; avg_days: number }>>>(`${BASE}/analytics/sales-cycle`),
+  salesCycle: () => api.get<Wrapped<Array<{ stage: string; avg_days: number }>>>(`${BASE}/analytics/sales-cycle`),
   forecast: (period: 'month' | 'quarter' = 'quarter') =>
     api.get<Wrapped<ForecastPoint[]>>(`${BASE}/analytics/forecast${qs({ period })}`),
-  activityHeatmap: () =>
-    api.get<Wrapped<ActivityHeatPoint[]>>(`${BASE}/analytics/activity-heatmap`),
-  leadSourceRoi: () =>
-    api.get<Wrapped<SourceROIRow[]>>(`${BASE}/analytics/lead-source-roi`),
-  leadScoreDistribution: () =>
-    api.get<Wrapped<ScoreDistributionPoint[]>>(`${BASE}/analytics/lead-score-distribution`),
+  activityHeatmap: () => api.get<Wrapped<ActivityHeatPoint[]>>(`${BASE}/analytics/activity-heatmap`),
+  leadSourceRoi: () => api.get<Wrapped<SourceROIRow[]>>(`${BASE}/analytics/lead-source-roi`),
+  leadScoreDistribution: () => api.get<Wrapped<ScoreDistributionPoint[]>>(`${BASE}/analytics/lead-score-distribution`),
+  byState: () => api.get<Wrapped<StateCount[]>>(`${BASE}/analytics/by-state`),
 };
 
 export const crmAi = {
   scoreLead: (id: string) => api.post<Wrapped<LeadScore>>(`${BASE}/ai/score-lead/${id}`, {}),
   draftReply: (body: { lead_id?: string; deal_id?: string; thread?: string; tone?: string; goal?: string }) =>
-    api.post<Wrapped<{ subject: string; body_html: string; body_text: string }>>(
-      `${BASE}/ai/draft-reply`,
-      body
-    ),
-  nextBestAction: (dealId: string) =>
-    api.post<Wrapped<NextBestAction>>(`${BASE}/ai/next-best-action/${dealId}`, {}),
-  winProbability: (dealId: string) =>
-    api.post<Wrapped<WinProbability>>(`${BASE}/ai/win-probability/${dealId}`, {}),
-  summarizeAccount: (id: string) =>
-    api.post<Wrapped<{ summary: string; highlights: string[] }>>(`${BASE}/ai/summarize/account/${id}`, {}),
-  summarizeDeal: (id: string) =>
-    api.post<Wrapped<{ summary: string; highlights: string[] }>>(`${BASE}/ai/summarize/deal/${id}`, {}),
+    api.post<Wrapped<{ subject: string; body_html: string; body_text: string }>>(`${BASE}/ai/draft-reply`, body),
+  nextBestAction: (dealId: string) => api.post<Wrapped<NextBestAction>>(`${BASE}/ai/next-best-action/${dealId}`, {}),
+  winProbability: (dealId: string) => api.post<Wrapped<WinProbability>>(`${BASE}/ai/win-probability/${dealId}`, {}),
+  summarizeAccount: (id: string) => api.post<Wrapped<{ summary: string; highlights: string[] }>>(`${BASE}/ai/summarize/account/${id}`, {}),
+  summarizeDeal: (id: string) => api.post<Wrapped<{ summary: string; highlights: string[] }>>(`${BASE}/ai/summarize/deal/${id}`, {}),
   chat: (body: {
     messages: Array<{ role: 'user' | 'assistant'; content: string }>;
     system?: string;
@@ -214,27 +179,14 @@ export const crmSettings = {
 };
 
 const crmApi = {
-  leads: crmLeads,
-  contacts: crmContacts,
-  accounts: crmAccounts,
-  deals: crmDeals,
-  pipelines: crmPipelines,
-  stages: crmStages,
-  activities: crmActivities,
-  notes: crmNotes,
-  tasks: crmTasks,
-  emailTemplates: crmEmailTemplates,
-  emails: crmEmails,
-  leadSources: crmLeadSources,
-  assignmentRules: crmAssignmentRules,
-  territories: crmTerritories,
-  campaigns: crmCampaigns,
-  automations: crmAutomations,
-  customFields: crmCustomFields,
-  import: crmImport,
-  analytics: crmAnalytics,
-  ai: crmAi,
-  settings: crmSettings,
+  leads: crmLeads, contacts: crmContacts, accounts: crmAccounts, deals: crmDeals,
+  pipelines: crmPipelines, stages: crmStages,
+  activities: crmActivities, notes: crmNotes, tasks: crmTasks,
+  emailTemplates: crmEmailTemplates, emails: crmEmails,
+  leadSources: crmLeadSources, assignmentRules: crmAssignmentRules,
+  territories: crmTerritories, campaigns: crmCampaigns, automations: crmAutomations,
+  customFields: crmCustomFields, locations: crmStatesApi, cities: crmCitiesApi,
+  import: crmImport, analytics: crmAnalytics, ai: crmAi, settings: crmSettings,
 };
 
 export default crmApi;
