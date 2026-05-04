@@ -2,10 +2,31 @@
 
 export type LeadStatus = 'new' | 'working' | 'qualified' | 'unqualified' | 'converted';
 export type DealStatus = 'open' | 'won' | 'lost';
-export type ActivityType = 'call' | 'email' | 'meeting' | 'task' | 'note';
+export type ActivityType = 'call' | 'email' | 'meeting' | 'task' | 'note' | 'sms' | 'whatsapp';
 export type CampaignStatus = 'draft' | 'active' | 'paused' | 'completed';
+export type BusinessType = 'b2b' | 'b2c' | 'both';
+export type ContactMethod = 'email' | 'phone' | 'whatsapp' | 'sms';
+export type Gender = 'male' | 'female' | 'other' | 'prefer_not_to_say';
+export type LoyaltyTier = 'bronze' | 'silver' | 'gold' | 'platinum' | 'vip';
 
-export interface Lead {
+// Fields shared by leads + contacts when in B2C mode
+export interface B2CFields {
+  is_b2c?: boolean;
+  date_of_birth?: string | null;
+  gender?: Gender | null;
+  address_line1?: string | null;
+  address_line2?: string | null;
+  city?: string | null;
+  state?: string | null;
+  postal_code?: string | null;
+  country?: string | null;
+  preferred_contact_method?: ContactMethod | null;
+  marketing_consent?: boolean;
+  whatsapp_consent?: boolean;
+  interests?: string[] | null;
+}
+
+export interface Lead extends B2CFields {
   id: string;
   org_id: string;
   first_name?: string | null;
@@ -24,6 +45,8 @@ export interface Lead {
   score_grade?: 'A' | 'B' | 'C' | 'D' | null;
   territory_id?: string | null;
   campaign_id?: string | null;
+  industry?: string | null;
+  converted_at?: string | null;
   converted_account_id?: string | null;
   converted_contact_id?: string | null;
   converted_deal_id?: string | null;
@@ -34,7 +57,7 @@ export interface Lead {
   updated_at: string;
 }
 
-export interface Contact {
+export interface Contact extends B2CFields {
   id: string;
   org_id: string;
   account_id?: string | null;
@@ -44,9 +67,21 @@ export interface Contact {
   full_name?: string | null;
   email?: string | null;
   phone?: string | null;
+  mobile?: string | null;
   title?: string | null;
+  department?: string | null;
+  linkedin_url?: string | null;
   owner_id?: string | null;
   owner_name?: string | null;
+  do_not_contact?: boolean;
+  email_opt_out?: boolean;
+  // B2C / customer 360 fields
+  loyalty_tier?: LoyaltyTier | null;
+  customer_since?: string | null;
+  lifetime_value?: number;
+  total_orders?: number;
+  last_purchase_at?: string | null;
+  referral_source?: string | null;
   tags?: string[] | null;
   created_at: string;
   updated_at: string;
@@ -100,7 +135,9 @@ export interface Deal {
   account_id?: string | null;
   account_name?: string | null;
   contact_id?: string | null;
+  primary_contact_id?: string | null;
   contact_name?: string | null;
+  lead_id?: string | null;
   pipeline_id: string;
   stage_id: string;
   stage_name?: string | null;
@@ -120,6 +157,13 @@ export interface Deal {
   tags?: string[] | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface DealContact {
+  contact_id: string;
+  role?: string | null;
+  is_primary: boolean;
+  contact: Contact;
 }
 
 export interface DealHistoryEntry {
@@ -142,6 +186,7 @@ export interface Activity {
   type: ActivityType;
   subject?: string | null;
   body?: string | null;
+  description?: string | null;
   due_at?: string | null;
   completed_at?: string | null;
   duration_min?: number | null;
@@ -160,12 +205,15 @@ export interface Note {
   id: string;
   org_id: string;
   body: string;
+  entity_type?: 'lead' | 'contact' | 'account' | 'deal';
+  entity_id?: string;
   lead_id?: string | null;
   contact_id?: string | null;
   account_id?: string | null;
   deal_id?: string | null;
   owner_id?: string | null;
   owner_name?: string | null;
+  pinned?: boolean;
   created_at: string;
 }
 
@@ -308,6 +356,13 @@ export interface ImportJob {
   mapping?: Record<string, string>;
   created_at: string;
   updated_at: string;
+}
+
+export interface CrmSettings {
+  id?: string;
+  org_id: string;
+  business_type: BusinessType;
+  config?: Record<string, unknown>;
 }
 
 export interface ScoreFactor {

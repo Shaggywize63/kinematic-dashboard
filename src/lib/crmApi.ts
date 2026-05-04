@@ -4,6 +4,7 @@ import type {
   Contact,
   Account,
   Deal,
+  DealContact,
   DealHistoryEntry,
   Pipeline,
   Stage,
@@ -32,6 +33,8 @@ import type {
   ScoreDistributionPoint,
   KiniContext,
   KiniCard,
+  CrmSettings,
+  BusinessType,
 } from '../types/crm';
 
 type Wrapped<T> = { success: boolean; data: T };
@@ -63,6 +66,7 @@ export const crmLeads = {
   score: (id: string) => api.post<Wrapped<LeadScore>>(`${BASE}/leads/${id}/score`, {}),
   scoreHistory: (id: string) => api.get<Wrapped<LeadScore[]>>(`${BASE}/leads/${id}/score-history`),
   activities: (id: string) => api.get<Wrapped<Activity[]>>(`${BASE}/leads/${id}/activities`),
+  deals: (id: string) => api.get<Wrapped<Deal[]>>(`${BASE}/leads/${id}/deals`),
   convert: (
     id: string,
     body: { create_account?: boolean; create_deal?: boolean; deal_name?: string; deal_amount?: number; account_id?: string }
@@ -75,8 +79,22 @@ export const crmLeads = {
     api.post<Wrapped<{ updated: number }>>(`${BASE}/leads/bulk-assign`, body),
 };
 
-export const crmContacts = crud<Contact>(`${BASE}/contacts`);
-export const crmAccounts = crud<Account>(`${BASE}/accounts`);
+export const crmContacts = {
+  ...crud<Contact>(`${BASE}/contacts`),
+  activities: (id: string) => api.get<Wrapped<Activity[]>>(`${BASE}/contacts/${id}/activities`),
+  deals: (id: string) => api.get<Wrapped<Deal[]>>(`${BASE}/contacts/${id}/deals`),
+  notes: (id: string) => api.get<Wrapped<Note[]>>(`${BASE}/contacts/${id}/notes`),
+  emails: (id: string) => api.get<Wrapped<EmailLog[]>>(`${BASE}/contacts/${id}/emails`),
+};
+
+export const crmAccounts = {
+  ...crud<Account>(`${BASE}/accounts`),
+  contacts: (id: string) => api.get<Wrapped<Contact[]>>(`${BASE}/accounts/${id}/contacts`),
+  deals: (id: string) => api.get<Wrapped<Deal[]>>(`${BASE}/accounts/${id}/deals`),
+  activities: (id: string) => api.get<Wrapped<Activity[]>>(`${BASE}/accounts/${id}/activities`),
+  notes: (id: string) => api.get<Wrapped<Note[]>>(`${BASE}/accounts/${id}/notes`),
+  summarize: (id: string) => api.post<Wrapped<{ text: string }>>(`${BASE}/accounts/${id}/summarize`, {}),
+};
 
 export const crmDeals = {
   ...crud<Deal>(`${BASE}/deals`),
@@ -91,6 +109,9 @@ export const crmDeals = {
   setNextAction: (id: string, body: { action: string; due_at?: string }) =>
     api.post<Wrapped<Deal>>(`${BASE}/deals/${id}/next-action`, body),
   history: (id: string) => api.get<Wrapped<DealHistoryEntry[]>>(`${BASE}/deals/${id}/history`),
+  activities: (id: string) => api.get<Wrapped<Activity[]>>(`${BASE}/deals/${id}/activities`),
+  contacts: (id: string) => api.get<Wrapped<DealContact[]>>(`${BASE}/deals/${id}/contacts`),
+  notes: (id: string) => api.get<Wrapped<Note[]>>(`${BASE}/deals/${id}/notes`),
 };
 
 export const crmPipelines = crud<Pipeline>(`${BASE}/pipelines`);
@@ -115,7 +136,6 @@ export const crmCustomFields = crud<CustomField>(`${BASE}/custom-fields`);
 
 export const crmImport = {
   upload: (formData: FormData) => {
-    // Direct fetch for multipart
     const token = typeof window !== 'undefined' ? localStorage.getItem('kinematic_token') : null;
     const orgRaw = typeof window !== 'undefined' ? localStorage.getItem('kinematic_user') : null;
     const orgId = orgRaw ? (JSON.parse(orgRaw)?.org_id ?? null) : null;
@@ -187,9 +207,9 @@ export const crmAi = {
 };
 
 export const crmSettings = {
-  get: () => api.get<Wrapped<Record<string, unknown>>>(`${BASE}/settings`),
-  update: (body: Record<string, unknown>) =>
-    api.patch<Wrapped<Record<string, unknown>>>(`${BASE}/settings`, body),
+  get: () => api.get<Wrapped<CrmSettings>>(`${BASE}/settings`),
+  update: (body: { config?: Record<string, unknown>; business_type?: BusinessType }) =>
+    api.patch<Wrapped<CrmSettings>>(`${BASE}/settings`, body),
   seedDefaults: () => api.post<Wrapped<{ seeded: number }>>(`${BASE}/settings/seed-defaults`, {}),
 };
 
