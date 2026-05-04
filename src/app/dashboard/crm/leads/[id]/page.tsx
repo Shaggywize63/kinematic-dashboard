@@ -10,6 +10,7 @@ import ActivityTimeline from '../../../../../components/crm/ActivityTimeline';
 import LeadConvertModal from '../../../../../components/crm/LeadConvertModal';
 import AiDraftReplyPanel from '../../../../../components/crm/AiDraftReplyPanel';
 import OwnerAvatar from '../../../../../components/crm/shared/OwnerAvatar';
+import WhatsAppButton from '../../../../../components/crm/shared/WhatsAppButton';
 
 export default function LeadDetailPage() {
   const params = useParams<{ id: string }>();
@@ -50,6 +51,8 @@ export default function LeadDetailPage() {
   if (!lead) return <div style={{ padding: 24, color: 'var(--text-dim)' }}>Lead not found.</div>;
 
   const fullName = lead.full_name || `${lead.first_name || ''} ${lead.last_name || ''}`.trim() || lead.email || 'Unnamed';
+  const firstName = (lead.first_name || fullName).split(' ')[0];
+  const waPrefill = `Hi ${firstName}, `;
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(280px, 1fr)', gap: 18 }}>
@@ -68,7 +71,7 @@ export default function LeadDetailPage() {
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, fontSize: 13 }}>
             <Field label="Email" value={lead.email} />
-            <Field label="Phone" value={lead.phone} />
+            <PhoneField phone={lead.phone} prefill={waPrefill} />
             <Field label="Status" value={lead.status} />
             <Field label="Source" value={lead.source_name} />
             <Field label="Owner" value={lead.owner_name || 'Unassigned'} />
@@ -93,7 +96,7 @@ export default function LeadDetailPage() {
           loading={scoring}
         />
         <NextBestActionCard action={nba} onLoad={async () => {
-          try { /* leads use ai/score-lead; NBA is for deals — leave empty for leads */ setNba(null); } catch {}
+          try { setNba(null); } catch {}
         }} />
       </div>
 
@@ -113,6 +116,18 @@ function Field({ label, value }: { label: string; value?: string | null }) {
     <div>
       <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.6 }}>{label}</div>
       <div style={{ color: 'var(--text)', marginTop: 2 }}>{value || '—'}</div>
+    </div>
+  );
+}
+
+function PhoneField({ phone, prefill }: { phone?: string | null; prefill: string }) {
+  return (
+    <div>
+      <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.6 }}>Phone</div>
+      <div style={{ color: 'var(--text)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <span>{phone || '—'}</span>
+        <WhatsAppButton phone={phone} prefillText={prefill} size="sm" />
+      </div>
     </div>
   );
 }

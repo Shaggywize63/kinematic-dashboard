@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { crmContacts } from '../../../../../lib/crmApi';
 import type { Contact } from '../../../../../types/crm';
 import OwnerAvatar from '../../../../../components/crm/shared/OwnerAvatar';
+import WhatsAppButton from '../../../../../components/crm/shared/WhatsAppButton';
 
 export default function ContactDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -22,6 +23,8 @@ export default function ContactDetailPage() {
   if (loading) return <div style={{ color: 'var(--text-dim)' }}>Loading...</div>;
   if (!c) return <div style={{ color: 'var(--text-dim)' }}>Contact not found.</div>;
   const fullName = c.full_name || `${c.first_name || ''} ${c.last_name || ''}`.trim() || c.email || 'Unnamed';
+  const firstName = (c.first_name || fullName).split(' ')[0];
+  const waPrefill = `Hi ${firstName}, `;
 
   return (
     <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 22, maxWidth: 720 }}>
@@ -34,7 +37,7 @@ export default function ContactDetailPage() {
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, fontSize: 13 }}>
         <Field label="Email" value={c.email} />
-        <Field label="Phone" value={c.phone} />
+        <PhoneField phone={c.phone} prefill={waPrefill} />
         <Field label="Owner" value={c.owner_name} />
         <Field label="Created" value={new Date(c.created_at).toLocaleString()} />
       </div>
@@ -47,6 +50,18 @@ function Field({ label, value }: { label: string; value?: string | null }) {
     <div>
       <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>{label}</div>
       <div style={{ color: 'var(--text)', marginTop: 2 }}>{value || '—'}</div>
+    </div>
+  );
+}
+
+function PhoneField({ phone, prefill }: { phone?: string | null; prefill: string }) {
+  return (
+    <div>
+      <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>Phone</div>
+      <div style={{ color: 'var(--text)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <span>{phone || '—'}</span>
+        <WhatsAppButton phone={phone} prefillText={prefill} size="sm" />
+      </div>
     </div>
   );
 }
