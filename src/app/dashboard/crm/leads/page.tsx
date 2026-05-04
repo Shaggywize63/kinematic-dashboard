@@ -6,6 +6,7 @@ import { crmLeads, crmLeadSources } from '../../../../lib/crmApi';
 import type { Lead, LeadSource } from '../../../../types/crm';
 import LeadsTable from '../../../../components/crm/LeadsTable';
 import LeadFilters, { type LeadFiltersValue } from '../../../../components/crm/LeadFilters';
+import { useCrmLocationFilter } from '../../../../stores/crmLocationFilterStore';
 
 export default function LeadsListPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -13,11 +14,15 @@ export default function LeadsListPage() {
   const [filters, setFilters] = useState<LeadFiltersValue>({});
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
+  const { state: locState, city: locCity } = useCrmLocationFilter();
 
   const reload = async () => {
     setLoading(true);
     try {
-      const [l, s] = await Promise.allSettled([crmLeads.list(), crmLeadSources.list()]);
+      const params: Record<string, string> = {};
+      if (locState) params.state = locState;
+      if (locCity) params.city = locCity;
+      const [l, s] = await Promise.allSettled([crmLeads.list(params), crmLeadSources.list()]);
       if (l.status === 'fulfilled') setLeads(l.value.data || []);
       if (s.status === 'fulfilled') setSources(s.value.data || []);
     } catch (e: any) {
@@ -27,7 +32,7 @@ export default function LeadsListPage() {
     }
   };
 
-  useEffect(() => { reload(); }, []);
+  useEffect(() => { reload(); /* eslint-disable-next-line */ }, [locState, locCity]);
 
   const filtered = useMemo(() => {
     const q = (filters.q || '').toLowerCase();
@@ -65,6 +70,11 @@ export default function LeadsListPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 8, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <span style={{ fontSize: 13, color: 'var(--text-dim)' }}>{filtered.length} leads</span>
+          {(locState || locCity) && (
+            <span style={{ fontSize: 11, color: 'var(--primary)', background: 'var(--s3)', padding: '3px 8px', borderRadius: 6 }}>
+              📍 {[locCity, locState].filter(Boolean).join(', ')}
+            </span>
+          )}
           {selected.size > 0 && (
             <>
               <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>• {selected.size} selected</span>

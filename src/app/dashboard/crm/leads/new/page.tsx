@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { crmLeads, crmSettings } from '../../../../../lib/crmApi';
 import type { BusinessType } from '../../../../../types/crm';
+import LocationPicker from '../../../../../components/crm/LocationPicker';
 
 type Form = {
   first_name: string;
@@ -32,7 +33,7 @@ const empty: Form = {
   company: '', title: '', industry: '',
   is_b2c: false,
   date_of_birth: '', gender: '',
-  address_line1: '', address_line2: '', city: '', state: '', postal_code: '', country: '',
+  address_line1: '', address_line2: '', city: '', state: '', postal_code: '', country: 'India',
   preferred_contact_method: '',
   marketing_consent: false, whatsapp_consent: false,
 };
@@ -187,8 +188,11 @@ export default function NewLeadPage() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
               {text('address_line1', 'Address Line 1')}
               {text('address_line2', 'Address Line 2')}
-              {text('city', 'City')}
-              {text('state', 'State')}
+              <LocationPicker
+                stateValue={form.state}
+                cityValue={form.city}
+                onChange={({ state, city }) => setForm({ ...form, state, city })}
+              />
               {text('postal_code', 'Postal Code')}
               {text('country', 'Country')}
             </div>
