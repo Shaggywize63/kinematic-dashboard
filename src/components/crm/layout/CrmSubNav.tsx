@@ -14,7 +14,6 @@ const LINKS = [
   { href: '/dashboard/crm/tasks', label: 'Tasks' },
   { href: '/dashboard/crm/emails', label: 'Emails' },
   { href: '/dashboard/crm/whatsapp', label: 'WhatsApp' },
-  { href: '/dashboard/crm/campaigns', label: 'Campaigns' },
   { href: '/dashboard/crm/reports', label: 'Reports' },
   { href: '/dashboard/crm/settings', label: 'Settings' },
 ];
