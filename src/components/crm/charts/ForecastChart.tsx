@@ -1,6 +1,7 @@
 'use client';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
 import type { ForecastPoint } from '../../../types/crm';
+import { formatINR, formatINRCompact } from '../../../lib/formatCurrency';
 
 export default function ForecastChart({ data }: { data: ForecastPoint[] }) {
   return (
@@ -18,10 +19,10 @@ export default function ForecastChart({ data }: { data: ForecastPoint[] }) {
         </defs>
         <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" />
         <XAxis dataKey="period" stroke="var(--text-dim)" fontSize={11} />
-        <YAxis stroke="var(--text-dim)" fontSize={11} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} />
+        <YAxis stroke="var(--text-dim)" fontSize={11} tickFormatter={(v) => formatINRCompact(v)} />
         <Tooltip
           contentStyle={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 8 }}
-          formatter={(v: any) => `$${Number(v).toLocaleString()}`}
+          formatter={(v: any) => formatINR(v)}
         />
         <Legend wrapperStyle={{ fontSize: 12 }} />
         <Area type="monotone" dataKey="pipeline" stroke="#7B61FF" fill="url(#gradPipeline)" name="Pipeline" />

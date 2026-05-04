@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { crmAnalytics } from '../../../../lib/crmApi';
+import { formatINR } from '../../../../lib/formatCurrency';
 import StatCard from '../../../../components/crm/shared/StatCard';
 import PipelineFunnelChart from '../../../../components/crm/charts/PipelineFunnelChart';
 import PipelineValueByStageChart from '../../../../components/crm/charts/PipelineValueByStageChart';
@@ -67,7 +68,6 @@ export default function CrmDashboardPage() {
     return () => { cancel = true; };
   }, []);
 
-  const fmtMoney = (n?: number) => `$${Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
   const fmtPct = (n?: number) => `${(Number(n || 0) * 100).toFixed(1)}%`;
 
   // Build a simple revenue trend from the forecast (closed by period).
@@ -76,10 +76,10 @@ export default function CrmDashboardPage() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14 }}>
-        <StatCard label="Open Pipeline" value={fmtMoney(summary?.open_deal_value)} hint={`${summary?.open_deals || 0} deals`} loading={loading} />
-        <StatCard label="Won (30d)" value={fmtMoney(summary?.won_revenue_30d)} hint={`${summary?.won_deals_30d || 0} deals`} deltaTone="up" loading={loading} />
+        <StatCard label="Open Pipeline" value={formatINR(summary?.open_deal_value)} hint={`${summary?.open_deals || 0} deals`} loading={loading} />
+        <StatCard label="Won (30d)" value={formatINR(summary?.won_revenue_30d)} hint={`${summary?.won_deals_30d || 0} deals`} deltaTone="up" loading={loading} />
         <StatCard label="Win Rate (30d)" value={fmtPct(summary?.win_rate_30d)} loading={loading} />
-        <StatCard label="Avg Deal Size" value={fmtMoney(summary?.avg_deal_size)} loading={loading} />
+        <StatCard label="Avg Deal Size" value={formatINR(summary?.avg_deal_size)} loading={loading} />
         <StatCard label="Sales Cycle" value={`${Math.round(summary?.avg_sales_cycle_days || 0)}d`} loading={loading} />
         <StatCard label="New Leads (30d)" value={summary?.new_leads_30d || 0} hint={`${summary?.total_leads || 0} total`} loading={loading} />
         <StatCard label="Activities (7d)" value={summary?.activities_7d || 0} loading={loading} />

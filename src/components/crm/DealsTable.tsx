@@ -3,6 +3,7 @@ import Link from 'next/link';
 import type { Deal } from '../../types/crm';
 import StageBadge from './shared/StageBadge';
 import OwnerAvatar from './shared/OwnerAvatar';
+import { formatINR } from '../../lib/formatCurrency';
 
 export default function DealsTable({ deals, loading }: { deals: Deal[]; loading?: boolean }) {
   const td: React.CSSProperties = { padding: '12px 14px', fontSize: 13, color: 'var(--text)', borderBottom: '1px solid var(--border)' };
@@ -19,7 +20,7 @@ export default function DealsTable({ deals, loading }: { deals: Deal[]; loading?
               <tr key={d.id}>
                 <td style={td}><Link href={`/dashboard/crm/deals/${d.id}`} style={{ color: 'var(--text)', fontWeight: 600 }}>{d.name}</Link></td>
                 <td style={td}>{d.account_name || '—'}</td>
-                <td style={td}>${Number(d.amount || 0).toLocaleString()}</td>
+                <td style={td}>{formatINR(d.amount)}</td>
                 <td style={td}><StageBadge name={d.stage_name} won={d.status === 'won'} lost={d.status === 'lost'} /></td>
                 <td style={td}><span style={{ textTransform: 'capitalize' }}>{d.status}</span></td>
                 <td style={td}>{d.expected_close_date ? new Date(d.expected_close_date).toLocaleDateString() : '—'}</td>

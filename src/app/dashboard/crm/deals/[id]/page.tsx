@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { crmDeals, crmPipelines, crmAi } from '../../../../../lib/crmApi';
+import { formatINR } from '../../../../../lib/formatCurrency';
 import type { Deal, Pipeline, DealHistoryEntry, NextBestAction, WinProbability } from '../../../../../types/crm';
 import DealStageProgress from '../../../../../components/crm/DealStageProgress';
 import WinProbabilityGauge from '../../../../../components/crm/WinProbabilityGauge';
@@ -99,7 +100,7 @@ export default function DealDetailPage() {
             </div>
           )}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 14, fontSize: 13 }}>
-            <Field label="Amount" value={`$${Number(deal.amount || 0).toLocaleString()}`} />
+            <Field label="Amount" value={formatINR(deal.amount)} />
             <Field label="Stage" value={deal.stage_name} />
             <Field label="Status" value={deal.status} />
             <Field label="Probability" value={`${Math.round((deal.probability || 0) * 100)}%`} />
