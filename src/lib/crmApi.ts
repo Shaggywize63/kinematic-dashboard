@@ -35,6 +35,7 @@ import type {
 } from '../types/crm';
 
 type Wrapped<T> = { success: boolean; data: T };
+export interface DateRangeParams { from?: string; to?: string }
 
 function qs(params?: Record<string, string | number | boolean | undefined | null>): string {
   if (!params) return '';
@@ -115,7 +116,6 @@ export const crmCustomFields = crud<CustomField>(`${BASE}/custom-fields`);
 
 export const crmImport = {
   upload: (formData: FormData) => {
-    // Direct fetch for multipart
     const token = typeof window !== 'undefined' ? localStorage.getItem('kinematic_token') : null;
     const orgRaw = typeof window !== 'undefined' ? localStorage.getItem('kinematic_user') : null;
     const orgId = orgRaw ? (JSON.parse(orgRaw)?.org_id ?? null) : null;
@@ -144,23 +144,24 @@ export const crmImport = {
 };
 
 export const crmAnalytics = {
-  dashboardSummary: () =>
-    api.get<Wrapped<AnalyticsSummary>>(`${BASE}/analytics/dashboard-summary`),
-  pipelineValue: () =>
-    api.get<Wrapped<PipelineValuePoint[]>>(`${BASE}/analytics/pipeline-value`),
-  funnel: () => api.get<Wrapped<FunnelPoint[]>>(`${BASE}/analytics/funnel`),
-  winRate: (by: 'rep' | 'source' | 'stage' = 'rep') =>
-    api.get<Wrapped<WinRatePoint[]>>(`${BASE}/analytics/win-rate${qs({ by })}`),
-  salesCycle: () =>
-    api.get<Wrapped<Array<{ stage: string; avg_days: number }>>>(`${BASE}/analytics/sales-cycle`),
-  forecast: (period: 'month' | 'quarter' = 'quarter') =>
-    api.get<Wrapped<ForecastPoint[]>>(`${BASE}/analytics/forecast${qs({ period })}`),
+  dashboardSummary: (range?: DateRangeParams) =>
+    api.get<Wrapped<AnalyticsSummary>>(`${BASE}/analytics/dashboard-summary${qs(range)}`),
+  pipelineValue: (range?: DateRangeParams) =>
+    api.get<Wrapped<PipelineValuePoint[]>>(`${BASE}/analytics/pipeline-value${qs(range)}`),
+  funnel: (range?: DateRangeParams) =>
+    api.get<Wrapped<FunnelPoint[]>>(`${BASE}/analytics/funnel${qs(range)}`),
+  winRate: (by: 'rep' | 'source' | 'stage' = 'rep', range?: DateRangeParams) =>
+    api.get<Wrapped<WinRatePoint[]>>(`${BASE}/analytics/win-rate${qs({ by, ...range })}`),
+  salesCycle: (range?: DateRangeParams) =>
+    api.get<Wrapped<Array<{ stage: string; avg_days: number }>>>(`${BASE}/analytics/sales-cycle${qs(range)}`),
+  forecast: (period: 'month' | 'quarter' = 'quarter', range?: DateRangeParams) =>
+    api.get<Wrapped<ForecastPoint[]>>(`${BASE}/analytics/forecast${qs({ period, ...range })}`),
   activityHeatmap: () =>
     api.get<Wrapped<ActivityHeatPoint[]>>(`${BASE}/analytics/activity-heatmap`),
   leadSourceRoi: () =>
     api.get<Wrapped<SourceROIRow[]>>(`${BASE}/analytics/lead-source-roi`),
-  leadScoreDistribution: () =>
-    api.get<Wrapped<ScoreDistributionPoint[]>>(`${BASE}/analytics/lead-score-distribution`),
+  leadScoreDistribution: (range?: DateRangeParams) =>
+    api.get<Wrapped<ScoreDistributionPoint[]>>(`${BASE}/analytics/lead-score-distribution${qs(range)}`),
 };
 
 export const crmAi = {

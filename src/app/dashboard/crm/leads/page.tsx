@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { crmLeads, crmLeadSources } from '../../../../lib/crmApi';
+import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
 import type { Lead, LeadSource } from '../../../../types/crm';
 import LeadsTable from '../../../../components/crm/LeadsTable';
 import LeadFilters, { type LeadFiltersValue } from '../../../../components/crm/LeadFilters';
@@ -13,11 +14,12 @@ export default function LeadsListPage() {
   const [filters, setFilters] = useState<LeadFiltersValue>({});
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
+  const range = useCrmDateRange((s) => ({ from: s.from, to: s.to }));
 
   const reload = async () => {
     setLoading(true);
     try {
-      const [l, s] = await Promise.allSettled([crmLeads.list(), crmLeadSources.list()]);
+      const [l, s] = await Promise.allSettled([crmLeads.list(range), crmLeadSources.list()]);
       if (l.status === 'fulfilled') setLeads(l.value.data || []);
       if (s.status === 'fulfilled') setSources(s.value.data || []);
     } catch (e: any) {
@@ -27,7 +29,7 @@ export default function LeadsListPage() {
     }
   };
 
-  useEffect(() => { reload(); }, []);
+  useEffect(() => { reload(); /* eslint-disable-next-line */ }, [range.from, range.to]);
 
   const filtered = useMemo(() => {
     const q = (filters.q || '').toLowerCase();

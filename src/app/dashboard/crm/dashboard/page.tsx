@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { crmAnalytics } from '../../../../lib/crmApi';
 import { formatINR } from '../../../../lib/formatCurrency';
+import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
 import StatCard from '../../../../components/crm/shared/StatCard';
 import PipelineFunnelChart from '../../../../components/crm/charts/PipelineFunnelChart';
 import PipelineValueByStageChart from '../../../../components/crm/charts/PipelineValueByStageChart';
@@ -39,18 +40,20 @@ export default function CrmDashboardPage() {
   const [forecast, setForecast] = useState<ForecastPoint[]>([]);
   const [scoreDist, setScoreDist] = useState<ScoreDistributionPoint[]>([]);
   const [loading, setLoading] = useState(true);
+  const range = useCrmDateRange((s) => ({ from: s.from, to: s.to }));
 
   useEffect(() => {
     let cancel = false;
+    setLoading(true);
     (async () => {
       try {
         const [s, f, pv, wr, fc, sd] = await Promise.allSettled([
-          crmAnalytics.dashboardSummary(),
-          crmAnalytics.funnel(),
-          crmAnalytics.pipelineValue(),
-          crmAnalytics.winRate('rep'),
-          crmAnalytics.forecast('quarter'),
-          crmAnalytics.leadScoreDistribution(),
+          crmAnalytics.dashboardSummary(range),
+          crmAnalytics.funnel(range),
+          crmAnalytics.pipelineValue(range),
+          crmAnalytics.winRate('rep', range),
+          crmAnalytics.forecast('quarter', range),
+          crmAnalytics.leadScoreDistribution(range),
         ]);
         if (cancel) return;
         if (s.status === 'fulfilled') setSummary(s.value.data);
@@ -66,22 +69,21 @@ export default function CrmDashboardPage() {
       }
     })();
     return () => { cancel = true; };
-  }, []);
+  }, [range.from, range.to]);
 
   const fmtPct = (n?: number) => `${(Number(n || 0) * 100).toFixed(1)}%`;
 
-  // Build a simple revenue trend from the forecast (closed by period).
   const revenueTrend = forecast.map((f) => ({ period: f.period, revenue: f.closed }));
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14 }}>
         <StatCard label="Open Pipeline" value={formatINR(summary?.open_deal_value)} hint={`${summary?.open_deals || 0} deals`} loading={loading} />
-        <StatCard label="Won (30d)" value={formatINR(summary?.won_revenue_30d)} hint={`${summary?.won_deals_30d || 0} deals`} deltaTone="up" loading={loading} />
-        <StatCard label="Win Rate (30d)" value={fmtPct(summary?.win_rate_30d)} loading={loading} />
+        <StatCard label="Won (window)" value={formatINR(summary?.won_revenue_30d)} hint={`${summary?.won_deals_30d || 0} deals`} deltaTone="up" loading={loading} />
+        <StatCard label="Win Rate" value={fmtPct(summary?.win_rate_30d)} loading={loading} />
         <StatCard label="Avg Deal Size" value={formatINR(summary?.avg_deal_size)} loading={loading} />
         <StatCard label="Sales Cycle" value={`${Math.round(summary?.avg_sales_cycle_days || 0)}d`} loading={loading} />
-        <StatCard label="New Leads (30d)" value={summary?.new_leads_30d || 0} hint={`${summary?.total_leads || 0} total`} loading={loading} />
+        <StatCard label="New Leads" value={summary?.new_leads_30d || 0} hint={`${summary?.total_leads || 0} total`} loading={loading} />
         <StatCard label="Activities (7d)" value={summary?.activities_7d || 0} loading={loading} />
         <StatCard label="Conversion" value={fmtPct(summary?.conversion_rate)} loading={loading} />
       </div>
@@ -96,7 +98,7 @@ export default function CrmDashboardPage() {
         <Card title="Win Rate by Rep">
           {winRate.length ? <WinRateByRepChart data={winRate} /> : <Empty />}
         </Card>
-        <Card title="Forecast (Quarter)">
+        <Card title="Forecast">
           {forecast.length ? <ForecastChart data={forecast} /> : <Empty />}
         </Card>
         <Card title="Lead Score Distribution">

@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { crmDeals } from '../../../../lib/crmApi';
+import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
 import type { Deal } from '../../../../types/crm';
 import DealsTable from '../../../../components/crm/DealsTable';
 
@@ -11,13 +12,15 @@ export default function DealsListPage() {
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState('');
   const [status, setStatus] = useState('');
+  const range = useCrmDateRange((s) => ({ from: s.from, to: s.to }));
 
   useEffect(() => {
+    setLoading(true);
     (async () => {
-      try { const r = await crmDeals.list(); setDeals(r.data || []); }
+      try { const r = await crmDeals.list(range); setDeals(r.data || []); }
       catch (e: any) { toast.error(e.message || 'Failed to load'); } finally { setLoading(false); }
     })();
-  }, []);
+  }, [range.from, range.to]);
 
   const filtered = deals.filter((d) => {
     if (q && !`${d.name} ${d.account_name || ''}`.toLowerCase().includes(q.toLowerCase())) return false;
