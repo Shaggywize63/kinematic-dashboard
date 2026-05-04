@@ -32,6 +32,11 @@ import type {
   ScoreDistributionPoint,
   KiniContext,
   KiniCard,
+  Product,
+  ProductCategory,
+  DealLineItem,
+  WhatsappTemplate,
+  WhatsappLog,
 } from '../types/crm';
 
 type Wrapped<T> = { success: boolean; data: T };
@@ -92,6 +97,18 @@ export const crmDeals = {
   setNextAction: (id: string, body: { action: string; due_at?: string }) =>
     api.post<Wrapped<Deal>>(`${BASE}/deals/${id}/next-action`, body),
   history: (id: string) => api.get<Wrapped<DealHistoryEntry[]>>(`${BASE}/deals/${id}/history`),
+  // Line items (nested)
+  listLineItems: (dealId: string) =>
+    api.get<Wrapped<DealLineItem[]>>(`${BASE}/deals/${dealId}/line-items`),
+  addLineItem: (dealId: string, body: Partial<DealLineItem> & { product_id?: string | null; quantity: number }) =>
+    api.post<Wrapped<DealLineItem>>(`${BASE}/deals/${dealId}/line-items`, body),
+};
+
+export const crmLineItems = {
+  update: (id: string, body: Partial<DealLineItem>) =>
+    api.patch<Wrapped<DealLineItem>>(`${BASE}/line-items/${id}`, body),
+  remove: (id: string) =>
+    api.delete<Wrapped<{ success: true }>>(`${BASE}/line-items/${id}`),
 };
 
 export const crmPipelines = crud<Pipeline>(`${BASE}/pipelines`);
@@ -113,6 +130,27 @@ export const crmTerritories = crud<Territory>(`${BASE}/territories`);
 export const crmCampaigns = crud<Campaign>(`${BASE}/campaigns`);
 export const crmAutomations = crud<Automation>(`${BASE}/automations`);
 export const crmCustomFields = crud<CustomField>(`${BASE}/custom-fields`);
+
+// Phase 2: Products + WhatsApp
+export const crmProductCategories = crud<ProductCategory>(`${BASE}/product-categories`);
+export const crmProducts = crud<Product>(`${BASE}/products`);
+export const crmWhatsappTemplates = crud<WhatsappTemplate>(`${BASE}/whatsapp-templates`);
+
+export const crmWhatsapp = {
+  send: (body: {
+    to: string;
+    body_text?: string;
+    template_id?: string | null;
+    template_variables?: Record<string, string>;
+    media_url?: string;
+    media_type?: 'image' | 'document' | 'audio' | 'video' | 'sticker';
+    lead_id?: string | null;
+    contact_id?: string | null;
+    deal_id?: string | null;
+  }) => api.post<Wrapped<{ id: string }>>(`${BASE}/whatsapp/send`, body),
+  logs: (params?: Record<string, string | number | boolean | undefined | null>) =>
+    api.get<Wrapped<WhatsappLog[]>>(`${BASE}/whatsapp/logs${qs(params)}`),
+};
 
 export const crmImport = {
   upload: (formData: FormData) => {
@@ -199,6 +237,7 @@ const crmApi = {
   contacts: crmContacts,
   accounts: crmAccounts,
   deals: crmDeals,
+  lineItems: crmLineItems,
   pipelines: crmPipelines,
   stages: crmStages,
   activities: crmActivities,
@@ -212,6 +251,10 @@ const crmApi = {
   campaigns: crmCampaigns,
   automations: crmAutomations,
   customFields: crmCustomFields,
+  productCategories: crmProductCategories,
+  products: crmProducts,
+  whatsappTemplates: crmWhatsappTemplates,
+  whatsapp: crmWhatsapp,
   import: crmImport,
   analytics: crmAnalytics,
   ai: crmAi,

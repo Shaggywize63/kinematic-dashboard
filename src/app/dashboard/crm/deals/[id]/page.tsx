@@ -9,6 +9,7 @@ import DealStageProgress from '../../../../../components/crm/DealStageProgress';
 import WinProbabilityGauge from '../../../../../components/crm/WinProbabilityGauge';
 import NextBestActionCard from '../../../../../components/crm/NextBestActionCard';
 import AiDraftReplyPanel from '../../../../../components/crm/AiDraftReplyPanel';
+import DealLineItemsPanel from '../../../../../components/crm/DealLineItemsPanel';
 
 export default function DealDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -39,11 +40,8 @@ export default function DealDetailPage() {
 
   const moveStage = async (stageId: string) => {
     if (!deal) return;
-    try {
-      await crmDeals.moveStage(deal.id, { stage_id: stageId });
-      toast.success('Stage updated');
-      reload();
-    } catch (e: any) { toast.error(e.message || 'Failed'); }
+    try { await crmDeals.moveStage(deal.id, { stage_id: stageId }); toast.success('Stage updated'); reload(); }
+    catch (e: any) { toast.error(e.message || 'Failed'); }
   };
 
   const win = async () => {
@@ -108,6 +106,8 @@ export default function DealDetailPage() {
             <Field label="Owner" value={deal.owner_name} />
           </div>
         </div>
+
+        <DealLineItemsPanel dealId={deal.id} onChange={reload} />
 
         <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
           <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 12 }}>History</div>
