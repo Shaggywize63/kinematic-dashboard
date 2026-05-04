@@ -3,7 +3,7 @@ import type {
   Lead, Contact, Account, Deal, DealContact, DealHistoryEntry,
   Pipeline, Stage, Activity, Note, Task,
   EmailTemplate, EmailLog,
-  LeadSource, AssignmentRule, Territory, Campaign, Automation, CustomField,
+  LeadSource, AssignmentRule, Territory, Automation, CustomField,
   ImportJob, LeadScore, NextBestAction, WinProbability,
   AnalyticsSummary, FunnelPoint, PipelineValuePoint, WinRatePoint, ForecastPoint,
   ActivityHeatPoint, SourceROIRow, ScoreDistributionPoint, StateCount,
@@ -105,7 +105,6 @@ export const crmEmails = crud<EmailLog>(`${BASE}/emails`);
 export const crmLeadSources = crud<LeadSource>(`${BASE}/lead-sources`);
 export const crmAssignmentRules = crud<AssignmentRule>(`${BASE}/assignment-rules`);
 export const crmTerritories = crud<Territory>(`${BASE}/territories`);
-export const crmCampaigns = crud<Campaign>(`${BASE}/campaigns`);
 export const crmAutomations = crud<Automation>(`${BASE}/automations`);
 export const crmCustomFields = crud<CustomField>(`${BASE}/custom-fields`);
 
@@ -184,7 +183,7 @@ const crmApi = {
   activities: crmActivities, notes: crmNotes, tasks: crmTasks,
   emailTemplates: crmEmailTemplates, emails: crmEmails,
   leadSources: crmLeadSources, assignmentRules: crmAssignmentRules,
-  territories: crmTerritories, campaigns: crmCampaigns, automations: crmAutomations,
+  territories: crmTerritories, automations: crmAutomations,
   customFields: crmCustomFields, locations: crmStatesApi, cities: crmCitiesApi,
   import: crmImport, analytics: crmAnalytics, ai: crmAi, settings: crmSettings,
 };

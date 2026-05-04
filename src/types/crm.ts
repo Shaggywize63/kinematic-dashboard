@@ -3,7 +3,6 @@
 export type LeadStatus = 'new' | 'working' | 'qualified' | 'unqualified' | 'converted';
 export type DealStatus = 'open' | 'won' | 'lost';
 export type ActivityType = 'call' | 'email' | 'meeting' | 'task' | 'note' | 'sms' | 'whatsapp';
-export type CampaignStatus = 'draft' | 'active' | 'paused' | 'completed';
 export type BusinessType = 'b2b' | 'b2c' | 'both';
 export type ContactMethod = 'email' | 'phone' | 'whatsapp' | 'sms';
 export type Gender = 'male' | 'female' | 'other' | 'prefer_not_to_say';
@@ -43,7 +42,6 @@ export interface Lead extends B2CFields {
   score?: number | null;
   score_grade?: 'A' | 'B' | 'C' | 'D' | null;
   territory_id?: string | null;
-  campaign_id?: string | null;
   industry?: string | null;
   converted_at?: string | null;
   converted_account_id?: string | null;
@@ -135,7 +133,6 @@ export interface Deal {
   owner_id?: string | null;
   owner_name?: string | null;
   source_id?: string | null;
-  campaign_id?: string | null;
   next_action?: string | null;
   next_action_at?: string | null;
   ai_win_probability?: number | null;
@@ -218,16 +215,6 @@ export interface AssignmentRule {
 export interface Territory {
   id: string; org_id: string; name: string; description?: string | null;
   parent_id?: string | null; manager_id?: string | null; created_at: string;
-}
-
-export interface Campaign {
-  id: string; org_id: string; name: string; type?: string | null;
-  status: CampaignStatus;
-  start_date?: string | null; end_date?: string | null;
-  budget?: number | null; spent?: number | null;
-  expected_revenue?: number | null; actual_revenue?: number | null;
-  target_audience?: string | null; description?: string | null;
-  created_at: string; updated_at: string;
 }
 
 export interface Automation {
