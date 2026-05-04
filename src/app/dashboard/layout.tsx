@@ -6,6 +6,11 @@ import { getStoredUser, isSessionValid, clearSession, getRoleLabel } from '../..
 import api from '../../lib/api';
 import { ClientProvider, useClient } from '../../context/ClientContext';
 import ClientSelect from '../../components/ClientSelect';
+import { isCrmRoute, buildKiniContext } from '../../lib/kiniCrmContext';
+import DealListCard from '../../components/crm/kini/DealListCard';
+import LeadListCard from '../../components/crm/kini/LeadListCard';
+import DraftEmailCard from '../../components/crm/kini/DraftEmailCard';
+import SummaryCard from '../../components/crm/kini/SummaryCard';
 
 function GlobalClientFilter({ isPlatformAdmin }: { isPlatformAdmin: boolean }) {
   const { selectedClientId, setSelectedClientId } = useClient();
@@ -67,6 +72,23 @@ function md(text: string) {
     .replace(/\n/g,'<br/>');
 }
 
+function KiniCardRenderer({ card }: { card: any }) {
+  if (!card || !card.type) return null;
+  switch (card.type) {
+    case 'deal_list':
+      return <DealListCard title={card.title} deals={(card.data as any[]) || []} />;
+    case 'lead_list':
+      return <LeadListCard title={card.title} leads={(card.data as any[]) || []} />;
+    case 'draft_email':
+      return <DraftEmailCard subject={(card.data as any)?.subject} body={(card.data as any)?.body_text || (card.data as any)?.body_html} />;
+    case 'summary':
+    case 'next_best_action':
+      return <SummaryCard title={card.title || (card.type === 'next_best_action' ? 'Next Best Action' : undefined)} summary={(card.data as any)?.summary || (card.data as any)?.action} highlights={(card.data as any)?.highlights || ((card.data as any)?.rationale ? [(card.data as any).rationale] : [])} />;
+    default:
+      return null;
+  }
+}
+
 function KinematicAI({ token }: { token: string }) {
   const [open,    setOpen]    = useState(false);
   const [msgs,    setMsgs]    = useState<any[]>([]);
@@ -76,6 +98,7 @@ function KinematicAI({ token }: { token: string }) {
   const [ready,   setReady]   = useState(false);
   const endRef  = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
+  const inCrm = isCrmRoute(pathname || '');
 
   const fetchLive = useCallback(async () => {
     try {
@@ -98,7 +121,8 @@ function KinematicAI({ token }: { token: string }) {
     } catch (e) { console.error('AI Data Context Error:', e); }
   }, [token]);
 
-  useEffect(() => { if (open && !ready) fetchLive(); }, [open, ready, fetchLive]);
+  // Only fetch live ops context when not in CRM mode (CRM has its own server-side context).
+  useEffect(() => { if (open && !ready && !inCrm) fetchLive(); }, [open, ready, fetchLive, inCrm]);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [msgs]);
 
   useEffect(() => {
@@ -109,6 +133,13 @@ function KinematicAI({ token }: { token: string }) {
 
   const sys = () => {
     const today = new Date().toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    if (inCrm) {
+      return `You are Kini AI — the CRM copilot for the Kinematic platform.
+Today: ${today}
+Current Route: ${pathname}
+
+You can call CRM tools to fetch leads, deals, accounts, contacts, activities, run analytics, draft replies, score leads, and predict win probability. When data is returned, render structured cards (deal_list, lead_list, draft_email, summary, next_best_action) so the user sees real records rather than raw JSON. Be proactive: suggest the next best action, flag stalled deals, and surface high-score leads. Use **bold** for metrics.`;
+    }
     const att = live.att?.data || live.att?.summary || {};
     const locs = live.locs?.data?.locations || live.locs?.locations || [];
     const week = live.week?.data || live.week || {};
@@ -143,14 +174,31 @@ Be elite, professional, and data-driven. Use **bold** for key metrics. Proactive
     const lm = { role: 'assistant', content: '', loading: true };
     setMsgs(p => [...p, um, lm]); setBusy(true);
     try {
-      const r = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/ai/chat`, {
+      let userOrgId: string | null = null;
+      try {
+        const raw = typeof window !== 'undefined' ? localStorage.getItem('kinematic_user') : null;
+        userOrgId = raw ? JSON.parse(raw)?.org_id ?? null : null;
+      } catch {}
+
+      const endpoint = inCrm ? '/api/v1/crm/ai/chat' : '/api/v1/ai/chat';
+      const body: any = {
+        messages: [...msgs.filter(m => !m.loading), um].slice(-6),
+        system: sys(),
+      };
+      if (inCrm) body.context = buildKiniContext(pathname || '', userOrgId);
+
+      const headers: Record<string, string> = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
+      if (userOrgId) headers['X-Org-Id'] = userOrgId;
+
+      const r = await fetch(`${process.env.NEXT_PUBLIC_API_URL}${endpoint}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ messages: [...msgs.filter(m => !m.loading), um].slice(-6), system: sys() }),
+        headers,
+        body: JSON.stringify(body),
       });
       const d = await r.json();
       const reply = d?.data?.text || 'I apologize, but I am unable to process that right now.';
-      setMsgs(p => p.map((m, i) => i === p.length - 1 ? { role: 'assistant', content: reply } : m));
+      const cards = d?.data?.cards || [];
+      setMsgs(p => p.map((m, i) => i === p.length - 1 ? { role: 'assistant', content: reply, cards } : m));
     } catch (e: any) {
       setMsgs(p => p.map((m, i) => i === p.length - 1 ? { role: 'assistant', content: `Connectivity Error: ${e.message}` } : m));
     } finally { setBusy(false); }
@@ -185,9 +233,9 @@ Be elite, professional, and data-driven. Use **bold** for key metrics. Proactive
              <div>
                <div style={{ fontWeight: 900, color: C.white, fontSize: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: C.green, boxShadow: `0 0 10px ${C.green}` }} />
-                  Kini AI
+                  Kini AI {inCrm && <span style={{ fontSize: 10, color: C.blue, fontWeight: 800, marginLeft: 4, letterSpacing: 1 }}>· CRM</span>}
                </div>
-                <div style={{ fontSize: 10, color: C.blue, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1.5, marginTop: 4 }}>Kini Operations Assistant</div>
+                <div style={{ fontSize: 10, color: C.blue, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1.5, marginTop: 4 }}>{inCrm ? 'CRM Copilot' : 'Operations Assistant'}</div>
              </div>
              <button onClick={() => setMsgs([])} style={{ background: 'rgba(255,255,255,0.05)', border: `1px solid ${C.border}`, color: C.grayd, fontSize: 10, cursor: 'pointer', padding: '6px 12px', borderRadius: 10, fontWeight: 700 }}>Reset Cache</button>
           </div>
@@ -196,8 +244,8 @@ Be elite, professional, and data-driven. Use **bold** for key metrics. Proactive
             {msgs.length === 0 && (
               <div style={{ textAlign: 'center', marginTop: 140 }}>
                 <div style={{ fontSize: 40, marginBottom: 16 }}>✦</div>
-                <div style={{ color: C.white, fontWeight: 700, fontSize: 18, marginBottom: 8 }}>How can I optimize your operations?</div>
-                <div style={{ color: C.grayd, fontSize: 13, maxWidth: 280, margin: '0 auto', lineHeight: 1.5 }}>I have access to your live attendance, performance data, and field activities.</div>
+                <div style={{ color: C.white, fontWeight: 700, fontSize: 18, marginBottom: 8 }}>{inCrm ? 'How can I help close more deals?' : 'How can I optimize your operations?'}</div>
+                <div style={{ color: C.grayd, fontSize: 13, maxWidth: 280, margin: '0 auto', lineHeight: 1.5 }}>{inCrm ? 'Ask about leads, pipeline, forecasts, or have me draft emails and suggest next actions.' : 'I have access to your live attendance, performance data, and field activities.'}</div>
               </div>
             )}
             {msgs.map((m, i) => (
@@ -216,7 +264,10 @@ Be elite, professional, and data-driven. Use **bold** for key metrics. Proactive
                       <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.white, opacity: 0.3 }} />
                     </div>
                   ) : (
-                    <div dangerouslySetInnerHTML={{ __html: md(m.content) }} className="km-chat-content" />
+                    <>
+                      <div dangerouslySetInnerHTML={{ __html: md(m.content) }} className="km-chat-content" />
+                      {Array.isArray(m.cards) && m.cards.map((c: any, idx: number) => <KiniCardRenderer key={idx} card={c} />)}
+                    </>
                   )}
                 </div>
               </div>
@@ -231,7 +282,7 @@ Be elite, professional, and data-driven. Use **bold** for key metrics. Proactive
               onKeyDown={e => e.key === 'Enter' && send()}
               disabled={busy}
               style={{ flex: 1, background: 'rgba(255,255,255,0.03)', border: `1px solid ${C.border}`, borderRadius: 16, padding: '14px 20px', color: C.white, fontSize: 14, outline: 'none', transition: 'all 0.2s' }}
-              placeholder="Ask anything about operations..."
+              placeholder={inCrm ? 'Ask about leads, deals, forecasts...' : 'Ask anything about operations...'}
             />
             <button
               onClick={() => send()}
@@ -312,6 +363,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       { href: '/dashboard/attendance-overview', label: 'Attendance', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z', module: 'attendance' },
       { href: '/dashboard/analytics', label: 'Analytics', icon: 'M18 20V10 M12 20V4 M6 20v-6', module: 'analytics' },
       { href: '/dashboard/live-tracking', label: 'Live Tracking', icon: 'M12 22s-8-4.5-8-11.8A8 8 0 0112 2a8 8 0 018 8.2c0 7.3-8 11.8-8 11.8z M12 13a3 3 0 100-6 3 3 0 000 6z', module: 'live_tracking' },
+    ])},
+    { label: 'CRM', items: filterNav([
+      { href: '/dashboard/crm/dashboard', label: 'Overview', icon: 'M3 3v18h18 M7 14l4-4 4 4 5-5', module: 'crm' },
+      { href: '/dashboard/crm/leads', label: 'Leads', icon: 'M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 7a4 4 0 100-8 4 4 0 000 8z', module: 'crm' },
+      { href: '/dashboard/crm/deals', label: 'Deals', icon: 'M12 1v22 M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6', module: 'crm' },
+      { href: '/dashboard/crm/pipeline', label: 'Pipeline', icon: 'M3 5h6v14H3z M9 9h6v6H9z M15 5h6v14h-6z', module: 'crm' },
+      { href: '/dashboard/crm/accounts', label: 'Accounts', icon: 'M3 21h18 M3 7v14 M21 7v14 M3 7l9-4 9 4 M9 12h6', module: 'crm' },
+      { href: '/dashboard/crm/contacts', label: 'Contacts', icon: 'M20 21v-2a4 4 0 00-3-3.87 M4 21v-2a4 4 0 014-4h4a4 4 0 014 4v2 M16 3.13a4 4 0 010 7.75 M8 11a4 4 0 100-8 4 4 0 000 8z', module: 'crm' },
+      { href: '/dashboard/crm/activities', label: 'Activities', icon: 'M22 11.08V12a10 10 0 11-5.93-9.14 M22 4L12 14.01l-3-3', module: 'crm' },
+      { href: '/dashboard/crm/emails', label: 'Emails', icon: 'M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z M22 6l-10 7L2 6', module: 'crm' },
+      { href: '/dashboard/crm/campaigns', label: 'Campaigns', icon: 'M3 11l18-5v12L3 14v-3z M11.6 16.8a3 3 0 11-5.8-1.6', module: 'crm' },
+      { href: '/dashboard/crm/reports', label: 'Reports', icon: 'M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6 M16 13H8 M16 17H8', module: 'crm' },
+      { href: '/dashboard/crm/settings', label: 'Settings', icon: 'M12 15a3 3 0 100-6 3 3 0 000 6z M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z', module: 'crm' },
     ])},
     { label: 'Operations', items: filterNav([
       { href: '/dashboard/other-management/activities', label: 'Activity Management', icon: 'M12 2v20 M2 12h20', module: 'activities' },

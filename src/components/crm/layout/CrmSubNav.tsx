@@ -1,0 +1,55 @@
+'use client';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+
+const LINKS = [
+  { href: '/dashboard/crm/dashboard', label: 'Dashboard' },
+  { href: '/dashboard/crm/leads', label: 'Leads' },
+  { href: '/dashboard/crm/contacts', label: 'Contacts' },
+  { href: '/dashboard/crm/accounts', label: 'Accounts' },
+  { href: '/dashboard/crm/deals', label: 'Deals' },
+  { href: '/dashboard/crm/pipeline', label: 'Pipeline' },
+  { href: '/dashboard/crm/activities', label: 'Activities' },
+  { href: '/dashboard/crm/tasks', label: 'Tasks' },
+  { href: '/dashboard/crm/emails', label: 'Emails' },
+  { href: '/dashboard/crm/campaigns', label: 'Campaigns' },
+  { href: '/dashboard/crm/reports', label: 'Reports' },
+  { href: '/dashboard/crm/settings', label: 'Settings' },
+];
+
+export default function CrmSubNav() {
+  const pathname = usePathname();
+  const isActive = (href: string) => pathname === href || pathname.startsWith(href + '/');
+  return (
+    <nav
+      style={{
+        display: 'flex',
+        gap: 4,
+        padding: '4px',
+        background: 'var(--s2)',
+        border: '1px solid var(--border)',
+        borderRadius: 12,
+        marginBottom: 18,
+        overflowX: 'auto',
+      }}
+    >
+      {LINKS.map((l) => (
+        <Link
+          key={l.href}
+          href={l.href}
+          style={{
+            padding: '8px 14px',
+            borderRadius: 8,
+            fontSize: 13,
+            fontWeight: 600,
+            whiteSpace: 'nowrap',
+            color: isActive(l.href) ? '#fff' : 'var(--text-dim)',
+            background: isActive(l.href) ? 'var(--primary)' : 'transparent',
+          }}
+        >
+          {l.label}
+        </Link>
+      ))}
+    </nav>
+  );
+}
