@@ -1,7 +1,24 @@
 import * as demo from './demoMocks';
 import { isUUID } from './utils';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+export function resolveApiUrl(): string {
+  const url = process.env.NEXT_PUBLIC_API_URL;
+  if (url) return url;
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname;
+    const isLocal = host === 'localhost' || host === '127.0.0.1' || host.endsWith('.local');
+    if (!isLocal) {
+      // eslint-disable-next-line no-console
+      console.error(
+        '[kinematic] NEXT_PUBLIC_API_URL is not set. Falling back to http://localhost:4000 — ' +
+        'this will NOT work outside local development. Set the env var in your deployment.'
+      );
+    }
+  }
+  return 'http://localhost:4000';
+}
+
+const API_URL = resolveApiUrl();
 
 // In-memory GET cache + localStorage stale-while-revalidate + in-flight dedupe.
 // - Successful GETs are cached in memory for `GET_CACHE_TTL_MS` (60s)
