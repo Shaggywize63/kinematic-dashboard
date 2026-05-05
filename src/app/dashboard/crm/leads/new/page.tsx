@@ -2,9 +2,12 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { crmLeads, crmSettings } from '../../../../../lib/crmApi';
-import type { BusinessType } from '../../../../../types/crm';
+import { crmLeads, crmSettings, crmLeadSources } from '../../../../../lib/crmApi';
+import api from '../../../../../lib/api';
+import type { BusinessType, LeadSource } from '../../../../../types/crm';
 import LocationPicker from '../../../../../components/crm/LocationPicker';
+
+type UserOpt = { id: string; name: string };
 
 type Form = {
   first_name: string; last_name: string; email: string; phone: string;
@@ -14,6 +17,7 @@ type Form = {
   postal_code: string; country: string;
   preferred_contact_method: '' | 'email' | 'phone' | 'whatsapp' | 'sms';
   marketing_consent: boolean; whatsapp_consent: boolean;
+  source_id: string; owner_id: string; status: string;
 };
 
 const empty: Form = {
@@ -21,6 +25,7 @@ const empty: Form = {
   is_b2c: true, date_of_birth: '', gender: '', address_line1: '', address_line2: '',
   city: '', state: '', postal_code: '', country: 'India',
   preferred_contact_method: '', marketing_consent: false, whatsapp_consent: false,
+  source_id: '', owner_id: '', status: 'new',
 };
 
 export default function NewLeadPage() {
@@ -28,15 +33,26 @@ export default function NewLeadPage() {
   const [form, setForm] = useState<Form>(empty);
   const [busy, setBusy] = useState(false);
   const [businessType, setBusinessType] = useState<BusinessType>('both');
+  const [sources, setSources] = useState<LeadSource[]>([]);
+  const [users, setUsers] = useState<UserOpt[]>([]);
 
   useEffect(() => {
     (async () => {
-      try {
-        const r = await crmSettings.get();
-        const t = r.data?.business_type ?? 'both';
+      const [s, src, u] = await Promise.allSettled([
+        crmSettings.get(),
+        crmLeadSources.list(),
+        api.getUsers({ limit: '500' }) as Promise<any>,
+      ]);
+      if (s.status === 'fulfilled') {
+        const t = s.value.data?.business_type ?? 'both';
         setBusinessType(t);
         if (t === 'b2b') setForm((f) => ({ ...f, is_b2c: false }));
-      } catch { /* fall back to both */ }
+      }
+      if (src.status === 'fulfilled') setSources((src.value.data || []).filter((x: LeadSource) => x.is_active));
+      if (u.status === 'fulfilled') {
+        const list: UserOpt[] = (u.value.data || u.value || []).map((x: any) => ({ id: x.id, name: x.name || x.full_name || x.email || 'User' }));
+        setUsers(list);
+      }
     })();
   }, []);
 
@@ -47,6 +63,9 @@ export default function NewLeadPage() {
       const payload: Record<string, unknown> = {
         first_name: form.first_name || undefined, last_name: form.last_name || undefined,
         email: form.email || undefined, phone: form.phone || undefined, is_b2c: form.is_b2c,
+        source_id: form.source_id || undefined,
+        owner_id: form.owner_id || undefined,
+        status: form.status || 'new',
       };
       if (!form.is_b2c) {
         Object.assign(payload, { company: form.company || undefined, title: form.title || undefined, industry: form.industry || undefined });
@@ -113,6 +132,34 @@ export default function NewLeadPage() {
           {text('last_name', 'Last Name')}
           {text('email', 'Email', { type: 'email', required: !form.is_b2c })}
           {text('phone', 'Phone', { required: form.is_b2c })}
+        </div>
+      </Section>
+
+      <Section title="Lifecycle & Assignment">
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>Status</span>
+            <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 }}>
+              <option value="new">New</option>
+              <option value="working">Working</option>
+              <option value="qualified">Qualified</option>
+              <option value="unqualified">Unqualified</option>
+            </select>
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>Source</span>
+            <select value={form.source_id} onChange={(e) => setForm({ ...form, source_id: e.target.value })} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 }}>
+              <option value="">— Unspecified —</option>
+              {sources.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>Assign To</span>
+            <select value={form.owner_id} onChange={(e) => setForm({ ...form, owner_id: e.target.value })} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 }}>
+              <option value="">— Unassigned (auto-route by rules) —</option>
+              {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+            </select>
+          </label>
         </div>
       </Section>
 

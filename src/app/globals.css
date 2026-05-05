@@ -137,3 +137,26 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-manrope); letter-spacing: -0.01
   /* Cards and panels: edge-to-edge */
   [style*="border-radius:16"], [style*="border-radius: 16"] { border-radius: 12px !important; }
 }
+
+/* CRM: visible affordance for clickable links — underline detail links and chip links */
+.crm-area a:not([class*="active"]):not([role="button"]) {
+  text-decoration: underline;
+  text-decoration-color: rgba(255,255,255,0.18);
+  text-underline-offset: 2px;
+  transition: text-decoration-color 0.15s ease, color 0.15s ease;
+}
+.crm-area a:hover { text-decoration-color: currentColor; }
+/* But not for sub-nav pills / cards (they have their own active state) */
+.crm-area nav a,
+.crm-area a[style*="border-radius:12"],
+.crm-area a[style*="border-radius: 12"],
+.crm-area a[style*="border-radius:14"],
+.crm-area a[style*="border-radius: 14"] {
+  text-decoration: none;
+}
+.crm-area a[style*="border-radius:12"]:hover,
+.crm-area a[style*="border-radius: 12"]:hover,
+.crm-area a[style*="border-radius:14"]:hover,
+.crm-area a[style*="border-radius: 14"]:hover {
+  text-decoration: none;
+}
