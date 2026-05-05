@@ -17,7 +17,7 @@ export default function ActivityHeatmapPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, gap: 8, flexWrap: 'wrap' }}>
         <h3 style={{ color: 'var(--text)', margin: 0 }}>Activity Heatmap (last 31 days)</h3>
         <button
-          onClick={() => downloadCsv('activity-heatmap', data as any, ['date', 'count'])}
+          onClick={() => downloadCsv('activity-heatmap', data as any, ['date', 'hour', 'count'])}
           disabled={loading || data.length === 0}
           style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px 12px', borderRadius: 8, fontSize: 12, cursor: 'pointer', fontWeight: 700 }}
         >⬇ CSV</button>
