@@ -1,11 +1,13 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { crmTasks } from '../../../../lib/crmApi';
 import api from '../../../../lib/api';
 import type { Task } from '../../../../types/crm';
 import UserSearchSelect, { type UserOption } from '../../../../components/crm/shared/UserSearchSelect';
 import { getStoredUser, canAccess } from '../../../../lib/auth';
+import { useCrmLocationFilter } from '../../../../stores/crmLocationFilterStore';
+import { useEntityLocations, getActivityLocation } from '../../../../lib/crmEntityLocations';
 
 const PRIORITY_OPTIONS: Array<{ value: Task['priority']; label: string }> = [
   { value: 'low', label: 'Low' },
@@ -27,6 +29,12 @@ export default function TasksPage() {
   const [newAssignee, setNewAssignee] = useState('');
   const [newPriority, setNewPriority] = useState<Task['priority']>('normal');
   const [creating, setCreating] = useState(false);
+
+  // Admin-only filters: state + city come from the global CRM location filter
+  // (already shown in the layout header); FE/assignee is a per-page dropdown.
+  const { state: locState, city: locCity } = useCrmLocationFilter();
+  const [feFilter, setFeFilter] = useState('');
+  const { locations: entityLocations } = useEntityLocations(isAdmin);
 
   const reload = async () => {
     try {
@@ -90,20 +98,40 @@ export default function TasksPage() {
 
   const userName = (id?: string | null) => id ? (users.find((u) => u.id === id)?.name || 'User') : null;
 
+  // Apply admin filters (state/city via linked entity, FE via assigned_to/owner_id).
+  // For non-admins the filters are no-ops and visibleTasks === tasks.
+  const visibleTasks = useMemo(() => {
+    if (!isAdmin) return tasks;
+    return tasks.filter((t) => {
+      if (feFilter) {
+        const aid = (t as any).assigned_to || t.owner_id;
+        if (aid !== feFilter) return false;
+      }
+      if (locState || locCity) {
+        const loc = getActivityLocation(t as any, entityLocations);
+        if (locState && loc?.state !== locState) return false;
+        if (locCity && loc?.city !== locCity) return false;
+      }
+      return true;
+    });
+  }, [isAdmin, tasks, feFilter, locState, locCity, entityLocations]);
+
   if (loading) return <div style={{ color: 'var(--text-dim)' }}>Loading...</div>;
 
   const groups: Record<string, Task[]> = { open: [], in_progress: [], done: [] };
-  tasks.forEach((t) => { (groups[t.status] || (groups[t.status] = [])).push(t); });
+  visibleTasks.forEach((t) => { (groups[t.status] || (groups[t.status] = [])).push(t); });
 
-  const overdueTasks = tasks.filter((t) => t.status !== 'done' && t.due_at && new Date(t.due_at) < new Date());
+  const overdueTasks = visibleTasks.filter((t) => t.status !== 'done' && t.due_at && new Date(t.due_at) < new Date());
+
+  const filtersActive = !!(feFilter || locState || locCity);
 
   return (
     <div>
-      {/* Admin summary banner */}
+      {/* Admin summary banner — counts reflect current filters */}
       {isAdmin && tasks.length > 0 && (
         <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
           {[
-            { label: 'Total', value: tasks.length, color: 'var(--primary)' },
+            { label: 'Total', value: visibleTasks.length, color: 'var(--primary)' },
             { label: 'Open', value: groups.open?.length || 0, color: '#6366f1' },
             { label: 'In Progress', value: groups.in_progress?.length || 0, color: '#f59e0b' },
             { label: 'Done', value: groups.done?.length || 0, color: '#10b981' },
@@ -117,9 +145,40 @@ export default function TasksPage() {
         </div>
       )}
 
+      {/* Admin filters: FE (assignee). State/City are read from the global CRM location filter in the layout header. */}
+      {isAdmin && (
+        <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 10, padding: 10, marginBottom: 12, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.5 }}>Filters</span>
+          <div style={{ minWidth: 220 }}>
+            <UserSearchSelect
+              options={users}
+              value={feFilter}
+              onChange={setFeFilter}
+              placeholder="Filter by FE / assignee…"
+              emptyLabel="All assignees"
+            />
+          </div>
+          {(locState || locCity) && (
+            <span style={{ fontSize: 11, color: 'var(--primary)', background: 'var(--s3)', padding: '4px 10px', borderRadius: 6 }}>
+              📍 {[locCity, locState].filter(Boolean).join(', ')} <span style={{ color: 'var(--text-dim)', marginLeft: 4 }}>(from header)</span>
+            </span>
+          )}
+          {filtersActive && (
+            <button
+              onClick={() => setFeFilter('')}
+              style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '6px 12px', borderRadius: 6, fontSize: 11, cursor: 'pointer' }}
+              title="Clear FE filter (state/city is in the header filter)"
+            >Clear FE</button>
+          )}
+          <span style={{ fontSize: 11, color: 'var(--text-dim)', marginLeft: 'auto' }}>
+            Showing {visibleTasks.length} of {tasks.length}
+          </span>
+        </div>
+      )}
+
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, gap: 8 }}>
         <div style={{ fontSize: 13, color: 'var(--text-dim)' }}>
-          {tasks.length} task{tasks.length !== 1 ? 's' : ''}
+          {visibleTasks.length} task{visibleTasks.length !== 1 ? 's' : ''}
           {isAdmin && ' · Admin view — all tasks across org'}
         </div>
         <button onClick={() => setShowCreate(!showCreate)} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
