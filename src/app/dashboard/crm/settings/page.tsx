@@ -14,7 +14,6 @@ const SECTIONS = [
   { href: '/dashboard/crm/settings/territories', title: 'Territories', desc: 'Sales territory hierarchy.' },
   { href: '/dashboard/crm/settings/scoring', title: 'Scoring Model', desc: 'Tune the AI lead scoring weights.' },
   { href: '/dashboard/crm/settings/custom-fields', title: 'Custom Fields', desc: 'Add fields per entity.' },
-  { href: '/dashboard/crm/settings/automations', title: 'Automations', desc: 'Triggers and actions.' },
 ];
 
 const BUSINESS_OPTIONS: Array<{ value: BusinessType; label: string; desc: string }> = [
