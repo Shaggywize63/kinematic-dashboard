@@ -127,7 +127,7 @@ export default function NewActivityPage() {
       type,
       subject: subject.trim(),
       body: body.trim() || undefined,
-      due_at: dueAt || undefined,
+      due_at: dueAt ? new Date(dueAt).toISOString() : undefined,
       assigned_to: assignedTo || undefined,
     };
     if (entityType && entityId) {

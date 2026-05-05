@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { crmLeads, crmLeadSources } from '../../../../lib/crmApi';
+import { crmLeads, crmLeadSources, crmSettings } from '../../../../lib/crmApi';
 import api from '../../../../lib/api';
 import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
 import { useCrmLocationFilter } from '../../../../stores/crmLocationFilterStore';
@@ -21,6 +21,7 @@ export default function LeadsListPage() {
   const [users, setUsers] = useState<UserOption[]>([]);
   const [showAssignMenu, setShowAssignMenu] = useState(false);
   const [usersLoading, setUsersLoading] = useState(false);
+  const [isB2C, setIsB2C] = useState(false);
   const assignMenuRef = useRef<HTMLDivElement>(null);
   const range = useCrmDateRange((s) => ({ from: s.from, to: s.to }));
   const { state: locState, city: locCity } = useCrmLocationFilter();
@@ -44,6 +45,12 @@ export default function LeadsListPage() {
   };
 
   useEffect(() => { reload(); /* eslint-disable-next-line */ }, [range.from, range.to, locState, locCity]);
+
+  useEffect(() => {
+    crmSettings.get().then((r) => {
+      if (r.data?.business_type === 'b2c') setIsB2C(true);
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!showAssignMenu) return;
@@ -165,7 +172,19 @@ export default function LeadsListPage() {
         </div>
       </div>
       <LeadFilters value={filters} onChange={setFilters} sources={sources.map((s) => ({ id: s.id, name: s.name }))} />
-      <LeadsTable leads={filtered} selected={selected} onToggle={toggle} onToggleAll={toggleAll} loading={loading} />
+      <LeadsTable
+        leads={filtered}
+        selected={selected}
+        onToggle={toggle}
+        onToggleAll={toggleAll}
+        loading={loading}
+        isB2C={isB2C}
+        onAssign={async (leadId, userId) => {
+          await crmLeads.update(leadId, { owner_id: userId } as any);
+          toast.success(userId ? 'Lead reassigned' : 'Lead unassigned');
+          reload();
+        }}
+      />
     </div>
   );
 }

@@ -1,7 +1,7 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { crmCustomFields } from '../../../../../lib/crmApi';
+import { crmCustomFields, crmSettings } from '../../../../../lib/crmApi';
 import type { CustomField } from '../../../../../types/crm';
 import { getStoredUser, canAccess } from '../../../../../lib/auth';
 
@@ -9,7 +9,9 @@ const ENTITIES: Array<CustomField['entity']> = ['lead', 'contact', 'account', 'd
 const TYPES: Array<CustomField['field_type']> = ['text', 'number', 'date', 'select', 'multiselect', 'boolean'];
 
 // Built-in standard fields for each entity
-const BUILTIN_FIELDS: Record<string, Array<{ key: string; label: string; type: string; required?: boolean }>> = {
+type BuiltinField = { key: string; label: string; type: string; required?: boolean };
+
+const BUILTIN_FIELDS: Record<string, BuiltinField[]> = {
   lead: [
     { key: 'first_name', label: 'First Name', type: 'text', required: true },
     { key: 'last_name', label: 'Last Name', type: 'text' },
@@ -77,13 +79,21 @@ const BUILTIN_FIELDS: Record<string, Array<{ key: string; label: string; type: s
   ],
 };
 
+type FieldOverride = { label?: string; required?: boolean; hidden?: boolean };
+type FieldOverrides = Record<string, FieldOverride>; // key: `${entity}.${field_key}`
+
+const overrideKey = (entity: string, key: string) => `${entity}.${key}`;
+
 export default function CustomFieldsPage() {
   const [items, setItems] = useState<CustomField[]>([]);
+  const [overrides, setOverrides] = useState<FieldOverrides>({});
+  const [config, setConfig] = useState<Record<string, unknown>>({});
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  const [savingOverride, setSavingOverride] = useState<string | null>(null);
   const [busy, setBusy] = useState<Record<string, boolean>>({});
-  const [isAdmin, setIsAdmin] = useState(false);
   const [accessDenied, setAccessDenied] = useState(false);
+  const [editing, setEditing] = useState<{ entity: string; key: string; label: string; required: boolean } | null>(null);
 
   const [entity, setEntity] = useState<CustomField['entity']>('lead');
   const [fieldKey, setFieldKey] = useState('');
@@ -97,8 +107,16 @@ export default function CustomFieldsPage() {
   const reload = async () => {
     setLoading(true);
     try {
-      const r = await crmCustomFields.list();
-      setItems(r.data || []);
+      const [cfRes, settingsRes] = await Promise.allSettled([
+        crmCustomFields.list(),
+        crmSettings.get(),
+      ]);
+      if (cfRes.status === 'fulfilled') setItems(cfRes.value.data || []);
+      if (settingsRes.status === 'fulfilled') {
+        const cfg = (settingsRes.value.data?.config as Record<string, unknown>) || {};
+        setConfig(cfg);
+        setOverrides((cfg.field_overrides as FieldOverrides) || {});
+      }
     } catch (e: any) { toast.error(e.message || 'Load failed'); }
     finally { setLoading(false); }
   };
@@ -110,7 +128,6 @@ export default function CustomFieldsPage() {
       setLoading(false);
       return;
     }
-    setIsAdmin(true);
     reload();
   }, []);
 
@@ -150,6 +167,55 @@ export default function CustomFieldsPage() {
     finally { setBusy((b) => ({ ...b, [cf.id]: false })); }
   };
 
+  const saveOverride = async (entityName: string, key: string, override: FieldOverride) => {
+    const k = overrideKey(entityName, key);
+    setSavingOverride(k);
+    try {
+      const next: FieldOverrides = { ...overrides };
+      // Remove keys that match the original to keep config tidy
+      const cleaned: FieldOverride = {};
+      if (override.label !== undefined) cleaned.label = override.label;
+      if (override.required !== undefined) cleaned.required = override.required;
+      if (Object.keys(cleaned).length === 0) {
+        delete next[k];
+      } else {
+        next[k] = cleaned;
+      }
+      await crmSettings.update({ config: { ...config, field_overrides: next } });
+      setOverrides(next);
+      setConfig({ ...config, field_overrides: next });
+      toast.success('Field updated');
+    } catch (e: any) {
+      toast.error(e.message || 'Save failed');
+    } finally {
+      setSavingOverride(null);
+    }
+  };
+
+  const resetOverride = async (entityName: string, key: string) => {
+    if (!window.confirm('Reset this field to its system default?')) return;
+    const k = overrideKey(entityName, key);
+    const next = { ...overrides };
+    delete next[k];
+    setSavingOverride(k);
+    try {
+      await crmSettings.update({ config: { ...config, field_overrides: next } });
+      setOverrides(next);
+      setConfig({ ...config, field_overrides: next });
+      toast.success('Reset to default');
+    } catch (e: any) {
+      toast.error(e.message || 'Reset failed');
+    } finally {
+      setSavingOverride(null);
+    }
+  };
+
+  const builtinVisible = useMemo(() => {
+    return filter === 'all'
+      ? Object.entries(BUILTIN_FIELDS).flatMap(([ent, fields]) => fields.map((f) => ({ ...f, entity: ent })))
+      : (BUILTIN_FIELDS[filter] || []).map((f) => ({ ...f, entity: filter }));
+  }, [filter]);
+
   if (accessDenied) {
     return (
       <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 32, textAlign: 'center' }}>
@@ -163,9 +229,6 @@ export default function CustomFieldsPage() {
   }
 
   const visible = filter === 'all' ? items : items.filter((i) => i.entity === filter);
-  const builtinVisible = filter === 'all'
-    ? Object.entries(BUILTIN_FIELDS).flatMap(([ent, fields]) => fields.map((f) => ({ ...f, entity: ent })))
-    : (BUILTIN_FIELDS[filter] || []).map((f) => ({ ...f, entity: filter }));
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -200,14 +263,14 @@ export default function CustomFieldsPage() {
       <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
-            Fields ({builtinVisible.length + visible.length} total — {builtinVisible.length} standard, {visible.length} custom)
+            Fields ({builtinVisible.length + visible.length} total — {builtinVisible.length} system, {visible.length} custom)
           </div>
           <div style={{ display: 'flex', gap: 4, marginLeft: 'auto', flexWrap: 'wrap', alignItems: 'center' }}>
             <button
               onClick={() => setShowBuiltin((v) => !v)}
               style={{ ...btnFilter, background: showBuiltin ? '#6366f115' : 'transparent', color: showBuiltin ? '#6366f1' : 'var(--text-dim)', borderColor: showBuiltin ? '#6366f1' : 'var(--border)' }}
             >
-              {showBuiltin ? '✓ ' : ''}Standard Fields
+              {showBuiltin ? '✓ ' : ''}System Fields
             </button>
             {(['all', ...ENTITIES] as const).map((f) => (
               <button key={f} onClick={() => setFilter(f as any)} style={{ ...btnFilter, background: filter === f ? 'var(--primary)' : 'transparent', color: filter === f ? '#fff' : 'var(--text-dim)' }}>
@@ -232,21 +295,50 @@ export default function CustomFieldsPage() {
             </thead>
             <tbody>
               {/* Built-in standard fields */}
-              {showBuiltin && builtinVisible.map((f) => (
-                <tr key={`builtin-${f.entity}-${f.key}`} style={{ opacity: 0.85 }}>
-                  <td style={td}><span style={{ background: 'var(--s3)', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 700, textTransform: 'uppercase' }}>{f.entity}</span></td>
-                  <td style={td}><code style={{ background: 'var(--s3)', padding: '1px 5px', borderRadius: 3, fontSize: 11 }}>{f.key}</code></td>
-                  <td style={td}>{f.label}</td>
-                  <td style={td}>{f.type}</td>
-                  <td style={td}>{f.required ? '✓' : ''}</td>
-                  <td style={td}>
-                    <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', padding: '2px 6px', borderRadius: 4, background: '#6366f115', color: '#6366f1' }}>Standard</span>
-                  </td>
-                  <td style={td}>
-                    <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>System field</span>
-                  </td>
-                </tr>
-              ))}
+              {showBuiltin && builtinVisible.map((f) => {
+                const k = overrideKey(f.entity, f.key);
+                const ov = overrides[k] || {};
+                const effLabel = ov.label ?? f.label;
+                const effRequired = ov.required ?? !!f.required;
+                const overridden = ov.label !== undefined || ov.required !== undefined;
+                const saving = savingOverride === k;
+                return (
+                  <tr key={`builtin-${f.entity}-${f.key}`}>
+                    <td style={td}><span style={{ background: 'var(--s3)', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 700, textTransform: 'uppercase' }}>{f.entity}</span></td>
+                    <td style={td}><code style={{ background: 'var(--s3)', padding: '1px 5px', borderRadius: 3, fontSize: 11 }}>{f.key}</code></td>
+                    <td style={td}>
+                      {effLabel}
+                      {overridden && <span style={{ marginLeft: 6, fontSize: 9, padding: '1px 5px', background: '#f59e0b15', color: '#f59e0b', borderRadius: 4, fontWeight: 700, textTransform: 'uppercase' }}>edited</span>}
+                    </td>
+                    <td style={td}>{f.type}</td>
+                    <td style={td}>{effRequired ? '✓' : ''}</td>
+                    <td style={td}>
+                      <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', padding: '2px 6px', borderRadius: 4, background: '#6366f115', color: '#6366f1' }}>System</span>
+                    </td>
+                    <td style={td}>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button
+                          onClick={() => setEditing({ entity: f.entity, key: f.key, label: effLabel, required: effRequired })}
+                          disabled={saving}
+                          style={btnSmall}
+                        >
+                          {saving ? '…' : 'Edit'}
+                        </button>
+                        {overridden && (
+                          <button
+                            onClick={() => resetOverride(f.entity, f.key)}
+                            disabled={saving}
+                            style={btnSmallGhost}
+                            title="Reset to system default"
+                          >
+                            ↺
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
 
               {/* Custom fields */}
               {visible.length === 0 && !showBuiltin && (
@@ -271,6 +363,52 @@ export default function CustomFieldsPage() {
           </table>
         )}
       </div>
+
+      {/* Edit built-in field modal */}
+      {editing && (
+        <div onClick={() => setEditing(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 24, maxWidth: 460, width: '100%' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, marginBottom: 4 }}>Edit System Field</div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>{editing.entity}.{editing.key}</div>
+              </div>
+              <button onClick={() => setEditing(null)} style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', fontSize: 22, cursor: 'pointer', padding: 0, lineHeight: 1 }}>×</button>
+            </div>
+
+            <div style={{ background: 'var(--s3)', borderRadius: 8, padding: 10, fontSize: 12, color: 'var(--text-dim)', marginBottom: 14 }}>
+              You can override how this system field is displayed (label) and whether it's required in forms. The underlying database column and behaviour remain unchanged.
+            </div>
+
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, marginBottom: 4 }}>Display Label</div>
+              <input
+                value={editing.label}
+                onChange={(e) => setEditing({ ...editing, label: e.target.value })}
+                style={{ width: '100%', background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13, boxSizing: 'border-box' }}
+              />
+            </div>
+
+            <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, color: 'var(--text)', marginBottom: 16 }}>
+              <input type="checkbox" checked={editing.required} onChange={(e) => setEditing({ ...editing, required: e.target.checked })} />
+              Required field
+            </label>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button onClick={() => setEditing(null)} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontSize: 13 }}>Cancel</button>
+              <button
+                onClick={async () => {
+                  await saveOverride(editing.entity, editing.key, { label: editing.label, required: editing.required });
+                  setEditing(null);
+                }}
+                style={btnPrimary}
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -278,6 +416,8 @@ export default function CustomFieldsPage() {
 const input: React.CSSProperties = { background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 };
 const btnPrimary: React.CSSProperties = { background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: 'pointer', fontSize: 13 };
 const btnFilter: React.CSSProperties = { padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, border: '1px solid var(--border)', cursor: 'pointer' };
+const btnSmall: React.CSSProperties = { background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', padding: '4px 10px', borderRadius: 6, cursor: 'pointer', fontSize: 11 };
+const btnSmallGhost: React.CSSProperties = { background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '4px 8px', borderRadius: 6, cursor: 'pointer', fontSize: 11 };
 const btnSmallDanger: React.CSSProperties = { background: 'transparent', border: '1px solid #ef4444', color: '#ef4444', padding: '4px 10px', borderRadius: 6, cursor: 'pointer', fontSize: 11 };
 const th: React.CSSProperties = { textAlign: 'left', padding: '8px 10px', color: 'var(--text-dim)', fontSize: 11, textTransform: 'uppercase', fontWeight: 700, borderBottom: '1px solid var(--border)' };
 const td: React.CSSProperties = { padding: '8px 10px', color: 'var(--text)', borderBottom: '1px solid var(--border)' };
