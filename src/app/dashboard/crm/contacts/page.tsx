@@ -45,7 +45,8 @@ export default function ContactsListPage() {
             </span>
           )}
         </div>
-        <Link href="/dashboard/crm/contacts/new" style={{ background: 'var(--primary)', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700 }}>+ New Contact</Link>
+        <Link href="/dashboard/crm/contacts/import" style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>⬆ Bulk Import</Link>
+        <Link href="/dashboard/crm/contacts/new" style={{ background: 'var(--primary)', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>+ New Contact</Link>
       </div>
       <ContactsTable contacts={filtered} loading={loading} />
     </div>
