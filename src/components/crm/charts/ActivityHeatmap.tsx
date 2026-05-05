@@ -1,91 +1,190 @@
 'use client';
+import { useMemo } from 'react';
 import type { ActivityHeatPoint } from '../../../types/crm';
 
-const DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
-// 31-day calendar heatmap. Each cell = one date, intensity = activity count.
+// Combined heatmap: 31 days (rows) × 24 hours (columns).
+// Shows date totals on the right, hour totals at the bottom, peak cell highlighted.
 export default function ActivityHeatmap({ data }: { data: ActivityHeatPoint[] }) {
-  const sorted = [...data].sort((a, b) => a.date.localeCompare(b.date));
-  if (sorted.length === 0) {
+  const { dates, lookup, max, rowTotals, colTotals, total, activeDays, peakHour } = useMemo(() => {
+    const lookup = new Map<string, number>();
+    const dateSet = new Set<string>();
+    let max = 0;
+    for (const p of data) {
+      if (typeof p.hour !== 'number') continue;
+      const key = `${p.date}|${p.hour}`;
+      lookup.set(key, p.count);
+      dateSet.add(p.date);
+      if (p.count > max) max = p.count;
+    }
+    const dates = Array.from(dateSet).sort(); // ascending; latest at bottom
+
+    const rowTotals = new Map<string, number>();
+    const colTotals = new Map<number, number>();
+    let total = 0;
+    for (const p of data) {
+      if (typeof p.hour !== 'number') continue;
+      total += p.count;
+      rowTotals.set(p.date, (rowTotals.get(p.date) ?? 0) + p.count);
+      colTotals.set(p.hour, (colTotals.get(p.hour) ?? 0) + p.count);
+    }
+    const activeDays = Array.from(rowTotals.values()).filter((v) => v > 0).length;
+
+    let peakHour = 0;
+    let peakHourCount = 0;
+    colTotals.forEach((v, h) => {
+      if (v > peakHourCount) { peakHourCount = v; peakHour = h; }
+    });
+
+    return { dates, lookup, max: Math.max(1, max), rowTotals, colTotals, total, activeDays, peakHour };
+  }, [data]);
+
+  if (dates.length === 0) {
     return <div style={{ color: 'var(--text-dim)', fontSize: 13, padding: 24, textAlign: 'center' }}>No activity in the last 31 days.</div>;
   }
-  const max = Math.max(1, ...sorted.map((d) => d.count));
 
-  const first = new Date(sorted[0].date + 'T00:00:00Z');
-  const firstDow = (first.getUTCDay() + 6) % 7;
-  const cells: Array<{ date: string; count: number } | null> = Array(firstDow).fill(null);
-  sorted.forEach((d) => cells.push(d));
-  while (cells.length % 7 !== 0) cells.push(null);
-  const weeks: Array<Array<{ date: string; count: number } | null>> = [];
-  for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
+  const fmtDate = (iso: string) => {
+    const d = new Date(iso + 'T00:00:00Z');
+    const day = d.getUTCDate().toString().padStart(2, '0');
+    const mon = d.toLocaleString('en-US', { month: 'short', timeZone: 'UTC' });
+    const dow = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getUTCDay()];
+    return { day, mon, dow };
+  };
 
-  const totalCount = sorted.reduce((s, d) => s + d.count, 0);
-  const activeDays = sorted.filter((d) => d.count > 0).length;
+  const fmtHour = (h: number) => `${String(h).padStart(2, '0')}:00`;
 
   return (
     <div>
-      <div style={{ display: 'flex', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
-        <Stat label="Days shown" value={sorted.length.toString()} />
-        <Stat label="Total activities" value={totalCount.toLocaleString()} />
-        <Stat label="Active days" value={`${activeDays} / ${sorted.length}`} />
-        <Stat label="Daily avg" value={(totalCount / Math.max(1, sorted.length)).toFixed(1)} />
-        <Stat label="Peak day" value={String(max)} />
+      {/* Stats */}
+      <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
+        <Stat label="Days shown" value={dates.length.toString()} />
+        <Stat label="Total activities" value={total.toLocaleString()} />
+        <Stat label="Active days" value={`${activeDays} / ${dates.length}`} />
+        <Stat label="Peak hour (UTC)" value={fmtHour(peakHour)} />
+        <Stat label="Daily avg" value={(total / Math.max(1, dates.length)).toFixed(1)} />
       </div>
 
-      <div style={{ overflowX: 'auto' }}>
-        <table style={{ borderCollapse: 'separate', borderSpacing: 4 }}>
+      {/* Heatmap grid */}
+      <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: 600, border: '1px solid var(--border)', borderRadius: 10 }}>
+        <table style={{ borderCollapse: 'separate', borderSpacing: 2, fontSize: 10 }}>
           <thead>
-            <tr>
-              <th></th>
-              {DOW.map((d) => (
-                <th key={d} style={{ fontSize: 10, color: 'var(--text-dim)', fontWeight: 600, padding: '0 0 4px', textAlign: 'center', minWidth: 38 }}>{d}</th>
+            <tr style={{ position: 'sticky', top: 0, background: 'var(--s2)', zIndex: 2 }}>
+              <th style={{ padding: '6px 10px 6px 8px', minWidth: 90, textAlign: 'left', color: 'var(--text-dim)', fontWeight: 700, textTransform: 'uppercase', fontSize: 10, borderBottom: '1px solid var(--border)' }}>Date</th>
+              {HOURS.map((h) => (
+                <th key={h} style={{ padding: '4px 0', minWidth: 26, color: 'var(--text-dim)', fontWeight: 600, fontSize: 9, textAlign: 'center', borderBottom: '1px solid var(--border)' }}>
+                  {h}
+                </th>
               ))}
+              <th style={{ padding: '6px 10px', textAlign: 'right', color: 'var(--text-dim)', fontWeight: 700, textTransform: 'uppercase', fontSize: 10, borderLeft: '1px solid var(--border)', borderBottom: '1px solid var(--border)', minWidth: 50 }}>Total</th>
             </tr>
           </thead>
           <tbody>
-            {weeks.map((week, wi) => (
-              <tr key={wi}>
-                <td style={{ fontSize: 10, color: 'var(--text-dim)', fontWeight: 600, padding: '0 8px 0 0' }}>W{wi + 1}</td>
-                {week.map((cell, ci) => {
-                  if (!cell) return <td key={ci} style={{ width: 38, height: 38 }} />;
-                  const intensity = cell.count / max;
-                  const bg = cell.count
-                    ? `rgba(99,102,241,${0.20 + intensity * 0.75})`
-                    : 'var(--s3)';
-                  const dateNum = new Date(cell.date + 'T00:00:00Z').getUTCDate();
-                  return (
-                    <td
-                      key={ci}
-                      title={`${cell.date} · ${cell.count} activit${cell.count === 1 ? 'y' : 'ies'}`}
-                      style={{
-                        width: 38, height: 38, borderRadius: 6,
-                        background: bg,
-                        border: `1px solid ${cell.count ? 'transparent' : 'var(--border)'}`,
-                        textAlign: 'center', verticalAlign: 'middle',
-                        fontSize: 11, fontWeight: 600,
-                        color: intensity > 0.5 ? '#fff' : 'var(--text)',
-                        padding: 0,
-                      }}
-                    >
-                      <div>{dateNum}</div>
-                      {cell.count > 0 && (
-                        <div style={{ fontSize: 9, opacity: 0.85 }}>{cell.count}</div>
-                      )}
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
+            {dates.map((date) => {
+              const { day, mon, dow } = fmtDate(date);
+              const rowTotal = rowTotals.get(date) ?? 0;
+              const isWeekend = dow === 'Sat' || dow === 'Sun';
+              return (
+                <tr key={date}>
+                  <td style={{
+                    padding: '4px 10px 4px 8px',
+                    color: isWeekend ? 'var(--text-dim)' : 'var(--text)',
+                    fontWeight: 600,
+                    whiteSpace: 'nowrap',
+                    background: isWeekend ? 'var(--s3)' : 'transparent',
+                  }}>
+                    <span style={{ fontSize: 11 }}>{day} {mon}</span>
+                    <span style={{ fontSize: 9, color: 'var(--text-dim)', marginLeft: 6 }}>{dow}</span>
+                  </td>
+                  {HOURS.map((h) => {
+                    const count = lookup.get(`${date}|${h}`) ?? 0;
+                    const intensity = count / max;
+                    const bg = count
+                      ? `rgba(99,102,241,${0.18 + intensity * 0.78})`
+                      : (isWeekend ? 'rgba(255,255,255,0.02)' : 'transparent');
+                    return (
+                      <td
+                        key={h}
+                        title={`${date} ${fmtHour(h)} · ${count} activit${count === 1 ? 'y' : 'ies'}`}
+                        style={{
+                          width: 26, height: 22, borderRadius: 3,
+                          background: bg,
+                          textAlign: 'center', verticalAlign: 'middle',
+                          fontSize: 9, fontWeight: 700,
+                          color: intensity > 0.55 ? '#fff' : 'var(--text)',
+                          padding: 0,
+                        }}
+                      >
+                        {count > 0 ? count : ''}
+                      </td>
+                    );
+                  })}
+                  <td style={{
+                    padding: '4px 10px',
+                    textAlign: 'right',
+                    color: rowTotal > 0 ? 'var(--text)' : 'var(--text-dim)',
+                    fontWeight: 700,
+                    fontSize: 11,
+                    borderLeft: '1px solid var(--border)',
+                    background: 'var(--s3)',
+                  }}>
+                    {rowTotal || '—'}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
+          <tfoot style={{ position: 'sticky', bottom: 0, background: 'var(--s2)', zIndex: 2 }}>
+            <tr>
+              <td style={{ padding: '6px 10px 6px 8px', color: 'var(--text-dim)', fontWeight: 700, textTransform: 'uppercase', fontSize: 10, borderTop: '1px solid var(--border)' }}>Hour total</td>
+              {HOURS.map((h) => {
+                const ct = colTotals.get(h) ?? 0;
+                const isPeak = h === peakHour && ct > 0;
+                return (
+                  <td key={h} style={{
+                    padding: '4px 0',
+                    textAlign: 'center',
+                    fontSize: 10,
+                    fontWeight: 700,
+                    color: isPeak ? 'var(--primary)' : (ct > 0 ? 'var(--text)' : 'var(--text-dim)'),
+                    borderTop: '1px solid var(--border)',
+                    background: isPeak ? 'rgba(99,102,241,0.12)' : 'transparent',
+                  }}>
+                    {ct || ''}
+                  </td>
+                );
+              })}
+              <td style={{
+                padding: '6px 10px',
+                textAlign: 'right',
+                color: 'var(--text)',
+                fontWeight: 800,
+                fontSize: 12,
+                borderLeft: '1px solid var(--border)',
+                borderTop: '1px solid var(--border)',
+                background: 'var(--s3)',
+              }}>
+                {total}
+              </td>
+            </tr>
+          </tfoot>
         </table>
       </div>
 
-      <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: 'var(--text-dim)' }}>
-        <span>Less</span>
-        {[0, 0.25, 0.5, 0.75, 1].map((i) => (
-          <span key={i} style={{ width: 14, height: 14, borderRadius: 3, background: i === 0 ? 'var(--s3)' : `rgba(99,102,241,${0.20 + i * 0.75})`, border: i === 0 ? '1px solid var(--border)' : 'none' }} />
-        ))}
-        <span>More</span>
+      {/* Legend */}
+      <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 14, fontSize: 11, color: 'var(--text-dim)', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span>Less</span>
+          {[0, 0.25, 0.5, 0.75, 1].map((i) => (
+            <span key={i} style={{
+              width: 14, height: 14, borderRadius: 3,
+              background: i === 0 ? 'transparent' : `rgba(99,102,241,${0.18 + i * 0.78})`,
+              border: i === 0 ? '1px solid var(--border)' : 'none',
+            }} />
+          ))}
+          <span>More</span>
+        </div>
+        <span>· Hours shown in UTC. Hover any cell for the exact date & hour.</span>
       </div>
     </div>
   );
