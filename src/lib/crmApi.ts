@@ -1,42 +1,17 @@
 import api from './api';
 import type {
-  Lead,
-  Contact,
-  Account,
-  Deal,
-  DealHistoryEntry,
-  Pipeline,
-  Stage,
-  Activity,
-  Note,
-  Task,
-  EmailTemplate,
-  EmailLog,
-  LeadSource,
-  AssignmentRule,
-  Territory,
-  Campaign,
-  Automation,
-  CustomField,
-  ImportJob,
-  LeadScore,
-  NextBestAction,
-  WinProbability,
-  AnalyticsSummary,
-  FunnelPoint,
-  PipelineValuePoint,
-  WinRatePoint,
-  ForecastPoint,
-  ActivityHeatPoint,
-  SourceROIRow,
-  ScoreDistributionPoint,
-  KiniContext,
-  KiniCard,
-  Product,
-  ProductCategory,
-  DealLineItem,
-  WhatsappTemplate,
-  WhatsappLog,
+  Lead, Contact, Account, Deal, DealContact, DealHistoryEntry,
+  Pipeline, Stage, Activity, Note, Task,
+  EmailTemplate, EmailLog,
+  LeadSource, AssignmentRule, Territory, Automation, CustomField,
+  ImportJob, LeadScore, NextBestAction, WinProbability,
+  AnalyticsSummary, FunnelPoint, PipelineValuePoint, WinRatePoint, ForecastPoint,
+  ActivityHeatPoint, SourceROIRow, ScoreDistributionPoint, StateCount,
+  KiniContext, KiniCard,
+  CrmSettings, BusinessType,
+  CrmState, CrmCity,
+  Product, ProductCategory, DealLineItem,
+  WhatsappTemplate, WhatsappLog,
 } from '../types/crm';
 
 type Wrapped<T> = { success: boolean; data: T };
@@ -69,6 +44,7 @@ export const crmLeads = {
   score: (id: string) => api.post<Wrapped<LeadScore>>(`${BASE}/leads/${id}/score`, {}),
   scoreHistory: (id: string) => api.get<Wrapped<LeadScore[]>>(`${BASE}/leads/${id}/score-history`),
   activities: (id: string) => api.get<Wrapped<Activity[]>>(`${BASE}/leads/${id}/activities`),
+  deals: (id: string) => api.get<Wrapped<Deal[]>>(`${BASE}/leads/${id}/deals`),
   convert: (
     id: string,
     body: { create_account?: boolean; create_deal?: boolean; deal_name?: string; deal_amount?: number; account_id?: string }
@@ -81,8 +57,22 @@ export const crmLeads = {
     api.post<Wrapped<{ updated: number }>>(`${BASE}/leads/bulk-assign`, body),
 };
 
-export const crmContacts = crud<Contact>(`${BASE}/contacts`);
-export const crmAccounts = crud<Account>(`${BASE}/accounts`);
+export const crmContacts = {
+  ...crud<Contact>(`${BASE}/contacts`),
+  activities: (id: string) => api.get<Wrapped<Activity[]>>(`${BASE}/contacts/${id}/activities`),
+  deals: (id: string) => api.get<Wrapped<Deal[]>>(`${BASE}/contacts/${id}/deals`),
+  notes: (id: string) => api.get<Wrapped<Note[]>>(`${BASE}/contacts/${id}/notes`),
+  emails: (id: string) => api.get<Wrapped<EmailLog[]>>(`${BASE}/contacts/${id}/emails`),
+};
+
+export const crmAccounts = {
+  ...crud<Account>(`${BASE}/accounts`),
+  contacts: (id: string) => api.get<Wrapped<Contact[]>>(`${BASE}/accounts/${id}/contacts`),
+  deals: (id: string) => api.get<Wrapped<Deal[]>>(`${BASE}/accounts/${id}/deals`),
+  activities: (id: string) => api.get<Wrapped<Activity[]>>(`${BASE}/accounts/${id}/activities`),
+  notes: (id: string) => api.get<Wrapped<Note[]>>(`${BASE}/accounts/${id}/notes`),
+  summarize: (id: string) => api.post<Wrapped<{ text: string }>>(`${BASE}/accounts/${id}/summarize`, {}),
+};
 
 export const crmDeals = {
   ...crud<Deal>(`${BASE}/deals`),
@@ -97,7 +87,9 @@ export const crmDeals = {
   setNextAction: (id: string, body: { action: string; due_at?: string }) =>
     api.post<Wrapped<Deal>>(`${BASE}/deals/${id}/next-action`, body),
   history: (id: string) => api.get<Wrapped<DealHistoryEntry[]>>(`${BASE}/deals/${id}/history`),
-  // Line items (nested)
+  activities: (id: string) => api.get<Wrapped<Activity[]>>(`${BASE}/deals/${id}/activities`),
+  contacts: (id: string) => api.get<Wrapped<DealContact[]>>(`${BASE}/deals/${id}/contacts`),
+  notes: (id: string) => api.get<Wrapped<Note[]>>(`${BASE}/deals/${id}/notes`),
   listLineItems: (dealId: string) =>
     api.get<Wrapped<DealLineItem[]>>(`${BASE}/deals/${dealId}/line-items`),
   addLineItem: (dealId: string, body: Partial<DealLineItem> & { product_id?: string | null; quantity: number }) =>
@@ -127,7 +119,6 @@ export const crmEmails = crud<EmailLog>(`${BASE}/emails`);
 export const crmLeadSources = crud<LeadSource>(`${BASE}/lead-sources`);
 export const crmAssignmentRules = crud<AssignmentRule>(`${BASE}/assignment-rules`);
 export const crmTerritories = crud<Territory>(`${BASE}/territories`);
-export const crmCampaigns = crud<Campaign>(`${BASE}/campaigns`);
 export const crmAutomations = crud<Automation>(`${BASE}/automations`);
 export const crmCustomFields = crud<CustomField>(`${BASE}/custom-fields`);
 
@@ -151,6 +142,15 @@ export const crmWhatsapp = {
   logs: (params?: Record<string, string | number | boolean | undefined | null>) =>
     api.get<Wrapped<WhatsappLog[]>>(`${BASE}/whatsapp/logs${qs(params)}`),
 };
+
+// Phase 3: States + Cities
+export const crmStatesApi = {
+  ...crud<CrmState>(`${BASE}/states`),
+  cities: (id: string) => api.get<Wrapped<CrmCity[]>>(`${BASE}/states/${id}/cities`),
+  seedIndian: () => api.post<Wrapped<{ states: number; cities: number }>>(`${BASE}/states/seed-indian`, {}),
+};
+
+export const crmCitiesApi = crud<CrmCity>(`${BASE}/cities`);
 
 export const crmImport = {
   upload: (formData: FormData) => {
@@ -200,6 +200,7 @@ export const crmAnalytics = {
     api.get<Wrapped<SourceROIRow[]>>(`${BASE}/analytics/lead-source-roi`),
   leadScoreDistribution: (range?: DateRangeParams) =>
     api.get<Wrapped<ScoreDistributionPoint[]>>(`${BASE}/analytics/lead-score-distribution${qs(range)}`),
+  byState: () => api.get<Wrapped<StateCount[]>>(`${BASE}/analytics/by-state`),
 };
 
 export const crmAi = {
@@ -226,39 +227,24 @@ export const crmAi = {
 };
 
 export const crmSettings = {
-  get: () => api.get<Wrapped<Record<string, unknown>>>(`${BASE}/settings`),
-  update: (body: Record<string, unknown>) =>
-    api.patch<Wrapped<Record<string, unknown>>>(`${BASE}/settings`, body),
+  get: () => api.get<Wrapped<CrmSettings>>(`${BASE}/settings`),
+  update: (body: { config?: Record<string, unknown>; business_type?: BusinessType }) =>
+    api.patch<Wrapped<CrmSettings>>(`${BASE}/settings`, body),
   seedDefaults: () => api.post<Wrapped<{ seeded: number }>>(`${BASE}/settings/seed-defaults`, {}),
 };
 
 const crmApi = {
-  leads: crmLeads,
-  contacts: crmContacts,
-  accounts: crmAccounts,
-  deals: crmDeals,
-  lineItems: crmLineItems,
-  pipelines: crmPipelines,
-  stages: crmStages,
-  activities: crmActivities,
-  notes: crmNotes,
-  tasks: crmTasks,
-  emailTemplates: crmEmailTemplates,
-  emails: crmEmails,
-  leadSources: crmLeadSources,
-  assignmentRules: crmAssignmentRules,
-  territories: crmTerritories,
-  campaigns: crmCampaigns,
-  automations: crmAutomations,
+  leads: crmLeads, contacts: crmContacts, accounts: crmAccounts, deals: crmDeals,
+  lineItems: crmLineItems, pipelines: crmPipelines, stages: crmStages,
+  activities: crmActivities, notes: crmNotes, tasks: crmTasks,
+  emailTemplates: crmEmailTemplates, emails: crmEmails,
+  leadSources: crmLeadSources, assignmentRules: crmAssignmentRules,
+  territories: crmTerritories, automations: crmAutomations,
   customFields: crmCustomFields,
-  productCategories: crmProductCategories,
-  products: crmProducts,
-  whatsappTemplates: crmWhatsappTemplates,
-  whatsapp: crmWhatsapp,
-  import: crmImport,
-  analytics: crmAnalytics,
-  ai: crmAi,
-  settings: crmSettings,
+  productCategories: crmProductCategories, products: crmProducts,
+  whatsappTemplates: crmWhatsappTemplates, whatsapp: crmWhatsapp,
+  locations: crmStatesApi, cities: crmCitiesApi,
+  import: crmImport, analytics: crmAnalytics, ai: crmAi, settings: crmSettings,
 };
 
 export default crmApi;

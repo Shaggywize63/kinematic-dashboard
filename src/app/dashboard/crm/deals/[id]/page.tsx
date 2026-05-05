@@ -1,15 +1,17 @@
 'use client';
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { crmDeals, crmPipelines, crmAi } from '../../../../../lib/crmApi';
-import { formatINR } from '../../../../../lib/formatCurrency';
-import type { Deal, Pipeline, DealHistoryEntry, NextBestAction, WinProbability } from '../../../../../types/crm';
+import type { Deal, Pipeline, DealHistoryEntry, DealContact, Activity, NextBestAction, WinProbability } from '../../../../../types/crm';
 import DealStageProgress from '../../../../../components/crm/DealStageProgress';
 import WinProbabilityGauge from '../../../../../components/crm/WinProbabilityGauge';
 import NextBestActionCard from '../../../../../components/crm/NextBestActionCard';
 import AiDraftReplyPanel from '../../../../../components/crm/AiDraftReplyPanel';
-import DealLineItemsPanel from '../../../../../components/crm/DealLineItemsPanel';
+import ActivityTimeline from '../../../../../components/crm/ActivityTimeline';
+import DealEditModal from '../../../../../components/crm/DealEditModal';
+import { formatINR } from '../../../../../lib/formatCurrency';
 
 export default function DealDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -17,22 +19,32 @@ export default function DealDetailPage() {
   const [deal, setDeal] = useState<Deal | null>(null);
   const [pipeline, setPipeline] = useState<Pipeline | null>(null);
   const [history, setHistory] = useState<DealHistoryEntry[]>([]);
+  const [contacts, setContacts] = useState<DealContact[]>([]);
+  const [activities, setActivities] = useState<Activity[]>([]);
   const [nba, setNba] = useState<NextBestAction | null>(null);
   const [winProb, setWinProb] = useState<WinProbability | null>(null);
   const [loading, setLoading] = useState(true);
   const [nbaBusy, setNbaBusy] = useState(false);
   const [winBusy, setWinBusy] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
 
   const reload = async () => {
     if (!id) return;
     setLoading(true);
     try {
-      const [d, h] = await Promise.allSettled([crmDeals.get(id), crmDeals.history(id)]);
+      const [d, h, c, a] = await Promise.allSettled([
+        crmDeals.get(id),
+        crmDeals.history(id),
+        crmDeals.contacts(id),
+        crmDeals.activities(id),
+      ]);
       if (d.status === 'fulfilled') {
         setDeal(d.value.data);
         try { const p = await crmPipelines.get(d.value.data.pipeline_id); setPipeline(p.data); } catch {}
       }
       if (h.status === 'fulfilled') setHistory(h.value.data || []);
+      if (c.status === 'fulfilled') setContacts(c.value.data || []);
+      if (a.status === 'fulfilled') setActivities(a.value.data || []);
     } catch (e: any) { toast.error(e.message || 'Load failed'); } finally { setLoading(false); }
   };
 
@@ -43,7 +55,6 @@ export default function DealDetailPage() {
     try { await crmDeals.moveStage(deal.id, { stage_id: stageId }); toast.success('Stage updated'); reload(); }
     catch (e: any) { toast.error(e.message || 'Failed'); }
   };
-
   const win = async () => {
     if (!deal) return;
     try { await crmDeals.win(deal.id); toast.success('Deal marked won 🎉'); reload(); }
@@ -55,7 +66,6 @@ export default function DealDetailPage() {
     try { await crmDeals.lose(deal.id, { reason }); toast.success('Deal marked lost'); reload(); }
     catch (e: any) { toast.error(e.message || 'Failed'); }
   };
-
   const loadNba = async () => {
     if (!deal) return;
     setNbaBusy(true);
@@ -72,6 +82,7 @@ export default function DealDetailPage() {
   if (loading) return <div style={{ color: 'var(--text-dim)' }}>Loading...</div>;
   if (!deal) return <div style={{ color: 'var(--text-dim)' }}>Deal not found.</div>;
   const stages = pipeline?.stages || [];
+  const primary = contacts.find((c) => c.is_primary) || contacts[0];
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(280px, 1fr)', gap: 18 }}>
@@ -80,15 +91,21 @@ export default function DealDetailPage() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
             <div>
               <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)' }}>{deal.name}</div>
-              <div style={{ fontSize: 13, color: 'var(--text-dim)' }}>{deal.account_name || 'No account'}</div>
+              <div style={{ fontSize: 13, color: 'var(--text-dim)' }}>
+                {deal.account_id ? (
+                  <Link href={`/dashboard/crm/accounts/${deal.account_id}`} style={{ color: 'var(--primary)' }}>
+                    {deal.account_name || 'View account'}
+                  </Link>
+                ) : 'No account'}
+                {deal.lead_id && (<><span> · </span><Link href={`/dashboard/crm/leads/${deal.lead_id}`} style={{ color: 'var(--primary)' }}>From lead</Link></>)}
+              </div>
             </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              {deal.status === 'open' && (
-                <>
-                  <button onClick={win} style={{ background: 'var(--green)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>Mark Won</button>
-                  <button onClick={lose} style={{ background: 'transparent', border: '1px solid var(--primary)', color: 'var(--primary)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer' }}>Mark Lost</button>
-                </>
-              )}
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button onClick={() => setEditOpen(true)} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>Edit</button>
+              {deal.status === 'open' && (<>
+                <button onClick={win} style={{ background: 'var(--green, #10b981)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>Mark Won</button>
+                <button onClick={lose} style={{ background: 'transparent', border: '1px solid var(--primary)', color: 'var(--primary)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer' }}>Mark Lost</button>
+              </>)}
               <button onClick={() => router.back()} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer' }}>Back</button>
             </div>
           </div>
@@ -98,7 +115,7 @@ export default function DealDetailPage() {
             </div>
           )}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 14, fontSize: 13 }}>
-            <Field label="Amount" value={formatINR(deal.amount)} />
+            <Field label="Amount" value={formatINR(deal.amount || 0)} />
             <Field label="Stage" value={deal.stage_name} />
             <Field label="Status" value={deal.status} />
             <Field label="Probability" value={`${Math.round((deal.probability || 0) * 100)}%`} />
@@ -107,10 +124,38 @@ export default function DealDetailPage() {
           </div>
         </div>
 
-        <DealLineItemsPanel dealId={deal.id} onChange={reload} />
+        <Card title={`Contacts (${contacts.length})`}>
+          {contacts.length === 0 ? (
+            <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>
+              {deal.primary_contact_id ? (
+                <Link href={`/dashboard/crm/contacts/${deal.primary_contact_id}`} style={{ color: 'var(--primary)' }}>View primary contact</Link>
+              ) : 'No contacts linked.'}
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {contacts.map((dc) => {
+                const c = dc.contact;
+                const name = c?.full_name || `${c?.first_name || ''} ${c?.last_name || ''}`.trim() || c?.email || '—';
+                return (
+                  <Link key={dc.contact_id} href={`/dashboard/crm/contacts/${dc.contact_id}`} style={rowLink}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ color: 'var(--text)', fontWeight: 600 }}>
+                        {name}
+                        {dc.is_primary && <span style={{ marginLeft: 8, fontSize: 9, background: 'var(--primary)', color: '#fff', padding: '2px 6px', borderRadius: 4, fontWeight: 700 }}>PRIMARY</span>}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{dc.role || c?.title || c?.email || '—'}</div>
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{c?.phone || ''}</div>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </Card>
 
-        <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 12 }}>History</div>
+        <Card title={`Activities (${activities.length})`}><ActivityTimeline activities={activities} /></Card>
+
+        <Card title="History">
           {history.length === 0 ? (
             <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>No events yet.</div>
           ) : (
@@ -123,12 +168,20 @@ export default function DealDetailPage() {
               ))}
             </div>
           )}
-        </div>
+        </Card>
 
         <AiDraftReplyPanel dealId={id} />
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+        {primary && (
+          <Card title="Primary Contact">
+            <Link href={`/dashboard/crm/contacts/${primary.contact_id}`} style={chipLink}>
+              → {primary.contact?.full_name || `${primary.contact?.first_name || ''} ${primary.contact?.last_name || ''}`.trim() || 'View contact'}
+            </Link>
+          </Card>
+        )}
+
         <WinProbabilityGauge
           probability={winProb?.probability ?? deal.ai_win_probability ?? deal.probability ?? 0}
           confidence={winProb?.confidence ?? deal.ai_win_confidence ?? undefined}
@@ -140,6 +193,23 @@ export default function DealDetailPage() {
         </button>
         <NextBestActionCard action={nba} onLoad={loadNba} loading={nbaBusy} />
       </div>
+
+      <DealEditModal
+        deal={deal}
+        stages={stages}
+        open={editOpen}
+        onClose={() => setEditOpen(false)}
+        onSaved={(updated) => { setDeal(updated); reload(); }}
+      />
+    </div>
+  );
+}
+
+function Card({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
+      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 12 }}>{title}</div>
+      {children}
     </div>
   );
 }
@@ -152,3 +222,12 @@ function Field({ label, value }: { label: string; value?: string | null }) {
     </div>
   );
 }
+
+const chipLink: React.CSSProperties = {
+  background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--primary)',
+  padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none', display: 'inline-block',
+};
+const rowLink: React.CSSProperties = {
+  display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px',
+  background: 'var(--s3)', borderRadius: 8, textDecoration: 'none', fontSize: 13,
+};

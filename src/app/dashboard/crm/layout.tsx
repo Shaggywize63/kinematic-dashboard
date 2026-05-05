@@ -1,6 +1,7 @@
 'use client';
 import CrmSubNav from '../../../components/crm/layout/CrmSubNav';
 import DateRangePicker from '../../../components/crm/DateRangePicker';
+import LocationFilter from '../../../components/crm/LocationFilter';
 
 export default function CrmLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -12,7 +13,10 @@ export default function CrmLayout({ children }: { children: React.ReactNode }) {
             Leads, deals, accounts, and pipelines — powered by Kini AI.
           </p>
         </div>
-        <DateRangePicker />
+        <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+          <LocationFilter />
+          <DateRangePicker />
+        </div>
       </div>
       <CrmSubNav />
       <div>{children}</div>
