@@ -1,10 +1,14 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { crmActivities } from '../../../../lib/crmApi';
+import api from '../../../../lib/api';
 import type { Activity } from '../../../../types/crm';
 import { getStoredUser, canAccess } from '../../../../lib/auth';
+import UserSearchSelect, { type UserOption } from '../../../../components/crm/shared/UserSearchSelect';
+import { useCrmLocationFilter } from '../../../../stores/crmLocationFilterStore';
+import { useEntityLocations, getActivityLocation } from '../../../../lib/crmEntityLocations';
 
 const TYPE_ICONS: Record<string, string> = {
   call: '📞', email: '✉️', meeting: '📅', task: '✅', note: '📝', sms: '💬', whatsapp: '💚',
@@ -18,6 +22,10 @@ export default function ActivitiesPage() {
   const [type, setType] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [users, setUsers] = useState<UserOption[]>([]);
+  const [feFilter, setFeFilter] = useState('');
+  const { state: locState, city: locCity } = useCrmLocationFilter();
+  const { locations: entityLocations } = useEntityLocations(isAdmin);
 
   const reload = async () => {
     setLoading(true);
@@ -29,8 +37,19 @@ export default function ActivitiesPage() {
 
   useEffect(() => {
     const user = getStoredUser();
-    if (user && canAccess(user.role, ['sub_admin'])) setIsAdmin(true);
+    const admin = !!(user && canAccess(user.role, ['sub_admin']));
+    if (admin) setIsAdmin(true);
     reload();
+    if (admin) {
+      (api.getUsers({ limit: '500' }) as Promise<any>)
+        .then((u) => {
+          const list: UserOption[] = (u.data || u || []).map((x: any) => ({
+            id: x.id, name: x.name || x.full_name || x.email || 'User',
+          }));
+          setUsers(list);
+        })
+        .catch(() => {});
+    }
   }, []);
 
   const updateStatus = async (a: Activity, status: string) => {
@@ -52,11 +71,28 @@ export default function ActivitiesPage() {
     }
   };
 
-  const filtered = type ? activities.filter((a) => a.type === type) : activities;
+  const filtered = useMemo(() => {
+    return activities.filter((a) => {
+      if (type && a.type !== type) return false;
+      if (isAdmin) {
+        if (feFilter) {
+          const aid = (a as any).assigned_to || a.owner_id;
+          if (aid !== feFilter) return false;
+        }
+        if (locState || locCity) {
+          const loc = getActivityLocation(a as any, entityLocations);
+          if (locState && loc?.state !== locState) return false;
+          if (locCity && loc?.city !== locCity) return false;
+        }
+      }
+      return true;
+    });
+  }, [activities, type, isAdmin, feFilter, locState, locCity, entityLocations]);
 
   const overdue = filtered.filter((a) => a.due_at && !a.completed_at && new Date(a.due_at) < new Date());
   const upcoming = filtered.filter((a) => a.due_at && !a.completed_at && new Date(a.due_at) >= new Date());
   const completed = filtered.filter((a) => !!a.completed_at);
+  const filtersActive = !!(feFilter || locState || locCity);
 
   return (
     <div>
@@ -74,6 +110,37 @@ export default function ActivitiesPage() {
               <div style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 700, textTransform: 'uppercase' }}>{label}</div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Admin filters: FE (assignee). State/City come from the global CRM location filter in the layout header. */}
+      {isAdmin && (
+        <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 10, padding: 10, marginBottom: 12, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.5 }}>Filters</span>
+          <div style={{ minWidth: 220 }}>
+            <UserSearchSelect
+              options={users}
+              value={feFilter}
+              onChange={setFeFilter}
+              placeholder="Filter by FE / assignee…"
+              emptyLabel="All assignees"
+            />
+          </div>
+          {(locState || locCity) && (
+            <span style={{ fontSize: 11, color: 'var(--primary)', background: 'var(--s3)', padding: '4px 10px', borderRadius: 6 }}>
+              📍 {[locCity, locState].filter(Boolean).join(', ')} <span style={{ color: 'var(--text-dim)', marginLeft: 4 }}>(from header)</span>
+            </span>
+          )}
+          {filtersActive && (
+            <button
+              onClick={() => setFeFilter('')}
+              style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '6px 12px', borderRadius: 6, fontSize: 11, cursor: 'pointer' }}
+              title="Clear FE filter (state/city is in the header filter)"
+            >Clear FE</button>
+          )}
+          <span style={{ fontSize: 11, color: 'var(--text-dim)', marginLeft: 'auto' }}>
+            Showing {filtered.length} of {activities.length}
+          </span>
         </div>
       )}
 
