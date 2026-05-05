@@ -4,8 +4,7 @@ import { toast } from 'sonner';
 import { crmAssignmentRules, crmTerritories } from '../../../../../lib/crmApi';
 import api from '../../../../../lib/api';
 import type { AssignmentRule, Territory } from '../../../../../types/crm';
-
-type UserOpt = { id: string; name: string };
+import UserSearchSelect, { type UserOption as UserOpt } from '../../../../../components/crm/shared/UserSearchSelect';
 
 const MATCH_FIELDS = [
   { value: 'source', label: 'Lead Source' },
@@ -123,14 +122,23 @@ export default function AssignmentRulesPage() {
           <input value={matchValue} onChange={(e) => setMatchValue(e.target.value)} placeholder="Value (e.g. Website)" style={input} />
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
-          <select value={assigneeUserId} onChange={(e) => { setAssigneeUserId(e.target.value); if (e.target.value) setTerritoryId(''); }} style={input}>
-            <option value="">— Assign to user (optional) —</option>
-            {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-          </select>
-          <select value={territoryId} onChange={(e) => { setTerritoryId(e.target.value); if (e.target.value) setAssigneeUserId(''); }} style={input}>
-            <option value="">— Or assign to territory —</option>
-            {territories.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-          </select>
+          <div>
+            <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, marginBottom: 4 }}>Assign to User</div>
+            <UserSearchSelect
+              options={users}
+              value={assigneeUserId}
+              onChange={(id) => { setAssigneeUserId(id); if (id) setTerritoryId(''); }}
+              placeholder="Search team member…"
+              emptyLabel="No user (use territory)"
+            />
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, marginBottom: 4 }}>Or Assign to Territory</div>
+            <select value={territoryId} onChange={(e) => { setTerritoryId(e.target.value); if (e.target.value) setAssigneeUserId(''); }} style={input}>
+              <option value="">— No territory —</option>
+              {territories.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+          </div>
         </div>
         <button onClick={create} disabled={creating} style={btnPrimary}>{creating ? 'Adding...' : '+ Add Rule'}</button>
       </div>
