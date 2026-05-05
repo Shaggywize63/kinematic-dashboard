@@ -27,6 +27,7 @@ export default function DealDetailPage() {
   const [nbaBusy, setNbaBusy] = useState(false);
   const [winBusy, setWinBusy] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const reload = async () => {
     if (!id) return;
@@ -78,6 +79,20 @@ export default function DealDetailPage() {
     try { const r = await crmAi.winProbability(deal.id); setWinProb(r.data); }
     catch (e: any) { toast.error(e.message || 'Forecast failed'); } finally { setWinBusy(false); }
   };
+  const handleDelete = async () => {
+    if (!deal) return;
+    if (!window.confirm('Delete this deal? This action cannot be undone.')) return;
+    setDeleting(true);
+    try {
+      await crmDeals.remove(deal.id);
+      toast.success('Deal deleted');
+      router.refresh();
+      router.push('/dashboard/crm/deals');
+    } catch (e: any) {
+      toast.error(e.message || 'Delete failed');
+      setDeleting(false);
+    }
+  };
 
   if (loading) return <div style={{ color: 'var(--text-dim)' }}>Loading...</div>;
   if (!deal) return <div style={{ color: 'var(--text-dim)' }}>Deal not found.</div>;
@@ -106,6 +121,7 @@ export default function DealDetailPage() {
                 <button onClick={win} style={{ background: 'var(--green, #10b981)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>Mark Won</button>
                 <button onClick={lose} style={{ background: 'transparent', border: '1px solid var(--primary)', color: 'var(--primary)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer' }}>Mark Lost</button>
               </>)}
+              <button onClick={handleDelete} disabled={deleting} style={{ background: 'transparent', border: '1px solid #ef4444', color: '#ef4444', padding: '8px 14px', borderRadius: 8, cursor: deleting ? 'not-allowed' : 'pointer', opacity: deleting ? 0.6 : 1 }}>{deleting ? 'Deleting...' : 'Delete'}</button>
               <button onClick={() => router.back()} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer' }}>Back</button>
             </div>
           </div>
