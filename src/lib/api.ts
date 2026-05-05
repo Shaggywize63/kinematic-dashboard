@@ -117,11 +117,12 @@ class ApiClient {
     const orgId = this.getOrgId();
     if (orgId && !headers['X-Org-Id']) headers['X-Org-Id'] = orgId;
 
-    // Multi-tenant CRM: auto-attach the active client_id (chosen via the global
+    // Multi-tenant: auto-attach the active client_id (chosen via the global
     // header picker, persisted in localStorage as kinematic_selected_client) for
-    // all /api/v1/crm/* requests so backend can scope per-client. Client-level
-    // users have client_id pinned in their JWT so this header is ignored for them.
-    if (path.startsWith('/api/v1/crm') && !headers['X-Client-Id']) {
+    // any client-scoped backend route. Client-level users have client_id pinned
+    // in their JWT so this header is ignored for them.
+    const isClientScopedPath = path.startsWith('/api/v1/crm') || path.startsWith('/api/v1/roles');
+    if (isClientScopedPath && !headers['X-Client-Id']) {
       try {
         const sel = typeof window !== 'undefined' ? window.localStorage.getItem('kinematic_selected_client') : null;
         if (sel && isUUID(sel)) headers['X-Client-Id'] = sel;
@@ -161,8 +162,10 @@ class ApiClient {
     if (method !== 'GET' || (options as { noCache?: boolean }).noCache) {
       return this.request<T>(path, options);
     }
-    // Include selected client in CRM cache keys so switching clients doesn't show stale data.
-    const clientPart = path.startsWith('/api/v1/crm') ? `|c:${this.getSelectedClient() || 'org'}` : '';
+    // Include selected client in cache keys for client-scoped paths so switching
+    // clients doesn't show stale data from a different client.
+    const isClientScoped = path.startsWith('/api/v1/crm') || path.startsWith('/api/v1/roles');
+    const clientPart = isClientScoped ? `|c:${this.getSelectedClient() || 'org'}` : '';
     const key = `${this.getToken() || 'anon'}|${path}${clientPart}`;
     const now = Date.now();
 

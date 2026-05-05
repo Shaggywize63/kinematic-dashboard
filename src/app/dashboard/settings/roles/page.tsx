@@ -1,8 +1,10 @@
 'use client';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
+import api from '../../../../lib/api';
 import { rolesApi, type OrgRole, type OrgRoleNode, type OrgRoleUser } from '../../../../lib/rolesApi';
 import { getStoredUser, canAccess } from '../../../../lib/auth';
+import { useClient } from '@/context/ClientContext';
 
 const PRESET_COLORS = ['#6366f1', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#64748b'];
 
@@ -23,6 +25,12 @@ export default function RolesPage() {
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [saving, setSaving] = useState(false);
   const [accessDenied, setAccessDenied] = useState(false);
+  // Multi-tenant: refetch when the global client picker changes so the tree
+  // reflects the active client's scope.
+  const { selectedClientId } = useClient();
+  const [clientName, setClientName] = useState<string>('');
+  const storedUser = getStoredUser();
+  const isClientLevel = !!(storedUser as any)?.client_id;
 
   const reload = async () => {
     setLoading(true);
@@ -42,7 +50,23 @@ export default function RolesPage() {
       return;
     }
     reload();
-  }, []);
+    // Reset side-panel state on client switch so we don't show stale selection
+    setSelectedId(null);
+    setEditing(null);
+  }, [selectedClientId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Look up the active client's display name for the scope banner.
+  useEffect(() => {
+    const targetId = isClientLevel ? (storedUser as any)?.client_id : selectedClientId;
+    if (!targetId) { setClientName(''); return; }
+    api.get<{ data?: Array<{ id: string; name: string }> } | Array<{ id: string; name: string }>>('/api/v1/misc/clients')
+      .then((res: any) => {
+        const list = Array.isArray(res) ? res : (res?.data ?? []);
+        const match = list.find((c: any) => c.id === targetId);
+        setClientName(match?.name || '');
+      })
+      .catch(() => setClientName(''));
+  }, [selectedClientId, isClientLevel, storedUser]);
 
   useEffect(() => {
     if (!selectedId) { setUsers([]); return; }
@@ -133,7 +157,7 @@ export default function RolesPage() {
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 800, margin: 0, color: 'var(--text)' }}>Role Hierarchy</h1>
           <p style={{ fontSize: 13, color: 'var(--text-dim)', margin: '4px 0 0', maxWidth: 640 }}>
-            Build your reporting structure as a tree. People at higher levels see records owned by anyone below them.
+            Build your reporting structure as a tree. Each client can have its own hierarchy on top of the org-level defaults.
             Hover a card to add a child role; click any role to edit it or see who's assigned.
           </p>
         </div>
@@ -142,6 +166,13 @@ export default function RolesPage() {
           style={{ background: 'var(--primary)', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: 8, fontWeight: 700, cursor: 'pointer', fontSize: 13 }}
         >+ Add Top-Level Role</button>
       </div>
+
+      {/* Multi-tenant scope banner */}
+      <ScopeBanner
+        isClientLevel={isClientLevel}
+        clientName={clientName}
+        selectedClientId={isClientLevel ? ((storedUser as any)?.client_id ?? '') : selectedClientId}
+      />
 
       {/* Stats + search */}
       <div style={{ display: 'flex', gap: 10, marginBottom: 14, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -510,6 +541,47 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
       </button>
     </div>
   );
+}
+
+function ScopeBanner({
+  isClientLevel, clientName, selectedClientId,
+}: {
+  isClientLevel: boolean;
+  clientName: string;
+  selectedClientId: string;
+}) {
+  if (isClientLevel) {
+    return (
+      <div style={{ ...bannerBase('#10b981'), marginBottom: 14 }}>
+        <span>🔒</span>
+        <span>Your client: <strong>{clientName || 'Loading…'}</strong></span>
+        <span style={{ marginLeft: 'auto', opacity: 0.7, fontWeight: 500 }}>You can only manage your own client's hierarchy.</span>
+      </div>
+    );
+  }
+  if (!selectedClientId) {
+    return (
+      <div style={{ ...bannerBase('#6366f1'), marginBottom: 14 }}>
+        <span>🌐</span>
+        <span>Org-level view <span style={{ opacity: 0.75, fontWeight: 500, marginLeft: 6 }}>· roles created here are defaults visible to all clients</span></span>
+      </div>
+    );
+  }
+  return (
+    <div style={{ ...bannerBase('#3E9EFF'), marginBottom: 14 }}>
+      <span>🔵</span>
+      <span>Configuring for: <strong>{clientName || selectedClientId.slice(0, 8) + '…'}</strong></span>
+      <span style={{ marginLeft: 'auto', opacity: 0.75, fontWeight: 500 }}>You see this client's roles + org-level defaults; new roles get stamped to this client.</span>
+    </div>
+  );
+}
+
+function bannerBase(color: string): React.CSSProperties {
+  return {
+    display: 'flex', alignItems: 'center', gap: 8,
+    padding: '10px 14px', borderRadius: 10, fontSize: 13, fontWeight: 600,
+    background: `${color}15`, color, border: `1px solid ${color}40`,
+  };
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
