@@ -28,6 +28,11 @@ export default function DealDetailPage() {
   const [winBusy, setWinBusy] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [closeOpen, setCloseOpen] = useState(false);
+  const [closeOutcome, setCloseOutcome] = useState<'won' | 'lost'>('won');
+  const [closeReason, setCloseReason] = useState('');
+  const [closing, setClosing] = useState(false);
+  const [reopening, setReopening] = useState(false);
 
   const reload = async () => {
     if (!id) return;
@@ -56,16 +61,33 @@ export default function DealDetailPage() {
     try { await crmDeals.moveStage(deal.id, { stage_id: stageId }); toast.success('Stage updated'); reload(); }
     catch (e: any) { toast.error(e.message || 'Failed'); }
   };
-  const win = async () => {
+  const closeDeal = async () => {
     if (!deal) return;
-    try { await crmDeals.win(deal.id); toast.success('Deal marked won 🎉'); reload(); }
-    catch (e: any) { toast.error(e.message || 'Failed'); }
+    setClosing(true);
+    try {
+      if (closeOutcome === 'won') {
+        await crmDeals.win(deal.id, { reason: closeReason || undefined });
+        toast.success('Deal closed as Won 🎉');
+      } else {
+        await crmDeals.lose(deal.id, { reason: closeReason || undefined });
+        toast.success('Deal closed as Lost');
+      }
+      setCloseOpen(false);
+      setCloseReason('');
+      reload();
+    } catch (e: any) { toast.error(e.message || 'Close failed'); }
+    finally { setClosing(false); }
   };
-  const lose = async () => {
+  const reopenDeal = async () => {
     if (!deal) return;
-    const reason = prompt('Reason for losing this deal?') || undefined;
-    try { await crmDeals.lose(deal.id, { reason }); toast.success('Deal marked lost'); reload(); }
-    catch (e: any) { toast.error(e.message || 'Failed'); }
+    if (!window.confirm('Re-open this deal? It will return to open status.')) return;
+    setReopening(true);
+    try {
+      await crmDeals.update(deal.id, { status: 'open' } as any);
+      toast.success('Deal re-opened');
+      reload();
+    } catch (e: any) { toast.error(e.message || 'Re-open failed'); }
+    finally { setReopening(false); }
   };
   const loadNba = async () => {
     if (!deal) return;
@@ -117,14 +139,26 @@ export default function DealDetailPage() {
             </div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <button onClick={() => setEditOpen(true)} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>Edit</button>
-              {deal.status === 'open' && (<>
-                <button onClick={win} style={{ background: 'var(--green, #10b981)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>Mark Won</button>
-                <button onClick={lose} style={{ background: 'transparent', border: '1px solid var(--primary)', color: 'var(--primary)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer' }}>Mark Lost</button>
-              </>)}
+              {deal.status === 'open' && (
+                <button onClick={() => { setCloseOutcome('won'); setCloseOpen(true); }} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>Close Deal</button>
+              )}
+              {deal.status !== 'open' && (
+                <button onClick={reopenDeal} disabled={reopening} style={{ background: 'var(--s3)', border: '1px solid var(--primary)', color: 'var(--primary)', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: reopening ? 'not-allowed' : 'pointer', opacity: reopening ? 0.6 : 1 }}>{reopening ? 'Re-opening...' : 'Re-open Deal'}</button>
+              )}
               <button onClick={handleDelete} disabled={deleting} style={{ background: 'transparent', border: '1px solid #ef4444', color: '#ef4444', padding: '8px 14px', borderRadius: 8, cursor: deleting ? 'not-allowed' : 'pointer', opacity: deleting ? 0.6 : 1 }}>{deleting ? 'Deleting...' : 'Delete'}</button>
               <button onClick={() => router.back()} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer' }}>Back</button>
             </div>
           </div>
+          {deal.status === 'won' && (
+            <div style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.4)', color: '#10b981', borderRadius: 10, padding: 10, fontSize: 13, fontWeight: 700, marginBottom: 14, textAlign: 'center' }}>
+              ✓ This deal is closed as WON
+            </div>
+          )}
+          {deal.status === 'lost' && (
+            <div style={{ background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.4)', color: '#ef4444', borderRadius: 10, padding: 10, fontSize: 13, fontWeight: 700, marginBottom: 14, textAlign: 'center' }}>
+              ✗ This deal is closed as LOST
+            </div>
+          )}
           {stages.length > 0 && deal.status === 'open' && (
             <div style={{ marginBottom: 14 }}>
               <DealStageProgress stages={stages} currentStageId={deal.stage_id} onMove={moveStage} />
@@ -217,6 +251,27 @@ export default function DealDetailPage() {
         onClose={() => setEditOpen(false)}
         onSaved={(updated) => { setDeal(updated); reload(); }}
       />
+
+      {closeOpen && (
+        <div onClick={(e) => { if (e.target === e.currentTarget) setCloseOpen(false); }} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 22, maxWidth: 460, width: '100%' }}>
+            <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text)', marginBottom: 4 }}>Close Deal</div>
+            <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 14 }}>Mark this deal as won or lost. You can re-open it later if needed.</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
+              <button type="button" onClick={() => setCloseOutcome('won')} style={{ padding: '12px', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer', border: closeOutcome === 'won' ? '2px solid #10b981' : '1px solid var(--border)', background: closeOutcome === 'won' ? 'rgba(16,185,129,0.12)' : 'var(--s3)', color: closeOutcome === 'won' ? '#10b981' : 'var(--text)' }}>✓ Won</button>
+              <button type="button" onClick={() => setCloseOutcome('lost')} style={{ padding: '12px', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer', border: closeOutcome === 'lost' ? '2px solid #ef4444' : '1px solid var(--border)', background: closeOutcome === 'lost' ? 'rgba(239,68,68,0.10)' : 'var(--s3)', color: closeOutcome === 'lost' ? '#ef4444' : 'var(--text)' }}>✗ Lost</button>
+            </div>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 14 }}>
+              <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>Reason {closeOutcome === 'lost' ? '(recommended)' : '(optional)'}</span>
+              <textarea rows={3} value={closeReason} onChange={(e) => setCloseReason(e.target.value)} placeholder={closeOutcome === 'won' ? 'How did we win? (e.g. Pricing, demo, referral)' : 'Why did we lose? (e.g. Budget, competitor, timing)'} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13, resize: 'vertical' }} />
+            </label>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button onClick={() => setCloseOpen(false)} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontSize: 13 }}>Cancel</button>
+              <button onClick={closeDeal} disabled={closing} style={{ background: closeOutcome === 'won' ? '#10b981' : '#ef4444', border: 'none', color: '#fff', padding: '8px 18px', borderRadius: 8, fontWeight: 700, cursor: closing ? 'not-allowed' : 'pointer', fontSize: 13, opacity: closing ? 0.7 : 1 }}>{closing ? 'Closing...' : `Close as ${closeOutcome === 'won' ? 'Won' : 'Lost'}`}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
