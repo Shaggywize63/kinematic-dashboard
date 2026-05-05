@@ -26,6 +26,7 @@ export default function LeadDetailPage() {
   const [deals, setDeals] = useState<Deal[]>([]);
   const [loading, setLoading] = useState(true);
   const [scoring, setScoring] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [convertOpen, setConvertOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
 
@@ -57,6 +58,16 @@ export default function LeadDetailPage() {
     } catch (e: any) { toast.error(e.message || 'Scoring failed'); } finally { setScoring(false); }
   };
 
+  const handleDelete = async () => {
+    if (!window.confirm('Delete this lead? This action cannot be undone.')) return;
+    setDeleting(true);
+    try {
+      await crmLeads.remove(id);
+      toast.success('Lead deleted');
+      router.push('/dashboard/crm/leads');
+    } catch (e: any) { toast.error(e.message || 'Delete failed'); setDeleting(false); }
+  };
+
   if (loading) return <div style={{ padding: 24, color: 'var(--text-dim)' }}>Loading...</div>;
   if (!lead) return <div style={{ padding: 24, color: 'var(--text-dim)' }}>Lead not found.</div>;
 
@@ -84,11 +95,12 @@ export default function LeadDetailPage() {
                   : (lead.title ? `${lead.title}${lead.company ? ` · ${lead.company}` : ''}` : (lead.company || '—'))}
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
               <button onClick={() => setEditOpen(true)} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>Edit</button>
               {!isConverted && (
                 <button onClick={() => setConvertOpen(true)} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>Convert</button>
               )}
+              <button onClick={handleDelete} disabled={deleting} style={{ background: 'var(--s3)', border: '1px solid rgba(239,68,68,0.4)', color: '#ef4444', padding: '8px 14px', borderRadius: 8, cursor: deleting ? 'wait' : 'pointer', fontWeight: 600, opacity: deleting ? 0.7 : 1 }}>{deleting ? 'Deleting…' : 'Delete'}</button>
               <button onClick={() => router.back()} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer' }}>Back</button>
             </div>
           </div>

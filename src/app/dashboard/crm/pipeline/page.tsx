@@ -38,6 +38,11 @@ export default function PipelinePage() {
 
   return (
     <div>
+      <div style={{ marginBottom: 14, padding: '12px 16px', background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 10 }}>
+        <div style={{ fontSize: 13, color: 'var(--text-dim)', lineHeight: 1.6 }}>
+          Visualise open deals across every stage of your sales process. Drag cards to advance deals, spot bottlenecks at a glance, and act on AI-suggested next actions to keep every opportunity moving towards close.
+        </div>
+      </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 8 }}>
         <select value={pipelineId} onChange={(e) => setPipelineId(e.target.value)} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 }}>
           {pipelines.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}

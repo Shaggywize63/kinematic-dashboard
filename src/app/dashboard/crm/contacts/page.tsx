@@ -31,6 +31,11 @@ export default function ContactsListPage() {
 
   return (
     <div>
+      <div style={{ marginBottom: 14, padding: '12px 16px', background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 10 }}>
+        <div style={{ fontSize: 13, color: 'var(--text-dim)', lineHeight: 1.6 }}>
+          Your people directory — individuals associated with leads, accounts, or deals. B2C contacts store consumer profiles with loyalty tiers and consent flags. B2B contacts link to company accounts and carry role and department info.
+        </div>
+      </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 8, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <input placeholder="Search contacts..." value={q} onChange={(e) => setQ(e.target.value)} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13, minWidth: 240 }} />

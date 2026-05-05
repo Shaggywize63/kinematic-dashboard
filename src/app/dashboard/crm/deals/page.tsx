@@ -30,6 +30,11 @@ export default function DealsListPage() {
 
   return (
     <div>
+      <div style={{ marginBottom: 14, padding: '12px 16px', background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 10 }}>
+        <div style={{ fontSize: 13, color: 'var(--text-dim)', lineHeight: 1.6 }}>
+          Revenue opportunities progressing through your sales pipeline. Each deal tracks value, expected close date, and AI-powered win probability so you can forecast accurately and focus effort where it matters most. Use the Pipeline view for a visual kanban of open deals.
+        </div>
+      </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 8, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', gap: 8 }}>
           <input placeholder="Search deals..." value={q} onChange={(e) => setQ(e.target.value)} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13, minWidth: 240 }} />
