@@ -20,6 +20,8 @@ export default function AccountDetailPage() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
   const [editOpen, setEditOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deactivating, setDeactivating] = useState(false);
 
   const reload = async () => {
     if (!id) return;
@@ -42,6 +44,36 @@ export default function AccountDetailPage() {
 
   useEffect(() => { reload(); /* eslint-disable-next-line */ }, [id]);
 
+  const handleDelete = async () => {
+    if (!a) return;
+    if (!window.confirm(`Delete account "${a.name}"? This action cannot be undone.`)) return;
+    setDeleting(true);
+    try {
+      await crmAccounts.remove(a.id);
+      toast.success('Account deleted');
+      router.refresh();
+      router.push('/dashboard/crm/accounts');
+    } catch (e: any) {
+      toast.error(e.message || 'Delete failed');
+      setDeleting(false);
+    }
+  };
+
+  const handleDeactivate = async () => {
+    if (!a) return;
+    if (!window.confirm(`Deactivate account "${a.name}"? It will be hidden from active views.`)) return;
+    setDeactivating(true);
+    try {
+      await crmAccounts.update(a.id, { is_active: false } as any);
+      toast.success('Account deactivated');
+      reload();
+    } catch (e: any) {
+      toast.error(e.message || 'Deactivate failed');
+    } finally {
+      setDeactivating(false);
+    }
+  };
+
   if (loading) return <div style={{ color: 'var(--text-dim)' }}>Loading...</div>;
   if (!a) return <div style={{ color: 'var(--text-dim)' }}>Account not found.</div>;
 
@@ -57,8 +89,10 @@ export default function AccountDetailPage() {
               <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)' }}>{a.name}</div>
               {a.website && <a href={a.website} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: 'var(--accent, var(--primary))' }}>{a.website}</a>}
             </div>
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <button onClick={() => setEditOpen(true)} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>Edit</button>
+              <button onClick={handleDeactivate} disabled={deactivating} style={{ background: 'transparent', border: '1px solid var(--text-dim)', color: 'var(--text-dim)', padding: '8px 14px', borderRadius: 8, cursor: deactivating ? 'not-allowed' : 'pointer', opacity: deactivating ? 0.6 : 1 }}>{deactivating ? 'Deactivating...' : 'Deactivate'}</button>
+              <button onClick={handleDelete} disabled={deleting} style={{ background: 'transparent', border: '1px solid #ef4444', color: '#ef4444', padding: '8px 14px', borderRadius: 8, cursor: deleting ? 'not-allowed' : 'pointer', opacity: deleting ? 0.6 : 1 }}>{deleting ? 'Deleting...' : 'Delete'}</button>
               <button onClick={() => router.back()} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer' }}>Back</button>
             </div>
           </div>

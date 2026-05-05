@@ -1,9 +1,10 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { crmLeads, crmAi } from '../../../../../lib/crmApi';
+import api from '../../../../../lib/api';
 import type { Lead, Activity, Deal, LeadScore, NextBestAction } from '../../../../../types/crm';
 import LeadScoreBreakdown from '../../../../../components/crm/LeadScoreBreakdown';
 import NextBestActionCard from '../../../../../components/crm/NextBestActionCard';
@@ -14,6 +15,8 @@ import OwnerAvatar from '../../../../../components/crm/shared/OwnerAvatar';
 import WhatsAppButton from '../../../../../components/crm/shared/WhatsAppButton';
 import LeadEditModal from '../../../../../components/crm/LeadEditModal';
 import { formatINR } from '../../../../../lib/formatCurrency';
+
+type UserOption = { id: string; name: string };
 
 export default function LeadDetailPage() {
   const params = useParams<{ id: string }>();
@@ -26,9 +29,14 @@ export default function LeadDetailPage() {
   const [deals, setDeals] = useState<Deal[]>([]);
   const [loading, setLoading] = useState(true);
   const [scoring, setScoring] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   const [convertOpen, setConvertOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deactivating, setDeactivating] = useState(false);
+  const [assignOpen, setAssignOpen] = useState(false);
+  const [users, setUsers] = useState<UserOption[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const assignRef = useRef<HTMLDivElement>(null);
 
   const reload = async () => {
     if (!id) return;
@@ -47,6 +55,15 @@ export default function LeadDetailPage() {
 
   useEffect(() => { reload(); /* eslint-disable-next-line */ }, [id]);
 
+  useEffect(() => {
+    if (!assignOpen) return;
+    const handleClick = (e: MouseEvent) => {
+      if (assignRef.current && !assignRef.current.contains(e.target as Node)) setAssignOpen(false);
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [assignOpen]);
+
   const reScore = async () => {
     if (!id) return;
     setScoring(true);
@@ -59,13 +76,59 @@ export default function LeadDetailPage() {
   };
 
   const handleDelete = async () => {
+    if (!lead) return;
     if (!window.confirm('Delete this lead? This action cannot be undone.')) return;
     setDeleting(true);
     try {
-      await crmLeads.remove(id);
+      await crmLeads.remove(lead.id);
       toast.success('Lead deleted');
+      router.refresh();
       router.push('/dashboard/crm/leads');
-    } catch (e: any) { toast.error(e.message || 'Delete failed'); setDeleting(false); }
+    } catch (e: any) {
+      toast.error(e.message || 'Delete failed');
+      setDeleting(false);
+    }
+  };
+
+  const handleDeactivate = async () => {
+    if (!lead) return;
+    if (lead.status === 'converted') return toast.error('Cannot deactivate a converted lead');
+    if (!window.confirm('Mark this lead as unqualified/inactive?')) return;
+    setDeactivating(true);
+    try {
+      const updated = await crmLeads.update(lead.id, { status: 'unqualified' } as any);
+      setLead(updated.data);
+      toast.success('Lead deactivated');
+    } catch (e: any) {
+      toast.error(e.message || 'Deactivate failed');
+    } finally {
+      setDeactivating(false);
+    }
+  };
+
+  const loadUsers = async () => {
+    if (users.length > 0 || usersLoading) return;
+    setUsersLoading(true);
+    try {
+      const r = await api.getUsers() as any;
+      const list: UserOption[] = (r.data || r || []).map((u: any) => ({
+        id: u.id,
+        name: u.name || u.full_name || u.email || 'User',
+      }));
+      setUsers(list);
+    } catch { setUsers([]); } finally { setUsersLoading(false); }
+  };
+
+  const handleAssign = async (userId: string, userName: string) => {
+    if (!lead) return;
+    try {
+      const updated = await crmLeads.update(lead.id, { owner_id: userId } as any);
+      setLead(updated.data);
+      toast.success(`Assigned to ${userName}`);
+      setAssignOpen(false);
+    } catch (e: any) {
+      toast.error(e.message || 'Assign failed');
+    }
   };
 
   if (loading) return <div style={{ padding: 24, color: 'var(--text-dim)' }}>Loading...</div>;
@@ -76,6 +139,7 @@ export default function LeadDetailPage() {
   const waPrefill = `Hi ${firstName}, `;
   const isB2C = !!lead.is_b2c;
   const isConverted = lead.status === 'converted' || !!lead.converted_at;
+  const isUnqualified = lead.status === 'unqualified';
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(280px, 1fr)', gap: 18 }}>
@@ -84,10 +148,11 @@ export default function LeadDetailPage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 14 }}>
             <OwnerAvatar name={fullName} size={52} />
             <div style={{ flex: 1 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)' }}>{fullName}</div>
                 <Badge tone={isB2C ? 'consumer' : 'business'}>{isB2C ? 'B2C' : 'B2B'}</Badge>
                 {isConverted && <Badge tone="success">Converted</Badge>}
+                {isUnqualified && <Badge tone="muted">Inactive</Badge>}
               </div>
               <div style={{ fontSize: 13, color: 'var(--text-dim)' }}>
                 {isB2C
@@ -100,7 +165,37 @@ export default function LeadDetailPage() {
               {!isConverted && (
                 <button onClick={() => setConvertOpen(true)} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>Convert</button>
               )}
-              <button onClick={handleDelete} disabled={deleting} style={{ background: 'var(--s3)', border: '1px solid rgba(239,68,68,0.4)', color: '#ef4444', padding: '8px 14px', borderRadius: 8, cursor: deleting ? 'wait' : 'pointer', fontWeight: 600, opacity: deleting ? 0.7 : 1 }}>{deleting ? 'Deleting…' : 'Delete'}</button>
+              <div ref={assignRef} style={{ position: 'relative' }}>
+                <button
+                  onClick={() => { setAssignOpen((o) => !o); loadUsers(); }}
+                  style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer' }}
+                >
+                  Assign
+                </button>
+                {assignOpen && (
+                  <div style={{ position: 'absolute', top: 'calc(100% + 4px)', right: 0, background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.2)', zIndex: 200, minWidth: 180, maxHeight: 240, overflowY: 'auto' }}>
+                    {usersLoading && <div style={{ padding: '10px 14px', fontSize: 12, color: 'var(--text-dim)' }}>Loading users...</div>}
+                    {!usersLoading && users.length === 0 && <div style={{ padding: '10px 14px', fontSize: 12, color: 'var(--text-dim)' }}>No users found</div>}
+                    {users.map((u) => (
+                      <button
+                        key={u.id}
+                        onClick={() => handleAssign(u.id, u.name)}
+                        style={{ width: '100%', display: 'block', padding: '10px 14px', background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)', color: 'var(--text)', textAlign: 'left', cursor: 'pointer', fontSize: 13 }}
+                      >
+                        {u.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {!isUnqualified && !isConverted && (
+                <button onClick={handleDeactivate} disabled={deactivating} style={{ background: 'transparent', border: '1px solid var(--text-dim)', color: 'var(--text-dim)', padding: '8px 14px', borderRadius: 8, cursor: deactivating ? 'not-allowed' : 'pointer', opacity: deactivating ? 0.6 : 1 }}>
+                  {deactivating ? '...' : 'Deactivate'}
+                </button>
+              )}
+              <button onClick={handleDelete} disabled={deleting} style={{ background: 'transparent', border: '1px solid #ef4444', color: '#ef4444', padding: '8px 14px', borderRadius: 8, cursor: deleting ? 'not-allowed' : 'pointer', opacity: deleting ? 0.6 : 1 }}>
+                {deleting ? 'Deleting...' : 'Delete'}
+              </button>
               <button onClick={() => router.back()} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer' }}>Back</button>
             </div>
           </div>
@@ -216,11 +311,12 @@ function PhoneField({ phone, prefill }: { phone?: string | null; prefill: string
   );
 }
 
-function Badge({ children, tone }: { children: React.ReactNode; tone: 'business' | 'consumer' | 'success' }) {
+function Badge({ children, tone }: { children: React.ReactNode; tone: 'business' | 'consumer' | 'success' | 'muted' }) {
   const colors = {
     business: { bg: '#3b82f6', fg: '#fff' },
     consumer: { bg: '#8b5cf6', fg: '#fff' },
     success: { bg: '#10b981', fg: '#fff' },
+    muted: { bg: 'var(--s3)', fg: 'var(--text-dim)' },
   }[tone];
   return (
     <span style={{ background: colors.bg, color: colors.fg, fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 5, textTransform: 'uppercase', letterSpacing: 0.4 }}>{children}</span>
