@@ -6,6 +6,7 @@ import type { Deal, Stage } from '../../types/crm';
 import { crmDeals } from '../../lib/crmApi';
 import { useCrmKanbanStore } from '../../stores/crmKanbanStore';
 import DealCard from './DealCard';
+import { formatINR } from '../../lib/formatCurrency';
 
 function StageColumn({ stage, deals }: { stage: Stage; deals: Deal[] }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
@@ -29,7 +30,7 @@ function StageColumn({ stage, deals }: { stage: Stage; deals: Deal[] }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, padding: '4px 6px' }}>
         <div>
           <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{stage.name}</div>
-          <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{deals.length} · ${total.toLocaleString()}</div>
+          <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{deals.length} · {formatINR(total)}</div>
         </div>
       </div>
       <div style={{ overflowY: 'auto', flex: 1 }}>

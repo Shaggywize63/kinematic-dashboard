@@ -304,7 +304,7 @@ export interface FunnelPoint { stage: string; count: number; value: number; }
 export interface PipelineValuePoint { stage: string; value: number; count: number; color?: string; }
 export interface WinRatePoint { bucket: string; won: number; lost: number; rate: number; }
 export interface ForecastPoint { period: string; committed: number; best_case: number; pipeline: number; closed: number; }
-export interface ActivityHeatPoint { day: string; hour: number; value: number; }
+export interface ActivityHeatPoint { date: string; count: number; }
 export interface SourceROIRow { source: string; leads: number; deals: number; revenue: number; cost: number; roi: number; }
 export interface ScoreDistributionPoint { bucket: string; count: number; grade: 'A' | 'B' | 'C' | 'D'; }
 

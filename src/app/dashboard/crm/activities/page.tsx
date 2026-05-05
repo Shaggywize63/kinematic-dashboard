@@ -17,18 +17,40 @@ export default function ActivitiesPage() {
   const [loading, setLoading] = useState(true);
   const [type, setType] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  const reload = async () => {
+    setLoading(true);
+    try {
+      const r = await crmActivities.list();
+      setActivities(r.data || []);
+    } catch (e: any) { toast.error(e.message || 'Failed'); } finally { setLoading(false); }
+  };
 
   useEffect(() => {
     const user = getStoredUser();
     if (user && canAccess(user.role, ['sub_admin'])) setIsAdmin(true);
-
-    (async () => {
-      try {
-        const r = await crmActivities.list();
-        setActivities(r.data || []);
-      } catch (e: any) { toast.error(e.message || 'Failed'); } finally { setLoading(false); }
-    })();
+    reload();
   }, []);
+
+  const updateStatus = async (a: Activity, status: string) => {
+    setBusyId(a.id);
+    try {
+      const payload: Record<string, unknown> = { status };
+      if (status === 'completed' || status === 'done') {
+        payload.completed_at = new Date().toISOString();
+      } else {
+        payload.completed_at = null;
+      }
+      await crmActivities.update(a.id, payload as any);
+      toast.success(`Marked ${status.replace('_', ' ')}`);
+      reload();
+    } catch (e: any) {
+      toast.error(e.message || 'Update failed');
+    } finally {
+      setBusyId(null);
+    }
+  };
 
   const filtered = type ? activities.filter((a) => a.type === type) : activities;
 
@@ -126,6 +148,30 @@ export default function ActivitiesPage() {
                     <span>{new Date(a.created_at).toLocaleDateString()}</span>
                   </div>
                 </div>
+
+                {/* Status change actions */}
+                <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
+                  {!a.completed_at && (
+                    <button onClick={() => updateStatus(a, 'completed')} disabled={busyId === a.id} style={btnGreen}>
+                      ✓ Mark Complete
+                    </button>
+                  )}
+                  {(a as any).status !== 'in_progress' && !a.completed_at && (
+                    <button onClick={() => updateStatus(a, 'in_progress')} disabled={busyId === a.id} style={btnAmber}>
+                      ▶ In Progress
+                    </button>
+                  )}
+                  {a.completed_at && (
+                    <button onClick={() => updateStatus(a, 'open')} disabled={busyId === a.id} style={btnGhost}>
+                      ↺ Reopen
+                    </button>
+                  )}
+                  {(a as any).status !== 'cancelled' && !a.completed_at && (
+                    <button onClick={() => updateStatus(a, 'cancelled')} disabled={busyId === a.id} style={btnGray}>
+                      ✕ Cancel
+                    </button>
+                  )}
+                </div>
               </div>
             );
           })}
@@ -134,3 +180,9 @@ export default function ActivitiesPage() {
     </div>
   );
 }
+
+const btnBase: React.CSSProperties = { padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer', background: 'transparent' };
+const btnGreen: React.CSSProperties = { ...btnBase, border: '1px solid #10b981', color: '#10b981' };
+const btnAmber: React.CSSProperties = { ...btnBase, border: '1px solid #f59e0b', color: '#f59e0b' };
+const btnGhost: React.CSSProperties = { ...btnBase, border: '1px solid var(--border)', color: 'var(--text-dim)' };
+const btnGray: React.CSSProperties = { ...btnBase, border: '1px solid var(--text-dim)', color: 'var(--text-dim)' };
