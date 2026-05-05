@@ -19,7 +19,7 @@ export default function CustomFieldsPage() {
   const [fieldType, setFieldType] = useState<CustomField['field_type']>('text');
   const [optionsRaw, setOptionsRaw] = useState('');
   const [required, setRequired] = useState(false);
-  const [filter, setFilter] = useState<'all' | CustomField['entity']>('all');
+  const [filter, setFilter] = useState<'all' | CustomField['entity']>('lead');
 
   const reload = async () => {
     setLoading(true);
@@ -35,20 +35,25 @@ export default function CustomFieldsPage() {
   const create = async () => {
     if (!fieldKey.trim() || !label.trim()) return toast.error('Field key and label are required');
     if (!/^[a-z][a-z0-9_]*$/.test(fieldKey.trim())) return toast.error('Key must be lowercase, start with a letter, use only a-z 0-9 and _');
+    if (items.some((i) => i.entity === entity && i.field_key === fieldKey.trim())) {
+      return toast.error(`A field with key "${fieldKey.trim()}" already exists for ${entity}`);
+    }
     const needsOptions = fieldType === 'select' || fieldType === 'multiselect';
-    const options = needsOptions ? optionsRaw.split(',').map((s) => s.trim()).filter(Boolean) : null;
-    if (needsOptions && (!options || options.length === 0)) return toast.error('Add at least one option');
+    const parsedOptions = needsOptions ? optionsRaw.split(',').map((s) => s.trim()).filter(Boolean) : undefined;
+    if (needsOptions && (!parsedOptions || parsedOptions.length === 0)) return toast.error('Add at least one option for select/multiselect');
     setCreating(true);
+    const payload: Record<string, unknown> = {
+      entity, field_key: fieldKey.trim(), label: label.trim(),
+      field_type: fieldType, required,
+      position: items.filter((i) => i.entity === entity).length,
+    };
+    if (parsedOptions !== undefined) payload.options = parsedOptions;
     try {
-      await crmCustomFields.create({
-        entity, field_key: fieldKey.trim(), label: label.trim(),
-        field_type: fieldType, options, required,
-        position: items.filter((i) => i.entity === entity).length,
-      } as any);
-      toast.success('Custom field added');
+      await crmCustomFields.create(payload as any);
+      toast.success(`Custom field "${label.trim()}" added to ${entity}`);
       setFieldKey(''); setLabel(''); setOptionsRaw(''); setRequired(false);
       reload();
-    } catch (e: any) { toast.error(e.message || 'Create failed'); }
+    } catch (e: any) { toast.error(e.message || 'Create failed — check API connection'); }
     finally { setCreating(false); }
   };
 
@@ -73,7 +78,7 @@ export default function CustomFieldsPage() {
           Adds an extra field to lead, contact, account, or deal records. Field key is the API identifier — use lowercase + underscores only.
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 8, marginBottom: 8 }}>
-          <select value={entity} onChange={(e) => setEntity(e.target.value as CustomField['entity'])} style={input}>
+          <select value={entity} onChange={(e) => { setEntity(e.target.value as CustomField['entity']); setFilter(e.target.value as CustomField['entity']); }} style={input}>
             {ENTITIES.map((e) => <option key={e} value={e}>{e[0].toUpperCase() + e.slice(1)}</option>)}
           </select>
           <input value={fieldKey} onChange={(e) => setFieldKey(e.target.value.toLowerCase())} placeholder="field_key (e.g. tax_id)" style={input} />
@@ -90,7 +95,21 @@ export default function CustomFieldsPage() {
             <input type="checkbox" checked={required} onChange={(e) => setRequired(e.target.checked)} /> Required
           </label>
         </div>
-        <button onClick={create} disabled={creating} style={btnPrimary}>{creating ? 'Adding...' : '+ Add Field'}</button>
+        <button onClick={create} disabled={creating} style={btnPrimary}>{creating ? 'Adding…' : '+ Add Field'}</button>
+        {items.filter((i) => i.entity === entity).length > 0 && (
+          <div style={{ marginTop: 14, padding: 10, background: 'var(--s3)', borderRadius: 8 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', marginBottom: 6 }}>
+              Existing fields for {entity[0].toUpperCase() + entity.slice(1)} ({items.filter((i) => i.entity === entity).length})
+            </div>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {items.filter((i) => i.entity === entity).map((f) => (
+                <span key={f.id} style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 6, padding: '3px 8px', fontSize: 11, color: 'var(--text)' }}>
+                  <code style={{ fontSize: 10 }}>{f.field_key}</code> · {f.field_type}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>

@@ -6,8 +6,9 @@ import { crmLeads, crmSettings, crmLeadSources } from '../../../../../lib/crmApi
 import api from '../../../../../lib/api';
 import type { BusinessType, LeadSource } from '../../../../../types/crm';
 import LocationPicker from '../../../../../components/crm/LocationPicker';
+import UserSearchSelect, { type UserOption } from '../../../../../components/crm/shared/UserSearchSelect';
 
-type UserOpt = { id: string; name: string };
+type UserOpt = UserOption;
 
 type Form = {
   first_name: string; last_name: string; email: string; phone: string;
@@ -155,10 +156,13 @@ export default function NewLeadPage() {
           </label>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>Assign To</span>
-            <select value={form.owner_id} onChange={(e) => setForm({ ...form, owner_id: e.target.value })} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 }}>
-              <option value="">— Unassigned (auto-route by rules) —</option>
-              {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-            </select>
+            <UserSearchSelect
+              options={users}
+              value={form.owner_id}
+              onChange={(id) => setForm({ ...form, owner_id: id })}
+              placeholder="Search team member…"
+              emptyLabel="Unassigned (auto-route by rules)"
+            />
           </label>
         </div>
       </Section>
