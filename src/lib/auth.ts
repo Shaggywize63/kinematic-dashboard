@@ -52,7 +52,34 @@ export function getRoleLabel(role: string): string {
   return labels[role] || role;
 }
 
+function normalizeRole(role: string): string {
+  return (role || '').toLowerCase().trim().replace(/-/g, '_');
+}
+
+// Power hierarchy (low → high). Higher roles inherit access to lower-role content.
+// 'client' is intentionally excluded — it is an external category, not staff.
+const ROLE_HIERARCHY = [
+  'field_executive',
+  'supervisor',
+  'city_manager',
+  'program_manager',
+  'hr',
+  'sub_admin',
+  'main_admin',
+  'admin',
+  'super_admin',
+];
+
 export function canAccess(userRole: string, requiredRoles: string[]): boolean {
-  const hierarchy = ['field_executive','supervisor','city_manager','program_manager','hr','admin','super_admin','client'];
-  return requiredRoles.some(r => r === userRole);
+  const role = normalizeRole(userRole);
+  const required = requiredRoles.map(normalizeRole);
+  if (required.includes(role)) return true;
+
+  const userLevel = ROLE_HIERARCHY.indexOf(role);
+  if (userLevel === -1) return false;
+
+  return required.some(r => {
+    const reqLevel = ROLE_HIERARCHY.indexOf(r);
+    return reqLevel !== -1 && userLevel >= reqLevel;
+  });
 }

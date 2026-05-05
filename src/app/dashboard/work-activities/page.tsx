@@ -111,6 +111,15 @@ function renderAnswerValue(
   return String(value);
 }
 
+// Backend treats date_to as exclusive; bump it by one day so end-date submissions are included.
+function dateToInclusive(iso: string): string {
+  if (!iso) return iso;
+  const d = new Date(`${iso}T00:00:00`);
+  if (isNaN(d.getTime())) return iso;
+  d.setDate(d.getDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
 function calcDuration(start?: string, end?: string) {
   if (!start || !end) return null;
   const s = new Date(start).getTime();
@@ -174,7 +183,7 @@ export default function WorkActivitiesPage() {
         limit: String(LIMIT),
         client_id: selectedClientId || 'Kinematic',
         date_from: dateFrom,
-        date_to: dateTo,
+        date_to: dateToInclusive(dateTo),
         search,
         user_id: userFilter,
         city_id: cityFilter,
@@ -214,7 +223,7 @@ export default function WorkActivitiesPage() {
         const params: any = {
             client_id: selectedClientId || 'Kinematic',
             date_from: dateFrom,
-            date_to: dateTo,
+            date_to: dateToInclusive(dateTo),
             search,
             user_id: userFilter,
             city_id: cityFilter,

@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import api from '../../../lib/api';
+import { getStoredUser, canAccess } from '../../../lib/auth';
 
 const C = {
   red: '#E01E2C', 
@@ -34,7 +35,10 @@ const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
   dismissed:    { bg:'rgba(122,139,160,0.08)', color:'#7A8BA0' },
 };
 
+const ALLOWED_ROLES = ['hr', 'sub_admin', 'main_admin', 'admin', 'super_admin'];
+
 export default function GrievancesPage() {
+  const [authorized, setAuthorized] = useState<boolean | null>(null);
   const [grievances, setGrievances] = useState<Grievance[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -43,6 +47,11 @@ export default function GrievancesPage() {
   const [remarks, setRemarks] = useState('');
   const [updating, setUpdating] = useState(false);
   const [filter, setFilter] = useState('all');
+
+  useEffect(() => {
+    const u = getStoredUser();
+    setAuthorized(!!u && canAccess(u.role || '', ALLOWED_ROLES));
+  }, []);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -59,7 +68,21 @@ export default function GrievancesPage() {
     }
   }, []);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => { if (authorized) fetchData(); }, [fetchData, authorized]);
+
+  if (authorized === null) {
+    return <div style={{ padding: 48, textAlign: 'center', color: C.grayd, fontSize: 14 }}>Loading...</div>;
+  }
+  if (!authorized) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 400, gap: 12, padding: 48 }}>
+        <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 22, fontWeight: 800 }}>Not authorized</div>
+        <div style={{ fontSize: 14, color: C.gray, textAlign: 'center', maxWidth: 420 }}>
+          The grievance management panel is restricted to HR and admin users. If you need access, please contact your administrator.
+        </div>
+      </div>
+    );
+  }
 
   const updateStatus = async () => {
     if (!selected || !newStatus) return;

@@ -1,4 +1,4 @@
-import api from './api';
+import api, { resolveApiUrl } from './api';
 import type {
   Lead, Contact, Account, Deal, DealContact, DealHistoryEntry,
   Pipeline, Stage, Activity, Note, Task,
@@ -160,7 +160,7 @@ export const crmImport = {
     const headers: Record<string, string> = {};
     if (token) headers.Authorization = `Bearer ${token}`;
     if (orgId) headers['X-Org-Id'] = orgId;
-    return fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}${BASE}/import/upload`, {
+    return fetch(`${resolveApiUrl()}${BASE}/import/upload`, {
       method: 'POST',
       body: formData,
       headers,
