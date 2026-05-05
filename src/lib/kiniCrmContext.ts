@@ -6,7 +6,7 @@ export function isCrmRoute(pathname: string): boolean {
 
 export function inferEntity(pathname: string): { type: string; id?: string } | null {
   // /dashboard/crm/leads/[id] -> lead
-  const m = pathname.match(/\/dashboard\/crm\/(leads|contacts|accounts|deals|campaigns)\/([^/]+)/);
+  const m = pathname.match(/\/dashboard\/crm\/(leads|contacts|accounts|deals)\/([^/]+)/);
   if (m) {
     const t = m[1].replace(/s$/, '');
     return { type: t, id: m[2] === 'new' || m[2] === 'import' ? undefined : m[2] };

@@ -3,7 +3,6 @@
 export type LeadStatus = 'new' | 'working' | 'qualified' | 'unqualified' | 'converted';
 export type DealStatus = 'open' | 'won' | 'lost';
 export type ActivityType = 'call' | 'email' | 'meeting' | 'task' | 'note' | 'sms' | 'whatsapp';
-export type CampaignStatus = 'draft' | 'active' | 'paused' | 'completed';
 export type WhatsappStatus = 'queued' | 'sent' | 'delivered' | 'read' | 'failed' | 'received' | 'replied';
 export type WhatsappDirection = 'outbound' | 'inbound';
 export type BusinessType = 'b2b' | 'b2c' | 'both';
@@ -218,15 +217,6 @@ export interface AssignmentRule {
 export interface Territory {
   id: string; org_id: string; name: string; description?: string | null;
   parent_id?: string | null; manager_id?: string | null; created_at: string;
-}
-
-export interface Campaign {
-  id: string; org_id: string; name: string; type?: string | null;
-  status: CampaignStatus; start_date?: string | null; end_date?: string | null;
-  budget?: number | null; spent?: number | null;
-  expected_revenue?: number | null; actual_revenue?: number | null;
-  target_audience?: string | null; description?: string | null;
-  created_at: string; updated_at: string;
 }
 
 export interface Automation {
