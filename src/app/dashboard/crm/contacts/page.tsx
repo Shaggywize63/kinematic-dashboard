@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { crmContacts } from '../../../../lib/crmApi';
+import { crmContacts, crmSettings } from '../../../../lib/crmApi';
 import type { Contact } from '../../../../types/crm';
 import ContactsTable from '../../../../components/crm/ContactsTable';
 import { useCrmLocationFilter } from '../../../../stores/crmLocationFilterStore';
@@ -11,21 +11,28 @@ export default function ContactsListPage() {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState('');
+  const [isB2C, setIsB2C] = useState(false);
   const { state: locState, city: locCity } = useCrmLocationFilter();
 
+  const reload = async () => {
+    setLoading(true);
+    try {
+      const params: Record<string, string> = {};
+      if (locState) params.state = locState;
+      if (locCity) params.city = locCity;
+      const r = await crmContacts.list(params);
+      setContacts(r.data || []);
+    }
+    catch (e: any) { toast.error(e.message || 'Failed to load'); } finally { setLoading(false); }
+  };
+
+  useEffect(() => { reload(); /* eslint-disable-next-line */ }, [locState, locCity]);
+
   useEffect(() => {
-    (async () => {
-      setLoading(true);
-      try {
-        const params: Record<string, string> = {};
-        if (locState) params.state = locState;
-        if (locCity) params.city = locCity;
-        const r = await crmContacts.list(params);
-        setContacts(r.data || []);
-      }
-      catch (e: any) { toast.error(e.message || 'Failed to load'); } finally { setLoading(false); }
-    })();
-  }, [locState, locCity]);
+    crmSettings.get().then((r) => {
+      if (r.data?.business_type === 'b2c') setIsB2C(true);
+    }).catch(() => {});
+  }, []);
 
   const filtered = contacts.filter((c) => !q || `${c.full_name || ''} ${c.email || ''} ${c.account_name || ''}`.toLowerCase().includes(q.toLowerCase()));
 
@@ -48,7 +55,16 @@ export default function ContactsListPage() {
         <Link href="/dashboard/crm/contacts/import" style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>⬆ Bulk Import</Link>
         <Link href="/dashboard/crm/contacts/new" style={{ background: 'var(--primary)', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>+ New Contact</Link>
       </div>
-      <ContactsTable contacts={filtered} loading={loading} />
+      <ContactsTable
+        contacts={filtered}
+        loading={loading}
+        isB2C={isB2C}
+        onAssign={async (contactId, userId) => {
+          await crmContacts.update(contactId, { owner_id: userId } as any);
+          toast.success(userId ? 'Contact reassigned' : 'Contact unassigned');
+          reload();
+        }}
+      />
     </div>
   );
 }

@@ -57,7 +57,7 @@ export default function TasksPage() {
     try {
       await crmTasks.create({
         subject: newSubject.trim(),
-        due_at: newDue || undefined,
+        due_at: newDue ? new Date(newDue).toISOString() : undefined,
         assigned_to: newAssignee || undefined,
         priority: newPriority,
         status: 'open',

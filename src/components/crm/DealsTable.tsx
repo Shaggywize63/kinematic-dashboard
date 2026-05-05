@@ -2,10 +2,16 @@
 import Link from 'next/link';
 import type { Deal } from '../../types/crm';
 import StageBadge from './shared/StageBadge';
-import OwnerAvatar from './shared/OwnerAvatar';
+import InlineOwnerAssign from './shared/InlineOwnerAssign';
 import { formatINR } from '../../lib/formatCurrency';
 
-export default function DealsTable({ deals, loading }: { deals: Deal[]; loading?: boolean }) {
+interface Props {
+  deals: Deal[];
+  loading?: boolean;
+  onAssign?: (dealId: string, userId: string | null) => Promise<void>;
+}
+
+export default function DealsTable({ deals, loading, onAssign }: Props) {
   const td: React.CSSProperties = { padding: '12px 14px', fontSize: 13, color: 'var(--text)', borderBottom: '1px solid var(--border)' };
   const th: React.CSSProperties = { padding: '10px 14px', fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', textAlign: 'left', borderBottom: '1px solid var(--border)', background: 'var(--s2)', fontWeight: 700, letterSpacing: 0.6 };
   return (
@@ -24,7 +30,17 @@ export default function DealsTable({ deals, loading }: { deals: Deal[]; loading?
                 <td style={td}><StageBadge name={d.stage_name} won={d.status === 'won'} lost={d.status === 'lost'} /></td>
                 <td style={td}><span style={{ textTransform: 'capitalize' }}>{d.status}</span></td>
                 <td style={td}>{d.expected_close_date ? new Date(d.expected_close_date).toLocaleDateString() : '—'}</td>
-                <td style={td}><div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><OwnerAvatar name={d.owner_name} size={24} /><span style={{ fontSize: 12 }}>{d.owner_name || 'Unassigned'}</span></div></td>
+                <td style={td}>
+                  {onAssign ? (
+                    <InlineOwnerAssign
+                      currentOwnerId={d.owner_id}
+                      currentOwnerName={d.owner_name}
+                      onAssign={(uid) => onAssign(d.id, uid)}
+                    />
+                  ) : (
+                    <span style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12 }}>{d.owner_name || 'Unassigned'}</span>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>

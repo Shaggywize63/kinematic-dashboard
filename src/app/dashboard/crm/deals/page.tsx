@@ -14,13 +14,13 @@ export default function DealsListPage() {
   const [status, setStatus] = useState('');
   const range = useCrmDateRange((s) => ({ from: s.from, to: s.to }));
 
-  useEffect(() => {
+  const reload = async () => {
     setLoading(true);
-    (async () => {
-      try { const r = await crmDeals.list(range); setDeals(r.data || []); }
-      catch (e: any) { toast.error(e.message || 'Failed to load'); } finally { setLoading(false); }
-    })();
-  }, [range.from, range.to]);
+    try { const r = await crmDeals.list(range); setDeals(r.data || []); }
+    catch (e: any) { toast.error(e.message || 'Failed to load'); } finally { setLoading(false); }
+  };
+
+  useEffect(() => { reload(); /* eslint-disable-next-line */ }, [range.from, range.to]);
 
   const filtered = deals.filter((d) => {
     if (q && !`${d.name} ${d.account_name || ''}`.toLowerCase().includes(q.toLowerCase())) return false;
@@ -44,7 +44,15 @@ export default function DealsListPage() {
         </div>
         <Link href="/dashboard/crm/deals/new" style={{ background: 'var(--primary)', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700 }}>+ New Deal</Link>
       </div>
-      <DealsTable deals={filtered} loading={loading} />
+      <DealsTable
+        deals={filtered}
+        loading={loading}
+        onAssign={async (dealId, userId) => {
+          await crmDeals.update(dealId, { owner_id: userId } as any);
+          toast.success(userId ? 'Deal reassigned' : 'Deal unassigned');
+          reload();
+        }}
+      />
     </div>
   );
 }
