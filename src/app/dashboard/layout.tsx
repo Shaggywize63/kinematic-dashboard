@@ -345,6 +345,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   useEffect(() => { if (isMobile) setDrawerOpen(false); }, [pathname, isMobile]);
 
   const isPlatformAdmin = (() => {
+    // Client-level users (their JWT pins them to one client) never see the global picker —
+    // they're already scoped server-side and the picker would just confuse them.
+    if ((user as any)?.client_id) return false;
     const role = (userRole || '').toLowerCase().trim().replace(/-/g, '_');
     const name = (user?.name || '').toLowerCase().trim();
     return ['super_admin', 'admin', 'main_admin', 'sub_admin', 'master_admin'].includes(role) ||
