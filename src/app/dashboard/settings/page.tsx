@@ -52,7 +52,7 @@ const ROLE_DEFAULTS: Record<string, string[]> = {
 // Module catalog — single source of truth. Any new module added here flows
 // through the settings UI grid + ROLE_DEFAULTS. Group is purely for visual
 // sectioning in the permissions form.
-interface ModuleEntry { id: string; l: string; group: 'Core' | 'Operations' | 'Business' | 'Distribution' | 'People' | 'System'; }
+interface ModuleEntry { id: string; l: string; group: 'Core' | 'Operations' | 'Business' | 'Distribution' | 'CRM' | 'People' | 'System'; }
 const ALL_MODULES: ModuleEntry[] = [
   // Core
   { id: 'analytics',                 l: 'Analytics',          group: 'Core' },
@@ -83,6 +83,20 @@ const ALL_MODULES: ModuleEntry[] = [
   { id: 'distribution_returns',      l: 'Returns',            group: 'Distribution' },
   { id: 'distribution_ledger',       l: 'Ledger',             group: 'Distribution' },
   { id: 'distribution_consumer',     l: 'Consumer',           group: 'Distribution' },
+  // CRM (umbrella + sub-modules — granular control per area)
+  { id: 'crm',                       l: 'CRM (all)',          group: 'CRM' },
+  { id: 'crm_dashboard',             l: 'CRM Dashboard',      group: 'CRM' },
+  { id: 'crm_leads',                 l: 'Leads',              group: 'CRM' },
+  { id: 'crm_contacts',              l: 'Contacts',           group: 'CRM' },
+  { id: 'crm_accounts',              l: 'Accounts',           group: 'CRM' },
+  { id: 'crm_deals',                 l: 'Deals',              group: 'CRM' },
+  { id: 'crm_pipeline',              l: 'Pipeline',           group: 'CRM' },
+  { id: 'crm_products',              l: 'CRM Products',       group: 'CRM' },
+  { id: 'crm_activities',            l: 'CRM Activities',     group: 'CRM' },
+  { id: 'crm_tasks',                 l: 'CRM Tasks',          group: 'CRM' },
+  { id: 'crm_whatsapp',              l: 'CRM WhatsApp',       group: 'CRM' },
+  { id: 'crm_reports',               l: 'CRM Reports',        group: 'CRM' },
+  { id: 'crm_settings',              l: 'CRM Settings',       group: 'CRM' },
   // People
   { id: 'broadcast',                 l: 'Broadcast',          group: 'People' },
   { id: 'users',                     l: 'Manpower',           group: 'People' },
@@ -95,7 +109,7 @@ const ALL_MODULES: ModuleEntry[] = [
   { id: 'settings',                  l: 'Settings',           group: 'System' },
 ];
 
-const MODULE_GROUPS: Array<ModuleEntry['group']> = ['Core', 'Operations', 'Business', 'Distribution', 'People', 'System'];
+const MODULE_GROUPS: Array<ModuleEntry['group']> = ['Core', 'Operations', 'Business', 'Distribution', 'CRM', 'People', 'System'];
 
 export default function SettingsPage() {
   const [users, setUsers] = useState<AuthUser[]>([]);
