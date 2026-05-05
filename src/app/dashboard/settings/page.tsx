@@ -333,11 +333,15 @@ export default function SettingsPage() {
 
         {/* Access Control & Permissions */}
         <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 16, padding: 32 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24, gap: 12, flexWrap: 'wrap' }}>
             <div>
               <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 18, fontWeight: 800, marginBottom: 8 }}>Access Control & Permissions</div>
               <div style={{ fontSize: 14, color: C.gray }}>Manage administrative staff and define granular system access.</div>
             </div>
+            <a
+              href="/dashboard/settings/roles"
+              style={{ background: C.s3, color: C.white, border: `1px solid ${C.border}`, padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+            >🏗️ Role Hierarchy</a>
           </div>
 
           <div style={{ display: 'flex', gap: 8, marginBottom: 24, borderBottom: `1px solid ${C.border}`, paddingBottom: 16 }}>
