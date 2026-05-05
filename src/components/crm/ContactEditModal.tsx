@@ -27,15 +27,16 @@ export default function ContactEditModal({ contact, open, onClose, onSaved }: Pr
   return (
     <Modal open={open} onClose={onClose} title="Edit Contact"
       footer={<><button type="button" onClick={onClose} style={btn.secondary}>Cancel</button><button type="button" disabled={busy} onClick={submit} style={btn.primary(busy)}>{busy ? 'Saving…' : 'Save changes'}</button></>}>
+      <p style={{ margin: '0 0 12px', fontSize: 12, color: 'var(--text-dim)' }}>Fields marked <span style={{ color: '#ef4444' }}>*</span> are required.</p>
       <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-        <ToggleBtn active={!form.is_b2c} onClick={() => setForm({ ...form, is_b2c: false })}>B2B Contact</ToggleBtn>
         <ToggleBtn active={form.is_b2c} onClick={() => setForm({ ...form, is_b2c: true })}>B2C Customer</ToggleBtn>
+        <ToggleBtn active={!form.is_b2c} onClick={() => setForm({ ...form, is_b2c: false })}>B2B Contact</ToggleBtn>
       </div>
       <SL>Personal</SL><Grid>
-        <F label="First Name" value={form.first_name} onChange={(v) => setForm({ ...form, first_name: v })} />
+        <F label="First Name" required value={form.first_name} onChange={(v) => setForm({ ...form, first_name: v })} />
         <F label="Last Name" value={form.last_name} onChange={(v) => setForm({ ...form, last_name: v })} />
-        <F label="Email" type="email" value={form.email} onChange={(v) => setForm({ ...form, email: v })} />
-        <F label="Phone" value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />
+        <F label="Email" type="email" required={!form.is_b2c} value={form.email} onChange={(v) => setForm({ ...form, email: v })} />
+        <F label="Phone" required={form.is_b2c} value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />
         <F label="Mobile" value={form.mobile} onChange={(v) => setForm({ ...form, mobile: v })} />
       </Grid>
       {!form.is_b2c ? (<><SL>Work</SL><Grid><F label="Job Title" value={form.title} onChange={(v) => setForm({ ...form, title: v })} /><F label="Department" value={form.department} onChange={(v) => setForm({ ...form, department: v })} /></Grid></>) : (
@@ -64,7 +65,7 @@ export default function ContactEditModal({ contact, open, onClose, onSaved }: Pr
 function seed(c: Contact) { return { first_name: c.first_name || '', last_name: c.last_name || '', email: c.email || '', phone: c.phone || '', mobile: c.mobile || '', title: c.title || '', department: c.department || '', is_b2c: !!c.is_b2c, date_of_birth: c.date_of_birth || '', gender: c.gender || '', address_line1: c.address_line1 || '', city: c.city || '', state: c.state || '', postal_code: c.postal_code || '', country: c.country || 'India', preferred_contact_method: c.preferred_contact_method || '', loyalty_tier: c.loyalty_tier || '', referral_source: c.referral_source || '', marketing_consent: !!c.marketing_consent, whatsapp_consent: !!c.whatsapp_consent }; }
 function SL({ children }: { children: React.ReactNode }) { return <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, margin: '14px 0 8px' }}>{children}</div>; }
 function Grid({ children }: { children: React.ReactNode }) { return <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>{children}</div>; }
-function F(p: { label: string; value: string; onChange: (v: string) => void; type?: string }) { return <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}><span style={lbl}>{p.label}</span><input type={p.type || 'text'} value={p.value} onChange={(e) => p.onChange(e.target.value)} style={inp} /></label>; }
+function F(p: { label: string; value: string; onChange: (v: string) => void; type?: string; required?: boolean }) { return <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}><span style={lbl}>{p.label}{p.required && <span style={{ color: '#ef4444', marginLeft: 3 }}>*</span>}</span><input type={p.type || 'text'} value={p.value} onChange={(e) => p.onChange(e.target.value)} required={p.required} style={inp} /></label>; }
 function SF(p: { label: string; value: string; options: Array<{ value: string; label: string }>; onChange: (v: string) => void }) { return <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}><span style={lbl}>{p.label}</span><select value={p.value} onChange={(e) => p.onChange(e.target.value)} style={inp}>{p.options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></label>; }
 function CB({ checked, onChange, children }: { checked: boolean; onChange: (v: boolean) => void; children: React.ReactNode }) { return <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, color: 'var(--text)', marginBottom: 6, cursor: 'pointer' }}><input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />{children}</label>; }
 function ToggleBtn({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) { return <button type="button" onClick={onClick} style={{ flex: 1, padding: '8px 14px', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer', border: `1px solid ${active ? 'var(--primary)' : 'var(--border)'}`, background: active ? 'var(--primary)' : 'var(--s3)', color: active ? '#fff' : 'var(--text)' }}>{children}</button>; }

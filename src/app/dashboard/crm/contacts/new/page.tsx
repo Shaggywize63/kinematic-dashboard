@@ -18,7 +18,7 @@ type Form = {
 };
 
 const empty: Form = {
-  first_name: '', last_name: '', email: '', phone: '', title: '', is_b2c: false,
+  first_name: '', last_name: '', email: '', phone: '', title: '', is_b2c: true,
   date_of_birth: '', gender: '', address_line1: '', address_line2: '', city: '', state: '',
   postal_code: '', country: 'India', preferred_contact_method: '', loyalty_tier: '',
   referral_source: '', marketing_consent: false, whatsapp_consent: false,
@@ -36,7 +36,7 @@ export default function NewContactPage() {
         const r = await crmSettings.get();
         const t = r.data?.business_type ?? 'both';
         setBusinessType(t);
-        if (t === 'b2c') setForm((f) => ({ ...f, is_b2c: true }));
+        if (t === 'b2b') setForm((f) => ({ ...f, is_b2c: false }));
       } catch { /* default */ }
     })();
   }, []);
@@ -68,10 +68,18 @@ export default function NewContactPage() {
     } catch (err: any) { toast.error(err.message || 'Create failed'); setBusy(false); }
   };
 
-  const text = (k: keyof Form, label: string, type = 'text') => (
+  const text = (k: keyof Form, label: string, opts: { type?: string; required?: boolean } = {}) => (
     <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>{label}</span>
-      <input type={type} value={form[k] as string} onChange={(e) => setForm({ ...form, [k]: e.target.value })} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 }} />
+      <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>
+        {label}{opts.required && <span style={{ color: '#ef4444', marginLeft: 3 }}>*</span>}
+      </span>
+      <input
+        type={opts.type || 'text'}
+        value={form[k] as string}
+        onChange={(e) => setForm({ ...form, [k]: e.target.value })}
+        required={opts.required}
+        style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 }}
+      />
     </label>
   );
   const select = (k: keyof Form, label: string, options: Array<{ value: string; label: string }>) => (
@@ -89,18 +97,24 @@ export default function NewContactPage() {
   return (
     <form onSubmit={submit} style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 24, maxWidth: 820 }}>
       <h2 style={{ marginTop: 0, fontSize: 18, color: 'var(--text)' }}>New Contact</h2>
+      <p style={{ margin: '-4px 0 18px', fontSize: 13, color: 'var(--text-dim)' }}>
+        {form.is_b2c ? 'Individual consumer contact — store personal details, consent, and loyalty info.' : 'Business contact — link a person to a company account.'}
+        {' '}Fields marked <span style={{ color: '#ef4444' }}>*</span> are required.
+      </p>
 
       {showToggle && (
         <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
-          <button type="button" onClick={() => setForm({ ...form, is_b2c: false })} style={{ flex: 1, padding: '10px 14px', borderRadius: 8, border: `1px solid ${!form.is_b2c ? 'var(--primary)' : 'var(--border)'}`, background: !form.is_b2c ? 'var(--primary)' : 'var(--s3)', color: !form.is_b2c ? '#fff' : 'var(--text)', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>B2B Contact</button>
           <button type="button" onClick={() => setForm({ ...form, is_b2c: true })} style={{ flex: 1, padding: '10px 14px', borderRadius: 8, border: `1px solid ${form.is_b2c ? 'var(--primary)' : 'var(--border)'}`, background: form.is_b2c ? 'var(--primary)' : 'var(--s3)', color: form.is_b2c ? '#fff' : 'var(--text)', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>B2C Customer</button>
+          <button type="button" onClick={() => setForm({ ...form, is_b2c: false })} style={{ flex: 1, padding: '10px 14px', borderRadius: 8, border: `1px solid ${!form.is_b2c ? 'var(--primary)' : 'var(--border)'}`, background: !form.is_b2c ? 'var(--primary)' : 'var(--s3)', color: !form.is_b2c ? '#fff' : 'var(--text)', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>B2B Contact</button>
         </div>
       )}
 
       <Section title="Personal">
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
-          {text('first_name', 'First Name')}{text('last_name', 'Last Name')}
-          {text('email', 'Email', 'email')}{text('phone', 'Phone')}
+          {text('first_name', 'First Name', { required: true })}
+          {text('last_name', 'Last Name')}
+          {text('email', 'Email', { type: 'email', required: !form.is_b2c })}
+          {text('phone', 'Phone', { required: form.is_b2c })}
         </div>
       </Section>
 
@@ -114,7 +128,7 @@ export default function NewContactPage() {
         <>
           <Section title="Customer Details">
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
-              {text('date_of_birth', 'Date of Birth', 'date')}
+              {text('date_of_birth', 'Date of Birth', { type: 'date' })}
               {select('gender', 'Gender', [{ value: 'male', label: 'Male' }, { value: 'female', label: 'Female' }, { value: 'other', label: 'Other' }, { value: 'prefer_not_to_say', label: 'Prefer not to say' }])}
               {select('preferred_contact_method', 'Preferred Channel', [{ value: 'email', label: 'Email' }, { value: 'phone', label: 'Phone' }, { value: 'whatsapp', label: 'WhatsApp' }, { value: 'sms', label: 'SMS' }])}
               {select('loyalty_tier', 'Loyalty Tier', [{ value: 'bronze', label: 'Bronze' }, { value: 'silver', label: 'Silver' }, { value: 'gold', label: 'Gold' }, { value: 'platinum', label: 'Platinum' }, { value: 'vip', label: 'VIP' }])}
