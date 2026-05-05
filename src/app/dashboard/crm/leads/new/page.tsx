@@ -2,9 +2,9 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { crmLeads, crmSettings, crmLeadSources } from '../../../../../lib/crmApi';
+import { crmLeads, crmSettings, crmLeadSources, crmProducts } from '../../../../../lib/crmApi';
 import api from '../../../../../lib/api';
-import type { BusinessType, LeadSource } from '../../../../../types/crm';
+import type { BusinessType, LeadSource, Product } from '../../../../../types/crm';
 import LocationPicker from '../../../../../components/crm/LocationPicker';
 import UserSearchSelect, { type UserOption } from '../../../../../components/crm/shared/UserSearchSelect';
 
@@ -19,14 +19,15 @@ type Form = {
   preferred_contact_method: '' | 'email' | 'phone' | 'whatsapp' | 'sms';
   marketing_consent: boolean; whatsapp_consent: boolean;
   source_id: string; owner_id: string; status: string;
+  product_ids: string[];
 };
 
 const empty: Form = {
   first_name: '', last_name: '', email: '', phone: '', company: '', title: '', industry: '',
-  is_b2c: true, date_of_birth: '', gender: '', address_line1: '', address_line2: '',
+  is_b2c: false, date_of_birth: '', gender: '', address_line1: '', address_line2: '',
   city: '', state: '', postal_code: '', country: 'India',
   preferred_contact_method: '', marketing_consent: false, whatsapp_consent: false,
-  source_id: '', owner_id: '', status: 'new',
+  source_id: '', owner_id: '', status: 'new', product_ids: [],
 };
 
 export default function NewLeadPage() {
@@ -36,26 +37,38 @@ export default function NewLeadPage() {
   const [businessType, setBusinessType] = useState<BusinessType>('both');
   const [sources, setSources] = useState<LeadSource[]>([]);
   const [users, setUsers] = useState<UserOpt[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
 
   useEffect(() => {
     (async () => {
-      const [s, src, u] = await Promise.allSettled([
+      const [s, src, u, p] = await Promise.allSettled([
         crmSettings.get(),
         crmLeadSources.list(),
         api.getUsers({ limit: '500' }) as Promise<any>,
+        crmProducts.list(),
       ]);
       if (s.status === 'fulfilled') {
-        const t = s.value.data?.business_type ?? 'both';
+        const t: BusinessType = s.value.data?.business_type ?? 'both';
         setBusinessType(t);
-        if (t === 'b2b') setForm((f) => ({ ...f, is_b2c: false }));
+        setForm((f) => ({ ...f, is_b2c: t === 'b2c' }));
       }
       if (src.status === 'fulfilled') setSources((src.value.data || []).filter((x: LeadSource) => x.is_active));
       if (u.status === 'fulfilled') {
         const list: UserOpt[] = (u.value.data || u.value || []).map((x: any) => ({ id: x.id, name: x.name || x.full_name || x.email || 'User' }));
         setUsers(list);
       }
+      if (p.status === 'fulfilled') setProducts((p.value.data || []).filter((x: Product) => x.is_active));
     })();
   }, []);
+
+  const toggleProduct = (id: string) => {
+    setForm((f) => ({
+      ...f,
+      product_ids: f.product_ids.includes(id)
+        ? f.product_ids.filter((x) => x !== id)
+        : [...f.product_ids, id],
+    }));
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,6 +80,7 @@ export default function NewLeadPage() {
         source_id: form.source_id || undefined,
         owner_id: form.owner_id || undefined,
         status: form.status || 'new',
+        product_ids: form.product_ids.length > 0 ? form.product_ids : undefined,
       };
       if (!form.is_b2c) {
         Object.assign(payload, { company: form.company || undefined, title: form.title || undefined, industry: form.industry || undefined });
@@ -110,22 +124,16 @@ export default function NewLeadPage() {
     </label>
   );
 
-  const showToggle = businessType === 'both';
+  const leadTypeLabel = businessType === 'b2c'
+    ? 'Individual consumer lead — capture contact details and preferences.'
+    : 'Business lead — capture company and decision-maker info.';
 
   return (
     <form onSubmit={submit} style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 24, maxWidth: 820 }}>
       <h2 style={{ marginTop: 0, fontSize: 18, color: 'var(--text)' }}>New Lead</h2>
       <p style={{ margin: '-4px 0 18px', fontSize: 13, color: 'var(--text-dim)' }}>
-        {form.is_b2c ? 'Individual consumer lead — capture contact details and preferences.' : 'Business lead — capture company and decision-maker info.'}
-        {' '}Fields marked <span style={{ color: '#ef4444' }}>*</span> are required.
+        {leadTypeLabel}{' '}Fields marked <span style={{ color: '#ef4444' }}>*</span> are required.
       </p>
-
-      {showToggle && (
-        <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
-          <button type="button" onClick={() => setForm({ ...form, is_b2c: true })} style={{ flex: 1, padding: '10px 14px', borderRadius: 8, border: `1px solid ${form.is_b2c ? 'var(--primary)' : 'var(--border)'}`, background: form.is_b2c ? 'var(--primary)' : 'var(--s3)', color: form.is_b2c ? '#fff' : 'var(--text)', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>B2C (Consumer Lead)</button>
-          <button type="button" onClick={() => setForm({ ...form, is_b2c: false })} style={{ flex: 1, padding: '10px 14px', borderRadius: 8, border: `1px solid ${!form.is_b2c ? 'var(--primary)' : 'var(--border)'}`, background: !form.is_b2c ? 'var(--primary)' : 'var(--s3)', color: !form.is_b2c ? '#fff' : 'var(--text)', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>B2B (Business Lead)</button>
-        </div>
-      )}
 
       <Section title="Personal">
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
@@ -198,6 +206,35 @@ export default function NewLeadPage() {
             </div>
           </Section>
         </>
+      )}
+
+      {products.length > 0 && (
+        <Section title="Products of Interest">
+          <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 10 }}>
+            Select products this lead is interested in.
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {products.map((p) => {
+              const selected = form.product_ids.includes(p.id);
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => toggleProduct(p.id)}
+                  style={{
+                    padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                    border: `1px solid ${selected ? 'var(--primary)' : 'var(--border)'}`,
+                    background: selected ? 'var(--primary)' : 'var(--s3)',
+                    color: selected ? '#fff' : 'var(--text)',
+                  }}
+                >
+                  {p.name}
+                  {p.price > 0 && <span style={{ opacity: 0.7, marginLeft: 6, fontSize: 11 }}>₹{p.price.toLocaleString()}</span>}
+                </button>
+              );
+            })}
+          </div>
+        </Section>
       )}
 
       <div style={{ display: 'flex', gap: 8, marginTop: 18, justifyContent: 'flex-end' }}>

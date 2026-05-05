@@ -13,6 +13,20 @@ import ActivityTimeline from '../../../../../components/crm/ActivityTimeline';
 import DealEditModal from '../../../../../components/crm/DealEditModal';
 import { formatINR } from '../../../../../lib/formatCurrency';
 
+const LOST_REASONS = [
+  'Price too high',
+  'Lost to competitor',
+  'No budget / budget cut',
+  'No decision maker reached',
+  'Bad timing / not ready',
+  'Product doesn\'t fit needs',
+  'No response from prospect',
+  'Stayed with current solution',
+  'Missing features',
+  'Project cancelled',
+  'Other',
+];
+
 export default function DealDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -31,6 +45,7 @@ export default function DealDetailPage() {
   const [closeOpen, setCloseOpen] = useState(false);
   const [closeOutcome, setCloseOutcome] = useState<'won' | 'lost'>('won');
   const [closeReason, setCloseReason] = useState('');
+  const [closeLostOther, setCloseLostOther] = useState('');
   const [closing, setClosing] = useState(false);
   const [reopening, setReopening] = useState(false);
 
@@ -69,11 +84,13 @@ export default function DealDetailPage() {
         await crmDeals.win(deal.id, { reason: closeReason || undefined });
         toast.success('Deal closed as Won 🎉');
       } else {
-        await crmDeals.lose(deal.id, { reason: closeReason || undefined });
+        const lostReason = closeReason === 'Other' ? (closeLostOther || 'Other') : closeReason;
+        await crmDeals.lose(deal.id, { reason: lostReason || undefined });
         toast.success('Deal closed as Lost');
       }
       setCloseOpen(false);
       setCloseReason('');
+      setCloseLostOther('');
       reload();
     } catch (e: any) { toast.error(e.message || 'Close failed'); }
     finally { setClosing(false); }
@@ -261,10 +278,23 @@ export default function DealDetailPage() {
               <button type="button" onClick={() => setCloseOutcome('won')} style={{ padding: '12px', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer', border: closeOutcome === 'won' ? '2px solid #10b981' : '1px solid var(--border)', background: closeOutcome === 'won' ? 'rgba(16,185,129,0.12)' : 'var(--s3)', color: closeOutcome === 'won' ? '#10b981' : 'var(--text)' }}>✓ Won</button>
               <button type="button" onClick={() => setCloseOutcome('lost')} style={{ padding: '12px', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer', border: closeOutcome === 'lost' ? '2px solid #ef4444' : '1px solid var(--border)', background: closeOutcome === 'lost' ? 'rgba(239,68,68,0.10)' : 'var(--s3)', color: closeOutcome === 'lost' ? '#ef4444' : 'var(--text)' }}>✗ Lost</button>
             </div>
-            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 14 }}>
-              <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>Reason {closeOutcome === 'lost' ? '(recommended)' : '(optional)'}</span>
-              <textarea rows={3} value={closeReason} onChange={(e) => setCloseReason(e.target.value)} placeholder={closeOutcome === 'won' ? 'How did we win? (e.g. Pricing, demo, referral)' : 'Why did we lose? (e.g. Budget, competitor, timing)'} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13, resize: 'vertical' }} />
-            </label>
+            {closeOutcome === 'lost' ? (
+              <div style={{ marginBottom: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>Lost Reason <span style={{ color: '#ef4444' }}>*</span></span>
+                <select value={closeReason} onChange={(e) => { setCloseReason(e.target.value); setCloseLostOther(''); }} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 }}>
+                  <option value="">— Select a reason —</option>
+                  {LOST_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
+                </select>
+                {closeReason === 'Other' && (
+                  <input value={closeLostOther} onChange={(e) => setCloseLostOther(e.target.value)} placeholder="Describe the reason…" style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 }} />
+                )}
+              </div>
+            ) : (
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 14 }}>
+                <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>Win Reason (optional)</span>
+                <input value={closeReason} onChange={(e) => setCloseReason(e.target.value)} placeholder="e.g. Competitive pricing, great demo, referral…" style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 }} />
+              </label>
+            )}
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button onClick={() => setCloseOpen(false)} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontSize: 13 }}>Cancel</button>
               <button onClick={closeDeal} disabled={closing} style={{ background: closeOutcome === 'won' ? '#10b981' : '#ef4444', border: 'none', color: '#fff', padding: '8px 18px', borderRadius: 8, fontWeight: 700, cursor: closing ? 'not-allowed' : 'pointer', fontSize: 13, opacity: closing ? 0.7 : 1 }}>{closing ? 'Closing...' : `Close as ${closeOutcome === 'won' ? 'Won' : 'Lost'}`}</button>

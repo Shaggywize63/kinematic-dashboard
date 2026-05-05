@@ -1,9 +1,10 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { crmActivities } from '../../../../../lib/crmApi';
+import { crmActivities, crmLeads, crmContacts, crmDeals, crmAccounts } from '../../../../../lib/crmApi';
 import api from '../../../../../lib/api';
+import type { Lead } from '../../../../../types/crm';
 import UserSearchSelect, { type UserOption } from '../../../../../components/crm/shared/UserSearchSelect';
 
 const TYPES = [
@@ -24,6 +25,8 @@ const ENTITY_TYPES = [
   { value: 'account', label: 'Account' },
 ];
 
+type EntityOption = { id: string; label: string };
+
 export default function NewActivityPage() {
   const router = useRouter();
   const [type, setType] = useState<string>('call');
@@ -36,6 +39,14 @@ export default function NewActivityPage() {
   const [users, setUsers] = useState<UserOption[]>([]);
   const [busy, setBusy] = useState(false);
 
+  // Entity search state
+  const [entityOptions, setEntityOptions] = useState<EntityOption[]>([]);
+  const [entitySearch, setEntitySearch] = useState('');
+  const [entityLabel, setEntityLabel] = useState('');
+  const [showEntityDropdown, setShowEntityDropdown] = useState(false);
+  const [loadingEntities, setLoadingEntities] = useState(false);
+  const entityInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     (api.getUsers({ limit: '500' }) as Promise<any>)
       .then((u) => {
@@ -46,6 +57,67 @@ export default function NewActivityPage() {
       })
       .catch(() => {});
   }, []);
+
+  // When entity type changes, reset selection and fetch options
+  useEffect(() => {
+    setEntityId('');
+    setEntityLabel('');
+    setEntitySearch('');
+    setEntityOptions([]);
+    if (!entityType) return;
+    fetchEntityOptions('');
+  }, [entityType]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const fetchEntityOptions = async (q: string) => {
+    if (!entityType) return;
+    setLoadingEntities(true);
+    try {
+      let data: any[] = [];
+      if (entityType === 'lead') {
+        const r = await crmLeads.list(q ? { q } : undefined);
+        data = (r.data || []).map((x: Lead) => ({
+          id: x.id,
+          label: [x.first_name, x.last_name].filter(Boolean).join(' ') || x.email || 'Lead',
+        }));
+      } else if (entityType === 'contact') {
+        const r = await crmContacts.list(q ? { q } : undefined);
+        data = (r.data || []).map((x: any) => ({
+          id: x.id,
+          label: x.full_name || [x.first_name, x.last_name].filter(Boolean).join(' ') || x.email || 'Contact',
+        }));
+      } else if (entityType === 'deal') {
+        const r = await crmDeals.list(q ? { q } : undefined);
+        data = (r.data || []).map((x: any) => ({ id: x.id, label: x.title || x.name || 'Deal' }));
+      } else if (entityType === 'account') {
+        const r = await crmAccounts.list(q ? { q } : undefined);
+        data = (r.data || []).map((x: any) => ({ id: x.id, label: x.name || 'Account' }));
+      }
+      setEntityOptions(data);
+    } catch {
+      setEntityOptions([]);
+    } finally {
+      setLoadingEntities(false);
+    }
+  };
+
+  const handleEntitySearchChange = (v: string) => {
+    setEntitySearch(v);
+    setEntityLabel('');
+    setEntityId('');
+    setShowEntityDropdown(true);
+    fetchEntityOptions(v);
+  };
+
+  const selectEntity = (opt: EntityOption) => {
+    setEntityId(opt.id);
+    setEntityLabel(opt.label);
+    setEntitySearch(opt.label);
+    setShowEntityDropdown(false);
+  };
+
+  const filteredEntities = entitySearch
+    ? entityOptions.filter((o) => o.label.toLowerCase().includes(entitySearch.toLowerCase()))
+    : entityOptions;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,9 +130,8 @@ export default function NewActivityPage() {
       due_at: dueAt || undefined,
       assigned_to: assignedTo || undefined,
     };
-    if (entityType && entityId.trim()) {
-      payload.linked_to_type = entityType;
-      payload.linked_to_id = entityId.trim();
+    if (entityType && entityId) {
+      payload[`${entityType}_id`] = entityId;
     }
     try {
       await crmActivities.create(payload as any);
@@ -115,18 +186,46 @@ export default function NewActivityPage() {
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 10 }}>
           <Field label="Entity Type">
-            <select value={entityType} onChange={(e) => { setEntityType(e.target.value); setEntityId(''); }} style={input}>
+            <select value={entityType} onChange={(e) => setEntityType(e.target.value)} style={input}>
               {ENTITY_TYPES.map((e) => <option key={e.value} value={e.value}>{e.label}</option>)}
             </select>
           </Field>
           {entityType && (
-            <Field label={`${entityType[0].toUpperCase() + entityType.slice(1)} ID`}>
-              <input
-                value={entityId}
-                onChange={(e) => setEntityId(e.target.value)}
-                placeholder={`Paste ${entityType} ID…`}
-                style={input}
-              />
+            <Field label={`Search ${entityType[0].toUpperCase() + entityType.slice(1)}`}>
+              <div style={{ position: 'relative' }}>
+                <input
+                  ref={entityInputRef}
+                  value={entitySearch}
+                  onChange={(e) => handleEntitySearchChange(e.target.value)}
+                  onFocus={() => { setShowEntityDropdown(true); if (!entityOptions.length) fetchEntityOptions(''); }}
+                  onBlur={() => setTimeout(() => setShowEntityDropdown(false), 150)}
+                  placeholder={`Type to search ${entityType}s…`}
+                  style={{ ...input, width: '100%', boxSizing: 'border-box' }}
+                  autoComplete="off"
+                />
+                {entityId && (
+                  <div style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', fontSize: 11, color: 'var(--primary)', fontWeight: 700 }}>✓</div>
+                )}
+                {showEntityDropdown && (
+                  <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 8, maxHeight: 200, overflowY: 'auto', zIndex: 50, marginTop: 2 }}>
+                    {loadingEntities ? (
+                      <div style={{ padding: '10px 12px', fontSize: 12, color: 'var(--text-dim)' }}>Searching…</div>
+                    ) : filteredEntities.length === 0 ? (
+                      <div style={{ padding: '10px 12px', fontSize: 12, color: 'var(--text-dim)' }}>No results</div>
+                    ) : filteredEntities.slice(0, 20).map((opt) => (
+                      <div
+                        key={opt.id}
+                        onMouseDown={() => selectEntity(opt)}
+                        style={{ padding: '8px 12px', fontSize: 13, color: 'var(--text)', cursor: 'pointer', background: opt.id === entityId ? 'var(--s2)' : 'transparent' }}
+                        onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--s2)')}
+                        onMouseLeave={(e) => (e.currentTarget.style.background = opt.id === entityId ? 'var(--s2)' : 'transparent')}
+                      >
+                        {opt.label}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </Field>
           )}
         </div>

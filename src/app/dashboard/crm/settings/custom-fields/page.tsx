@@ -3,15 +3,87 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { crmCustomFields } from '../../../../../lib/crmApi';
 import type { CustomField } from '../../../../../types/crm';
+import { getStoredUser, canAccess } from '../../../../../lib/auth';
 
 const ENTITIES: Array<CustomField['entity']> = ['lead', 'contact', 'account', 'deal'];
 const TYPES: Array<CustomField['field_type']> = ['text', 'number', 'date', 'select', 'multiselect', 'boolean'];
+
+// Built-in standard fields for each entity
+const BUILTIN_FIELDS: Record<string, Array<{ key: string; label: string; type: string; required?: boolean }>> = {
+  lead: [
+    { key: 'first_name', label: 'First Name', type: 'text', required: true },
+    { key: 'last_name', label: 'Last Name', type: 'text' },
+    { key: 'email', label: 'Email', type: 'text' },
+    { key: 'phone', label: 'Phone', type: 'text' },
+    { key: 'company', label: 'Company', type: 'text' },
+    { key: 'title', label: 'Job Title', type: 'text' },
+    { key: 'industry', label: 'Industry', type: 'text' },
+    { key: 'status', label: 'Lead Status', type: 'select', required: true },
+    { key: 'source_id', label: 'Lead Source', type: 'select' },
+    { key: 'owner_id', label: 'Assigned To', type: 'select' },
+    { key: 'score', label: 'Lead Score', type: 'number' },
+    { key: 'is_b2c', label: 'B2C Lead', type: 'boolean' },
+    { key: 'city', label: 'City', type: 'text' },
+    { key: 'state', label: 'State', type: 'text' },
+    { key: 'country', label: 'Country', type: 'text' },
+    { key: 'marketing_consent', label: 'Marketing Consent', type: 'boolean' },
+    { key: 'whatsapp_consent', label: 'WhatsApp Consent', type: 'boolean' },
+    { key: 'date_of_birth', label: 'Date of Birth', type: 'date' },
+    { key: 'gender', label: 'Gender', type: 'select' },
+  ],
+  contact: [
+    { key: 'first_name', label: 'First Name', type: 'text', required: true },
+    { key: 'last_name', label: 'Last Name', type: 'text' },
+    { key: 'email', label: 'Email', type: 'text', required: true },
+    { key: 'phone', label: 'Phone', type: 'text' },
+    { key: 'title', label: 'Job Title', type: 'text' },
+    { key: 'department', label: 'Department', type: 'text' },
+    { key: 'account_id', label: 'Account / Company', type: 'select' },
+    { key: 'owner_id', label: 'Assigned To', type: 'select' },
+    { key: 'city', label: 'City', type: 'text' },
+    { key: 'state', label: 'State', type: 'text' },
+    { key: 'country', label: 'Country', type: 'text' },
+    { key: 'marketing_consent', label: 'Marketing Consent', type: 'boolean' },
+    { key: 'whatsapp_consent', label: 'WhatsApp Consent', type: 'boolean' },
+    { key: 'email_opt_out', label: 'Email Opt-Out', type: 'boolean' },
+    { key: 'do_not_contact', label: 'Do Not Contact', type: 'boolean' },
+  ],
+  account: [
+    { key: 'name', label: 'Account Name', type: 'text', required: true },
+    { key: 'domain', label: 'Website / Domain', type: 'text' },
+    { key: 'industry', label: 'Industry', type: 'text' },
+    { key: 'annual_revenue', label: 'Annual Revenue', type: 'number' },
+    { key: 'phone', label: 'Phone', type: 'text' },
+    { key: 'email', label: 'Email', type: 'text' },
+    { key: 'city', label: 'City', type: 'text' },
+    { key: 'state', label: 'State', type: 'text' },
+    { key: 'country', label: 'Country', type: 'text' },
+    { key: 'owner_id', label: 'Assigned To', type: 'select' },
+    { key: 'tags', label: 'Tags', type: 'multiselect' },
+  ],
+  deal: [
+    { key: 'title', label: 'Deal Title', type: 'text', required: true },
+    { key: 'amount', label: 'Amount', type: 'number' },
+    { key: 'currency', label: 'Currency', type: 'select' },
+    { key: 'stage_id', label: 'Stage', type: 'select', required: true },
+    { key: 'pipeline_id', label: 'Pipeline', type: 'select' },
+    { key: 'expected_close_date', label: 'Expected Close Date', type: 'date' },
+    { key: 'probability', label: 'Win Probability %', type: 'number' },
+    { key: 'owner_id', label: 'Assigned To', type: 'select' },
+    { key: 'contact_id', label: 'Primary Contact', type: 'select' },
+    { key: 'account_id', label: 'Account', type: 'select' },
+    { key: 'lost_reason', label: 'Lost Reason', type: 'text' },
+    { key: 'lead_id', label: 'Source Lead', type: 'select' },
+  ],
+};
 
 export default function CustomFieldsPage() {
   const [items, setItems] = useState<CustomField[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [busy, setBusy] = useState<Record<string, boolean>>({});
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [accessDenied, setAccessDenied] = useState(false);
 
   const [entity, setEntity] = useState<CustomField['entity']>('lead');
   const [fieldKey, setFieldKey] = useState('');
@@ -20,6 +92,7 @@ export default function CustomFieldsPage() {
   const [optionsRaw, setOptionsRaw] = useState('');
   const [required, setRequired] = useState(false);
   const [filter, setFilter] = useState<'all' | CustomField['entity']>('lead');
+  const [showBuiltin, setShowBuiltin] = useState(true);
 
   const reload = async () => {
     setLoading(true);
@@ -30,7 +103,16 @@ export default function CustomFieldsPage() {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { reload(); }, []);
+  useEffect(() => {
+    const user = getStoredUser();
+    if (!user || !canAccess(user.role, ['sub_admin'])) {
+      setAccessDenied(true);
+      setLoading(false);
+      return;
+    }
+    setIsAdmin(true);
+    reload();
+  }, []);
 
   const create = async () => {
     if (!fieldKey.trim() || !label.trim()) return toast.error('Field key and label are required');
@@ -68,10 +150,26 @@ export default function CustomFieldsPage() {
     finally { setBusy((b) => ({ ...b, [cf.id]: false })); }
   };
 
+  if (accessDenied) {
+    return (
+      <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 32, textAlign: 'center' }}>
+        <div style={{ fontSize: 32, marginBottom: 12 }}>🔒</div>
+        <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>Admin Access Required</div>
+        <div style={{ fontSize: 13, color: 'var(--text-dim)' }}>
+          Custom fields are visible to Sub-Admins and above only. Contact your administrator for access.
+        </div>
+      </div>
+    );
+  }
+
   const visible = filter === 'all' ? items : items.filter((i) => i.entity === filter);
+  const builtinVisible = filter === 'all'
+    ? Object.entries(BUILTIN_FIELDS).flatMap(([ent, fields]) => fields.map((f) => ({ ...f, entity: ent })))
+    : (BUILTIN_FIELDS[filter] || []).map((f) => ({ ...f, entity: filter }));
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {/* Create form */}
       <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>Add Custom Field</div>
         <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 12 }}>
@@ -96,26 +194,21 @@ export default function CustomFieldsPage() {
           </label>
         </div>
         <button onClick={create} disabled={creating} style={btnPrimary}>{creating ? 'Adding…' : '+ Add Field'}</button>
-        {items.filter((i) => i.entity === entity).length > 0 && (
-          <div style={{ marginTop: 14, padding: 10, background: 'var(--s3)', borderRadius: 8 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', marginBottom: 6 }}>
-              Existing fields for {entity[0].toUpperCase() + entity.slice(1)} ({items.filter((i) => i.entity === entity).length})
-            </div>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {items.filter((i) => i.entity === entity).map((f) => (
-                <span key={f.id} style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 6, padding: '3px 8px', fontSize: 11, color: 'var(--text)' }}>
-                  <code style={{ fontSize: 10 }}>{f.field_key}</code> · {f.field_type}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
 
+      {/* Field list */}
       <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>Custom Fields ({visible.length})</div>
-          <div style={{ display: 'flex', gap: 4, marginLeft: 'auto' }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
+            Fields ({builtinVisible.length + visible.length} total — {builtinVisible.length} standard, {visible.length} custom)
+          </div>
+          <div style={{ display: 'flex', gap: 4, marginLeft: 'auto', flexWrap: 'wrap', alignItems: 'center' }}>
+            <button
+              onClick={() => setShowBuiltin((v) => !v)}
+              style={{ ...btnFilter, background: showBuiltin ? '#6366f115' : 'transparent', color: showBuiltin ? '#6366f1' : 'var(--text-dim)', borderColor: showBuiltin ? '#6366f1' : 'var(--border)' }}
+            >
+              {showBuiltin ? '✓ ' : ''}Standard Fields
+            </button>
             {(['all', ...ENTITIES] as const).map((f) => (
               <button key={f} onClick={() => setFilter(f as any)} style={{ ...btnFilter, background: filter === f ? 'var(--primary)' : 'transparent', color: filter === f ? '#fff' : 'var(--text-dim)' }}>
                 {f === 'all' ? 'All' : f[0].toUpperCase() + f.slice(1)}
@@ -123,24 +216,58 @@ export default function CustomFieldsPage() {
             ))}
           </div>
         </div>
-        {loading ? <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>Loading...</div> : visible.length === 0 ? (
-          <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>No custom fields yet.</div>
-        ) : (
+
+        {loading ? <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>Loading...</div> : (
           <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
-            <thead><tr><th style={th}>Entity</th><th style={th}>Key</th><th style={th}>Label</th><th style={th}>Type</th><th style={th}>Required</th><th style={th}>Options</th><th style={th}></th></tr></thead>
-            <tbody>{visible.map((c) => (
-              <tr key={c.id}>
-                <td style={td}><span style={{ background: 'var(--s3)', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 700, textTransform: 'uppercase' }}>{c.entity}</span></td>
-                <td style={td}><code style={{ background: 'var(--s3)', padding: '1px 5px', borderRadius: 3, fontSize: 11 }}>{c.field_key}</code></td>
-                <td style={td}>{c.label}</td>
-                <td style={td}>{c.field_type}</td>
-                <td style={td}>{c.required ? '✓' : ''}</td>
-                <td style={{ ...td, fontSize: 11, color: 'var(--text-dim)' }}>{(c.options || []).join(', ') || '—'}</td>
-                <td style={td}>
-                  <button onClick={() => remove(c)} disabled={!!busy[c.id]} style={{ ...btnSmallDanger, opacity: busy[c.id] ? 0.5 : 1 }}>{busy[c.id] ? '...' : 'Delete'}</button>
-                </td>
+            <thead>
+              <tr>
+                <th style={th}>Entity</th>
+                <th style={th}>Key</th>
+                <th style={th}>Label</th>
+                <th style={th}>Type</th>
+                <th style={th}>Required</th>
+                <th style={th}>Kind</th>
+                <th style={th}></th>
               </tr>
-            ))}</tbody>
+            </thead>
+            <tbody>
+              {/* Built-in standard fields */}
+              {showBuiltin && builtinVisible.map((f) => (
+                <tr key={`builtin-${f.entity}-${f.key}`} style={{ opacity: 0.85 }}>
+                  <td style={td}><span style={{ background: 'var(--s3)', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 700, textTransform: 'uppercase' }}>{f.entity}</span></td>
+                  <td style={td}><code style={{ background: 'var(--s3)', padding: '1px 5px', borderRadius: 3, fontSize: 11 }}>{f.key}</code></td>
+                  <td style={td}>{f.label}</td>
+                  <td style={td}>{f.type}</td>
+                  <td style={td}>{f.required ? '✓' : ''}</td>
+                  <td style={td}>
+                    <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', padding: '2px 6px', borderRadius: 4, background: '#6366f115', color: '#6366f1' }}>Standard</span>
+                  </td>
+                  <td style={td}>
+                    <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>System field</span>
+                  </td>
+                </tr>
+              ))}
+
+              {/* Custom fields */}
+              {visible.length === 0 && !showBuiltin && (
+                <tr><td colSpan={7} style={{ ...td, color: 'var(--text-dim)', textAlign: 'center', padding: 20 }}>No custom fields yet.</td></tr>
+              )}
+              {visible.map((c) => (
+                <tr key={c.id}>
+                  <td style={td}><span style={{ background: 'var(--s3)', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 700, textTransform: 'uppercase' }}>{c.entity}</span></td>
+                  <td style={td}><code style={{ background: 'var(--s3)', padding: '1px 5px', borderRadius: 3, fontSize: 11 }}>{c.field_key}</code></td>
+                  <td style={td}>{c.label}</td>
+                  <td style={td}>{c.field_type}</td>
+                  <td style={td}>{c.required ? '✓' : ''}</td>
+                  <td style={td}>
+                    <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', padding: '2px 6px', borderRadius: 4, background: '#f59e0b15', color: '#f59e0b' }}>Custom</span>
+                  </td>
+                  <td style={td}>
+                    <button onClick={() => remove(c)} disabled={!!busy[c.id]} style={{ ...btnSmallDanger, opacity: busy[c.id] ? 0.5 : 1 }}>{busy[c.id] ? '...' : 'Delete'}</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
           </table>
         )}
       </div>
