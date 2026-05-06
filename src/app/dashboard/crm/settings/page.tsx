@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { crmSettings } from '../../../../lib/crmApi';
+import { rolesApi, type OrgRole } from '../../../../lib/rolesApi';
 import type { BusinessType } from '../../../../types/crm';
 
 const SECTIONS = [
@@ -26,16 +27,42 @@ export default function SettingsIndex() {
   const [businessType, setBusinessType] = useState<BusinessType>('both');
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [config, setConfig] = useState<Record<string, unknown>>({});
+  const [defaultRoleId, setDefaultRoleId] = useState<string>('');
+  const [roles, setRoles] = useState<OrgRole[]>([]);
+  const [savingRole, setSavingRole] = useState(false);
 
   useEffect(() => {
     (async () => {
       try {
-        const r = await crmSettings.get();
-        if (r.data?.business_type) setBusinessType(r.data.business_type);
+        const [s, r] = await Promise.allSettled([crmSettings.get(), rolesApi.list()]);
+        if (s.status === 'fulfilled') {
+          if (s.value.data?.business_type) setBusinessType(s.value.data.business_type);
+          const cfg = (s.value.data?.config as Record<string, unknown>) || {};
+          setConfig(cfg);
+          if (typeof cfg.default_role_id === 'string') setDefaultRoleId(cfg.default_role_id);
+        }
+        if (r.status === 'fulfilled') setRoles(((r.value as any) ?? []) as OrgRole[]);
       } catch { /* defaults are fine */ }
       finally { setLoaded(true); }
     })();
   }, []);
+
+  // Persist the picked default role into crm_settings.config (per-client when
+  // a client picker is active) so role hierarchy can render a ★ badge and
+  // future user-creation flows can pre-fill the role.
+  const saveDefaultRole = async (roleId: string) => {
+    setSavingRole(true);
+    setDefaultRoleId(roleId);
+    try {
+      const nextConfig = { ...config, default_role_id: roleId || null };
+      await crmSettings.update({ config: nextConfig });
+      setConfig(nextConfig);
+      toast.success(roleId ? 'Default role updated' : 'Default role cleared');
+    } catch (e: any) {
+      toast.error(e.message || 'Update failed');
+    } finally { setSavingRole(false); }
+  };
 
   const saveType = async (next: BusinessType) => {
     setSaving(true);
@@ -80,6 +107,38 @@ export default function SettingsIndex() {
               </button>
             );
           })}
+        </div>
+      </div>
+
+      {/* Default Role Hierarchy — what role new users get unless overridden.
+          Saved into crm_settings.config.default_role_id, scoped per client by
+          the existing X-Client-Id auto-attach. The Role Hierarchy page reads
+          this and shows a ★ Default badge on the selected role. */}
+      <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 14 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)', marginBottom: 4 }}>Default Role Hierarchy</div>
+            <p style={{ fontSize: 12, color: 'var(--text-dim)', margin: 0, maxWidth: 560 }}>
+              The org-role new users (or invitees) are placed under unless an explicit role is chosen.
+              When a client is active in the global picker this saves per client; otherwise it&rsquo;s the org-level default visible to admins.
+            </p>
+          </div>
+          <Link href="/dashboard/settings/roles" style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 12, textDecoration: 'none' }}>Manage hierarchy →</Link>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 12, flexWrap: 'wrap' }}>
+          <select
+            value={defaultRoleId}
+            disabled={!loaded || savingRole}
+            onChange={(e) => saveDefaultRole(e.target.value)}
+            style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13, minWidth: 240 }}
+          >
+            <option value="">— No default —</option>
+            {roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+          </select>
+          {savingRole && <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>Saving…</span>}
+          {!savingRole && defaultRoleId && (
+            <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>★ marked as default in Role Hierarchy</span>
+          )}
         </div>
       </div>
 

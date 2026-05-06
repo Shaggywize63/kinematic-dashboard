@@ -137,6 +137,17 @@ export default function LeadsGeoMap({ leads, height = 620 }: { leads: LeadGeoPoi
   const [zoom, setZoom] = useState<number>(INDIA_CENTRE.zoom);
   const [target, setTarget] = useState<{ lat: number; lng: number; zoom: number; key: string } | null>(null);
   const [search, setSearch] = useState('');
+  // Below this width we stack the map + side panel vertically and shrink the
+  // map height so both fit on a phone screen.
+  const [isCompact, setIsCompact] = useState(false);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia('(max-width: 820px)');
+    const handler = () => setIsCompact(mq.matches);
+    handler();
+    mq.addEventListener('change', handler);
+    return () => { mq.removeEventListener('change', handler); };
+  }, []);
 
   // Bucket leads by state + by city so both layers can read counts O(1).
   const { byState, byCity, unmapped } = useMemo(() => {
@@ -217,9 +228,14 @@ export default function LeadsGeoMap({ leads, height = 620 }: { leads: LeadGeoPoi
   const showLeads  = zoom > ZOOM_CITY_MAX;
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 280px', gap: 14, height }}>
+    <div style={{
+      display: 'grid',
+      gridTemplateColumns: isCompact ? '1fr' : 'minmax(0, 1fr) 280px',
+      gap: 14,
+      height: isCompact ? 'auto' : height,
+    }}>
       {/* Map */}
-      <div style={{ background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden', position: 'relative' }}>
+      <div style={{ background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden', position: 'relative', height: isCompact ? 360 : '100%' }}>
         <MapContainer
           center={[INDIA_CENTRE.lat, INDIA_CENTRE.lng]}
           zoom={INDIA_CENTRE.zoom}

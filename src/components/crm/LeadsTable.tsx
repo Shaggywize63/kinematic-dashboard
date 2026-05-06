@@ -22,7 +22,7 @@ export default function LeadsTable({ leads, selected, onToggle, onToggleAll, loa
   const tdStyle: React.CSSProperties = { padding: '12px 14px', fontSize: 13, color: 'var(--text)', borderBottom: '1px solid var(--border)' };
   const thStyle: React.CSSProperties = { padding: '10px 14px', fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, textAlign: 'left', borderBottom: '1px solid var(--border)', background: 'var(--s2)', fontWeight: 700 };
 
-  const colCount = isB2C ? 7 : 8;
+  const colCount = isB2C ? 8 : 9;
 
   return (
     <>
@@ -41,6 +41,7 @@ export default function LeadsTable({ leads, selected, onToggle, onToggleAll, loa
                 <th style={thStyle}>Score</th>
                 <th style={thStyle}>Source</th>
                 <th style={thStyle}>Owner</th>
+                <th style={{ ...thStyle, textAlign: 'right' }}>Action</th>
               </tr>
             </thead>
             <tbody>
@@ -82,6 +83,17 @@ export default function LeadsTable({ leads, selected, onToggle, onToggleAll, loa
                         />
                       ) : (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><OwnerAvatar name={l.owner_name} size={24} /> <span style={{ fontSize: 12 }}>{l.owner_name || 'Unassigned'}</span></div>
+                      )}
+                    </td>
+                    <td style={{ ...tdStyle, textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      {l.status === 'converted' ? (
+                        <span style={{ fontSize: 11, color: '#10b981', fontWeight: 700 }}>✓ Converted</span>
+                      ) : (
+                        <Link
+                          href={`/dashboard/crm/leads/${l.id}?convert=1`}
+                          style={{ background: 'var(--primary)', color: '#fff', padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, textDecoration: 'none' }}
+                          title="Convert this lead to a deal"
+                        >→ Deal</Link>
                       )}
                     </td>
                   </tr>

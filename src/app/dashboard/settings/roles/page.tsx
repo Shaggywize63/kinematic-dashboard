@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import api from '../../../../lib/api';
 import { rolesApi, type OrgRole, type OrgRoleNode, type OrgRoleUser } from '../../../../lib/rolesApi';
+import { crmSettings } from '../../../../lib/crmApi';
 import { getStoredUser, canAccess } from '../../../../lib/auth';
 import { useClient } from '@/context/ClientContext';
 import { ALL_MODULES, MODULE_GROUPS } from '../../../../lib/modules';
@@ -26,6 +27,9 @@ export default function RolesPage() {
     assigned_cities: string[];
   } | null>(null);
   const [cities, setCities] = useState<string[]>([]);
+  // The role chosen as the org/client default in CRM Settings — rendered as a
+  // ★ badge so admins can see at a glance which role new users will land in.
+  const [defaultRoleId, setDefaultRoleId] = useState<string | null>(null);
   const [users, setUsers] = useState<OrgRoleUser[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -59,6 +63,19 @@ export default function RolesPage() {
     setSelectedId(null);
     setEditing(null);
   }, [selectedClientId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Pick up the configured default role from crm_settings.config so we can
+  // render ★ next to that node in the tree. Refetches when the client picker
+  // changes since the value is per-client.
+  useEffect(() => {
+    crmSettings.get()
+      .then((r: any) => {
+        const cfg = (r?.data?.config as Record<string, unknown>) || {};
+        const id = typeof cfg.default_role_id === 'string' ? cfg.default_role_id : null;
+        setDefaultRoleId(id);
+      })
+      .catch(() => setDefaultRoleId(null));
+  }, [selectedClientId]);
 
   // Load city names once so the EditPanel can render the city-access checklist.
   useEffect(() => {
@@ -226,6 +243,7 @@ export default function RolesPage() {
                   node={node}
                   depth={0}
                   selectedId={selectedId}
+                  defaultRoleId={defaultRoleId}
                   onSelect={setSelectedId}
                   onAddChild={(pid) => startCreate(pid)}
                   onEdit={startEdit}
@@ -271,17 +289,19 @@ export default function RolesPage() {
 // ---- subcomponents -----------------------------------------------------
 
 function RoleNode({
-  node, depth, selectedId, onSelect, onAddChild, onEdit, onDelete,
+  node, depth, selectedId, defaultRoleId, onSelect, onAddChild, onEdit, onDelete,
 }: {
   node: OrgRoleNode;
   depth: number;
   selectedId: string | null;
+  defaultRoleId: string | null;
   onSelect: (id: string) => void;
   onAddChild: (parentId: string) => void;
   onEdit: (role: OrgRole) => void;
   onDelete: (role: OrgRole) => void;
 }) {
   const [hover, setHover] = useState(false);
+  const isDefault = defaultRoleId === node.id;
   const isSelected = node.id === selectedId;
   const indent = depth * 28;
   const color = node.color || '#6366f1';
@@ -321,6 +341,11 @@ function RoleNode({
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{node.name}</span>
+              {isDefault && (
+                <span title="Default role for new users (configured in CRM Settings)" style={{ fontSize: 10, fontWeight: 800, color: '#F7B538', background: '#F7B53815', padding: '2px 8px', borderRadius: 4, border: '1px solid #F7B53855', letterSpacing: 0.4 }}>
+                  ★ Default
+                </span>
+              )}
               {(node.user_count ?? 0) > 0 && (
                 <span style={{ fontSize: 10, fontWeight: 700, color: '#10b981', background: '#10b98115', padding: '2px 8px', borderRadius: 4 }}>
                   {node.user_count} member{node.user_count === 1 ? '' : 's'}
@@ -366,6 +391,7 @@ function RoleNode({
               node={c}
               depth={depth + 1}
               selectedId={selectedId}
+              defaultRoleId={defaultRoleId}
               onSelect={onSelect}
               onAddChild={onAddChild}
               onEdit={onEdit}

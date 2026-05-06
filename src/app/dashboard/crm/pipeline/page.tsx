@@ -77,7 +77,17 @@ export default function PipelinePage() {
           </select>
           <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>{deals.length} open deal{deals.length !== 1 ? 's' : ''}</span>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <Link
+            href={pipelineId ? `/dashboard/crm/deals/new?pipeline_id=${pipelineId}` : '/dashboard/crm/deals/new'}
+            style={{ background: 'var(--primary)', color: '#fff', padding: '7px 13px', borderRadius: 8, fontSize: 13, fontWeight: 700, textDecoration: 'none' }}
+            title="Add a new deal directly to this pipeline"
+          >+ New Deal</Link>
+          <Link
+            href="/dashboard/crm/leads?status=qualified"
+            style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '7px 13px', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}
+            title="Pick a qualified lead and convert it into a deal"
+          >Convert from leads</Link>
           <button
             onClick={() => setShowAddPipeline(!showAddPipeline)}
             style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '7px 13px', borderRadius: 8, fontSize: 13, cursor: 'pointer', fontWeight: 600 }}

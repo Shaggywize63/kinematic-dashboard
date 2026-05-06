@@ -177,7 +177,7 @@ export default function CrmDashboardPage() {
       )}
 
       {visibleStatCount > 0 && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
           {isVisible('stat_open_pipeline') && <StatCard label="Open Pipeline" value={formatINR(summary?.open_deal_value)} hint={`${summary?.open_deals || 0} deals`} loading={loading} />}
           {isVisible('stat_won') && <StatCard label="Won (window)" value={formatINR(summary?.won_revenue_30d)} hint={`${summary?.won_deals_30d || 0} deals`} deltaTone="up" loading={loading} />}
           {isVisible('stat_win_rate') && <StatCard label="Win Rate" value={fmtPct(summary?.win_rate_30d)} loading={loading} />}
@@ -203,7 +203,7 @@ export default function CrmDashboardPage() {
       )}
 
       {visibleChartCount > 0 && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(420px, 100%), 1fr))', gap: 14 }}>
           {isVisible('chart_funnel') && (
             <Card title="Pipeline Funnel">
               {funnel.length ? <PipelineFunnelChart data={funnel} /> : <Empty />}

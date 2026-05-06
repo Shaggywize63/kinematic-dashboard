@@ -30,6 +30,14 @@ export default function LeadDetailPage() {
   const [loading, setLoading] = useState(true);
   const [scoring, setScoring] = useState(false);
   const [convertOpen, setConvertOpen] = useState(false);
+  // Auto-open the Convert modal when the page is reached with ?convert=1
+  // (the leads list "→ Deal" action uses this so users don't have to click
+  // through the detail page to find Convert).
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const sp = new URLSearchParams(window.location.search);
+    if (sp.get('convert') === '1') setConvertOpen(true);
+  }, []);
   const [editOpen, setEditOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deactivating, setDeactivating] = useState(false);

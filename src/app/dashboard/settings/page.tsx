@@ -349,6 +349,24 @@ export default function SettingsPage() {
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+
+        {/* Theme — surfaced at the top so it's the first thing visible.
+            (Same toggleTheme handler as the System Preferences card below;
+            kept both for discoverability.) */}
+        <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 16, padding: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+          <div>
+            <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 15, fontWeight: 800 }}>Appearance</div>
+            <div style={{ fontSize: 12, color: C.gray, marginTop: 2 }}>Choose dark or light theme for the dashboard.</div>
+          </div>
+          <div style={{ display: 'inline-flex', background: C.s3, border: `1px solid ${C.border}`, borderRadius: 10, padding: 4 }}>
+            <button onClick={() => toggleTheme('dark')} style={{ padding: '8px 16px', borderRadius: 8, background: theme === 'dark' ? C.s4 : 'transparent', border: 'none', color: theme === 'dark' ? C.white : C.gray, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <span>🌙</span> Dark
+            </button>
+            <button onClick={() => toggleTheme('light')} style={{ padding: '8px 16px', borderRadius: 8, background: theme === 'light' ? C.s4 : 'transparent', border: 'none', color: theme === 'light' ? C.white : C.gray, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <span>☀️</span> Light
+            </button>
+          </div>
+        </div>
         
         {/* Geofence Management */}
         <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 16, padding: 32 }}>
