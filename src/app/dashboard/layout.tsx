@@ -381,7 +381,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     ])},
     { label: 'Operations', items: filterNav([
       { href: '/dashboard/other-management/activities', label: 'Activity Management', icon: 'M12 2v20 M2 12h20', module: 'activities' },
-      { href: '/dashboard/planograms', label: 'Planograms', icon: 'M3 5h18 M3 12h18 M3 19h18 M7 5v14 M17 5v14' },
+      { href: '/dashboard/planograms', label: 'Planograms', icon: 'M3 5h18 M3 12h18 M3 19h18 M7 5v14 M17 5v14', module: 'planograms' },
       { href: '/dashboard/form-builder', label: 'Form Builder', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2 M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2', module: 'form_builder' },
       { href: '/dashboard/route-plan', label: 'Route Plan', icon: 'M9 20l-5.44-2.72A2 2 0 013 15.49V4.5a2 2 0 012.89-1.8L9 4 M9 4v16 M15 1l5.44 2.72A2 2 0 0121 5.51v10.98a2 2 0 01-2.89 1.8L15 17 M15 1v16', module: 'orders' },
       { href: '/dashboard/work-activities', label: 'Work Activities', icon: 'M12 2v20 M2 12h20 M5 5l14 14 M19 5L5 14', module: 'work_activities' },
