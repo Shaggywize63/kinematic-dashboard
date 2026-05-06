@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import api from '../../lib/api';
 import { getStoredUser } from '../../lib/auth';
 import { useClient } from '../../context/ClientContext';
@@ -460,10 +461,19 @@ export default function DashboardPage() {
 
 
 
+  const router = useRouter();
   useEffect(() => {
     const u = getStoredUser();
     setCurrUser(u);
-  }, []);
+    // If the signed-in user only has CRM granted, the org-wide overview
+    // is meaningless to them — bounce to the CRM Overview instead.
+    const perms = (u as { permissions?: string[] } | null)?.permissions;
+    if (Array.isArray(perms) && perms.length > 0) {
+      const hasCrm = perms.some((p) => p === 'crm' || p.startsWith('crm_'));
+      const hasNonCrm = perms.some((p) => p !== 'crm' && !p.startsWith('crm_'));
+      if (hasCrm && !hasNonCrm) router.replace('/dashboard/crm/dashboard');
+    }
+  }, [router]);
 
   useEffect(() => { loadInit(); }, [loadInit]);
   useEffect(() => { 
