@@ -12,8 +12,9 @@ const ALL_LINKS = [
   { href: '/dashboard/crm/deals', label: 'Deals' },
   { href: '/dashboard/crm/pipeline', label: 'Pipeline' },
   { href: '/dashboard/crm/products', label: 'Products' },
+  // Tasks merged into Activities — tasks are now activities of type='task'.
+  // /dashboard/crm/tasks redirects to /dashboard/crm/activities?type=task.
   { href: '/dashboard/crm/activities', label: 'Activities' },
-  { href: '/dashboard/crm/tasks', label: 'Tasks' },
   { href: '/dashboard/crm/whatsapp', label: 'WhatsApp' },
   { href: '/dashboard/crm/reports', label: 'Reports' },
   { href: '/dashboard/crm/settings', label: 'Settings' },
