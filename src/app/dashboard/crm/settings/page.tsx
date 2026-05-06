@@ -79,11 +79,20 @@ export default function SettingsIndex() {
 
   const saveType = async (next: BusinessType) => {
     setSaving(true);
-    setBusinessType(next);
+    const previous = businessType;
+    setBusinessType(next); // optimistic
     try {
-      await crmSettings.update({ business_type: next });
-      toast.success(`Business type set to ${next.toUpperCase()}`);
-    } catch (e: any) { toast.error(e.message || 'Update failed'); }
+      // Read the returned row and use its business_type as the authoritative
+      // value — sticky across refreshes regardless of any unrelated field
+      // the backend may normalise.
+      const r = await crmSettings.update({ business_type: next });
+      const saved = (r?.data?.business_type as BusinessType | undefined) ?? next;
+      setBusinessType(saved);
+      toast.success(`Business type set to ${saved.toUpperCase()}`);
+    } catch (e: any) {
+      setBusinessType(previous); // rollback on error so the UI matches reality
+      toast.error(e.message || 'Update failed');
+    }
     finally { setSaving(false); }
   };
 

@@ -32,7 +32,7 @@ export default function NewProductPage() {
     e.preventDefault();
     setBusy(true);
     try {
-      const r = await crmProducts.create({
+      await crmProducts.create({
         sku: form.sku,
         name: form.name,
         description: form.description || undefined,
@@ -47,7 +47,9 @@ export default function NewProductPage() {
         is_active: form.is_active,
       } as any);
       toast.success('Product created');
-      router.push(`/dashboard/crm/products/${r.data.id}`);
+      // Land back on the products list so the rep can see the new row in
+      // context and immediately add another if needed.
+      router.push('/dashboard/crm/products');
     } catch (err: any) { toast.error(err.message || 'Create failed'); setBusy(false); }
   };
 
