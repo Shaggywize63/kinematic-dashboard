@@ -11,8 +11,15 @@ export default function NewProductPage() {
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState({
     sku: '', name: '', description: '', category_id: '', unit: 'each',
-    price: '', currency: 'INR', tax_rate_pct: '18', hsn_code: '', image_url: '', is_active: true,
+    price: '', weight_kg: '', currency: 'INR', tax_rate_pct: '18', hsn_code: '', image_url: '', is_active: true,
   });
+
+  // Derived per-kg / per-tonne pricing for weight-based goods (TMT, cement, etc.).
+  // Helps the rep sanity-check a quote without doing the math by hand.
+  const priceNum = Number(form.price) || 0;
+  const weightNum = Number(form.weight_kg) || 0;
+  const pricePerKg  = weightNum > 0 ? priceNum / weightNum : 0;
+  const pricePerTon = pricePerKg * 1000;
 
   useEffect(() => {
     (async () => {
@@ -32,6 +39,7 @@ export default function NewProductPage() {
         category_id: form.category_id || undefined,
         unit: form.unit || 'each',
         price: form.price ? Number(form.price) : 0,
+        weight_kg: form.weight_kg ? Number(form.weight_kg) : undefined,
         currency: form.currency || 'INR',
         tax_rate_pct: form.tax_rate_pct ? Number(form.tax_rate_pct) : 0,
         hsn_code: form.hsn_code || undefined,
@@ -56,7 +64,8 @@ export default function NewProductPage() {
           </select>
         </Field>
         <Field label="Unit"><input value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} style={input} /></Field>
-        <Field label="Price (INR)"><input type="number" step="0.01" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} style={input} /></Field>
+        <Field label="Price per unit (INR)"><input type="number" step="0.01" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} style={input} /></Field>
+        <Field label="Weight per unit (kg)"><input type="number" step="0.001" value={form.weight_kg} onChange={(e) => setForm({ ...form, weight_kg: e.target.value })} placeholder="e.g. 85 (one TMT bar)" style={input} /></Field>
         <Field label="Tax %"><input type="number" step="0.01" value={form.tax_rate_pct} onChange={(e) => setForm({ ...form, tax_rate_pct: e.target.value })} style={input} /></Field>
         <Field label="HSN code"><input value={form.hsn_code} onChange={(e) => setForm({ ...form, hsn_code: e.target.value })} style={input} /></Field>
         <Field label="Image URL"><input value={form.image_url} onChange={(e) => setForm({ ...form, image_url: e.target.value })} style={input} /></Field>
@@ -67,6 +76,13 @@ export default function NewProductPage() {
           </label>
         </Field>
       </div>
+      {weightNum > 0 && priceNum > 0 && (
+        <div style={{ marginTop: 14, padding: '10px 14px', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 8, display: 'flex', gap: 18, alignItems: 'center', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.6 }}>Derived</span>
+          <span style={{ fontSize: 13, color: 'var(--text)' }}>Price/kg: <strong>₹{pricePerKg.toFixed(2)}</strong></span>
+          <span style={{ fontSize: 13, color: 'var(--text)' }}>Price/tonne: <strong>₹{Math.round(pricePerTon).toLocaleString('en-IN')}</strong></span>
+        </div>
+      )}
       <div style={{ display: 'flex', gap: 8, marginTop: 18, justifyContent: 'flex-end' }}>
         <button type="button" onClick={() => router.back()} style={btnGhost}>Cancel</button>
         <button type="submit" disabled={busy} style={btnPrimary}>{busy ? 'Saving...' : 'Create'}</button>

@@ -318,9 +318,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [otherOpen, setOtherOpen] = useState(false);
   const [token, setToken] = useState('');
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // Whether the active org's CRM is configured for B2C. We fetch once on
+  // mount and use it to hide B2B-only nav entries (Accounts) from the
+  // sidebar for orgs that don't sell to companies.
+  const [isCrmB2C, setIsCrmB2C] = useState(false);
   const isMobile = useIsMobile(1024);
   const router = useRouter();
   const pathname = usePathname();
+
+  // Read the CRM business_type once so we can hide B2B-only nav entries.
+  // Failure is silent — we just default to B2B which keeps every entry visible.
+  useEffect(() => {
+    api.get<{ data?: { business_type?: string } }>('/api/v1/crm/settings')
+      .then((r: any) => { if ((r?.data?.business_type ?? r?.business_type) === 'b2c') setIsCrmB2C(true); })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     const u = getStoredUser();
@@ -356,8 +368,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   })();
 
   const filterNav = (items: any[]) => {
-    if (isPlatformAdmin) return items;
-    return items.filter(i => !i.module || (userPerms && Array.isArray(userPerms) && userPerms.includes(i.module)));
+    // B2C orgs don't sell to companies — hide the Accounts entry (and any
+    // future B2B-only entries) regardless of role.
+    const visibleAfterB2C = items.filter((i) => !(i.hideForB2C && isCrmB2C));
+    if (isPlatformAdmin) return visibleAfterB2C;
+    return visibleAfterB2C.filter(i => !i.module || (userPerms && Array.isArray(userPerms) && userPerms.includes(i.module)));
   };
 
   const navGroups = [
@@ -372,7 +387,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       { href: '/dashboard/crm/leads', label: 'Leads', icon: 'M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 7a4 4 0 100-8 4 4 0 000 8z', module: 'crm' },
       { href: '/dashboard/crm/deals', label: 'Deals', icon: 'M12 1v22 M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6', module: 'crm' },
       { href: '/dashboard/crm/pipeline', label: 'Pipeline', icon: 'M3 5h6v14H3z M9 9h6v6H9z M15 5h6v14h-6z', module: 'crm' },
-      { href: '/dashboard/crm/accounts', label: 'Accounts', icon: 'M3 21h18 M3 7v14 M21 7v14 M3 7l9-4 9 4 M9 12h6', module: 'crm' },
+      { href: '/dashboard/crm/accounts', label: 'Accounts', icon: 'M3 21h18 M3 7v14 M21 7v14 M3 7l9-4 9 4 M9 12h6', module: 'crm', hideForB2C: true },
       { href: '/dashboard/crm/contacts', label: 'Contacts', icon: 'M20 21v-2a4 4 0 00-3-3.87 M4 21v-2a4 4 0 014-4h4a4 4 0 014 4v2 M16 3.13a4 4 0 010 7.75 M8 11a4 4 0 100-8 4 4 0 000 8z', module: 'crm' },
       { href: '/dashboard/crm/activities', label: 'Activities', icon: 'M22 11.08V12a10 10 0 11-5.93-9.14 M22 4L12 14.01l-3-3', module: 'crm' },
       { href: '/dashboard/crm/templates', label: 'Templates', icon: 'M19 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V5a2 2 0 00-2-2z M3 9h18 M9 21V9', module: 'crm' },

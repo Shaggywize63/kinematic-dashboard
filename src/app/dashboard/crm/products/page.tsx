@@ -55,21 +55,27 @@ export default function ProductsListPage() {
       </div>
       <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead><tr><th style={th}>SKU</th><th style={th}>Name</th><th style={th}>Category</th><th style={th}>Price</th><th style={th}>Tax %</th><th style={th}>HSN</th><th style={th}>Active</th></tr></thead>
+          <thead><tr><th style={th}>SKU</th><th style={th}>Name</th><th style={th}>Category</th><th style={th}>Price</th><th style={th}>Weight</th><th style={th}>Price/tonne</th><th style={th}>Tax %</th><th style={th}>HSN</th><th style={th}>Active</th></tr></thead>
           <tbody>
-            {loading && <tr><td colSpan={7} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)' }}>Loading...</td></tr>}
-            {!loading && items.length === 0 && <tr><td colSpan={7} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)' }}>No products yet.</td></tr>}
-            {items.map((p) => (
+            {loading && <tr><td colSpan={9} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)' }}>Loading...</td></tr>}
+            {!loading && items.length === 0 && <tr><td colSpan={9} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)' }}>No products yet.</td></tr>}
+            {items.map((p) => {
+              const w = p.weight_kg ?? 0;
+              const perTonne = w > 0 ? Math.round((Number(p.price) / w) * 1000) : null;
+              return (
               <tr key={p.id}>
                 <td style={td}><Link href={`/dashboard/crm/products/${p.id}`} style={{ color: 'var(--text)', fontWeight: 600 }}>{p.sku}</Link></td>
                 <td style={td}>{p.name}</td>
                 <td style={td}>{catName(p.category_id)}</td>
                 <td style={td}>{formatINR(p.price)}</td>
+                <td style={td}>{w > 0 ? `${w} kg` : '—'}</td>
+                <td style={td}>{perTonne != null ? formatINR(perTonne) : '—'}</td>
                 <td style={td}>{p.tax_rate_pct ?? 0}%</td>
                 <td style={td}>{p.hsn_code || '—'}</td>
                 <td style={td}>{p.is_active ? 'Yes' : <span style={{ color: 'var(--text-dim)' }}>No</span>}</td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>

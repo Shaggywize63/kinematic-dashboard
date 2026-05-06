@@ -32,6 +32,7 @@ export default function ProductDetailPage() {
       const r = await crmProducts.update(product.id, {
         sku: product.sku, name: product.name, description: product.description,
         category_id: product.category_id, unit: product.unit, price: Number(product.price),
+        weight_kg: product.weight_kg != null ? Number(product.weight_kg) : null,
         currency: product.currency, tax_rate_pct: Number(product.tax_rate_pct ?? 0),
         hsn_code: product.hsn_code, image_url: product.image_url, is_active: product.is_active,
       } as any);
@@ -69,7 +70,8 @@ export default function ProductDetailPage() {
           </select>
         </Field>
         <Field label="Unit"><input value={product.unit ?? 'each'} onChange={(e) => setProduct({ ...product, unit: e.target.value })} style={input} /></Field>
-        <Field label="Price (INR)"><input type="number" step="0.01" value={product.price} onChange={(e) => setProduct({ ...product, price: Number(e.target.value) })} style={input} /></Field>
+        <Field label="Price per unit (INR)"><input type="number" step="0.01" value={product.price} onChange={(e) => setProduct({ ...product, price: Number(e.target.value) })} style={input} /></Field>
+        <Field label="Weight per unit (kg)"><input type="number" step="0.001" value={product.weight_kg ?? ''} onChange={(e) => setProduct({ ...product, weight_kg: e.target.value === '' ? null : Number(e.target.value) })} placeholder="e.g. 85" style={input} /></Field>
         <Field label="Tax %"><input type="number" step="0.01" value={product.tax_rate_pct ?? 0} onChange={(e) => setProduct({ ...product, tax_rate_pct: Number(e.target.value) })} style={input} /></Field>
         <Field label="HSN code"><input value={product.hsn_code ?? ''} onChange={(e) => setProduct({ ...product, hsn_code: e.target.value })} style={input} /></Field>
         <Field label="Image URL"><input value={product.image_url ?? ''} onChange={(e) => setProduct({ ...product, image_url: e.target.value })} style={input} /></Field>

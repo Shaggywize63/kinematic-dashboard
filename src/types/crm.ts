@@ -330,7 +330,10 @@ export interface ProductCategory {
 export interface Product {
   id: string; org_id: string; category_id?: string | null;
   sku: string; name: string; description?: string | null;
-  unit?: string | null; price: number; currency: string;
+  unit?: string | null; price: number;
+  /** Per-unit weight in kilograms — drives price-per-kg / per-tonne in the UI. */
+  weight_kg?: number | null;
+  currency: string;
   tax_rate_pct?: number | null; hsn_code?: string | null;
   image_url?: string | null; is_active: boolean;
   tags?: string[] | null; created_at: string; updated_at: string;
