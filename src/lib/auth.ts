@@ -57,7 +57,11 @@ function normalizeRole(role: string): string {
 }
 
 // Power hierarchy (low → high). Higher roles inherit access to lower-role content.
-// 'client' is intentionally excluded — it is an external category, not staff.
+// 'client' sits at sub-admin parity by design — client tenant admins are
+// expected to manage their own users, role hierarchy, and CRM configuration
+// inside their scope (the multi-tenant client_id keeps them isolated from
+// other tenants regardless). Placed right after sub_admin so canAccess
+// returns true for any check >= sub_admin level.
 const ROLE_HIERARCHY = [
   'field_executive',
   'supervisor',
@@ -65,6 +69,7 @@ const ROLE_HIERARCHY = [
   'program_manager',
   'hr',
   'sub_admin',
+  'client',
   'main_admin',
   'admin',
   'super_admin',

@@ -16,6 +16,9 @@ const TYPE_ICONS: Record<string, string> = {
 };
 
 const TYPE_OPTIONS = ['', 'call', 'email', 'meeting', 'task', 'note', 'sms', 'whatsapp'];
+// Activity statuses surfaced on the filter — the same values the row actions
+// can flip activities into (open / completed / in_progress / cancelled).
+const STATUS_OPTIONS = ['', 'open', 'in_progress', 'completed', 'cancelled'];
 
 // Next.js 14 bails out of static rendering for any page that calls
 // useSearchParams() unless the call site is wrapped in <Suspense>. Keep
@@ -32,9 +35,11 @@ export default function ActivitiesPage() {
 function ActivitiesPageInner() {
   const searchParams = useSearchParams();
   const initialType = searchParams.get('type') ?? '';
+  const initialStatus = searchParams.get('status') ?? '';
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
   const [type, setType] = useState(initialType);
+  const [statusFilter, setStatusFilter] = useState(initialStatus);
   const [isAdmin, setIsAdmin] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [users, setUsers] = useState<UserOption[]>([]);
@@ -89,6 +94,10 @@ function ActivitiesPageInner() {
   const filtered = useMemo(() => {
     return activities.filter((a) => {
       if (type && a.type !== type) return false;
+      if (statusFilter) {
+        const aStatus = ((a as any).status as string) || (a.completed_at ? 'completed' : 'open');
+        if (aStatus !== statusFilter) return false;
+      }
       if (isAdmin) {
         if (feFilter) {
           const aid = (a as any).assigned_to || a.owner_id;
@@ -164,6 +173,11 @@ function ActivitiesPageInner() {
           <select value={type} onChange={(e) => setType(e.target.value)} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 }}>
             {TYPE_OPTIONS.map((t) => (
               <option key={t} value={t}>{t ? `${TYPE_ICONS[t] || ''} ${t[0].toUpperCase() + t.slice(1)}s` : 'All Activities'}</option>
+            ))}
+          </select>
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} title="Filter by status" style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 }}>
+            {STATUS_OPTIONS.map((s) => (
+              <option key={s} value={s}>{s ? s.replace('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : 'All Statuses'}</option>
             ))}
           </select>
           {isAdmin && (

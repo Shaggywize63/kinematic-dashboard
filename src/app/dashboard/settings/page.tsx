@@ -47,7 +47,17 @@ const ROLE_DEFAULTS: Record<string, string[]> = {
   warehouse_manager: ['inventory', 'skus', 'assets', 'distribution_invoicing', 'distribution_pricing'],
   hr: ['analytics', 'users', 'hr'],
   mis: ['analytics', 'visit_logs', 'reports', 'distribution_ledger'],
-  client: []
+  // Clients sit at sub-admin parity (see ROLE_HIERARCHY in lib/auth.ts) so
+  // they can manage their own role hierarchy + CRM configuration. Defaults
+  // mirror sub_admin's module list — admins can still narrow by client when
+  // creating the user via the client-modules picker.
+  client: [
+    'analytics', 'live_tracking', 'broadcast', 'attendance', 'orders', 'work_activities',
+    'users', 'hr', 'visit_logs', 'inventory', 'skus', 'assets', 'grievances', 'form_builder',
+    'cities', 'zones', 'stores', 'activities', 'clients', 'reports', 'planograms', 'settings',
+    'crm', 'crm_dashboard', 'crm_leads', 'crm_contacts', 'crm_accounts', 'crm_deals',
+    'crm_pipeline', 'crm_products', 'crm_activities', 'crm_tasks', 'crm_whatsapp', 'crm_reports', 'crm_settings',
+  ]
 };
 
 

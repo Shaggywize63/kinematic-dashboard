@@ -44,6 +44,11 @@ export default function SettingsIndex() {
   const [defaultRoleId, setDefaultRoleId] = useState<string>('');
   const [roles, setRoles] = useState<OrgRole[]>([]);
   const [savingRole, setSavingRole] = useState(false);
+  // Per-tonne price for weight-based businesses (TMT, cement, sand). When set,
+  // the CRM dashboard exposes a "₹ ↔ T" unit toggle and the deal-create form
+  // adds a Weight (tonnes) input that auto-fills amount as weight × price_per_tonne.
+  const [pricePerTonne, setPricePerTonne] = useState<string>('');
+  const [savingPrice, setSavingPrice] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -54,6 +59,7 @@ export default function SettingsIndex() {
           const cfg = (s.value.data?.config as Record<string, unknown>) || {};
           setConfig(cfg);
           if (typeof cfg.default_role_id === 'string') setDefaultRoleId(cfg.default_role_id);
+          if (typeof cfg.price_per_tonne === 'number') setPricePerTonne(String(cfg.price_per_tonne));
         }
         if (r.status === 'fulfilled') setRoles(((r.value as any) ?? []) as OrgRole[]);
       } catch { /* defaults are fine */ }
@@ -64,6 +70,21 @@ export default function SettingsIndex() {
   // Persist the picked default role into crm_settings.config (per-client when
   // a client picker is active) so role hierarchy can render a ★ badge and
   // future user-creation flows can pre-fill the role.
+  // Persist the per-tonne reference price into crm_settings.config so the
+  // dashboard ₹↔T toggle and the deal weight input can read it.
+  const savePricePerTonne = async () => {
+    setSavingPrice(true);
+    try {
+      const num = pricePerTonne === '' ? null : Number(pricePerTonne);
+      const nextConfig = { ...config, price_per_tonne: num };
+      await crmSettings.update({ config: nextConfig });
+      setConfig(nextConfig);
+      toast.success(num ? `Price set to ₹${num.toLocaleString('en-IN')}/tonne` : 'Per-tonne price cleared');
+    } catch (e: any) {
+      toast.error(e.message || 'Update failed');
+    } finally { setSavingPrice(false); }
+  };
+
   const saveDefaultRole = async (roleId: string) => {
     setSavingRole(true);
     setDefaultRoleId(roleId);
@@ -139,6 +160,34 @@ export default function SettingsIndex() {
               </button>
             );
           })}
+        </div>
+      </div>
+
+      {/* Weight-based pricing — relevant for TMT, cement, sand, etc. The
+          dashboard reads this to show a ₹↔T unit toggle; deals written by
+          weight auto-multiply by this rate to compute their amount. Leave
+          empty for currency-only orgs and the toggle stays hidden. */}
+      <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 14 }}>
+        <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)', marginBottom: 4 }}>Weight-based Pricing</div>
+        <p style={{ fontSize: 12, color: 'var(--text-dim)', margin: '0 0 12px', maxWidth: 560 }}>
+          For businesses sold by mass (TMT bars, cement, sand). Setting a per-tonne reference price unlocks a ₹↔T toggle on the dashboard and a Weight (tonnes) input on the deal form (amount auto-fills as weight × price/tonne).
+        </p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <label style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.5 }}>Price per tonne (INR)</label>
+          <input
+            type="number"
+            step="100"
+            value={pricePerTonne}
+            onChange={(e) => setPricePerTonne(e.target.value)}
+            placeholder="e.g. 65000"
+            style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13, width: 160 }}
+          />
+          <button onClick={savePricePerTonne} disabled={savingPrice || !loaded} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 16px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+            {savingPrice ? 'Saving…' : 'Save'}
+          </button>
+          {pricePerTonne && Number(pricePerTonne) > 0 && (
+            <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>= ₹{Number(pricePerTonne).toLocaleString('en-IN')}/tonne</span>
+          )}
         </div>
       </div>
 
