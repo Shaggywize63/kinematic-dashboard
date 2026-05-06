@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
@@ -17,7 +17,19 @@ const TYPE_ICONS: Record<string, string> = {
 
 const TYPE_OPTIONS = ['', 'call', 'email', 'meeting', 'task', 'note', 'sms', 'whatsapp'];
 
+// Next.js 14 bails out of static rendering for any page that calls
+// useSearchParams() unless the call site is wrapped in <Suspense>. Keep
+// the data-fetching logic inside ActivitiesPageInner and render it
+// through a Suspense fallback so the build can prerender the shell.
 export default function ActivitiesPage() {
+  return (
+    <Suspense fallback={<div style={{ padding: 24, color: 'var(--text-dim)', fontSize: 13 }}>Loading…</div>}>
+      <ActivitiesPageInner />
+    </Suspense>
+  );
+}
+
+function ActivitiesPageInner() {
   const searchParams = useSearchParams();
   const initialType = searchParams.get('type') ?? '';
   const [activities, setActivities] = useState<Activity[]>([]);
