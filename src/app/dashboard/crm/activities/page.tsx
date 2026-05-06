@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { crmActivities } from '../../../../lib/crmApi';
 import api from '../../../../lib/api';
@@ -17,9 +18,11 @@ const TYPE_ICONS: Record<string, string> = {
 const TYPE_OPTIONS = ['', 'call', 'email', 'meeting', 'task', 'note', 'sms', 'whatsapp'];
 
 export default function ActivitiesPage() {
+  const searchParams = useSearchParams();
+  const initialType = searchParams.get('type') ?? '';
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
-  const [type, setType] = useState('');
+  const [type, setType] = useState(initialType);
   const [isAdmin, setIsAdmin] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [users, setUsers] = useState<UserOption[]>([]);

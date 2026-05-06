@@ -10,6 +10,7 @@ export interface OrgRole {
   position: number;
   color: string | null;
   permissions: string[];
+  permissions_write: string[];
   assigned_cities: string[];
   created_at: string;
   updated_at: string;

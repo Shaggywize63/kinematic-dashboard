@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { toast } from 'sonner';
-import { crmAnalytics, crmSettings } from '../../../../lib/crmApi';
+import { crmAnalytics, crmSettings, crmLeads } from '../../../../lib/crmApi';
 import { formatINR } from '../../../../lib/formatCurrency';
 import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
 import StatCard from '../../../../components/crm/shared/StatCard';
@@ -17,6 +17,7 @@ const WinRateByRepChart = dynamic(() => import('../../../../components/crm/chart
 const ForecastChart = dynamic(() => import('../../../../components/crm/charts/ForecastChart'), { ssr: false, loading: ChartLoading });
 const LeadScoreDistributionChart = dynamic(() => import('../../../../components/crm/charts/LeadScoreDistributionChart'), { ssr: false, loading: ChartLoading });
 const RevenueTrendChart = dynamic(() => import('../../../../components/crm/charts/RevenueTrendChart'), { ssr: false, loading: ChartLoading });
+const LeadsGeoMap = dynamic(() => import('../../../../components/crm/charts/LeadsGeoMap'), { ssr: false, loading: ChartLoading });
 import type {
   AnalyticsSummary,
   FunnelPoint,
@@ -30,7 +31,7 @@ type WidgetId =
   | 'stat_open_pipeline' | 'stat_won' | 'stat_win_rate' | 'stat_avg_deal'
   | 'stat_sales_cycle' | 'stat_new_leads' | 'stat_activities' | 'stat_conversion'
   | 'chart_funnel' | 'chart_pipeline_value' | 'chart_win_rate'
-  | 'chart_forecast' | 'chart_score_dist' | 'chart_revenue';
+  | 'chart_forecast' | 'chart_score_dist' | 'chart_revenue' | 'chart_geo_map';
 
 const STAT_WIDGETS: Array<{ id: WidgetId; label: string }> = [
   { id: 'stat_open_pipeline', label: 'Open Pipeline' },
@@ -44,6 +45,7 @@ const STAT_WIDGETS: Array<{ id: WidgetId; label: string }> = [
 ];
 
 const CHART_WIDGETS: Array<{ id: WidgetId; label: string }> = [
+  { id: 'chart_geo_map', label: 'Leads on Map' },
   { id: 'chart_funnel', label: 'Pipeline Funnel' },
   { id: 'chart_pipeline_value', label: 'Pipeline Value by Stage' },
   { id: 'chart_win_rate', label: 'Win Rate by Rep' },
@@ -73,6 +75,7 @@ export default function CrmDashboardPage() {
   const [winRate, setWinRate] = useState<WinRatePoint[]>([]);
   const [forecast, setForecast] = useState<ForecastPoint[]>([]);
   const [scoreDist, setScoreDist] = useState<ScoreDistributionPoint[]>([]);
+  const [geoLeads, setGeoLeads] = useState<Array<{ id: string; first_name?: string|null; last_name?: string|null; city?: string|null; state?: string|null; status?: string|null }>>([]);
   const [loading, setLoading] = useState(true);
   const range = useCrmDateRange((s) => ({ from: s.from, to: s.to }));
 
@@ -104,7 +107,11 @@ export default function CrmDashboardPage() {
       try {
         // Single round-trip — the backend runs the 6 sub-queries in parallel
         // server-side, so this collapses 6 HTTPS calls into 1.
-        const r = await crmAnalytics.dashboardComplete(range);
+        const [r, leadsRes] = await Promise.all([
+          crmAnalytics.dashboardComplete(range),
+          // Slim list for the geo map — only the fields LeadsGeoMap reads.
+          crmLeads.list({ limit: 500 }),
+        ]);
         if (cancel) return;
         const d = r.data;
         setSummary(d.summary);
@@ -113,6 +120,10 @@ export default function CrmDashboardPage() {
         setWinRate(d.winRate);
         setForecast(d.forecast);
         setScoreDist(d.leadScoreDistribution);
+        setGeoLeads(((leadsRes as any)?.data ?? []).map((l: any) => ({
+          id: l.id, first_name: l.first_name, last_name: l.last_name,
+          city: l.city, state: l.state, status: l.status,
+        })));
       } catch (e: any) {
         toast.error(e.message || 'Failed to load CRM analytics');
       } finally {
@@ -175,6 +186,19 @@ export default function CrmDashboardPage() {
           {isVisible('stat_new_leads') && <StatCard label="New Leads" value={summary?.new_leads_30d || 0} hint={`${summary?.total_leads || 0} total`} loading={loading} />}
           {isVisible('stat_activities') && <StatCard label="Activities (7d)" value={summary?.activities_7d || 0} loading={loading} />}
           {isVisible('stat_conversion') && <StatCard label="Conversion" value={fmtPct(summary?.conversion_rate)} loading={loading} />}
+        </div>
+      )}
+
+      {/* Map gets full width so the bubbles + legend + side panel fit cleanly. */}
+      {isVisible('chart_geo_map') && (
+        <div style={{ display: 'block' }}>
+          <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>Leads on Map</div>
+              <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>Hover or click a city to drill in</div>
+            </div>
+            {geoLeads.length === 0 ? <Empty /> : <LeadsGeoMap leads={geoLeads} />}
+          </div>
         </div>
       )}
 

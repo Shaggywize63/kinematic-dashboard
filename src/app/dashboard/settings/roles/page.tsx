@@ -21,7 +21,8 @@ export default function RolesPage() {
     description: string;
     parent_id: string | null;
     color: string;
-    permissions: string[];
+    permissions: string[];        // modules with READ access
+    permissions_write: string[];  // modules with WRITE access (must be a subset of permissions)
     assigned_cities: string[];
   } | null>(null);
   const [cities, setCities] = useState<string[]>([]);
@@ -105,7 +106,7 @@ export default function RolesPage() {
   }, [tree, search]);
 
   const startCreate = (parent_id: string | null) => {
-    setEditing({ id: null, name: '', description: '', parent_id, color: PRESET_COLORS[0], permissions: [], assigned_cities: [] });
+    setEditing({ id: null, name: '', description: '', parent_id, color: PRESET_COLORS[0], permissions: [], permissions_write: [], assigned_cities: [] });
   };
   const startEdit = (role: OrgRole) => {
     setEditing({
@@ -115,6 +116,7 @@ export default function RolesPage() {
       parent_id: role.parent_id,
       color: role.color ?? PRESET_COLORS[0],
       permissions: role.permissions ?? [],
+      permissions_write: role.permissions_write ?? [],
       assigned_cities: role.assigned_cities ?? [],
     });
   };
@@ -130,6 +132,9 @@ export default function RolesPage() {
         parent_id: editing.parent_id,
         color: editing.color,
         permissions: editing.permissions,
+        // Write access is gated to modules that already have read access — if you
+        // can't see it you can't edit it.
+        permissions_write: editing.permissions_write.filter((m) => editing.permissions.includes(m)),
         assigned_cities: editing.assigned_cities,
       };
       if (editing.id) {
@@ -376,7 +381,7 @@ function RoleNode({
 function EditPanel({
   editing, setEditing, flat, cities, onSave, onCancel, saving,
 }: {
-  editing: { id: string | null; name: string; description: string; parent_id: string | null; color: string; permissions: string[]; assigned_cities: string[] };
+  editing: { id: string | null; name: string; description: string; parent_id: string | null; color: string; permissions: string[]; permissions_write: string[]; assigned_cities: string[] };
   setEditing: (e: any) => void;
   flat: OrgRole[];
   cities: string[];
@@ -458,54 +463,97 @@ function EditPanel({
         </div>
       </Field>
 
-      {/* Module access — what users assigned to this role can access. */}
+      {/* Module access — Read column gates visibility, Write column gates
+          editing. Write implies Read; toggling Write on auto-grants Read. */}
       <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14, marginTop: 14 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
           <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.5 }}>Module access</div>
           <div style={{ display: 'flex', gap: 6 }}>
-            <button type="button" onClick={() => setEditing({ ...editing, permissions: ALL_MODULES.map((m) => m.id) })} style={tinyBtn}>All</button>
-            <button type="button" onClick={() => setEditing({ ...editing, permissions: [] })} style={tinyBtn}>Clear</button>
+            <button type="button" onClick={() => setEditing({ ...editing, permissions: ALL_MODULES.map((m) => m.id), permissions_write: ALL_MODULES.map((m) => m.id) })} style={tinyBtn}>All R/W</button>
+            <button type="button" onClick={() => setEditing({ ...editing, permissions: ALL_MODULES.map((m) => m.id), permissions_write: [] })} style={tinyBtn}>All Read</button>
+            <button type="button" onClick={() => setEditing({ ...editing, permissions: [], permissions_write: [] })} style={tinyBtn}>Clear</button>
           </div>
         </div>
         <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 8 }}>
-          {editing.permissions.length} of {ALL_MODULES.length} modules selected.
+          {editing.permissions.length} read · {editing.permissions_write.length} write.
         </div>
-        <div style={{ maxHeight: 220, overflowY: 'auto', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 8, padding: 10 }}>
+        <div style={{ maxHeight: 240, overflowY: 'auto', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 8, padding: 10 }}>
+          {/* Sticky column headers */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 36px 36px', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, paddingBottom: 6, borderBottom: '1px solid var(--border)', marginBottom: 6 }}>
+            <span>Module</span>
+            <span style={{ textAlign: 'center' }}>R</span>
+            <span style={{ textAlign: 'center' }}>W</span>
+          </div>
           {MODULE_GROUPS.map((group) => {
             const items = ALL_MODULES.filter((m) => m.group === group);
-            const groupAllOn = items.every((m) => editing.permissions.includes(m.id));
+            const allRead = items.every((m) => editing.permissions.includes(m.id));
+            const allWrite = items.every((m) => editing.permissions_write.includes(m.id));
             return (
               <div key={group} style={{ marginBottom: 10 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                   <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6 }}>{group}</div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const ids = items.map((m) => m.id);
-                      setEditing({
-                        ...editing,
-                        permissions: groupAllOn
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const ids = items.map((m) => m.id);
+                        const nextRead = allRead
                           ? editing.permissions.filter((p: string) => !ids.includes(p))
-                          : Array.from(new Set([...editing.permissions, ...ids])),
-                      });
-                    }}
-                    style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', fontSize: 10, cursor: 'pointer', textDecoration: 'underline' }}
-                  >{groupAllOn ? 'unselect group' : 'select group'}</button>
+                          : Array.from(new Set([...editing.permissions, ...ids]));
+                        setEditing({
+                          ...editing,
+                          permissions: nextRead,
+                          // Removing read also removes write for those ids.
+                          permissions_write: editing.permissions_write.filter((p: string) => nextRead.includes(p)),
+                        });
+                      }}
+                      style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', fontSize: 10, cursor: 'pointer', textDecoration: 'underline' }}
+                    >{allRead ? 'no read' : 'all read'}</button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const ids = items.map((m) => m.id);
+                        if (allWrite) {
+                          setEditing({ ...editing, permissions_write: editing.permissions_write.filter((p: string) => !ids.includes(p)) });
+                        } else {
+                          setEditing({
+                            ...editing,
+                            permissions: Array.from(new Set([...editing.permissions, ...ids])),
+                            permissions_write: Array.from(new Set([...editing.permissions_write, ...ids])),
+                          });
+                        }
+                      }}
+                      style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', fontSize: 10, cursor: 'pointer', textDecoration: 'underline' }}
+                    >{allWrite ? 'no write' : 'all write'}</button>
+                  </div>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
-                  {items.map((m) => {
-                    const on = editing.permissions.includes(m.id);
-                    return (
-                      <label key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: on ? 'var(--text)' : 'var(--text-dim)', cursor: 'pointer' }}>
-                        <input type="checkbox" checked={on} onChange={() => {
-                          const next = on ? editing.permissions.filter((p: string) => p !== m.id) : [...editing.permissions, m.id];
-                          setEditing({ ...editing, permissions: next });
-                        }} />
-                        {m.l}
-                      </label>
-                    );
-                  })}
-                </div>
+                {items.map((m) => {
+                  const r = editing.permissions.includes(m.id);
+                  const w = editing.permissions_write.includes(m.id);
+                  return (
+                    <div key={m.id} style={{ display: 'grid', gridTemplateColumns: '1fr 36px 36px', alignItems: 'center', gap: 4, fontSize: 11, color: r ? 'var(--text)' : 'var(--text-dim)', padding: '3px 0' }}>
+                      <span>{m.l}</span>
+                      <input type="checkbox" checked={r} onChange={() => {
+                        const nextRead = r ? editing.permissions.filter((p: string) => p !== m.id) : [...editing.permissions, m.id];
+                        // Drop write when read is dropped.
+                        const nextWrite = r ? editing.permissions_write.filter((p: string) => p !== m.id) : editing.permissions_write;
+                        setEditing({ ...editing, permissions: nextRead, permissions_write: nextWrite });
+                      }} style={{ justifySelf: 'center', accentColor: '#3b82f6' }} title="Read" />
+                      <input type="checkbox" checked={w} onChange={() => {
+                        if (w) {
+                          setEditing({ ...editing, permissions_write: editing.permissions_write.filter((p: string) => p !== m.id) });
+                        } else {
+                          // Granting write auto-grants read.
+                          setEditing({
+                            ...editing,
+                            permissions: Array.from(new Set([...editing.permissions, m.id])),
+                            permissions_write: [...editing.permissions_write, m.id],
+                          });
+                        }
+                      }} style={{ justifySelf: 'center', accentColor: '#10b981' }} title="Write" />
+                    </div>
+                  );
+                })}
               </div>
             );
           })}
