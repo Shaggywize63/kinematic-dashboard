@@ -28,6 +28,19 @@ export default function SettingsIndex() {
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [config, setConfig] = useState<Record<string, unknown>>({});
+  // Theme is mirrored from the org-level Settings page (same localStorage key
+  // + same data-theme attribute) so CRM-only clients (e.g. Tata Tiscon) who
+  // can't reach /dashboard/settings still get a way to switch themes.
+  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+  useEffect(() => {
+    const saved = (typeof window !== 'undefined' && localStorage.getItem('kinematic-theme')) as 'dark' | 'light' | null;
+    setTheme(saved ?? 'dark');
+  }, []);
+  const toggleTheme = (t: 'dark' | 'light') => {
+    setTheme(t);
+    if (typeof document !== 'undefined') document.documentElement.setAttribute('data-theme', t);
+    if (typeof window !== 'undefined') localStorage.setItem('kinematic-theme', t);
+  };
   const [defaultRoleId, setDefaultRoleId] = useState<string>('');
   const [roles, setRoles] = useState<OrgRole[]>([]);
   const [savingRole, setSavingRole] = useState(false);
@@ -81,6 +94,25 @@ export default function SettingsIndex() {
 
   return (
     <div>
+      {/* Theme — same toggle as the org Settings page, surfaced here so
+          CRM-only clients (Tata Tiscon etc.) without the `settings` module
+          can still switch themes. Uses the same localStorage key + DOM
+          attribute, so changing it in either place is global. */}
+      <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 16, marginBottom: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>Appearance</div>
+          <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>Choose dark or light theme for the dashboard.</div>
+        </div>
+        <div style={{ display: 'inline-flex', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 10, padding: 4 }}>
+          <button onClick={() => toggleTheme('dark')} style={{ padding: '8px 16px', borderRadius: 8, background: theme === 'dark' ? 'var(--s4)' : 'transparent', border: 'none', color: theme === 'dark' ? 'var(--text)' : 'var(--text-dim)', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <span>🌙</span> Dark
+          </button>
+          <button onClick={() => toggleTheme('light')} style={{ padding: '8px 16px', borderRadius: 8, background: theme === 'light' ? 'var(--s4)' : 'transparent', border: 'none', color: theme === 'light' ? 'var(--text)' : 'var(--text-dim)', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <span>☀️</span> Light
+          </button>
+        </div>
+      </div>
+
       <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 14 }}>
         <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)', marginBottom: 4 }}>Business Type</div>
         <p style={{ fontSize: 12, color: 'var(--text-dim)', margin: '0 0 12px' }}>
