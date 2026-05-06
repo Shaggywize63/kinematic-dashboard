@@ -5,6 +5,7 @@ import api from '../../../../lib/api';
 import { rolesApi, type OrgRole, type OrgRoleNode, type OrgRoleUser } from '../../../../lib/rolesApi';
 import { getStoredUser, canAccess } from '../../../../lib/auth';
 import { useClient } from '@/context/ClientContext';
+import { ALL_MODULES, MODULE_GROUPS } from '../../../../lib/modules';
 
 const PRESET_COLORS = ['#6366f1', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#64748b'];
 
@@ -20,7 +21,10 @@ export default function RolesPage() {
     description: string;
     parent_id: string | null;
     color: string;
+    permissions: string[];
+    assigned_cities: string[];
   } | null>(null);
+  const [cities, setCities] = useState<string[]>([]);
   const [users, setUsers] = useState<OrgRoleUser[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -54,6 +58,16 @@ export default function RolesPage() {
     setSelectedId(null);
     setEditing(null);
   }, [selectedClientId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load city names once so the EditPanel can render the city-access checklist.
+  useEffect(() => {
+    api.get<{ data?: Array<{ name?: string; is_active?: boolean }> } | Array<{ name?: string; is_active?: boolean }>>('/api/v1/cities')
+      .then((res: any) => {
+        const list = Array.isArray(res) ? res : (res?.data ?? []);
+        setCities(list.filter((c: any) => c?.is_active !== false).map((c: any) => c.name).filter(Boolean));
+      })
+      .catch(() => setCities([]));
+  }, []);
 
   // Look up the active client's display name for the scope banner.
   useEffect(() => {
@@ -91,7 +105,7 @@ export default function RolesPage() {
   }, [tree, search]);
 
   const startCreate = (parent_id: string | null) => {
-    setEditing({ id: null, name: '', description: '', parent_id, color: PRESET_COLORS[0] });
+    setEditing({ id: null, name: '', description: '', parent_id, color: PRESET_COLORS[0], permissions: [], assigned_cities: [] });
   };
   const startEdit = (role: OrgRole) => {
     setEditing({
@@ -100,6 +114,8 @@ export default function RolesPage() {
       description: role.description ?? '',
       parent_id: role.parent_id,
       color: role.color ?? PRESET_COLORS[0],
+      permissions: role.permissions ?? [],
+      assigned_cities: role.assigned_cities ?? [],
     });
   };
 
@@ -113,6 +129,8 @@ export default function RolesPage() {
         description: editing.description.trim() || null,
         parent_id: editing.parent_id,
         color: editing.color,
+        permissions: editing.permissions,
+        assigned_cities: editing.assigned_cities,
       };
       if (editing.id) {
         await rolesApi.update(editing.id, payload);
@@ -221,6 +239,7 @@ export default function RolesPage() {
                 editing={editing}
                 setEditing={setEditing}
                 flat={flat}
+                cities={cities}
                 onSave={save}
                 onCancel={() => setEditing(null)}
                 saving={saving}
@@ -355,11 +374,12 @@ function RoleNode({
 }
 
 function EditPanel({
-  editing, setEditing, flat, onSave, onCancel, saving,
+  editing, setEditing, flat, cities, onSave, onCancel, saving,
 }: {
-  editing: { id: string | null; name: string; description: string; parent_id: string | null; color: string };
+  editing: { id: string | null; name: string; description: string; parent_id: string | null; color: string; permissions: string[]; assigned_cities: string[] };
   setEditing: (e: any) => void;
   flat: OrgRole[];
+  cities: string[];
   onSave: () => void;
   onCancel: () => void;
   saving: boolean;
@@ -437,6 +457,92 @@ function EditPanel({
           ))}
         </div>
       </Field>
+
+      {/* Module access — what users assigned to this role can access. */}
+      <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14, marginTop: 14 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.5 }}>Module access</div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button type="button" onClick={() => setEditing({ ...editing, permissions: ALL_MODULES.map((m) => m.id) })} style={tinyBtn}>All</button>
+            <button type="button" onClick={() => setEditing({ ...editing, permissions: [] })} style={tinyBtn}>Clear</button>
+          </div>
+        </div>
+        <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 8 }}>
+          {editing.permissions.length} of {ALL_MODULES.length} modules selected.
+        </div>
+        <div style={{ maxHeight: 220, overflowY: 'auto', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 8, padding: 10 }}>
+          {MODULE_GROUPS.map((group) => {
+            const items = ALL_MODULES.filter((m) => m.group === group);
+            const groupAllOn = items.every((m) => editing.permissions.includes(m.id));
+            return (
+              <div key={group} style={{ marginBottom: 10 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                  <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6 }}>{group}</div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const ids = items.map((m) => m.id);
+                      setEditing({
+                        ...editing,
+                        permissions: groupAllOn
+                          ? editing.permissions.filter((p: string) => !ids.includes(p))
+                          : Array.from(new Set([...editing.permissions, ...ids])),
+                      });
+                    }}
+                    style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', fontSize: 10, cursor: 'pointer', textDecoration: 'underline' }}
+                  >{groupAllOn ? 'unselect group' : 'select group'}</button>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
+                  {items.map((m) => {
+                    const on = editing.permissions.includes(m.id);
+                    return (
+                      <label key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: on ? 'var(--text)' : 'var(--text-dim)', cursor: 'pointer' }}>
+                        <input type="checkbox" checked={on} onChange={() => {
+                          const next = on ? editing.permissions.filter((p: string) => p !== m.id) : [...editing.permissions, m.id];
+                          setEditing({ ...editing, permissions: next });
+                        }} />
+                        {m.l}
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* City access — geographic scope for role-bound users. */}
+      <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14, marginTop: 14 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.5 }}>City access</div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button type="button" onClick={() => setEditing({ ...editing, assigned_cities: cities })} style={tinyBtn}>All</button>
+            <button type="button" onClick={() => setEditing({ ...editing, assigned_cities: [] })} style={tinyBtn}>Clear</button>
+          </div>
+        </div>
+        <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 8 }}>
+          {editing.assigned_cities.length} of {cities.length} cities selected. Empty = no city restriction.
+        </div>
+        {cities.length === 0 ? (
+          <div style={{ background: 'var(--s3)', border: '1px dashed var(--border)', borderRadius: 8, padding: 12, fontSize: 11, color: 'var(--text-dim)', textAlign: 'center' }}>No cities configured. Add cities in System → Cities first.</div>
+        ) : (
+          <div style={{ maxHeight: 180, overflowY: 'auto', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 8, padding: 10, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
+            {cities.map((city) => {
+              const on = editing.assigned_cities.includes(city);
+              return (
+                <label key={city} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: on ? 'var(--text)' : 'var(--text-dim)', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={on} onChange={() => {
+                    const next = on ? editing.assigned_cities.filter((c: string) => c !== city) : [...editing.assigned_cities, city];
+                    setEditing({ ...editing, assigned_cities: next });
+                  }} />
+                  {city}
+                </label>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
       <div style={{ display: 'flex', gap: 8, marginTop: 18 }}>
         <button onClick={onSave} disabled={saving} style={{ flex: 1, background: 'var(--primary)', color: '#fff', border: 'none', padding: '10px 16px', borderRadius: 8, fontWeight: 700, cursor: 'pointer', fontSize: 13 }}>
@@ -606,6 +712,10 @@ const pillBtn = (color: string): React.CSSProperties => ({
   background: 'transparent', border: `1px solid ${color}`, color, padding: '6px 12px',
   borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer',
 });
+const tinyBtn: React.CSSProperties = {
+  background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)',
+  padding: '4px 10px', borderRadius: 6, fontSize: 10, fontWeight: 700, cursor: 'pointer',
+};
 const chip = (color: string): React.CSSProperties => ({
   background: `${color}15`, color, padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600,
 });

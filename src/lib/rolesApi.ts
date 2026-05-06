@@ -9,6 +9,8 @@ export interface OrgRole {
   parent_id: string | null;
   position: number;
   color: string | null;
+  permissions: string[];
+  assigned_cities: string[];
   created_at: string;
   updated_at: string;
   user_count?: number;
