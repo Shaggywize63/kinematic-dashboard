@@ -1,17 +1,22 @@
 'use client';
 import { useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { toast } from 'sonner';
 import { crmAnalytics, crmSettings } from '../../../../lib/crmApi';
 import { formatINR } from '../../../../lib/formatCurrency';
 import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
 import StatCard from '../../../../components/crm/shared/StatCard';
-import PipelineFunnelChart from '../../../../components/crm/charts/PipelineFunnelChart';
-import PipelineValueByStageChart from '../../../../components/crm/charts/PipelineValueByStageChart';
-import WinRateByRepChart from '../../../../components/crm/charts/WinRateByRepChart';
-import ForecastChart from '../../../../components/crm/charts/ForecastChart';
-import LeadScoreDistributionChart from '../../../../components/crm/charts/LeadScoreDistributionChart';
-import RevenueTrendChart from '../../../../components/crm/charts/RevenueTrendChart';
 import { getStoredUser, canAccess } from '../../../../lib/auth';
+
+// Recharts is heavy (~150 KB gzipped). Lazy-load each chart so the dashboard
+// initial bundle stays small and charts only download when their card paints.
+const ChartLoading = () => <div style={{ height: 280, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-dim)', fontSize: 12 }}>Loading…</div>;
+const PipelineFunnelChart = dynamic(() => import('../../../../components/crm/charts/PipelineFunnelChart'), { ssr: false, loading: ChartLoading });
+const PipelineValueByStageChart = dynamic(() => import('../../../../components/crm/charts/PipelineValueByStageChart'), { ssr: false, loading: ChartLoading });
+const WinRateByRepChart = dynamic(() => import('../../../../components/crm/charts/WinRateByRepChart'), { ssr: false, loading: ChartLoading });
+const ForecastChart = dynamic(() => import('../../../../components/crm/charts/ForecastChart'), { ssr: false, loading: ChartLoading });
+const LeadScoreDistributionChart = dynamic(() => import('../../../../components/crm/charts/LeadScoreDistributionChart'), { ssr: false, loading: ChartLoading });
+const RevenueTrendChart = dynamic(() => import('../../../../components/crm/charts/RevenueTrendChart'), { ssr: false, loading: ChartLoading });
 import type {
   AnalyticsSummary,
   FunnelPoint,
@@ -97,21 +102,17 @@ export default function CrmDashboardPage() {
     setLoading(true);
     (async () => {
       try {
-        const [s, f, pv, wr, fc, sd] = await Promise.allSettled([
-          crmAnalytics.dashboardSummary(range),
-          crmAnalytics.funnel(range),
-          crmAnalytics.pipelineValue(range),
-          crmAnalytics.winRate('rep', range),
-          crmAnalytics.forecast('quarter', range),
-          crmAnalytics.leadScoreDistribution(range),
-        ]);
+        // Single round-trip — the backend runs the 6 sub-queries in parallel
+        // server-side, so this collapses 6 HTTPS calls into 1.
+        const r = await crmAnalytics.dashboardComplete(range);
         if (cancel) return;
-        if (s.status === 'fulfilled') setSummary(s.value.data);
-        if (f.status === 'fulfilled') setFunnel(f.value.data);
-        if (pv.status === 'fulfilled') setPipelineValue(pv.value.data);
-        if (wr.status === 'fulfilled') setWinRate(wr.value.data);
-        if (fc.status === 'fulfilled') setForecast(fc.value.data);
-        if (sd.status === 'fulfilled') setScoreDist(sd.value.data);
+        const d = r.data;
+        setSummary(d.summary);
+        setFunnel(d.funnel);
+        setPipelineValue(d.pipelineValue);
+        setWinRate(d.winRate);
+        setForecast(d.forecast);
+        setScoreDist(d.leadScoreDistribution);
       } catch (e: any) {
         toast.error(e.message || 'Failed to load CRM analytics');
       } finally {

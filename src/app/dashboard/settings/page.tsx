@@ -120,7 +120,12 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
   const [editMode, setEditMode] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'users'|'rules'|'pref'>('users');
+  const [activeTab, setActiveTab] = useState<'users'|'rules'|'pref'|'clients'>('users');
+  const [showClientAdd, setShowClientAdd] = useState(false);
+  const [editClientId, setEditClientId] = useState<string|null>(null);
+  const [clientForm, setClientForm] = useState<{ name: string; contact_person: string; email: string; phone: string; password: string; modules: string[] }>({
+    name: '', contact_person: '', email: '', phone: '', password: '', modules: [],
+  });
   const [theme, setTheme] = useState<'dark'|'light'>('dark');
   const [radius, setRadius] = useState(100);
   const [error, setError] = useState('');
@@ -286,6 +291,68 @@ export default function SettingsPage() {
     }
   };
 
+  const resetClientForm = () => {
+    setClientForm({ name: '', contact_person: '', email: '', phone: '', password: '', modules: [] });
+    setEditClientId(null);
+    setShowClientAdd(false);
+  };
+
+  const handleEditClient = (c: any) => {
+    setEditClientId(c.id);
+    setClientForm({
+      name: c.name || '',
+      contact_person: c.contact_person || '',
+      email: c.email || '',
+      phone: c.phone || '',
+      password: '',
+      modules: c.modules || [],
+    });
+    setShowClientAdd(true);
+  };
+
+  const handleSaveClient = async () => {
+    if (!clientForm.name) { alert('Client name is required'); return; }
+    setSaving(true);
+    try {
+      const payload: Record<string, unknown> = {
+        name: clientForm.name,
+        contact_person: clientForm.contact_person || undefined,
+        email: clientForm.email || undefined,
+        phone: clientForm.phone || undefined,
+        modules: clientForm.modules,
+      };
+      if (clientForm.password) payload.password = clientForm.password;
+      if (editClientId) {
+        await api.patch(`/api/v1/clients/${editClientId}`, payload);
+      } else {
+        await api.post('/api/v1/clients', payload);
+      }
+      resetClientForm();
+      fetchData();
+    } catch (err: any) {
+      alert(err.message || 'Failed to save client');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteClient = async (id: string) => {
+    if (!confirm('Delete this client? Their administrator account and module access will be removed.')) return;
+    try {
+      await api.delete(`/api/v1/clients/${id}`);
+      fetchData();
+    } catch (err: any) {
+      alert(err.message || 'Failed to delete client');
+    }
+  };
+
+  const toggleClientModule = (m: string) => {
+    setClientForm((f) => ({
+      ...f,
+      modules: f.modules.includes(m) ? f.modules.filter((x) => x !== m) : [...f.modules, m],
+    }));
+  };
+
   const roleColors: Record<string, string> = { 
     admin: C.red, sub_admin: C.blue, city_manager: C.green, 
     warehouse_manager: '#F59E0B', hr: '#D946EF', mis: '#06B6D4' 
@@ -348,6 +415,7 @@ export default function SettingsPage() {
             <button onClick={() => setActiveTab('users')} style={{ background: activeTab === 'users' ? C.s4 : 'transparent', color: activeTab === 'users' ? C.white : C.gray, border: `1px solid ${activeTab === 'users' ? C.border : 'transparent'}`, padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'all .15s' }}>User Directory</button>
             <button onClick={() => setActiveTab('rules')} style={{ background: activeTab === 'rules' ? C.s4 : 'transparent', color: activeTab === 'rules' ? C.white : C.gray, border: `1px solid ${activeTab === 'rules' ? C.border : 'transparent'}`, padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'all .15s' }}>Operational Rules</button>
             <button onClick={() => setActiveTab('pref')} style={{ background: activeTab === 'pref' ? C.s4 : 'transparent', color: activeTab === 'pref' ? C.white : C.gray, border: `1px solid ${activeTab === 'pref' ? C.border : 'transparent'}`, padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'all .15s' }}>System Preferences</button>
+            <button onClick={() => setActiveTab('clients')} style={{ background: activeTab === 'clients' ? C.s4 : 'transparent', color: activeTab === 'clients' ? C.white : C.gray, border: `1px solid ${activeTab === 'clients' ? C.border : 'transparent'}`, padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'all .15s' }}>Clients</button>
           </div>
 
           {activeTab === 'users' && (
@@ -625,6 +693,113 @@ export default function SettingsPage() {
                   <input type="range" min="20" max="200" value={radius} onChange={e => setRadius(Number(e.target.value))} style={{ width: '100%', accentColor: C.red, cursor: 'pointer' }} />
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, fontSize: 10, color: C.grayd, fontWeight: 600 }}><span>20 m</span><span>200 m</span></div>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'clients' && (
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <div style={{ fontSize: 13, color: C.gray }}>Manage client tenants. Each client can have its own administrator account and module access.</div>
+                <button onClick={() => { resetClientForm(); setShowClientAdd(true); }} style={{ background: C.red, border: 'none', color: '#fff', padding: '8px 16px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  + Add Client
+                </button>
+              </div>
+
+              {showClientAdd && (
+                <div style={{ background: C.s3, border: `1px solid ${C.border}`, borderRadius: 16, padding: 24, marginBottom: 24 }}>
+                  <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 15, fontWeight: 800, marginBottom: 16 }}>{editClientId ? 'Edit Client' : 'New Client'}</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: C.gray, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 8 }}>Client Name *</label>
+                      <input value={clientForm.name} onChange={e => setClientForm({ ...clientForm, name: e.target.value })} placeholder="e.g. Acme Corp" style={{ width: '100%', background: C.s4, border: `1px solid ${C.border}`, padding: '10px 14px', borderRadius: 8, color: C.white, outline: 'none', fontSize: 13 }} />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: C.gray, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 8 }}>Contact Person</label>
+                      <input value={clientForm.contact_person} onChange={e => setClientForm({ ...clientForm, contact_person: e.target.value })} placeholder="e.g. Jane Doe" style={{ width: '100%', background: C.s4, border: `1px solid ${C.border}`, padding: '10px 14px', borderRadius: 8, color: C.white, outline: 'none', fontSize: 13 }} />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: C.gray, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 8 }}>Admin Email</label>
+                      <input value={clientForm.email} onChange={e => setClientForm({ ...clientForm, email: e.target.value })} placeholder="admin@acme.com" style={{ width: '100%', background: C.s4, border: `1px solid ${C.border}`, padding: '10px 14px', borderRadius: 8, color: C.white, outline: 'none', fontSize: 13 }} />
+                      <div style={{ fontSize: 10, color: C.grayd, marginTop: 4 }}>Used to create a client-administrator login.</div>
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: C.gray, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 8 }}>Phone</label>
+                      <input value={clientForm.phone} onChange={e => setClientForm({ ...clientForm, phone: e.target.value })} placeholder="+91 98xxxxxxxx" style={{ width: '100%', background: C.s4, border: `1px solid ${C.border}`, padding: '10px 14px', borderRadius: 8, color: C.white, outline: 'none', fontSize: 13 }} />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: C.gray, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 8 }}>{editClientId ? 'New Password (optional)' : 'Admin Password'}</label>
+                      <input type="password" value={clientForm.password} onChange={e => setClientForm({ ...clientForm, password: e.target.value })} placeholder={editClientId ? 'Leave blank to keep' : 'Required if Admin Email set'} style={{ width: '100%', background: C.s4, border: `1px solid ${C.border}`, padding: '10px 14px', borderRadius: 8, color: C.white, outline: 'none', fontSize: 13 }} />
+                    </div>
+                  </div>
+
+                  <div style={{ marginTop: 8 }}>
+                    <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: C.gray, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 12 }}>Module Access</label>
+                    {MODULE_GROUPS.map((g) => {
+                      const items = ALL_MODULES.filter(m => m.group === g);
+                      if (items.length === 0) return null;
+                      return (
+                        <div key={g} style={{ marginBottom: 14 }}>
+                          <div style={{ fontSize: 10, fontWeight: 800, color: C.grayd, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6 }}>{g}</div>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 6 }}>
+                            {items.map(m => {
+                              const on = clientForm.modules.includes(m.id);
+                              return (
+                                <label key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', background: on ? C.red : C.s4, color: on ? '#fff' : C.white, borderRadius: 6, fontSize: 12, cursor: 'pointer', border: `1px solid ${on ? C.red : C.border}` }}>
+                                  <input type="checkbox" checked={on} onChange={() => toggleClientModule(m.id)} />
+                                  {m.l}
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 20 }}>
+                    <button onClick={resetClientForm} disabled={saving} style={{ background: 'transparent', border: `1px solid ${C.border}`, color: C.white, padding: '8px 16px', borderRadius: 8, fontSize: 13, cursor: 'pointer' }}>Cancel</button>
+                    <button onClick={handleSaveClient} disabled={saving} style={{ background: C.red, border: 'none', color: '#fff', padding: '8px 18px', borderRadius: 8, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', fontSize: 13 }}>{saving ? 'Saving…' : editClientId ? 'Save Changes' : 'Create Client'}</button>
+                  </div>
+                </div>
+              )}
+
+              <div style={{ background: C.s3, border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden' }}>
+                {clients.length === 0 ? (
+                  <div style={{ padding: 32, textAlign: 'center', color: C.gray, fontSize: 13 }}>No clients yet. Click <strong style={{ color: C.white }}>+ Add Client</strong> to create one.</div>
+                ) : (
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ background: C.s4, borderBottom: `1px solid ${C.border}` }}>
+                        <th style={{ textAlign: 'left', padding: '10px 16px', fontSize: 11, fontWeight: 700, color: C.gray, textTransform: 'uppercase', letterSpacing: 0.6 }}>Name</th>
+                        <th style={{ textAlign: 'left', padding: '10px 16px', fontSize: 11, fontWeight: 700, color: C.gray, textTransform: 'uppercase', letterSpacing: 0.6 }}>Contact</th>
+                        <th style={{ textAlign: 'left', padding: '10px 16px', fontSize: 11, fontWeight: 700, color: C.gray, textTransform: 'uppercase', letterSpacing: 0.6 }}>Email</th>
+                        <th style={{ textAlign: 'left', padding: '10px 16px', fontSize: 11, fontWeight: 700, color: C.gray, textTransform: 'uppercase', letterSpacing: 0.6 }}>Modules</th>
+                        <th style={{ textAlign: 'left', padding: '10px 16px', fontSize: 11, fontWeight: 700, color: C.gray, textTransform: 'uppercase', letterSpacing: 0.6 }}>Status</th>
+                        <th style={{ padding: '10px 16px' }}></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {clients.map((c: any) => (
+                        <tr key={c.id} style={{ borderBottom: `1px solid ${C.border}` }}>
+                          <td style={{ padding: '12px 16px', fontSize: 13, color: C.white, fontWeight: 600 }}>{c.name}</td>
+                          <td style={{ padding: '12px 16px', fontSize: 12, color: C.gray }}>{c.contact_person || '—'}</td>
+                          <td style={{ padding: '12px 16px', fontSize: 12, color: C.gray }}>{c.email || '—'}</td>
+                          <td style={{ padding: '12px 16px', fontSize: 12, color: C.gray }}>{(c.modules || []).length} modules</td>
+                          <td style={{ padding: '12px 16px', fontSize: 12 }}>
+                            <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 4, background: c.is_active === false ? C.redB : 'rgba(0,217,126,0.15)', color: c.is_active === false ? C.red : C.green, fontWeight: 700, fontSize: 11 }}>
+                              {c.is_active === false ? 'Inactive' : 'Active'}
+                            </span>
+                          </td>
+                          <td style={{ padding: '12px 16px', textAlign: 'right' }}>
+                            <button onClick={() => handleEditClient(c)} style={{ background: 'transparent', border: `1px solid ${C.border}`, color: C.white, padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer', marginRight: 6 }}>Edit</button>
+                            <button onClick={() => handleDeleteClient(c.id)} style={{ background: 'transparent', border: `1px solid ${C.redB}`, color: C.red, padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>Delete</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
               </div>
             </div>
           )}

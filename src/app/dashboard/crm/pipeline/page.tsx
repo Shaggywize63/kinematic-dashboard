@@ -1,10 +1,17 @@
 'use client';
 import { useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { crmPipelines, crmDeals } from '../../../../lib/crmApi';
 import type { Pipeline, Deal } from '../../../../types/crm';
-import DealKanban from '../../../../components/crm/DealKanban';
+
+// DealKanban pulls in @hello-pangea/dnd; lazy-load it so the page shell
+// renders before drag-and-drop bundle finishes downloading.
+const DealKanban = dynamic(() => import('../../../../components/crm/DealKanban'), {
+  ssr: false,
+  loading: () => <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-dim)', fontSize: 13 }}>Loading kanban…</div>,
+});
 
 export default function PipelinePage() {
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);

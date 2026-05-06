@@ -184,6 +184,16 @@ export const crmImport = {
 export const crmAnalytics = {
   dashboardSummary: (range?: DateRangeParams) =>
     api.get<Wrapped<AnalyticsSummary>>(`${BASE}/analytics/dashboard-summary${qs(range)}`),
+  // Single round-trip dashboard payload — replaces 6 parallel calls.
+  dashboardComplete: (range?: DateRangeParams) =>
+    api.get<Wrapped<{
+      summary: AnalyticsSummary;
+      funnel: FunnelPoint[];
+      pipelineValue: PipelineValuePoint[];
+      winRate: WinRatePoint[];
+      forecast: ForecastPoint[];
+      leadScoreDistribution: ScoreDistributionPoint[];
+    }>>(`${BASE}/analytics/dashboard-complete${qs(range)}`),
   pipelineValue: (range?: DateRangeParams) =>
     api.get<Wrapped<PipelineValuePoint[]>>(`${BASE}/analytics/pipeline-value${qs(range)}`),
   funnel: (range?: DateRangeParams) =>
