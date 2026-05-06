@@ -8,7 +8,7 @@ export default function SalesCycleChart({ data }: { data: Array<{ stage: string;
         <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" />
         <XAxis dataKey="stage" stroke="var(--text-dim)" fontSize={11} />
         <YAxis stroke="var(--text-dim)" fontSize={11} unit="d" />
-        <Tooltip contentStyle={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 8 }} />
+        <Tooltip contentStyle={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 8 }} labelStyle={{ color: '#E01E2C', fontWeight: 700 }} itemStyle={{ color: '#E01E2C' }} />
         <Line type="monotone" dataKey="avg_days" stroke="#00B4D8" strokeWidth={2} dot={{ r: 4 }} />
       </LineChart>
     </ResponsiveContainer>

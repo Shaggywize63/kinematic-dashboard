@@ -9,7 +9,7 @@ export default function PipelineFunnelChart({ data }: { data: FunnelPoint[] }) {
   return (
     <ResponsiveContainer width="100%" height={320}>
       <FunnelChart>
-        <Tooltip contentStyle={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 8 }} />
+        <Tooltip contentStyle={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 8 }} labelStyle={{ color: '#E01E2C', fontWeight: 700 }} itemStyle={{ color: '#E01E2C' }} />
         <Funnel dataKey="value" data={enriched} isAnimationActive>
           <LabelList position="right" fill="#E8EDF8" stroke="none" dataKey="name" />
           <LabelList position="center" fill="#fff" stroke="none" dataKey="value" />

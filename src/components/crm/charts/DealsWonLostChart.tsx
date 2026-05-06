@@ -12,7 +12,7 @@ export default function DealsWonLostChart({ won, lost }: { won: number; lost: nu
         <Pie data={data} dataKey="value" outerRadius={90} innerRadius={60} paddingAngle={2}>
           {data.map((d) => <Cell key={d.name} fill={d.fill} />)}
         </Pie>
-        <Tooltip contentStyle={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 8 }} />
+        <Tooltip contentStyle={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 8 }} labelStyle={{ color: '#E01E2C', fontWeight: 700 }} itemStyle={{ color: '#E01E2C' }} />
         <Legend wrapperStyle={{ fontSize: 12 }} />
       </PieChart>
     </ResponsiveContainer>

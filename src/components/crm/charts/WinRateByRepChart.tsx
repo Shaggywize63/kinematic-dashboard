@@ -9,7 +9,7 @@ export default function WinRateByRepChart({ data }: { data: WinRatePoint[] }) {
         <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" />
         <XAxis dataKey="bucket" stroke="var(--text-dim)" fontSize={11} />
         <YAxis stroke="var(--text-dim)" fontSize={11} />
-        <Tooltip contentStyle={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 8 }} />
+        <Tooltip contentStyle={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 8 }} labelStyle={{ color: '#E01E2C', fontWeight: 700 }} itemStyle={{ color: '#E01E2C' }} />
         <Legend wrapperStyle={{ fontSize: 12 }} />
         <Bar dataKey="won" stackId="a" fill="#28B463" name="Won" />
         <Bar dataKey="lost" stackId="a" fill="#E01E2C" name="Lost" />

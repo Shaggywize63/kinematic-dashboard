@@ -14,6 +14,8 @@ export default function PipelineValueByStageChart({ data }: { data: PipelineValu
         <YAxis stroke="var(--text-dim)" fontSize={11} tickFormatter={(v) => formatINRCompact(v)} />
         <Tooltip
           contentStyle={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 8 }}
+          labelStyle={{ color: '#E01E2C', fontWeight: 700 }}
+          itemStyle={{ color: '#E01E2C' }}
           formatter={(v: any) => formatINR(v)}
         />
         <Bar dataKey="value" radius={[6, 6, 0, 0]}>

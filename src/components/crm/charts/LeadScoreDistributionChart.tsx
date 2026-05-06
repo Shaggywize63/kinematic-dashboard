@@ -11,7 +11,7 @@ export default function LeadScoreDistributionChart({ data }: { data: ScoreDistri
         <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" />
         <XAxis dataKey="bucket" stroke="var(--text-dim)" fontSize={11} />
         <YAxis stroke="var(--text-dim)" fontSize={11} />
-        <Tooltip contentStyle={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 8 }} />
+        <Tooltip contentStyle={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 8 }} labelStyle={{ color: '#E01E2C', fontWeight: 700 }} itemStyle={{ color: '#E01E2C' }} />
         <Bar dataKey="count" radius={[6, 6, 0, 0]}>
           {data.map((d, i) => (
             <Cell key={i} fill={GRADE_COLORS[d.grade] || '#666'} />

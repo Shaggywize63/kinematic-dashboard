@@ -11,6 +11,8 @@ export default function RevenueTrendChart({ data }: { data: Array<{ period: stri
         <YAxis stroke="var(--text-dim)" fontSize={11} tickFormatter={(v) => formatINRCompact(v)} />
         <Tooltip
           contentStyle={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 8 }}
+          labelStyle={{ color: '#E01E2C', fontWeight: 700 }}
+          itemStyle={{ color: '#E01E2C' }}
           formatter={(v: any) => formatINR(v)}
         />
         <Line type="monotone" dataKey="revenue" stroke="#28B463" strokeWidth={2} dot={{ r: 3 }} />
