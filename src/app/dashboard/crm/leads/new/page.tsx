@@ -7,6 +7,7 @@ import api from '../../../../../lib/api';
 import type { BusinessType, LeadSource, Product } from '../../../../../types/crm';
 import LocationPicker from '../../../../../components/crm/LocationPicker';
 import UserSearchSelect, { type UserOption } from '../../../../../components/crm/shared/UserSearchSelect';
+import AlternateMobiles from '../../../../../components/crm/AlternateMobiles';
 
 type UserOpt = UserOption;
 
@@ -20,6 +21,7 @@ type Form = {
   marketing_consent: boolean; whatsapp_consent: boolean;
   source_id: string; owner_id: string; status: string;
   product_ids: string[];
+  alternate_mobiles: string[];
 };
 
 const empty: Form = {
@@ -27,7 +29,7 @@ const empty: Form = {
   is_b2c: false, date_of_birth: '', gender: '', address_line1: '', address_line2: '',
   city: '', state: '', postal_code: '', country: 'India',
   preferred_contact_method: '', marketing_consent: false, whatsapp_consent: false,
-  source_id: '', owner_id: '', status: 'new', product_ids: [],
+  source_id: '', owner_id: '', status: 'new', product_ids: [], alternate_mobiles: [],
 };
 
 export default function NewLeadPage() {
@@ -81,6 +83,7 @@ export default function NewLeadPage() {
         owner_id: form.owner_id || undefined,
         status: form.status || 'new',
         product_ids: form.product_ids.length > 0 ? form.product_ids : undefined,
+        alternate_mobiles: form.alternate_mobiles.length ? form.alternate_mobiles : undefined,
       };
       if (!form.is_b2c) {
         Object.assign(payload, { company: form.company || undefined, title: form.title || undefined, industry: form.industry || undefined });
@@ -140,8 +143,13 @@ export default function NewLeadPage() {
           {text('first_name', 'First Name', { required: true })}
           {text('last_name', 'Last Name')}
           {text('email', 'Email', { type: 'email', required: !form.is_b2c })}
-          {text('phone', 'Phone', { required: form.is_b2c })}
+          {text('phone', 'Primary Mobile', { required: form.is_b2c })}
         </div>
+        <AlternateMobiles
+          values={form.alternate_mobiles}
+          primary={form.phone}
+          onChange={(next) => setForm({ ...form, alternate_mobiles: next })}
+        />
       </Section>
 
       <Section title="Lifecycle & Assignment">

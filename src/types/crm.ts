@@ -24,6 +24,8 @@ export interface B2CFields {
   marketing_consent?: boolean;
   whatsapp_consent?: boolean;
   interests?: string[] | null;
+  /** Secondary phone numbers — the primary stays in `phone` (lead) / `mobile` (contact). */
+  alternate_mobiles?: string[] | null;
 }
 
 export interface Lead extends B2CFields {

@@ -6,6 +6,7 @@ import { getStoredUser, isSessionValid, clearSession, getRoleLabel } from '../..
 import api from '../../lib/api';
 import { ClientProvider, useClient } from '../../context/ClientContext';
 import ClientSelect from '../../components/ClientSelect';
+import NotificationBell from '../../components/crm/NotificationBell';
 import { isCrmRoute, buildKiniContext } from '../../lib/kiniCrmContext';
 import DealListCard from '../../components/crm/kini/DealListCard';
 import LeadListCard from '../../components/crm/kini/LeadListCard';
@@ -514,7 +515,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 {pathname.split('/').pop()?.toUpperCase() || 'DASHBOARD'}
               </span>
             </div>
-            <GlobalClientFilter isPlatformAdmin={isPlatformAdmin} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <NotificationBell />
+              <GlobalClientFilter isPlatformAdmin={isPlatformAdmin} />
+            </div>
           </header>
           <div style={{ padding: isMobile ? 14 : 25, flex:1, minWidth:0 }}>{children}</div>
           <footer style={{ padding:15, borderTop:`1px solid ${C.border}`, textAlign:'center', fontSize:9, color:C.grayd }}>

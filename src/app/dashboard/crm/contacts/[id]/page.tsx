@@ -63,7 +63,6 @@ export default function ContactDetailPage() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)' }}>{fullName}</div>
                 <Badge tone={isB2C ? 'consumer' : 'business'}>{isB2C ? 'CUSTOMER' : 'B2B CONTACT'}</Badge>
-                {c.loyalty_tier && <Badge tone="loyalty">{c.loyalty_tier.toUpperCase()}</Badge>}
               </div>
               <div style={{ fontSize: 13, color: 'var(--text-dim)' }}>
                 {isB2C

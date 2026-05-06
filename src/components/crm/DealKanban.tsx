@@ -80,6 +80,19 @@ export default function DealKanban({ stages, initialDeals }: { stages: Stage[]; 
     try {
       await crmDeals.moveStage(dealId, { stage_id: toStageId });
       toast.success('Deal moved');
+      // Won? Confetti. Lazy-import canvas-confetti so it only ships to clients
+      // who actually win a deal — not everyone who renders the kanban.
+      const targetStage = stages.find((s) => s.id === toStageId);
+      if (targetStage?.stage_type === 'won') {
+        import('canvas-confetti').then(({ default: confetti }) => {
+          confetti({ particleCount: 140, spread: 90, origin: { y: 0.6 }, colors: ['#28B463', '#F7B538', '#3E9EFF', '#E01E2C', '#7B61FF'] });
+          // Second pop offset to feel less mechanical.
+          window.setTimeout(() => {
+            confetti({ particleCount: 80, spread: 60, origin: { x: 0.2, y: 0.7 }, colors: ['#28B463', '#F7B538'] });
+            confetti({ particleCount: 80, spread: 60, origin: { x: 0.8, y: 0.7 }, colors: ['#3E9EFF', '#7B61FF'] });
+          }, 250);
+        }).catch(() => { /* confetti is decorative — never block on it */ });
+      }
     } catch (err: any) {
       rollbackMove(dealId, fromStageId, toStageId);
       toast.error(err.message || 'Move failed');

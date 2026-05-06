@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { crmContacts, crmSettings } from '../../../../../lib/crmApi';
 import type { BusinessType } from '../../../../../types/crm';
 import LocationPicker from '../../../../../components/crm/LocationPicker';
+import AlternateMobiles from '../../../../../components/crm/AlternateMobiles';
 
 type Form = {
   first_name: string; last_name: string; email: string; phone: string; title: string;
@@ -13,15 +14,16 @@ type Form = {
   address_line1: string; address_line2: string; city: string; state: string;
   postal_code: string; country: string;
   preferred_contact_method: '' | 'email' | 'phone' | 'whatsapp' | 'sms';
-  loyalty_tier: '' | 'bronze' | 'silver' | 'gold' | 'platinum' | 'vip';
   referral_source: string; marketing_consent: boolean; whatsapp_consent: boolean;
+  alternate_mobiles: string[];
 };
 
 const empty: Form = {
   first_name: '', last_name: '', email: '', phone: '', title: '', is_b2c: true,
   date_of_birth: '', gender: '', address_line1: '', address_line2: '', city: '', state: '',
-  postal_code: '', country: 'India', preferred_contact_method: '', loyalty_tier: '',
+  postal_code: '', country: 'India', preferred_contact_method: '',
   referral_source: '', marketing_consent: false, whatsapp_consent: false,
+  alternate_mobiles: [],
 };
 
 export default function NewContactPage() {
@@ -48,6 +50,7 @@ export default function NewContactPage() {
       const payload: Record<string, unknown> = {
         first_name: form.first_name || undefined, last_name: form.last_name || undefined,
         email: form.email || undefined, phone: form.phone || undefined, is_b2c: form.is_b2c,
+        alternate_mobiles: form.alternate_mobiles.length ? form.alternate_mobiles : undefined,
       };
       if (!form.is_b2c) {
         payload.title = form.title || undefined;
@@ -58,7 +61,7 @@ export default function NewContactPage() {
           city: form.city || undefined, state: form.state || undefined,
           postal_code: form.postal_code || undefined, country: form.country || undefined,
           preferred_contact_method: form.preferred_contact_method || undefined,
-          loyalty_tier: form.loyalty_tier || undefined, referral_source: form.referral_source || undefined,
+          referral_source: form.referral_source || undefined,
           marketing_consent: form.marketing_consent, whatsapp_consent: form.whatsapp_consent,
         });
       }
@@ -114,8 +117,13 @@ export default function NewContactPage() {
           {text('first_name', 'First Name', { required: true })}
           {text('last_name', 'Last Name')}
           {text('email', 'Email', { type: 'email', required: !form.is_b2c })}
-          {text('phone', 'Phone', { required: form.is_b2c })}
+          {text('phone', 'Primary Mobile', { required: form.is_b2c })}
         </div>
+        <AlternateMobiles
+          values={form.alternate_mobiles}
+          primary={form.phone}
+          onChange={(next) => setForm({ ...form, alternate_mobiles: next })}
+        />
       </Section>
 
       {!form.is_b2c ? (
@@ -131,7 +139,6 @@ export default function NewContactPage() {
               {text('date_of_birth', 'Date of Birth', { type: 'date' })}
               {select('gender', 'Gender', [{ value: 'male', label: 'Male' }, { value: 'female', label: 'Female' }, { value: 'other', label: 'Other' }, { value: 'prefer_not_to_say', label: 'Prefer not to say' }])}
               {select('preferred_contact_method', 'Preferred Channel', [{ value: 'email', label: 'Email' }, { value: 'phone', label: 'Phone' }, { value: 'whatsapp', label: 'WhatsApp' }, { value: 'sms', label: 'SMS' }])}
-              {select('loyalty_tier', 'Loyalty Tier', [{ value: 'bronze', label: 'Bronze' }, { value: 'silver', label: 'Silver' }, { value: 'gold', label: 'Gold' }, { value: 'platinum', label: 'Platinum' }, { value: 'vip', label: 'VIP' }])}
               {text('referral_source', 'How did they find you?')}
             </div>
           </Section>

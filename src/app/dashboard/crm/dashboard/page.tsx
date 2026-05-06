@@ -102,6 +102,10 @@ export default function CrmDashboardPage() {
       if (layout?.widgets && Array.isArray(layout.widgets) && layout.widgets.length > 0) {
         setVisibleWidgets(new Set(layout.widgets));
       }
+      // Per-tonne reference rate was previously a single org-level setting;
+      // pricing now lives per-product under Products. The toggle stays in
+      // place behind this state — left null so the UI stays hidden until a
+      // future revision derives a rate from active products.
       if (typeof cfg.price_per_tonne === 'number' && cfg.price_per_tonne > 0) {
         setPricePerTonne(cfg.price_per_tonne);
       }
