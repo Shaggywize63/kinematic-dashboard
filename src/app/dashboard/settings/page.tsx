@@ -126,6 +126,14 @@ export default function SettingsPage() {
   const [clientForm, setClientForm] = useState<{ name: string; contact_person: string; email: string; phone: string; password: string; modules: string[] }>({
     name: '', contact_person: '', email: '', phone: '', password: '', modules: [],
   });
+
+  // Inline role creation. Lives in the User Directory tab so admins can add a
+  // new org-role + scope it to a specific client without leaving the form.
+  const [showRoleAdd, setShowRoleAdd] = useState(false);
+  const [savingRole, setSavingRole] = useState(false);
+  const [roleForm, setRoleForm] = useState<{ name: string; client_id: string; description: string; color: string }>({
+    name: '', client_id: '', description: '', color: '#6366f1',
+  });
   const [theme, setTheme] = useState<'dark'|'light'>('dark');
   const [radius, setRadius] = useState(100);
   const [error, setError] = useState('');
@@ -353,6 +361,33 @@ export default function SettingsPage() {
     }));
   };
 
+  const resetRoleForm = () => {
+    setRoleForm({ name: '', client_id: '', description: '', color: '#6366f1' });
+    setShowRoleAdd(false);
+  };
+
+  const handleCreateRole = async () => {
+    if (!roleForm.name.trim()) { alert('Role name is required'); return; }
+    setSavingRole(true);
+    try {
+      // Send X-Client-Id explicitly so the new role is stamped to the picked
+      // client; otherwise the auto-attached header from the global picker (or
+      // null for unscoped) is used.
+      const headers = roleForm.client_id ? { 'X-Client-Id': roleForm.client_id } : {};
+      await api.post('/api/v1/roles', {
+        name: roleForm.name.trim(),
+        description: roleForm.description || null,
+        color: roleForm.color || null,
+      }, { headers });
+      alert(`Role "${roleForm.name.trim()}" created${roleForm.client_id ? ' for the selected client' : ' at org level'}. Manage hierarchy under Role Hierarchy.`);
+      resetRoleForm();
+    } catch (err: any) {
+      alert(err.message || 'Failed to create role');
+    } finally {
+      setSavingRole(false);
+    }
+  };
+
   const roleColors: Record<string, string> = { 
     admin: C.red, sub_admin: C.blue, city_manager: C.green, 
     warehouse_manager: '#F59E0B', hr: '#D946EF', mis: '#06B6D4' 
@@ -420,12 +455,52 @@ export default function SettingsPage() {
 
           {activeTab === 'users' && (
             <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, gap: 8, flexWrap: 'wrap' }}>
                 <div style={{ fontSize: 13, color: C.gray }}>Manage administrative accounts and their specific module permissions.</div>
-                <button onClick={() => { setForm({ name: '', email: '', role: 'sub_admin', password: '', mobile: '', employee_id: '', zone_id: '', city: '', client_id: '', permissions: ROLE_DEFAULTS['sub_admin'], assigned_cities: [] }); setShowAdd(true); }} style={{ background: C.red, border: 'none', color: '#fff', padding: '8px 16px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  + Add Administrator
-                </button>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={() => { resetRoleForm(); setShowRoleAdd(true); }} style={{ background: C.s4, border: `1px solid ${C.border}`, color: C.white, padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>+ Create Role</button>
+                  <button onClick={() => { setForm({ name: '', email: '', role: 'sub_admin', password: '', mobile: '', employee_id: '', zone_id: '', city: '', client_id: '', permissions: ROLE_DEFAULTS['sub_admin'], assigned_cities: [] }); setShowAdd(true); }} style={{ background: C.red, border: 'none', color: '#fff', padding: '8px 16px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    + Add Administrator
+                  </button>
+                </div>
               </div>
+
+              {showRoleAdd && (
+                <div style={{ background: C.s3, border: `1px solid ${C.border}`, borderRadius: 12, padding: 20, marginBottom: 20 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
+                    <div>
+                      <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 15, fontWeight: 800, color: C.white, marginBottom: 2 }}>Create Custom Role</div>
+                      <div style={{ fontSize: 11, color: C.gray }}>New roles join the role hierarchy and can be reordered/parented under <a href="/dashboard/settings/roles" style={{ color: C.blue }}>Role Hierarchy</a>.</div>
+                    </div>
+                    <button onClick={resetRoleForm} style={{ background: 'transparent', border: 'none', color: C.gray, fontSize: 20, cursor: 'pointer', lineHeight: 1, padding: 0 }}>×</button>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: C.gray, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 6 }}>Role Name *</label>
+                      <input value={roleForm.name} onChange={e => setRoleForm({ ...roleForm, name: e.target.value })} placeholder="e.g. Regional Sales Lead" style={{ width: '100%', background: C.s4, border: `1px solid ${C.border}`, padding: '8px 12px', borderRadius: 8, color: C.white, outline: 'none', fontSize: 13 }} />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: C.gray, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 6 }}>Client (optional)</label>
+                      <select value={roleForm.client_id} onChange={e => setRoleForm({ ...roleForm, client_id: e.target.value })} style={{ width: '100%', background: C.s4, border: `1px solid ${C.border}`, padding: '8px 12px', borderRadius: 8, color: C.white, outline: 'none', fontSize: 13, appearance: 'none' }}>
+                        <option value="">— Org-level (visible to admin only)</option>
+                        {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      </select>
+                    </div>
+                    <div style={{ gridColumn: '1 / -1' }}>
+                      <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: C.gray, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 6 }}>Description (optional)</label>
+                      <input value={roleForm.description} onChange={e => setRoleForm({ ...roleForm, description: e.target.value })} placeholder="What does this role do?" style={{ width: '100%', background: C.s4, border: `1px solid ${C.border}`, padding: '8px 12px', borderRadius: 8, color: C.white, outline: 'none', fontSize: 13 }} />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: C.gray, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 6 }}>Color</label>
+                      <input type="color" value={roleForm.color} onChange={e => setRoleForm({ ...roleForm, color: e.target.value })} style={{ width: 60, height: 36, background: C.s4, border: `1px solid ${C.border}`, borderRadius: 8, cursor: 'pointer' }} />
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                    <button onClick={resetRoleForm} disabled={savingRole} style={{ background: 'transparent', border: `1px solid ${C.border}`, color: C.gray, padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
+                    <button onClick={handleCreateRole} disabled={savingRole} style={{ background: C.red, border: 'none', color: '#fff', padding: '8px 16px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: savingRole ? 'not-allowed' : 'pointer' }}>{savingRole ? 'Creating…' : 'Create Role'}</button>
+                  </div>
+                </div>
+              )}
 
               {showAdd && (
                 <div style={{ background: C.s3, border: `1px solid ${C.border}`, borderRadius: 16, padding: 24, marginBottom: 24, animation: 'fadeIn 0.2s ease' }}>
@@ -523,19 +598,33 @@ export default function SettingsPage() {
                   </div>
 
                   {form.role === 'city_manager' && (
-                    <div style={{ marginBottom: 24 }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: C.gray, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 10 }}>Assigned Cities (Scope)</div>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, background: C.s2, padding: 12, borderRadius: 10, border: `1px solid ${C.border}` }}>
-                        {allCityNames.map(city => (
-                          <button key={city} onClick={() => {
-                            const next = form.assigned_cities.includes(city) ? form.assigned_cities.filter(c => c !== city) : [...form.assigned_cities, city];
-                            setForm(p => ({...p, assigned_cities: next}));
-                          }} type="button"
-                            style={{ padding: '5px 12px', borderRadius: 6, border: 'none', fontSize: 11, fontWeight: 700, cursor: 'pointer', background: form.assigned_cities.includes(city) ? C.blue : C.s4, color: form.assigned_cities.includes(city) ? '#fff' : C.gray }}>
-                            {city}
-                          </button>
-                        ))}
+                    <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 20, marginBottom: 24 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                        <div style={{ fontSize: 12, fontWeight: 800, color: C.white, fontFamily: "'Syne', sans-serif" }}>Assigned Cities (multi-select)</div>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button type="button" onClick={() => setForm(p => ({ ...p, assigned_cities: allCityNames }))} style={{ background: 'transparent', border: `1px solid ${C.border}`, color: C.gray, padding: '4px 10px', borderRadius: 6, fontSize: 11, cursor: 'pointer' }}>Select all</button>
+                          <button type="button" onClick={() => setForm(p => ({ ...p, assigned_cities: [] }))} style={{ background: 'transparent', border: `1px solid ${C.border}`, color: C.gray, padding: '4px 10px', borderRadius: 6, fontSize: 11, cursor: 'pointer' }}>Clear</button>
+                        </div>
                       </div>
+                      <div style={{ fontSize: 11, color: C.gray, marginBottom: 10 }}>City Managers are scoped to the cities you select here. {form.assigned_cities.length} of {allCityNames.length} selected.</div>
+                      {allCityNames.length === 0 ? (
+                        <div style={{ background: C.s4, border: `1px dashed ${C.border}`, borderRadius: 8, padding: 16, textAlign: 'center', color: C.gray, fontSize: 12 }}>No cities configured. Add cities in System → Cities first.</div>
+                      ) : (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 8 }}>
+                          {allCityNames.map(city => {
+                            const checked = form.assigned_cities.includes(city);
+                            return (
+                              <label key={city} style={{ display: 'flex', alignItems: 'center', gap: 8, background: C.s4, padding: '8px 12px', borderRadius: 8, cursor: 'pointer', border: `1px solid ${checked ? C.blue : C.border}`, transition: 'all 0.2s' }}>
+                                <input type="checkbox" checked={checked} onChange={() => {
+                                  const next = checked ? form.assigned_cities.filter(c => c !== city) : [...form.assigned_cities, city];
+                                  setForm(p => ({ ...p, assigned_cities: next }));
+                                }} style={{ accentColor: C.blue }} />
+                                <span style={{ fontSize: 12, fontWeight: 600, color: checked ? C.white : C.gray }}>{city}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   )}
 
