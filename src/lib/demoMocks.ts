@@ -850,6 +850,60 @@ export function matchDemoMock<T>(rawPath: string, method: string): T | undefined
     if (path === '/crm/analytics/lead-score-distribution') return wrap(CRM_SCORE_DIST)         as unknown as T;
     if (path === '/crm/analytics/by-state')                return list([])                     as unknown as T;
 
+    // ---- Activity Log (super-admin) ----
+    if (path === '/audit-log') {
+      const sample = (() => {
+        const reps = [
+          { id: 'fe1', name: 'Arjun Sharma', email: 'arjun@kinematic.demo', role: 'executive' },
+          { id: 'fe2', name: 'Priya Patel',  email: 'priya@kinematic.demo', role: 'executive' },
+          { id: 'fe3', name: 'Rahul Verma',  email: 'rahul@kinematic.demo', role: 'supervisor' },
+          { id: 'demo-user-id', name: 'Demo Admin', email: 'demo@kinematic.com', role: 'super_admin' },
+        ];
+        const clients = [
+          { id: 'cl1', name: 'Hindustan Unilever' },
+          { id: 'cl2', name: 'ITC Limited' },
+          { id: null,  name: null }, // org-level
+        ];
+        const actions = [
+          { action: 'leads.create',         entity: 'leads',         method: 'POST',   status: 201 },
+          { action: 'leads.update',         entity: 'leads',         method: 'PATCH',  status: 200 },
+          { action: 'deals.move-stage',     entity: 'deals',         method: 'POST',   status: 200 },
+          { action: 'deals.win',            entity: 'deals',         method: 'POST',   status: 200 },
+          { action: 'orders.create',        entity: 'orders',        method: 'POST',   status: 201 },
+          { action: 'orders.approve',       entity: 'orders',        method: 'POST',   status: 200 },
+          { action: 'invoices.create',      entity: 'invoices',      method: 'POST',   status: 201 },
+          { action: 'payments.create',      entity: 'payments',      method: 'POST',   status: 201 },
+          { action: 'attendance.checkin',   entity: 'attendance',    method: 'POST',   status: 201 },
+          { action: 'attendance.checkout',  entity: 'attendance',    method: 'PATCH',  status: 200 },
+          { action: 'planograms.update',    entity: 'planograms',    method: 'PATCH',  status: 200 },
+          { action: 'users.create',         entity: 'users',         method: 'POST',   status: 201 },
+          { action: 'broadcast.send',       entity: 'broadcast',     method: 'POST',   status: 201 },
+          { action: 'visit-logs.create',    entity: 'visit-logs',    method: 'POST',   status: 201 },
+          { action: 'leads.delete',         entity: 'leads',         method: 'DELETE', status: 204 },
+        ];
+        const rows = Array.from({ length: 60 }, (_, i) => {
+          const a = actions[i % actions.length];
+          const u = reps[i % reps.length];
+          const c = clients[i % clients.length];
+          const ts = new Date(Date.now() - i * 1000 * 60 * (3 + (i % 10))).toISOString();
+          return {
+            id: 'demo-audit-' + i,
+            created_at: ts,
+            action: a.action,
+            entity_table: a.entity,
+            entity_id: i % 4 === 0 ? null : 'demo-' + a.entity + '-' + (i + 1),
+            actor: u,
+            client: c.id ? c : null,
+            ip_address: '203.0.113.' + (10 + (i % 200)),
+            metadata: { method: a.method, path: `/api/v1/${a.entity.replace('-', '/')}${i % 4 === 0 ? '' : '/demo-' + a.entity + '-' + (i + 1)}`, status: a.status },
+            payload: null,
+          };
+        });
+        return { rows, limit: 100, offset: 0, has_more: false };
+      })();
+      return wrap(sample) as unknown as T;
+    }
+
     // ---- Planograms ----
     // Order matters: more-specific paths (captures, analytics, parse) must come
     // BEFORE the generic /planograms/:id matcher.
