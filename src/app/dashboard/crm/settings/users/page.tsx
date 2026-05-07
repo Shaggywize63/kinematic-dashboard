@@ -1,21 +1,17 @@
 'use client';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import api from '../../../../../lib/api';
 import { rolesApi, type OrgRole } from '../../../../../lib/rolesApi';
-import { ALL_MODULES, MODULE_GROUPS } from '../../../../../lib/modules';
 
-// CRM-scoped user management. Mirrors the org-level Settings → User Directory
-// surface but lives inside CRM so client tenants (Tata Tiscon, etc.) who only
-// have the `crm` module granted can still create + manage their team.
-// Users created here go through the same /api/v1/users endpoint super admins
-// use, and inherit X-Client-Id from the active client picker so they're
-// stamped to the right tenant. They show up in super admin's full directory
-// alongside everyone else.
+// CRM-scoped user management. Module permissions live on the role hierarchy
+// (org_roles.permissions / .permissions_write) — not redefined per-user — so
+// this form just picks a Hierarchy Role and the user inherits that role's
+// access. The submit handler stamps user.permissions from the picked role
+// so the existing access-check middleware (which reads user.permissions)
+// keeps working without any backend change.
 
-// Subset of preset roles that's appropriate for CRM-side user creation. Full
-// admin/super_admin assignment stays org-level under /dashboard/settings.
 const PRESET_ROLES: Array<{ value: string; label: string }> = [
   { value: 'sub_admin',   label: 'Sub-Admin' },
   { value: 'city_manager',label: 'City Manager' },
@@ -23,16 +19,6 @@ const PRESET_ROLES: Array<{ value: string; label: string }> = [
   { value: 'mis',         label: 'MIS' },
   { value: 'client',      label: 'Client User' },
 ];
-
-// CRM-relevant module defaults per preset role. Anything not in this map
-// falls back to the role's existing org-side defaults.
-const ROLE_DEFAULT_MODULES: Record<string, string[]> = {
-  sub_admin:    ['crm', 'crm_dashboard', 'crm_leads', 'crm_contacts', 'crm_accounts', 'crm_deals', 'crm_pipeline', 'crm_products', 'crm_activities', 'crm_tasks', 'crm_whatsapp', 'crm_reports', 'crm_settings', 'analytics', 'reports'],
-  city_manager: ['crm', 'crm_dashboard', 'crm_leads', 'crm_deals', 'crm_pipeline', 'crm_activities', 'crm_tasks'],
-  hr:           ['crm', 'crm_dashboard'],
-  mis:          ['crm', 'crm_dashboard', 'crm_reports', 'analytics', 'reports'],
-  client:       ['crm', 'crm_dashboard', 'crm_leads', 'crm_contacts', 'crm_deals', 'crm_pipeline', 'crm_products', 'crm_activities', 'crm_tasks', 'crm_whatsapp', 'crm_reports', 'crm_settings'],
-};
 
 interface UserRow {
   id: string;
@@ -46,6 +32,42 @@ interface UserRow {
   permissions?: string[] | null;
 }
 
+// Tiny CSV parser — purpose-built. Splits on newlines (LF or CRLF),
+// fields on commas, supports double-quoted fields with embedded commas
+// and escaped quotes. Sufficient for the simple template we ship.
+function parseCsv(text: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let cur = '';
+  let inQ = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQ) {
+      if (c === '"' && text[i + 1] === '"') { cur += '"'; i++; continue; }
+      if (c === '"') { inQ = false; continue; }
+      cur += c;
+    } else {
+      if (c === '"') { inQ = true; continue; }
+      if (c === ',') { row.push(cur); cur = ''; continue; }
+      if (c === '\n' || c === '\r') {
+        if (c === '\r' && text[i + 1] === '\n') i++;
+        row.push(cur); cur = '';
+        if (row.some((v) => v.trim() !== '')) rows.push(row);
+        row = [];
+        continue;
+      }
+      cur += c;
+    }
+  }
+  if (cur !== '' || row.length) { row.push(cur); if (row.some((v) => v.trim() !== '')) rows.push(row); }
+  return rows;
+}
+
+const TEMPLATE_HEADER = 'name,mobile,email,role,hierarchy_role,password';
+const TEMPLATE_SAMPLE = `${TEMPLATE_HEADER}
+Rahul Sharma,9812345601,rahul@example.com,sub_admin,Regional Sales Lead,changeme123
+Priya Iyer,9812345602,,city_manager,,changeme123`;
+
 export default function CrmUsersPage() {
   const [users, setUsers] = useState<UserRow[]>([]);
   const [roles, setRoles] = useState<OrgRole[]>([]);
@@ -54,13 +76,16 @@ export default function CrmUsersPage() {
   const [editId, setEditId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
+  const [showBulk, setShowBulk] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkResult, setBulkResult] = useState<{ ok: number; failed: Array<{ name: string; error: string }> } | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const blank = {
-    name: '', email: '', mobile: '', employee_id: '',
+    name: '', email: '', mobile: '',
     role: 'sub_admin' as string,
     org_role_id: '' as string,
     password: '',
-    permissions: ROLE_DEFAULT_MODULES.sub_admin,
   };
   const [form, setForm] = useState(blank);
 
@@ -73,8 +98,6 @@ export default function CrmUsersPage() {
       ]);
       if (u.status === 'fulfilled') {
         const list = (u.value.data?.data || u.value.data?.users || u.value.data || []) as UserRow[];
-        // Show every user the API returns; the backend already scopes by org/
-        // client based on the JWT + X-Client-Id, so no extra filtering here.
         setUsers(Array.isArray(list) ? list : []);
       }
       if (r.status === 'fulfilled') setRoles(((r.value as any) ?? []) as OrgRole[]);
@@ -91,21 +114,6 @@ export default function CrmUsersPage() {
     return [u.name, u.email, u.mobile, u.role].some((v) => (v || '').toLowerCase().includes(q));
   });
 
-  const onRoleChange = (next: string) => {
-    setForm((f) => ({
-      ...f,
-      role: next,
-      permissions: ROLE_DEFAULT_MODULES[next] ?? f.permissions,
-    }));
-  };
-
-  const togglePerm = (m: string) => {
-    setForm((f) => ({
-      ...f,
-      permissions: f.permissions.includes(m) ? f.permissions.filter((x) => x !== m) : [...f.permissions, m],
-    }));
-  };
-
   const startCreate = () => { setEditId(null); setForm(blank); setShowAdd(true); };
   const startEdit = (u: UserRow) => {
     setEditId(u.id);
@@ -113,13 +121,21 @@ export default function CrmUsersPage() {
       name: u.name || '',
       email: u.email || '',
       mobile: u.mobile || '',
-      employee_id: '',
       role: u.role || 'sub_admin',
       org_role_id: u.org_role_id || '',
       password: '',
-      permissions: u.permissions || ROLE_DEFAULT_MODULES[u.role || 'sub_admin'] || [],
     });
     setShowAdd(true);
+  };
+
+  // Look up the picked hierarchy role's permissions so the user inherits its
+  // module access without the form having to redefine it. Falls back to an
+  // empty list if no hierarchy role is picked — the preset role still drives
+  // route-level RBAC via canAccess().
+  const permissionsForRole = (orgRoleId: string): string[] => {
+    if (!orgRoleId) return [];
+    const r = roles.find((x) => x.id === orgRoleId);
+    return r?.permissions ?? [];
   };
 
   const save = async () => {
@@ -133,12 +149,12 @@ export default function CrmUsersPage() {
         email: form.email || `${form.mobile.trim()}@kinematic.app`,
         role: form.role,
         mobile: form.mobile.trim(),
-        permissions: form.permissions,
+        // Permissions inherited from the hierarchy role (if any).
+        permissions: permissionsForRole(form.org_role_id),
         org_role_id: form.org_role_id || null,
         is_active: true,
       };
       if (editId) {
-        // Only send password on edit if explicitly typed.
         if (form.password) payload.app_password = form.password;
         await api.patch(`/api/v1/users/${editId}`, payload);
         toast.success('User updated');
@@ -161,20 +177,134 @@ export default function CrmUsersPage() {
     } catch (e: any) { toast.error(e.message || 'Update failed'); }
   };
 
+  // Bulk upload — accepts the template above. Each data row becomes a
+  // sequential POST to /api/v1/users (we don't fan out so failures keep
+  // their per-row context for the result table). Hierarchy role is
+  // resolved by name (case-insensitive).
+  const downloadTemplate = () => {
+    const blob = new Blob([TEMPLATE_SAMPLE + '\n'], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'users-template.csv'; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const onBulkFile = async (file: File) => {
+    setBulkBusy(true);
+    setBulkResult(null);
+    try {
+      const text = await file.text();
+      const rows = parseCsv(text);
+      if (rows.length < 2) { toast.error('CSV is empty (header + at least one row required)'); setBulkBusy(false); return; }
+      const header = rows[0].map((h) => h.trim().toLowerCase());
+      const idx = (k: string) => header.indexOf(k);
+      const iName = idx('name');
+      const iMobile = idx('mobile');
+      const iEmail = idx('email');
+      const iRole = idx('role');
+      const iHRole = idx('hierarchy_role');
+      const iPwd = idx('password');
+      if (iName < 0 || iMobile < 0) { toast.error('CSV must include at least `name` and `mobile` columns'); setBulkBusy(false); return; }
+
+      const roleByName = new Map(roles.map((r) => [r.name.toLowerCase(), r]));
+      const ok: number = 0; let okCount = 0;
+      const failed: Array<{ name: string; error: string }> = [];
+
+      for (const row of rows.slice(1)) {
+        const name = (row[iName] || '').trim();
+        const mobile = (row[iMobile] || '').trim();
+        if (!name || !mobile) { failed.push({ name: name || '<no name>', error: 'name + mobile required' }); continue; }
+        const email = iEmail >= 0 ? (row[iEmail] || '').trim() : '';
+        const role = (iRole >= 0 ? (row[iRole] || '').trim() : '') || 'sub_admin';
+        const hierarchyName = iHRole >= 0 ? (row[iHRole] || '').trim().toLowerCase() : '';
+        const password = iPwd >= 0 ? (row[iPwd] || '').trim() : '';
+        const hRole = hierarchyName ? roleByName.get(hierarchyName) : undefined;
+
+        const payload: Record<string, unknown> = {
+          name, mobile,
+          email: email || `${mobile}@kinematic.app`,
+          role,
+          permissions: hRole?.permissions ?? [],
+          org_role_id: hRole?.id ?? null,
+          is_active: true,
+        };
+        if (password) payload.password = password;
+
+        try {
+          await api.post('/api/v1/users', payload);
+          okCount += 1;
+        } catch (err: any) {
+          failed.push({ name, error: err?.message || 'Create failed' });
+        }
+      }
+      setBulkResult({ ok: okCount, failed });
+      if (okCount > 0) reload();
+      toast.success(`Imported ${okCount} of ${rows.length - 1} users${failed.length ? ` · ${failed.length} failed` : ''}`);
+      void ok;
+    } catch (e: any) {
+      toast.error(e.message || 'Bulk import failed');
+    } finally {
+      setBulkBusy(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  };
+
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, gap: 8, flexWrap: 'wrap' }}>
         <div>
           <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: 'var(--text)' }}>Team Members</h1>
           <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-dim)', maxWidth: 720 }}>
-            Manage the people who can sign in and use the CRM. Pick a preset role for permissions, plus optionally a custom role from your <Link href="/dashboard/settings/roles" style={{ color: 'var(--primary)' }}>Role Hierarchy</Link> to slot the user into your reporting structure.
+            Add team members. Module access is inherited from the <Link href="/dashboard/settings/roles" style={{ color: 'var(--primary)' }}>Hierarchy Role</Link> you assign — define permissions once on the role, not per user.
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <Link href="/dashboard/crm/settings" style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, textDecoration: 'none' }}>← Back to Settings</Link>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <Link href="/dashboard/crm/settings" style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, textDecoration: 'none' }}>← Back</Link>
+          <button onClick={() => { setShowBulk((s) => !s); setBulkResult(null); }} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Bulk Upload</button>
           <button onClick={startCreate} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>+ Add User</button>
         </div>
       </div>
+
+      {showBulk && (
+        <div style={{ background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 12, padding: 18, marginBottom: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>Bulk Upload Users</div>
+              <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4, maxWidth: 640 }}>
+                CSV with header row. Required columns: <code style={{ background: 'var(--s4)', padding: '1px 4px', borderRadius: 3 }}>name</code>, <code style={{ background: 'var(--s4)', padding: '1px 4px', borderRadius: 3 }}>mobile</code>. Optional: <code style={{ background: 'var(--s4)', padding: '1px 4px', borderRadius: 3 }}>email</code>, <code style={{ background: 'var(--s4)', padding: '1px 4px', borderRadius: 3 }}>role</code> (preset), <code style={{ background: 'var(--s4)', padding: '1px 4px', borderRadius: 3 }}>hierarchy_role</code> (matches role name from Role Hierarchy), <code style={{ background: 'var(--s4)', padding: '1px 4px', borderRadius: 3 }}>password</code>.
+              </div>
+            </div>
+            <button onClick={() => setShowBulk(false)} style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: 0 }}>×</button>
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            <button type="button" onClick={downloadTemplate} style={btnGhost}>Download template</button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".csv,text/csv"
+              disabled={bulkBusy}
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) onBulkFile(f); }}
+              style={{ ...input, padding: 6, width: 'auto' }}
+            />
+            {bulkBusy && <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>Importing…</span>}
+          </div>
+          {bulkResult && (
+            <div style={{ marginTop: 12, padding: 12, background: 'var(--s4)', border: '1px solid var(--border)', borderRadius: 8 }}>
+              <div style={{ fontSize: 12, color: 'var(--text)', marginBottom: bulkResult.failed.length ? 8 : 0 }}>
+                <strong style={{ color: '#10b981' }}>{bulkResult.ok} imported</strong>
+                {bulkResult.failed.length > 0 && <> · <strong style={{ color: '#E01E2C' }}>{bulkResult.failed.length} failed</strong></>}
+              </div>
+              {bulkResult.failed.length > 0 && (
+                <div style={{ maxHeight: 140, overflowY: 'auto', fontSize: 11, color: 'var(--text-dim)' }}>
+                  {bulkResult.failed.map((f, i) => (
+                    <div key={i} style={{ padding: '2px 0' }}><strong style={{ color: 'var(--text)' }}>{f.name}</strong> — {f.error}</div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {showAdd && (
         <div style={{ background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 12, padding: 18, marginBottom: 16 }}>
@@ -187,14 +317,14 @@ export default function CrmUsersPage() {
             <Field label="Mobile (primary) *"><input value={form.mobile} onChange={(e) => setForm({ ...form, mobile: e.target.value })} placeholder="10-digit mobile" maxLength={15} style={input} /></Field>
             <Field label="Email"><input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="auto-generated if blank" style={input} /></Field>
             <Field label="Preset Role">
-              <select value={form.role} onChange={(e) => onRoleChange(e.target.value)} style={input}>
+              <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} style={input}>
                 {PRESET_ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
               </select>
             </Field>
-            <Field label="Hierarchy Role (optional)">
+            <Field label="Hierarchy Role">
               <select value={form.org_role_id} onChange={(e) => setForm({ ...form, org_role_id: e.target.value })} style={input}>
                 <option value="">— None —</option>
-                {roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+                {roles.map((r) => <option key={r.id} value={r.id}>{r.name} ({(r.permissions || []).length} modules)</option>)}
               </select>
             </Field>
             <Field label={editId ? 'New Password (optional)' : 'Password'}>
@@ -202,47 +332,18 @@ export default function CrmUsersPage() {
             </Field>
           </div>
 
-          {/* Module permissions — pre-filled from the preset role; admins can
-              override by group or per-module. Stored on users.permissions. */}
-          <div style={{ marginTop: 14 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.5 }}>Module Permissions</div>
-              <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{form.permissions.length} of {ALL_MODULES.length} selected</div>
+          {/* Show what the user is inheriting from the picked hierarchy role
+              so admins can spot-check before saving. */}
+          {form.org_role_id && (
+            <div style={{ marginTop: 12, padding: 10, background: 'var(--s4)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 11, color: 'var(--text-dim)' }}>
+              Inheriting <strong style={{ color: 'var(--text)' }}>{permissionsForRole(form.org_role_id).length} module{permissionsForRole(form.org_role_id).length === 1 ? '' : 's'}</strong> from the selected hierarchy role. Edit per-module access under <Link href="/dashboard/settings/roles" style={{ color: 'var(--primary)' }}>Role Hierarchy</Link>.
             </div>
-            <div style={{ maxHeight: 220, overflowY: 'auto', background: 'var(--s4)', border: '1px solid var(--border)', borderRadius: 8, padding: 10 }}>
-              {MODULE_GROUPS.map((group) => {
-                const items = ALL_MODULES.filter((m) => m.group === group);
-                const allOn = items.every((m) => form.permissions.includes(m.id));
-                return (
-                  <div key={group} style={{ marginBottom: 10 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                      <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6 }}>{group}</div>
-                      <button type="button" onClick={() => {
-                        const ids = items.map((m) => m.id);
-                        setForm((f) => ({
-                          ...f,
-                          permissions: allOn ? f.permissions.filter((p) => !ids.includes(p)) : Array.from(new Set([...f.permissions, ...ids])),
-                        }));
-                      }} style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', fontSize: 10, cursor: 'pointer', textDecoration: 'underline' }}>
-                        {allOn ? 'unselect group' : 'select group'}
-                      </button>
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 4 }}>
-                      {items.map((m) => {
-                        const on = form.permissions.includes(m.id);
-                        return (
-                          <label key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: on ? 'var(--text)' : 'var(--text-dim)', cursor: 'pointer' }}>
-                            <input type="checkbox" checked={on} onChange={() => togglePerm(m.id)} />
-                            {m.l}
-                          </label>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
+          )}
+          {!form.org_role_id && (
+            <div style={{ marginTop: 12, padding: 10, background: 'var(--s4)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 11, color: 'var(--text-dim)' }}>
+              No hierarchy role picked — user will have no module access until you assign one. The preset role above only governs role-based middleware checks (e.g. "is this person at sub-admin level?").
             </div>
-          </div>
+          )}
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 14 }}>
             <button onClick={() => { setShowAdd(false); setEditId(null); setForm(blank); }} disabled={saving} style={btnGhost}>Cancel</button>
@@ -271,7 +372,7 @@ export default function CrmUsersPage() {
           </thead>
           <tbody>
             {loading && <tr><td colSpan={7} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)' }}>Loading users…</td></tr>}
-            {!loading && filtered.length === 0 && <tr><td colSpan={7} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)' }}>No users yet — click <strong style={{ color: 'var(--text)' }}>+ Add User</strong> to create one.</td></tr>}
+            {!loading && filtered.length === 0 && <tr><td colSpan={7} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)' }}>No users yet — click <strong style={{ color: 'var(--text)' }}>+ Add User</strong> or <strong style={{ color: 'var(--text)' }}>Bulk Upload</strong>.</td></tr>}
             {filtered.map((u) => {
               const hRoleName = u.org_role_id ? (roles.find((r) => r.id === u.org_role_id)?.name ?? '—') : '—';
               return (
