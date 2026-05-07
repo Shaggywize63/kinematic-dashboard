@@ -25,7 +25,11 @@ const BUSINESS_OPTIONS: Array<{ value: BusinessType; label: string; desc: string
 ];
 
 export default function SettingsIndex() {
-  const [businessType, setBusinessType] = useState<BusinessType>('both');
+  // `null` until the first fetch resolves so the active-card highlight
+  // doesn't flicker from a default ('both') to the saved value ('b2c').
+  // Once loaded the value is sticky — the saveType handler reads the
+  // backend response and uses it as the authoritative state.
+  const [businessType, setBusinessType] = useState<BusinessType | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [config, setConfig] = useState<Record<string, unknown>>({});
@@ -91,7 +95,7 @@ export default function SettingsIndex() {
       setBusinessType(saved);
       toast.success(`Business type set to ${saved.toUpperCase()}`);
     } catch (e: any) {
-      setBusinessType(previous); // rollback on error so the UI matches reality
+      setBusinessType(previous ?? null); // rollback on error so the UI matches reality
       toast.error(e.message || 'Update failed');
     }
     finally { setSaving(false); }
@@ -128,6 +132,9 @@ export default function SettingsIndex() {
         <p style={{ fontSize: 12, color: 'var(--text-dim)', margin: '0 0 12px' }}>
           Tells the CRM whether you sell to companies (B2B), consumers (B2C), or both. Affects which fields are shown by default on lead and contact forms.
         </p>
+        {!loaded ? (
+          <div style={{ height: 84, display: 'flex', alignItems: 'center', color: 'var(--text-dim)', fontSize: 12 }}>Loading current selection…</div>
+        ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
           {BUSINESS_OPTIONS.map((o) => {
             const active = businessType === o.value;
@@ -150,6 +157,7 @@ export default function SettingsIndex() {
             );
           })}
         </div>
+        )}
       </div>
 
       {/* Weight-based pricing — moved to per-product. Deals reference a

@@ -8,17 +8,11 @@ import { rolesApi, type OrgRole } from '../../../../../lib/rolesApi';
 // CRM-scoped user management. Module permissions live on the role hierarchy
 // (org_roles.permissions / .permissions_write) — not redefined per-user — so
 // this form just picks a Hierarchy Role and the user inherits that role's
-// access. The submit handler stamps user.permissions from the picked role
-// so the existing access-check middleware (which reads user.permissions)
-// keeps working without any backend change.
-
-const PRESET_ROLES: Array<{ value: string; label: string }> = [
-  { value: 'sub_admin',   label: 'Sub-Admin' },
-  { value: 'city_manager',label: 'City Manager' },
-  { value: 'hr',          label: 'HR' },
-  { value: 'mis',         label: 'MIS' },
-  { value: 'client',      label: 'Client User' },
-];
+// access. The legacy preset role (sub_admin / city_manager / etc.) used to
+// drive route-tier RBAC; we still need to send something the backend
+// requireRole() middleware accepts, so every CRM-created user is stamped as
+// 'sub_admin' under the hood. Tier checks fall through to the hierarchy.
+const DEFAULT_PRESET_ROLE = 'sub_admin';
 
 interface UserRow {
   id: string;
@@ -63,10 +57,10 @@ function parseCsv(text: string): string[][] {
   return rows;
 }
 
-const TEMPLATE_HEADER = 'name,mobile,email,role,hierarchy_role,password';
+const TEMPLATE_HEADER = 'name,mobile,email,hierarchy_role,password';
 const TEMPLATE_SAMPLE = `${TEMPLATE_HEADER}
-Rahul Sharma,9812345601,rahul@example.com,sub_admin,Regional Sales Lead,changeme123
-Priya Iyer,9812345602,,city_manager,,changeme123`;
+Rahul Sharma,9812345601,rahul@example.com,Regional Sales Lead,changeme123
+Priya Iyer,9812345602,,Field Manager,changeme123`;
 
 export default function CrmUsersPage() {
   const [users, setUsers] = useState<UserRow[]>([]);
@@ -83,7 +77,6 @@ export default function CrmUsersPage() {
 
   const blank = {
     name: '', email: '', mobile: '',
-    role: 'sub_admin' as string,
     org_role_id: '' as string,
     password: '',
   };
@@ -111,7 +104,7 @@ export default function CrmUsersPage() {
   const filtered = users.filter((u) => {
     if (!search.trim()) return true;
     const q = search.toLowerCase();
-    return [u.name, u.email, u.mobile, u.role].some((v) => (v || '').toLowerCase().includes(q));
+    return [u.name, u.email, u.mobile].some((v) => (v || '').toLowerCase().includes(q));
   });
 
   const startCreate = () => { setEditId(null); setForm(blank); setShowAdd(true); };
@@ -121,7 +114,6 @@ export default function CrmUsersPage() {
       name: u.name || '',
       email: u.email || '',
       mobile: u.mobile || '',
-      role: u.role || 'sub_admin',
       org_role_id: u.org_role_id || '',
       password: '',
     });
@@ -147,9 +139,11 @@ export default function CrmUsersPage() {
       const payload: Record<string, unknown> = {
         name: form.name.trim(),
         email: form.email || `${form.mobile.trim()}@kinematic.app`,
-        role: form.role,
+        // Always stamp the default preset role so backend route-tier RBAC
+        // (requireRole, canAccess) keeps working. Real access comes from
+        // the hierarchy role's permissions, copied below.
+        role: DEFAULT_PRESET_ROLE,
         mobile: form.mobile.trim(),
-        // Permissions inherited from the hierarchy role (if any).
         permissions: permissionsForRole(form.org_role_id),
         org_role_id: form.org_role_id || null,
         is_active: true,
@@ -201,7 +195,6 @@ export default function CrmUsersPage() {
       const iName = idx('name');
       const iMobile = idx('mobile');
       const iEmail = idx('email');
-      const iRole = idx('role');
       const iHRole = idx('hierarchy_role');
       const iPwd = idx('password');
       if (iName < 0 || iMobile < 0) { toast.error('CSV must include at least `name` and `mobile` columns'); setBulkBusy(false); return; }
@@ -215,7 +208,6 @@ export default function CrmUsersPage() {
         const mobile = (row[iMobile] || '').trim();
         if (!name || !mobile) { failed.push({ name: name || '<no name>', error: 'name + mobile required' }); continue; }
         const email = iEmail >= 0 ? (row[iEmail] || '').trim() : '';
-        const role = (iRole >= 0 ? (row[iRole] || '').trim() : '') || 'sub_admin';
         const hierarchyName = iHRole >= 0 ? (row[iHRole] || '').trim().toLowerCase() : '';
         const password = iPwd >= 0 ? (row[iPwd] || '').trim() : '';
         const hRole = hierarchyName ? roleByName.get(hierarchyName) : undefined;
@@ -223,7 +215,9 @@ export default function CrmUsersPage() {
         const payload: Record<string, unknown> = {
           name, mobile,
           email: email || `${mobile}@kinematic.app`,
-          role,
+          // Preset role kept fixed; access is fully driven by the picked
+          // hierarchy role's permissions array. Match the form behaviour.
+          role: DEFAULT_PRESET_ROLE,
           permissions: hRole?.permissions ?? [],
           org_role_id: hRole?.id ?? null,
           is_active: true,
@@ -271,7 +265,7 @@ export default function CrmUsersPage() {
             <div>
               <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>Bulk Upload Users</div>
               <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4, maxWidth: 640 }}>
-                CSV with header row. Required columns: <code style={{ background: 'var(--s4)', padding: '1px 4px', borderRadius: 3 }}>name</code>, <code style={{ background: 'var(--s4)', padding: '1px 4px', borderRadius: 3 }}>mobile</code>. Optional: <code style={{ background: 'var(--s4)', padding: '1px 4px', borderRadius: 3 }}>email</code>, <code style={{ background: 'var(--s4)', padding: '1px 4px', borderRadius: 3 }}>role</code> (preset), <code style={{ background: 'var(--s4)', padding: '1px 4px', borderRadius: 3 }}>hierarchy_role</code> (matches role name from Role Hierarchy), <code style={{ background: 'var(--s4)', padding: '1px 4px', borderRadius: 3 }}>password</code>.
+                CSV with header row. Required columns: <code style={{ background: 'var(--s4)', padding: '1px 4px', borderRadius: 3 }}>name</code>, <code style={{ background: 'var(--s4)', padding: '1px 4px', borderRadius: 3 }}>mobile</code>. Optional: <code style={{ background: 'var(--s4)', padding: '1px 4px', borderRadius: 3 }}>email</code>, <code style={{ background: 'var(--s4)', padding: '1px 4px', borderRadius: 3 }}>hierarchy_role</code> (matches role name from Role Hierarchy — drives module access), <code style={{ background: 'var(--s4)', padding: '1px 4px', borderRadius: 3 }}>password</code>.
               </div>
             </div>
             <button onClick={() => setShowBulk(false)} style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: 0 }}>×</button>
@@ -316,11 +310,6 @@ export default function CrmUsersPage() {
             <Field label="Full Name *"><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Rahul Sharma" style={input} /></Field>
             <Field label="Mobile (primary) *"><input value={form.mobile} onChange={(e) => setForm({ ...form, mobile: e.target.value })} placeholder="10-digit mobile" maxLength={15} style={input} /></Field>
             <Field label="Email"><input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="auto-generated if blank" style={input} /></Field>
-            <Field label="Preset Role">
-              <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} style={input}>
-                {PRESET_ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
-              </select>
-            </Field>
             <Field label="Hierarchy Role">
               <select value={form.org_role_id} onChange={(e) => setForm({ ...form, org_role_id: e.target.value })} style={input}>
                 <option value="">— None —</option>
@@ -364,15 +353,14 @@ export default function CrmUsersPage() {
               <th style={th}>Name</th>
               <th style={th}>Email</th>
               <th style={th}>Mobile</th>
-              <th style={th}>Preset</th>
               <th style={th}>Hierarchy</th>
               <th style={th}>Status</th>
               <th style={{ ...th, textAlign: 'right' }}>Actions</th>
             </tr>
           </thead>
           <tbody>
-            {loading && <tr><td colSpan={7} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)' }}>Loading users…</td></tr>}
-            {!loading && filtered.length === 0 && <tr><td colSpan={7} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)' }}>No users yet — click <strong style={{ color: 'var(--text)' }}>+ Add User</strong> or <strong style={{ color: 'var(--text)' }}>Bulk Upload</strong>.</td></tr>}
+            {loading && <tr><td colSpan={6} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)' }}>Loading users…</td></tr>}
+            {!loading && filtered.length === 0 && <tr><td colSpan={6} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)' }}>No users yet — click <strong style={{ color: 'var(--text)' }}>+ Add User</strong> or <strong style={{ color: 'var(--text)' }}>Bulk Upload</strong>.</td></tr>}
             {filtered.map((u) => {
               const hRoleName = u.org_role_id ? (roles.find((r) => r.id === u.org_role_id)?.name ?? '—') : '—';
               return (
@@ -380,7 +368,6 @@ export default function CrmUsersPage() {
                   <td style={td}><strong style={{ color: 'var(--text)' }}>{u.name || '—'}</strong></td>
                   <td style={td}>{u.email || '—'}</td>
                   <td style={td}>{u.mobile || '—'}</td>
-                  <td style={td}><span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'capitalize' }}>{(u.role || '').replace(/_/g, ' ')}</span></td>
                   <td style={td}><span style={{ fontSize: 12, color: 'var(--text-dim)' }}>{hRoleName}</span></td>
                   <td style={td}>
                     <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 4, background: u.is_active === false ? 'rgba(224,30,44,0.15)' : 'rgba(0,217,126,0.15)', color: u.is_active === false ? '#E01E2C' : '#10b981', fontSize: 10, fontWeight: 800, letterSpacing: 0.4 }}>

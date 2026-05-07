@@ -261,6 +261,8 @@ export interface CrmState {
 
 export interface CrmCity {
   id: string; org_id: string; state_id: string; name: string;
+  /** District the city falls under — optional for legacy rows. */
+  district?: string | null;
   is_active: boolean;
   created_at: string; updated_at: string;
 }
