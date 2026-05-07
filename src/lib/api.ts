@@ -107,6 +107,14 @@ class ApiClient {
   }
 
   private async request<T>(path: string, options: RequestInit = {}): Promise<T> {
+    // Demo mock intercept — when demo@kinematic.com is logged in, hand back
+    // canned JSON instead of touching the network so every dashboard renders
+    // populated values.
+    if (this.getUserEmail() === demo.DEMO_USER_EMAIL) {
+      const mocked = demo.matchDemoMock<T>(path, (options.method || 'GET').toUpperCase());
+      if (mocked !== undefined) return mocked;
+    }
+
     const token = this.getToken();
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',

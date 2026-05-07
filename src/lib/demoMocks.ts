@@ -344,3 +344,403 @@ export const mockMovements = () => ({
     { id: 'm3', movement_type: 'transfer', quantity: 100, reference_no: 'TR-102', from_location: 'Main Block', to_location: 'South Block', moved_at: new Date(Date.now() - 7200000).toISOString(), sku: { id: 'i2', sku_code: 'LX-402', name: 'Lux Rose 100g' }, performer: { name: 'Rahul Verma' } }
   ]
 });
+
+// ---------------------------------------------------------------------------
+// Mocks for endpoints the platform dashboard hits but didn't have fixtures for
+// ---------------------------------------------------------------------------
+
+export const mockWeeklyContacts = () => ({
+  success: true,
+  data: {
+    days: Array.from({ length: 7 }, (_, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() - (6 - i));
+      const tff = 120 + Math.floor(Math.random() * 50);
+      return {
+        date: d.toISOString().split('T')[0],
+        label: d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
+        short_label: d.toLocaleDateString('en-IN', { weekday: 'short' }).substring(0, 1),
+        tff,
+        engagements: tff + Math.floor(Math.random() * 60),
+        tff_rate: 78 + Math.floor(Math.random() * 12),
+      };
+    }),
+    total_tff: 1248,
+    total_cc: 1560,
+  }
+});
+
+export const mockCityPerformance = () => ({
+  success: true,
+  data: {
+    cities: [
+      { city: 'Bangalore', fes: 38, check_ins: 132, tff: 450, outlets: 280 },
+      { city: 'Mumbai',    fes: 32, check_ins: 118, tff: 380, outlets: 240 },
+      { city: 'Delhi',     fes: 28, check_ins: 102, tff: 320, outlets: 195 },
+      { city: 'Chennai',   fes: 22, check_ins:  84, tff: 280, outlets: 168 },
+      { city: 'Pune',      fes: 18, check_ins:  68, tff: 215, outlets: 130 },
+      { city: 'Hyderabad', fes: 14, check_ins:  52, tff: 168, outlets: 102 },
+    ],
+  }
+});
+
+export const mockOutletCoverage = () => ({
+  success: true,
+  data: {
+    universe: 1350,
+    covered:  892,
+    coverage_pct: 66,
+    by_city: [
+      { city: 'Bangalore', universe: 320, covered: 240 },
+      { city: 'Mumbai',    universe: 280, covered: 198 },
+      { city: 'Delhi',     universe: 240, covered: 158 },
+      { city: 'Chennai',   universe: 200, covered: 132 },
+      { city: 'Pune',      universe: 170, covered: 105 },
+      { city: 'Hyderabad', universe: 140, covered:  59 },
+    ],
+  }
+});
+
+export const mockBroadcasts = () => ({
+  success: true,
+  data: [
+    { id: 'b1', title: 'Q1 Sales Kickoff',          body: 'New incentive structure live.',     sent_at: new Date(Date.now() - 86400000).toISOString(),   sent_by: 'Demo Admin', recipients: 145, read: 132 },
+    { id: 'b2', title: 'Monsoon Travel Advisory',   body: 'Carry rain gear; route 7 closed.',  sent_at: new Date(Date.now() - 3*86400000).toISOString(), sent_by: 'Demo Admin', recipients: 145, read: 140 },
+    { id: 'b3', title: 'New SKU – TMT 16mm',        body: 'Inventory available from tomorrow.',sent_at: new Date(Date.now() - 7*86400000).toISOString(), sent_by: 'Demo Admin', recipients: 145, read: 121 },
+  ]
+});
+
+export const mockLearningMaterials = () => ({
+  success: true,
+  data: [
+    { id: 'l1', title: 'Outlet Visit SOP',  category: 'Process', updated_at: new Date(Date.now() - 30*86400000).toISOString(), kind: 'pdf' },
+    { id: 'l2', title: 'Pitching TMT Bars', category: 'Sales',   updated_at: new Date(Date.now() - 14*86400000).toISOString(), kind: 'video' },
+    { id: 'l3', title: 'Cement Specs 101',  category: 'Product', updated_at: new Date(Date.now() - 60*86400000).toISOString(), kind: 'pdf' },
+  ]
+});
+
+export const mockMobileHome = () => ({
+  success: true,
+  data: { tff_today: 14, attendance_status: 'checked_in', kpis: { tff: 14, hours: 6.5 } }
+});
+
+// ---------------------------------------------------------------------------
+// CRM mocks
+// ---------------------------------------------------------------------------
+
+const REPS = ['Arjun Sharma', 'Priya Patel', 'Rahul Verma', 'Sneha Rao', 'Amit Singh'];
+const _now = (offsetDays = 0) => new Date(Date.now() + offsetDays * 86400000).toISOString();
+
+const CRM_LEADS = [
+  { id: 'demo-lead-1',  first_name: 'Vikram',   last_name: 'Reddy',  company: 'Skyline Developers',     email: 'vikram@skyline.demo',   phone: '+91 98201 11111', status: 'qualified',   score: 88, score_grade: 'A', city: 'Bengaluru', industry: 'Real Estate',   owner_id: 'demo-user-id', owner_name: REPS[0], last_activity_at: _now(-1),  created_at: _now(-14) },
+  { id: 'demo-lead-2',  first_name: 'Anjali',   last_name: 'Iyer',   company: 'Zenith Properties',      email: 'anjali@zenith.demo',    phone: '+91 98202 22222', status: 'working',     score: 76, score_grade: 'A', city: 'Mumbai',    industry: 'Construction',  owner_id: 'demo-user-id', owner_name: REPS[1], last_activity_at: _now(-2),  created_at: _now(-21) },
+  { id: 'demo-lead-3',  first_name: 'Rohan',    last_name: 'Kumar',  company: 'Acme Steel',             email: 'rohan@acme.demo',       phone: '+91 98203 33333', status: 'new',         score: 64, score_grade: 'B', city: 'Pune',      industry: 'Steel',         owner_id: 'demo-user-id', owner_name: REPS[2], last_activity_at: _now(-4),  created_at: _now(-7)  },
+  { id: 'demo-lead-4',  first_name: 'Neha',     last_name: 'Gupta',  company: 'Vega Infra',             email: 'neha@vegainfra.demo',   phone: '+91 98204 44444', status: 'qualified',   score: 92, score_grade: 'A', city: 'Hyderabad', industry: 'Infrastructure',owner_id: 'demo-user-id', owner_name: REPS[0], last_activity_at: _now(-1),  created_at: _now(-30) },
+  { id: 'demo-lead-5',  first_name: 'Karthik',  last_name: 'Pillai', company: 'Trident Power',          email: 'karthik@trident.demo',  phone: '+91 98205 55555', status: 'working',     score: 55, score_grade: 'B', city: 'Chennai',   industry: 'Energy',        owner_id: 'demo-user-id', owner_name: REPS[3], last_activity_at: _now(-5),  created_at: _now(-18) },
+  { id: 'demo-lead-6',  first_name: 'Pooja',    last_name: 'Joshi',  company: 'Lakshmi Builders',       email: 'pooja@lakshmi.demo',    phone: '+91 98206 66666', status: 'unqualified', score: 22, score_grade: 'D', city: 'Jaipur',    industry: 'Real Estate',   owner_id: 'demo-user-id', owner_name: REPS[4], last_activity_at: _now(-9),  created_at: _now(-35) },
+  { id: 'demo-lead-7',  first_name: 'Manish',   last_name: 'Khanna', company: 'Konkan Steel',           email: 'manish@konkan.demo',    phone: '+91 98207 77777', status: 'qualified',   score: 81, score_grade: 'A', city: 'Mumbai',    industry: 'Steel',         owner_id: 'demo-user-id', owner_name: REPS[1], last_activity_at: _now(-3),  created_at: _now(-25) },
+  { id: 'demo-lead-8',  first_name: 'Ishaan',   last_name: 'Bose',   company: 'Falcon Engineering',     email: 'ishaan@falcon.demo',    phone: '+91 98208 88888', status: 'nurturing',   score: 48, score_grade: 'C', city: 'Kolkata',   industry: 'Manufacturing', owner_id: 'demo-user-id', owner_name: REPS[2], last_activity_at: _now(-12), created_at: _now(-42) },
+  { id: 'demo-lead-9',  first_name: 'Tanvi',    last_name: 'Mehta',  company: 'Pragati Industries',     email: 'tanvi@pragati.demo',    phone: '+91 98209 99999', status: 'new',         score: 70, score_grade: 'B', city: 'Ahmedabad', industry: 'Manufacturing', owner_id: 'demo-user-id', owner_name: REPS[3], last_activity_at: _now(-1),  created_at: _now(-5)  },
+  { id: 'demo-lead-10', first_name: 'Karan',    last_name: 'Verma',  company: 'Suryadev Cement',        email: 'karan@suryadev.demo',   phone: '+91 98210 10101', status: 'working',     score: 84, score_grade: 'A', city: 'Surat',     industry: 'Cement',        owner_id: 'demo-user-id', owner_name: REPS[0], last_activity_at: _now(-2),  created_at: _now(-11) },
+  { id: 'demo-lead-11', first_name: 'Aditya',   last_name: 'Nair',   company: 'Helios Constructions',   email: 'aditya@helios.demo',    phone: '+91 98211 12121', status: 'qualified',   score: 78, score_grade: 'A', city: 'Delhi',     industry: 'Construction',  owner_id: 'demo-user-id', owner_name: REPS[1], last_activity_at: _now(-1),  created_at: _now(-28) },
+  { id: 'demo-lead-12', first_name: 'Diya',     last_name: 'Kapoor', company: 'Coromandel Logistics',   email: 'diya@coromandel.demo',  phone: '+91 98212 13131', status: 'new',         score: 36, score_grade: 'C', city: 'Chennai',   industry: 'Logistics',     owner_id: 'demo-user-id', owner_name: REPS[2], last_activity_at: _now(-6),  created_at: _now(-9)  },
+];
+
+const CRM_STAGES = [
+  { id: 'demo-stg-1', pipeline_id: 'demo-pipe', name: 'Discovery',     position: 0, probability: 10,  stage_type: 'open', color: '#94a3b8' },
+  { id: 'demo-stg-2', pipeline_id: 'demo-pipe', name: 'Qualification', position: 1, probability: 25,  stage_type: 'open', color: '#60a5fa' },
+  { id: 'demo-stg-3', pipeline_id: 'demo-pipe', name: 'Proposal',      position: 2, probability: 50,  stage_type: 'open', color: '#a78bfa' },
+  { id: 'demo-stg-4', pipeline_id: 'demo-pipe', name: 'Negotiation',   position: 3, probability: 75,  stage_type: 'open', color: '#fbbf24' },
+  { id: 'demo-stg-5', pipeline_id: 'demo-pipe', name: 'Closed Won',    position: 4, probability: 100, stage_type: 'won',  color: '#22c55e' },
+  { id: 'demo-stg-6', pipeline_id: 'demo-pipe', name: 'Closed Lost',   position: 5, probability: 0,   stage_type: 'lost', color: '#ef4444' },
+];
+
+const CRM_PIPELINES = [{ id: 'demo-pipe', name: 'Sales', is_default: true, stages: CRM_STAGES }];
+
+const CRM_ACCOUNTS = [
+  { id: 'demo-acct-1', name: 'Skyline Developers',    domain: 'skyline.demo',    industry: 'Real Estate',    annual_revenue: 1850000000, owner_id: 'demo-user-id', owner_name: REPS[0], created_at: _now(-60) },
+  { id: 'demo-acct-2', name: 'Zenith Properties',     domain: 'zenith.demo',     industry: 'Construction',   annual_revenue: 2100000000, owner_id: 'demo-user-id', owner_name: REPS[1], created_at: _now(-90) },
+  { id: 'demo-acct-3', name: 'Acme Steel',            domain: 'acme.demo',       industry: 'Steel',          annual_revenue: 980000000,  owner_id: 'demo-user-id', owner_name: REPS[2], created_at: _now(-45) },
+  { id: 'demo-acct-4', name: 'Vega Infra',            domain: 'vegainfra.demo',  industry: 'Infrastructure', annual_revenue: 3200000000, owner_id: 'demo-user-id', owner_name: REPS[0], created_at: _now(-120) },
+  { id: 'demo-acct-5', name: 'Trident Power',         domain: 'trident.demo',    industry: 'Energy',         annual_revenue: 1450000000, owner_id: 'demo-user-id', owner_name: REPS[3], created_at: _now(-75) },
+  { id: 'demo-acct-6', name: 'Suryadev Cement',       domain: 'suryadev.demo',   industry: 'Cement',         annual_revenue: 870000000,  owner_id: 'demo-user-id', owner_name: REPS[4], created_at: _now(-30) },
+  { id: 'demo-acct-7', name: 'Helios Constructions',  domain: 'helios.demo',     industry: 'Construction',   annual_revenue: 1200000000, owner_id: 'demo-user-id', owner_name: REPS[1], created_at: _now(-150) },
+  { id: 'demo-acct-8', name: 'Konkan Steel',          domain: 'konkan.demo',     industry: 'Steel',          annual_revenue: 760000000,  owner_id: 'demo-user-id', owner_name: REPS[2], created_at: _now(-100) },
+];
+
+const CRM_CONTACTS = [
+  { id: 'demo-ctc-1', first_name: 'Vikram',  last_name: 'Reddy',  email: 'vikram@skyline.demo',  phone: '+91 98201 11111', title: 'VP Procurement',     account_id: 'demo-acct-1', account_name: 'Skyline Developers',    owner_id: 'demo-user-id', owner_name: REPS[0] },
+  { id: 'demo-ctc-2', first_name: 'Anjali',  last_name: 'Iyer',   email: 'anjali@zenith.demo',   phone: '+91 98202 22222', title: 'Director Materials', account_id: 'demo-acct-2', account_name: 'Zenith Properties',     owner_id: 'demo-user-id', owner_name: REPS[1] },
+  { id: 'demo-ctc-3', first_name: 'Rohan',   last_name: 'Kumar',  email: 'rohan@acme.demo',      phone: '+91 98203 33333', title: 'GM Operations',      account_id: 'demo-acct-3', account_name: 'Acme Steel',            owner_id: 'demo-user-id', owner_name: REPS[2] },
+  { id: 'demo-ctc-4', first_name: 'Neha',    last_name: 'Gupta',  email: 'neha@vegainfra.demo',  phone: '+91 98204 44444', title: 'Head of Procurement',account_id: 'demo-acct-4', account_name: 'Vega Infra',            owner_id: 'demo-user-id', owner_name: REPS[0] },
+  { id: 'demo-ctc-5', first_name: 'Karthik', last_name: 'Pillai', email: 'karthik@trident.demo', phone: '+91 98205 55555', title: 'Project Manager',    account_id: 'demo-acct-5', account_name: 'Trident Power',         owner_id: 'demo-user-id', owner_name: REPS[3] },
+  { id: 'demo-ctc-6', first_name: 'Karan',   last_name: 'Verma',  email: 'karan@suryadev.demo',  phone: '+91 98210 10101', title: 'Founder',            account_id: 'demo-acct-6', account_name: 'Suryadev Cement',       owner_id: 'demo-user-id', owner_name: REPS[0] },
+  { id: 'demo-ctc-7', first_name: 'Aditya',  last_name: 'Nair',   email: 'aditya@helios.demo',   phone: '+91 98211 12121', title: 'Site Engineer',      account_id: 'demo-acct-7', account_name: 'Helios Constructions',  owner_id: 'demo-user-id', owner_name: REPS[1] },
+  { id: 'demo-ctc-8', first_name: 'Manish',  last_name: 'Khanna', email: 'manish@konkan.demo',   phone: '+91 98207 77777', title: 'VP Sales',           account_id: 'demo-acct-8', account_name: 'Konkan Steel',          owner_id: 'demo-user-id', owner_name: REPS[2] },
+];
+
+const CRM_DEALS = [
+  { id: 'demo-deal-1',  name: 'Skyline Mumbai Tower – Steel',    account_id: 'demo-acct-1', account_name: 'Skyline Developers',     pipeline_id: 'demo-pipe', stage_id: 'demo-stg-3', stage_name: 'Proposal',      stage_type: 'open', status: 'open', amount: 7250000,  currency: 'INR', probability: 50,  win_probability_ai: 62,  owner_id: 'demo-user-id', owner_name: REPS[0], expected_close_date: _now(12).slice(0, 10),  created_at: _now(-30) },
+  { id: 'demo-deal-2',  name: 'Zenith Pune Hi-Rise – Cement',    account_id: 'demo-acct-2', account_name: 'Zenith Properties',      pipeline_id: 'demo-pipe', stage_id: 'demo-stg-4', stage_name: 'Negotiation',   stage_type: 'open', status: 'open', amount: 12400000, currency: 'INR', probability: 75,  win_probability_ai: 78,  owner_id: 'demo-user-id', owner_name: REPS[1], expected_close_date: _now(6).slice(0, 10),   created_at: _now(-45) },
+  { id: 'demo-deal-3',  name: 'Acme TMT Bars – Q3 Restock',      account_id: 'demo-acct-3', account_name: 'Acme Steel',             pipeline_id: 'demo-pipe', stage_id: 'demo-stg-2', stage_name: 'Qualification', stage_type: 'open', status: 'open', amount: 3800000,  currency: 'INR', probability: 25,  win_probability_ai: 35,  owner_id: 'demo-user-id', owner_name: REPS[2], expected_close_date: _now(28).slice(0, 10),  created_at: _now(-14) },
+  { id: 'demo-deal-4',  name: 'Vega Highway Project – Steel',    account_id: 'demo-acct-4', account_name: 'Vega Infra',             pipeline_id: 'demo-pipe', stage_id: 'demo-stg-3', stage_name: 'Proposal',      stage_type: 'open', status: 'open', amount: 18500000, currency: 'INR', probability: 50,  win_probability_ai: 71,  owner_id: 'demo-user-id', owner_name: REPS[0], expected_close_date: _now(18).slice(0, 10),  created_at: _now(-50) },
+  { id: 'demo-deal-5',  name: 'Trident Substation – GI Wire',    account_id: 'demo-acct-5', account_name: 'Trident Power',          pipeline_id: 'demo-pipe', stage_id: 'demo-stg-1', stage_name: 'Discovery',     stage_type: 'open', status: 'open', amount: 2150000,  currency: 'INR', probability: 10,  win_probability_ai: 22,  owner_id: 'demo-user-id', owner_name: REPS[3], expected_close_date: _now(35).slice(0, 10),  created_at: _now(-8)  },
+  { id: 'demo-deal-6',  name: 'Suryadev OPC Cement – Annual',    account_id: 'demo-acct-6', account_name: 'Suryadev Cement',        pipeline_id: 'demo-pipe', stage_id: 'demo-stg-4', stage_name: 'Negotiation',   stage_type: 'open', status: 'open', amount: 9800000,  currency: 'INR', probability: 75,  win_probability_ai: 80,  owner_id: 'demo-user-id', owner_name: REPS[4], expected_close_date: _now(4).slice(0, 10),   created_at: _now(-22) },
+  { id: 'demo-deal-7',  name: 'Helios Mumbai Phase 2',           account_id: 'demo-acct-7', account_name: 'Helios Constructions',   pipeline_id: 'demo-pipe', stage_id: 'demo-stg-2', stage_name: 'Qualification', stage_type: 'open', status: 'open', amount: 5400000,  currency: 'INR', probability: 25,  win_probability_ai: 40,  owner_id: 'demo-user-id', owner_name: REPS[1], expected_close_date: _now(22).slice(0, 10),  created_at: _now(-10) },
+  { id: 'demo-deal-8',  name: 'Konkan TMT 16mm Pilot',           account_id: 'demo-acct-8', account_name: 'Konkan Steel',           pipeline_id: 'demo-pipe', stage_id: 'demo-stg-1', stage_name: 'Discovery',     stage_type: 'open', status: 'open', amount: 1750000,  currency: 'INR', probability: 10,  win_probability_ai: 18,  owner_id: 'demo-user-id', owner_name: REPS[2], expected_close_date: _now(40).slice(0, 10),  created_at: _now(-5)  },
+  { id: 'demo-deal-9',  name: 'Skyline – Bengaluru Tower',       account_id: 'demo-acct-1', account_name: 'Skyline Developers',     pipeline_id: 'demo-pipe', stage_id: 'demo-stg-5', stage_name: 'Closed Won',    stage_type: 'won',  status: 'won',  amount: 14200000, currency: 'INR', probability: 100, win_probability_ai: 100, owner_id: 'demo-user-id', owner_name: REPS[0], actual_close_date: _now(-3).slice(0, 10),    created_at: _now(-65) },
+  { id: 'demo-deal-10', name: 'Vega Highway Phase 1 – Cement',   account_id: 'demo-acct-4', account_name: 'Vega Infra',             pipeline_id: 'demo-pipe', stage_id: 'demo-stg-5', stage_name: 'Closed Won',    stage_type: 'won',  status: 'won',  amount: 22600000, currency: 'INR', probability: 100, win_probability_ai: 100, owner_id: 'demo-user-id', owner_name: REPS[0], actual_close_date: _now(-12).slice(0, 10),   created_at: _now(-80) },
+  { id: 'demo-deal-11', name: 'Suryadev Demo Pilot',             account_id: 'demo-acct-6', account_name: 'Suryadev Cement',        pipeline_id: 'demo-pipe', stage_id: 'demo-stg-5', stage_name: 'Closed Won',    stage_type: 'won',  status: 'won',  amount: 4300000,  currency: 'INR', probability: 100, win_probability_ai: 100, owner_id: 'demo-user-id', owner_name: REPS[4], actual_close_date: _now(-25).slice(0, 10),   created_at: _now(-50) },
+  { id: 'demo-deal-12', name: 'Helios Pune Site Closeout',       account_id: 'demo-acct-7', account_name: 'Helios Constructions',   pipeline_id: 'demo-pipe', stage_id: 'demo-stg-5', stage_name: 'Closed Won',    stage_type: 'won',  status: 'won',  amount: 6750000,  currency: 'INR', probability: 100, win_probability_ai: 100, owner_id: 'demo-user-id', owner_name: REPS[1], actual_close_date: _now(-38).slice(0, 10),   created_at: _now(-75) },
+  { id: 'demo-deal-13', name: 'Trident – lost to Tata',          account_id: 'demo-acct-5', account_name: 'Trident Power',          pipeline_id: 'demo-pipe', stage_id: 'demo-stg-6', stage_name: 'Closed Lost',   stage_type: 'lost', status: 'lost', amount: 3200000,  currency: 'INR', probability: 0,   win_probability_ai: 0,   owner_id: 'demo-user-id', owner_name: REPS[3], actual_close_date: _now(-18).slice(0, 10),    created_at: _now(-60), lost_reason: 'Competitor' },
+  { id: 'demo-deal-14', name: 'Acme – budget cut',               account_id: 'demo-acct-3', account_name: 'Acme Steel',             pipeline_id: 'demo-pipe', stage_id: 'demo-stg-6', stage_name: 'Closed Lost',   stage_type: 'lost', status: 'lost', amount: 2800000,  currency: 'INR', probability: 0,   win_probability_ai: 0,   owner_id: 'demo-user-id', owner_name: REPS[2], actual_close_date: _now(-30).slice(0, 10),    created_at: _now(-70), lost_reason: 'No budget'  },
+];
+
+const CRM_ACTIVITIES = [
+  { id: 'demo-act-1',  type: 'call',    subject: 'Discovery call with Vikram',   status: 'completed', completed_at: _now(-1), lead_id: 'demo-lead-1', deal_id: null,           assigned_to: 'demo-user-id', assigned_to_name: REPS[0] },
+  { id: 'demo-act-2',  type: 'email',   subject: 'Pricing sent to Anjali',       status: 'completed', completed_at: _now(-2), lead_id: 'demo-lead-2', deal_id: null,           assigned_to: 'demo-user-id', assigned_to_name: REPS[1] },
+  { id: 'demo-act-3',  type: 'meeting', subject: 'Site visit – Skyline Tower',   status: 'completed', completed_at: _now(-3), lead_id: null,          deal_id: 'demo-deal-1',  assigned_to: 'demo-user-id', assigned_to_name: REPS[0] },
+  { id: 'demo-act-4',  type: 'note',    subject: 'Decision-maker change at Vega',status: 'completed', completed_at: _now(-5), lead_id: null,          deal_id: 'demo-deal-4',  assigned_to: 'demo-user-id', assigned_to_name: REPS[0] },
+  { id: 'demo-act-5',  type: 'call',    subject: 'Follow-up with Rohan',         status: 'completed', completed_at: _now(-4), lead_id: 'demo-lead-3', deal_id: null,           assigned_to: 'demo-user-id', assigned_to_name: REPS[2] },
+  { id: 'demo-act-6',  type: 'task',    subject: 'Send proposal to Trident',     status: 'planned',   due_at: _now(2),         lead_id: null,          deal_id: 'demo-deal-5',  assigned_to: 'demo-user-id', assigned_to_name: REPS[3] },
+  { id: 'demo-act-7',  type: 'call',    subject: 'Negotiate with Suryadev',      status: 'completed', completed_at: _now(-1), lead_id: null,          deal_id: 'demo-deal-6',  assigned_to: 'demo-user-id', assigned_to_name: REPS[4] },
+  { id: 'demo-act-8',  type: 'email',   subject: 'Intro deck to Karthik',        status: 'completed', completed_at: _now(-6), lead_id: 'demo-lead-5', deal_id: null,           assigned_to: 'demo-user-id', assigned_to_name: REPS[3] },
+  { id: 'demo-act-9',  type: 'meeting', subject: 'Quarterly review – Helios',    status: 'completed', completed_at: _now(-8), lead_id: null,          deal_id: 'demo-deal-7',  assigned_to: 'demo-user-id', assigned_to_name: REPS[1] },
+  { id: 'demo-act-10', type: 'task',    subject: 'Quote for Acme TMT',           status: 'planned',   due_at: _now(1),         lead_id: null,          deal_id: 'demo-deal-3',  assigned_to: 'demo-user-id', assigned_to_name: REPS[2] },
+  { id: 'demo-act-11', type: 'call',    subject: 'Cold outreach – Tanvi',        status: 'completed', completed_at: _now(-1), lead_id: 'demo-lead-9', deal_id: null,           assigned_to: 'demo-user-id', assigned_to_name: REPS[3] },
+  { id: 'demo-act-12', type: 'note',    subject: 'Konkan asked for samples',     status: 'completed', completed_at: _now(-9), lead_id: 'demo-lead-7', deal_id: null,           assigned_to: 'demo-user-id', assigned_to_name: REPS[1] },
+];
+
+const CRM_SOURCES = [
+  { id: 'demo-src-1', name: 'Website',       cost_per_lead: 250, is_active: true },
+  { id: 'demo-src-2', name: 'Referral',      cost_per_lead: 0,   is_active: true },
+  { id: 'demo-src-3', name: 'Trade Show',    cost_per_lead: 800, is_active: true },
+  { id: 'demo-src-4', name: 'Cold Outreach', cost_per_lead: 100, is_active: true },
+  { id: 'demo-src-5', name: 'LinkedIn Ads',  cost_per_lead: 450, is_active: true },
+];
+
+const CRM_DASHBOARD_SUMMARY = {
+  total_leads:      CRM_LEADS.length,
+  new_leads:        CRM_LEADS.filter(l => l.status === 'new').length,
+  qualified_leads:  CRM_LEADS.filter(l => l.status === 'qualified').length,
+  converted_leads:  4,
+  total_deals:      CRM_DEALS.length,
+  open_deals:       CRM_DEALS.filter(d => d.status === 'open').length,
+  won_deals:        CRM_DEALS.filter(d => d.status === 'won').length,
+  lost_deals:       CRM_DEALS.filter(d => d.status === 'lost').length,
+  pipeline_value:   CRM_DEALS.filter(d => d.status === 'open').reduce((s, d) => s + d.amount, 0),
+  closed_revenue:   CRM_DEALS.filter(d => d.status === 'won').reduce((s, d) => s + d.amount, 0),
+  win_rate:         Math.round(CRM_DEALS.filter(d => d.status === 'won').length / Math.max(1, CRM_DEALS.filter(d => d.status !== 'open').length) * 100),
+  avg_score:        Math.round(CRM_LEADS.reduce((s, l) => s + l.score, 0) / CRM_LEADS.length),
+  total_activities: CRM_ACTIVITIES.length,
+  total_contacts:   CRM_CONTACTS.length,
+};
+
+const CRM_PIPELINE_VALUE = CRM_STAGES.filter(s => s.stage_type === 'open').map(s => {
+  const deals = CRM_DEALS.filter(d => d.stage_id === s.id && d.status === 'open');
+  const total = deals.reduce((acc, d) => acc + d.amount, 0);
+  return {
+    stage_id: s.id, stage_name: s.name, stage_type: s.stage_type, position: s.position,
+    deal_count: deals.length, total_amount: total,
+    weighted_amount: Math.round(total * (s.probability / 100)),
+  };
+});
+
+const CRM_FUNNEL = [
+  { stage: 'New',         count: 12, value: 4_800_000  },
+  { stage: 'Qualified',   count: 9,  value: 18_500_000 },
+  { stage: 'Proposal',    count: 6,  value: 31_550_000 },
+  { stage: 'Negotiation', count: 4,  value: 22_400_000 },
+  { stage: 'Won',         count: 4,  value: 47_850_000 },
+];
+
+const CRM_WIN_RATE = REPS.map((name, i) => ({
+  rep_id: 'demo-user-id', rep_name: name,
+  won: 5 - i, lost: i, total_closed: Math.max(1, 5 - i + i),
+  win_rate: Math.round((5 - i) / Math.max(1, 5) * 100),
+  revenue: [22_600_000, 14_200_000, 6_750_000, 4_300_000, 0][i] || 0,
+}));
+
+const CRM_FORECAST = (() => {
+  const now = new Date();
+  return Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+    return {
+      period: d.toISOString().slice(0, 7),
+      committed:  3_500_000 + i * 800_000,
+      best_case:  6_400_000 + i * 1_400_000,
+      pipeline:  12_800_000 + i * 1_600_000,
+      target:    10_000_000,
+    };
+  });
+})();
+
+const CRM_HEATMAP = (() => {
+  const dows = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const out: Array<{ dow: string; hour: number; count: number }> = [];
+  for (const dow of dows) {
+    for (let h = 8; h < 20; h++) {
+      const peak = dow !== 'Sun' && h >= 10 && h <= 17;
+      out.push({ dow, hour: h, count: peak ? Math.round(3 + Math.random() * 12) : Math.round(Math.random() * 3) });
+    }
+  }
+  return out;
+})();
+
+const CRM_LEAD_SOURCE_ROI = CRM_SOURCES.map((s, i) => ({
+  source_id: s.id, source_name: s.name,
+  leads:     [12, 8,  4, 14, 6][i],
+  qualified: [5,  6,  3,  4, 2][i],
+  won:       [3,  4,  2,  1, 1][i],
+  cost:      [12*s.cost_per_lead, 0, 4*s.cost_per_lead, 14*s.cost_per_lead, 6*s.cost_per_lead][i],
+  revenue:   [22_600_000, 14_200_000, 6_750_000, 4_300_000, 0][i] || 0,
+}));
+
+const CRM_SCORE_DIST = [
+  { bucket: '0-20',   count: 4 },
+  { bucket: '21-40',  count: 7 },
+  { bucket: '41-60',  count: 9 },
+  { bucket: '61-80',  count: 14 },
+  { bucket: '81-100', count: 10 },
+];
+
+const CRM_SALES_CYCLE = [
+  { stage: 'Discovery',     avg_days: 4 },
+  { stage: 'Qualification', avg_days: 7 },
+  { stage: 'Proposal',      avg_days: 11 },
+  { stage: 'Negotiation',   avg_days: 8 },
+];
+
+const CRM_DASHBOARD_COMPLETE = {
+  unit: 'inr',
+  summary:               CRM_DASHBOARD_SUMMARY,
+  pipelineValue:         CRM_PIPELINE_VALUE,
+  funnel:                CRM_FUNNEL,
+  winRate:               CRM_WIN_RATE,
+  forecast:              CRM_FORECAST,
+  leadScoreDistribution: CRM_SCORE_DIST,
+};
+
+const CRM_TERRITORIES = [
+  { id: 'demo-terr-1', name: 'Mumbai West',      is_active: true },
+  { id: 'demo-terr-2', name: 'Bangalore North',  is_active: true },
+  { id: 'demo-terr-3', name: 'Delhi Central',    is_active: true },
+];
+const CRM_PRODUCTS = [
+  { id: 'demo-prod-1', name: 'TMT Bar 8mm',  sku: 'TMT-8',  unit_price: 65,  unit: 'kg',  is_active: true },
+  { id: 'demo-prod-2', name: 'TMT Bar 12mm', sku: 'TMT-12', unit_price: 64,  unit: 'kg',  is_active: true },
+  { id: 'demo-prod-3', name: 'TMT Bar 16mm', sku: 'TMT-16', unit_price: 63,  unit: 'kg',  is_active: true },
+  { id: 'demo-prod-4', name: 'OPC Cement 53', sku: 'CEM-OPC53', unit_price: 410, unit: 'bag', is_active: true },
+  { id: 'demo-prod-5', name: 'GI Wire 8 SWG', sku: 'GI-8',  unit_price: 92,  unit: 'kg',  is_active: true },
+];
+
+// ---------------------------------------------------------------------------
+// Path → mock router. Returns the wrapped {success, data} payload, or
+// undefined to fall through to the network call.
+// ---------------------------------------------------------------------------
+const list = <T,>(rows: T[]) => ({ success: true, data: rows });
+const wrap = <T,>(body: T)  => ({ success: true, data: body });
+
+export function matchDemoMock<T>(rawPath: string, method: string): T | undefined {
+  const noQuery = rawPath.split('?')[0];
+  const path = noQuery.startsWith('/api/v1') ? noQuery.slice('/api/v1'.length) : noQuery;
+  const m = method.toUpperCase();
+
+  if (m === 'GET') {
+    // ---- Legacy analytics ----
+    if (path === '/analytics/dashboard-init')   return mockDashboardInit() as unknown as T;
+    if (path === '/analytics/summary')          return mockSummary(new Date().toISOString().split('T')[0]) as unknown as T;
+    if (path === '/analytics/trends')           return mockTrends() as unknown as T;
+    if (path === '/analytics/feed')             return mockFeed() as unknown as T;
+    if (path === '/analytics/heatmap')          return mockHeatmap() as unknown as T;
+    if (path === '/analytics/locations')        return mockLocations() as unknown as T;
+    if (path === '/analytics/weekly-contacts')  return mockWeeklyContacts() as unknown as T;
+    if (path === '/analytics/city-performance') return mockCityPerformance() as unknown as T;
+    if (path === '/analytics/outlet-coverage')  return mockOutletCoverage() as unknown as T;
+    if (path === '/analytics/attendance-today') return mockAttendanceTeam() as unknown as T;
+    if (path === '/analytics/mobile-home')      return mockMobileHome() as unknown as T;
+
+    // ---- Other legacy collections ----
+    if (path === '/users')                      return mockUsers() as unknown as T;
+    if (path === '/attendance/team')            return mockAttendanceTeam() as unknown as T;
+    if (path === '/zones')                      return mockZones() as unknown as T;
+    if (path === '/clients')                    return mockClients() as unknown as T;
+    if (path === '/inventory' || path === '/skus') return mockInventory() as unknown as T;
+    if (path === '/warehouses' || path === '/warehouse/summary') return mockWarehouseSummary() as unknown as T;
+    if (path === '/movements' || path === '/wms/movements')      return mockMovements() as unknown as T;
+    if (path === '/cities')                     return mockCities() as unknown as T;
+    if (path === '/grievances')                 return mockGrievances() as unknown as T;
+    if (path === '/sos' || path === '/sos/active') return mockSOS() as unknown as T;
+    if (path === '/broadcast' || path === '/broadcasts') return mockBroadcasts() as unknown as T;
+    if (path === '/learning')                   return mockLearningMaterials() as unknown as T;
+    if (path === '/visit-logs')                 return mockVisitLogs() as unknown as T;
+    if (path === '/forms/templates' || path === '/form-templates') return mockFormTemplates() as unknown as T;
+    if (path === '/forms/submissions' || path === '/submissions')  return mockSubmissions() as unknown as T;
+    if (path === '/route-plans')                return mockRoutePlans() as unknown as T;
+    if (path === '/activities')                 return mockActivities() as unknown as T;
+    if (path === '/assets')                     return mockAssets() as unknown as T;
+    if (path === '/security/alerts')            return mockSecurityAlerts() as unknown as T;
+    if (path === '/stores')                     return mockStores() as unknown as T;
+
+    // ---- CRM ----
+    if (path === '/crm/leads')      return list(CRM_LEADS) as unknown as T;
+    if (path === '/crm/deals')      return list(CRM_DEALS) as unknown as T;
+    if (path === '/crm/accounts')   return list(CRM_ACCOUNTS) as unknown as T;
+    if (path === '/crm/contacts')   return list(CRM_CONTACTS) as unknown as T;
+    if (path === '/crm/activities') return list(CRM_ACTIVITIES) as unknown as T;
+    if (path === '/crm/tasks')      return list(CRM_ACTIVITIES.filter(a => a.type === 'task')) as unknown as T;
+    if (path === '/crm/pipelines')  return wrap(CRM_PIPELINES) as unknown as T;
+    if (path === '/crm/lead-sources')        return list(CRM_SOURCES)      as unknown as T;
+    if (path === '/crm/territories')         return list(CRM_TERRITORIES)  as unknown as T;
+    if (path === '/crm/products')            return list(CRM_PRODUCTS)     as unknown as T;
+    if (path === '/crm/email-templates')     return list([])               as unknown as T;
+    if (path === '/crm/whatsapp-templates')  return list([])               as unknown as T;
+    if (path === '/crm/automations')         return list([])               as unknown as T;
+    if (path === '/crm/assignment-rules')    return list([])               as unknown as T;
+    if (path === '/crm/custom-fields')       return list([])               as unknown as T;
+    if (path === '/crm/settings')            return wrap({})               as unknown as T;
+
+    {
+      const leadById = path.match(/^\/crm\/leads\/([^/]+)$/);
+      if (leadById) return wrap(CRM_LEADS.find(l => l.id === leadById[1]) || CRM_LEADS[0]) as unknown as T;
+      const dealById = path.match(/^\/crm\/deals\/([^/]+)$/);
+      if (dealById) return wrap(CRM_DEALS.find(d => d.id === dealById[1]) || CRM_DEALS[0]) as unknown as T;
+      const acctById = path.match(/^\/crm\/accounts\/([^/]+)$/);
+      if (acctById) return wrap(CRM_ACCOUNTS.find(a => a.id === acctById[1]) || CRM_ACCOUNTS[0]) as unknown as T;
+      const ctcById = path.match(/^\/crm\/contacts\/([^/]+)$/);
+      if (ctcById) return wrap(CRM_CONTACTS.find(c => c.id === ctcById[1]) || CRM_CONTACTS[0]) as unknown as T;
+
+      if (/^\/crm\/leads\/[^/]+\/activities$/.test(path))    return list(CRM_ACTIVITIES.slice(0, 4)) as unknown as T;
+      if (/^\/crm\/leads\/[^/]+\/deals$/.test(path))         return list(CRM_DEALS.slice(0, 2)) as unknown as T;
+      if (/^\/crm\/leads\/[^/]+\/score-history$/.test(path)) return list([]) as unknown as T;
+      if (/^\/crm\/deals\/[^/]+\/(activities|history|contacts|notes|line-items)$/.test(path)) return list([]) as unknown as T;
+      if (/^\/crm\/accounts\/[^/]+\/contacts$/.test(path))   return list(CRM_CONTACTS.slice(0, 3))  as unknown as T;
+      if (/^\/crm\/accounts\/[^/]+\/deals$/.test(path))      return list(CRM_DEALS.slice(0, 3))     as unknown as T;
+      if (/^\/crm\/accounts\/[^/]+\/activities$/.test(path)) return list(CRM_ACTIVITIES.slice(0, 3))as unknown as T;
+      if (/^\/crm\/accounts\/[^/]+\/notes$/.test(path))      return list([])                        as unknown as T;
+      if (/^\/crm\/contacts\/[^/]+\/(activities|deals|notes|emails)$/.test(path)) return list([]) as unknown as T;
+    }
+
+    if (path === '/crm/analytics/dashboard-complete')      return wrap(CRM_DASHBOARD_COMPLETE) as unknown as T;
+    if (path === '/crm/analytics/dashboard-summary')       return wrap(CRM_DASHBOARD_SUMMARY)  as unknown as T;
+    if (path === '/crm/analytics/pipeline-value')          return wrap(CRM_PIPELINE_VALUE)     as unknown as T;
+    if (path === '/crm/analytics/funnel')                  return wrap(CRM_FUNNEL)             as unknown as T;
+    if (path === '/crm/analytics/win-rate')                return wrap(CRM_WIN_RATE)           as unknown as T;
+    if (path === '/crm/analytics/sales-cycle')             return wrap(CRM_SALES_CYCLE)        as unknown as T;
+    if (path === '/crm/analytics/forecast')                return wrap(CRM_FORECAST)           as unknown as T;
+    if (path === '/crm/analytics/activity-heatmap')        return wrap(CRM_HEATMAP)            as unknown as T;
+    if (path === '/crm/analytics/lead-source-roi')         return wrap(CRM_LEAD_SOURCE_ROI)    as unknown as T;
+    if (path === '/crm/analytics/lead-score-distribution') return wrap(CRM_SCORE_DIST)         as unknown as T;
+    if (path === '/crm/analytics/by-state')                return list([])                     as unknown as T;
+  }
+
+  // Mutations: pretend-success no-op so the demo can click around without 500s.
+  if (m === 'POST' || m === 'PATCH' || m === 'PUT') {
+    return wrap({ id: 'demo-noop-' + Math.random().toString(36).slice(2, 8), ok: true, demo: true }) as unknown as T;
+  }
+  if (m === 'DELETE') {
+    return wrap({ ok: true, demo: true }) as unknown as T;
+  }
+
+  return undefined;
+}
