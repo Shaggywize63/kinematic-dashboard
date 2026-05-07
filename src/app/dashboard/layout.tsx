@@ -202,6 +202,16 @@ Be elite, professional, and data-driven. Use **bold** for key metrics. Proactive
       const headers: Record<string, string> = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
       if (userOrgId) headers['X-Org-Id'] = userOrgId;
 
+      // Multi-tenant: pin the chatbot to the client picked in the global header
+      // (same localStorage key + same UUID validation as src/lib/api.ts). Without
+      // this the chat route runs unscoped and Kini answers across clients.
+      try {
+        const sel = typeof window !== 'undefined' ? window.localStorage.getItem('kinematic_selected_client') : null;
+        if (sel && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sel)) {
+          headers['X-Client-Id'] = sel;
+        }
+      } catch { /* ignore */ }
+
       const r = await fetch(`${process.env.NEXT_PUBLIC_API_URL}${endpoint}`, {
         method: 'POST',
         headers,
