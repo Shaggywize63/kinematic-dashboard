@@ -635,6 +635,123 @@ const CRM_PRODUCTS = [
 ];
 
 // ---------------------------------------------------------------------------
+// Planogram mocks
+// ---------------------------------------------------------------------------
+
+const PLAN_SHELVES = [
+  { index: 0, capacity: 18 }, { index: 1, capacity: 18 }, { index: 2, capacity: 18 }, { index: 3, capacity: 18 },
+];
+
+const PLAN_EXPECTED_SKUS = [
+  { sku_id: 'demo-prod-1', sku_name: 'TMT Bar 8mm',  shelf_index: 0, facings: 4, position: 1, weight: 1 },
+  { sku_id: 'demo-prod-2', sku_name: 'TMT Bar 12mm', shelf_index: 0, facings: 6, position: 2, weight: 1 },
+  { sku_id: 'demo-prod-3', sku_name: 'TMT Bar 16mm', shelf_index: 1, facings: 5, position: 1, weight: 1 },
+  { sku_id: 'demo-prod-4', sku_name: 'OPC Cement 53',shelf_index: 2, facings: 8, position: 1, weight: 1 },
+  { sku_id: 'demo-prod-5', sku_name: 'GI Wire 8 SWG',shelf_index: 3, facings: 4, position: 3, weight: 1 },
+];
+
+const PLANOGRAMS = [
+  { id: 'demo-pg-1', org_id: 'demo-org-999', name: 'Steel & Cement Premium GT',  category: 'Building Materials', store_format: 'GT-LARGE',  source_url: null, layout: { shelves: PLAN_SHELVES }, expected_skus: PLAN_EXPECTED_SKUS,            version: 3, is_active: true,  created_at: _now(-90), updated_at: _now(-7)  },
+  { id: 'demo-pg-2', org_id: 'demo-org-999', name: 'Cement Counter MT',          category: 'Cement',             store_format: 'MT',        source_url: null, layout: { shelves: PLAN_SHELVES.slice(0, 3) }, expected_skus: PLAN_EXPECTED_SKUS.slice(2, 5), version: 1, is_active: true,  created_at: _now(-45), updated_at: _now(-12) },
+  { id: 'demo-pg-3', org_id: 'demo-org-999', name: 'TMT Distributor – Tier 2',   category: 'Steel',              store_format: 'GT-MEDIUM', source_url: null, layout: { shelves: PLAN_SHELVES.slice(0, 2) }, expected_skus: PLAN_EXPECTED_SKUS.slice(0, 3), version: 2, is_active: true,  created_at: _now(-60), updated_at: _now(-3)  },
+  { id: 'demo-pg-4', org_id: 'demo-org-999', name: 'Wholesale Slab',             category: 'Mixed',              store_format: 'WHOLESALE', source_url: null, layout: { shelves: PLAN_SHELVES }, expected_skus: PLAN_EXPECTED_SKUS,            version: 1, is_active: false, created_at: _now(-180),updated_at: _now(-30) },
+];
+
+const PLAN_ASSIGNMENTS = [
+  { id: 'demo-pga-1', planogram_id: 'demo-pg-1', store_id: null, zone_id: 'demo-zone-1', city_id: null, valid_from: _now(-30), valid_to: null, created_at: _now(-30) },
+  { id: 'demo-pga-2', planogram_id: 'demo-pg-1', store_id: null, zone_id: 'demo-zone-2', city_id: null, valid_from: _now(-30), valid_to: null, created_at: _now(-30) },
+  { id: 'demo-pga-3', planogram_id: 'demo-pg-2', store_id: null, zone_id: null,           city_id: 'demo-city-1', valid_from: _now(-15), valid_to: null, created_at: _now(-15) },
+];
+
+const PLAN_CAPTURES = [
+  { id: 'demo-cap-1', planogram_id: 'demo-pg-1', store_id: 'demo-store-1', store_name: 'Reliance Fresh – Koramangala', fe_id: 'fe1', fe_name: 'Arjun Sharma', captured_at: _now(-1), photo_url: null, score: 88, processed_at: _now(-1) },
+  { id: 'demo-cap-2', planogram_id: 'demo-pg-1', store_id: 'demo-store-2', store_name: 'Big Bazaar – Andheri',         fe_id: 'fe2', fe_name: 'Priya Patel',  captured_at: _now(-2), photo_url: null, score: 72, processed_at: _now(-2) },
+  { id: 'demo-cap-3', planogram_id: 'demo-pg-2', store_id: 'demo-store-3', store_name: 'Star Market – Saket',          fe_id: 'fe3', fe_name: 'Rahul Verma', captured_at: _now(-3), photo_url: null, score: 91, processed_at: _now(-3) },
+  { id: 'demo-cap-4', planogram_id: 'demo-pg-3', store_id: 'demo-store-4', store_name: 'Metro Cash – HSR',             fe_id: 'fe1', fe_name: 'Arjun Sharma', captured_at: _now(-4), photo_url: null, score: 64, processed_at: _now(-4) },
+  { id: 'demo-cap-5', planogram_id: 'demo-pg-1', store_id: 'demo-store-5', store_name: "Spencer's – Whitefield",       fe_id: 'fe4', fe_name: 'Sneha Rao',   captured_at: _now(-5), photo_url: null, score: 79, processed_at: _now(-5) },
+  { id: 'demo-cap-6', planogram_id: 'demo-pg-2', store_id: 'demo-store-6', store_name: 'Reliance SMART – Powai',       fe_id: 'fe5', fe_name: 'Amit Singh',  captured_at: _now(-6), photo_url: null, score: 83, processed_at: _now(-6) },
+];
+
+const planRecognitionFor = (captureId: string) => ({
+  id: 'demo-rec-' + captureId, capture_id: captureId,
+  detected_skus: [
+    { sku_id: 'demo-prod-1', sku_name: 'TMT Bar 8mm',  facings: 3, shelf_index: 0, bbox: [10, 10, 80, 60]  as [number, number, number, number], confidence: 0.92, is_competitor: false },
+    { sku_id: 'demo-prod-2', sku_name: 'TMT Bar 12mm', facings: 6, shelf_index: 0, bbox: [95, 10, 220, 60] as [number, number, number, number], confidence: 0.88, is_competitor: false },
+    { sku_id: 'demo-prod-3', sku_name: 'TMT Bar 16mm', facings: 4, shelf_index: 1, bbox: [10, 80, 160, 130]as [number, number, number, number], confidence: 0.85, is_competitor: false },
+    { sku_id: null,          sku_name: 'Tata Tiscon (competitor)', facings: 2, shelf_index: 1, bbox: [180, 80, 240, 130] as [number, number, number, number], confidence: 0.74, is_competitor: true },
+  ],
+  shelf_map: { shelf_count: 4 },
+  overall_confidence: 0.86,
+  needs_review: false,
+  model_versions: { detector: 'yolo-v8-1.2', classifier: 'mobilenet-3' },
+  processed_at: _now(-1),
+});
+
+const planComplianceFor = (captureId: string, planogramId = 'demo-pg-1', score = 82) => ({
+  id: 'demo-cmp-' + captureId, capture_id: captureId, planogram_id: planogramId,
+  store_id: 'demo-store-1', fe_id: 'fe1',
+  score, presence_score: score + 4, facing_score: score - 6, position_score: score,
+  competitor_share: 0.16,
+  missing_skus: [
+    { sku_id: 'demo-prod-5', sku_name: 'GI Wire 8 SWG', expected_facings: 4 },
+  ],
+  misplaced_skus: [
+    { sku_id: 'demo-prod-3', sku_name: 'TMT Bar 16mm', expected_shelf: 1, actual_shelf: 2 },
+  ],
+  facing_deltas: [
+    { sku_id: 'demo-prod-1', sku_name: 'TMT Bar 8mm',  expected: 4, actual: 3, delta: -1 },
+    { sku_id: 'demo-prod-2', sku_name: 'TMT Bar 12mm', expected: 6, actual: 6, delta:  0 },
+    { sku_id: 'demo-prod-4', sku_name: 'OPC Cement 53',expected: 8, actual: 5, delta: -3 },
+  ],
+  recommendations: [
+    { priority: 'critical' as const, action: 'Restock OPC Cement 53 (3 facings short)',                    sku_id: 'demo-prod-4', sku_name: 'OPC Cement 53', rationale: 'Top SKU at this format; recovers ~₹4.8L MoM.' },
+    { priority: 'high'     as const, action: 'Move TMT 16mm back to shelf 1',                              sku_id: 'demo-prod-3', sku_name: 'TMT Bar 16mm', rationale: 'Misplaced on shelf 2 reduces eye-line.' },
+    { priority: 'medium'   as const, action: 'Add 1 facing of TMT 8mm',                                    sku_id: 'demo-prod-1', sku_name: 'TMT Bar 8mm', rationale: 'Improves entry-level visibility.' },
+    { priority: 'low'      as const, action: 'Add GI Wire 8 SWG (currently absent)',                       sku_id: 'demo-prod-5', sku_name: 'GI Wire 8 SWG', rationale: 'Optional accessory, low velocity.' },
+  ],
+  created_at: _now(-1),
+});
+
+const PLAN_TREND = Array.from({ length: 30 }, (_, i) => {
+  const d = new Date();
+  d.setDate(d.getDate() - (29 - i));
+  return {
+    date: d.toISOString().split('T')[0],
+    score: 65 + Math.round(Math.sin(i / 4) * 8 + Math.random() * 6),
+    captures: 12 + Math.round(Math.random() * 18),
+  };
+});
+
+const PLAN_STORE_RANKING = [
+  { store_id: 'demo-store-3', store_name: 'Star Market – Saket',          captures: 18, avg_score: 91 },
+  { store_id: 'demo-store-1', store_name: 'Reliance Fresh – Koramangala', captures: 22, avg_score: 88 },
+  { store_id: 'demo-store-6', store_name: 'Reliance SMART – Powai',       captures: 14, avg_score: 83 },
+  { store_id: 'demo-store-5', store_name: "Spencer's – Whitefield",       captures: 11, avg_score: 79 },
+  { store_id: 'demo-store-2', store_name: 'Big Bazaar – Andheri',         captures: 19, avg_score: 72 },
+  { store_id: 'demo-store-4', store_name: 'Metro Cash – HSR',             captures:  8, avg_score: 64 },
+];
+
+const PLAN_CHRONIC_GAPS = [
+  { sku_id: 'demo-prod-4', sku_name: 'OPC Cement 53', gap_days: 14, stores_affected: 8, avg_facing_delta: -2.6 },
+  { sku_id: 'demo-prod-5', sku_name: 'GI Wire 8 SWG', gap_days: 22, stores_affected: 5, avg_facing_delta: -1.8 },
+  { sku_id: 'demo-prod-3', sku_name: 'TMT Bar 16mm',  gap_days: 9,  stores_affected: 4, avg_facing_delta: -1.2 },
+];
+
+const PLAN_SKU_VISIBILITY = [
+  { sku_id: 'demo-prod-1', sku_name: 'TMT Bar 8mm',     visibility_pct: 78, competitor_share: 0.15 },
+  { sku_id: 'demo-prod-2', sku_name: 'TMT Bar 12mm',    visibility_pct: 92, competitor_share: 0.08 },
+  { sku_id: 'demo-prod-3', sku_name: 'TMT Bar 16mm',    visibility_pct: 65, competitor_share: 0.22 },
+  { sku_id: 'demo-prod-4', sku_name: 'OPC Cement 53',   visibility_pct: 48, competitor_share: 0.34 },
+  { sku_id: 'demo-prod-5', sku_name: 'GI Wire 8 SWG',   visibility_pct: 41, competitor_share: 0.18 },
+];
+
+const PLAN_RISK_FORECAST = [
+  { store_id: 'demo-store-4', store_name: 'Metro Cash – HSR',     risk_score: 0.82, predicted_drop: -14, primary_reason: 'Repeated facing shortfall on OPC Cement' },
+  { store_id: 'demo-store-2', store_name: 'Big Bazaar – Andheri', risk_score: 0.61, predicted_drop:  -7, primary_reason: 'Competitor share rising over 4 weeks' },
+  { store_id: 'demo-store-5', store_name: "Spencer's – Whitefield", risk_score: 0.48, predicted_drop: -3, primary_reason: 'Misplaced TMT 16mm on entry shelf' },
+];
+
+// ---------------------------------------------------------------------------
 // Path → mock router. Returns the wrapped {success, data} payload, or
 // undefined to fall through to the network call.
 // ---------------------------------------------------------------------------
@@ -732,6 +849,32 @@ export function matchDemoMock<T>(rawPath: string, method: string): T | undefined
     if (path === '/crm/analytics/lead-source-roi')         return wrap(CRM_LEAD_SOURCE_ROI)    as unknown as T;
     if (path === '/crm/analytics/lead-score-distribution') return wrap(CRM_SCORE_DIST)         as unknown as T;
     if (path === '/crm/analytics/by-state')                return list([])                     as unknown as T;
+
+    // ---- Planograms ----
+    // Order matters: more-specific paths (captures, analytics, parse) must come
+    // BEFORE the generic /planograms/:id matcher.
+    if (path === '/planograms/captures')                 return list(PLAN_CAPTURES) as unknown as T;
+    if (path === '/planograms/analytics/trend')          return list(PLAN_TREND) as unknown as T;
+    if (path === '/planograms/analytics/store-ranking')  return list(PLAN_STORE_RANKING) as unknown as T;
+    if (path === '/planograms/analytics/chronic-gaps')   return list(PLAN_CHRONIC_GAPS) as unknown as T;
+    if (path === '/planograms/analytics/sku-visibility') return list(PLAN_SKU_VISIBILITY) as unknown as T;
+    if (path === '/planograms/analytics/risk-forecast')  return list(PLAN_RISK_FORECAST) as unknown as T;
+    if (path === '/planograms')                          return list(PLANOGRAMS) as unknown as T;
+    {
+      const capDetail = path.match(/^\/planograms\/captures\/([^/]+)$/);
+      if (capDetail) {
+        const cap = PLAN_CAPTURES.find(c => c.id === capDetail[1]) || PLAN_CAPTURES[0];
+        return wrap({
+          capture: cap,
+          recognition: planRecognitionFor(cap.id),
+          compliance: planComplianceFor(cap.id, cap.planogram_id, cap.score),
+        }) as unknown as T;
+      }
+      const pgAssign = path.match(/^\/planograms\/([^/]+)\/assignments$/);
+      if (pgAssign) return list(PLAN_ASSIGNMENTS.filter(a => a.planogram_id === pgAssign[1])) as unknown as T;
+      const pgDetail = path.match(/^\/planograms\/([^/]+)$/);
+      if (pgDetail) return wrap(PLANOGRAMS.find(p => p.id === pgDetail[1]) || PLANOGRAMS[0]) as unknown as T;
+    }
   }
 
   // Mutations: pretend-success no-op so the demo can click around without 500s.
