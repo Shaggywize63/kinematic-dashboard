@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { toast } from 'sonner';
 import { crmAnalytics, crmSettings, crmLeads } from '../../../../lib/crmApi';
-import { formatINR } from '../../../../lib/formatCurrency';
+import { fmtValue, type DashboardUnit } from '../../../../lib/formatCurrency';
 import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
 import StatCard from '../../../../components/crm/shared/StatCard';
 import { getStoredUser, canAccess } from '../../../../lib/auth';
@@ -85,11 +85,19 @@ export default function CrmDashboardPage() {
   const [showCustomizer, setShowCustomizer] = useState(false);
   const [savingLayout, setSavingLayout] = useState(false);
   const [crmConfig, setCrmConfig] = useState<Record<string, unknown>>({});
-  // Weight-based pricing — when crm_settings.config.price_per_tonne is set,
-  // expose a ₹ ↔ T unit toggle so weight-based businesses (TMT, cement) can
-  // read sales figures in tonnes. Hidden when the setting is absent.
-  const [pricePerTonne, setPricePerTonne] = useState<number | null>(null);
-  const [unit, setUnit] = useState<'inr' | 'tonne'>('inr');
+  // Cost ↔ Weight toggle. Backend re-aggregates every monetary metric in kg
+  // by joining deals → line_items → products when unit === 'weight'.
+  // Persisted per-user in localStorage so the choice sticks across sessions.
+  const [unit, setUnit] = useState<DashboardUnit>(() => {
+    if (typeof window === 'undefined') return 'inr';
+    return window.localStorage.getItem('crm_dashboard_unit') === 'weight' ? 'weight' : 'inr';
+  });
+  const setUnitPersisted = (next: DashboardUnit) => {
+    setUnit(next);
+    try {
+      if (typeof window !== 'undefined') window.localStorage.setItem('crm_dashboard_unit', next);
+    } catch { /* ignore */ }
+  };
 
   useEffect(() => {
     const user = getStoredUser();
@@ -102,13 +110,6 @@ export default function CrmDashboardPage() {
       if (layout?.widgets && Array.isArray(layout.widgets) && layout.widgets.length > 0) {
         setVisibleWidgets(new Set(layout.widgets));
       }
-      // Per-tonne reference rate was previously a single org-level setting;
-      // pricing now lives per-product under Products. The toggle stays in
-      // place behind this state — left null so the UI stays hidden until a
-      // future revision derives a rate from active products.
-      if (typeof cfg.price_per_tonne === 'number' && cfg.price_per_tonne > 0) {
-        setPricePerTonne(cfg.price_per_tonne);
-      }
     }).catch(() => {});
   }, []);
 
@@ -118,9 +119,10 @@ export default function CrmDashboardPage() {
     (async () => {
       try {
         // Single round-trip — the backend runs the 6 sub-queries in parallel
-        // server-side, so this collapses 6 HTTPS calls into 1.
+        // server-side, so this collapses 6 HTTPS calls into 1. `unit` swaps
+        // every monetary aggregation between rupees and kg.
         const [r, leadsRes] = await Promise.all([
-          crmAnalytics.dashboardComplete(range),
+          crmAnalytics.dashboardComplete(range, unit),
           // Slim list for the geo map — only the fields LeadsGeoMap reads.
           crmLeads.list({ limit: 500 }),
         ]);
@@ -143,21 +145,12 @@ export default function CrmDashboardPage() {
       }
     })();
     return () => { cancel = true; };
-  }, [range.from, range.to]);
+  }, [range.from, range.to, unit]);
 
   const fmtPct = (n?: number) => `${(Number(n || 0) * 100).toFixed(1)}%`;
-  // Unit-aware money formatter. When `unit === 'tonne'` and a per-tonne
-  // reference price is configured, divide ₹ by price/tonne to display tonnes.
-  // Falls back to INR formatting for everything else (and for any value the
-  // user enters in tonnes mode but no reference price is set).
-  const fmtMoney = (n?: number) => {
-    if (n == null) return formatINR(0);
-    if (unit === 'tonne' && pricePerTonne && pricePerTonne > 0) {
-      const t = n / pricePerTonne;
-      return `${t.toFixed(t < 10 ? 2 : 1)} T`;
-    }
-    return formatINR(n);
-  };
+  // The numbers themselves swap units server-side based on the `unit` query
+  // param; this just picks the right formatter (₹ vs kg/T).
+  const fmtMoney = (n?: number) => fmtValue(n ?? 0, unit);
   const revenueTrend = forecast.map((f) => ({ period: f.period, revenue: f.closed }));
 
   const isVisible = (id: WidgetId) => visibleWidgets.has(id);
@@ -189,26 +182,44 @@ export default function CrmDashboardPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-      {(canCustomize || pricePerTonne) && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          {/* ₹↔T toggle — only renders when a per-tonne reference price is
-              configured under CRM Settings → Weight-based Pricing. */}
-          {pricePerTonne && pricePerTonne > 0 && (
-            <div style={{ display: 'inline-flex', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 8, padding: 3 }}>
-              <button onClick={() => setUnit('inr')} style={{ padding: '4px 12px', borderRadius: 6, background: unit === 'inr' ? 'var(--s4)' : 'transparent', border: 'none', color: unit === 'inr' ? 'var(--text)' : 'var(--text-dim)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>₹</button>
-              <button onClick={() => setUnit('tonne')} style={{ padding: '4px 12px', borderRadius: 6, background: unit === 'tonne' ? 'var(--s4)' : 'transparent', border: 'none', color: unit === 'tonne' ? 'var(--text)' : 'var(--text-dim)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }} title={`Using ₹${pricePerTonne.toLocaleString('en-IN')}/tonne reference rate`}>T</button>
-            </div>
-          )}
-          {canCustomize && (
-            <button
-              onClick={() => setShowCustomizer(true)}
-              style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
-            >
-              ⚙ Customize Dashboard
-            </button>
-          )}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        {/* Cost ↔ Weight toggle — every rupee metric on the dashboard
+            (stat cards + Pipeline Value / Forecast / Revenue charts)
+            switches to kg derived from line items × product weight. Deals
+            without line items contribute 0 in weight mode. */}
+        <div
+          role="tablist"
+          aria-label="Display unit"
+          style={{ display: 'inline-flex', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 8, padding: 3 }}
+        >
+          <button
+            role="tab"
+            aria-selected={unit === 'inr'}
+            onClick={() => setUnitPersisted('inr')}
+            style={{ padding: '4px 14px', borderRadius: 6, background: unit === 'inr' ? 'var(--s4)' : 'transparent', border: 'none', color: unit === 'inr' ? 'var(--text)' : 'var(--text-dim)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+            title="Show monetary values in rupees"
+          >
+            ₹ Cost
+          </button>
+          <button
+            role="tab"
+            aria-selected={unit === 'weight'}
+            onClick={() => setUnitPersisted('weight')}
+            style={{ padding: '4px 14px', borderRadius: 6, background: unit === 'weight' ? 'var(--s4)' : 'transparent', border: 'none', color: unit === 'weight' ? 'var(--text)' : 'var(--text-dim)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+            title="Show metrics as weight (kg / tonnes), aggregated from deal line items"
+          >
+            ⚖ Weight
+          </button>
         </div>
-      )}
+        {canCustomize && (
+          <button
+            onClick={() => setShowCustomizer(true)}
+            style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+          >
+            ⚙ Customize Dashboard
+          </button>
+        )}
+      </div>
 
       {visibleStatCount > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
@@ -244,8 +255,8 @@ export default function CrmDashboardPage() {
             </Card>
           )}
           {isVisible('chart_pipeline_value') && (
-            <Card title="Pipeline Value by Stage">
-              {pipelineValue.length ? <PipelineValueByStageChart data={pipelineValue} /> : <Empty />}
+            <Card title={unit === 'weight' ? 'Pipeline Volume by Stage' : 'Pipeline Value by Stage'}>
+              {pipelineValue.length ? <PipelineValueByStageChart data={pipelineValue} unit={unit} /> : <Empty />}
             </Card>
           )}
           {isVisible('chart_win_rate') && (
@@ -255,7 +266,7 @@ export default function CrmDashboardPage() {
           )}
           {isVisible('chart_forecast') && (
             <Card title="Forecast">
-              {forecast.length ? <ForecastChart data={forecast} /> : <Empty />}
+              {forecast.length ? <ForecastChart data={forecast} unit={unit} /> : <Empty />}
             </Card>
           )}
           {isVisible('chart_score_dist') && (
@@ -264,8 +275,8 @@ export default function CrmDashboardPage() {
             </Card>
           )}
           {isVisible('chart_revenue') && (
-            <Card title="Revenue Trend">
-              {revenueTrend.length ? <RevenueTrendChart data={revenueTrend} /> : <Empty />}
+            <Card title={unit === 'weight' ? 'Volume Trend' : 'Revenue Trend'}>
+              {revenueTrend.length ? <RevenueTrendChart data={revenueTrend} unit={unit} /> : <Empty />}
             </Card>
           )}
         </div>

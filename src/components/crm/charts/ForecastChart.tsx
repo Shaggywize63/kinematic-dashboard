@@ -1,9 +1,9 @@
 'use client';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
 import type { ForecastPoint } from '../../../types/crm';
-import { formatINR, formatINRCompact } from '../../../lib/formatCurrency';
+import { fmtValue, fmtValueCompact, type DashboardUnit } from '../../../lib/formatCurrency';
 
-export default function ForecastChart({ data }: { data: ForecastPoint[] }) {
+export default function ForecastChart({ data, unit = 'inr' }: { data: ForecastPoint[]; unit?: DashboardUnit }) {
   return (
     <ResponsiveContainer width="100%" height={320}>
       <AreaChart data={data} margin={{ top: 10, right: 20, left: 0, bottom: 10 }}>
@@ -19,12 +19,12 @@ export default function ForecastChart({ data }: { data: ForecastPoint[] }) {
         </defs>
         <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" />
         <XAxis dataKey="period" stroke="var(--text-dim)" fontSize={11} />
-        <YAxis stroke="var(--text-dim)" fontSize={11} tickFormatter={(v) => formatINRCompact(v)} />
+        <YAxis stroke="var(--text-dim)" fontSize={11} tickFormatter={(v) => fmtValueCompact(v, unit)} />
         <Tooltip
           contentStyle={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 8 }}
           labelStyle={{ color: '#E01E2C', fontWeight: 700 }}
           itemStyle={{ color: '#E01E2C' }}
-          formatter={(v: any) => formatINR(v)}
+          formatter={(v: any) => fmtValue(v, unit)}
         />
         <Legend wrapperStyle={{ fontSize: 12 }} />
         <Area type="monotone" dataKey="pipeline" stroke="#7B61FF" fill="url(#gradPipeline)" name="Pipeline" />

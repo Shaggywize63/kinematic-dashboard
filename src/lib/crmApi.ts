@@ -182,10 +182,12 @@ export const crmImport = {
 };
 
 export const crmAnalytics = {
-  dashboardSummary: (range?: DateRangeParams) =>
-    api.get<Wrapped<AnalyticsSummary>>(`${BASE}/analytics/dashboard-summary${qs(range)}`),
-  // Single round-trip dashboard payload — replaces 6 parallel calls.
-  dashboardComplete: (range?: DateRangeParams) =>
+  // `unit` swaps every monetary aggregation in the response from rupees to
+  // kg derived from line items × product weight. Counts, win rate, and lead
+  // score distribution are unit-independent.
+  dashboardSummary: (range?: DateRangeParams, unit: 'inr' | 'weight' = 'inr') =>
+    api.get<Wrapped<AnalyticsSummary>>(`${BASE}/analytics/dashboard-summary${qs({ ...range, unit })}`),
+  dashboardComplete: (range?: DateRangeParams, unit: 'inr' | 'weight' = 'inr') =>
     api.get<Wrapped<{
       summary: AnalyticsSummary;
       funnel: FunnelPoint[];
@@ -193,17 +195,18 @@ export const crmAnalytics = {
       winRate: WinRatePoint[];
       forecast: ForecastPoint[];
       leadScoreDistribution: ScoreDistributionPoint[];
-    }>>(`${BASE}/analytics/dashboard-complete${qs(range)}`),
-  pipelineValue: (range?: DateRangeParams) =>
-    api.get<Wrapped<PipelineValuePoint[]>>(`${BASE}/analytics/pipeline-value${qs(range)}`),
+      unit?: 'inr' | 'weight';
+    }>>(`${BASE}/analytics/dashboard-complete${qs({ ...range, unit })}`),
+  pipelineValue: (range?: DateRangeParams, unit: 'inr' | 'weight' = 'inr') =>
+    api.get<Wrapped<PipelineValuePoint[]>>(`${BASE}/analytics/pipeline-value${qs({ ...range, unit })}`),
   funnel: (range?: DateRangeParams) =>
     api.get<Wrapped<FunnelPoint[]>>(`${BASE}/analytics/funnel${qs(range)}`),
   winRate: (by: 'rep' | 'source' | 'stage' = 'rep', range?: DateRangeParams) =>
     api.get<Wrapped<WinRatePoint[]>>(`${BASE}/analytics/win-rate${qs({ by, ...range })}`),
   salesCycle: (range?: DateRangeParams) =>
     api.get<Wrapped<Array<{ stage: string; avg_days: number }>>>(`${BASE}/analytics/sales-cycle${qs(range)}`),
-  forecast: (period: 'month' | 'quarter' = 'quarter', range?: DateRangeParams) =>
-    api.get<Wrapped<ForecastPoint[]>>(`${BASE}/analytics/forecast${qs({ period, ...range })}`),
+  forecast: (period: 'month' | 'quarter' = 'quarter', range?: DateRangeParams, unit: 'inr' | 'weight' = 'inr') =>
+    api.get<Wrapped<ForecastPoint[]>>(`${BASE}/analytics/forecast${qs({ period, ...range, unit })}`),
   activityHeatmap: () =>
     api.get<Wrapped<ActivityHeatPoint[]>>(`${BASE}/analytics/activity-heatmap`),
   leadSourceRoi: () =>
