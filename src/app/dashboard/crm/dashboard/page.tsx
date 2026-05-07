@@ -87,11 +87,17 @@ export default function CrmDashboardPage() {
   const [crmConfig, setCrmConfig] = useState<Record<string, unknown>>({});
   // Cost ↔ Weight toggle. Backend re-aggregates every monetary metric in kg
   // by joining deals → line_items → products when unit === 'weight'.
-  // Persisted per-user in localStorage so the choice sticks across sessions.
-  const [unit, setUnit] = useState<DashboardUnit>(() => {
-    if (typeof window === 'undefined') return 'inr';
-    return window.localStorage.getItem('crm_dashboard_unit') === 'weight' ? 'weight' : 'inr';
-  });
+  // Persisted per-user in localStorage. We initialise to 'inr' so SSR + first
+  // client render match (no hydration warning); the saved choice is applied
+  // in useEffect once mounted.
+  const [unit, setUnit] = useState<DashboardUnit>('inr');
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage.getItem('crm_dashboard_unit') === 'weight') {
+        setUnit('weight');
+      }
+    } catch { /* ignore */ }
+  }, []);
   const setUnitPersisted = (next: DashboardUnit) => {
     setUnit(next);
     try {

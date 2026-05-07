@@ -200,11 +200,11 @@ export const crmAnalytics = {
   pipelineValue: (range?: DateRangeParams, unit: 'inr' | 'weight' = 'inr') =>
     api.get<Wrapped<PipelineValuePoint[]>>(`${BASE}/analytics/pipeline-value${qs({ ...range, unit })}`),
   funnel: (range?: DateRangeParams) =>
-    api.get<Wrapped<FunnelPoint[]>>(`${BASE}/analytics/funnel${qs(range)}`),
+    api.get<Wrapped<FunnelPoint[]>>(`${BASE}/analytics/funnel${qs({ ...range })}`),
   winRate: (by: 'rep' | 'source' | 'stage' = 'rep', range?: DateRangeParams) =>
     api.get<Wrapped<WinRatePoint[]>>(`${BASE}/analytics/win-rate${qs({ by, ...range })}`),
   salesCycle: (range?: DateRangeParams) =>
-    api.get<Wrapped<Array<{ stage: string; avg_days: number }>>>(`${BASE}/analytics/sales-cycle${qs(range)}`),
+    api.get<Wrapped<Array<{ stage: string; avg_days: number }>>>(`${BASE}/analytics/sales-cycle${qs({ ...range })}`),
   forecast: (period: 'month' | 'quarter' = 'quarter', range?: DateRangeParams, unit: 'inr' | 'weight' = 'inr') =>
     api.get<Wrapped<ForecastPoint[]>>(`${BASE}/analytics/forecast${qs({ period, ...range, unit })}`),
   activityHeatmap: () =>
@@ -212,7 +212,7 @@ export const crmAnalytics = {
   leadSourceRoi: () =>
     api.get<Wrapped<SourceROIRow[]>>(`${BASE}/analytics/lead-source-roi`),
   leadScoreDistribution: (range?: DateRangeParams) =>
-    api.get<Wrapped<ScoreDistributionPoint[]>>(`${BASE}/analytics/lead-score-distribution${qs(range)}`),
+    api.get<Wrapped<ScoreDistributionPoint[]>>(`${BASE}/analytics/lead-score-distribution${qs({ ...range })}`),
   byState: () => api.get<Wrapped<StateCount[]>>(`${BASE}/analytics/by-state`),
 };
 
