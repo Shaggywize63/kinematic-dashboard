@@ -7,6 +7,7 @@ import { rolesApi, type OrgRole } from '../../../../lib/rolesApi';
 import type { BusinessType } from '../../../../types/crm';
 
 const SECTIONS = [
+  { href: '/dashboard/crm/settings/users', title: 'Team Members', desc: 'Add users, assign preset role + hierarchy, manage permissions.' },
   { href: '/dashboard/crm/settings/locations', title: 'States & Cities', desc: 'Centralised location list used by forms and filters.' },
   { href: '/dashboard/crm/settings/pipelines', title: 'Pipelines', desc: 'Configure deal pipelines.' },
   { href: '/dashboard/crm/settings/stages', title: 'Stages', desc: 'Manage stages within pipelines.' },
