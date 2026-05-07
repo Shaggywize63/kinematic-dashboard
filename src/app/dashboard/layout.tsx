@@ -62,8 +62,23 @@ const QUICK = [
   'Zone-wise activity breakdown',
 ];
 
+// HTML-escape user/AI text before applying markdown regex. Without this,
+// any <script> or onerror= in chatbot output executes via
+// dangerouslySetInnerHTML — a real XSS sink because tool results can echo
+// lead/contact/email values that may contain hostile HTML.
+function escapeHtml(s: string): string {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function md(text: string) {
-  return text
+  // Escape FIRST so markdown regex below only matches literal `*` / `**` /
+  // backtick characters — never substrings inside attacker-supplied HTML.
+  return escapeHtml(text)
     .replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>')
     .replace(/\*(.*?)\*/g,'<em>$1</em>')
     .replace(/`(.*?)`/g,'<code style="background:#131B2A;padding:1px 6px;border-radius:4px;font-size:11px;font-family:monospace">$1</code>')
