@@ -75,16 +75,27 @@ function md(text: string) {
 
 function KiniCardRenderer({ card }: { card: any }) {
   if (!card || !card.type) return null;
+  // Backend tool results wrap arrays in `{deals: [...]}` / `{leads: [...]}`
+  // and put a per-card title alongside. Accept either the wrapped object or
+  // a bare array so old payloads still render.
+  const d = card.data;
+  const asArray = (v: unknown): any[] => Array.isArray(v) ? v : [];
   switch (card.type) {
     case 'deal_list':
-      return <DealListCard title={card.title} deals={(card.data as any[]) || []} />;
+      return <DealListCard title={d?.title ?? card.title} deals={asArray(d?.deals ?? d)} />;
     case 'lead_list':
-      return <LeadListCard title={card.title} leads={(card.data as any[]) || []} />;
+      return <LeadListCard title={d?.title ?? card.title} leads={asArray(d?.leads ?? d)} />;
     case 'draft_email':
-      return <DraftEmailCard subject={(card.data as any)?.subject} body={(card.data as any)?.body_text || (card.data as any)?.body_html} />;
+      return <DraftEmailCard subject={d?.subject} body={d?.body_text || d?.body_html} />;
     case 'summary':
     case 'next_best_action':
-      return <SummaryCard title={card.title || (card.type === 'next_best_action' ? 'Next Best Action' : undefined)} summary={(card.data as any)?.summary || (card.data as any)?.action} highlights={(card.data as any)?.highlights || ((card.data as any)?.rationale ? [(card.data as any).rationale] : [])} />;
+      return (
+        <SummaryCard
+          title={card.title || (card.type === 'next_best_action' ? 'Next Best Action' : undefined)}
+          summary={d?.text || d?.summary || d?.action}
+          highlights={d?.highlights || (d?.rationale ? [d.rationale] : [])}
+        />
+      );
     default:
       return null;
   }
