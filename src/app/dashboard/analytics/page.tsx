@@ -1,11 +1,14 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
+import dynamic from 'next/dynamic';
 import api from '../../../lib/api';
-import {
-  XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, AreaChart, Area
-} from 'recharts';
 import { useClient } from '../../../context/ClientContext';
+
+// Recharts is ~80 KB gz; load it only when this page actually renders.
+const TffAreaChart = dynamic(() => import('../../../components/charts/TffAreaChart'), {
+  ssr: false,
+  loading: () => <div style={{ height: 240, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-dim)', fontSize: 13 }}>Loading chart…</div>,
+});
 
 const C = { 
   red: 'var(--primary)', 
@@ -338,26 +341,7 @@ export default function AnalyticsPage() {
         ) : !trends.length ? (
           <div style={{ height:240, display:'flex', alignItems:'center', justifyContent:'center', color:C.grayd, fontSize:13 }}>No trend data for this period</div>
         ) : (
-          <div style={{ height:240, width:'100%' }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={trends}>
-                <defs>
-                  <linearGradient id="colTff" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={C.green} stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor={C.green} stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke={C.border} vertical={false} />
-                <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{fill:C.grayd, fontSize:10}} dy={10}/>
-                <YAxis axisLine={false} tickLine={false} tick={{fill:C.grayd, fontSize:10}}/>
-                <Tooltip
-                  contentStyle={{ background:C.s2, border:`1px solid ${C.border}`, borderRadius:12, fontSize:12 }}
-                  itemStyle={{ fontSize:11, fontWeight:700 }}
-                />
-                <Area type="monotone" dataKey="tff" stroke={C.green} fillOpacity={1} fill="url(#colTff)" strokeWidth={2} name="TFF"/>
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
+          <TffAreaChart trends={trends as unknown as { label: string; tff: number }[]} />
         )}
       </div>
 

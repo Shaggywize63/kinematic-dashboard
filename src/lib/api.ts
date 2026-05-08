@@ -30,6 +30,27 @@ const GET_CACHE_TTL_MS = 60_000;
 const SWR_TTL_MS = 5 * 60_000; // 5 min: how long stale data is acceptable
 const LS_PREFIX = 'kapi:'; // localStorage key prefix
 
+// Per-endpoint TTL overrides. Static-ish lookup data (cities, zones, SKUs,
+// org settings, modules) changes rarely; analytics changes more often than
+// list views. Pattern is matched in order; first hit wins.
+const TTL_OVERRIDES: Array<[RegExp, number]> = [
+  // Master data — long TTL, doesn't change inside a session
+  [/^\/api\/v1\/misc\/(cities|zones|states)\b/,  10 * 60_000],
+  [/^\/api\/v1\/(cities|zones)\b/,                10 * 60_000],
+  [/^\/api\/v1\/skus\b/,                           5 * 60_000],
+  [/^\/api\/v1\/crm\/(lead-sources|territories|products|email-templates|whatsapp-templates|automations|assignment-rules|custom-fields|settings)\b/, 5 * 60_000],
+  // Analytics — backend already caches 60s, mirror on the client
+  [/^\/api\/v1\/crm\/analytics\b/,                       60_000],
+  [/^\/api\/v1\/analytics\b/,                            60_000],
+  // Live ops — keep short
+  [/^\/api\/v1\/live-tracking\b/,                        15_000],
+];
+
+function ttlFor(path: string): number {
+  for (const [re, ttl] of TTL_OVERRIDES) if (re.test(path)) return ttl;
+  return GET_CACHE_TTL_MS;
+}
+
 type CacheEntry = { value: unknown; expiry: number };
 const responseCache = new Map<string, CacheEntry>();
 const inFlight = new Map<string, Promise<unknown>>();
@@ -186,8 +207,9 @@ class ApiClient {
     if (pending) return pending;
 
     // Kick off network fetch
+    const ttl = ttlFor(path);
     const networkPromise = this.request<T>(path, options).then(value => {
-      responseCache.set(key, { value, expiry: Date.now() + GET_CACHE_TTL_MS });
+      responseCache.set(key, { value, expiry: Date.now() + ttl });
       lsSet(key, value);
       inFlight.delete(key);
       return value;

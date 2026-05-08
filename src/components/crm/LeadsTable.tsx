@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { memo, useCallback, useState } from 'react';
 import Link from 'next/link';
 import type { Lead } from '../../types/crm';
 import LeadScoreBadge from './LeadScoreBadge';
@@ -51,54 +51,18 @@ export default function LeadsTable({ leads, selected, onToggle, onToggleAll, loa
               {!loading && leads.length === 0 && (
                 <tr><td colSpan={colCount} style={{ ...tdStyle, textAlign: 'center', color: 'var(--text-dim)' }}>No leads found.</td></tr>
               )}
-              {leads.map((l) => {
-                const fullName = l.full_name || `${l.first_name || ''} ${l.last_name || ''}`.trim() || '—';
-                return (
-                  <tr key={l.id}>
-                    <td style={tdStyle}><input type="checkbox" checked={selected.has(l.id)} onChange={() => onToggle(l.id)} /></td>
-                    <td style={tdStyle}>
-                      <Link href={`/dashboard/crm/leads/${l.id}`} style={{ color: 'var(--text)', fontWeight: 600 }}>{fullName}</Link>
-                      {l.title && <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{l.title}</div>}
-                    </td>
-                    {!isB2C && <td style={tdStyle}>{l.company || '—'}</td>}
-                    <td style={tdStyle}>{l.phone || '—'}</td>
-                    <td style={tdStyle}><span style={{ textTransform: 'capitalize' }}>{l.status}</span></td>
-                    <td style={tdStyle}>
-                      <button
-                        type="button"
-                        onClick={() => setScorePopup(l)}
-                        title="Click to see score breakdown"
-                        style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer' }}
-                      >
-                        <LeadScoreBadge score={l.score} grade={l.score_grade} />
-                      </button>
-                    </td>
-                    <td style={tdStyle}>{l.source_name || '—'}</td>
-                    <td style={tdStyle}>
-                      {onAssign ? (
-                        <InlineOwnerAssign
-                          currentOwnerId={l.owner_id}
-                          currentOwnerName={l.owner_name}
-                          onAssign={(uid) => onAssign(l.id, uid)}
-                        />
-                      ) : (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><OwnerAvatar name={l.owner_name} size={24} /> <span style={{ fontSize: 12 }}>{l.owner_name || 'Unassigned'}</span></div>
-                      )}
-                    </td>
-                    <td style={{ ...tdStyle, textAlign: 'right', whiteSpace: 'nowrap' }}>
-                      {l.status === 'converted' ? (
-                        <span style={{ fontSize: 11, color: '#10b981', fontWeight: 700 }}>✓ Converted</span>
-                      ) : (
-                        <Link
-                          href={`/dashboard/crm/leads/${l.id}?convert=1`}
-                          style={{ background: 'var(--primary)', color: '#fff', padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, textDecoration: 'none' }}
-                          title="Convert this lead to a deal"
-                        >→ Deal</Link>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
+              {leads.map((l) => (
+                <LeadRow
+                  key={l.id}
+                  lead={l}
+                  isSelected={selected.has(l.id)}
+                  onToggle={onToggle}
+                  onScoreClick={setScorePopup}
+                  onAssign={onAssign}
+                  isB2C={isB2C}
+                  tdStyle={tdStyle}
+                />
+              ))}
             </tbody>
           </table>
         </div>
@@ -108,6 +72,59 @@ export default function LeadsTable({ leads, selected, onToggle, onToggleAll, loa
     </>
   );
 }
+
+// Memoised row — re-renders only when its lead changes or its selection
+// state flips. Stable callbacks from the parent keep prop equality holding,
+// so toggling one checkbox no longer re-paints every other row.
+interface LeadRowProps {
+  lead: Lead;
+  isSelected: boolean;
+  onToggle: (id: string) => void;
+  onScoreClick: (lead: Lead) => void;
+  onAssign?: (leadId: string, userId: string | null) => Promise<void>;
+  isB2C: boolean;
+  tdStyle: React.CSSProperties;
+}
+
+const LeadRow = memo(function LeadRow({ lead: l, isSelected, onToggle, onScoreClick, onAssign, isB2C, tdStyle }: LeadRowProps) {
+  const fullName = l.full_name || `${l.first_name || ''} ${l.last_name || ''}`.trim() || '—';
+  const handleToggle = useCallback(() => onToggle(l.id), [onToggle, l.id]);
+  const handleScore  = useCallback(() => onScoreClick(l), [onScoreClick, l]);
+  const handleAssign = useCallback((uid: string | null) => onAssign?.(l.id, uid) ?? Promise.resolve(), [onAssign, l.id]);
+
+  return (
+    <tr>
+      <td style={tdStyle}><input type="checkbox" checked={isSelected} onChange={handleToggle} /></td>
+      <td style={tdStyle}>
+        <Link href={`/dashboard/crm/leads/${l.id}`} style={{ color: 'var(--text)', fontWeight: 600 }}>{fullName}</Link>
+        {l.title && <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{l.title}</div>}
+      </td>
+      {!isB2C && <td style={tdStyle}>{l.company || '—'}</td>}
+      <td style={tdStyle}>{l.phone || '—'}</td>
+      <td style={tdStyle}><span style={{ textTransform: 'capitalize' }}>{l.status}</span></td>
+      <td style={tdStyle}>
+        <button type="button" onClick={handleScore} title="Click to see score breakdown" style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer' }}>
+          <LeadScoreBadge score={l.score} grade={l.score_grade} />
+        </button>
+      </td>
+      <td style={tdStyle}>{l.source_name || '—'}</td>
+      <td style={tdStyle}>
+        {onAssign ? (
+          <InlineOwnerAssign currentOwnerId={l.owner_id} currentOwnerName={l.owner_name} onAssign={handleAssign} />
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><OwnerAvatar name={l.owner_name} size={24} /> <span style={{ fontSize: 12 }}>{l.owner_name || 'Unassigned'}</span></div>
+        )}
+      </td>
+      <td style={{ ...tdStyle, textAlign: 'right', whiteSpace: 'nowrap' }}>
+        {l.status === 'converted' ? (
+          <span style={{ fontSize: 11, color: '#10b981', fontWeight: 700 }}>✓ Converted</span>
+        ) : (
+          <Link href={`/dashboard/crm/leads/${l.id}?convert=1`} style={{ background: 'var(--primary)', color: '#fff', padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, textDecoration: 'none' }} title="Convert this lead to a deal">→ Deal</Link>
+        )}
+      </td>
+    </tr>
+  );
+});
 
 function ScoreBreakdownModal({ lead, onClose }: { lead: Lead; onClose: () => void }) {
   const breakdown = (lead as any).score_breakdown as Record<string, number> | null | undefined;

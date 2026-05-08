@@ -56,16 +56,25 @@ export default function NotificationBell() {
     } finally { setLoading(false); }
   };
 
-  // Initial load + 60s refresh while mounted, so the badge stays roughly fresh.
-  useEffect(() => {
-    load();
-    const t = window.setInterval(load, 60_000);
-    return () => window.clearInterval(t);
-  }, []);
+  // Single load on mount so the badge count is accurate, then poll only while
+  // the dropdown is open AND the tab is visible. Was: 60s setInterval running
+  // forever per page mount = ~1440 wasted reqs/user/day.
+  useEffect(() => { load(); }, []);
 
-  // Refresh on open in case it's been > 60s since last poll.
   useEffect(() => {
-    if (open) load();
+    if (!open) return;
+    load(); // refresh immediately on open
+    let t: number | null = null;
+    const start = () => {
+      if (t == null) t = window.setInterval(load, 60_000);
+    };
+    const stop = () => {
+      if (t != null) { window.clearInterval(t); t = null; }
+    };
+    if (document.visibilityState === 'visible') start();
+    const onVis = () => { document.visibilityState === 'visible' ? start() : stop(); };
+    document.addEventListener('visibilitychange', onVis);
+    return () => { stop(); document.removeEventListener('visibilitychange', onVis); };
   }, [open]);
 
   const sorted = useMemo(() => {
