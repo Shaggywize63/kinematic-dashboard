@@ -850,6 +850,40 @@ export function matchDemoMock<T>(rawPath: string, method: string): T | undefined
     if (path === '/crm/analytics/lead-score-distribution') return wrap(CRM_SCORE_DIST)         as unknown as T;
     if (path === '/crm/analytics/by-state')                return list([])                     as unknown as T;
 
+    // ---- Misc / Platform endpoints ----
+    if (path === '/misc/clients') {
+      return list([
+        { id: 'demo-client-1', name: 'Acme Corp',         is_active: true },
+        { id: 'demo-client-2', name: 'Globex Industries', is_active: true },
+        { id: 'demo-client-3', name: 'Wayne Enterprises', is_active: true },
+      ]) as unknown as T;
+    }
+    if (path === '/misc/security/alerts/all') return list([]) as unknown as T;
+    if (path === '/notifications/history')    return list([]) as unknown as T;
+    if (path === '/candidates' || path.startsWith('/candidates?')) {
+      return wrap({ data: [], total: 0, by_status: {} }) as unknown as T;
+    }
+    if (path === '/forms/submissions' || path === '/builder/forms/admin/submissions') {
+      return wrap({ data: [], total: 0 }) as unknown as T;
+    }
+    if (path === '/broadcast/admin') return list([]) as unknown as T;
+    if (path === '/route-plans/summary') {
+      return wrap({
+        total_plans: 0, total_outlets: 0, visited_outlets: 0,
+        missed_outlets: 0, completion_pct: 0, by_status: {},
+      }) as unknown as T;
+    }
+
+    // ---- HR / candidates pages ----
+    if (path === '/hr/dashboard' || path === '/hr/summary') {
+      return wrap({ pipeline: [], by_stage: {}, total: 0 }) as unknown as T;
+    }
+
+    // ---- Misc settings shapes ----
+    if (path === '/settings' || path === '/settings/org') return wrap({}) as unknown as T;
+    if (path === '/roles')   return list([]) as unknown as T;
+    if (path === '/modules') return list([]) as unknown as T;
+
     // ---- Activity Log (super-admin) ----
     if (path === '/audit-log') {
       const sample = (() => {
@@ -937,6 +971,14 @@ export function matchDemoMock<T>(rawPath: string, method: string): T | undefined
   }
   if (m === 'DELETE') {
     return wrap({ ok: true, demo: true }) as unknown as T;
+  }
+
+  // Catch-all for any GET on /api/v1/* not explicitly handled above.
+  // Returns an empty list payload — list pages render "No items", object
+  // consumers see `data.foo === undefined` which most pages already
+  // handle defensively. Better to render an empty state than to 500.
+  if (m === 'GET' && rawPath.startsWith('/api/v1/')) {
+    return list([]) as unknown as T;
   }
 
   return undefined;
