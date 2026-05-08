@@ -110,3 +110,30 @@ export function canAccess(userRole: string, requiredRoles: string[]): boolean {
     return reqLevel !== -1 && userLevel >= reqLevel;
   });
 }
+
+/**
+ * Pick the best landing route for a user given their role + module
+ * permissions. Avoids dropping a client-level user onto the legacy
+ * analytics dashboard that they're not authorised to load (the
+ * /dashboard-init endpoint correctly returns 403 for them).
+ *
+ * Order of preference: analytics → CRM → distribution → first granted module.
+ * Falls back to /dashboard for super-admins / unknown shapes.
+ */
+export function landingRouteFor(user?: AuthUser | null): string {
+  if (!user) return '/dashboard';
+  const role = normalizeRole(user.role || '');
+  if (role === 'super_admin' || role === 'admin' || role === 'main_admin' || role === 'platform_admin') {
+    return '/dashboard';
+  }
+  const perms = (user as AuthUser & { permissions?: string[] }).permissions ?? [];
+  if (perms.includes('analytics')) return '/dashboard';
+  if (perms.includes('crm')) return '/dashboard/crm/dashboard';
+  if (perms.includes('distribution')) return '/dashboard/distribution';
+  if (perms.includes('attendance')) return '/dashboard/attendance-overview';
+  if (perms.includes('planograms')) return '/dashboard/planograms';
+  if (perms.includes('warehouse') || perms.includes('inventory')) return '/dashboard/warehouse';
+  // Last-resort: legacy dashboard. The page now redirects again if
+  // analytics access is missing, so we won't loop.
+  return '/dashboard';
+}

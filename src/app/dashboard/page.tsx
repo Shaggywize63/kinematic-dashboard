@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import api from '../../lib/api';
-import { getStoredUser } from '../../lib/auth';
+import { getStoredUser, landingRouteFor } from '../../lib/auth';
 import { useClient } from '../../context/ClientContext';
 
 /* ── palette ─────────────────────────────────────────────── */
@@ -394,6 +394,20 @@ const Card = ({ children, style }:{ children:React.ReactNode; style?:React.CSSPr
    MAIN ANALYTICS DASHBOARD (NO HR TOGGLE)
 ══════════════════════════════════════════════════════════ */
 export default function DashboardPage() {
+  const router = useRouter();
+
+  // Guard: this page calls /analytics/* endpoints that require the
+  // `analytics` module. Users without it (e.g. client-level CRM users)
+  // get 403s and a broken page. Bounce them to a route they can load.
+  useEffect(() => {
+    const u = getStoredUser() as { role?: string; permissions?: string[] } | null;
+    if (!u) return;
+    const role = (u.role || '').toLowerCase().replace(/-/g, '_');
+    const isAdmin = ['super_admin', 'admin', 'main_admin', 'platform_admin'].includes(role);
+    const hasAnalytics = Array.isArray(u.permissions) && u.permissions.includes('analytics');
+    if (!isAdmin && !hasAnalytics) router.replace(landingRouteFor(u as any));
+  }, [router]);
+
   const today = new Date().toISOString().split('T')[0];
   const sevenDaysAgo = (() => { const d = new Date(); d.setDate(d.getDate() - 6); return d.toISOString().split('T')[0]; })();
 
@@ -461,7 +475,6 @@ export default function DashboardPage() {
 
 
 
-  const router = useRouter();
   useEffect(() => {
     const u = getStoredUser();
     setCurrUser(u);

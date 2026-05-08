@@ -2,7 +2,7 @@
 import { useState, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import api from '../../lib/api';
-import { saveSession } from '../../lib/auth';
+import { saveSession, landingRouteFor } from '../../lib/auth';
 
 export default function LoginPage() {
   const [email, setEmail]       = useState('');
@@ -30,12 +30,16 @@ export default function LoginPage() {
         };
       };
       if (res.success && res.data) {
+        const user = res.data.user as Parameters<typeof saveSession>[0]['user'];
         saveSession({
-          user: res.data.user as Parameters<typeof saveSession>[0]['user'],
+          user,
           access_token: res.data.access_token,
           expires_at: res.data.expires_at ?? Math.floor(Date.now() / 1000) + 86400,
         });
-        router.push('/dashboard');
+        // Send the user to a route their role + permissions can actually load.
+        // Client-level users (only `crm` granted) shouldn't land on the legacy
+        // analytics dashboard, which 403s their dashboard-init request.
+        router.push(landingRouteFor(user));
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Login failed. Check your credentials.');
