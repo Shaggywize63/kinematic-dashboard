@@ -34,6 +34,28 @@ export function clearSession() {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
   localStorage.removeItem(EXPIRY_KEY);
+  // Wipe the GET response cache too — otherwise a stale empty payload from
+  // the previous user/session leaks into the next login (e.g. an empty leads
+  // list cached during a 401 storm reappears after re-login).
+  if (typeof window !== 'undefined') {
+    try {
+      Object.keys(localStorage)
+        .filter((k) => k.startsWith('kapi:'))
+        .forEach((k) => localStorage.removeItem(k));
+    } catch { /* ignore */ }
+  }
+}
+
+/** Wipe the GET response cache without logging the user out. Useful after a
+ *  recovery from a 401 storm or a backend deploy that may have invalidated
+ *  cached payloads. */
+export function clearApiCache() {
+  if (typeof window === 'undefined') return;
+  try {
+    Object.keys(localStorage)
+      .filter((k) => k.startsWith('kapi:'))
+      .forEach((k) => localStorage.removeItem(k));
+  } catch { /* ignore */ }
 }
 
 export function getRoleLabel(role: string): string {
