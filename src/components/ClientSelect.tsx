@@ -37,7 +37,7 @@ export default function ClientSelect({ value, onChange, placeholder = "Select Cl
         onClick={() => setOpen(!open)}
         style={{ width:'100%', background:C.s3, border:`1px solid ${C.border}`, color: value ? C.white : C.grayd, borderRadius:11, padding:'10px 13px', fontSize:13, outline:'none', fontFamily:"'DM Sans',sans-serif", cursor:'pointer', display:'flex', justifyContent:'space-between', alignItems:'center' }}
       >
-        <span>{selectedObj ? selectedObj.name : placeholder}</span>
+        <span>{selectedObj ? selectedObj.name : (value ? placeholder : 'All Clients')}</span>
         <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', opacity: 0.6 }}><path d="M6 9l6 6 6-6"/></svg>
       </div>
 
@@ -53,12 +53,23 @@ export default function ClientSelect({ value, onChange, placeholder = "Select Cl
             />
           </div>
           <div style={{ maxHeight: 240, overflowY: 'auto' }}>
+            {/* "All Clients" row — clears the filter so org-admins see
+                cross-client data instead of being stuck on whichever client
+                was last picked. */}
+            <div
+              onClick={() => { onChange('', ''); setOpen(false); setSearch(''); }}
+              style={{ padding: '10px 14px', fontSize: 13, color: !value ? C.blue : C.white, background: !value ? 'rgba(62,158,255,0.1)' : 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, borderBottom: `1px solid ${C.border}` }}
+            >
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: !value ? C.blue : C.gray }} />
+              <span style={{ fontWeight: !value ? 700 : 600 }}>All Clients</span>
+              <span style={{ marginLeft: 'auto', fontSize: 11, color: C.gray }}>org-wide view</span>
+            </div>
             {filtered.length === 0 ? (
               <div style={{ padding: '12px', fontSize: 12, color: C.gray, textAlign: 'center' }}>No clients found</div>
             ) : (
               filtered.map(c => (
-                <div 
-                  key={c.id} 
+                <div
+                  key={c.id}
                   onClick={() => { onChange(c.id, c.name); setOpen(false); setSearch(''); }}
                   style={{ padding: '10px 14px', fontSize: 13, color: (value === c.id) ? C.blue : C.white, background: (value === c.id) ? 'rgba(62,158,255,0.1)' : 'transparent', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
                 >
