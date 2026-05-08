@@ -72,6 +72,23 @@ export const useCrmDateRange = create<DateRangeState>()(
         return { from, to };
       },
     }),
-    { name: 'crm:date-range' }
+    {
+      name: 'crm:date-range',
+      // Only persist the user's preset choice (and any explicit custom
+      // window). The from/to ISO strings are recomputed at runtime so
+      // a returning user always sees "last 30 days" relative to NOW —
+      // not whatever 30-day window was current when they last visited.
+      partialize: (state) => state.preset === 'custom'
+        ? { preset: state.preset, from: state.from, to: state.to }
+        : { preset: state.preset },
+      onRehydrateStorage: () => (state) => {
+        if (!state) return;
+        if (state.preset !== 'custom') {
+          const fresh = computeRange(state.preset);
+          state.from = fresh.from;
+          state.to   = fresh.to;
+        }
+      },
+    }
   )
 );
