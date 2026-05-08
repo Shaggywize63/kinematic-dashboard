@@ -16,7 +16,9 @@ export default function ClientSelect({ value, onChange, placeholder = "Select Cl
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    api.get('/api/v1/misc/clients').then((res: any) => {
+    // noCache: bypass the SWR cache so a new client added in another tab/session
+    // shows up on next picker open without a hard reload.
+    api.get('/api/v1/misc/clients', { noCache: true } as RequestInit & { noCache?: boolean }).then((res: any) => {
       const d = Array.isArray(res?.data) ? res.data : [];
       setClients(d);
     }).catch(() => {});
