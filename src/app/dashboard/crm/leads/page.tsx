@@ -5,7 +5,6 @@ import { toast } from 'sonner';
 import { crmLeads, crmLeadSources, crmSettings } from '../../../../lib/crmApi';
 import api from '../../../../lib/api';
 import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
-import { useCrmLocationFilter } from '../../../../stores/crmLocationFilterStore';
 import type { Lead, LeadSource } from '../../../../types/crm';
 import LeadsTable from '../../../../components/crm/LeadsTable';
 import LeadFilters, { type LeadFiltersValue } from '../../../../components/crm/LeadFilters';
@@ -24,16 +23,20 @@ export default function LeadsListPage() {
   const [isB2C, setIsB2C] = useState(false);
   const assignMenuRef = useRef<HTMLDivElement>(null);
   const range = useCrmDateRange((s) => ({ from: s.from, to: s.to }));
-  const { state: locState, city: locCity } = useCrmLocationFilter();
 
   const reload = async () => {
     setLoading(true);
     try {
       const params: Record<string, string> = {};
-      if (range.from) params.from = range.from;
-      if (range.to) params.to = range.to;
-      if (locState) params.state = locState;
-      if (locCity) params.city = locCity;
+      if (range.from)      params.from     = range.from;
+      if (range.to)        params.to       = range.to;
+      // Location hierarchy goes server-side so the server bounds the
+      // result set. Status/source/owner/grade/q stay client-side in
+      // `filtered` for responsive typing.
+      if (filters.state)    params.state    = filters.state;
+      if (filters.city)     params.city     = filters.city;
+      if (filters.district) params.district = filters.district;
+      if (filters.block)    params.block    = filters.block;
       const [l, s] = await Promise.allSettled([crmLeads.list(params), crmLeadSources.list()]);
       if (l.status === 'fulfilled') setLeads(l.value.data || []);
       if (s.status === 'fulfilled') setSources(s.value.data || []);
@@ -44,7 +47,7 @@ export default function LeadsListPage() {
     }
   };
 
-  useEffect(() => { reload(); /* eslint-disable-next-line */ }, [range.from, range.to, locState, locCity]);
+  useEffect(() => { reload(); /* eslint-disable-next-line */ }, [range.from, range.to, filters.state, filters.city, filters.district, filters.block]);
 
   useEffect(() => {
     crmSettings.get().then((r) => {
@@ -126,9 +129,9 @@ export default function LeadsListPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 8, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <span style={{ fontSize: 13, color: 'var(--text-dim)' }}>{filtered.length} leads</span>
-          {(locState || locCity) && (
+          {(filters.state || filters.city || filters.district || filters.block) && (
             <span style={{ fontSize: 11, color: 'var(--primary)', background: 'var(--s3)', padding: '3px 8px', borderRadius: 6 }}>
-              📍 {[locCity, locState].filter(Boolean).join(', ')}
+              📍 {[filters.block, filters.district, filters.city, filters.state].filter(Boolean).join(' › ')}
             </span>
           )}
           {selected.size > 0 && (

@@ -38,6 +38,36 @@ export default function NewActivityPage() {
   const [entityId, setEntityId] = useState('');
   const [users, setUsers] = useState<UserOption[]>([]);
   const [busy, setBusy] = useState(false);
+  const [imageUrl, setImageUrl] = useState<string>('');
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  // Upload via the existing /api/v1/upload endpoint and store the returned
+  // public URL on the activity. Stays in sync with how leads/contacts
+  // upload avatars elsewhere in the app.
+  const uploadImage = async (f: File) => {
+    if (!f) return;
+    if (!/^image\//.test(f.type)) { toast.error('Pick an image file'); return; }
+    if (f.size > 8 * 1024 * 1024) { toast.error('Image must be under 8 MB'); return; }
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', f);
+      const token = typeof window !== 'undefined' ? localStorage.getItem('kinematic_token') : null;
+      const orgId = typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('kinematic_user') || '{}').org_id || '') : '';
+      const r = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/upload`, {
+        method: 'POST',
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(orgId ? { 'X-Org-Id': orgId } : {}) },
+        body: fd,
+      });
+      const json = await r.json();
+      const url = json?.data?.url || json?.url;
+      if (!url) throw new Error(json?.error || 'Upload failed');
+      setImageUrl(url);
+      toast.success('Image uploaded');
+    } catch (e: any) { toast.error(e.message || 'Upload failed'); }
+    finally { setUploading(false); if (fileRef.current) fileRef.current.value = ''; }
+  };
 
   // Entity search state
   const [entityOptions, setEntityOptions] = useState<EntityOption[]>([]);
@@ -129,6 +159,7 @@ export default function NewActivityPage() {
       body: body.trim() || undefined,
       due_at: dueAt ? new Date(dueAt).toISOString() : undefined,
       assigned_to: assignedTo || undefined,
+      image_url: imageUrl || undefined,
     };
     if (entityType && entityId) {
       payload[`${entityType}_id`] = entityId;
@@ -163,6 +194,24 @@ export default function NewActivityPage() {
         </div>
         <Field label="Notes / Description" style={{ marginTop: 12 }}>
           <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={4} placeholder="What was discussed, outcome, follow-up points…" style={{ ...input, fontFamily: 'inherit', resize: 'vertical' }} />
+        </Field>
+        <Field label="Photo (optional)" style={{ marginTop: 12 }}>
+          {imageUrl ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 10, background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 10 }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={imageUrl} alt="attachment" style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 8 }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12, color: 'var(--text)', wordBreak: 'break-all' }}>{imageUrl}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2 }}>Attached to this activity.</div>
+              </div>
+              <button type="button" onClick={() => setImageUrl('')} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '6px 12px', borderRadius: 8, fontSize: 12, cursor: 'pointer' }}>Remove</button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input ref={fileRef} type="file" accept="image/*" onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadImage(f); }} disabled={uploading} style={{ ...input, padding: 6, flex: 'unset', width: 'auto' }} />
+              {uploading && <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>Uploading…</span>}
+            </div>
+          )}
         </Field>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginTop: 12 }}>
           <Field label={type === 'task' ? 'Due Date & Time' : 'Scheduled At'}>
