@@ -3,7 +3,6 @@ import { useClient } from '@/context/ClientContext';
 import CrmSubNav from '../../../components/crm/layout/CrmSubNav';
 import CrmScopeBadge from '../../../components/crm/layout/CrmScopeBadge';
 import DateRangePicker from '../../../components/crm/DateRangePicker';
-import LocationFilter from '../../../components/crm/LocationFilter';
 
 export default function CrmLayout({ children }: { children: React.ReactNode }) {
   const { selectedClientId } = useClient();
@@ -18,7 +17,10 @@ export default function CrmLayout({ children }: { children: React.ReactNode }) {
           <CrmScopeBadge />
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-          <LocationFilter />
+          {/* Old top-level State / City filter removed — the new cascading
+              State → City → District → Block picker lives inside LeadFilters
+              on the Leads page. Keeping DateRangePicker here since it scopes
+              every CRM page, not just Leads. */}
           <DateRangePicker />
         </div>
       </div>

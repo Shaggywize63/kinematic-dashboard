@@ -8,8 +8,6 @@ import api from '../../../../lib/api';
 import type { Activity } from '../../../../types/crm';
 import { getStoredUser, canAccess } from '../../../../lib/auth';
 import UserSearchSelect, { type UserOption } from '../../../../components/crm/shared/UserSearchSelect';
-import { useCrmLocationFilter } from '../../../../stores/crmLocationFilterStore';
-import { useEntityLocations, getActivityLocation } from '../../../../lib/crmEntityLocations';
 
 const TYPE_ICONS: Record<string, string> = {
   call: '📞', email: '✉️', meeting: '📅', task: '✅', note: '📝', sms: '💬', whatsapp: '💚',
@@ -44,8 +42,6 @@ function ActivitiesPageInner() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [users, setUsers] = useState<UserOption[]>([]);
   const [feFilter, setFeFilter] = useState('');
-  const { state: locState, city: locCity } = useCrmLocationFilter();
-  const { locations: entityLocations } = useEntityLocations(isAdmin);
 
   const reload = async () => {
     setLoading(true);
@@ -98,25 +94,18 @@ function ActivitiesPageInner() {
         const aStatus = ((a as any).status as string) || (a.completed_at ? 'completed' : 'open');
         if (aStatus !== statusFilter) return false;
       }
-      if (isAdmin) {
-        if (feFilter) {
-          const aid = (a as any).assigned_to || a.owner_id;
-          if (aid !== feFilter) return false;
-        }
-        if (locState || locCity) {
-          const loc = getActivityLocation(a as any, entityLocations);
-          if (locState && loc?.state !== locState) return false;
-          if (locCity && loc?.city !== locCity) return false;
-        }
+      if (isAdmin && feFilter) {
+        const aid = (a as any).assigned_to || a.owner_id;
+        if (aid !== feFilter) return false;
       }
       return true;
     });
-  }, [activities, type, isAdmin, feFilter, locState, locCity, entityLocations]);
+  }, [activities, type, isAdmin, feFilter]);
 
   const overdue = filtered.filter((a) => a.due_at && !a.completed_at && new Date(a.due_at) < new Date());
   const upcoming = filtered.filter((a) => a.due_at && !a.completed_at && new Date(a.due_at) >= new Date());
   const completed = filtered.filter((a) => !!a.completed_at);
-  const filtersActive = !!(feFilter || locState || locCity);
+  const filtersActive = !!feFilter;
 
   return (
     <div>
@@ -150,11 +139,6 @@ function ActivitiesPageInner() {
               emptyLabel="All assignees"
             />
           </div>
-          {(locState || locCity) && (
-            <span style={{ fontSize: 11, color: 'var(--primary)', background: 'var(--s3)', padding: '4px 10px', borderRadius: 6 }}>
-              📍 {[locCity, locState].filter(Boolean).join(', ')} <span style={{ color: 'var(--text-dim)', marginLeft: 4 }}>(from header)</span>
-            </span>
-          )}
           {filtersActive && (
             <button
               onClick={() => setFeFilter('')}
