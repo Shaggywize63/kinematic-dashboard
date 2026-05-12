@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import Modal from './shared/Modal';
+import api from '../../lib/api';
 import { crmEmailTemplates, crmWhatsappTemplates } from '../../lib/crmApi';
 
 export type TemplateDraft = {
@@ -22,7 +23,28 @@ export type TemplateDraft = {
   status?: 'pending' | 'approved' | 'rejected';
   header_text?: string | null;
   footer_text?: string | null;
+  // Optional media header — WhatsApp Business API fetches this URL.
+  header_media_type?: 'image' | 'video' | 'document' | null;
+  header_media_url?: string | null;
+  // Per-language overrides keyed by ISO code. Top-level body/header/footer
+  // are the source (language column = source language, usually 'en').
+  translations?: Record<string, { body_text?: string; header_text?: string; footer_text?: string }> | null;
 };
+
+// Indian languages targeted for translation. Codes match Supabase/WhatsApp.
+const SUPPORTED_LANGS: Array<{ code: string; label: string }> = [
+  { code: 'en', label: 'English' },
+  { code: 'hi', label: 'Hindi (हिन्दी)' },
+  { code: 'bn', label: 'Bengali (বাংলা)' },
+  { code: 'or', label: 'Odia (ଓଡ଼ିଆ)' },
+  { code: 'as', label: 'Assamese (অসমীয়া)' },
+  { code: 'ta', label: 'Tamil (தமிழ்)' },
+  { code: 'te', label: 'Telugu (తెలుగు)' },
+  { code: 'kn', label: 'Kannada (ಕನ್ನಡ)' },
+  { code: 'mr', label: 'Marathi (मराठी)' },
+  { code: 'gu', label: 'Gujarati (ગુજરાતી)' },
+  { code: 'pa', label: 'Punjabi (ਪੰਜਾਬੀ)' },
+];
 
 interface Props {
   open: boolean;
@@ -71,6 +93,9 @@ export default function TemplateEditModal({ open, onClose, draft, onSaved }: Pro
           body_text: form.body_text,
           footer_text: form.footer_text || null,
           variables: form.variables || null,
+          header_media_type: form.header_media_type || null,
+          header_media_url:  form.header_media_url  || null,
+          translations:      form.translations      || null,
         };
         if (isNew) await crmWhatsappTemplates.create(body);
         else if (form.id) await crmWhatsappTemplates.update(form.id, body);
@@ -130,13 +155,36 @@ export default function TemplateEditModal({ open, onClose, draft, onSaved }: Pro
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
             <Select label="Category" value={form.category || 'utility'} onChange={(v) => setForm({ ...form, category: v })}
               options={[{ value: 'utility', label: 'Utility' }, { value: 'marketing', label: 'Marketing' }, { value: 'authentication', label: 'Authentication' }]} />
-            <Field label="Language" value={form.language || 'en'} onChange={(v) => setForm({ ...form, language: v })} placeholder="en" />
+            <Select label="Language" value={form.language || 'en'} onChange={(v) => setForm({ ...form, language: v })}
+              options={SUPPORTED_LANGS.map((l) => ({ value: l.code, label: l.label }))} />
             <Select label="Status" value={form.status || 'pending'} onChange={(v) => setForm({ ...form, status: v as 'pending' | 'approved' | 'rejected' })}
               options={[{ value: 'pending', label: 'Pending' }, { value: 'approved', label: 'Approved' }, { value: 'rejected', label: 'Rejected' }]} />
           </div>
+
+          {/* Optional media header — WhatsApp fetches the URL when sending */}
+          <div style={{ display: 'grid', gridTemplateColumns: '180px 1fr', gap: 12 }}>
+            <Select label="Header Media (optional)" value={form.header_media_type || ''} onChange={(v) => setForm({ ...form, header_media_type: (v || null) as TemplateDraft['header_media_type'], header_media_url: v ? form.header_media_url : null })}
+              options={[
+                { value: '',         label: 'None' },
+                { value: 'image',    label: 'Image' },
+                { value: 'video',    label: 'Video' },
+                { value: 'document', label: 'Document' },
+              ]} />
+            <Field
+              label={form.header_media_type ? `${form.header_media_type[0].toUpperCase()}${form.header_media_type.slice(1)} URL` : 'Media URL (set type first)'}
+              value={form.header_media_url || ''}
+              onChange={(v) => setForm({ ...form, header_media_url: v || null })}
+              placeholder="https://… (must be publicly fetchable)"
+            />
+          </div>
+
           <Field label="Header Text (optional, max 60 chars)" value={form.header_text || ''} onChange={(v) => setForm({ ...form, header_text: v || null })} />
           <Area label="Body" required rows={6} value={form.body_text || ''} onChange={(v) => setForm({ ...form, body_text: v })} placeholder="Hi {{1}}, your order #{{2}} has shipped." />
           <Field label="Footer Text (optional, max 60 chars)" value={form.footer_text || ''} onChange={(v) => setForm({ ...form, footer_text: v || null })} />
+
+          {/* Auto-translate to Indian languages — only available once the
+              template has been saved at least once (needs an id). */}
+          {!isNew && form.id && <TranslationsPanel form={form} setForm={setForm} />}
         </div>
       )}
 
@@ -178,6 +226,123 @@ function Area(p: { label: string; value: string; onChange: (v: string) => void; 
     </label>
   );
 }
+// Translation panel — fires POST /whatsapp-templates/:id/translate, displays
+// per-language previews, lets the user re-translate a single language if
+// they tweaked the source.
+function TranslationsPanel({ form, setForm }: { form: TemplateDraft; setForm: (f: TemplateDraft) => void }) {
+  const [picked, setPicked] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const source = (form.language || 'en').toLowerCase();
+  const candidates = SUPPORTED_LANGS.filter((l) => l.code !== source);
+
+  const translate = async (langs: string[]) => {
+    if (!form.id || !langs.length) return;
+    setBusy(true);
+    try {
+      const r = await api.post<{ success?: boolean; data?: { translations: Record<string, { body_text: string; header_text?: string; footer_text?: string }> } } | { translations: Record<string, { body_text: string; header_text?: string; footer_text?: string }> }>(`/api/v1/crm/whatsapp-templates/${form.id}/translate`, { languages: langs });
+      const result = ((r as any).data ?? r) as { translations: Record<string, { body_text: string; header_text?: string; footer_text?: string }> };
+      setForm({ ...form, translations: { ...(form.translations || {}), ...result.translations } });
+      toast.success(`Translated to ${langs.length} language${langs.length === 1 ? '' : 's'}`);
+      setPicked([]);
+    } catch (e: unknown) {
+      toast.error((e as Error).message || 'Translation failed');
+    } finally { setBusy(false); }
+  };
+
+  const togglePick = (code: string) => setPicked(picked.includes(code) ? picked.filter((c) => c !== code) : [...picked, code]);
+  const existingCodes = Object.keys(form.translations || {});
+
+  return (
+    <div style={{ background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 10, padding: 14 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text)' }}>Translations</div>
+          <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>Auto-translate body + header + footer via Claude. Placeholders like <code style={{ fontFamily: 'monospace' }}>{'{{1}}'}</code> are preserved verbatim.</div>
+        </div>
+        {existingCodes.length > 0 && (
+          <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>{existingCodes.length} saved</span>
+        )}
+      </div>
+
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+        {candidates.map((l) => {
+          const has = existingCodes.includes(l.code);
+          const isPicked = picked.includes(l.code);
+          return (
+            <button
+              key={l.code}
+              type="button"
+              onClick={() => togglePick(l.code)}
+              style={{
+                fontSize: 11, padding: '4px 10px', borderRadius: 999,
+                border: `1px solid ${isPicked ? 'var(--primary)' : 'var(--border)'}`,
+                background: isPicked ? 'var(--primary)' : has ? 'rgba(0,217,126,0.1)' : 'transparent',
+                color: isPicked ? '#fff' : has ? '#10b981' : 'var(--text-dim)',
+                cursor: 'pointer', fontWeight: 700,
+              }}
+              title={has ? 'Translation saved — re-translate to refresh' : 'Pick to translate'}
+            >
+              {l.label}{has ? ' ✓' : ''}
+            </button>
+          );
+        })}
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <button
+          type="button"
+          onClick={() => translate(picked)}
+          disabled={busy || picked.length === 0}
+          style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: (busy || picked.length === 0) ? 0.5 : 1 }}
+        >
+          {busy ? 'Translating…' : picked.length === 0 ? 'Pick languages to translate' : `Translate ${picked.length}`}
+        </button>
+        {existingCodes.length > 0 && (
+          <button
+            type="button"
+            onClick={() => translate(existingCodes)}
+            disabled={busy}
+            style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: busy ? 0.5 : 1 }}
+            title="Re-translate every saved language using the latest source"
+          >
+            Refresh all
+          </button>
+        )}
+      </div>
+
+      {existingCodes.length > 0 && (
+        <div style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {existingCodes.map((code) => {
+            const label = SUPPORTED_LANGS.find((l) => l.code === code)?.label || code;
+            const t = form.translations?.[code];
+            const open = expanded === code;
+            return (
+              <div key={code} style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 8, padding: 10 }}>
+                <button
+                  type="button"
+                  onClick={() => setExpanded(open ? null : code)}
+                  style={{ width: '100%', background: 'transparent', border: 'none', color: 'var(--text)', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', textAlign: 'left' }}
+                >
+                  <span style={{ fontSize: 12, fontWeight: 700 }}>{label}</span>
+                  <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>{open ? '▼' : '▶'}</span>
+                </button>
+                {open && (
+                  <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, color: 'var(--text-dim)' }}>
+                    {t?.header_text && <div><strong style={{ color: 'var(--text)' }}>Header:</strong> {t.header_text}</div>}
+                    {t?.body_text   && <div style={{ whiteSpace: 'pre-wrap' }}><strong style={{ color: 'var(--text)' }}>Body:</strong> {t.body_text}</div>}
+                    {t?.footer_text && <div><strong style={{ color: 'var(--text)' }}>Footer:</strong> {t.footer_text}</div>}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Select(p: { label: string; value: string; onChange: (v: string) => void; options: Array<{ value: string; label: string }> }) {
   return (
     <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>

@@ -1,9 +1,11 @@
 'use client';
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { toast } from 'sonner';
 import { crmContacts, crmLeads, crmActivities } from '../../../../lib/crmApi';
 import { waLink, isValidWaPhone } from '../../../../lib/whatsapp';
 import type { Contact, Lead } from '../../../../types/crm';
+import WhatsAppLogo from '../../../../components/icons/WhatsAppLogo';
 
 const TEMPLATES: Array<{ label: string; text: string }> = [
   { label: 'Greeting', text: 'Hi {name}, hope you are doing well! I wanted to follow up regarding your inquiry.' },
@@ -121,9 +123,15 @@ export default function WhatsAppPage() {
     <div style={{ maxWidth: 720 }}>
       <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 22, marginBottom: 18 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, background: '#25D366', borderRadius: 8, color: '#fff', fontWeight: 800, fontSize: 14 }}>WA</span>
+          <WhatsAppLogo size={28} />
           <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text)' }}>WhatsApp</div>
           <span style={{ fontSize: 11, background: '#25D36622', color: '#25D366', borderRadius: 6, padding: '2px 8px', fontWeight: 700 }}>Click-to-Chat</span>
+          <Link
+            href="/dashboard/crm/templates?tab=whatsapp"
+            style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--primary)', textDecoration: 'none', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+          >
+            Manage Templates →
+          </Link>
         </div>
         <p style={{ fontSize: 13, color: 'var(--text-dim)', margin: '0 0 18px', lineHeight: 1.5 }}>
           Compose your message below. Clicking <strong>Open in WhatsApp</strong> launches WhatsApp Web (desktop) or the native app with the message pre-filled — review and send it from there. Replies stay in WhatsApp; you can copy-paste them back here and log the conversation as a CRM activity.
