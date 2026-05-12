@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import Modal from './shared/Modal';
 import api from '../../lib/api';
@@ -31,19 +31,16 @@ export type TemplateDraft = {
   translations?: Record<string, { body_text?: string; header_text?: string; footer_text?: string }> | null;
 };
 
-// Indian languages targeted for translation. Codes match Supabase/WhatsApp.
+// Languages supported for WhatsApp templates. Trimmed per product req to
+// English + the four eastern-India dialects most relevant to the Tata
+// Tiscon footprint. To re-enable a language later, add its code here AND
+// in the backend whatsappTranslate.service's LANG_NAMES map.
 const SUPPORTED_LANGS: Array<{ code: string; label: string }> = [
   { code: 'en', label: 'English' },
   { code: 'hi', label: 'Hindi (हिन्दी)' },
-  { code: 'bn', label: 'Bengali (বাংলা)' },
   { code: 'or', label: 'Odia (ଓଡ଼ିଆ)' },
+  { code: 'bn', label: 'Bengali (বাংলা)' },
   { code: 'as', label: 'Assamese (অসমীয়া)' },
-  { code: 'ta', label: 'Tamil (தமிழ்)' },
-  { code: 'te', label: 'Telugu (తెలుగు)' },
-  { code: 'kn', label: 'Kannada (ಕನ್ನಡ)' },
-  { code: 'mr', label: 'Marathi (मराठी)' },
-  { code: 'gu', label: 'Gujarati (ગુજરાતી)' },
-  { code: 'pa', label: 'Punjabi (ਪੰਜਾਬੀ)' },
 ];
 
 interface Props {
@@ -161,22 +158,15 @@ export default function TemplateEditModal({ open, onClose, draft, onSaved }: Pro
               options={[{ value: 'pending', label: 'Pending' }, { value: 'approved', label: 'Approved' }, { value: 'rejected', label: 'Rejected' }]} />
           </div>
 
-          {/* Optional media header — WhatsApp fetches the URL when sending */}
-          <div style={{ display: 'grid', gridTemplateColumns: '180px 1fr', gap: 12 }}>
-            <Select label="Header Media (optional)" value={form.header_media_type || ''} onChange={(v) => setForm({ ...form, header_media_type: (v || null) as TemplateDraft['header_media_type'], header_media_url: v ? form.header_media_url : null })}
-              options={[
-                { value: '',         label: 'None' },
-                { value: 'image',    label: 'Image' },
-                { value: 'video',    label: 'Video' },
-                { value: 'document', label: 'Document' },
-              ]} />
-            <Field
-              label={form.header_media_type ? `${form.header_media_type[0].toUpperCase()}${form.header_media_type.slice(1)} URL` : 'Media URL (set type first)'}
-              value={form.header_media_url || ''}
-              onChange={(v) => setForm({ ...form, header_media_url: v || null })}
-              placeholder="https://… (must be publicly fetchable)"
-            />
-          </div>
+          {/* Optional media header. Image + Document support direct upload
+              from the browser (POST /upload/photo or /upload/file). Video
+              stays URL-only because videos are large and a self-hosted CDN
+              would balloon the storage bill — paste the YouTube/CDN link. */}
+          <MediaHeaderField
+            type={form.header_media_type || null}
+            url={form.header_media_url || ''}
+            onChange={(t, u) => setForm({ ...form, header_media_type: t, header_media_url: u })}
+          />
 
           <Field label="Header Text (optional, max 60 chars)" value={form.header_text || ''} onChange={(v) => setForm({ ...form, header_text: v || null })} />
           <Area label="Body" required rows={6} value={form.body_text || ''} onChange={(v) => setForm({ ...form, body_text: v })} placeholder="Hi {{1}}, your order #{{2}} has shipped." />
@@ -226,6 +216,88 @@ function Area(p: { label: string; value: string; onChange: (v: string) => void; 
     </label>
   );
 }
+// Header-media row: select type, then either upload (image/document) or
+// paste URL (video). Upload goes through the existing /api/v1/upload/:type
+// endpoint and stores the returned public URL on the template.
+function MediaHeaderField({ type, url, onChange }: {
+  type: 'image' | 'video' | 'document' | null;
+  url: string;
+  onChange: (t: 'image' | 'video' | 'document' | null, url: string | null) => void;
+}) {
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const accept = type === 'image' ? 'image/*' : type === 'document' ? '.pdf,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document' : '';
+  const uploadType = type === 'document' ? 'file' : 'photo';
+
+  const upload = async (f: File) => {
+    if (!f) return;
+    if (type === 'image' && !/^image\//.test(f.type)) { toast.error('Pick an image'); return; }
+    if (f.size > 25 * 1024 * 1024) { toast.error('File must be under 25 MB'); return; }
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', f);
+      const token = typeof window !== 'undefined' ? localStorage.getItem('kinematic_token') : null;
+      const orgId = typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('kinematic_user') || '{}').org_id || '') : '';
+      const r = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/upload/${uploadType}`, {
+        method: 'POST',
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(orgId ? { 'X-Org-Id': orgId } : {}) },
+        body: fd,
+      });
+      const json = await r.json();
+      const u = json?.data?.url || json?.url;
+      if (!u) throw new Error(json?.error || json?.message || 'Upload failed');
+      onChange(type, u);
+      toast.success('Uploaded');
+    } catch (e: any) { toast.error(e.message || 'Upload failed'); }
+    finally { setUploading(false); if (fileRef.current) fileRef.current.value = ''; }
+  };
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '180px 1fr', gap: 12 }}>
+      <Select
+        label="Header Media (optional)"
+        value={type || ''}
+        onChange={(v) => onChange((v || null) as 'image' | 'video' | 'document' | null, v ? url : null)}
+        options={[
+          { value: '',         label: 'None' },
+          { value: 'image',    label: 'Image' },
+          { value: 'video',    label: 'Video (URL only)' },
+          { value: 'document', label: 'Document' },
+        ]}
+      />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {/* Video stays URL-only by design */}
+        {type === 'video' ? (
+          <Field label="Video URL" value={url} onChange={(v) => onChange(type, v || null)} placeholder="https://… (YouTube, Vimeo, CDN — must be publicly fetchable)" />
+        ) : type === 'image' || type === 'document' ? (
+          <>
+            <span style={lblStyle}>{type === 'image' ? 'Image' : 'Document'}</span>
+            {url ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 10, background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 10 }}>
+                {type === 'image'
+                  // eslint-disable-next-line @next/next/no-img-element
+                  ? <img src={url} alt="header" style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 6 }} />
+                  : <span style={{ fontSize: 24 }}>📄</span>}
+                <div style={{ flex: 1, minWidth: 0, fontSize: 12, color: 'var(--text-dim)', wordBreak: 'break-all' }}>{url}</div>
+                <button type="button" onClick={() => onChange(type, null)} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '4px 10px', borderRadius: 6, fontSize: 11, cursor: 'pointer' }}>Replace</button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input ref={fileRef} type="file" accept={accept} onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f); }} disabled={uploading} style={{ ...inputStyle, padding: 6, flex: 'unset', width: 'auto' }} />
+                {uploading && <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>Uploading…</span>}
+              </div>
+            )}
+          </>
+        ) : (
+          <Field label="Media URL (set type first)" value={url} onChange={() => {}} placeholder="Pick a type above to enable" />
+        )}
+      </div>
+    </div>
+  );
+}
+
 // Translation panel — fires POST /whatsapp-templates/:id/translate, displays
 // per-language previews, lets the user re-translate a single language if
 // they tweaked the source.

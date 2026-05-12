@@ -5,28 +5,23 @@ import { toast } from 'sonner';
 import { crmContacts, crmSettings } from '../../../../lib/crmApi';
 import type { Contact } from '../../../../types/crm';
 import ContactsTable from '../../../../components/crm/ContactsTable';
-import { useCrmLocationFilter } from '../../../../stores/crmLocationFilterStore';
 
 export default function ContactsListPage() {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState('');
   const [isB2C, setIsB2C] = useState(false);
-  const { state: locState, city: locCity } = useCrmLocationFilter();
 
   const reload = async () => {
     setLoading(true);
     try {
-      const params: Record<string, string> = {};
-      if (locState) params.state = locState;
-      if (locCity) params.city = locCity;
-      const r = await crmContacts.list(params);
+      const r = await crmContacts.list({});
       setContacts(r.data || []);
     }
     catch (e: any) { toast.error(e.message || 'Failed to load'); } finally { setLoading(false); }
   };
 
-  useEffect(() => { reload(); /* eslint-disable-next-line */ }, [locState, locCity]);
+  useEffect(() => { reload(); }, []);
 
   useEffect(() => {
     crmSettings.get().then((r) => {
@@ -46,11 +41,6 @@ export default function ContactsListPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 8, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <input placeholder="Search contacts..." value={q} onChange={(e) => setQ(e.target.value)} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13, minWidth: 240 }} />
-          {(locState || locCity) && (
-            <span style={{ fontSize: 11, color: 'var(--primary)', background: 'var(--s3)', padding: '3px 8px', borderRadius: 6 }}>
-              📍 {[locCity, locState].filter(Boolean).join(', ')}
-            </span>
-          )}
         </div>
         <Link href="/dashboard/crm/contacts/import" style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>⬆ Bulk Import</Link>
         <Link href="/dashboard/crm/contacts/new" style={{ background: 'var(--primary)', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>+ New Contact</Link>

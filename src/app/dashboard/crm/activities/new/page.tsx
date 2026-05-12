@@ -40,11 +40,11 @@ export default function NewActivityPage() {
   const [busy, setBusy] = useState(false);
   const [imageUrl, setImageUrl] = useState<string>('');
   const [uploading, setUploading] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
+  const galleryRef = useRef<HTMLInputElement>(null);
+  const cameraRef  = useRef<HTMLInputElement>(null);
 
-  // Upload via the existing /api/v1/upload endpoint and store the returned
-  // public URL on the activity. Stays in sync with how leads/contacts
-  // upload avatars elsewhere in the app.
+  // Upload via /api/v1/upload/photo (the endpoint is /:type — was a typo
+  // before, no type meant 404). Returns { url, path, bucket }.
   const uploadImage = async (f: File) => {
     if (!f) return;
     if (!/^image\//.test(f.type)) { toast.error('Pick an image file'); return; }
@@ -55,18 +55,22 @@ export default function NewActivityPage() {
       fd.append('file', f);
       const token = typeof window !== 'undefined' ? localStorage.getItem('kinematic_token') : null;
       const orgId = typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('kinematic_user') || '{}').org_id || '') : '';
-      const r = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/upload`, {
+      const r = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/upload/photo`, {
         method: 'POST',
         headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(orgId ? { 'X-Org-Id': orgId } : {}) },
         body: fd,
       });
       const json = await r.json();
       const url = json?.data?.url || json?.url;
-      if (!url) throw new Error(json?.error || 'Upload failed');
+      if (!url) throw new Error(json?.error || json?.message || 'Upload failed');
       setImageUrl(url);
       toast.success('Image uploaded');
     } catch (e: any) { toast.error(e.message || 'Upload failed'); }
-    finally { setUploading(false); if (fileRef.current) fileRef.current.value = ''; }
+    finally {
+      setUploading(false);
+      if (galleryRef.current) galleryRef.current.value = '';
+      if (cameraRef.current)  cameraRef.current.value  = '';
+    }
   };
 
   // Entity search state
@@ -207,8 +211,41 @@ export default function NewActivityPage() {
               <button type="button" onClick={() => setImageUrl('')} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '6px 12px', borderRadius: 8, fontSize: 12, cursor: 'pointer' }}>Remove</button>
             </div>
           ) : (
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <input ref={fileRef} type="file" accept="image/*" onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadImage(f); }} disabled={uploading} style={{ ...input, padding: 6, flex: 'unset', width: 'auto' }} />
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              {/* Two hidden inputs — the camera one carries `capture` so mobile
+                  browsers open the camera directly; the other opens the file
+                  picker (which on iOS/Android still offers Camera + Gallery via
+                  the native sheet). On desktop both fall through to the file
+                  dialog because `capture` is ignored when no camera is wired. */}
+              <input
+                ref={cameraRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadImage(f); }}
+                disabled={uploading}
+                style={{ display: 'none' }}
+              />
+              <input
+                ref={galleryRef}
+                type="file"
+                accept="image/*"
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadImage(f); }}
+                disabled={uploading}
+                style={{ display: 'none' }}
+              />
+              <button
+                type="button"
+                onClick={() => cameraRef.current?.click()}
+                disabled={uploading}
+                style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+              >📷 Take Photo</button>
+              <button
+                type="button"
+                onClick={() => galleryRef.current?.click()}
+                disabled={uploading}
+                style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+              >📎 Upload from Device</button>
               {uploading && <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>Uploading…</span>}
             </div>
           )}
