@@ -228,16 +228,21 @@ function MediaHeaderField({ type, url, onChange }: {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const accept = type === 'image' ? 'image/*' : type === 'document' ? '.pdf,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document' : '';
-  const uploadType = type === 'document' ? 'file' : 'photo';
+  // Backend routes: /upload/photo uses uploadSingle (field name `photo`,
+  // images only). /upload/material uses uploadMaterial (field name `file`,
+  // accepts pdf/doc/video too). Pick the right endpoint + field per type.
+  const isImage = type === 'image';
+  const uploadType = isImage ? 'photo' : 'material';
+  const fieldName = isImage ? 'photo' : 'file';
 
   const upload = async (f: File) => {
     if (!f) return;
-    if (type === 'image' && !/^image\//.test(f.type)) { toast.error('Pick an image'); return; }
+    if (isImage && !/^image\//.test(f.type)) { toast.error('Pick an image'); return; }
     if (f.size > 25 * 1024 * 1024) { toast.error('File must be under 25 MB'); return; }
     setUploading(true);
     try {
       const fd = new FormData();
-      fd.append('file', f);
+      fd.append(fieldName, f);
       const token = typeof window !== 'undefined' ? localStorage.getItem('kinematic_token') : null;
       const orgId = typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('kinematic_user') || '{}').org_id || '') : '';
       const r = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/upload/${uploadType}`, {

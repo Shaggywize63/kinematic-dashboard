@@ -39,20 +39,40 @@ function toSnake(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 60) || 'template';
 }
 
+// Same list as TemplateEditModal.SUPPORTED_LANGS — keep in sync.
+const LANG_OPTIONS: Array<{ code: string; label: string }> = [
+  { code: 'en', label: 'English' },
+  { code: 'hi', label: 'Hindi (हिन्दी)' },
+  { code: 'or', label: 'Odia (ଓଡ଼ିଆ)' },
+  { code: 'bn', label: 'Bengali (বাংলা)' },
+  { code: 'as', label: 'Assamese (অসমীয়া)' },
+];
+const LANG_NAMES: Record<string, string> = {
+  en: 'English', hi: 'Hindi (Devanagari)', or: 'Odia (Oriya)',
+  bn: 'Bengali', as: 'Assamese',
+};
+
 export default function AiTemplateModal({ open, channel, onClose, onApply }: Props) {
   const [goal, setGoal] = useState('');
   const [tone, setTone] = useState<'friendly' | 'formal' | 'concise'>('friendly');
   const [audience, setAudience] = useState('');
+  const [language, setLanguage] = useState<string>('en');
   const [busy, setBusy] = useState(false);
 
-  const reset = () => { setGoal(''); setAudience(''); setTone('friendly'); };
+  const reset = () => { setGoal(''); setAudience(''); setTone('friendly'); setLanguage('en'); };
 
   const generate = async () => {
     if (!goal.trim()) { toast.error('Describe the template goal first'); return; }
     setBusy(true);
     try {
+      // Language instruction prepended to both flows. English source falls
+      // through unchanged so the existing prompts keep working.
+      const langPreamble = language !== 'en'
+        ? `IMPORTANT: Write the entire output (header, body, footer, subject if applicable) in ${LANG_NAMES[language] || language}. Keep any {{placeholder}} tokens in English (do not translate them).`
+        : '';
+
       if (channel === 'email') {
-        const r = await crmAi.draftReply({ goal, tone });
+        const r = await crmAi.draftReply({ goal: langPreamble ? `${langPreamble}\n\n${goal}` : goal, tone });
         const html = r.data.body_html || r.data.body_text || '';
         onApply({
           channel: 'email',
@@ -69,6 +89,7 @@ export default function AiTemplateModal({ open, channel, onClose, onApply }: Pro
         const userMsg = `Create a WhatsApp ${tone} template.
 Goal: ${goal}
 Audience: ${audience || 'general'}
+${langPreamble}
 Return JSON only — no prose, no code fences.`;
         const r = await crmAi.chat({ messages: [{ role: 'user', content: userMsg }], system: WA_SYSTEM });
         const json = extractJson(r.data.text || '');
@@ -79,7 +100,7 @@ Return JSON only — no prose, no code fences.`;
           isNew: true,
           meta_template_name: toSnake((json?.name as string) || goal),
           category: 'utility',
-          language: 'en',
+          language, // <-- carried over from the picker, was hardcoded 'en' before
           status: 'pending',
           header_text: (json?.header_text as string) || null,
           body_text: bodyText,
@@ -115,6 +136,12 @@ Return JSON only — no prose, no code fences.`;
           />
         </label>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span style={lblStyle}>Language</span>
+            <select value={language} onChange={(e) => setLanguage(e.target.value)} style={inputStyle}>
+              {LANG_OPTIONS.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}
+            </select>
+          </label>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             <span style={lblStyle}>Tone</span>
             <select value={tone} onChange={(e) => setTone(e.target.value as 'friendly' | 'formal' | 'concise')} style={inputStyle}>
