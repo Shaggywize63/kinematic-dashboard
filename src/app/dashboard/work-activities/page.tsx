@@ -447,10 +447,25 @@ export default function WorkActivitiesPage() {
                                             </div>
                                         </div>
                                         <button
-                                            onClick={(e) => {
+                                            onClick={async (e) => {
                                                 e.stopPropagation();
                                                 setViewingId(f.id);
+                                                // Open immediately with the list row so the modal is
+                                                // responsive; then fetch the joined detail (which the
+                                                // backend builds with supabaseAdmin and includes the
+                                                // full form_responses array) and merge it in. The
+                                                // Next.js enrichment path couldn't read form_responses
+                                                // via RLS because the dashboard's JWT isn't a Supabase
+                                                // Auth token, so the modal always showed "No form
+                                                // responses recorded".
                                                 setDetailedSub(f);
+                                                try {
+                                                    const detail: any = await api.getSubmission(f.id);
+                                                    const merged = detail?.data ?? detail;
+                                                    if (merged && typeof merged === 'object') {
+                                                        setDetailedSub({ ...f, ...merged });
+                                                    }
+                                                } catch { /* keep the list row */ }
                                             }}
                                             style={{ padding: '6px 12px', background: 'transparent', border: `1px solid ${C.accent}`, borderRadius: '6px', color: C.accent, fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
                                         >
