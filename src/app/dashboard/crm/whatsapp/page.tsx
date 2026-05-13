@@ -83,21 +83,63 @@ export default function WhatsAppPage() {
   };
 
   // Attached media is tracked separately so the textarea shows the message
-  // body cleanly. The URL is appended right before opening WhatsApp — recipient
-  // sees the inline preview WhatsApp renders from any URL in a message.
-  const [attachment, setAttachment] = useState<{ url: string; kind: 'image' | 'document' } | null>(null);
+  // body cleanly. We keep the underlying File around so we can actually share
+  // it (Web Share API on mobile) instead of just pasting a URL.
+  const [attachment, setAttachment] = useState<{ url: string; kind: 'image' | 'document' | 'video'; file?: File; mime?: string; name?: string } | null>(null);
 
-  /** Compose the final outbound message: message body + (newline + URL) when an
-   *  attachment is set. Used both for the click-to-chat link and for the
-   *  preview / copy actions so they always agree. */
-  const composedMessage = attachment ? `${message ? `${message}\n` : ''}${attachment.url}` : message;
+  /** Compose the final outbound message: just the body. When using Web Share
+   *  we also pass the file separately; when falling back to wa.me we append
+   *  the URL so WhatsApp renders an inline preview. */
+  const composedMessage = message;
+  const composedWithUrl = attachment ? `${message ? `${message}\n` : ''}${attachment.url}` : message;
 
-  const openWhatsApp = () => {
+  /** Fire the "WhatsApp message" activity on a linked lead/contact. We do
+   *  this on Open click (not just on the explicit Log button) because the
+   *  user explicitly asked us to record the moment the chat is opened. */
+  const autoLogActivity = async (note: string) => {
+    if (!entityRef) return;
+    try {
+      const body: Record<string, unknown> = {
+        type: 'whatsapp',
+        subject: `WhatsApp to ${name || phone}`,
+        description: note,
+        status: 'completed',
+        completed_at: new Date().toISOString(),
+      };
+      body[`${entityRef.type}_id`] = entityRef.id;
+      if (attachment?.url) body.image_url = attachment.kind === 'image' ? attachment.url : undefined;
+      await crmActivities.create(body as never);
+    } catch { /* non-fatal — open the chat regardless */ }
+  };
+
+  const openWhatsApp = async () => {
     if (!isValidWaPhone(phone)) { toast.error('Enter a valid phone number with country code'); return; }
-    const url = waLink(phone, composedMessage);
+    // 1. If we have a file AND the browser supports Web Share with files,
+    //    pop the system share sheet so the user can pick WhatsApp and the
+    //    file goes as a real attachment (not a URL paste).
+    if (attachment?.file && typeof navigator !== 'undefined' && 'canShare' in navigator) {
+      try {
+        const data: ShareData = { files: [attachment.file], text: composedMessage } as ShareData;
+        const ok = (navigator as Navigator & { canShare?: (d: ShareData) => boolean }).canShare?.(data);
+        if (ok) {
+          await (navigator as Navigator & { share?: (d: ShareData) => Promise<void> }).share?.(data);
+          setOpened(true);
+          toast.success('Pick WhatsApp from the share sheet to attach the file');
+          autoLogActivity(composedMessage);
+          return;
+        }
+      } catch (e: unknown) {
+        // User cancelled, or share failed — fall through to wa.me.
+        const msg = e instanceof Error ? e.message : '';
+        if (msg.includes('AbortError') || msg.toLowerCase().includes('abort')) return;
+      }
+    }
+    // 2. Fallback: classic click-to-chat. Message body + media URL appended.
+    const url = waLink(phone, composedWithUrl);
     window.open(url, '_blank', 'noopener,noreferrer');
     setOpened(true);
     toast.success('WhatsApp opened — send your message there');
+    autoLogActivity(composedMessage || '(no message body)');
   };
 
   const copyMessage = () => {
@@ -219,18 +261,24 @@ export default function WhatsAppPage() {
               {attachment.kind === 'image' ? (
                 /* eslint-disable-next-line @next/next/no-img-element */
                 <img src={attachment.url} alt="Attached" style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 6 }} />
+              ) : attachment.kind === 'video' ? (
+                <div style={{ width: 56, height: 56, borderRadius: 6, background: 'var(--s2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28 }}>🎬</div>
               ) : (
                 <div style={{ width: 56, height: 56, borderRadius: 6, background: 'var(--s2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28 }}>📄</div>
               )}
               <div style={{ flex: 1, fontSize: 12, color: 'var(--text-dim)' }}>
-                {attachment.kind === 'image' ? 'Image attached' : 'Document attached'}
-                <div style={{ fontSize: 11, color: 'var(--text-dim)', opacity: 0.7, marginTop: 2 }}>WhatsApp will preview the link when you send.</div>
+                {attachment.kind === 'image' ? 'Image' : attachment.kind === 'video' ? 'Video' : 'Document'} attached{attachment.name ? ` — ${attachment.name}` : ''}
+                <div style={{ fontSize: 11, color: 'var(--text-dim)', opacity: 0.7, marginTop: 2 }}>
+                  {attachment.file
+                    ? 'On mobile, Open in WhatsApp will share the file directly via the share sheet. On desktop, WhatsApp will preview the link.'
+                    : 'WhatsApp will preview the link when you send.'}
+                </div>
               </div>
               <button type="button" onClick={() => setAttachment(null)} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '6px 10px', borderRadius: 6, fontSize: 11, cursor: 'pointer' }}>Remove</button>
             </div>
           )}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
-            <MediaAttachButton onAttach={(url, kind) => setAttachment({ url, kind })} hasAttachment={!!attachment} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6, gap: 8, flexWrap: 'wrap' }}>
+            <MediaAttachButton onAttach={(a) => setAttachment(a)} hasAttachment={!!attachment} />
             <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{message.length} characters</div>
           </div>
         </div>
@@ -275,7 +323,9 @@ export default function WhatsAppPage() {
             ✓ WhatsApp opened in a new tab
           </div>
           <p style={{ fontSize: 13, color: 'var(--text-dim)', margin: '0 0 12px' }}>
-            Send your message in WhatsApp. Once done, log this conversation as a CRM activity to keep your timeline up to date.
+            {entityRef
+              ? 'We already logged this on the contact / lead timeline. If you also exchanged follow-ups in WhatsApp, you can add another activity below.'
+              : 'Send your message in WhatsApp. Pick a lead/contact above to keep a CRM record next time.'}
           </p>
           {entityRef ? (
             <button
@@ -284,7 +334,7 @@ export default function WhatsAppPage() {
               disabled={logging}
               style={{ padding: '9px 16px', background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: logging ? 'wait' : 'pointer', opacity: logging ? 0.6 : 1 }}
             >
-              {logging ? 'Logging...' : 'Log Conversation as Activity'}
+              {logging ? 'Logging…' : 'Log Follow-up Activity'}
             </button>
           ) : (
             <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>
@@ -320,21 +370,24 @@ function Hint({ children }: { children: React.ReactNode }) {
   return <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 3 }}>{children}</div>;
 }
 
-// WhatsApp click-to-chat URLs only carry phone + text; native WA renders
-// image/video/document previews from links in the message body. So
-// uploading here just produces a public URL and appends it to the
-// message — recipient sees the inline preview WhatsApp generates.
-function MediaAttachButton({ onAttach, hasAttachment }: { onAttach: (url: string, kind: 'image' | 'document') => void; hasAttachment: boolean }) {
+// On supported browsers (Chrome Android, Safari iOS) we hand the File to
+// the system share sheet via navigator.share so WhatsApp receives a real
+// attachment. On desktop browsers without canShare(files), we fall back to
+// uploading the file and appending the URL — WhatsApp still renders an
+// inline preview, but the recipient gets a link rather than a file.
+function MediaAttachButton({ onAttach, hasAttachment }: { onAttach: (a: { url: string; kind: 'image' | 'document' | 'video'; file?: File; mime?: string; name?: string }) => void; hasAttachment: boolean }) {
   const photoRef = useRef<HTMLInputElement>(null);
   const docRef   = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
 
-  const upload = async (f: File, kind: 'image' | 'document') => {
+  const upload = async (f: File, kind: 'image' | 'document' | 'video') => {
     if (!f) return;
     if (f.size > 25 * 1024 * 1024) { toast.error('File must be under 25 MB'); return; }
     setBusy(true);
     try {
       const fd = new FormData();
+      // /upload/photo uses field `photo`, /upload/material uses field `file`.
       const uploadType = kind === 'image' ? 'photo' : 'material';
       fd.append(kind === 'image' ? 'photo' : 'file', f);
       const token = typeof window !== 'undefined' ? localStorage.getItem('kinematic_token') : null;
@@ -347,13 +400,17 @@ function MediaAttachButton({ onAttach, hasAttachment }: { onAttach: (url: string
       const json = await r.json();
       const url = json?.data?.url || json?.url;
       if (!url) throw new Error(json?.error || json?.message || 'Upload failed');
-      onAttach(url, kind);
+      // Pass the File along so Open-in-WhatsApp can use the Share Sheet on mobile.
+      onAttach({ url, kind, file: f, mime: f.type, name: f.name });
       toast.success('Attached');
-    } catch (e: any) { toast.error(e.message || 'Upload failed'); }
-    finally {
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Upload failed';
+      toast.error(msg);
+    } finally {
       setBusy(false);
       if (photoRef.current) photoRef.current.value = '';
       if (docRef.current)   docRef.current.value   = '';
+      if (videoRef.current) videoRef.current.value = '';
     }
   };
 
@@ -363,11 +420,13 @@ function MediaAttachButton({ onAttach, hasAttachment }: { onAttach: (url: string
     opacity: hasAttachment ? 0.5 : 1,
   };
   return (
-    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+    <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
       <input ref={photoRef} type="file" accept="image/*" capture="environment" onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f, 'image'); }} disabled={busy || hasAttachment} style={{ display: 'none' }} />
-      <input ref={docRef}   type="file" accept=".pdf,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f, 'document'); }} disabled={busy || hasAttachment} style={{ display: 'none' }} />
+      <input ref={videoRef} type="file" accept="video/*" onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f, 'video'); }} disabled={busy || hasAttachment} style={{ display: 'none' }} />
+      <input ref={docRef}   type="file" accept=".pdf,application/pdf,.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f, 'document'); }} disabled={busy || hasAttachment} style={{ display: 'none' }} />
       <button type="button" onClick={() => photoRef.current?.click()} disabled={busy || hasAttachment} style={btn} title={hasAttachment ? 'Remove the current attachment first' : 'Attach an image'}>📷 Image</button>
-      <button type="button" onClick={() => docRef.current?.click()}   disabled={busy || hasAttachment} style={btn} title={hasAttachment ? 'Remove the current attachment first' : 'Attach a PDF / DOC'}>📎 File</button>
+      <button type="button" onClick={() => videoRef.current?.click()} disabled={busy || hasAttachment} style={btn} title={hasAttachment ? 'Remove the current attachment first' : 'Attach a video'}>🎬 Video</button>
+      <button type="button" onClick={() => docRef.current?.click()}   disabled={busy || hasAttachment} style={btn} title={hasAttachment ? 'Remove the current attachment first' : 'Attach a PDF / DOC / XLS'}>📎 File</button>
       {busy && <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>Uploading…</span>}
     </div>
   );

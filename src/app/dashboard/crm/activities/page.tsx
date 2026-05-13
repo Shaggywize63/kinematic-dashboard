@@ -185,35 +185,54 @@ function ActivitiesPageInner() {
             const isOverdue = a.due_at && !a.completed_at && new Date(a.due_at) < new Date();
             const linkedEntity = a.lead_id ? `Lead` : a.contact_id ? `Contact` : a.deal_id ? `Deal` : a.account_id ? `Account` : null;
             const linkedId = a.lead_id || a.contact_id || a.deal_id || a.account_id;
+            const status = ((a as any).status as string) || (a.completed_at ? 'completed' : 'open');
+            const statusColor =
+              status === 'completed' || status === 'done' ? '#10b981'
+              : status === 'in_progress' ? '#f59e0b'
+              : status === 'cancelled' ? 'var(--text-dim)'
+              : 'var(--primary)';
+            const fmtFull = (iso: string) => new Date(iso).toLocaleString([], { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
             return (
               <div key={a.id} style={{
                 background: 'var(--s2)', border: `1px solid ${isOverdue ? '#ef4444' : 'var(--border)'}`,
                 borderRadius: 10, padding: '12px 14px',
-                borderLeft: `4px solid ${isOverdue ? '#ef4444' : a.completed_at ? '#10b981' : 'var(--primary)'}`,
+                borderLeft: `4px solid ${isOverdue ? '#ef4444' : statusColor}`,
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, flexWrap: 'wrap' }}>
                   <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', flex: 1 }}>
                     <span style={{ fontSize: 18, lineHeight: 1 }}>{TYPE_ICONS[a.type] || '📌'}</span>
-                    <div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 2 }}>
                         {a.subject || a.type}
+                        <span style={{ marginLeft: 8, fontSize: 9, fontWeight: 800, padding: '2px 6px', borderRadius: 4, background: 'var(--s3)', color: statusColor, textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                          {status.replace('_', ' ')}
+                        </span>
                       </div>
                       {(a.body || a.description) && (
-                        <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 4, maxWidth: 500 }}>
-                          {(a.body || a.description || '').slice(0, 120)}{(a.body || a.description || '').length > 120 ? '…' : ''}
+                        <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 4, maxWidth: 560, whiteSpace: 'pre-wrap' }}>
+                          {a.body || a.description}
                         </div>
+                      )}
+                      {a.image_url && (
+                        /* Photo attached to this activity. Click → full-size in a new tab. */
+                        /* eslint-disable-next-line @next/next/no-img-element */
+                        <a href={a.image_url} target="_blank" rel="noreferrer" style={{ display: 'inline-block', marginTop: 6, marginBottom: 6 }}>
+                          <img src={a.image_url} alt="Activity photo" style={{ maxWidth: 220, maxHeight: 160, borderRadius: 8, border: '1px solid var(--border)', objectFit: 'cover', display: 'block' }} />
+                        </a>
                       )}
                       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
                         <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', padding: '1px 6px', borderRadius: 4, background: 'var(--s3)', color: 'var(--text-dim)' }}>{a.type}</span>
                         {a.due_at && (
                           <span style={{ fontSize: 11, color: isOverdue ? '#ef4444' : 'var(--text-dim)' }}>
                             {isOverdue ? '⚠ Overdue · ' : ''}
-                            {a.completed_at ? 'Completed' : 'Due'}: {new Date(a.due_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            {a.completed_at ? 'Scheduled' : 'Due'}: {fmtFull(a.due_at)}
                           </span>
                         )}
                         {a.completed_at && (
-                          <span style={{ fontSize: 11, color: '#10b981' }}>✓ Done</span>
+                          <span style={{ fontSize: 11, color: '#10b981', fontWeight: 600 }}>
+                            ✓ Completed: {fmtFull(a.completed_at)}
+                          </span>
                         )}
                       </div>
                     </div>
