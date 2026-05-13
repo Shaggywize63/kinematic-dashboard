@@ -173,7 +173,20 @@ class ApiClient {
 
     const res = await fetch(`${this.baseUrl}${safePath}`, { ...options, headers });
     if (res.status === 401) throw new Error('Unauthorized');
-    const data = await res.json();
+    // 204 No Content / empty body: don't try to JSON-parse (would throw
+    // "Unexpected end of JSON input"). This is how every DELETE comes back.
+    if (res.status === 204 || res.headers.get('content-length') === '0') {
+      if (!res.ok) throw new Error('Request failed');
+      return undefined as unknown as T;
+    }
+    const text = await res.text();
+    if (!text) {
+      if (!res.ok) throw new Error('Request failed');
+      return undefined as unknown as T;
+    }
+    let data: any;
+    try { data = JSON.parse(text); }
+    catch { throw new Error(text.slice(0, 200)); }
     if (!res.ok) throw new Error(data.error || data.message || 'Request failed');
     return data;
   }
