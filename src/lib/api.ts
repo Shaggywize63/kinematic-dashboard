@@ -132,7 +132,13 @@ class ApiClient {
     // canned JSON instead of touching the network so every dashboard renders
     // populated values.
     if (this.getUserEmail() === demo.DEMO_USER_EMAIL) {
-      const mocked = demo.matchDemoMock<T>(path, (options.method || 'GET').toUpperCase());
+      // Pass the parsed body so mocks that need to persist user input (e.g.
+      // creating a WhatsApp template) can read it.
+      let parsedBody: unknown;
+      if (options.body && typeof options.body === 'string') {
+        try { parsedBody = JSON.parse(options.body); } catch { parsedBody = undefined; }
+      }
+      const mocked = demo.matchDemoMock<T>(path, (options.method || 'GET').toUpperCase(), parsedBody);
       if (mocked !== undefined) return mocked;
     }
 

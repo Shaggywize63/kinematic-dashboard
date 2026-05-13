@@ -634,6 +634,78 @@ const CRM_PRODUCTS = [
   { id: 'demo-prod-5', name: 'GI Wire 8 SWG', sku: 'GI-8',  unit_price: 92,  unit: 'kg',  is_active: true },
 ];
 
+// Seed templates the demo user sees out of the box. New ones the demo user
+// creates are persisted to localStorage (key DEMO_WA_TEMPLATES_KEY) and
+// merged on read so the round-trip "create → see in list" works without a
+// backend.
+const CRM_WA_TEMPLATES_SEED = [
+  {
+    id: 'demo-wa-tpl-1',
+    org_id: 'demo-org-999',
+    meta_template_name: 'welcome_greeting',
+    category: 'utility',
+    language: 'en',
+    status: 'approved',
+    header_text: null,
+    body_text: 'Hi {{1}}, welcome to Kinematic! We are excited to help you grow your business.',
+    footer_text: 'Reply STOP to opt out.',
+    variables: ['first_name'],
+    created_at: _now(-30),
+    updated_at: _now(-30),
+  },
+  {
+    id: 'demo-wa-tpl-2',
+    org_id: 'demo-org-999',
+    meta_template_name: 'order_shipped',
+    category: 'utility',
+    language: 'en',
+    status: 'approved',
+    header_text: 'Order Shipped',
+    body_text: 'Hi {{1}}, your order #{{2}} has been shipped. Tracking link: {{3}}',
+    footer_text: null,
+    variables: ['first_name', 'order_id', 'tracking_url'],
+    created_at: _now(-14),
+    updated_at: _now(-14),
+  },
+  {
+    id: 'demo-wa-tpl-3',
+    org_id: 'demo-org-999',
+    meta_template_name: 'meeting_reminder',
+    category: 'utility',
+    language: 'en',
+    status: 'pending',
+    header_text: null,
+    body_text: 'Hi {{1}}, a quick reminder about our meeting at {{2}} tomorrow. Looking forward to it!',
+    footer_text: null,
+    variables: ['first_name', 'meeting_time'],
+    created_at: _now(-3),
+    updated_at: _now(-3),
+  },
+];
+
+const DEMO_WA_TEMPLATES_KEY = 'kinematic_demo_wa_templates';
+
+function readDemoWaTemplates(): Array<Record<string, unknown>> {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = window.localStorage.getItem(DEMO_WA_TEMPLATES_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch { return []; }
+}
+
+function writeDemoWaTemplates(rows: Array<Record<string, unknown>>) {
+  if (typeof window === 'undefined') return;
+  try { window.localStorage.setItem(DEMO_WA_TEMPLATES_KEY, JSON.stringify(rows)); } catch { /* quota */ }
+}
+
+function pushDemoWaTemplate(row: Record<string, unknown>) {
+  const list = readDemoWaTemplates();
+  list.unshift(row);
+  writeDemoWaTemplates(list);
+}
+
 // ---------------------------------------------------------------------------
 // Planogram mocks
 // ---------------------------------------------------------------------------
@@ -758,10 +830,13 @@ const PLAN_RISK_FORECAST = [
 const list = <T,>(rows: T[]) => ({ success: true, data: rows });
 const wrap = <T,>(body: T)  => ({ success: true, data: body });
 
-export function matchDemoMock<T>(rawPath: string, method: string): T | undefined {
+export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown): T | undefined {
   const noQuery = rawPath.split('?')[0];
   const path = noQuery.startsWith('/api/v1') ? noQuery.slice('/api/v1'.length) : noQuery;
   const m = method.toUpperCase();
+  const bodyObj: Record<string, unknown> = (body && typeof body === 'object' && !Array.isArray(body))
+    ? (body as Record<string, unknown>)
+    : {};
 
   if (m === 'GET') {
     // ---- Legacy analytics ----
@@ -811,7 +886,11 @@ export function matchDemoMock<T>(rawPath: string, method: string): T | undefined
     if (path === '/crm/territories')         return list(CRM_TERRITORIES)  as unknown as T;
     if (path === '/crm/products')            return list(CRM_PRODUCTS)     as unknown as T;
     if (path === '/crm/email-templates')     return list([])               as unknown as T;
-    if (path === '/crm/whatsapp-templates')  return list([])               as unknown as T;
+    if (path === '/crm/whatsapp-templates') {
+      // Seed + anything the demo user has saved this session.
+      const userMade = readDemoWaTemplates();
+      return list([...userMade, ...CRM_WA_TEMPLATES_SEED]) as unknown as T;
+    }
     if (path === '/crm/automations')         return list([])               as unknown as T;
     if (path === '/crm/assignment-rules')    return list([])               as unknown as T;
     if (path === '/crm/custom-fields')       return list([])               as unknown as T;
@@ -967,9 +1046,46 @@ export function matchDemoMock<T>(rawPath: string, method: string): T | undefined
 
   // Mutations: pretend-success no-op so the demo can click around without 500s.
   if (m === 'POST' || m === 'PATCH' || m === 'PUT') {
+    // Demo template CRUD: persist locally so the WhatsApp page can see what
+    // the user just created. Backend writes would otherwise be silently
+    // dropped by the noop response below.
+    if (m === 'POST' && path === '/crm/whatsapp-templates') {
+      const row = {
+        id: 'demo-wa-tpl-' + Math.random().toString(36).slice(2, 8),
+        org_id: 'demo-org-999',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        status: 'pending',
+        ...bodyObj,
+      };
+      pushDemoWaTemplate(row);
+      return wrap(row) as unknown as T;
+    }
+    if (m === 'PATCH' && path.startsWith('/crm/whatsapp-templates/')) {
+      const id = path.split('/').pop() || '';
+      const list = readDemoWaTemplates();
+      const idx = list.findIndex((r) => r.id === id);
+      if (idx >= 0) {
+        list[idx] = { ...list[idx], ...bodyObj, updated_at: new Date().toISOString() };
+        writeDemoWaTemplates(list);
+        return wrap(list[idx]) as unknown as T;
+      }
+      // If they're editing a seeded template, persist a copy so the change sticks.
+      const seed = CRM_WA_TEMPLATES_SEED.find((r) => r.id === id);
+      if (seed) {
+        const merged = { ...seed, ...bodyObj, updated_at: new Date().toISOString() };
+        pushDemoWaTemplate(merged);
+        return wrap(merged) as unknown as T;
+      }
+    }
     return wrap({ id: 'demo-noop-' + Math.random().toString(36).slice(2, 8), ok: true, demo: true }) as unknown as T;
   }
   if (m === 'DELETE') {
+    if (path.startsWith('/crm/whatsapp-templates/')) {
+      const id = path.split('/').pop() || '';
+      const list = readDemoWaTemplates().filter((r) => r.id !== id);
+      writeDemoWaTemplates(list);
+    }
     return wrap({ ok: true, demo: true }) as unknown as T;
   }
 
