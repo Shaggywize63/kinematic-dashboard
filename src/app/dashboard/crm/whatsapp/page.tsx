@@ -2,12 +2,15 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { crmContacts, crmLeads, crmActivities } from '../../../../lib/crmApi';
+import { crmContacts, crmLeads, crmActivities, crmWhatsappTemplates } from '../../../../lib/crmApi';
 import { waLink, isValidWaPhone } from '../../../../lib/whatsapp';
-import type { Contact, Lead } from '../../../../types/crm';
+import type { Contact, Lead, WhatsappTemplate } from '../../../../types/crm';
 import WhatsAppLogo from '../../../../components/icons/WhatsAppLogo';
 
-const TEMPLATES: Array<{ label: string; text: string }> = [
+// Built-in fall-backs surfaced when the org has no saved templates yet. As
+// soon as the user creates a template in /dashboard/crm/templates it shows
+// up here instead — we load real templates from the API on mount.
+const BUILTIN_TEMPLATES: Array<{ label: string; text: string }> = [
   { label: 'Greeting', text: 'Hi {name}, hope you are doing well! I wanted to follow up regarding your inquiry.' },
   { label: 'Follow-up', text: 'Hi {name}, just following up on our previous conversation. Do you have any questions I can help with?' },
   { label: 'Proposal', text: 'Hi {name}, I have put together a proposal for you. When would be a good time to walk through it?' },
@@ -16,6 +19,7 @@ const TEMPLATES: Array<{ label: string; text: string }> = [
 ];
 
 type SearchResult = { id: string; name: string; phone: string; type: 'lead' | 'contact' };
+type QuickTemplate = { label: string; text: string; header_media_url?: string | null; header_media_type?: 'image' | 'video' | 'document' | null };
 
 export default function WhatsAppPage() {
   const [phone, setPhone] = useState('');
@@ -26,6 +30,11 @@ export default function WhatsAppPage() {
   const [opened, setOpened] = useState(false);
   const [logging, setLogging] = useState(false);
   const [entityRef, setEntityRef] = useState<{ type: 'lead' | 'contact'; id: string } | null>(null);
+  // Saved WhatsApp templates from /dashboard/crm/templates. They appear in
+  // the quick-template strip below — clicking one fills both the message
+  // body AND (if the template has a media header) the attachment.
+  const [savedTemplates, setSavedTemplates] = useState<QuickTemplate[]>([]);
+  const [templatesLoaded, setTemplatesLoaded] = useState(false);
 
   useEffect(() => {
     if (!search.trim() || search.trim().length < 2) { setResults([]); return; }
@@ -77,9 +86,46 @@ export default function WhatsAppPage() {
     }
   };
 
-  const applyTemplate = (tpl: typeof TEMPLATES[number]) => {
+  // Pull saved WhatsApp templates so they appear right next to the built-in
+  // ones. If the org has at least one, we hide the built-ins so the user's
+  // own catalogue is what they see.
+  useEffect(() => {
+    let cancelled = false;
+    crmWhatsappTemplates.list({ limit: '50' } as never)
+      .then((r) => {
+        if (cancelled) return;
+        const rows = (r.data || []) as WhatsappTemplate[];
+        setSavedTemplates(rows.map((t) => ({
+          label: t.meta_template_name,
+          text: t.body_text || '',
+          header_media_url: t.header_media_url,
+          header_media_type: t.header_media_type,
+        })));
+        setTemplatesLoaded(true);
+      })
+      .catch(() => setTemplatesLoaded(true));
+    return () => { cancelled = true; };
+  }, []);
+
+  const visibleTemplates: QuickTemplate[] = savedTemplates.length ? savedTemplates : BUILTIN_TEMPLATES;
+
+  // Apply a template to the compose form. Substitutes {name} / {{1}} with the
+  // recipient's first name and, when the template carries a media header,
+  // attaches it automatically so Open in WhatsApp ships the photo / video /
+  // doc along with the body.
+  const applyTemplate = (tpl: QuickTemplate) => {
     const first = name ? name.split(' ')[0] : 'there';
-    setMessage(tpl.text.replace(/\{name\}/g, first));
+    const filled = (tpl.text || '')
+      .replace(/\{\{\s*1\s*\}\}/g, first)
+      .replace(/\{name\}/gi, first);
+    setMessage(filled);
+    if (tpl.header_media_url && tpl.header_media_type) {
+      setAttachment({
+        url: tpl.header_media_url,
+        kind: tpl.header_media_type,
+        name: tpl.label,
+      });
+    }
   };
 
   // Attached media is tracked separately so the textarea shows the message
@@ -114,18 +160,34 @@ export default function WhatsAppPage() {
 
   const openWhatsApp = async () => {
     if (!isValidWaPhone(phone)) { toast.error('Enter a valid phone number with country code'); return; }
+    const cleanPhone = phone.replace(/[\s\-().]/g, '').replace(/^\+/, '');
     // 1. If we have a file AND the browser supports Web Share with files,
     //    pop the system share sheet so the user can pick WhatsApp and the
-    //    file goes as a real attachment (not a URL paste).
+    //    file goes as a real attachment (not a URL paste). We pre-pend the
+    //    routing line `To +PHONE (Name):` into the share text so when the
+    //    user picks the chat in WhatsApp's contact picker they have the
+    //    target number visible (Android/iOS share intents do NOT carry
+    //    recipient info, so this is the best we can do without WhatsApp's
+    //    Business Cloud API).
     if (attachment?.file && typeof navigator !== 'undefined' && 'canShare' in navigator) {
+      const routingLine = `To: +${cleanPhone}${name ? ` (${name})` : ''}`;
+      const shareText = `${routingLine}\n\n${composedMessage}`.trim();
       try {
-        const data: ShareData = { files: [attachment.file], text: composedMessage } as ShareData;
+        const data: ShareData = { files: [attachment.file], text: shareText } as ShareData;
         const ok = (navigator as Navigator & { canShare?: (d: ShareData) => boolean }).canShare?.(data);
         if (ok) {
+          // Pre-open the wa.me link so the conversation with the target
+          // contact is already in front; the share sheet then targets the
+          // open chat by default on most Android builds. Two-step UX, but
+          // it's the only way to get both the phone AND a real file attach.
+          window.open(waLink(phone, ''), '_blank', 'noopener,noreferrer');
+          // Tiny defer so the OS has time to bring the chat to front before
+          // the share sheet appears.
+          await new Promise((res) => setTimeout(res, 350));
           await (navigator as Navigator & { share?: (d: ShareData) => Promise<void> }).share?.(data);
           setOpened(true);
-          toast.success('Pick WhatsApp from the share sheet to attach the file');
-          autoLogActivity(composedMessage);
+          toast.success(`Sharing to +${cleanPhone} — confirm the chat in WhatsApp`);
+          autoLogActivity(composedMessage || `(file: ${attachment.name || attachment.kind})`);
           return;
         }
       } catch (e: unknown) {
@@ -134,11 +196,12 @@ export default function WhatsAppPage() {
         if (msg.includes('AbortError') || msg.toLowerCase().includes('abort')) return;
       }
     }
-    // 2. Fallback: classic click-to-chat. Message body + media URL appended.
+    // 2. Fallback: classic click-to-chat. wa.me routes by phone; the media
+    //    URL is appended so WhatsApp renders an inline preview.
     const url = waLink(phone, composedWithUrl);
     window.open(url, '_blank', 'noopener,noreferrer');
     setOpened(true);
-    toast.success('WhatsApp opened — send your message there');
+    toast.success(`WhatsApp opened for +${cleanPhone}`);
     autoLogActivity(composedMessage || '(no message body)');
   };
 
@@ -232,18 +295,30 @@ export default function WhatsAppPage() {
         </div>
 
         <div style={{ marginBottom: 12 }}>
-          <Label>Quick Templates</Label>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {TEMPLATES.map((t) => (
-              <button
-                key={t.label}
-                type="button"
-                onClick={() => applyTemplate(t)}
-                style={{ padding: '5px 10px', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text)', fontSize: 12, cursor: 'pointer', fontWeight: 600 }}
-              >
-                {t.label}
-              </button>
-            ))}
+          <Label>
+            {savedTemplates.length ? `Your Templates (${savedTemplates.length})` : 'Quick Templates'}
+          </Label>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+            {!templatesLoaded ? (
+              <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>Loading templates…</span>
+            ) : visibleTemplates.length === 0 ? (
+              <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>
+                No templates yet. <Link href="/dashboard/crm/templates" style={{ color: 'var(--primary)' }}>Create one →</Link>
+              </span>
+            ) : (
+              visibleTemplates.map((t) => (
+                <button
+                  key={t.label}
+                  type="button"
+                  onClick={() => applyTemplate(t)}
+                  title={t.text.slice(0, 200)}
+                  style={{ padding: '5px 10px', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text)', fontSize: 12, cursor: 'pointer', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                >
+                  {t.header_media_type === 'image' ? '🖼️ ' : t.header_media_type === 'video' ? '🎬 ' : t.header_media_type === 'document' ? '📎 ' : ''}
+                  {t.label}
+                </button>
+              ))
+            )}
           </div>
         </div>
 
