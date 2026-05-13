@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { crmContacts, crmLeads, crmActivities } from '../../../../lib/crmApi';
@@ -204,7 +204,10 @@ export default function WhatsAppPage() {
             placeholder="Type your message here, or pick a quick template above..."
             style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5 }}
           />
-          <div style={{ fontSize: 11, color: 'var(--text-dim)', textAlign: 'right', marginTop: 2 }}>{message.length} characters</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 2 }}>
+            <MediaAttachButton onAttach={(url) => setMessage((m) => (m ? `${m}\n${url}` : url))} />
+            <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{message.length} characters</div>
+          </div>
         </div>
 
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -290,4 +293,55 @@ function Label({ children }: { children: React.ReactNode }) {
 
 function Hint({ children }: { children: React.ReactNode }) {
   return <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 3 }}>{children}</div>;
+}
+
+// WhatsApp click-to-chat URLs only carry phone + text; native WA renders
+// image/video/document previews from links in the message body. So
+// uploading here just produces a public URL and appends it to the
+// message — recipient sees the inline preview WhatsApp generates.
+function MediaAttachButton({ onAttach }: { onAttach: (url: string) => void }) {
+  const photoRef = useRef<HTMLInputElement>(null);
+  const docRef   = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+
+  const upload = async (f: File, kind: 'photo' | 'material') => {
+    if (!f) return;
+    if (f.size > 25 * 1024 * 1024) { toast.error('File must be under 25 MB'); return; }
+    setBusy(true);
+    try {
+      const fd = new FormData();
+      fd.append(kind === 'photo' ? 'photo' : 'file', f);
+      const token = typeof window !== 'undefined' ? localStorage.getItem('kinematic_token') : null;
+      const orgId = typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('kinematic_user') || '{}').org_id || '') : '';
+      const r = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/upload/${kind}`, {
+        method: 'POST',
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(orgId ? { 'X-Org-Id': orgId } : {}) },
+        body: fd,
+      });
+      const json = await r.json();
+      const url = json?.data?.url || json?.url;
+      if (!url) throw new Error(json?.error || json?.message || 'Upload failed');
+      onAttach(url);
+      toast.success('Attached');
+    } catch (e: any) { toast.error(e.message || 'Upload failed'); }
+    finally {
+      setBusy(false);
+      if (photoRef.current) photoRef.current.value = '';
+      if (docRef.current)   docRef.current.value   = '';
+    }
+  };
+
+  const btn: React.CSSProperties = {
+    background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text-dim)',
+    padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+  };
+  return (
+    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+      <input ref={photoRef} type="file" accept="image/*" capture="environment" onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f, 'photo'); }} disabled={busy} style={{ display: 'none' }} />
+      <input ref={docRef}   type="file" accept=".pdf,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f, 'material'); }} disabled={busy} style={{ display: 'none' }} />
+      <button type="button" onClick={() => photoRef.current?.click()} disabled={busy} style={btn} title="Attach an image — appended as a link, WhatsApp shows an inline preview">📷 Image</button>
+      <button type="button" onClick={() => docRef.current?.click()}   disabled={busy} style={btn} title="Attach a PDF / DOC">📎 File</button>
+      {busy && <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>Uploading…</span>}
+    </div>
+  );
 }

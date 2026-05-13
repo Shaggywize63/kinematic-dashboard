@@ -4,10 +4,14 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { crmActivities, crmLeads, crmContacts, crmDeals, crmAccounts } from '../../../../../lib/crmApi';
 import api from '../../../../../lib/api';
+import { getStoredUser } from '../../../../../lib/auth';
 import type { Lead } from '../../../../../types/crm';
 import UserSearchSelect, { type UserOption } from '../../../../../components/crm/shared/UserSearchSelect';
 
-const TYPES = [
+// Built-ins are kept for the initial render before the API responds. The
+// real list (including any client-specific custom types) loads from
+// /api/v1/crm/activity-types on mount.
+const BUILTIN_TYPES = [
   { value: 'call', label: 'Call' },
   { value: 'meeting', label: 'Meeting' },
   { value: 'task', label: 'Task' },
@@ -16,6 +20,8 @@ const TYPES = [
   { value: 'sms', label: 'SMS' },
   { value: 'whatsapp', label: 'WhatsApp' },
 ];
+
+interface ActivityType { id: string; slug: string; name: string; icon?: string | null }
 
 const ENTITY_TYPES = [
   { value: '', label: '— None —' },
@@ -30,10 +36,16 @@ type EntityOption = { id: string; label: string };
 export default function NewActivityPage() {
   const router = useRouter();
   const [type, setType] = useState<string>('call');
+  const [activityTypes, setActivityTypes] = useState<Array<{ value: string; label: string; icon?: string | null }>>(BUILTIN_TYPES);
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
   const [dueAt, setDueAt] = useState('');
-  const [assignedTo, setAssignedTo] = useState('');
+  // Default the assignee to the signed-in user so the most common case
+  // ("log something I just did") needs zero extra clicks.
+  const [assignedTo, setAssignedTo] = useState<string>(() => {
+    const u = getStoredUser() as { id?: string } | null;
+    return u?.id || '';
+  });
   const [entityType, setEntityType] = useState('');
   const [entityId, setEntityId] = useState('');
   const [users, setUsers] = useState<UserOption[]>([]);
@@ -43,8 +55,11 @@ export default function NewActivityPage() {
   const galleryRef = useRef<HTMLInputElement>(null);
   const cameraRef  = useRef<HTMLInputElement>(null);
 
-  // Upload via /api/v1/upload/photo (the endpoint is /:type — was a typo
-  // before, no type meant 404). Returns { url, path, bucket }.
+  // Upload via /api/v1/upload/photo. Backend's `uploadSingle` multer
+  // middleware expects the file under the field name `photo` (NOT `file` —
+  // that's the document-upload field on /upload/material). Was failing
+  // silently before because the wrong field name → multer rejects with
+  // "no file provided".
   const uploadImage = async (f: File) => {
     if (!f) return;
     if (!/^image\//.test(f.type)) { toast.error('Pick an image file'); return; }
@@ -52,7 +67,7 @@ export default function NewActivityPage() {
     setUploading(true);
     try {
       const fd = new FormData();
-      fd.append('file', f);
+      fd.append('photo', f);
       const token = typeof window !== 'undefined' ? localStorage.getItem('kinematic_token') : null;
       const orgId = typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('kinematic_user') || '{}').org_id || '') : '';
       const r = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/upload/photo`, {
@@ -88,6 +103,16 @@ export default function NewActivityPage() {
           id: x.id, name: x.name || x.full_name || x.email || 'User',
         }));
         setUsers(list);
+      })
+      .catch(() => {});
+    // Pull the full activity-type catalog (built-ins + custom rows). Backend
+    // already merges them and de-duplicates by slug.
+    api.get<{ success?: boolean; data?: ActivityType[] } | ActivityType[]>('/api/v1/crm/activity-types')
+      .then((r) => {
+        const rows = (Array.isArray(r) ? r : (r.data ?? [])) as ActivityType[];
+        if (rows.length) {
+          setActivityTypes(rows.map((row) => ({ value: row.slug, label: row.name, icon: row.icon })));
+        }
       })
       .catch(() => {});
   }, []);
@@ -189,7 +214,7 @@ export default function NewActivityPage() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
           <Field label="Type *">
             <select value={type} onChange={(e) => setType(e.target.value)} style={input}>
-              {TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+              {activityTypes.map((t) => <option key={t.value} value={t.value}>{t.icon ? `${t.icon} ` : ''}{t.label}</option>)}
             </select>
           </Field>
           <Field label="Subject *">
