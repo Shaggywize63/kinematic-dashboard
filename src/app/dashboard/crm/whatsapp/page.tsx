@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { crmContacts, crmLeads, crmActivities, crmWhatsappTemplates } from '../../../../lib/crmApi';
@@ -19,7 +19,7 @@ const BUILTIN_TEMPLATES: Array<{ label: string; text: string }> = [
 ];
 
 type SearchResult = { id: string; name: string; phone: string; type: 'lead' | 'contact' };
-type QuickTemplate = { label: string; text: string; header_media_url?: string | null; header_media_type?: 'image' | 'video' | 'document' | null };
+type QuickTemplate = { label: string; text: string };
 
 export default function WhatsAppPage() {
   const [phone, setPhone] = useState('');
@@ -30,9 +30,6 @@ export default function WhatsAppPage() {
   const [opened, setOpened] = useState(false);
   const [logging, setLogging] = useState(false);
   const [entityRef, setEntityRef] = useState<{ type: 'lead' | 'contact'; id: string } | null>(null);
-  // Saved WhatsApp templates from /dashboard/crm/templates. They appear in
-  // the quick-template strip below — clicking one fills both the message
-  // body AND (if the template has a media header) the attachment.
   const [savedTemplates, setSavedTemplates] = useState<QuickTemplate[]>([]);
   const [templatesLoaded, setTemplatesLoaded] = useState(false);
 
@@ -98,8 +95,6 @@ export default function WhatsAppPage() {
         setSavedTemplates(rows.map((t) => ({
           label: t.meta_template_name,
           text: t.body_text || '',
-          header_media_url: t.header_media_url,
-          header_media_type: t.header_media_type,
         })));
         setTemplatesLoaded(true);
       })
@@ -109,39 +104,19 @@ export default function WhatsAppPage() {
 
   const visibleTemplates: QuickTemplate[] = savedTemplates.length ? savedTemplates : BUILTIN_TEMPLATES;
 
-  // Apply a template to the compose form. Substitutes {name} / {{1}} with the
-  // recipient's first name and, when the template carries a media header,
-  // attaches it automatically so Open in WhatsApp ships the photo / video /
-  // doc along with the body.
+  // Apply a template to the compose form. Substitutes {name} (legacy) and
+  // {{1}} (Meta-style) with the recipient's first name.
   const applyTemplate = (tpl: QuickTemplate) => {
     const first = name ? name.split(' ')[0] : 'there';
     const filled = (tpl.text || '')
       .replace(/\{\{\s*1\s*\}\}/g, first)
       .replace(/\{name\}/gi, first);
     setMessage(filled);
-    if (tpl.header_media_url && tpl.header_media_type) {
-      setAttachment({
-        url: tpl.header_media_url,
-        kind: tpl.header_media_type,
-        name: tpl.label,
-      });
-    }
   };
-
-  // Attached media is tracked separately so the textarea shows the message
-  // body cleanly. We keep the underlying File around so we can actually share
-  // it (Web Share API on mobile) instead of just pasting a URL.
-  const [attachment, setAttachment] = useState<{ url: string; kind: 'image' | 'document' | 'video'; file?: File; mime?: string; name?: string } | null>(null);
-
-  /** Compose the final outbound message: just the body. When using Web Share
-   *  we also pass the file separately; when falling back to wa.me we append
-   *  the URL so WhatsApp renders an inline preview. */
-  const composedMessage = message;
-  const composedWithUrl = attachment ? `${message ? `${message}\n` : ''}${attachment.url}` : message;
 
   /** Fire the "WhatsApp message" activity on a linked lead/contact. We do
    *  this on Open click (not just on the explicit Log button) because the
-   *  user explicitly asked us to record the moment the chat is opened. */
+   *  user wanted the moment the chat is opened on record. */
   const autoLogActivity = async (note: string) => {
     if (!entityRef) return;
     try {
@@ -153,61 +128,23 @@ export default function WhatsAppPage() {
         completed_at: new Date().toISOString(),
       };
       body[`${entityRef.type}_id`] = entityRef.id;
-      if (attachment?.url) body.image_url = attachment.kind === 'image' ? attachment.url : undefined;
       await crmActivities.create(body as never);
     } catch { /* non-fatal — open the chat regardless */ }
   };
 
-  const openWhatsApp = async () => {
+  const openWhatsApp = () => {
     if (!isValidWaPhone(phone)) { toast.error('Enter a valid phone number with country code'); return; }
     const cleanPhone = phone.replace(/[\s\-().]/g, '').replace(/^\+/, '');
-    // 1. If we have a file AND the browser supports Web Share with files,
-    //    pop the system share sheet so the user can pick WhatsApp and the
-    //    file goes as a real attachment (not a URL paste). We pre-pend the
-    //    routing line `To +PHONE (Name):` into the share text so when the
-    //    user picks the chat in WhatsApp's contact picker they have the
-    //    target number visible (Android/iOS share intents do NOT carry
-    //    recipient info, so this is the best we can do without WhatsApp's
-    //    Business Cloud API).
-    if (attachment?.file && typeof navigator !== 'undefined' && 'canShare' in navigator) {
-      const routingLine = `To: +${cleanPhone}${name ? ` (${name})` : ''}`;
-      const shareText = `${routingLine}\n\n${composedMessage}`.trim();
-      try {
-        const data: ShareData = { files: [attachment.file], text: shareText } as ShareData;
-        const ok = (navigator as Navigator & { canShare?: (d: ShareData) => boolean }).canShare?.(data);
-        if (ok) {
-          // Pre-open the wa.me link so the conversation with the target
-          // contact is already in front; the share sheet then targets the
-          // open chat by default on most Android builds. Two-step UX, but
-          // it's the only way to get both the phone AND a real file attach.
-          window.open(waLink(phone, ''), '_blank', 'noopener,noreferrer');
-          // Tiny defer so the OS has time to bring the chat to front before
-          // the share sheet appears.
-          await new Promise((res) => setTimeout(res, 350));
-          await (navigator as Navigator & { share?: (d: ShareData) => Promise<void> }).share?.(data);
-          setOpened(true);
-          toast.success(`Sharing to +${cleanPhone} — confirm the chat in WhatsApp`);
-          autoLogActivity(composedMessage || `(file: ${attachment.name || attachment.kind})`);
-          return;
-        }
-      } catch (e: unknown) {
-        // User cancelled, or share failed — fall through to wa.me.
-        const msg = e instanceof Error ? e.message : '';
-        if (msg.includes('AbortError') || msg.toLowerCase().includes('abort')) return;
-      }
-    }
-    // 2. Fallback: classic click-to-chat. wa.me routes by phone; the media
-    //    URL is appended so WhatsApp renders an inline preview.
-    const url = waLink(phone, composedWithUrl);
+    const url = waLink(phone, message);
     window.open(url, '_blank', 'noopener,noreferrer');
     setOpened(true);
     toast.success(`WhatsApp opened for +${cleanPhone}`);
-    autoLogActivity(composedMessage || '(no message body)');
+    autoLogActivity(message || '(no message body)');
   };
 
   const copyMessage = () => {
-    if (!composedMessage.trim()) { toast.error('No message to copy'); return; }
-    navigator.clipboard.writeText(composedMessage)
+    if (!message.trim()) { toast.error('No message to copy'); return; }
+    navigator.clipboard.writeText(message)
       .then(() => toast.success('Message copied'))
       .catch(() => toast.error('Copy failed'));
   };
@@ -232,7 +169,7 @@ export default function WhatsAppPage() {
     } finally { setLogging(false); }
   };
 
-  const previewLink = phone.trim() && isValidWaPhone(phone) ? waLink(phone, composedMessage) : null;
+  const previewLink = phone.trim() && isValidWaPhone(phone) ? waLink(phone, message) : null;
 
   return (
     <div style={{ maxWidth: 720 }}>
@@ -312,9 +249,8 @@ export default function WhatsAppPage() {
                   type="button"
                   onClick={() => applyTemplate(t)}
                   title={t.text.slice(0, 200)}
-                  style={{ padding: '5px 10px', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text)', fontSize: 12, cursor: 'pointer', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                  style={{ padding: '5px 10px', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text)', fontSize: 12, cursor: 'pointer', fontWeight: 600 }}
                 >
-                  {t.header_media_type === 'image' ? '🖼️ ' : t.header_media_type === 'video' ? '🎬 ' : t.header_media_type === 'document' ? '📎 ' : ''}
                   {t.label}
                 </button>
               ))
@@ -331,29 +267,7 @@ export default function WhatsAppPage() {
             placeholder="Type your message here, or pick a quick template above..."
             style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5 }}
           />
-          {attachment && (
-            <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 10, padding: 8, background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 10 }}>
-              {attachment.kind === 'image' ? (
-                /* eslint-disable-next-line @next/next/no-img-element */
-                <img src={attachment.url} alt="Attached" style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 6 }} />
-              ) : attachment.kind === 'video' ? (
-                <div style={{ width: 56, height: 56, borderRadius: 6, background: 'var(--s2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28 }}>🎬</div>
-              ) : (
-                <div style={{ width: 56, height: 56, borderRadius: 6, background: 'var(--s2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28 }}>📄</div>
-              )}
-              <div style={{ flex: 1, fontSize: 12, color: 'var(--text-dim)' }}>
-                {attachment.kind === 'image' ? 'Image' : attachment.kind === 'video' ? 'Video' : 'Document'} attached{attachment.name ? ` — ${attachment.name}` : ''}
-                <div style={{ fontSize: 11, color: 'var(--text-dim)', opacity: 0.7, marginTop: 2 }}>
-                  {attachment.file
-                    ? 'On mobile, Open in WhatsApp will share the file directly via the share sheet. On desktop, WhatsApp will preview the link.'
-                    : 'WhatsApp will preview the link when you send.'}
-                </div>
-              </div>
-              <button type="button" onClick={() => setAttachment(null)} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '6px 10px', borderRadius: 6, fontSize: 11, cursor: 'pointer' }}>Remove</button>
-            </div>
-          )}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6, gap: 8, flexWrap: 'wrap' }}>
-            <MediaAttachButton onAttach={(a) => setAttachment(a)} hasAttachment={!!attachment} />
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 6 }}>
             <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{message.length} characters</div>
           </div>
         </div>
@@ -443,66 +357,4 @@ function Label({ children }: { children: React.ReactNode }) {
 
 function Hint({ children }: { children: React.ReactNode }) {
   return <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 3 }}>{children}</div>;
-}
-
-// On supported browsers (Chrome Android, Safari iOS) we hand the File to
-// the system share sheet via navigator.share so WhatsApp receives a real
-// attachment. On desktop browsers without canShare(files), we fall back to
-// uploading the file and appending the URL — WhatsApp still renders an
-// inline preview, but the recipient gets a link rather than a file.
-function MediaAttachButton({ onAttach, hasAttachment }: { onAttach: (a: { url: string; kind: 'image' | 'document' | 'video'; file?: File; mime?: string; name?: string }) => void; hasAttachment: boolean }) {
-  const photoRef = useRef<HTMLInputElement>(null);
-  const docRef   = useRef<HTMLInputElement>(null);
-  const videoRef = useRef<HTMLInputElement>(null);
-  const [busy, setBusy] = useState(false);
-
-  const upload = async (f: File, kind: 'image' | 'document' | 'video') => {
-    if (!f) return;
-    if (f.size > 25 * 1024 * 1024) { toast.error('File must be under 25 MB'); return; }
-    setBusy(true);
-    try {
-      const fd = new FormData();
-      // /upload/photo uses field `photo`, /upload/material uses field `file`.
-      const uploadType = kind === 'image' ? 'photo' : 'material';
-      fd.append(kind === 'image' ? 'photo' : 'file', f);
-      const token = typeof window !== 'undefined' ? localStorage.getItem('kinematic_token') : null;
-      const orgId = typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('kinematic_user') || '{}').org_id || '') : '';
-      const r = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/upload/${uploadType}`, {
-        method: 'POST',
-        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(orgId ? { 'X-Org-Id': orgId } : {}) },
-        body: fd,
-      });
-      const json = await r.json();
-      const url = json?.data?.url || json?.url;
-      if (!url) throw new Error(json?.error || json?.message || 'Upload failed');
-      // Pass the File along so Open-in-WhatsApp can use the Share Sheet on mobile.
-      onAttach({ url, kind, file: f, mime: f.type, name: f.name });
-      toast.success('Attached');
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Upload failed';
-      toast.error(msg);
-    } finally {
-      setBusy(false);
-      if (photoRef.current) photoRef.current.value = '';
-      if (docRef.current)   docRef.current.value   = '';
-      if (videoRef.current) videoRef.current.value = '';
-    }
-  };
-
-  const btn: React.CSSProperties = {
-    background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text-dim)',
-    padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer',
-    opacity: hasAttachment ? 0.5 : 1,
-  };
-  return (
-    <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-      <input ref={photoRef} type="file" accept="image/*" capture="environment" onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f, 'image'); }} disabled={busy || hasAttachment} style={{ display: 'none' }} />
-      <input ref={videoRef} type="file" accept="video/*" onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f, 'video'); }} disabled={busy || hasAttachment} style={{ display: 'none' }} />
-      <input ref={docRef}   type="file" accept=".pdf,application/pdf,.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f, 'document'); }} disabled={busy || hasAttachment} style={{ display: 'none' }} />
-      <button type="button" onClick={() => photoRef.current?.click()} disabled={busy || hasAttachment} style={btn} title={hasAttachment ? 'Remove the current attachment first' : 'Attach an image'}>📷 Image</button>
-      <button type="button" onClick={() => videoRef.current?.click()} disabled={busy || hasAttachment} style={btn} title={hasAttachment ? 'Remove the current attachment first' : 'Attach a video'}>🎬 Video</button>
-      <button type="button" onClick={() => docRef.current?.click()}   disabled={busy || hasAttachment} style={btn} title={hasAttachment ? 'Remove the current attachment first' : 'Attach a PDF / DOC / XLS'}>📎 File</button>
-      {busy && <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>Uploading…</span>}
-    </div>
-  );
 }
