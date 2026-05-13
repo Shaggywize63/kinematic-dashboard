@@ -348,24 +348,47 @@ function RoutePlanContent() {
     setCreating(true);
     setError(null);
     try {
-      await api.post('/api/v1/route-plans', {
-        user_id:        form.user_id,
-        activity_ids:   form.activity_ids,
-        plan_date:      form.plan_date,
-        notes:          form.notes || null,
-        frequency:      form.frequency,
-        territory_label:form.territory_label || null,
-        outlets: form.outlets.map(o => ({
-          store_id:             o.store_id,
-          target_type:          o.target_type,
-          target_notes:         o.target_notes || null,
-          target_value:         o.target_value ? parseFloat(o.target_value) : null,
-          visit_order:          o.visit_order,
-          planned_duration_min: o.planned_duration_min ? parseInt(o.planned_duration_min) : null,
-        })),
-      });
-      setModal(null);
-      resetForm();
+      // Backend creates one plan per (user, activity, date) — same shape as
+      // bulk-import. The form lets you tick multiple activities, so we fan
+      // out the POSTs and collect failures so partial success is surfaced.
+      const outletsPayload = form.outlets.map(o => ({
+        store_id:             o.store_id,
+        target_type:          o.target_type,
+        target_notes:         o.target_notes || null,
+        target_value:         o.target_value ? parseFloat(o.target_value) : null,
+        visit_order:          o.visit_order,
+        planned_duration_min: o.planned_duration_min ? parseInt(o.planned_duration_min) : null,
+      }));
+
+      const results = await Promise.allSettled(
+        form.activity_ids.map(aid =>
+          api.post('/api/v1/route-plans', {
+            user_id:         form.user_id,
+            activity_id:     aid,
+            plan_date:       form.plan_date,
+            notes:           form.notes || null,
+            frequency:       form.frequency,
+            territory_label: form.territory_label || null,
+            outlets:         outletsPayload,
+          })
+        )
+      );
+
+      const failures = results
+        .map((r, i) => ({ r, aid: form.activity_ids[i] }))
+        .filter(x => x.r.status === 'rejected');
+
+      if (failures.length === form.activity_ids.length) {
+        const first = failures[0].r as PromiseRejectedResult;
+        throw new Error(first.reason?.message || 'Failed to create route plan');
+      }
+
+      if (failures.length > 0) {
+        setError(`Created ${form.activity_ids.length - failures.length} of ${form.activity_ids.length} plans. ${failures.length} failed.`);
+      } else {
+        setModal(null);
+        resetForm();
+      }
       fetchData();
     } catch (e: any) {
       setError(e.message || 'Failed to create route plan');
