@@ -48,7 +48,7 @@ export default function SubmissionsPage() {
       if (filter === 'tff') params.is_tff = 'true';
       if (filter === 'non_tff') params.is_tff = 'false';
       const qs = new URLSearchParams(params).toString();
-      const res = await api.get<PaginatedResult>(`/api/v1/builder/forms/admin/submissions?${qs}`);
+      const res = await api.get<PaginatedResult>(`/api/v1/forms/admin/submissions?${qs}`);
       const d = res as any;
       setSubmissions(d.data || d.submissions || (Array.isArray(d) ? d : []));
       setTotal(d.total || d.count || 0);
