@@ -541,11 +541,15 @@ export default function WorkActivitiesPage() {
                               })
                            : (detailedSub.form_responses && detailedSub.form_responses.length > 0)
                            ? detailedSub.form_responses.map((r: any, idx: number) => {
+                               // photo_url first so image/signature fields render their attachments —
+                               // value_text is empty for those rows and the renderer needs a URL to
+                               // hand to <img>. Without this branch every image field showed "—".
+                               const fallbackValue = r.photo_url ?? r.value_text ?? r.value_number ?? r.value_bool ?? null;
                                const answer: FormAnswer = {
                                    label: r.builder_questions?.label || 'Question',
                                    qtype: r.builder_questions?.qtype || r.qtype || 'text',
-                                   value: r.value_text ?? r.value_number ?? r.value_bool ?? null,
-                                   display: (r.value_text ?? r.value_number ?? r.value_bool ?? '—').toString()
+                                   value: fallbackValue,
+                                   display: (fallbackValue ?? '—').toString()
                                };
                                const rendered = renderAnswerValue(answer, (urls, i) => setLightbox({ urls, index: i }));
                                if (rendered === null) return null;

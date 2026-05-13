@@ -100,6 +100,17 @@ export function extractImageUrls(value: any): string[] {
   if (Array.isArray(value)) {
     return value.map(normalize).filter((v): v is string => !!v);
   }
+  // iOS sends multi-image responses as comma-joined URL strings (the
+  // form submission pipeline does `uploadedUrls.joined(",")`), so a
+  // single string can actually be N URLs. Split on commas before
+  // normalising so each one becomes its own <img>.
+  if (typeof value === 'string' && value.includes(',')) {
+    return value
+      .split(',')
+      .map(s => s.trim())
+      .map(normalize)
+      .filter((v): v is string => !!v);
+  }
   const result = normalize(value);
   return result ? [result] : [];
 }
