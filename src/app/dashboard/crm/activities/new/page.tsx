@@ -97,14 +97,26 @@ export default function NewActivityPage() {
   const entityInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    const self = getStoredUser() as { id?: string; name?: string; email?: string } | null;
     (api.getUsers({ limit: '500' }) as Promise<any>)
       .then((u) => {
         const list: UserOption[] = (u.data || u || []).map((x: any) => ({
           id: x.id, name: x.name || x.full_name || x.email || 'User',
         }));
+        // Make sure the signed-in user shows up in the picker (otherwise
+        // the default-to-self value points to a non-option and the field
+        // looks blank). Client-level users won't appear in /users for org
+        // admins, so we always inject them.
+        if (self?.id && !list.some((p) => p.id === self.id)) {
+          list.unshift({ id: self.id, name: `${self.name || self.email || 'You'} (you)` });
+        }
         setUsers(list);
       })
-      .catch(() => {});
+      .catch(() => {
+        // Even if the /users call fails (client-level users without users
+        // module access), let them still pick themselves.
+        if (self?.id) setUsers([{ id: self.id, name: `${self.name || self.email || 'You'} (you)` }]);
+      });
     // Pull the full activity-type catalog (built-ins + custom rows). Backend
     // already merges them and de-duplicates by slug.
     api.get<{ success?: boolean; data?: ActivityType[] } | ActivityType[]>('/api/v1/crm/activity-types')
@@ -182,11 +194,18 @@ export default function NewActivityPage() {
     e.preventDefault();
     if (!subject.trim()) return toast.error('Subject is required');
     setBusy(true);
+    const nowIso = new Date().toISOString();
+    // No schedule + non-task type → "happening now". We mark it completed
+    // immediately so it shows on the timeline with a real timestamp rather
+    // than sitting in the open queue with no due date.
+    const noSchedule = !dueAt;
     const payload: Record<string, unknown> = {
       type,
       subject: subject.trim(),
       body: body.trim() || undefined,
       due_at: dueAt ? new Date(dueAt).toISOString() : undefined,
+      completed_at: noSchedule && type !== 'task' ? nowIso : undefined,
+      status:       noSchedule && type !== 'task' ? 'completed' : 'planned',
       assigned_to: assignedTo || undefined,
       image_url: imageUrl || undefined,
     };
@@ -228,11 +247,8 @@ export default function NewActivityPage() {
           {imageUrl ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 10, background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 10 }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={imageUrl} alt="attachment" style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 8 }} />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 12, color: 'var(--text)', wordBreak: 'break-all' }}>{imageUrl}</div>
-                <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2 }}>Attached to this activity.</div>
-              </div>
+              <img src={imageUrl} alt="Activity photo" style={{ width: 96, height: 96, objectFit: 'cover', borderRadius: 8 }} />
+              <div style={{ flex: 1, fontSize: 12, color: 'var(--text-dim)' }}>Photo attached.</div>
               <button type="button" onClick={() => setImageUrl('')} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '6px 12px', borderRadius: 8, fontSize: 12, cursor: 'pointer' }}>Remove</button>
             </div>
           ) : (
@@ -276,8 +292,14 @@ export default function NewActivityPage() {
           )}
         </Field>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginTop: 12 }}>
-          <Field label={type === 'task' ? 'Due Date & Time' : 'Scheduled At'}>
-            <input type="datetime-local" value={dueAt} onChange={(e) => setDueAt(e.target.value)} style={input} />
+          <Field label={`${type === 'task' ? 'Due Date & Time' : 'Scheduled At'} (optional)`}>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <input type="datetime-local" value={dueAt} onChange={(e) => setDueAt(e.target.value)} style={input} />
+              {dueAt && (
+                <button type="button" onClick={() => setDueAt('')} title="Clear schedule — log it for right now" style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '6px 10px', borderRadius: 8, fontSize: 11, cursor: 'pointer' }}>Now</button>
+              )}
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 4 }}>Leave blank to log it as happening right now.</div>
           </Field>
           <Field label="Assign To">
             <UserSearchSelect

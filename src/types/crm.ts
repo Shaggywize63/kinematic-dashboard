@@ -167,6 +167,8 @@ export interface Activity {
   duration_min?: number | null; outcome?: string | null;
   lead_id?: string | null; contact_id?: string | null; account_id?: string | null; deal_id?: string | null;
   owner_id?: string | null; owner_name?: string | null;
+  // Optional single image attached at log time (e.g. site-visit photo).
+  image_url?: string | null;
   created_at: string; updated_at: string;
 }
 

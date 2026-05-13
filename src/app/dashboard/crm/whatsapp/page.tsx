@@ -82,17 +82,27 @@ export default function WhatsAppPage() {
     setMessage(tpl.text.replace(/\{name\}/g, first));
   };
 
+  // Attached media is tracked separately so the textarea shows the message
+  // body cleanly. The URL is appended right before opening WhatsApp — recipient
+  // sees the inline preview WhatsApp renders from any URL in a message.
+  const [attachment, setAttachment] = useState<{ url: string; kind: 'image' | 'document' } | null>(null);
+
+  /** Compose the final outbound message: message body + (newline + URL) when an
+   *  attachment is set. Used both for the click-to-chat link and for the
+   *  preview / copy actions so they always agree. */
+  const composedMessage = attachment ? `${message ? `${message}\n` : ''}${attachment.url}` : message;
+
   const openWhatsApp = () => {
     if (!isValidWaPhone(phone)) { toast.error('Enter a valid phone number with country code'); return; }
-    const url = waLink(phone, message);
+    const url = waLink(phone, composedMessage);
     window.open(url, '_blank', 'noopener,noreferrer');
     setOpened(true);
     toast.success('WhatsApp opened — send your message there');
   };
 
   const copyMessage = () => {
-    if (!message.trim()) { toast.error('No message to copy'); return; }
-    navigator.clipboard.writeText(message)
+    if (!composedMessage.trim()) { toast.error('No message to copy'); return; }
+    navigator.clipboard.writeText(composedMessage)
       .then(() => toast.success('Message copied'))
       .catch(() => toast.error('Copy failed'));
   };
@@ -117,7 +127,7 @@ export default function WhatsAppPage() {
     } finally { setLogging(false); }
   };
 
-  const previewLink = phone.trim() && isValidWaPhone(phone) ? waLink(phone, message) : null;
+  const previewLink = phone.trim() && isValidWaPhone(phone) ? waLink(phone, composedMessage) : null;
 
   return (
     <div style={{ maxWidth: 720 }}>
@@ -204,8 +214,23 @@ export default function WhatsAppPage() {
             placeholder="Type your message here, or pick a quick template above..."
             style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5 }}
           />
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 2 }}>
-            <MediaAttachButton onAttach={(url) => setMessage((m) => (m ? `${m}\n${url}` : url))} />
+          {attachment && (
+            <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 10, padding: 8, background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 10 }}>
+              {attachment.kind === 'image' ? (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img src={attachment.url} alt="Attached" style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 6 }} />
+              ) : (
+                <div style={{ width: 56, height: 56, borderRadius: 6, background: 'var(--s2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28 }}>📄</div>
+              )}
+              <div style={{ flex: 1, fontSize: 12, color: 'var(--text-dim)' }}>
+                {attachment.kind === 'image' ? 'Image attached' : 'Document attached'}
+                <div style={{ fontSize: 11, color: 'var(--text-dim)', opacity: 0.7, marginTop: 2 }}>WhatsApp will preview the link when you send.</div>
+              </div>
+              <button type="button" onClick={() => setAttachment(null)} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '6px 10px', borderRadius: 6, fontSize: 11, cursor: 'pointer' }}>Remove</button>
+            </div>
+          )}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
+            <MediaAttachButton onAttach={(url, kind) => setAttachment({ url, kind })} hasAttachment={!!attachment} />
             <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{message.length} characters</div>
           </div>
         </div>
@@ -299,21 +324,22 @@ function Hint({ children }: { children: React.ReactNode }) {
 // image/video/document previews from links in the message body. So
 // uploading here just produces a public URL and appends it to the
 // message — recipient sees the inline preview WhatsApp generates.
-function MediaAttachButton({ onAttach }: { onAttach: (url: string) => void }) {
+function MediaAttachButton({ onAttach, hasAttachment }: { onAttach: (url: string, kind: 'image' | 'document') => void; hasAttachment: boolean }) {
   const photoRef = useRef<HTMLInputElement>(null);
   const docRef   = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
 
-  const upload = async (f: File, kind: 'photo' | 'material') => {
+  const upload = async (f: File, kind: 'image' | 'document') => {
     if (!f) return;
     if (f.size > 25 * 1024 * 1024) { toast.error('File must be under 25 MB'); return; }
     setBusy(true);
     try {
       const fd = new FormData();
-      fd.append(kind === 'photo' ? 'photo' : 'file', f);
+      const uploadType = kind === 'image' ? 'photo' : 'material';
+      fd.append(kind === 'image' ? 'photo' : 'file', f);
       const token = typeof window !== 'undefined' ? localStorage.getItem('kinematic_token') : null;
       const orgId = typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('kinematic_user') || '{}').org_id || '') : '';
-      const r = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/upload/${kind}`, {
+      const r = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/upload/${uploadType}`, {
         method: 'POST',
         headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(orgId ? { 'X-Org-Id': orgId } : {}) },
         body: fd,
@@ -321,7 +347,7 @@ function MediaAttachButton({ onAttach }: { onAttach: (url: string) => void }) {
       const json = await r.json();
       const url = json?.data?.url || json?.url;
       if (!url) throw new Error(json?.error || json?.message || 'Upload failed');
-      onAttach(url);
+      onAttach(url, kind);
       toast.success('Attached');
     } catch (e: any) { toast.error(e.message || 'Upload failed'); }
     finally {
@@ -334,13 +360,14 @@ function MediaAttachButton({ onAttach }: { onAttach: (url: string) => void }) {
   const btn: React.CSSProperties = {
     background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text-dim)',
     padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+    opacity: hasAttachment ? 0.5 : 1,
   };
   return (
     <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-      <input ref={photoRef} type="file" accept="image/*" capture="environment" onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f, 'photo'); }} disabled={busy} style={{ display: 'none' }} />
-      <input ref={docRef}   type="file" accept=".pdf,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f, 'material'); }} disabled={busy} style={{ display: 'none' }} />
-      <button type="button" onClick={() => photoRef.current?.click()} disabled={busy} style={btn} title="Attach an image — appended as a link, WhatsApp shows an inline preview">📷 Image</button>
-      <button type="button" onClick={() => docRef.current?.click()}   disabled={busy} style={btn} title="Attach a PDF / DOC">📎 File</button>
+      <input ref={photoRef} type="file" accept="image/*" capture="environment" onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f, 'image'); }} disabled={busy || hasAttachment} style={{ display: 'none' }} />
+      <input ref={docRef}   type="file" accept=".pdf,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f, 'document'); }} disabled={busy || hasAttachment} style={{ display: 'none' }} />
+      <button type="button" onClick={() => photoRef.current?.click()} disabled={busy || hasAttachment} style={btn} title={hasAttachment ? 'Remove the current attachment first' : 'Attach an image'}>📷 Image</button>
+      <button type="button" onClick={() => docRef.current?.click()}   disabled={busy || hasAttachment} style={btn} title={hasAttachment ? 'Remove the current attachment first' : 'Attach a PDF / DOC'}>📎 File</button>
       {busy && <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>Uploading…</span>}
     </div>
   );
