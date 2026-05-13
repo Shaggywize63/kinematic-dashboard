@@ -360,6 +360,9 @@ export interface WhatsappTemplate {
   status: 'pending' | 'approved' | 'rejected';
   header_text?: string | null; body_text: string; footer_text?: string | null;
   variables?: string[] | null; provider_template_id?: string | null;
+  header_media_type?: 'image' | 'video' | 'document' | null;
+  header_media_url?: string | null;
+  translations?: Record<string, { body_text?: string; header_text?: string; footer_text?: string }> | null;
   created_at: string; updated_at: string;
 }
 
