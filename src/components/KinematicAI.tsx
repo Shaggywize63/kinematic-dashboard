@@ -151,6 +151,10 @@ export default function KinematicAI({ token }: { token: string }) {
   const pathname = usePathname();
   const inCrm = isCrmRoute(pathname || '');
   const isMobile = useIsMobile();
+  // Track monthly KINI usage. Server returns it on every chat response and
+  // also exposes a GET /crm/ai/usage endpoint we hit on open so the badge
+  // is accurate before the first message.
+  const [usage, setUsage] = useState<{ used: number; cap: number; remaining: number; exempt?: boolean } | null>(null);
   // Voice mode — transcribes a single utterance, drops it into the input, and
   // auto-sends so the user can dictate "log a meeting with vikram about
   // pricing" without typing.
@@ -183,6 +187,18 @@ export default function KinematicAI({ token }: { token: string }) {
   }, [token]);
 
   useEffect(() => { if (open && !ready && !inCrm) fetchLive(); }, [open, ready, fetchLive, inCrm]);
+
+  // Refresh usage on open so the badge in the header is current. Best-effort:
+  // hide the indicator on failure rather than block the chat.
+  useEffect(() => {
+    if (!open) return;
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/crm/ai/usage`, {
+      headers: { Authorization: `Bearer ${token}` },
+    }).then(r => r.json()).then(d => {
+      const u = d?.data ?? d;
+      if (u && typeof u.used === 'number') setUsage(u);
+    }).catch(() => {});
+  }, [open, token]);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [msgs]);
   useEffect(() => {
     const h = () => setOpen(true);
@@ -260,8 +276,22 @@ Be elite, professional, and data-driven. Use **bold** for key metrics. Proactive
         method: 'POST', headers, body: JSON.stringify(body),
       });
       const d = await r.json();
+      // Quota-exceeded path: backend returns 429 with a friendly message
+      // and the current usage view. Surface it as an assistant message so
+      // the user understands what happened.
+      if (r.status === 429) {
+        const usage = d?.data?.usage;
+        if (usage) setUsage(usage);
+        setMsgs(p => p.map((m, i) => i === p.length - 1 ? {
+          role: 'assistant',
+          content: d?.error || 'Monthly AI limit reached. Resets on the 1st.',
+        } : m));
+        return;
+      }
       const reply = d?.data?.text || 'I apologize, but I am unable to process that right now.';
       const cards = d?.data?.cards || [];
+      const usage = d?.data?.usage;
+      if (usage) setUsage(usage);
       setMsgs(p => p.map((m, i) => i === p.length - 1 ? { role: 'assistant', content: reply, cards } : m));
     } catch (e: any) {
       setMsgs(p => p.map((m, i) => i === p.length - 1 ? { role: 'assistant', content: `Connectivity Error: ${e.message}` } : m));
@@ -271,6 +301,10 @@ Be elite, professional, and data-driven. Use **bold** for key metrics. Proactive
   // Sheet (mobile) vs floating card (desktop). On mobile the panel anchors
   // to the bottom of the viewport and fills the width, so it never overflows
   // off-screen.
+  // Derived: have we hit the monthly cap? Used to grey-out send / mic /
+  // input and surface a friendly notice in the header.
+  const capped = !!usage && !usage.exempt && usage.remaining === 0;
+
   const panelStyle: React.CSSProperties = isMobile
     ? {
         position: 'fixed', left: 0, right: 0, bottom: 0,
@@ -350,12 +384,30 @@ Be elite, professional, and data-driven. Use **bold** for key metrics. Proactive
                 </div>
               </div>
             </div>
-            <button
-              onClick={() => setMsgs([])}
-              title="Clear conversation"
-              style={{ background: 'rgba(255,255,255,0.18)', border: 'none', color: '#fff', fontSize: 10, cursor: 'pointer', padding: '6px 12px', borderRadius: 8, fontWeight: 700 }}
-            >Clear</button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              {usage && !usage.exempt && (
+                <span
+                  title={`${usage.used} of ${usage.cap} AI queries this month`}
+                  style={{
+                    background: usage.remaining === 0 ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.18)',
+                    color: '#fff', fontSize: 10, fontWeight: 800, letterSpacing: 0.4,
+                    padding: '4px 10px', borderRadius: 999,
+                  }}
+                >{usage.used}/{usage.cap}</span>
+              )}
+              <button
+                onClick={() => setMsgs([])}
+                title="Clear conversation"
+                style={{ background: 'rgba(255,255,255,0.18)', border: 'none', color: '#fff', fontSize: 10, cursor: 'pointer', padding: '6px 12px', borderRadius: 8, fontWeight: 700 }}
+              >Clear</button>
+            </div>
           </div>
+
+          {usage && !usage.exempt && usage.remaining === 0 && (
+            <div style={{ padding: '10px 16px', background: 'rgba(255,184,0,0.12)', borderBottom: '1px solid var(--border)', fontSize: 12, color: 'var(--text)' }}>
+              You've used all <strong>{usage.cap}</strong> AI queries this month. The counter resets on the 1st.
+            </div>
+          )}
 
           <div style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: 16, scrollBehavior: 'smooth', background: C.s1 }}>
             {msgs.length === 0 && (
@@ -399,21 +451,26 @@ Be elite, professional, and data-driven. Use **bold** for key metrics. Proactive
             <input
               value={input}
               onChange={e => setInput(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && void send()}
-              disabled={busy}
+              onKeyDown={e => e.key === 'Enter' && !capped && void send()}
+              disabled={busy || capped}
               style={{
                 flex: 1, background: C.s3, border: `1px solid ${C.border}`,
                 borderRadius: 14, padding: '12px 16px', color: C.white, fontSize: 14,
                 outline: 'none', transition: 'border-color 0.2s',
                 minWidth: 0, // critical: lets the flex item shrink below its content
+                opacity: capped ? 0.5 : 1,
               }}
-              placeholder={speech.listening ? 'Listening…' : (inCrm ? 'Ask, or "add deal", "log call"…' : 'Ask anything about operations…')}
+              placeholder={
+                capped ? 'Limit reached — resets on the 1st'
+                : speech.listening ? 'Listening…'
+                : (inCrm ? 'Ask, or "add deal", "log call"… (हिन्दी, বাংলা, ଓଡ଼ିଆ, অসমীয়া also supported)' : 'Ask anything about operations…')
+              }
             />
 
             {speech.supported && (
               <button
                 onClick={() => speech.listening ? speech.stop() : speech.start()}
-                disabled={busy}
+                disabled={busy || capped}
                 title={speech.listening ? 'Stop listening' : 'Speak'}
                 aria-label="Voice input"
                 style={{
@@ -421,9 +478,10 @@ Be elite, professional, and data-driven. Use **bold** for key metrics. Proactive
                   border: `1px solid ${speech.listening ? C.red : C.border}`,
                   borderRadius: 14, width: 44, height: 44,
                   color: speech.listening ? '#fff' : C.white,
-                  cursor: busy ? 'not-allowed' : 'pointer',
+                  cursor: (busy || capped) ? 'not-allowed' : 'pointer',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   flexShrink: 0,
+                  opacity: capped ? 0.4 : 1,
                   animation: speech.listening ? 'km-mic-pulse 1.2s infinite' : 'none',
                   transition: 'all 0.2s',
                 }}
@@ -434,14 +492,14 @@ Be elite, professional, and data-driven. Use **bold** for key metrics. Proactive
 
             <button
               onClick={() => void send()}
-              disabled={busy || !input.trim()}
-              title="Send"
+              disabled={busy || capped || !input.trim()}
+              title={capped ? 'Monthly limit reached' : 'Send'}
               aria-label="Send"
               style={{
                 background: C.red, border: 'none', borderRadius: 14,
                 width: 44, height: 44, color: 'white', cursor: 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                opacity: busy || !input.trim() ? 0.5 : 1,
+                opacity: (busy || capped || !input.trim()) ? 0.5 : 1,
                 flexShrink: 0, transition: 'opacity 0.2s',
               }}>
               <Icon d="M5 12h14M12 5l7 7-7 7" size={20} />
