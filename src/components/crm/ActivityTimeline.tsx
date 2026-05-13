@@ -67,10 +67,12 @@ export default function ActivityTimeline({ activities, onChange }: Props) {
                     )}
                   </div>
                   {a.body && <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4 }}>{a.body}</div>}
-                  {(a as { image_url?: string | null }).image_url && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <a href={(a as { image_url?: string }).image_url || '#'} target="_blank" rel="noreferrer" style={{ display: 'inline-block', marginTop: 8 }}>
-                      <img src={(a as { image_url?: string }).image_url || ''} alt="activity attachment" style={{ maxWidth: 220, maxHeight: 160, borderRadius: 8, border: '1px solid var(--border)', objectFit: 'cover' }} />
+                  {a.image_url && (
+                    /* Thumbnail click → opens full-size in a new tab. No URL
+                       text shown — the image IS the visible affordance. */
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <a href={a.image_url} target="_blank" rel="noreferrer" style={{ display: 'inline-block', marginTop: 8 }}>
+                      <img src={a.image_url} alt="Activity photo" style={{ maxWidth: 240, maxHeight: 180, borderRadius: 8, border: '1px solid var(--border)', objectFit: 'cover', display: 'block' }} />
                     </a>
                   )}
                   {a.owner_name && <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 4 }}>by {a.owner_name}</div>}
