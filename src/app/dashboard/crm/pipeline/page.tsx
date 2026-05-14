@@ -21,6 +21,20 @@ export default function PipelinePage() {
   const [showAddPipeline, setShowAddPipeline] = useState(false);
   const [newName, setNewName] = useState('');
   const [adding, setAdding] = useState(false);
+  // Cost vs Weighted column totals — mirror of iOS/Android `crm.deals.showWeighted`.
+  // Persisted client-side so a manager who prefers weighted forecasting stays in
+  // that mode across visits.
+  const [showWeighted, setShowWeighted] = useState(false);
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem('crm.deals.showWeighted');
+      if (v === '1') setShowWeighted(true);
+    } catch { /* private mode / SSR — ignore */ }
+  }, []);
+  const toggleWeighted = (next: boolean) => {
+    setShowWeighted(next);
+    try { localStorage.setItem('crm.deals.showWeighted', next ? '1' : '0'); } catch { /* ignore */ }
+  };
 
   const loadPipelines = async () => {
     try {
@@ -76,6 +90,20 @@ export default function PipelinePage() {
             {pipelines.map((p) => <option key={p.id} value={p.id}>{p.name}{p.is_default ? ' (default)' : ''}</option>)}
           </select>
           <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>{deals.length} open deal{deals.length !== 1 ? 's' : ''}</span>
+          <label
+            title={showWeighted ? 'Column totals = Σ(amount × win-probability)' : 'Column totals = Σ(raw amount)'}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 4, padding: '6px 10px', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12, cursor: 'pointer', userSelect: 'none' }}
+          >
+            <input
+              type="checkbox"
+              checked={showWeighted}
+              onChange={(e) => toggleWeighted(e.target.checked)}
+              style={{ accentColor: 'var(--primary)' }}
+            />
+            <span style={{ color: 'var(--text-dim)', fontWeight: 600 }}>
+              {showWeighted ? 'Weighted' : 'Raw'}
+            </span>
+          </label>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <Link
@@ -133,7 +161,7 @@ export default function PipelinePage() {
           </div>
         </div>
       ) : (
-        <DealKanban stages={stages} initialDeals={deals} />
+        <DealKanban stages={stages} initialDeals={deals} showWeighted={showWeighted} />
       )}
     </div>
   );

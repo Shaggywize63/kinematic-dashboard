@@ -8,9 +8,16 @@ import { useCrmKanbanStore } from '../../stores/crmKanbanStore';
 import DealCard from './DealCard';
 import { formatINR } from '../../lib/formatCurrency';
 
-function StageColumn({ stage, deals }: { stage: Stage; deals: Deal[] }) {
+function StageColumn({ stage, deals, showWeighted }: { stage: Stage; deals: Deal[]; showWeighted: boolean }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
-  const total = deals.reduce((s, d) => s + (d.amount || 0), 0);
+  const total = deals.reduce((s, d) => {
+    const amount = d.amount || 0;
+    if (!showWeighted) return s + amount;
+    // Backend stores probabilities as percentages (0-100). Prefer the AI estimate,
+    // then the deal-level override, then fall back to the stage's default.
+    const pct = d.ai_win_probability ?? d.probability ?? stage.default_probability ?? 100;
+    return s + (amount * pct) / 100;
+  }, 0);
   return (
     <div
       ref={setNodeRef}
@@ -53,7 +60,7 @@ function DraggableCard({ deal }: { deal: Deal }) {
   );
 }
 
-export default function DealKanban({ stages, initialDeals }: { stages: Stage[]; initialDeals: Deal[] }) {
+export default function DealKanban({ stages, initialDeals, showWeighted = false }: { stages: Stage[]; initialDeals: Deal[]; showWeighted?: boolean }) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
   const { deals, setDeals, moveDealOptimistic, rollbackMove } = useCrmKanbanStore();
 
@@ -104,7 +111,7 @@ export default function DealKanban({ stages, initialDeals }: { stages: Stage[]; 
   return (
     <DndContext sensors={sensors} onDragEnd={onDragEnd}>
       <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 8 }}>
-        {sortedStages.map((s) => <StageColumn key={s.id} stage={s} deals={deals[s.id] || []} />)}
+        {sortedStages.map((s) => <StageColumn key={s.id} stage={s} deals={deals[s.id] || []} showWeighted={showWeighted} />)}
       </div>
     </DndContext>
   );
