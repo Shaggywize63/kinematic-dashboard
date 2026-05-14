@@ -10,45 +10,32 @@ const CORS = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Org-Id',
 };
 
-// All supported module IDs with their display names.
-// These must exist in the `modules` table before client_module_access rows can reference them.
-const ALL_MODULES = [
-  { id: 'analytics',       name: 'Analytics & Tracking' },
-  { id: 'live_tracking',   name: 'Live Tracking' },
-  { id: 'broadcast',       name: 'Broadcasts' },
-  { id: 'attendance',      name: 'Attendance' },
-  { id: 'orders',          name: 'Route Planning (Orders)' },
-  { id: 'work_activities', name: 'Work Activities' },
-  { id: 'users',           name: 'Manpower Management' },
-  { id: 'hr',              name: 'HR & Payroll' },
-  { id: 'visit_logs',      name: 'Visit Logs' },
-  { id: 'inventory',       name: 'Warehouse & Inventory' },
-  { id: 'skus',            name: "SKU's Management" },
-  { id: 'assets',          name: 'Asset Management' },
-  { id: 'grievances',      name: 'Grievance Management' },
-  { id: 'form_builder',    name: 'Form Builder' },
-  { id: 'cities',          name: 'City Management' },
-  { id: 'zones',           name: 'Zone Management' },
-  { id: 'stores',          name: 'Outlet Management' },
-  { id: 'activities',      name: 'Activity Management' },
-  { id: 'clients',         name: 'Client Management' },
-  { id: 'settings',        name: 'System Settings' },
-];
+// Modules table is now seeded + maintained by SQL migrations
+// (see migration_module_packaging_and_client_entitlements.sql in the backend
+// repo). Client entitlements live in the `client_modules` table and are
+// resolved by the Express backend at /auth/login + /auth/me.
+//
+// We no longer mirror the module catalog here; importing
+// ALL_MODULES from lib/modules.ts and best-effort upserting it on POST keeps
+// the dev experience smooth when a new module is added without redeploying
+// the backend, but the SQL migration is the source of truth.
+import { ALL_MODULES as DASHBOARD_MODULES } from '@/lib/modules';
 
-/**
- * Upserts all module definitions into the `modules` table so that
- * client_module_access FK constraints can be satisfied.
- * Errors are suppressed — this is best-effort; the downstream request proceeds regardless.
- */
 async function seedModules() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceKey  = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!supabaseUrl || !serviceKey) return;
   try {
     const supabase = createClient(supabaseUrl, serviceKey);
+    const payload = DASHBOARD_MODULES.map(m => ({
+      id: m.id,
+      name: m.l,
+      package: m.package,
+      is_universal: !!m.universal,
+    }));
     await supabase
       .from('modules')
-      .upsert(ALL_MODULES, { onConflict: 'id', ignoreDuplicates: true });
+      .upsert(payload, { onConflict: 'id', ignoreDuplicates: true });
   } catch {
     // best-effort — do not block the request
   }

@@ -6,7 +6,7 @@ import { rolesApi, type OrgRole, type OrgRoleNode, type OrgRoleUser } from '../.
 import { crmSettings } from '../../../../lib/crmApi';
 import { getStoredUser, canAccess } from '../../../../lib/auth';
 import { useClient } from '@/context/ClientContext';
-import { ALL_MODULES, MODULE_GROUPS } from '../../../../lib/modules';
+import { ALL_MODULES, MODULE_GROUPS, MODULE_GROUP_LABELS } from '../../../../lib/modules';
 
 const PRESET_COLORS = ['#6366f1', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#64748b'];
 
@@ -517,7 +517,7 @@ function EditPanel({
             return (
               <div key={group} style={{ marginBottom: 10 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                  <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6 }}>{group}</div>
+                  <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6 }}>{MODULE_GROUP_LABELS[group]}</div>
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button
                       type="button"

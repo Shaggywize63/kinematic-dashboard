@@ -5,7 +5,9 @@ export interface AuthUser {
   employee_id?: string; zone_id?: string; avatar_url?: string;
   mobile?: string;
   client_id?: string; // Optional: only if user belongs to a client
-  permissions?: string[]; 
+  permissions?: string[]; // legacy per-user grants (user_module_permissions)
+  enabled_modules?: string[]; // per-client SKU entitlements (source: client_modules + universal)
+  enabled_packages?: string[]; // package SKUs the client owns: field_force | distribution | crm | business | system | people | audit
   assigned_cities?: string[];
   is_active: boolean;
 }
