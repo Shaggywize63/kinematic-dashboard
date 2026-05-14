@@ -93,6 +93,25 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (typeof window !== 'undefined') {
       setToken(localStorage.getItem('kinematic_token') || '');
     }
+    // Refresh /auth/me on mount so entitlement-driven nav (CRM-only
+    // hiding, package gates) reflects the latest server-side state.
+    // Without this, sessions stored before enabled_modules /
+    // enabled_packages started shipping have empty arrays and the
+    // universal sections (Business, People, System) keep showing even
+    // for CRM-only clients like Hemanth.
+    (async () => {
+      try {
+        const fresh: any = await api.get('/api/v1/auth/me');
+        const next = fresh?.data ?? fresh;
+        if (next && (next.enabled_modules || next.enabled_packages)) {
+          // Re-stamp localStorage so subsequent renders + reloads pick it up.
+          try {
+            localStorage.setItem('kinematic_user', JSON.stringify(next));
+          } catch { /* ignore */ }
+          setUser(next);
+        }
+      } catch { /* keep cached user */ }
+    })();
   }, [router]);
 
   const handleLogout = () => { clearSession(); router.push('/login'); };
