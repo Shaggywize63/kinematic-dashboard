@@ -145,6 +145,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     return visibleAfterRole.filter(i => hasModule(i.module));
   };
 
+  // CRM-only client detection. When the user's plan is just CRM (no Field
+  // Force, no Distribution), they should see a focused CRM-only nav —
+  // universal sections like People & Support / System Management / Business
+  // are nav clutter for a Tata-Tiscon-style deployment. Platform admins
+  // bypass this since they need the full nav to administer everyone.
+  const isCrmOnlyClient =
+    !isPlatformAdmin &&
+    enabledPackages.includes('crm') &&
+    !enabledPackages.includes('field_force') &&
+    !enabledPackages.includes('distribution');
+
   // Section-level gate. A section is hidden when:
   //   * the user's client doesn't own the package (unless the section is universal), OR
   //   * the user has no entitled items in that section after filtering.
@@ -153,6 +164,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (items.length === 0) return false;
     if (!pkg) return true;
     if (isPlatformAdmin) return true;
+    // CRM-only clients (e.g. Tata Tiscon) get a focused CRM-only nav —
+    // hide every other section regardless of universal grants.
+    if (isCrmOnlyClient && pkg !== 'crm') return false;
     if (['business', 'system', 'people', 'audit'].includes(pkg)) return true; // universal sections
     if (enabledPackages.length === 0) return true; // legacy session, fall back open
     return enabledPackages.includes(pkg);
