@@ -9,6 +9,7 @@ import DealStageProgress from '../../../../../components/crm/DealStageProgress';
 import WinProbabilityGauge from '../../../../../components/crm/WinProbabilityGauge';
 import NextBestActionCard from '../../../../../components/crm/NextBestActionCard';
 import AiDraftReplyPanel from '../../../../../components/crm/AiDraftReplyPanel';
+import CallButton from '../../../../../components/crm/shared/CallButton';
 import ActivityTimeline from '../../../../../components/crm/ActivityTimeline';
 import DealEditModal from '../../../../../components/crm/DealEditModal';
 import { formatINR } from '../../../../../lib/formatCurrency';
@@ -203,17 +204,30 @@ export default function DealDetailPage() {
               {contacts.map((dc) => {
                 const c = dc.contact;
                 const name = c?.full_name || `${c?.first_name || ''} ${c?.last_name || ''}`.trim() || c?.email || '—';
+                // Two side-by-side controls: the name (Link to contact) and
+                // an inline phone + Call button. Keeping the Call button as
+                // a *sibling* of the Link instead of a child avoids invalid
+                // nested-<a> HTML — tel: would render an <a> inside the
+                // contact-link <a> otherwise.
                 return (
-                  <Link key={dc.contact_id} href={`/dashboard/crm/contacts/${dc.contact_id}`} style={rowLink}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ color: 'var(--text)', fontWeight: 600 }}>
-                        {name}
-                        {dc.is_primary && <span style={{ marginLeft: 8, fontSize: 9, background: 'var(--primary)', color: '#fff', padding: '2px 6px', borderRadius: 4, fontWeight: 700 }}>PRIMARY</span>}
+                  <div key={dc.contact_id} style={{ ...rowLink, padding: 0, background: 'transparent', border: 'none' }}>
+                    <Link href={`/dashboard/crm/contacts/${dc.contact_id}`} style={{ ...rowLink, flex: 1, marginRight: 0 }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ color: 'var(--text)', fontWeight: 600 }}>
+                          {name}
+                          {dc.is_primary && <span style={{ marginLeft: 8, fontSize: 9, background: 'var(--primary)', color: '#fff', padding: '2px 6px', borderRadius: 4, fontWeight: 700 }}>PRIMARY</span>}
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{dc.role || c?.title || c?.email || '—'}</div>
                       </div>
-                      <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{dc.role || c?.title || c?.email || '—'}</div>
-                    </div>
-                    <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{c?.phone || ''}</div>
-                  </Link>
+                      <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{c?.phone || ''}</div>
+                    </Link>
+                    <CallButton
+                      phone={c?.phone}
+                      prefillSubject={`Call about ${deal.name}`}
+                      dealId={deal.id}
+                      size="sm"
+                    />
+                  </div>
                 );
               })}
             </div>

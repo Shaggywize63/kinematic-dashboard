@@ -1,6 +1,6 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useEffect, useRef, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { crmActivities, crmLeads, crmContacts, crmDeals, crmAccounts } from '../../../../../lib/crmApi';
 import api from '../../../../../lib/api';
@@ -33,11 +33,38 @@ const ENTITY_TYPES = [
 
 type EntityOption = { id: string; label: string };
 
+// Next.js 14 bails out of static rendering for any page that calls
+// useSearchParams() unless the call site is wrapped in <Suspense>.
 export default function NewActivityPage() {
+  return (
+    <Suspense fallback={<div style={{ padding: 24, color: 'var(--text-dim)', fontSize: 13 }}>Loading…</div>}>
+      <NewActivityPageInner />
+    </Suspense>
+  );
+}
+
+function NewActivityPageInner() {
   const router = useRouter();
-  const [type, setType] = useState<string>('call');
+  const searchParams = useSearchParams();
+  // URL prefill — set by tap-to-call buttons (and could be set by any future
+  // entry point that wants to pre-bind the new activity to a parent record).
+  const prefillType = searchParams.get('type') || 'call';
+  const prefillSubject = searchParams.get('subject') || '';
+  const prefillLeadId = searchParams.get('lead_id') || '';
+  const prefillContactId = searchParams.get('contact_id') || '';
+  const prefillDealId = searchParams.get('deal_id') || '';
+  const prefillAccountId = searchParams.get('account_id') || '';
+  const initialEntityType =
+    prefillLeadId ? 'lead' :
+    prefillContactId ? 'contact' :
+    prefillDealId ? 'deal' :
+    prefillAccountId ? 'account' : '';
+  const initialEntityId =
+    prefillLeadId || prefillContactId || prefillDealId || prefillAccountId || '';
+
+  const [type, setType] = useState<string>(prefillType);
   const [activityTypes, setActivityTypes] = useState<Array<{ value: string; label: string; icon?: string | null }>>(BUILTIN_TYPES);
-  const [subject, setSubject] = useState('');
+  const [subject, setSubject] = useState(prefillSubject);
   const [body, setBody] = useState('');
   const [dueAt, setDueAt] = useState('');
   // Default the assignee to the signed-in user so the most common case
@@ -46,8 +73,8 @@ export default function NewActivityPage() {
     const u = getStoredUser() as { id?: string } | null;
     return u?.id || '';
   });
-  const [entityType, setEntityType] = useState('');
-  const [entityId, setEntityId] = useState('');
+  const [entityType, setEntityType] = useState(initialEntityType);
+  const [entityId, setEntityId] = useState(initialEntityId);
   const [users, setUsers] = useState<UserOption[]>([]);
   const [busy, setBusy] = useState(false);
   const [imageUrl, setImageUrl] = useState<string>('');
@@ -129,8 +156,23 @@ export default function NewActivityPage() {
       .catch(() => {});
   }, []);
 
-  // When entity type changes, reset selection and fetch options
+  // Skip the entity-reset effect on the very first render if we arrived
+  // with a prefilled parent (tap-to-call). The reset is meant for *user*
+  // entity-type changes after mount; running it on mount would wipe the
+  // initialEntityId that we carefully derived from the URL.
+  const isFirstEntityRender = useRef(true);
   useEffect(() => {
+    if (isFirstEntityRender.current) {
+      isFirstEntityRender.current = false;
+      if (entityType) {
+        // Still fetch options so the picker is populated; just don't wipe selection.
+        fetchEntityOptions('');
+        // Stamp a placeholder label so the user can see the binding before
+        // the fetch resolves. Will be overwritten by hydrateEntityLabel below.
+        if (entityId && !entityLabel) setEntitySearch('(loading…)');
+      }
+      return;
+    }
     setEntityId('');
     setEntityLabel('');
     setEntitySearch('');
@@ -138,6 +180,42 @@ export default function NewActivityPage() {
     if (!entityType) return;
     fetchEntityOptions('');
   }, [entityType]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // When prefilled with a specific entityId, fetch that one record so the
+  // entity search input shows a real name instead of "(loading…)".
+  useEffect(() => {
+    if (!initialEntityId || !initialEntityType) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        let label = '';
+        if (initialEntityType === 'lead') {
+          const r = await crmLeads.get(initialEntityId);
+          const x = r.data as any;
+          if (x) label = [x.first_name, x.last_name].filter(Boolean).join(' ') || x.email || 'Lead';
+        } else if (initialEntityType === 'contact') {
+          const r = await crmContacts.get(initialEntityId);
+          const x = r.data as any;
+          if (x) label = x.full_name || [x.first_name, x.last_name].filter(Boolean).join(' ') || x.email || 'Contact';
+        } else if (initialEntityType === 'deal') {
+          const r = await crmDeals.get(initialEntityId);
+          const x = r.data as any;
+          if (x) label = x.title || x.name || 'Deal';
+        } else if (initialEntityType === 'account') {
+          const r = await crmAccounts.get(initialEntityId);
+          const x = r.data as any;
+          if (x) label = x.name || 'Account';
+        }
+        if (!cancelled && label) {
+          setEntityLabel(label);
+          setEntitySearch(label);
+        }
+      } catch {
+        // Silent — the picker will fall back to the placeholder.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [initialEntityId, initialEntityType]);
 
   const fetchEntityOptions = async (q: string) => {
     if (!entityType) return;
