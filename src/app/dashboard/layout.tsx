@@ -98,6 +98,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const handleLogout = () => { clearSession(); router.push('/login'); };
   const userRole = user?.role || '';
   const userPerms = user?.permissions || [];
+  // New entitlement source of truth (per-client SKUs from /auth/me).
+  // Falls back to legacy `permissions` array if backend hasn't been deployed yet.
+  const enabledModules: string[] = Array.isArray(user?.enabled_modules) ? user.enabled_modules : [];
+  const enabledPackages: string[] = Array.isArray(user?.enabled_packages) ? user.enabled_packages : [];
   const isActive = (href: string) => href === '/dashboard' ? pathname === '/dashboard' : pathname.startsWith(href);
   // On mobile the sidebar lives in a drawer overlay (not in the document flow),
   // so the main column gets zero left margin.
@@ -121,78 +125,108 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const isSuperAdmin = (userRole || '').toLowerCase().replace(/-/g, '_') === 'super_admin';
 
+  // A user "has" a module if either:
+  //   * the new entitlement list contains it (per-client SKU), OR
+  //   * the legacy per-user permissions array contains it (backwards compat
+  //     for sessions stored before /auth/me started returning enabled_modules).
+  const hasModule = (m: string) => {
+    if (!m) return true;
+    if (enabledModules.length > 0) return enabledModules.includes(m);
+    return userPerms.includes(m);
+  };
+
   const filterNav = (items: any[]) => {
-    // B2C orgs don't sell to companies — hide the Accounts entry (and any
-    // future B2B-only entries) regardless of role.
+    // B2C orgs don't sell to companies — hide Accounts (and future B2B-only entries).
     const visibleAfterB2C = items.filter((i) => !(i.hideForB2C && isCrmB2C));
-    // superAdminOnly entries (e.g. Activity Log) are hidden for everyone else,
+    // superAdminOnly entries (e.g. Activity Log) — hidden for everyone else,
     // even other "platform admins".
     const visibleAfterRole = visibleAfterB2C.filter((i) => !i.superAdminOnly || isSuperAdmin);
     if (isPlatformAdmin) return visibleAfterRole;
-    return visibleAfterRole.filter(i => !i.module || (userPerms && Array.isArray(userPerms) && userPerms.includes(i.module)));
+    return visibleAfterRole.filter(i => hasModule(i.module));
   };
 
-  const navGroups = [
-    { label: 'Core', items: filterNav([
-      { href: '/dashboard', label: 'Dashboard', icon: 'M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z M9 22V12h6v10', module: 'analytics' },
-      { href: '/dashboard/attendance-overview', label: 'Attendance', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z', module: 'attendance' },
-      { href: '/dashboard/analytics', label: 'Analytics', icon: 'M18 20V10 M12 20V4 M6 20v-6', module: 'analytics' },
-      { href: '/dashboard/live-tracking', label: 'Live Tracking', icon: 'M12 22s-8-4.5-8-11.8A8 8 0 0112 2a8 8 0 018 8.2c0 7.3-8 11.8-8 11.8z M12 13a3 3 0 100-6 3 3 0 000 6z', module: 'live_tracking' },
-    ])},
-    { label: 'CRM', items: filterNav([
-      { href: '/dashboard/crm/dashboard', label: 'Overview', icon: 'M3 3v18h18 M7 14l4-4 4 4 5-5', module: 'crm' },
-      { href: '/dashboard/crm/leads', label: 'Leads', icon: 'M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 7a4 4 0 100-8 4 4 0 000 8z', module: 'crm' },
-      { href: '/dashboard/crm/deals', label: 'Deals', icon: 'M12 1v22 M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6', module: 'crm' },
-      { href: '/dashboard/crm/pipeline', label: 'Pipeline', icon: 'M3 5h6v14H3z M9 9h6v6H9z M15 5h6v14h-6z', module: 'crm' },
-      { href: '/dashboard/crm/accounts', label: 'Accounts', icon: 'M3 21h18 M3 7v14 M21 7v14 M3 7l9-4 9 4 M9 12h6', module: 'crm', hideForB2C: true },
-      { href: '/dashboard/crm/contacts', label: 'Contacts', icon: 'M20 21v-2a4 4 0 00-3-3.87 M4 21v-2a4 4 0 014-4h4a4 4 0 014 4v2 M16 3.13a4 4 0 010 7.75 M8 11a4 4 0 100-8 4 4 0 000 8z', module: 'crm' },
-      { href: '/dashboard/crm/activities', label: 'Activities', icon: 'M22 11.08V12a10 10 0 11-5.93-9.14 M22 4L12 14.01l-3-3', module: 'crm' },
-      { href: '/dashboard/crm/templates', label: 'Templates', icon: 'M19 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V5a2 2 0 00-2-2z M3 9h18 M9 21V9', module: 'crm' },
-      { href: '/dashboard/crm/reports', label: 'Reports', icon: 'M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6 M16 13H8 M16 17H8', module: 'crm' },
-      { href: '/dashboard/crm/settings', label: 'Settings', icon: 'M12 15a3 3 0 100-6 3 3 0 000 6z M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z', module: 'crm' },
-    ])},
-    { label: 'Operations', items: filterNav([
-      { href: '/dashboard/other-management/activities', label: 'Activity Management', icon: 'M12 2v20 M2 12h20', module: 'activities' },
-      { href: '/dashboard/planograms', label: 'Planograms', icon: 'M3 5h18 M3 12h18 M3 19h18 M7 5v14 M17 5v14', module: 'planograms' },
-      { href: '/dashboard/form-builder', label: 'Form Builder', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2 M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2', module: 'form_builder' },
-      { href: '/dashboard/route-plan', label: 'Route Plan', icon: 'M9 20l-5.44-2.72A2 2 0 013 15.49V4.5a2 2 0 012.89-1.8L9 4 M9 4v16 M15 1l5.44 2.72A2 2 0 0121 5.51v10.98a2 2 0 01-2.89 1.8L15 17 M15 1v16', module: 'orders' },
-      { href: '/dashboard/work-activities', label: 'Work Activities', icon: 'M12 2v20 M2 12h20 M5 5l14 14 M19 5L5 14', module: 'work_activities' },
-    ])},
-    { label: 'Business', items: filterNav([
-      { href: '/dashboard/clients', label: 'Clients', icon: 'M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 7a4 4 0 100-8 4 4 0 000 8z', module: 'clients' },
-      { href: '/dashboard/warehouse', label: 'Warehouse', icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4', module: 'inventory' },
-      { href: '/dashboard/other-management/assets', label: 'Assets', icon: 'M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z', module: 'assets' },
-      { href: '/dashboard/other-management/skus', label: 'SKU', icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4', module: 'skus' },
-    ])},
-    { label: 'Distribution', items: filterNav([
-      { href: '/dashboard/distribution', label: 'Overview', icon: 'M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z M9 22V12h6v10', module: 'distribution' },
-      { href: '/dashboard/distribution/brands', label: 'Brands', icon: 'M5 3a2 2 0 00-2 2v2a2 2 0 002 2h14a2 2 0 002-2V5a2 2 0 00-2-2H5z M5 11a2 2 0 00-2 2v6a2 2 0 002 2h14a2 2 0 002-2v-6a2 2 0 00-2-2H5z', module: 'distribution_brands' },
-      { href: '/dashboard/distribution/distributors', label: 'Distributors', icon: 'M3 7l9-4 9 4-9 4-9-4z M3 12l9 4 9-4 M3 17l9 4 9-4', module: 'distribution_distributors' },
-      { href: '/dashboard/distribution/price-lists', label: 'Price Lists', icon: 'M9 7h6 M9 11h6 M9 15h4 M5 5a2 2 0 012-2h10a2 2 0 012 2v14a2 2 0 01-2 2H7a2 2 0 01-2-2z', module: 'distribution_pricing' },
-      { href: '/dashboard/distribution/schemes', label: 'Schemes', icon: 'M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z', module: 'distribution_schemes' },
-      { href: '/dashboard/distribution/orders', label: 'Orders', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2 M9 5a2 2 0 002 2h2a2 2 0 002-2 M9 12h6 M9 16h6', module: 'distribution_orders' },
-      { href: '/dashboard/distribution/invoices', label: 'Invoices', icon: 'M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6 M9 13h6 M9 17h6', module: 'distribution_invoicing' },
-      { href: '/dashboard/distribution/dispatches', label: 'Dispatches', icon: 'M3 6h18 M16 10l5 5-5 5 M21 15H3', module: 'distribution_invoicing' },
-      { href: '/dashboard/distribution/payments', label: 'Payments', icon: 'M2 6h20v12H2z M2 10h20', module: 'distribution_payments' },
-      { href: '/dashboard/distribution/returns', label: 'Returns', icon: 'M9 14l-4-4 4-4 M5 10h11a4 4 0 014 4v0a4 4 0 01-4 4h-3', module: 'distribution_returns' },
-      { href: '/dashboard/distribution/ledger', label: 'Ledger', icon: 'M3 6l9-3 9 3 M5 6v15h14V6 M9 11h6 M9 15h6', module: 'distribution_ledger' },
-      { href: '/dashboard/distribution/secondary-sales', label: 'Consumer', icon: 'M3 3h18v18H3z M3 9h18 M9 21V9', module: 'distribution_consumer' },
-    ])},
-    { label: 'People & Support', items: filterNav([
-      { href: '/dashboard/manpower-directory', label: 'Users', icon: 'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 7a4 4 0 100-8 4 4 0 000 8z M23 21v-2a4 4 0 00-3-3.87 M16 3.13a4 4 0 010 7.75', module: 'users' },
-      { href: '/dashboard/grievances', label: 'Grievances', icon: 'M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z M12 9v4 M12 17h.01', module: 'grievances' },
-      { href: '/dashboard/visit-logs', label: 'Visit Logs', icon: 'M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z', module: 'visit_logs' },
-      { href: '/dashboard/broadcast', label: 'Broadcast', icon: 'M12 19V5 M5 12l7-7 7 7', module: 'broadcast' },
-    ])},
-    { label: 'System Management', items: filterNav([
-      { href: '/dashboard/other-management/cities', label: 'Cities', icon: 'M3 21h18 M3 7v1a3 3 0 006 0V7m6 0v1a3 3 0 006 0V7', module: 'cities' },
-      { href: '/dashboard/other-management/zones', label: 'Zones', icon: 'M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z M12 10a3 3 0 100-6 3 3 0 000 6z', module: 'zones' },
-      { href: '/dashboard/other-management/stores', label: 'Outlets', icon: 'M3 21h18 M9 8h10 M9 12h10 M9 16h10 M3 4h18', module: 'stores' },
-      { href: '/dashboard/security-alerts', label: 'Security Alerts', icon: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z', module: 'live_tracking' },
-      { href: '/dashboard/audit-log', label: 'Activity Log', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2 M9 5a2 2 0 002 2h2a2 2 0 002-2 M12 11h4 M12 15h4 M8 11h.01 M8 15h.01', superAdminOnly: true },
-      { href: '/dashboard/settings', label: 'Settings', icon: 'M12 15a3 3 0 100-6 3 3 0 000 6z M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z', module: 'settings' },
-    ])},
+  // Section-level gate. A section is hidden when:
+  //   * the user's client doesn't own the package (unless the section is universal), OR
+  //   * the user has no entitled items in that section after filtering.
+  // Platform admins (super_admin etc.) bypass the package check.
+  const sectionVisible = (pkg: string | undefined, items: any[]) => {
+    if (items.length === 0) return false;
+    if (!pkg) return true;
+    if (isPlatformAdmin) return true;
+    if (['business', 'system', 'people', 'audit'].includes(pkg)) return true; // universal sections
+    if (enabledPackages.length === 0) return true; // legacy session, fall back open
+    return enabledPackages.includes(pkg);
+  };
+
+  // Six top-level sections aligned with the SKU model:
+  //   field_force | crm | distribution | business (universal)
+  //   system (universal, per-toggle) | people (universal) | audit (super-admin)
+  // Sections tagged with a `package` are hidden when the user's client doesn't own that SKU.
+  const rawNavGroups = [
+    { label: 'Field Force', package: 'field_force', items: [
+      { href: '/dashboard',                              label: 'Dashboard',           icon: 'M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z M9 22V12h6v10', module: 'dashboard' },
+      { href: '/dashboard/attendance-overview',          label: 'Attendance',          icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z', module: 'attendance' },
+      { href: '/dashboard/analytics',                    label: 'Analytics',           icon: 'M18 20V10 M12 20V4 M6 20v-6', module: 'analytics' },
+      { href: '/dashboard/live-tracking',                label: 'Live Tracking',       icon: 'M12 22s-8-4.5-8-11.8A8 8 0 0112 2a8 8 0 018 8.2c0 7.3-8 11.8-8 11.8z M12 13a3 3 0 100-6 3 3 0 000 6z', module: 'live_tracking' },
+      { href: '/dashboard/other-management/activities',  label: 'Activity Management', icon: 'M12 2v20 M2 12h20', module: 'activities' },
+      { href: '/dashboard/planograms',                   label: 'Planograms',          icon: 'M3 5h18 M3 12h18 M3 19h18 M7 5v14 M17 5v14', module: 'planograms' },
+      { href: '/dashboard/form-builder',                 label: 'Form Builder',        icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2 M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2', module: 'form_builder' },
+      { href: '/dashboard/route-plan',                   label: 'Route Plan',          icon: 'M9 20l-5.44-2.72A2 2 0 013 15.49V4.5a2 2 0 012.89-1.8L9 4 M9 4v16 M15 1l5.44 2.72A2 2 0 0121 5.51v10.98a2 2 0 01-2.89 1.8L15 17 M15 1v16', module: 'orders' },
+      { href: '/dashboard/work-activities',              label: 'Work Activities',     icon: 'M12 2v20 M2 12h20 M5 5l14 14 M19 5L5 14', module: 'work_activities' },
+    ]},
+    { label: 'Lead Management', package: 'crm', items: [
+      { href: '/dashboard/crm/dashboard',  label: 'Overview',   icon: 'M3 3v18h18 M7 14l4-4 4 4 5-5', module: 'crm_dashboard' },
+      { href: '/dashboard/crm/leads',      label: 'Leads',      icon: 'M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 7a4 4 0 100-8 4 4 0 000 8z', module: 'crm_leads' },
+      { href: '/dashboard/crm/deals',      label: 'Deals',      icon: 'M12 1v22 M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6', module: 'crm_deals' },
+      { href: '/dashboard/crm/pipeline',   label: 'Pipeline',   icon: 'M3 5h6v14H3z M9 9h6v6H9z M15 5h6v14h-6z', module: 'crm_pipeline' },
+      { href: '/dashboard/crm/accounts',   label: 'Accounts',   icon: 'M3 21h18 M3 7v14 M21 7v14 M3 7l9-4 9 4 M9 12h6', module: 'crm_accounts', hideForB2C: true },
+      { href: '/dashboard/crm/contacts',   label: 'Contacts',   icon: 'M20 21v-2a4 4 0 00-3-3.87 M4 21v-2a4 4 0 014-4h4a4 4 0 014 4v2 M16 3.13a4 4 0 010 7.75 M8 11a4 4 0 100-8 4 4 0 000 8z', module: 'crm_contacts' },
+      { href: '/dashboard/crm/activities', label: 'Activities', icon: 'M22 11.08V12a10 10 0 11-5.93-9.14 M22 4L12 14.01l-3-3', module: 'crm_activities' },
+      { href: '/dashboard/crm/templates',  label: 'Templates',  icon: 'M19 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V5a2 2 0 00-2-2z M3 9h18 M9 21V9', module: 'crm_whatsapp' },
+      { href: '/dashboard/crm/reports',    label: 'Reports',    icon: 'M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6 M16 13H8 M16 17H8', module: 'crm_reports' },
+      { href: '/dashboard/crm/settings',   label: 'Settings',   icon: 'M12 15a3 3 0 100-6 3 3 0 000 6z', module: 'crm_settings' },
+    ]},
+    { label: 'Supply Chain & Distribution', package: 'distribution', items: [
+      { href: '/dashboard/distribution',                  label: 'Overview',     icon: 'M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z M9 22V12h6v10', module: 'distribution' },
+      { href: '/dashboard/distribution/brands',           label: 'Brands',       icon: 'M5 3a2 2 0 00-2 2v2a2 2 0 002 2h14a2 2 0 002-2V5a2 2 0 00-2-2H5z M5 11a2 2 0 00-2 2v6a2 2 0 002 2h14a2 2 0 002-2v-6a2 2 0 00-2-2H5z', module: 'distribution_brands' },
+      { href: '/dashboard/distribution/distributors',     label: 'Distributors', icon: 'M3 7l9-4 9 4-9 4-9-4z M3 12l9 4 9-4 M3 17l9 4 9-4', module: 'distribution_distributors' },
+      { href: '/dashboard/distribution/price-lists',      label: 'Price Lists',  icon: 'M9 7h6 M9 11h6 M9 15h4 M5 5a2 2 0 012-2h10a2 2 0 012 2v14a2 2 0 01-2 2H7a2 2 0 01-2-2z', module: 'distribution_pricing' },
+      { href: '/dashboard/distribution/schemes',          label: 'Schemes',      icon: 'M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z', module: 'distribution_schemes' },
+      { href: '/dashboard/distribution/orders',           label: 'Orders',       icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2 M9 5a2 2 0 002 2h2a2 2 0 002-2 M9 12h6 M9 16h6', module: 'distribution_orders' },
+      { href: '/dashboard/distribution/invoices',         label: 'Invoices',     icon: 'M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6 M9 13h6 M9 17h6', module: 'distribution_invoicing' },
+      { href: '/dashboard/distribution/dispatches',       label: 'Dispatches',   icon: 'M3 6h18 M16 10l5 5-5 5 M21 15H3', module: 'distribution_invoicing' },
+      { href: '/dashboard/distribution/payments',         label: 'Payments',     icon: 'M2 6h20v12H2z M2 10h20', module: 'distribution_payments' },
+      { href: '/dashboard/distribution/returns',          label: 'Returns',      icon: 'M9 14l-4-4 4-4 M5 10h11a4 4 0 014 4v0a4 4 0 01-4 4h-3', module: 'distribution_returns' },
+      { href: '/dashboard/distribution/ledger',           label: 'Ledger',       icon: 'M3 6l9-3 9 3 M5 6v15h14V6 M9 11h6 M9 15h6', module: 'distribution_ledger' },
+      { href: '/dashboard/distribution/secondary-sales',  label: 'Consumer',     icon: 'M3 3h18v18H3z M3 9h18 M9 21V9', module: 'distribution_consumer' },
+    ]},
+    { label: 'Business', package: 'business', items: [
+      { href: '/dashboard/clients',                  label: 'Clients',   icon: 'M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 7a4 4 0 100-8 4 4 0 000 8z', module: 'clients' },
+      { href: '/dashboard/warehouse',                label: 'Warehouse', icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4', module: 'inventory' },
+      { href: '/dashboard/other-management/assets',  label: 'Assets',    icon: 'M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z', module: 'assets' },
+      { href: '/dashboard/other-management/skus',    label: 'SKU',       icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4', module: 'skus' },
+    ]},
+    { label: 'People & Support', package: 'people', items: [
+      { href: '/dashboard/manpower-directory', label: 'Users',      icon: 'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 7a4 4 0 100-8 4 4 0 000 8z M23 21v-2a4 4 0 00-3-3.87 M16 3.13a4 4 0 010 7.75', module: 'users' },
+      { href: '/dashboard/grievances',         label: 'Grievances', icon: 'M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z M12 9v4 M12 17h.01', module: 'grievances' },
+      { href: '/dashboard/visit-logs',         label: 'Visit Logs', icon: 'M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z', module: 'visit_logs' },
+      { href: '/dashboard/broadcast',          label: 'Broadcast',  icon: 'M12 19V5 M5 12l7-7 7 7', module: 'broadcast' },
+    ]},
+    { label: 'System Management', package: 'system', items: [
+      { href: '/dashboard/other-management/cities',  label: 'Cities',          icon: 'M3 21h18 M3 7v1a3 3 0 006 0V7m6 0v1a3 3 0 006 0V7', module: 'cities' },
+      { href: '/dashboard/other-management/zones',   label: 'Zones',           icon: 'M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z M12 10a3 3 0 100-6 3 3 0 000 6z', module: 'zones' },
+      { href: '/dashboard/other-management/stores',  label: 'Outlets',         icon: 'M3 21h18 M9 8h10 M9 12h10 M9 16h10 M3 4h18', module: 'stores' },
+      { href: '/dashboard/security-alerts',          label: 'Security Alerts', icon: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z', module: 'security_alerts' },
+      { href: '/dashboard/settings',                 label: 'Settings',        icon: 'M12 15a3 3 0 100-6 3 3 0 000 6z', module: 'settings' },
+    ]},
+    { label: 'Audit', package: 'audit', items: [
+      { href: '/dashboard/audit-log', label: 'Activity Log', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2 M9 5a2 2 0 002 2h2a2 2 0 002-2 M12 11h4 M12 15h4 M8 11h.01 M8 15h.01', module: 'audit_log', superAdminOnly: true },
+    ]},
   ];
+
+  const navGroups = rawNavGroups
+    .map(g => ({ ...g, items: filterNav(g.items) }))
+    .filter(g => sectionVisible(g.package, g.items));
 
 
 

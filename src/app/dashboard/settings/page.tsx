@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import api from '../../../lib/api';
 import CitySelect from '../../../components/CitySelect';
 import { AuthUser } from '../../../types';
-import { ALL_MODULES, MODULE_GROUPS } from '../../../lib/modules';
+import { ALL_MODULES, MODULE_GROUPS, MODULE_GROUP_LABELS } from '../../../lib/modules';
 
 const C = {
   bg: 'var(--bg)', 
@@ -534,7 +534,7 @@ export default function SettingsPage() {
                       return (
                         <div key={group} style={{ marginBottom: 14 }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                            <div style={{ fontSize: 10, fontWeight: 800, color: C.grayd, textTransform: 'uppercase', letterSpacing: '1px' }}>{group}</div>
+                            <div style={{ fontSize: 10, fontWeight: 800, color: C.grayd, textTransform: 'uppercase', letterSpacing: '1px' }}>{MODULE_GROUP_LABELS[group]}</div>
                             <button type="button"
                               onClick={() => {
                                 const ids = groupModules.map(m => m.id);
@@ -797,7 +797,7 @@ export default function SettingsPage() {
                       if (items.length === 0) return null;
                       return (
                         <div key={g} style={{ marginBottom: 14 }}>
-                          <div style={{ fontSize: 10, fontWeight: 800, color: C.grayd, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6 }}>{g}</div>
+                          <div style={{ fontSize: 10, fontWeight: 800, color: C.grayd, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6 }}>{MODULE_GROUP_LABELS[g]}</div>
                           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 6 }}>
                             {items.map(m => {
                               const on = clientForm.modules.includes(m.id);
