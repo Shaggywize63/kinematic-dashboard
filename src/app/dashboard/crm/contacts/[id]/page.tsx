@@ -7,6 +7,7 @@ import { crmContacts } from '../../../../../lib/crmApi';
 import type { Contact, Activity, Deal, Note, EmailLog } from '../../../../../types/crm';
 import OwnerAvatar from '../../../../../components/crm/shared/OwnerAvatar';
 import WhatsAppButton from '../../../../../components/crm/shared/WhatsAppButton';
+import CallButton from '../../../../../components/crm/shared/CallButton';
 import ActivityTimeline from '../../../../../components/crm/ActivityTimeline';
 import ContactEditModal from '../../../../../components/crm/ContactEditModal';
 import { formatINR } from '../../../../../lib/formatCurrency';
@@ -77,7 +78,7 @@ export default function ContactDetailPage() {
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, fontSize: 13 }}>
             <Field label="Email" value={c.email} />
-            <PhoneField phone={c.phone} prefill={waPrefill} />
+            <PhoneField phone={c.phone} prefill={waPrefill} contactId={c.id} displayName={fullName} />
             {!isB2C && c.account_id ? (
               <FieldLink label="Account" href={`/dashboard/crm/accounts/${c.account_id}`} value={c.account_name || 'View account'} />
             ) : (
@@ -218,12 +219,13 @@ function FieldLink({ label, value, href }: { label: string; value: string; href:
   );
 }
 
-function PhoneField({ phone, prefill }: { phone?: string | null; prefill: string }) {
+function PhoneField({ phone, prefill, contactId, displayName }: { phone?: string | null; prefill: string; contactId: string; displayName: string }) {
   return (
     <div>
       <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>Phone</div>
       <div style={{ color: 'var(--text)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         <span>{phone || '—'}</span>
+        <CallButton phone={phone} prefillSubject={`Call with ${displayName}`} contactId={contactId} size="sm" />
         <WhatsAppButton phone={phone} prefillText={prefill} size="sm" />
       </div>
     </div>

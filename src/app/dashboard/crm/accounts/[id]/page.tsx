@@ -8,6 +8,7 @@ import type { Account, Contact, Deal, Activity, Note } from '../../../../../type
 import AccountSummaryCard from '../../../../../components/crm/AccountSummaryCard';
 import ActivityTimeline from '../../../../../components/crm/ActivityTimeline';
 import AccountEditModal from '../../../../../components/crm/AccountEditModal';
+import CallButton from '../../../../../components/crm/shared/CallButton';
 import { formatINR } from '../../../../../lib/formatCurrency';
 
 export default function AccountDetailPage() {
@@ -100,7 +101,7 @@ export default function AccountDetailPage() {
             <Field label="Industry" value={a.industry} />
             <Field label="Revenue" value={a.annual_revenue ? formatINR(a.annual_revenue) : null} />
             <Field label="Employees" value={a.employees ? String(a.employees) : null} />
-            <Field label="Phone" value={a.phone} />
+            <PhoneField phone={a.phone} accountId={a.id} accountName={a.name} />
             <Field label="Owner" value={a.owner_name} />
             <Field label="Created" value={new Date(a.created_at).toLocaleDateString()} />
           </div>
@@ -199,6 +200,18 @@ function Field({ label, value }: { label: string; value?: string | null }) {
     <div>
       <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>{label}</div>
       <div style={{ color: 'var(--text)', marginTop: 2 }}>{value || '—'}</div>
+    </div>
+  );
+}
+
+function PhoneField({ phone, accountId, accountName }: { phone?: string | null; accountId: string; accountName?: string | null }) {
+  return (
+    <div>
+      <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>Phone</div>
+      <div style={{ color: 'var(--text)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <span>{phone || '—'}</span>
+        <CallButton phone={phone} prefillSubject={`Call with ${accountName || 'account'}`} accountId={accountId} size="sm" />
+      </div>
     </div>
   );
 }
