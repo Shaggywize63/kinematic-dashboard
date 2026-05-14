@@ -153,11 +153,11 @@ class ApiClient {
     if (orgId && !headers['X-Org-Id']) headers['X-Org-Id'] = orgId;
 
     // Multi-tenant: auto-attach the active client_id (chosen via the global
-    // header picker, persisted in localStorage as kinematic_selected_client) for
-    // any client-scoped backend route. Client-level users have client_id pinned
-    // in their JWT so this header is ignored for them.
-    const isClientScopedPath = path.startsWith('/api/v1/crm') || path.startsWith('/api/v1/roles');
-    if (isClientScopedPath && !headers['X-Client-Id']) {
+    // header picker, persisted in localStorage as kinematic_selected_client) on
+    // every backend call. The backend honours it for super_admin and other
+    // org-level admins; client-level users have client_id pinned in their JWT
+    // so the header is treated as advisory and ignored when it conflicts.
+    if (!headers['X-Client-Id']) {
       try {
         const sel = typeof window !== 'undefined' ? window.localStorage.getItem('kinematic_selected_client') : null;
         if (sel && isUUID(sel)) headers['X-Client-Id'] = sel;
@@ -210,10 +210,9 @@ class ApiClient {
     if (method !== 'GET' || (options as { noCache?: boolean }).noCache) {
       return this.request<T>(path, options);
     }
-    // Include selected client in cache keys for client-scoped paths so switching
-    // clients doesn't show stale data from a different client.
-    const isClientScoped = path.startsWith('/api/v1/crm') || path.startsWith('/api/v1/roles');
-    const clientPart = isClientScoped ? `|c:${this.getSelectedClient() || 'org'}` : '';
+    // Include selected client in cache keys for any client-scoped path so
+    // switching clients via the picker invalidates per-tenant data.
+    const clientPart = `|c:${this.getSelectedClient() || 'org'}`;
     const key = `${this.getToken() || 'anon'}|${path}${clientPart}`;
     const now = Date.now();
 

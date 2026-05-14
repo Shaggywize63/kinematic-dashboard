@@ -8,6 +8,7 @@ import type { BusinessType, LeadSource, Product } from '../../../../../types/crm
 import LocationPicker from '../../../../../components/crm/LocationPicker';
 import UserSearchSelect, { type UserOption } from '../../../../../components/crm/shared/UserSearchSelect';
 import AlternateMobiles from '../../../../../components/crm/AlternateMobiles';
+import ClientScopeField from '../../../../../components/ClientScopeField';
 
 type UserOpt = UserOption;
 
@@ -22,6 +23,7 @@ type Form = {
   source_id: string; owner_id: string; status: string;
   product_ids: string[];
   alternate_mobiles: string[];
+  client_id: string;
 };
 
 const empty: Form = {
@@ -30,6 +32,7 @@ const empty: Form = {
   city: '', state: '', postal_code: '', country: 'India',
   preferred_contact_method: '', marketing_consent: false, whatsapp_consent: false,
   source_id: '', owner_id: '', status: 'new', product_ids: [], alternate_mobiles: [],
+  client_id: '',
 };
 
 export default function NewLeadPage() {
@@ -84,6 +87,9 @@ export default function NewLeadPage() {
         status: form.status || 'new',
         product_ids: form.product_ids.length > 0 ? form.product_ids : undefined,
         alternate_mobiles: form.alternate_mobiles.length ? form.alternate_mobiles : undefined,
+        // Stamp client_id when the admin chose one (or it auto-seeded from the
+        // global picker). Backend trusts this for super_admin / org admins.
+        client_id: form.client_id || undefined,
       };
       if (!form.is_b2c) {
         Object.assign(payload, { company: form.company || undefined, title: form.title || undefined, industry: form.industry || undefined });
@@ -137,6 +143,9 @@ export default function NewLeadPage() {
       <p style={{ margin: '-4px 0 18px', fontSize: 13, color: 'var(--text-dim)' }}>
         {leadTypeLabel}{' '}Fields marked <span style={{ color: '#ef4444' }}>*</span> are required.
       </p>
+
+      <ClientScopeField value={form.client_id} onChange={(id) => setForm({ ...form, client_id: id })} />
+
 
       <Section title="Personal">
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>

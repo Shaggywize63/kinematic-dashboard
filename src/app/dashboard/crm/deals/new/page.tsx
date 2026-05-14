@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { crmDeals, crmPipelines, crmProducts } from '../../../../../lib/crmApi';
 import type { Pipeline, Product } from '../../../../../types/crm';
+import ClientScopeField from '../../../../../components/ClientScopeField';
 
 // useSearchParams() forces a Suspense boundary on Next 14. The inner
 // component reads ?pipeline_id= so the Pipeline page's "+ New Deal" CTA
@@ -28,6 +29,7 @@ function NewDealPageInner() {
   const [form, setForm] = useState({
     name: '', amount: '', volume_kg: '', product_id: '',
     pipeline_id: initialPipelineId, stage_id: '', expected_close_date: '',
+    client_id: '',
   });
   const [busy, setBusy] = useState(false);
 
@@ -101,6 +103,9 @@ function NewDealPageInner() {
         pipeline_id: form.pipeline_id,
         stage_id: form.stage_id,
         expected_close_date: form.expected_close_date || null,
+        // Stamp the active client (picker or super-admin selection); backend
+        // honours this for super_admin / org admins, ignores for JWT-pinned users.
+        client_id: form.client_id || undefined,
       } as any);
       toast.success('Deal created');
       router.push(`/dashboard/crm/deals/${r.data.id}`);
@@ -114,6 +119,7 @@ function NewDealPageInner() {
   return (
     <form onSubmit={submit} style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 24, maxWidth: 760 }}>
       <h2 style={{ marginTop: 0, fontSize: 18, color: 'var(--text)' }}>New Deal</h2>
+      <ClientScopeField value={form.client_id} onChange={(id) => setForm({ ...form, client_id: id })} />
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
         <Field label="Name"><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required style={input} /></Field>
 
