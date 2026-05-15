@@ -240,10 +240,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       { href: '/dashboard/other-management/skus',    label: 'SKU',       icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4', module: 'skus' },
     ]},
     { label: 'People & Support', package: 'people', items: [
-      { href: '/dashboard/manpower-directory', label: 'Users',      icon: 'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 7a4 4 0 100-8 4 4 0 000 8z M23 21v-2a4 4 0 00-3-3.87 M16 3.13a4 4 0 010 7.75', module: 'users' },
-      { href: '/dashboard/grievances',         label: 'Grievances', icon: 'M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z M12 9v4 M12 17h.01', module: 'grievances' },
-      { href: '/dashboard/visit-logs',         label: 'Visit Logs', icon: 'M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z', module: 'visit_logs' },
-      { href: '/dashboard/broadcast',          label: 'Broadcast',  icon: 'M12 19V5 M5 12l7-7 7 7', module: 'broadcast' },
+      { href: '/dashboard/manpower-directory', label: 'Users',         icon: 'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 7a4 4 0 100-8 4 4 0 000 8z M23 21v-2a4 4 0 00-3-3.87 M16 3.13a4 4 0 010 7.75', module: 'users' },
+      { href: '/dashboard/hr',                 label: 'HR & Recruitment', icon: 'M20 7H4a2 2 0 00-2 2v11a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16', module: 'hr' },
+      { href: '/dashboard/grievances',         label: 'Grievances',    icon: 'M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z M12 9v4 M12 17h.01', module: 'grievances' },
+      { href: '/dashboard/visit-logs',         label: 'Visit Logs',    icon: 'M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z', module: 'visit_logs' },
+      { href: '/dashboard/broadcast',          label: 'Broadcast',     icon: 'M12 19V5 M5 12l7-7 7 7', module: 'broadcast' },
+      { href: '/dashboard/notifications',      label: 'Notifications', icon: 'M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9 M13.73 21a2 2 0 01-3.46 0', module: 'notifications' },
     ]},
     { label: 'System Management', package: 'system', items: [
       { href: '/dashboard/other-management/cities',  label: 'Cities',          icon: 'M3 21h18 M3 7v1a3 3 0 006 0V7m6 0v1a3 3 0 006 0V7', module: 'cities' },
