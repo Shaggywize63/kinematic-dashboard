@@ -171,13 +171,61 @@ export const mockFormTemplates = () => ({
   ]
 });
 
-export const mockRoutePlans = () => ({
-  success: true,
-  data: [
-    { id: 'rp1', date: new Date().toISOString().split('T')[0], executive: { name: 'Arjun Sharma' }, status: 'active', stores_count: 8, progress: 4 },
-    { id: 'rp2', date: new Date().toISOString().split('T')[0], executive: { name: 'Priya Patel' }, status: 'active', stores_count: 6, progress: 2 }
-  ]
-});
+export const mockRoutePlans = () => {
+  const today = new Date().toISOString().split('T')[0];
+  const tISO = (h: number, m = 0) => `${today}T${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:00Z`;
+  // Shape must match the page's RoutePlan/OutletStop interfaces in
+  // src/app/dashboard/route-plan/page.tsx — earlier mock only had
+  // {date, executive, stores_count, progress}, which crashed the page on
+  // plan.outlets.filter(...).
+  return {
+    success: true,
+    data: [
+      {
+        id: 'rp1', user_id: 'fe1', plan_date: today,
+        fe_name: 'Arjun Sharma', fe_employee_id: 'KIN-001', fe_mobile: '+91 98000 11111',
+        zone_name: 'Bangalore North', city_name: 'Bangalore',
+        status: 'in_progress' as const,
+        total_outlets: 5, visited_outlets: 2, missed_outlets: 0, completion_pct: 40,
+        frequency: 'daily', territory_label: 'Koramangala beat',
+        outlets: [
+          { id: 'o1', store_id: 'st1', store_name: 'Reliance Fresh - Koramangala',  store_code: 'REL-001',  store_address: '80ft Rd, 4th Block', store_type: 'modern_trade', zone_name: 'Bangalore East', visit_order: 1, status: 'completed' as const, target_type: 'general',           target_notes: 'Greet manager, confirm Q3 SKUs', checkin_at: tISO(10, 5),  checkout_at: tISO(10, 35), planned_duration_min: 30, actual_duration_min: 30, order_amount: 18500, store_lat: 12.9352, store_lng: 77.6245 },
+          { id: 'o2', store_id: 'st2', store_name: 'Big Bazaar - Indiranagar',      store_code: 'BB-042',   store_address: 'Phoenix Market', store_type: 'modern_trade',   zone_name: 'Bangalore East', visit_order: 2, status: 'completed' as const, target_type: 'merchandising',     target_notes: 'Refresh end-cap', checkin_at: tISO(11, 15), checkout_at: tISO(11, 50), planned_duration_min: 30, actual_duration_min: 35, store_lat: 12.9784, store_lng: 77.6408 },
+          { id: 'o3', store_id: 'st3', store_name: 'Star Market - HSR',             store_code: 'SM-109',   store_address: 'HSR Sector 2', store_type: 'general_trade',     zone_name: 'Bangalore South',visit_order: 3, status: 'pending'   as const, target_type: 'stock_check',       target_notes: '',                                              planned_duration_min: 20, store_lat: 12.9116, store_lng: 77.6473 },
+          { id: 'o4', store_id: 'st4', store_name: 'Metro Cash & Carry - Whitefield', store_code: 'MC-018', store_address: 'Whitefield Main', store_type: 'wholesale',     zone_name: 'Bangalore East', visit_order: 4, status: 'pending'   as const, target_type: 'order_collection',  target_notes: '',                                              planned_duration_min: 45, store_lat: 12.9698, store_lng: 77.7499 },
+          { id: 'o5', store_id: 'st5', store_name: "Spencer's - MG Road",           store_code: 'SP-073',   store_address: 'MG Rd 100ft',     store_type: 'modern_trade',  zone_name: 'Bangalore Central', visit_order: 5, status: 'pending' as const, target_type: 'display_check',     target_notes: '',                                              planned_duration_min: 30, store_lat: 12.9756, store_lng: 77.6107 },
+        ],
+      },
+      {
+        id: 'rp2', user_id: 'fe2', plan_date: today,
+        fe_name: 'Priya Patel', fe_employee_id: 'KIN-002', fe_mobile: '+91 98000 22222',
+        zone_name: 'Mumbai West', city_name: 'Mumbai',
+        status: 'in_progress' as const,
+        total_outlets: 4, visited_outlets: 1, missed_outlets: 0, completion_pct: 25,
+        frequency: 'weekly', territory_label: 'Andheri-Bandra beat',
+        outlets: [
+          { id: 'o6', store_id: 'st6', store_name: 'D-Mart - Andheri West',         store_code: 'DM-014', store_address: 'Lokhandwala Junction', store_type: 'modern_trade', zone_name: 'Mumbai West', visit_order: 1, status: 'completed' as const, target_type: 'order_collection',  checkin_at: tISO(9, 45),  checkout_at: tISO(10, 25), planned_duration_min: 40, actual_duration_min: 40, order_amount: 32400, store_lat: 19.1364, store_lng: 72.8296 },
+          { id: 'o7', store_id: 'st7', store_name: 'Reliance SMART - Bandra',       store_code: 'RS-209', store_address: 'Linking Rd',        store_type: 'modern_trade',  zone_name: 'Mumbai West', visit_order: 2, status: 'checked_in' as const, target_type: 'merchandising',    checkin_at: tISO(11, 10),                                              planned_duration_min: 30, store_lat: 19.0596, store_lng: 72.8400 },
+          { id: 'o8', store_id: 'st8', store_name: 'Patel Provision Mart',          store_code: 'PPM-04', store_address: 'Bandra East',       store_type: 'general_trade', zone_name: 'Mumbai East', visit_order: 3, status: 'pending'   as const, target_type: 'scheme_communication',                                                                  planned_duration_min: 15, store_lat: 19.0644, store_lng: 72.8567 },
+          { id: 'o9', store_id: 'st9', store_name: 'Sharma Kirana',                 store_code: 'SK-011', store_address: 'Khar West',        store_type: 'general_trade', zone_name: 'Mumbai West', visit_order: 4, status: 'pending'   as const, target_type: 'general',                                                                                planned_duration_min: 20, store_lat: 19.0696, store_lng: 72.8290 },
+        ],
+      },
+      {
+        id: 'rp3', user_id: 'fe3', plan_date: today,
+        fe_name: 'Rahul Verma', fe_employee_id: 'KIN-003', fe_mobile: '+91 98000 33333',
+        zone_name: 'Delhi Central', city_name: 'Delhi',
+        status: 'partial' as const,
+        total_outlets: 3, visited_outlets: 2, missed_outlets: 1, completion_pct: 67,
+        frequency: 'daily', territory_label: 'CP beat',
+        outlets: [
+          { id: 'o10', store_id: 'st10', store_name: 'Spencer\'s - CP',             store_code: 'SP-301', store_address: 'Connaught Place', store_type: 'modern_trade', zone_name: 'Delhi Central', visit_order: 1, status: 'completed' as const, target_type: 'stock_check',                      checkin_at: tISO(10, 0),  checkout_at: tISO(10, 20), planned_duration_min: 20, actual_duration_min: 20, store_lat: 28.6315, store_lng: 77.2167 },
+          { id: 'o11', store_id: 'st11', store_name: 'Modern Bazaar - CP',          store_code: 'MB-012', store_address: 'CP Inner Circle', store_type: 'modern_trade', zone_name: 'Delhi Central', visit_order: 2, status: 'completed' as const, target_type: 'merchandising',                    checkin_at: tISO(11, 0),  checkout_at: tISO(11, 30), planned_duration_min: 30, actual_duration_min: 30, store_lat: 28.6334, store_lng: 77.2200 },
+          { id: 'o12', store_id: 'st12', store_name: 'Khan Market General',          store_code: 'KMG-04', store_address: 'Khan Market',     store_type: 'general_trade', zone_name: 'Delhi Central', visit_order: 3, status: 'missed'    as const, target_type: 'general', rejection_reason: 'Shop closed for inventory',                                                                       planned_duration_min: 25, store_lat: 28.5984, store_lng: 77.2273 },
+        ],
+      },
+    ],
+  };
+};
 
 export const mockActivities = () => ({
   success: true,
@@ -784,43 +832,46 @@ const planComplianceFor = (captureId: string, planogramId = 'demo-pg-1', score =
   created_at: _now(-1),
 });
 
+// Field names match src/types/planogram.ts — earlier shapes used `date`/
+// `score`/`store_name`/`risk_score` which the page would dereference as
+// undefined and crash on `.slice(...)` for the bucket_label.
 const PLAN_TREND = Array.from({ length: 30 }, (_, i) => {
   const d = new Date();
   d.setDate(d.getDate() - (29 - i));
   return {
-    date: d.toISOString().split('T')[0],
-    score: 65 + Math.round(Math.sin(i / 4) * 8 + Math.random() * 6),
+    day: d.toISOString().split('T')[0],
+    avg_score: 65 + Math.round(Math.sin(i / 4) * 8 + Math.random() * 6),
     captures: 12 + Math.round(Math.random() * 18),
   };
 });
 
 const PLAN_STORE_RANKING = [
-  { store_id: 'demo-store-3', store_name: 'Star Market – Saket',          captures: 18, avg_score: 91 },
-  { store_id: 'demo-store-1', store_name: 'Reliance Fresh – Koramangala', captures: 22, avg_score: 88 },
-  { store_id: 'demo-store-6', store_name: 'Reliance SMART – Powai',       captures: 14, avg_score: 83 },
-  { store_id: 'demo-store-5', store_name: "Spencer's – Whitefield",       captures: 11, avg_score: 79 },
-  { store_id: 'demo-store-2', store_name: 'Big Bazaar – Andheri',         captures: 19, avg_score: 72 },
-  { store_id: 'demo-store-4', store_name: 'Metro Cash – HSR',             captures:  8, avg_score: 64 },
+  { bucket: 'demo-store-3', bucket_label: 'Star Market – Saket',          captures: 18, avg_score: 91, avg_presence: 95, avg_facing: 88, avg_position: 90, competitor_share: 0.08 },
+  { bucket: 'demo-store-1', bucket_label: 'Reliance Fresh – Koramangala', captures: 22, avg_score: 88, avg_presence: 92, avg_facing: 84, avg_position: 88, competitor_share: 0.12 },
+  { bucket: 'demo-store-6', bucket_label: 'Reliance SMART – Powai',       captures: 14, avg_score: 83, avg_presence: 88, avg_facing: 80, avg_position: 81, competitor_share: 0.15 },
+  { bucket: 'demo-store-5', bucket_label: "Spencer's – Whitefield",       captures: 11, avg_score: 79, avg_presence: 84, avg_facing: 76, avg_position: 77, competitor_share: 0.18 },
+  { bucket: 'demo-store-2', bucket_label: 'Big Bazaar – Andheri',         captures: 19, avg_score: 72, avg_presence: 78, avg_facing: 68, avg_position: 70, competitor_share: 0.24 },
+  { bucket: 'demo-store-4', bucket_label: 'Metro Cash – HSR',             captures:  8, avg_score: 64, avg_presence: 70, avg_facing: 60, avg_position: 62, competitor_share: 0.32 },
 ];
 
 const PLAN_CHRONIC_GAPS = [
-  { sku_id: 'demo-prod-4', sku_name: 'OPC Cement 53', gap_days: 14, stores_affected: 8, avg_facing_delta: -2.6 },
-  { sku_id: 'demo-prod-5', sku_name: 'GI Wire 8 SWG', gap_days: 22, stores_affected: 5, avg_facing_delta: -1.8 },
-  { sku_id: 'demo-prod-3', sku_name: 'TMT Bar 16mm',  gap_days: 9,  stores_affected: 4, avg_facing_delta: -1.2 },
+  { store_id: 'demo-store-4', failing: 12, avg_score: 58 },
+  { store_id: 'demo-store-2', failing:  9, avg_score: 64 },
+  { store_id: 'demo-store-5', failing:  6, avg_score: 71 },
 ];
 
 const PLAN_SKU_VISIBILITY = [
-  { sku_id: 'demo-prod-1', sku_name: 'TMT Bar 8mm',     visibility_pct: 78, competitor_share: 0.15 },
-  { sku_id: 'demo-prod-2', sku_name: 'TMT Bar 12mm',    visibility_pct: 92, competitor_share: 0.08 },
-  { sku_id: 'demo-prod-3', sku_name: 'TMT Bar 16mm',    visibility_pct: 65, competitor_share: 0.22 },
-  { sku_id: 'demo-prod-4', sku_name: 'OPC Cement 53',   visibility_pct: 48, competitor_share: 0.34 },
-  { sku_id: 'demo-prod-5', sku_name: 'GI Wire 8 SWG',   visibility_pct: 41, competitor_share: 0.18 },
+  { sku_id: 'demo-prod-1', sku_name: 'TMT Bar 8mm',    avg_facings: 3.2, appearances: 84 },
+  { sku_id: 'demo-prod-2', sku_name: 'TMT Bar 12mm',   avg_facings: 5.8, appearances: 96 },
+  { sku_id: 'demo-prod-3', sku_name: 'TMT Bar 16mm',   avg_facings: 2.4, appearances: 71 },
+  { sku_id: 'demo-prod-4', sku_name: 'OPC Cement 53',  avg_facings: 4.1, appearances: 58 },
+  { sku_id: 'demo-prod-5', sku_name: 'GI Wire 8 SWG',  avg_facings: 1.8, appearances: 42 },
 ];
 
 const PLAN_RISK_FORECAST = [
-  { store_id: 'demo-store-4', store_name: 'Metro Cash – HSR',     risk_score: 0.82, predicted_drop: -14, primary_reason: 'Repeated facing shortfall on OPC Cement' },
-  { store_id: 'demo-store-2', store_name: 'Big Bazaar – Andheri', risk_score: 0.61, predicted_drop:  -7, primary_reason: 'Competitor share rising over 4 weeks' },
-  { store_id: 'demo-store-5', store_name: "Spencer's – Whitefield", risk_score: 0.48, predicted_drop: -3, primary_reason: 'Misplaced TMT 16mm on entry shelf' },
+  { store_id: 'demo-store-4', latest: 64, slope: -1.4, risk: 0.82 },
+  { store_id: 'demo-store-2', latest: 72, slope: -0.8, risk: 0.61 },
+  { store_id: 'demo-store-5', latest: 79, slope: -0.4, risk: 0.48 },
 ];
 
 // ---------------------------------------------------------------------------
@@ -958,9 +1009,19 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
     }
     if (path === '/broadcast/admin') return list([]) as unknown as T;
     if (path === '/route-plans/summary') {
+      // Shape must match the page's Summary interface; previous version
+      // used total_plans/completion_pct/by_status which left the KPI cards
+      // showing "undefined" and "undefined%".
       return wrap({
-        total_plans: 0, total_outlets: 0, visited_outlets: 0,
-        missed_outlets: 0, completion_pct: 0, by_status: {},
+        total_fes: 3,
+        total_outlets: 12,
+        visited_outlets: 5,
+        missed_outlets: 1,
+        completed_plans: 0,
+        partial_plans: 1,
+        in_progress_plans: 2,
+        pending_plans: 0,
+        avg_completion: 44,
       }) as unknown as T;
     }
 
