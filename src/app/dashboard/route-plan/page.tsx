@@ -65,4 +65,103 @@ const IC = {
   file:     'M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z|M14 2v6h6|M16 13H8|M16 17H8|M10 9H8',
 };
 
-SEE_NEXT_CALL
+/* ── TYPES ─────────────────────────────────────────────────── */
+type VisitStatus = 'pending'|'checked_in'|'completed'|'missed'|'skipped';
+type PlanStatus  = 'pending'|'in_progress'|'completed'|'partial';
+
+interface OutletStop {
+  id: string; visit_order: number; target_type: string;
+  target_notes?: string; target_value?: number;
+  status: VisitStatus;
+  checkin_at?: string; checkout_at?: string;
+  photo_url?: string; order_amount?: number; visit_notes?: string;
+  rejection_reason?: string;
+  actual_duration_min?: number; planned_duration_min?: number;
+  store_id: string; store_name: string; store_code?: string;
+  store_address?: string; store_type?: string;
+  store_lat?: number; store_lng?: number;
+  store_phone?: string; store_owner?: string;
+  zone_name?: string;
+  checkin_distance_m?: number;
+}
+
+interface RoutePlan {
+  id: string; user_id: string; plan_date: string;
+  total_outlets: number; visited_outlets: number;
+  missed_outlets: number; completion_pct: number;
+  status: PlanStatus; notes?: string;
+  frequency?: string; territory_label?: string;
+  fe_name: string; fe_employee_id?: string; fe_mobile?: string;
+  zone_name?: string; city_name?: string;
+  outlets: OutletStop[];
+  vehicle_type?: string;
+  co2_kg_planned?: number;
+  co2_kg_actual?: number;
+}
+
+interface Summary {
+  total_fes: number; total_outlets: number; visited_outlets: number;
+  missed_outlets: number; completed_plans: number; partial_plans: number;
+  in_progress_plans: number; pending_plans: number; avg_completion: number;
+}
+
+interface EsgSummary {
+  range: { from: string; to: string };
+  total_co2_kg_planned: number;
+  total_co2_kg_actual: number;
+  total_km: number;
+  delta_vs_planned_pct: number;
+  by_vehicle: Record<string, { km: number; co2_kg: number; plan_count: number }>;
+  daily_series: { day: string; co2_kg: number }[];
+  equivalents: { trees_year: number; home_days: number };
+  plan_count: number;
+}
+
+interface Store { id: string; name: string; store_code?: string; address?: string; store_type?: string; lat?: number; lng?: number; }
+interface FEUser { id: string; name: string; employee_id?: string; }
+interface Activity { id: string; name: string; }
+
+interface NewOutlet {
+  store_id: string; target_type: string; target_notes: string;
+  target_value: string; visit_order: number; planned_duration_min: string;
+}
+
+const VEHICLE_OPTIONS: { value: string; label: string }[] = [
+  { value: '2w_petrol',     label: '2-wheeler (petrol)' },
+  { value: '2w_ev',         label: '2-wheeler (EV)' },
+  { value: '4w_petrol',     label: '4-wheeler (petrol)' },
+  { value: '4w_diesel',     label: '4-wheeler (diesel)' },
+  { value: '4w_ev',         label: '4-wheeler (EV)' },
+  { value: 'public_bus',    label: 'Public bus' },
+  { value: 'auto_rickshaw', label: 'Auto rickshaw' },
+  { value: 'walking',       label: 'Walking / cycling' },
+];
+const VEHICLE_LABEL = Object.fromEntries(VEHICLE_OPTIONS.map(v => [v.value, v.label]));
+
+/* ── CONSTANTS ─────────────────────────────────────────────── */
+const TARGET_TYPES: Record<string, string> = {
+  order_collection:     'Order Collection',
+  stock_check:          'Stock Check',
+  merchandising:        'Merchandising',
+  scheme_communication: 'Scheme Communication',
+  data_collection:      'Data Collection',
+  display_check:        'Display Check',
+  general:              'General Visit',
+};
+
+const VISIT_STATUS: Record<VisitStatus, { color: string; label: string }> = {
+  pending:    { color: C.gray,   label: 'Pending' },
+  checked_in: { color: C.blue,   label: 'In Progress' },
+  completed:  { color: C.green,  label: 'Completed' },
+  missed:     { color: C.red,    label: 'Missed' },
+  skipped:    { color: C.yellow, label: 'Skipped' },
+};
+
+const PLAN_STATUS: Record<PlanStatus, { color: string; label: string }> = {
+  pending:     { color: C.gray,   label: 'Pending' },
+  in_progress: { color: C.blue,   label: 'In Progress' },
+  completed:   { color: C.green,  label: 'Completed' },
+  partial:     { color: C.yellow, label: 'Partial' },
+};
+
+PART_1_END_MARKER
