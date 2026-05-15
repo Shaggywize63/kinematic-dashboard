@@ -27,6 +27,12 @@ export interface Client {
 
 export interface AuthSession {
   user: AuthUser; access_token: string; expires_at: number;
+  /**
+   * Long-lived (30d, rolling) Supabase refresh token. Used by the API
+   * client to silently rotate the short-lived access_token on 401 so the
+   * user stays signed in until they explicitly hit Sign Out.
+   */
+  refresh_token?: string;
 }
 
 export interface FieldExecutive {

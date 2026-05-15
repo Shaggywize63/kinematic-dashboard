@@ -26,6 +26,7 @@ export default function LoginPage() {
         data: {
           user: { id: string; name: string; role: string; org_id: string; permissions: string[] };
           access_token: string;
+          refresh_token?: string;
           expires_at: number;
         };
       };
@@ -34,6 +35,11 @@ export default function LoginPage() {
         saveSession({
           user,
           access_token: res.data.access_token,
+          // Persist the refresh token so /api/v1 calls can silently rotate
+          // the short-lived access token on 401 — users stay signed in for
+          // the full refresh-token lifetime (~30d rolling) and only get
+          // bounced to /login if they explicitly hit Sign Out.
+          refresh_token: res.data.refresh_token,
           expires_at: res.data.expires_at ?? Math.floor(Date.now() / 1000) + 86400,
         });
         // Send the user to a route their role + permissions can actually load.

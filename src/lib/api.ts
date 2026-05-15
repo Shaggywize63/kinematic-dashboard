@@ -127,7 +127,47 @@ class ApiClient {
     } catch { return null; }
   }
 
-  private async request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  /**
+   * Promise that resolves to the new access token after a /auth/refresh
+   * round-trip. Coalesces concurrent 401s — a burst of failing GETs only
+   * triggers one POST to /auth/refresh.
+   */
+  private refreshInFlight: Promise<string | null> | null = null;
+
+  private async refreshAccessToken(): Promise<string | null> {
+    if (typeof window === 'undefined') return null;
+    if (this.refreshInFlight) return this.refreshInFlight;
+    const refreshToken = localStorage.getItem('kinematic_refresh_token');
+    if (!refreshToken) return null;
+    this.refreshInFlight = (async () => {
+      try {
+        const res = await fetch(`${this.baseUrl}/api/v1/auth/refresh`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refresh_token: refreshToken }),
+        });
+        if (!res.ok) return null;
+        const json = await res.json();
+        const data = json?.data ?? json;
+        const newAccess = data?.access_token as string | undefined;
+        const newRefresh = data?.refresh_token as string | undefined;
+        const expiresAt = data?.expires_at as number | undefined;
+        if (!newAccess) return null;
+        localStorage.setItem('kinematic_token', newAccess);
+        if (newRefresh) localStorage.setItem('kinematic_refresh_token', newRefresh);
+        if (expiresAt) localStorage.setItem('kinematic_expiry', String(expiresAt));
+        return newAccess;
+      } catch {
+        return null;
+      } finally {
+        // Allow the next 401 burst to trigger another refresh.
+        setTimeout(() => { this.refreshInFlight = null; }, 0);
+      }
+    })();
+    return this.refreshInFlight;
+  }
+
+  private async request<T>(path: string, options: RequestInit = {}, _isRetry = false): Promise<T> {
     // Demo mock intercept — when demo@kinematic.com is logged in, hand back
     // canned JSON instead of touching the network so every dashboard renders
     // populated values.
@@ -178,7 +218,20 @@ class ApiClient {
     }
 
     const res = await fetch(`${this.baseUrl}${safePath}`, { ...options, headers });
-    if (res.status === 401) throw new Error('Unauthorized');
+    if (res.status === 401) {
+      // Silent refresh-on-401: try once, swap the Bearer, replay the
+      // original request. The user only ever sees the failure if the
+      // refresh token itself is rejected (revoked / 30d-stale). We do
+      // NOT auto-logout here — only an explicit Sign Out clears the
+      // local session.
+      if (!_isRetry && !path.includes('/auth/refresh') && !path.includes('/auth/login')) {
+        const newAccess = await this.refreshAccessToken();
+        if (newAccess) {
+          return this.request<T>(path, options, true);
+        }
+      }
+      throw new Error('Unauthorized');
+    }
     // 204 No Content / empty body: don't try to JSON-parse (would throw
     // "Unexpected end of JSON input"). This is how every DELETE comes back.
     if (res.status === 204 || res.headers.get('content-length') === '0') {
@@ -280,7 +333,15 @@ class ApiClient {
 
   // ── Auth ──────────────────────────────────────────────────────────────────
   login(email: string, password: string) {
-    return this.post<{ success: boolean; data: { user: object; access_token: string } }>(
+    return this.post<{
+      success: boolean;
+      data: {
+        user: object;
+        access_token: string;
+        refresh_token?: string;
+        expires_at?: number;
+      };
+    }>(
       '/api/v1/auth/login',
       { email, password }
     );

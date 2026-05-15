@@ -2,13 +2,25 @@
 import { AuthSession, AuthUser } from '../types';
 
 const TOKEN_KEY = 'kinematic_token';
+const REFRESH_KEY = 'kinematic_refresh_token';
 const USER_KEY  = 'kinematic_user';
 const EXPIRY_KEY = 'kinematic_expiry';
 
 export function saveSession(session: AuthSession) {
   localStorage.setItem(TOKEN_KEY, session.access_token);
+  if (session.refresh_token) {
+    localStorage.setItem(REFRESH_KEY, session.refresh_token);
+  }
   localStorage.setItem(USER_KEY, JSON.stringify(session.user));
   localStorage.setItem(EXPIRY_KEY, String(session.expires_at));
+}
+
+/** Used by the API client after a silent /auth/refresh round-trip. */
+export function saveRefreshedTokens(accessToken: string, refreshToken?: string | null, expiresAt?: number | null) {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(TOKEN_KEY, accessToken);
+  if (refreshToken) localStorage.setItem(REFRESH_KEY, refreshToken);
+  if (expiresAt) localStorage.setItem(EXPIRY_KEY, String(expiresAt));
 }
 
 export function getStoredUser(): AuthUser | null {
@@ -24,14 +36,25 @@ export function getStoredToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
 }
 
+export function getStoredRefreshToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem(REFRESH_KEY);
+}
+
+/**
+ * The user is considered "logged in" as long as we have an access token
+ * locally — even if the JWT exp has passed. The API client will silently
+ * swap it for a fresh one on the first 401 using the refresh_token. Only
+ * an explicit Sign Out (or a failed refresh) actually ends the session.
+ */
 export function isSessionValid(): boolean {
-  const expiry = localStorage.getItem(EXPIRY_KEY);
-  if (!expiry) return false;
-  return Date.now() < Number(expiry) * 1000;
+  if (typeof window === 'undefined') return false;
+  return !!localStorage.getItem(TOKEN_KEY);
 }
 
 export function clearSession() {
   localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(REFRESH_KEY);
   localStorage.removeItem(USER_KEY);
   localStorage.removeItem(EXPIRY_KEY);
   // Wipe the GET response cache too — otherwise a stale empty payload from
