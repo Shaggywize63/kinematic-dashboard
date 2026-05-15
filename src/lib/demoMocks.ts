@@ -843,8 +843,14 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
     if (path === '/analytics/dashboard-init')   return mockDashboardInit() as unknown as T;
     if (path === '/analytics/summary')          return mockSummary(new Date().toISOString().split('T')[0]) as unknown as T;
     if (path === '/analytics/trends')           return mockTrends() as unknown as T;
+    // Backend route is /tff-trends; legacy mock used /trends. Alias the
+    // canonical path so the analytics page's TFF area chart renders.
+    if (path === '/analytics/tff-trends')       return mockTrends() as unknown as T;
     if (path === '/analytics/feed')             return mockFeed() as unknown as T;
     if (path === '/analytics/heatmap')          return mockHeatmap() as unknown as T;
+    // Same alias story as tff-trends: page hits /contact-heatmap, legacy
+    // mock used /heatmap. Without this the analytics heatmap renders empty.
+    if (path === '/analytics/contact-heatmap')  return mockHeatmap() as unknown as T;
     if (path === '/analytics/locations')        return mockLocations() as unknown as T;
     if (path === '/analytics/weekly-contacts')  return mockWeeklyContacts() as unknown as T;
     if (path === '/analytics/city-performance') return mockCityPerformance() as unknown as T;
@@ -869,6 +875,11 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
     if (path === '/forms/templates' || path === '/form-templates') return mockFormTemplates() as unknown as T;
     if (path === '/forms/submissions' || path === '/submissions')  return mockSubmissions() as unknown as T;
     if (path === '/route-plans')                return mockRoutePlans() as unknown as T;
+    // Route-plan page also fetches activity-mappings to render the activity
+    // chips on each outlet card. Without a match the call falls to the
+    // catch-all empty list, but make it explicit so the page can't be blamed
+    // for a missing collection.
+    if (path === '/activity-mappings')          return list([]) as unknown as T;
     if (path === '/activities')                 return mockActivities() as unknown as T;
     if (path === '/assets')                     return mockAssets() as unknown as T;
     if (path === '/security/alerts')            return mockSecurityAlerts() as unknown as T;
