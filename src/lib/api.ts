@@ -1,20 +1,6 @@
 import * as demo from './demoMocks';
 import { isUUID } from './utils';
 
-// Real Supabase accounts that should be treated as the demo user. Mirrors
-// the DEMO_EMAIL_ALLOWLIST in the backend's middleware/auth.ts so both
-// layers agree on who gets the canned demo experience.
-const DEMO_EMAIL_ALLOWLIST = new Set<string>([
-  demo.DEMO_USER_EMAIL,        // demo@kinematic.com (existing)
-  'demo@kinematicapp.com',     // public demo account
-  'demo@kinematic.app',
-]);
-
-function isDemoEmail(email?: string | null): boolean {
-  if (!email) return false;
-  return DEMO_EMAIL_ALLOWLIST.has(email.toLowerCase());
-}
-
 export function resolveApiUrl(): string {
   const url = process.env.NEXT_PUBLIC_API_URL;
   if (url) return url;
@@ -182,11 +168,11 @@ class ApiClient {
   }
 
   private async request<T>(path: string, options: RequestInit = {}, _isRetry = false): Promise<T> {
-    // Demo mock intercept — when any allowlisted demo email is logged in,
-    // hand back canned JSON instead of touching the network so every
-    // dashboard renders populated values. Allowlist mirrors the backend's
-    // DEMO_EMAIL_ALLOWLIST in middleware/auth.ts so both layers agree.
-    if (isDemoEmail(this.getUserEmail())) {
+    // Demo mock intercept — when demo@kinematic.com is logged in, hand back
+    // canned JSON instead of touching the network so every dashboard renders
+    // populated values. That email is the single demo account; no other
+    // email triggers the demo experience.
+    if (this.getUserEmail() === demo.DEMO_USER_EMAIL) {
       // Pass the parsed body so mocks that need to persist user input (e.g.
       // creating a WhatsApp template) can read it.
       let parsedBody: unknown;
