@@ -18,6 +18,9 @@ const ALL_LINKS = [
   { href: '/dashboard/crm/whatsapp', label: 'WhatsApp' },
   { href: '/dashboard/crm/reports', label: 'Reports' },
   { href: '/dashboard/crm/settings', label: 'Settings' },
+  // Help & lifecycle — same screen as iOS / Android so reps get the same
+  // onboarding map on every surface.
+  { href: '/dashboard/crm/help', label: 'Help' },
 ];
 
 export default function CrmSubNav() {
