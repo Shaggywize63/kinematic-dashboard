@@ -1265,7 +1265,7 @@ function RoutePlanContent() {
 
               {/* Import result */}
               {importResult && (
-                <div style={{ marginTop: 16, background: importResult.failed === 0 ? C.greenD : C.yellowD, border: `1px solid ${C.greenB}` : `1px solid ${C.yellowB}`, borderRadius: 12, padding: 16 }}>
+                <div style={{ marginTop: 16, background: importResult.failed === 0 ? C.greenD : C.yellowD, border: `1px solid ${importResult.failed === 0 ? C.greenB : C.yellowB}`, borderRadius: 12, padding: 16 }}>
                   <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 15, fontWeight: 800, color: importResult.failed === 0 ? C.green : C.yellow, marginBottom: 10 }}>
                     {importResult.failed === 0 ? '✓ Import Complete' : '⚠ Import Partial'}
                   </div>
