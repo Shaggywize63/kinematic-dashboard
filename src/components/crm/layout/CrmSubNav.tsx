@@ -7,7 +7,6 @@ import { crmSettings } from '../../../lib/crmApi';
 const ALL_LINKS = [
   { href: '/dashboard/crm/dashboard', label: 'Dashboard' },
   { href: '/dashboard/crm/leads', label: 'Leads' },
-  { href: '/dashboard/crm/leads/analytics', label: 'Lead Analytics' },
   { href: '/dashboard/crm/contacts', label: 'Contacts' },
   { href: '/dashboard/crm/accounts', label: 'Accounts', hideForB2C: true },
   { href: '/dashboard/crm/deals', label: 'Deals' },
@@ -35,15 +34,7 @@ export default function CrmSubNav() {
   }, []);
 
   const links = ALL_LINKS.filter((l) => !(l.hideForB2C && isB2C));
-  // Exact match for Lead Analytics so it doesn't also light up on /leads/<id>.
-  // Otherwise parent /leads tab would steal the active state.
-  const isActive = (href: string) => {
-    if (href === '/dashboard/crm/leads/analytics') return pathname === href;
-    if (href === '/dashboard/crm/leads') {
-      return pathname === href || (pathname.startsWith(href + '/') && pathname !== '/dashboard/crm/leads/analytics');
-    }
-    return pathname === href || pathname.startsWith(href + '/');
-  };
+  const isActive = (href: string) => pathname === href || pathname.startsWith(href + '/');
 
   return (
     <nav style={{ display: 'flex', gap: 4, padding: '4px', background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, marginBottom: 18, overflowX: 'auto' }}>

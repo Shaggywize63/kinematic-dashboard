@@ -1,12 +1,15 @@
 'use client';
 /**
- * Lead Analytics page — customisable widget grid powered by react-grid-layout.
+ * Embeddable Lead Analytics customizer for the CRM Dashboard.
  *
  * - "Edit layout" toggle puts the grid in drag/resize mode.
  * - "+ Add widget" opens a modal listing the 15-widget catalog.
- * - Per-tile menu: chart-type switcher, "Pin to CRM Overview", remove.
+ * - Per-tile menu: chart-type switcher + remove (no pin — widgets already
+ *   live on the dashboard).
  * - Layout persists per-user under (org_id, page='analytics') on every
  *   change (debounced 800ms) so refresh restores the exact state.
+ *
+ * Renders inline as a section on /dashboard/crm/dashboard.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Responsive, WidthProvider, type Layout, type Layouts } from 'react-grid-layout';
@@ -14,9 +17,9 @@ import { Plus, Edit3, Save, X, BarChart3, LineChart as LineIcon, PieChart, Layer
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 
-import AnalyticsWidget from '../../../../../components/crm/analytics/AnalyticsWidget';
-import { WIDGET_CATALOG, widgetByType, type WidgetMeta, type ChartType } from '../../../../../lib/crm/widgetCatalog';
-import { crmDashboardLayouts, type DashboardConfig, type WidgetInstance, type GridItem } from '../../../../../lib/crmAnalyticsExtApi';
+import AnalyticsWidget from './AnalyticsWidget';
+import { WIDGET_CATALOG, widgetByType, type WidgetMeta, type ChartType } from '../../../lib/crm/widgetCatalog';
+import { crmDashboardLayouts, type DashboardConfig, type WidgetInstance, type GridItem } from '../../../lib/crmAnalyticsExtApi';
 import { toast } from 'sonner';
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
@@ -33,7 +36,7 @@ const CATEGORY_ICONS: Record<string, React.ElementType> = {
   Risk: Layers,
 };
 
-export default function LeadAnalyticsPage() {
+export default function LeadAnalyticsSection() {
   const [config, setConfig] = useState<DashboardConfig>({ widgets: [], layouts: {} });
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
@@ -52,7 +55,7 @@ export default function LeadAnalyticsPage() {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
       crmDashboardLayouts.save('analytics', config).catch(() => {
-        toast.error('Failed to save layout');
+        toast.error('Failed to save analytics layout');
       });
     }, 800);
     return () => { if (saveTimer.current) clearTimeout(saveTimer.current); };
@@ -101,43 +104,37 @@ export default function LeadAnalyticsPage() {
     setConfig(c => ({ ...c, widgets: c.widgets.map(w => w.id === id ? { ...w, chart_type } : w) }));
   };
 
-  const pinToOverview = async (widget: WidgetInstance) => {
-    try {
-      await crmDashboardLayouts.pinToOverview(widget);
-      toast.success('Pinned to CRM Overview');
-    } catch {
-      toast.error('Failed to pin widget');
-    }
-  };
-
   const onLayoutChange = (_: Layout[], allLayouts: Layouts) => {
     setConfig(c => ({ ...c, layouts: allLayouts as DashboardConfig['layouts'] }));
   };
 
-  if (loading) return <div style={{ padding: 40, color: 'var(--text-dim)' }}>Loading analytics…</div>;
+  if (loading) {
+    return <div style={{ padding: 24, color: 'var(--text-dim)', fontSize: 13 }}>Loading lead analytics…</div>;
+  }
 
   return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 20 }}>
-        <div style={{ flex: 1, minWidth: 240 }}>
-          <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0, color: 'var(--text)' }}>Lead Analytics</h1>
-          <p style={{ fontSize: 13, color: 'var(--text-dim)', margin: '4px 0 0' }}>
-            Drag, resize, and pin charts to build a dashboard that fits your workflow.
-          </p>
+    <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
+        <div style={{ flex: 1, minWidth: 200 }}>
+          <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700 }}>Lead Analytics</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', marginTop: 2 }}>Custom widgets</div>
+          <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>
+            Drag, resize, and pick chart types. Layout saves automatically.
+          </div>
         </div>
         <button onClick={() => setAdding(true)} style={primaryBtn}>
           <Plus size={14} /> Add widget
         </button>
         <button onClick={() => setEditing(e => !e)} style={editing ? activeBtn : secondaryBtn}>
-          {editing ? <><Save size={14} /> Done editing</> : <><Edit3 size={14} /> Edit layout</>}
+          {editing ? <><Save size={14} /> Done</> : <><Edit3 size={14} /> Edit layout</>}
         </button>
       </div>
 
       {!config.widgets.length && (
-        <div style={{ padding: 60, textAlign: 'center', background: 'var(--s2)', border: '1px dashed var(--border)', borderRadius: 14, color: 'var(--text-dim)' }}>
-          <BarChart3 size={36} style={{ marginBottom: 12, opacity: 0.5 }} />
-          <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)' }}>Build your analytics dashboard</div>
-          <div style={{ fontSize: 13, margin: '8px 0 18px' }}>
+        <div style={{ padding: 40, textAlign: 'center', background: 'var(--s3)', border: '1px dashed var(--border)', borderRadius: 12, color: 'var(--text-dim)' }}>
+          <BarChart3 size={32} style={{ marginBottom: 10, opacity: 0.5 }} />
+          <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>No analytics widgets added</div>
+          <div style={{ fontSize: 12, margin: '6px 0 14px' }}>
             Pick from 15 lead-management widgets — conversion, velocity, engagement, risk, and more.
           </div>
           <button onClick={() => setAdding(true)} style={{ ...primaryBtn, margin: '0 auto' }}>
@@ -172,7 +169,7 @@ export default function LeadAnalyticsPage() {
                   DRAG TO MOVE • DRAG CORNER TO RESIZE
                 </div>
               )}
-              <AnalyticsWidget widget={w} isEditing={editing} onRemove={removeWidget} onChangeChartType={changeChartType} onPinToOverview={pinToOverview} />
+              <AnalyticsWidget widget={w} isEditing={editing} onRemove={removeWidget} onChangeChartType={changeChartType} />
             </div>
           ))}
         </ResponsiveGridLayout>
@@ -200,7 +197,7 @@ function AddWidgetDialog({ onPick, onClose, existing }: { onPick: (w: WidgetMeta
       <div style={{ background: 'var(--s1)', border: '1px solid var(--border)', borderRadius: 16, width: '100%', maxWidth: 720, maxHeight: '85vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         <div style={{ padding: '18px 22px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center' }}>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text)' }}>Add widget</div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text)' }}>Add analytics widget</div>
             <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>
               Pick any widget — already-added ones show &quot;Added&quot;.
             </div>
@@ -276,7 +273,7 @@ function defaultLayoutFor(widgets: WidgetInstance[], cols: number): GridItem[] {
   return out;
 }
 
-const baseBtn: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', border: '1px solid var(--border)' };
+const baseBtn: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 7, fontSize: 12, fontWeight: 700, cursor: 'pointer', border: '1px solid var(--border)' };
 const primaryBtn: React.CSSProperties = { ...baseBtn, background: 'var(--primary)', color: '#fff', border: 'none' };
-const secondaryBtn: React.CSSProperties = { ...baseBtn, background: 'var(--s2)', color: 'var(--text)' };
+const secondaryBtn: React.CSSProperties = { ...baseBtn, background: 'var(--s3)', color: 'var(--text)' };
 const activeBtn: React.CSSProperties = { ...baseBtn, background: 'var(--s3)', color: 'var(--primary)', borderColor: 'var(--primary)' };
