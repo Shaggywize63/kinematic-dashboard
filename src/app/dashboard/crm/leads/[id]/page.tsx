@@ -47,6 +47,11 @@ export default function LeadDetailPage() {
   const [usersLoading, setUsersLoading] = useState(false);
   const assignRef = useRef<HTMLDivElement>(null);
 
+  // Mark as Won state
+  const [wonOpen, setWonOpen] = useState(false);
+  const [wonReason, setWonReason] = useState('');
+  const [markingWon, setMarkingWon] = useState(false);
+
   const reload = async () => {
     if (!id) return;
     setLoading(true);
@@ -115,6 +120,26 @@ export default function LeadDetailPage() {
     }
   };
 
+  const handleMarkWon = async () => {
+    if (!lead) return;
+    setMarkingWon(true);
+    try {
+      const updated = await crmLeads.update(lead.id, {
+        status: 'converted',
+        won_reason: wonReason.trim() || undefined,
+        lifecycle_stage: 'customer',
+      } as any);
+      setLead(updated.data);
+      setWonOpen(false);
+      setWonReason('');
+      toast.success('Lead marked as Won!');
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to mark as Won');
+    } finally {
+      setMarkingWon(false);
+    }
+  };
+
   const loadUsers = async () => {
     if (users.length > 0 || usersLoading) return;
     setUsersLoading(true);
@@ -149,6 +174,9 @@ export default function LeadDetailPage() {
   const isB2C = !!lead.is_b2c;
   const isConverted = lead.status === 'converted' || !!lead.converted_at;
   const isUnqualified = lead.status === 'unqualified';
+  const isWon = lead.status === 'converted' && !!(lead as any).won_reason;
+  // Only show active-lifecycle buttons when lead is not yet terminal
+  const isActive = !isConverted && !isUnqualified && lead.status !== 'lost';
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(280px, 1fr)', gap: 18 }}>
@@ -160,7 +188,8 @@ export default function LeadDetailPage() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)' }}>{fullName}</div>
                 <Badge tone={isB2C ? 'consumer' : 'business'}>{isB2C ? 'B2C' : 'B2B'}</Badge>
-                {isConverted && <Badge tone="success">Converted</Badge>}
+                {isConverted && !isWon && <Badge tone="success">Converted</Badge>}
+                {isWon && <Badge tone="won">Won</Badge>}
                 {isUnqualified && <Badge tone="muted">Inactive</Badge>}
               </div>
               <div style={{ fontSize: 13, color: 'var(--text-dim)' }}>
@@ -173,6 +202,15 @@ export default function LeadDetailPage() {
               <button onClick={() => setEditOpen(true)} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>Edit</button>
               {!isConverted && (
                 <button onClick={() => setConvertOpen(true)} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>Convert</button>
+              )}
+              {/* Mark as Won — only shown for active leads */}
+              {isActive && (
+                <button
+                  onClick={() => setWonOpen(true)}
+                  style={{ background: '#10B981', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}
+                >
+                  Mark as Won
+                </button>
               )}
               <div ref={assignRef} style={{ position: 'relative' }}>
                 <button
@@ -208,7 +246,21 @@ export default function LeadDetailPage() {
               <button onClick={() => router.back()} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer' }}>Back</button>
             </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, fontSize: 13 }}>
+
+          {/* Won banner */}
+          {isWon && (
+            <div style={{ marginTop: 12, padding: '10px 16px', background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: 16 }}>&#x2714;</span>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#10B981' }}>Lead Won!</div>
+                {(lead as any).won_reason && (
+                  <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>{(lead as any).won_reason}</div>
+                )}
+              </div>
+            </div>
+          )}
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, fontSize: 13, marginTop: 14 }}>
             <Field label="Email" value={lead.email} />
             <PhoneField phone={lead.phone} prefill={waPrefill} leadId={lead.id} displayName={fullName} />
             <Field label="Status" value={lead.status} />
@@ -221,9 +273,9 @@ export default function LeadDetailPage() {
         {isConverted && (lead.converted_account_id || lead.converted_contact_id || lead.converted_deal_id) && (
           <Card title="Converted To">
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              {lead.converted_contact_id && (<Link href={`/dashboard/crm/contacts/${lead.converted_contact_id}`} style={chipLink}>→ Contact</Link>)}
-              {lead.converted_account_id && (<Link href={`/dashboard/crm/accounts/${lead.converted_account_id}`} style={chipLink}>→ Account</Link>)}
-              {lead.converted_deal_id && (<Link href={`/dashboard/crm/deals/${lead.converted_deal_id}`} style={chipLink}>→ Deal</Link>)}
+              {lead.converted_contact_id && (<Link href={`/dashboard/crm/contacts/${lead.converted_contact_id}`} style={chipLink}>&rarr; Contact</Link>)}
+              {lead.converted_account_id && (<Link href={`/dashboard/crm/accounts/${lead.converted_account_id}`} style={chipLink}>&rarr; Account</Link>)}
+              {lead.converted_deal_id && (<Link href={`/dashboard/crm/deals/${lead.converted_deal_id}`} style={chipLink}>&rarr; Deal</Link>)}
             </div>
           </Card>
         )}
@@ -286,6 +338,56 @@ export default function LeadDetailPage() {
         onClose={() => setEditOpen(false)}
         onSaved={(updated) => { setLead(updated); reload(); }}
       />
+
+      {/* Mark as Won dialog */}
+      {wonOpen && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 16, width: '100%', maxWidth: 440, padding: 28 }}>
+            <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text)', marginBottom: 6 }}>Mark Lead as Won</div>
+            <div style={{ fontSize: 13, color: 'var(--text-dim)', marginBottom: 20 }}>
+              This will convert the lead and mark it as won.
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 6, fontWeight: 600 }}>Win Reason <span style={{ fontWeight: 400 }}>(optional)</span></div>
+              <input
+                type="text"
+                value={wonReason}
+                onChange={e => setWonReason(e.target.value)}
+                placeholder="e.g. Competitive pricing, great timing"
+                style={{
+                  width: '100%',
+                  background: 'var(--s3)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 9,
+                  padding: '10px 13px',
+                  color: 'var(--text)',
+                  fontSize: 13,
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                }}
+                onKeyDown={e => { if (e.key === 'Enter' && !markingWon) handleMarkWon(); }}
+                autoFocus
+              />
+            </div>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => { setWonOpen(false); setWonReason(''); }}
+                disabled={markingWon}
+                style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '10px 18px', borderRadius: 9, cursor: 'pointer', fontWeight: 600, fontSize: 13 }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleMarkWon}
+                disabled={markingWon}
+                style={{ background: markingWon ? '#6ee7b7' : '#10B981', border: 'none', color: '#fff', padding: '10px 20px', borderRadius: 9, cursor: markingWon ? 'not-allowed' : 'pointer', fontWeight: 700, fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 }}
+              >
+                {markingWon ? 'Saving...' : 'Confirm Won'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -321,12 +423,13 @@ function PhoneField({ phone, prefill, leadId, displayName }: { phone?: string | 
   );
 }
 
-function Badge({ children, tone }: { children: React.ReactNode; tone: 'business' | 'consumer' | 'success' | 'muted' }) {
+function Badge({ children, tone }: { children: React.ReactNode; tone: 'business' | 'consumer' | 'success' | 'won' | 'muted' }) {
   const colors = {
     business: { bg: '#3b82f6', fg: '#fff' },
     consumer: { bg: '#8b5cf6', fg: '#fff' },
-    success: { bg: '#10b981', fg: '#fff' },
-    muted: { bg: 'var(--s3)', fg: 'var(--text-dim)' },
+    success:  { bg: '#10b981', fg: '#fff' },
+    won:      { bg: '#10b981', fg: '#fff' },
+    muted:    { bg: 'var(--s3)', fg: 'var(--text-dim)' },
   }[tone];
   return (
     <span style={{ background: colors.bg, color: colors.fg, fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 5, textTransform: 'uppercase', letterSpacing: 0.4 }}>{children}</span>
