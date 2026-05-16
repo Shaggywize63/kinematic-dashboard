@@ -14,6 +14,7 @@ const ALL_LINKS = [
   { href: '/dashboard/crm/activities', label: 'Activities' },
   { href: '/dashboard/crm/templates', label: 'Templates' },
   { href: '/dashboard/crm/reports', label: 'Reports' },
+  { href: '/dashboard/crm/leaderboard', label: 'Leaderboard' },
   { href: '/dashboard/crm/settings', label: 'Settings' },
 ];
 
