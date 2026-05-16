@@ -94,6 +94,9 @@ interface RoutePlan {
   fe_name: string; fe_employee_id?: string; fe_mobile?: string;
   zone_name?: string; city_name?: string;
   outlets: OutletStop[];
+  vehicle_type?: string;
+  co2_kg_planned?: number;
+  co2_kg_actual?: number;
 }
 
 interface Summary {
@@ -102,7 +105,19 @@ interface Summary {
   in_progress_plans: number; pending_plans: number; avg_completion: number;
 }
 
-interface Store { id: string; name: string; store_code?: string; address?: string; store_type?: string; }
+interface EsgSummary {
+  range: { from: string; to: string };
+  total_co2_kg_planned: number;
+  total_co2_kg_actual: number;
+  total_km: number;
+  delta_vs_planned_pct: number;
+  by_vehicle: Record<string, { km: number; co2_kg: number; plan_count: number }>;
+  daily_series: { day: string; co2_kg: number }[];
+  equivalents: { trees_year: number; home_days: number };
+  plan_count: number;
+}
+
+interface Store { id: string; name: string; store_code?: string; address?: string; store_type?: string; lat?: number; lng?: number; }
 interface FEUser { id: string; name: string; employee_id?: string; }
 interface Activity { id: string; name: string; }
 
@@ -110,6 +125,18 @@ interface NewOutlet {
   store_id: string; target_type: string; target_notes: string;
   target_value: string; visit_order: number; planned_duration_min: string;
 }
+
+const VEHICLE_OPTIONS: { value: string; label: string }[] = [
+  { value: '2w_petrol',     label: '2-wheeler (petrol)' },
+  { value: '2w_ev',         label: '2-wheeler (EV)' },
+  { value: '4w_petrol',     label: '4-wheeler (petrol)' },
+  { value: '4w_diesel',     label: '4-wheeler (diesel)' },
+  { value: '4w_ev',         label: '4-wheeler (EV)' },
+  { value: 'public_bus',    label: 'Public bus' },
+  { value: 'auto_rickshaw', label: 'Auto rickshaw' },
+  { value: 'walking',       label: 'Walking / cycling' },
+];
+const VEHICLE_LABEL = Object.fromEntries(VEHICLE_OPTIONS.map(v => [v.value, v.label]));
 
 /* ── CONSTANTS ─────────────────────────────────────────────── */
 const TARGET_TYPES: Record<string, string> = {
@@ -224,8 +251,14 @@ function RoutePlanContent() {
   // Form state for create
   const [form, setForm] = useState({
     user_id: '', activity_ids: [] as string[], plan_date: todayStr, notes: '', frequency: 'daily', territory_label: '',
+    vehicle_type: '2w_petrol',
     outlets: [{ store_id: '', target_type: 'general', target_notes: '', target_value: '', visit_order: 1, planned_duration_min: '' }] as NewOutlet[],
   });
+  const [optimizeMsg, setOptimizeMsg] = useState<string | null>(null);
+  const [optimizing, setOptimizing]   = useState(false);
+
+  // ESG summary state (carbon KPIs for the date range)
+  const [esgSummary, setEsgSummary] = useState<EsgSummary | null>(null);
 
   // Import state
   const [importDate, setImportDate]   = useState(todayStr);
@@ -245,9 +278,11 @@ function RoutePlanContent() {
     setLoading(true);
     setError(null);
     try {
-      const [plansRes, summRes] = await Promise.allSettled([
+      const monthStart = (date || todayStr).slice(0, 7) + '-01';
+      const [plansRes, summRes, esgRes] = await Promise.allSettled([
         api.get(`/api/v1/route-plans?date=${date}`) as Promise<any>,
         api.get(`/api/v1/route-plans/summary?date=${date}`) as Promise<any>,
+        api.get(`/api/v1/route-plans/esg-summary?from=${monthStart}&to=${date}`) as Promise<any>,
       ]);
 
       if (plansRes.status === 'fulfilled') {
@@ -261,10 +296,17 @@ function RoutePlanContent() {
         const r = summRes.value;
         setSummary(r?.data ?? r ?? null);
       }
+
+      if (esgRes.status === 'fulfilled') {
+        const r = esgRes.value;
+        setEsgSummary((r?.data ?? r ?? null) as EsgSummary | null);
+      } else {
+        setEsgSummary(null);
+      }
     } finally {
       setLoading(false);
     }
-  }, [date]);
+  }, [date, todayStr]);
 
   const fetchFormData = useCallback(async () => {
     const [storesRes, usersRes, actRes, mapsRes] = await Promise.allSettled([
@@ -338,8 +380,57 @@ function RoutePlanContent() {
 
   const resetForm = () => setForm({
     user_id: '', activity_ids: [], plan_date: todayStr, notes: '', frequency: 'daily', territory_label: '',
+    vehicle_type: '2w_petrol',
     outlets: [{ store_id: '', target_type: 'general', target_notes: '', target_value: '', visit_order: 1, planned_duration_min: '' }],
   });
+
+  /* ── OPTIMIZE ROUTE ──────────────────────────────────────── */
+  const handleOptimize = async () => {
+    setOptimizeMsg(null);
+    const slots = form.outlets.filter(o => o.store_id);
+    if (slots.length < 2) { setOptimizeMsg('Add at least 2 stops to optimise'); return; }
+    const payloadOutlets = slots
+      .map((o) => {
+        const s = stores.find(x => x.id === o.store_id);
+        return s && typeof s.lat === 'number' && typeof s.lng === 'number'
+          ? { id: o.store_id, lat: s.lat, lng: s.lng }
+          : null;
+      })
+      .filter(Boolean) as { id: string; lat: number; lng: number }[];
+    if (payloadOutlets.length < 2) {
+      setOptimizeMsg('Selected stores are missing coordinates — cannot optimise');
+      return;
+    }
+    setOptimizing(true);
+    try {
+      const r: any = await api.post('/api/v1/route-plans/optimize', {
+        outlets: payloadOutlets,
+        vehicle_type: form.vehicle_type,
+      });
+      const result = r?.data ?? r ?? {};
+      const ordered: string[] = result.ordered || [];
+      if (!ordered.length) { setOptimizeMsg('Optimiser returned no order'); return; }
+      const byStoreId: Record<string, NewOutlet> = {};
+      form.outlets.forEach(o => { if (o.store_id) byStoreId[o.store_id] = o; });
+      const reordered = ordered
+        .map((sid, i) => {
+          const existing = byStoreId[sid];
+          return existing ? { ...existing, visit_order: i + 1 } : null;
+        })
+        .filter(Boolean) as NewOutlet[];
+      const untouched = form.outlets.filter(o => !o.store_id);
+      setForm(f => ({ ...f, outlets: [...reordered, ...untouched.map((o, i) => ({ ...o, visit_order: reordered.length + i + 1 }))] }));
+      const savedKm  = Number(result.saved_km ?? 0).toFixed(2);
+      const savedCo2 = Number(result.saved_co2_kg ?? 0).toFixed(2);
+      setOptimizeMsg(Number(savedKm) > 0
+        ? `Reordered ${reordered.length} stops — saved ${savedKm} km / ${savedCo2} kg CO₂`
+        : 'Order already near-optimal — no change');
+    } catch (e: any) {
+      setOptimizeMsg(e?.message || 'Optimisation failed');
+    } finally {
+      setOptimizing(false);
+    }
+  };
 
   /* ── ACTIONS ─────────────────────────────────────────────── */
   const handleCreate = async () => {
@@ -348,47 +439,25 @@ function RoutePlanContent() {
     setCreating(true);
     setError(null);
     try {
-      // Backend creates one plan per (user, activity, date) — same shape as
-      // bulk-import. The form lets you tick multiple activities, so we fan
-      // out the POSTs and collect failures so partial success is surfaced.
-      const outletsPayload = form.outlets.map(o => ({
-        store_id:             o.store_id,
-        target_type:          o.target_type,
-        target_notes:         o.target_notes || null,
-        target_value:         o.target_value ? parseFloat(o.target_value) : null,
-        visit_order:          o.visit_order,
-        planned_duration_min: o.planned_duration_min ? parseInt(o.planned_duration_min) : null,
-      }));
-
-      const results = await Promise.allSettled(
-        form.activity_ids.map(aid =>
-          api.post('/api/v1/route-plans', {
-            user_id:         form.user_id,
-            activity_id:     aid,
-            plan_date:       form.plan_date,
-            notes:           form.notes || null,
-            frequency:       form.frequency,
-            territory_label: form.territory_label || null,
-            outlets:         outletsPayload,
-          })
-        )
-      );
-
-      const failures = results
-        .map((r, i) => ({ r, aid: form.activity_ids[i] }))
-        .filter(x => x.r.status === 'rejected');
-
-      if (failures.length === form.activity_ids.length) {
-        const first = failures[0].r as PromiseRejectedResult;
-        throw new Error(first.reason?.message || 'Failed to create route plan');
-      }
-
-      if (failures.length > 0) {
-        setError(`Created ${form.activity_ids.length - failures.length} of ${form.activity_ids.length} plans. ${failures.length} failed.`);
-      } else {
-        setModal(null);
-        resetForm();
-      }
+      await api.post('/api/v1/route-plans', {
+        user_id:        form.user_id,
+        activity_ids:   form.activity_ids,
+        plan_date:      form.plan_date,
+        notes:          form.notes || null,
+        frequency:      form.frequency,
+        territory_label:form.territory_label || null,
+        vehicle_type:   form.vehicle_type || '2w_petrol',
+        outlets: form.outlets.map(o => ({
+          store_id:             o.store_id,
+          target_type:          o.target_type,
+          target_notes:         o.target_notes || null,
+          target_value:         o.target_value ? parseFloat(o.target_value) : null,
+          visit_order:          o.visit_order,
+          planned_duration_min: o.planned_duration_min ? parseInt(o.planned_duration_min) : null,
+        })),
+      });
+      setModal(null);
+      resetForm();
       fetchData();
     } catch (e: any) {
       setError(e.message || 'Failed to create route plan');
@@ -601,6 +670,68 @@ function RoutePlanContent() {
         </>
       )}
 
+      {/* ── CARBON / ESG STRIP ─────────────────────────────── */}
+      {esgSummary && (
+        <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 14, padding: '14px 18px', marginBottom: 24 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+            <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 13, fontWeight: 800, color: C.white, letterSpacing: '0.6px', textTransform: 'uppercase' }}>
+              🌱 Carbon Footprint · {esgSummary.range.from} → {esgSummary.range.to}
+            </div>
+            <div style={{ fontSize: 11, color: C.gray }}>
+              {esgSummary.plan_count} plans · {Number(esgSummary.total_km).toFixed(1)} km
+              {esgSummary.delta_vs_planned_pct !== 0 && (
+                <span style={{ marginLeft: 10, color: esgSummary.delta_vs_planned_pct < 0 ? C.green : C.yellow, fontWeight: 700 }}>
+                  {esgSummary.delta_vs_planned_pct < 0 ? '↓' : '↑'} {Math.abs(esgSummary.delta_vs_planned_pct).toFixed(1)}% vs plan
+                </span>
+              )}
+            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14 }}>
+            <div style={{ background: C.s3, border: `1px solid ${C.border}`, borderRadius: 12, padding: '14px 16px' }}>
+              <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 22, fontWeight: 800, color: C.green }}>
+                {Number(esgSummary.total_co2_kg_actual).toFixed(1)} <span style={{ fontSize: 12, color: C.gray }}>kg</span>
+              </div>
+              <div style={{ fontSize: 11, color: C.gray, marginTop: 4 }}>CO₂ this month (actual)</div>
+            </div>
+            <div style={{ background: C.s3, border: `1px solid ${C.border}`, borderRadius: 12, padding: '14px 16px' }}>
+              <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 22, fontWeight: 800, color: C.blue }}>
+                {Number(esgSummary.total_co2_kg_planned).toFixed(1)} <span style={{ fontSize: 12, color: C.gray }}>kg</span>
+              </div>
+              <div style={{ fontSize: 11, color: C.gray, marginTop: 4 }}>CO₂ planned</div>
+            </div>
+            <div style={{ background: C.s3, border: `1px solid ${C.border}`, borderRadius: 12, padding: '14px 16px' }}>
+              <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 18, fontWeight: 800, color: C.yellow }}>
+                🌳 {Number(esgSummary.equivalents.trees_year).toFixed(1)}
+              </div>
+              <div style={{ fontSize: 11, color: C.gray, marginTop: 4 }}>Trees / year equivalent</div>
+            </div>
+            <div style={{ background: C.s3, border: `1px solid ${C.border}`, borderRadius: 12, padding: '14px 16px' }}>
+              <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 18, fontWeight: 800, color: C.purple }}>
+                🏠 {Number(esgSummary.equivalents.home_days).toFixed(1)}
+              </div>
+              <div style={{ fontSize: 11, color: C.gray, marginTop: 4 }}>Indian home-days equiv.</div>
+            </div>
+          </div>
+          {Object.keys(esgSummary.by_vehicle || {}).length > 0 && (
+            <div style={{ marginTop: 12, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {Object.entries(esgSummary.by_vehicle)
+                .sort((a, b) => b[1].co2_kg - a[1].co2_kg)
+                .map(([vt, agg]) => (
+                  <div key={vt} style={{ background: C.s3, border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 11px', fontSize: 11, color: C.gray }}>
+                    <span style={{ color: C.white, fontWeight: 700 }}>{VEHICLE_LABEL[vt] || vt}</span>
+                    {' · '}
+                    {Number(agg.co2_kg).toFixed(1)} kg
+                    {' · '}
+                    {Number(agg.km).toFixed(1)} km
+                    {' · '}
+                    {agg.plan_count} plan{agg.plan_count === 1 ? '' : 's'}
+                  </div>
+                ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ── FILTERS ────────────────────────────────────────── */}
       <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 14, padding: 14, marginBottom: 20, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
         <input placeholder="Search FE name, ID or territory…" value={search} onChange={e => setSearch(e.target.value)}
@@ -674,10 +805,18 @@ function RoutePlanContent() {
                       <span style={{ color: sm.color, fontWeight: 700 }}>{Math.round(Number(plan.completion_pct))}%</span>
                     </div>
                     <ProgressBar pct={Number(plan.completion_pct)} color={sm.color} />
-                    <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
                       {completedCount > 0  && <span style={{ fontSize: 10, color: C.green  }}>✓ {completedCount} done</span>}
                       {inProgressCount > 0 && <span style={{ fontSize: 10, color: C.blue   }}>● {inProgressCount} active</span>}
                       {missedCount > 0     && <span style={{ fontSize: 10, color: C.red    }}>✗ {missedCount} missed</span>}
+                      {(plan.co2_kg_actual || plan.co2_kg_planned) ? (
+                        <span style={{ fontSize: 10, color: C.green }}>
+                          🌱 {Number(plan.co2_kg_actual || plan.co2_kg_planned || 0).toFixed(2)} kg CO₂
+                          {plan.vehicle_type && (
+                            <span style={{ color: C.gray, marginLeft: 4 }}>· {VEHICLE_LABEL[plan.vehicle_type] || plan.vehicle_type}</span>
+                          )}
+                        </span>
+                      ) : null}
                     </div>
                   </div>
 
@@ -906,22 +1045,46 @@ function RoutePlanContent() {
               </div>
 
               {/* Notes */}
-              <div style={{ marginBottom: 20 }}>
+              <div style={{ marginBottom: 14 }}>
                 <div style={{ fontSize: 12, color: C.gray, marginBottom: 7 }}>Notes for FE</div>
                 <input value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Optional instructions…"
                   style={{ width: '100%', background: C.s3, border: `1px solid ${C.border}`, borderRadius: 9, padding: '10px 13px', color: C.white, fontSize: 13, outline: 'none' }} />
               </div>
 
+              {/* Vehicle (carbon tracking) */}
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ fontSize: 12, color: C.gray, marginBottom: 7, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  🚗 Vehicle for this trip
+                  <span style={{ fontSize: 10, color: C.grayd, fontWeight: 400 }}>(used to compute CO₂)</span>
+                </div>
+                <select value={form.vehicle_type} onChange={e => setForm(f => ({ ...f, vehicle_type: e.target.value }))}
+                  style={{ width: '100%', background: C.s3, border: `1px solid ${C.border}`, borderRadius: 9, padding: '10px 13px', color: C.white, fontSize: 13, outline: 'none' }}>
+                  {VEHICLE_OPTIONS.map(v => <option key={v.value} value={v.value}>{v.label}</option>)}
+                </select>
+              </div>
+
               {/* Outlet stops */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: C.gray, letterSpacing: '0.8px', textTransform: 'uppercase' }}>
                   Outlet Stops ({form.outlets.length})
                 </div>
-                <button onClick={addOutlet}
-                  style={{ background: C.blueD, border: `1px solid ${C.blueB}`, borderRadius: 8, padding: '6px 13px', color: C.blue, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Icon d={IC.plus} s={13} c={C.blue} /> Add Stop
-                </button>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <button onClick={handleOptimize} disabled={optimizing}
+                    style={{ background: optimizing ? C.s3 : C.greenD, border: `1px solid ${optimizing ? C.border : C.greenB}`, borderRadius: 8, padding: '6px 13px', color: optimizing ? C.gray : C.green, fontSize: 12, fontWeight: 600, cursor: optimizing ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+                    title="Reorder stops with nearest-neighbour + 2-opt (haversine)">
+                    {optimizing ? '…' : '⚡'} Optimise Order
+                  </button>
+                  <button onClick={addOutlet}
+                    style={{ background: C.blueD, border: `1px solid ${C.blueB}`, borderRadius: 8, padding: '6px 13px', color: C.blue, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Icon d={IC.plus} s={13} c={C.blue} /> Add Stop
+                  </button>
+                </div>
               </div>
+              {optimizeMsg && (
+                <div style={{ marginBottom: 10, fontSize: 12, color: optimizeMsg.startsWith('Reordered') ? C.green : C.yellow, background: C.s3, border: `1px solid ${C.border}`, borderRadius: 8, padding: '8px 12px' }}>
+                  {optimizeMsg}
+                </div>
+              )}
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {form.outlets.map((outlet, idx) => (
