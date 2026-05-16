@@ -6,6 +6,7 @@ import { crmAnalytics, crmSettings, crmLeads } from '../../../../lib/crmApi';
 import { fmtValue, type DashboardUnit } from '../../../../lib/formatCurrency';
 import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
 import StatCard from '../../../../components/crm/shared/StatCard';
+import SalesLeaderboard from '../../../../components/crm/SalesLeaderboard';
 import { getStoredUser, canAccess } from '../../../../lib/auth';
 
 // Recharts is heavy (~150 KB gzipped). Lazy-load each chart so the dashboard
@@ -30,6 +31,7 @@ import type {
 type WidgetId =
   | 'stat_open_pipeline' | 'stat_won' | 'stat_win_rate' | 'stat_avg_deal'
   | 'stat_sales_cycle' | 'stat_new_leads' | 'stat_activities' | 'stat_conversion'
+  | 'panel_leaderboard'
   | 'chart_funnel' | 'chart_pipeline_value' | 'chart_win_rate'
   | 'chart_forecast' | 'chart_score_dist' | 'chart_revenue' | 'chart_geo_map';
 
@@ -44,6 +46,13 @@ const STAT_WIDGETS: Array<{ id: WidgetId; label: string }> = [
   { id: 'stat_conversion', label: 'Conversion' },
 ];
 
+// Panel widgets are full-width sections (not grid tiles, not charts).
+// Currently just the Top Reps leaderboard — gets its own group in the
+// customizer so it's easy to toggle independently of stat tiles.
+const PANEL_WIDGETS: Array<{ id: WidgetId; label: string }> = [
+  { id: 'panel_leaderboard', label: 'Top Reps' },
+];
+
 const CHART_WIDGETS: Array<{ id: WidgetId; label: string }> = [
   { id: 'chart_geo_map', label: 'Leads on Map' },
   { id: 'chart_funnel', label: 'Pipeline Funnel' },
@@ -54,7 +63,7 @@ const CHART_WIDGETS: Array<{ id: WidgetId; label: string }> = [
   { id: 'chart_revenue', label: 'Revenue Trend' },
 ];
 
-const ALL_WIDGETS: WidgetId[] = [...STAT_WIDGETS, ...CHART_WIDGETS].map((w) => w.id);
+const ALL_WIDGETS: WidgetId[] = [...STAT_WIDGETS, ...PANEL_WIDGETS, ...CHART_WIDGETS].map((w) => w.id);
 
 function Card({ title, action, children }: { title: string; action?: React.ReactNode; children: React.ReactNode }) {
   return (
@@ -114,7 +123,12 @@ export default function CrmDashboardPage() {
       setCrmConfig(cfg);
       const layout = cfg.dashboard_layout as { widgets?: WidgetId[] } | undefined;
       if (layout?.widgets && Array.isArray(layout.widgets) && layout.widgets.length > 0) {
-        setVisibleWidgets(new Set(layout.widgets));
+        // Existing saved layouts won't include the new `panel_leaderboard`
+        // widget — opt-in by default so orgs that already customized their
+        // dashboard still see the leaderboard once on next deploy.
+        const stored = new Set<WidgetId>(layout.widgets);
+        if (!stored.has('panel_leaderboard')) stored.add('panel_leaderboard');
+        setVisibleWidgets(stored);
       }
     }).catch(() => {});
   }, []);
@@ -185,6 +199,7 @@ export default function CrmDashboardPage() {
 
   const visibleStatCount = STAT_WIDGETS.filter((w) => isVisible(w.id)).length;
   const visibleChartCount = CHART_WIDGETS.filter((w) => isVisible(w.id)).length;
+  const visiblePanelCount = PANEL_WIDGETS.filter((w) => isVisible(w.id)).length;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
@@ -240,6 +255,16 @@ export default function CrmDashboardPage() {
         </div>
       )}
 
+      {/* Top Reps — sits right under the stat tiles so the day's leaders
+          are visible at a glance. Compact mode (top 10, MTD) keeps the
+          home page tight; the "See full leaderboard →" link drops into
+          the standalone /dashboard/crm/leaderboard view for top 50. */}
+      {isVisible('panel_leaderboard') && (
+        <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
+          <SalesLeaderboard compact />
+        </div>
+      )}
+
       {/* Map gets full width so the bubbles + legend + side panel fit cleanly. */}
       {isVisible('chart_geo_map') && (
         <div style={{ display: 'block' }}>
@@ -288,7 +313,7 @@ export default function CrmDashboardPage() {
         </div>
       )}
 
-      {visibleStatCount === 0 && visibleChartCount === 0 && (
+      {visibleStatCount === 0 && visibleChartCount === 0 && visiblePanelCount === 0 && (
         <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 32, textAlign: 'center', color: 'var(--text-dim)' }}>
           <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Empty dashboard</div>
           <div style={{ fontSize: 12 }}>All widgets are hidden. Click <strong>Customize Dashboard</strong> to enable some.</div>
@@ -320,6 +345,24 @@ export default function CrmDashboardPage() {
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 6 }}>
                 {STAT_WIDGETS.map((w) => (
+                  <label key={w.id} style={pillStyle(isVisible(w.id))}>
+                    <input type="checkbox" checked={isVisible(w.id)} onChange={() => toggleWidget(w.id)} />
+                    {w.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6 }}>Panels</div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button onClick={() => setVisibleWidgets(new Set([...Array.from(visibleWidgets), ...PANEL_WIDGETS.map((w) => w.id)]))} style={btnTiny}>All</button>
+                  <button onClick={() => { const next = new Set(visibleWidgets); PANEL_WIDGETS.forEach((w) => next.delete(w.id)); setVisibleWidgets(next); }} style={btnTiny}>None</button>
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 6 }}>
+                {PANEL_WIDGETS.map((w) => (
                   <label key={w.id} style={pillStyle(isVisible(w.id))}>
                     <input type="checkbox" checked={isVisible(w.id)} onChange={() => toggleWidget(w.id)} />
                     {w.label}
