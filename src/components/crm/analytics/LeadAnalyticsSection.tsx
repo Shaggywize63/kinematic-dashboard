@@ -41,21 +41,43 @@ export default function LeadAnalyticsSection() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Track whether the user has actually made a change. Skip the first save
+  // (right after load) so we don't bounce a no-op write back to the server
+  // for every page mount.
+  const dirty = useRef(false);
 
   useEffect(() => {
     crmDashboardLayouts.get('analytics')
-      .then(r => setConfig(r.data ?? { widgets: [], layouts: {} }))
-      .catch(() => setConfig({ widgets: [], layouts: {} }))
+      .then((r) => {
+        const cfg = r?.data ?? { widgets: [], layouts: {} };
+        setConfig({
+          widgets: Array.isArray(cfg.widgets) ? cfg.widgets : [],
+          layouts: cfg.layouts && typeof cfg.layouts === 'object' ? cfg.layouts : {},
+        });
+        setLoadError(null);
+      })
+      .catch((err) => {
+        // Surface the actual error so the user (and us) know why this
+        // failed — backend not deployed yet, table missing, etc.
+        const msg = err?.message || String(err);
+        console.error('[LeadAnalyticsSection] layout load failed:', err);
+        setLoadError(msg);
+        setConfig({ widgets: [], layouts: {} });
+      })
       .finally(() => setLoading(false));
   }, []);
 
   useEffect(() => {
     if (loading) return;
+    if (!dirty.current) return; // skip first render after load
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
-      crmDashboardLayouts.save('analytics', config).catch(() => {
-        toast.error('Failed to save analytics layout');
+      crmDashboardLayouts.save('analytics', config).catch((err) => {
+        const msg = err?.message || String(err);
+        console.error('[LeadAnalyticsSection] layout save failed:', err);
+        toast.error(`Failed to save: ${msg.slice(0, 120)}`);
       });
     }, 800);
     return () => { if (saveTimer.current) clearTimeout(saveTimer.current); };
@@ -70,50 +92,66 @@ export default function LeadAnalyticsSection() {
 
   const addWidget = (meta: WidgetMeta) => {
     const newWidget: WidgetInstance = { id: cryptoRandomId(), widget_type: meta.type, chart_type: meta.defaultChart };
-    setConfig(c => {
-      const widgets = [...c.widgets, newWidget];
-      const layouts = { ...c.layouts };
+    setConfig((c) => {
+      // Clone arrays — don't mutate previous state (was the silent bug
+      // that caused stale layouts and duplicate keys after Add → Remove).
+      const next: DashboardConfig = {
+        widgets: [...c.widgets, newWidget],
+        layouts: {
+          lg: [...(c.layouts.lg ?? [])],
+          md: [...(c.layouts.md ?? [])],
+          sm: [...(c.layouts.sm ?? [])],
+        },
+      };
       for (const bp of ['lg', 'md', 'sm'] as const) {
-        const cols = COLS[bp];
-        const prev = layouts[bp] ?? [];
-        const maxY = prev.reduce((m, it) => Math.max(m, it.y + it.h), 0);
-        const w = Math.min(meta.defaultSize.w, cols);
-        const h = meta.defaultSize.h;
-        prev.push({ i: newWidget.id, x: 0, y: maxY, w, h });
-        layouts[bp] = prev;
+        const arr = next.layouts[bp]!;
+        const maxY = arr.reduce((m, it) => Math.max(m, it.y + it.h), 0);
+        const w = Math.min(meta.defaultSize.w, COLS[bp]);
+        arr.push({ i: newWidget.id, x: 0, y: maxY, w, h: meta.defaultSize.h });
       }
-      return { widgets, layouts };
+      return next;
     });
+    dirty.current = true;
     setAdding(false);
     toast.success(`Added ${meta.title}`);
   };
 
   const removeWidget = (id: string) => {
-    setConfig(c => ({
-      widgets: c.widgets.filter(w => w.id !== id),
+    setConfig((c) => ({
+      widgets: c.widgets.filter((w) => w.id !== id),
       layouts: {
-        lg: (c.layouts.lg ?? []).filter(it => it.i !== id),
-        md: (c.layouts.md ?? []).filter(it => it.i !== id),
-        sm: (c.layouts.sm ?? []).filter(it => it.i !== id),
+        lg: (c.layouts.lg ?? []).filter((it) => it.i !== id),
+        md: (c.layouts.md ?? []).filter((it) => it.i !== id),
+        sm: (c.layouts.sm ?? []).filter((it) => it.i !== id),
       },
     }));
+    dirty.current = true;
     toast.success('Widget removed');
   };
 
   const changeChartType = (id: string, chart_type: ChartType) => {
-    setConfig(c => ({ ...c, widgets: c.widgets.map(w => w.id === id ? { ...w, chart_type } : w) }));
+    setConfig((c) => ({ ...c, widgets: c.widgets.map((w) => (w.id === id ? { ...w, chart_type } : w)) }));
+    dirty.current = true;
   };
 
   const onLayoutChange = (_: Layout[], allLayouts: Layouts) => {
-    setConfig(c => ({ ...c, layouts: allLayouts as DashboardConfig['layouts'] }));
+    setConfig((c) => ({ ...c, layouts: allLayouts as DashboardConfig['layouts'] }));
+    dirty.current = true;
   };
 
   if (loading) {
-    return <div style={{ padding: 24, color: 'var(--text-dim)', fontSize: 13 }}>Loading lead analytics…</div>;
+    return (
+      <div id="lead-analytics" style={{ padding: 24, color: 'var(--text-dim)', fontSize: 13 }}>
+        Loading lead analytics…
+      </div>
+    );
   }
 
   return (
-    <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
+    <div
+      id="lead-analytics"
+      style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, scrollMarginTop: 80 }}
+    >
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
         <div style={{ flex: 1, minWidth: 200 }}>
           <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700 }}>Lead Analytics</div>
@@ -125,10 +163,30 @@ export default function LeadAnalyticsSection() {
         <button onClick={() => setAdding(true)} style={primaryBtn}>
           <Plus size={14} /> Add widget
         </button>
-        <button onClick={() => setEditing(e => !e)} style={editing ? activeBtn : secondaryBtn}>
+        <button onClick={() => setEditing((e) => !e)} style={editing ? activeBtn : secondaryBtn}>
           {editing ? <><Save size={14} /> Done</> : <><Edit3 size={14} /> Edit layout</>}
         </button>
       </div>
+
+      {/* Surface load errors inline so users / on-call know why the section is
+          empty. Most common cause: backend deployment lag or the dashboard-
+          layouts endpoint not yet live. */}
+      {loadError && (
+        <div style={{
+          marginBottom: 12,
+          padding: 10,
+          borderRadius: 8,
+          background: 'rgba(239,68,68,0.08)',
+          border: '1px solid rgba(239,68,68,0.25)',
+          fontSize: 12,
+          color: '#ef4444',
+        }}>
+          Couldn&apos;t load saved analytics layout: <code>{loadError}</code>
+          <div style={{ marginTop: 4, color: 'var(--text-dim)', fontSize: 11 }}>
+            You can still add widgets — they&apos;ll be saved as soon as the API responds.
+          </div>
+        </div>
+      )}
 
       {!config.widgets.length && (
         <div style={{ padding: 40, textAlign: 'center', background: 'var(--s3)', border: '1px dashed var(--border)', borderRadius: 12, color: 'var(--text-dim)' }}>
@@ -157,7 +215,7 @@ export default function LeadAnalyticsSection() {
           onLayoutChange={onLayoutChange}
           draggableHandle=".widget-drag-handle"
         >
-          {config.widgets.map(w => (
+          {config.widgets.map((w) => (
             <div key={w.id} style={{ position: 'relative' }}>
               {editing && (
                 <div className="widget-drag-handle" style={{
@@ -181,7 +239,7 @@ export default function LeadAnalyticsSection() {
 }
 
 function AddWidgetDialog({ onPick, onClose, existing }: { onPick: (w: WidgetMeta) => void; onClose: () => void; existing: WidgetInstance[] }) {
-  const existingTypes = new Set(existing.map(w => w.widget_type));
+  const existingTypes = new Set(existing.map((w) => w.widget_type));
   const grouped = useMemo(() => {
     const map = new Map<string, WidgetMeta[]>();
     for (const w of WIDGET_CATALOG) {
@@ -215,7 +273,7 @@ function AddWidgetDialog({ onPick, onClose, existing }: { onPick: (w: WidgetMeta
                   <Icon size={13} /> {cat}
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10 }}>
-                  {widgets.map(w => {
+                  {widgets.map((w) => {
                     const already = existingTypes.has(w.type);
                     return (
                       <button
@@ -232,8 +290,8 @@ function AddWidgetDialog({ onPick, onClose, existing }: { onPick: (w: WidgetMeta
                           opacity: already ? 0.5 : 1,
                           transition: 'transform .1s, border-color .1s',
                         }}
-                        onMouseEnter={e => { if (!already) (e.currentTarget as HTMLElement).style.borderColor = 'var(--primary)'; }}
-                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)'; }}
+                        onMouseEnter={(e) => { if (!already) (e.currentTarget as HTMLElement).style.borderColor = 'var(--primary)'; }}
+                        onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)'; }}
                       >
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
                           <div style={{ fontSize: 13, fontWeight: 700 }}>{w.title}</div>
