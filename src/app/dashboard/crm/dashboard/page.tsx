@@ -6,6 +6,7 @@ import { crmAnalytics, crmSettings, crmLeads } from '../../../../lib/crmApi';
 import { fmtValue, type DashboardUnit } from '../../../../lib/formatCurrency';
 import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
 import StatCard from '../../../../components/crm/shared/StatCard';
+import LeadAnalyticsSection from '../../../../components/crm/analytics/LeadAnalyticsSection';
 import { getStoredUser, canAccess } from '../../../../lib/auth';
 
 // Recharts is heavy (~150 KB gzipped). Lazy-load each chart so the dashboard
@@ -85,11 +86,6 @@ export default function CrmDashboardPage() {
   const [showCustomizer, setShowCustomizer] = useState(false);
   const [savingLayout, setSavingLayout] = useState(false);
   const [crmConfig, setCrmConfig] = useState<Record<string, unknown>>({});
-  // Cost ↔ Weight toggle. Backend re-aggregates every monetary metric in kg
-  // by joining deals → line_items → products when unit === 'weight'.
-  // Persisted per-user in localStorage. We initialise to 'inr' so SSR + first
-  // client render match (no hydration warning); the saved choice is applied
-  // in useEffect once mounted.
   const [unit, setUnit] = useState<DashboardUnit>('inr');
   useEffect(() => {
     try {
@@ -124,12 +120,8 @@ export default function CrmDashboardPage() {
     setLoading(true);
     (async () => {
       try {
-        // Single round-trip — the backend runs the 6 sub-queries in parallel
-        // server-side, so this collapses 6 HTTPS calls into 1. `unit` swaps
-        // every monetary aggregation between rupees and kg.
         const [r, leadsRes] = await Promise.all([
           crmAnalytics.dashboardComplete(range, unit),
-          // Slim list for the geo map — only the fields LeadsGeoMap reads.
           crmLeads.list({ limit: 500 }),
         ]);
         if (cancel) return;
@@ -154,8 +146,6 @@ export default function CrmDashboardPage() {
   }, [range.from, range.to, unit]);
 
   const fmtPct = (n?: number) => `${(Number(n || 0) * 100).toFixed(1)}%`;
-  // The numbers themselves swap units server-side based on the `unit` query
-  // param; this just picks the right formatter (₹ vs kg/T).
   const fmtMoney = (n?: number) => fmtValue(n ?? 0, unit);
   const revenueTrend = forecast.map((f) => ({ period: f.period, revenue: f.closed }));
 
@@ -189,10 +179,6 @@ export default function CrmDashboardPage() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
       <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-        {/* Cost ↔ Weight toggle — every rupee metric on the dashboard
-            (stat cards + Pipeline Value / Forecast / Revenue charts)
-            switches to kg derived from line items × product weight. Deals
-            without line items contribute 0 in weight mode. */}
         <div
           role="tablist"
           aria-label="Display unit"
@@ -288,6 +274,11 @@ export default function CrmDashboardPage() {
         </div>
       )}
 
+      {/* Lead Analytics — fully customisable widget grid. Drag/resize, chart-type
+          picker per tile, add/remove from a 15-widget catalog. Sits below the
+          fixed stat cards + charts so existing users see no layout change. */}
+      <LeadAnalyticsSection />
+
       {visibleStatCount === 0 && visibleChartCount === 0 && (
         <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 32, textAlign: 'center', color: 'var(--text-dim)' }}>
           <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Empty dashboard</div>
@@ -308,6 +299,7 @@ export default function CrmDashboardPage() {
 
             <div style={{ background: 'var(--s3)', borderRadius: 8, padding: 10, fontSize: 12, color: 'var(--text-dim)', marginBottom: 14 }}>
               Layout is saved per organisation and applies to all CRM users. Hidden widgets won't appear or load data.
+              For the customisable Lead Analytics grid below, use the +Add widget / Edit layout buttons on that section directly.
             </div>
 
             <div style={{ marginBottom: 14 }}>
