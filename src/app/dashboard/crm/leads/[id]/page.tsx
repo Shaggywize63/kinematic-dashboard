@@ -10,6 +10,7 @@ import LeadScoreBreakdown from '../../../../../components/crm/LeadScoreBreakdown
 import NextBestActionCard from '../../../../../components/crm/NextBestActionCard';
 import ActivityTimeline from '../../../../../components/crm/ActivityTimeline';
 import LeadConvertModal from '../../../../../components/crm/LeadConvertModal';
+import LeadDisqualifyModal, { type LeadDisqualifyOutcome } from '../../../../../components/crm/LeadDisqualifyModal';
 import AiDraftReplyPanel from '../../../../../components/crm/AiDraftReplyPanel';
 import OwnerAvatar from '../../../../../components/crm/shared/OwnerAvatar';
 import WhatsAppButton from '../../../../../components/crm/shared/WhatsAppButton';
@@ -19,11 +20,19 @@ import { formatINR } from '../../../../../lib/formatCurrency';
 
 type UserOption = { id: string; name: string };
 
+// Local extension — Step 1 added these columns server-side but the shared
+// Lead type doesn't yet carry them. Read defensively without forcing a
+// global type change for two optional fields.
+type LifecycleLead = Lead & {
+  lost_reason?: string | null;
+  disqualified_at?: string | null;
+};
+
 export default function LeadDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const id = params?.id as string;
-  const [lead, setLead] = useState<Lead | null>(null);
+  const [lead, setLead] = useState<LifecycleLead | null>(null);
   const [score, setScore] = useState<LeadScore | null>(null);
   const [nba] = useState<NextBestAction | null>(null);
   const [activities, setActivities] = useState<Activity[]>([]);
@@ -41,7 +50,9 @@ export default function LeadDetailPage() {
   }, []);
   const [editOpen, setEditOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [deactivating, setDeactivating] = useState(false);
+  const [reopening, setReopening] = useState(false);
+  const [disqualifyOpen, setDisqualifyOpen] = useState(false);
+  const [disqualifyOutcome, setDisqualifyOutcome] = useState<LeadDisqualifyOutcome>('unqualified');
   const [assignOpen, setAssignOpen] = useState(false);
   const [users, setUsers] = useState<UserOption[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
@@ -56,7 +67,7 @@ export default function LeadDetailPage() {
         crmLeads.activities(id),
         crmLeads.deals(id),
       ]);
-      if (l.status === 'fulfilled') setLead(l.value.data);
+      if (l.status === 'fulfilled') setLead(l.value.data as LifecycleLead);
       if (a.status === 'fulfilled') setActivities(a.value.data || []);
       if (d.status === 'fulfilled') setDeals(d.value.data || []);
     } catch (e: any) { toast.error(e.message || 'Load failed'); } finally { setLoading(false); }
@@ -99,19 +110,23 @@ export default function LeadDetailPage() {
     }
   };
 
-  const handleDeactivate = async () => {
+  const openDisqualify = (outcome: LeadDisqualifyOutcome) => {
+    setDisqualifyOutcome(outcome);
+    setDisqualifyOpen(true);
+  };
+
+  const handleReopen = async () => {
     if (!lead) return;
-    if (lead.status === 'converted') return toast.error('Cannot deactivate a converted lead');
-    if (!window.confirm('Mark this lead as unqualified/inactive?')) return;
-    setDeactivating(true);
+    if (!window.confirm('Re-open this lead? It will go back to working state.')) return;
+    setReopening(true);
     try {
-      const updated = await crmLeads.update(lead.id, { status: 'unqualified' } as any);
-      setLead(updated.data);
-      toast.success('Lead deactivated');
+      await crmLeads.reopen(lead.id);
+      toast.success('Lead re-opened');
+      await reload();
     } catch (e: any) {
-      toast.error(e.message || 'Deactivate failed');
+      toast.error(e.message || 'Re-open failed');
     } finally {
-      setDeactivating(false);
+      setReopening(false);
     }
   };
 
@@ -132,7 +147,7 @@ export default function LeadDetailPage() {
     if (!lead) return;
     try {
       const updated = await crmLeads.update(lead.id, { owner_id: userId } as any);
-      setLead(updated.data);
+      setLead(updated.data as LifecycleLead);
       toast.success(`Assigned to ${userName}`);
       setAssignOpen(false);
     } catch (e: any) {
@@ -149,6 +164,8 @@ export default function LeadDetailPage() {
   const isB2C = !!lead.is_b2c;
   const isConverted = lead.status === 'converted' || !!lead.converted_at;
   const isUnqualified = lead.status === 'unqualified';
+  const isLost = lead.status === 'lost';
+  const isClosed = isConverted || isUnqualified || isLost;
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(280px, 1fr)', gap: 18 }}>
@@ -161,7 +178,8 @@ export default function LeadDetailPage() {
                 <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)' }}>{fullName}</div>
                 <Badge tone={isB2C ? 'consumer' : 'business'}>{isB2C ? 'B2C' : 'B2B'}</Badge>
                 {isConverted && <Badge tone="success">Converted</Badge>}
-                {isUnqualified && <Badge tone="muted">Inactive</Badge>}
+                {isUnqualified && <Badge tone="warning">Unqualified</Badge>}
+                {isLost && <Badge tone="danger">Lost</Badge>}
               </div>
               <div style={{ fontSize: 13, color: 'var(--text-dim)' }}>
                 {isB2C
@@ -171,7 +189,7 @@ export default function LeadDetailPage() {
             </div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
               <button onClick={() => setEditOpen(true)} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>Edit</button>
-              {!isConverted && (
+              {!isClosed && (
                 <button onClick={() => setConvertOpen(true)} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>Convert</button>
               )}
               <div ref={assignRef} style={{ position: 'relative' }}>
@@ -197,9 +215,19 @@ export default function LeadDetailPage() {
                   </div>
                 )}
               </div>
-              {!isUnqualified && !isConverted && (
-                <button onClick={handleDeactivate} disabled={deactivating} style={{ background: 'transparent', border: '1px solid var(--text-dim)', color: 'var(--text-dim)', padding: '8px 14px', borderRadius: 8, cursor: deactivating ? 'not-allowed' : 'pointer', opacity: deactivating ? 0.6 : 1 }}>
-                  {deactivating ? '...' : 'Deactivate'}
+              {!isClosed && (
+                <>
+                  <button onClick={() => openDisqualify('unqualified')} style={{ background: 'transparent', border: '1px solid #f59e0b', color: '#f59e0b', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>
+                    Mark Unqualified
+                  </button>
+                  <button onClick={() => openDisqualify('lost')} style={{ background: 'transparent', border: '1px solid #ef4444', color: '#ef4444', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>
+                    Mark Lost
+                  </button>
+                </>
+              )}
+              {isClosed && (
+                <button onClick={handleReopen} disabled={reopening} style={{ background: '#10b981', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: reopening ? 'not-allowed' : 'pointer', opacity: reopening ? 0.7 : 1 }}>
+                  {reopening ? 'Re-opening…' : 'Re-open Lead'}
                 </button>
               )}
               <button onClick={handleDelete} disabled={deleting} style={{ background: 'transparent', border: '1px solid #ef4444', color: '#ef4444', padding: '8px 14px', borderRadius: 8, cursor: deleting ? 'not-allowed' : 'pointer', opacity: deleting ? 0.6 : 1 }}>
@@ -218,14 +246,27 @@ export default function LeadDetailPage() {
           </div>
         </div>
 
+        {/* Lifecycle status banner — surfaces lost_reason + disqualified_at
+            (added in Step 1) and the converted-to links inline so the rep
+            sees the closed-out context above the fold. */}
+        {(isUnqualified || isLost) && (
+          <DisqualifiedBanner
+            outcome={isLost ? 'lost' : 'unqualified'}
+            lostReason={lead.lost_reason || null}
+            disqualifiedAt={lead.disqualified_at || null}
+            onReopen={handleReopen}
+            reopening={reopening}
+          />
+        )}
         {isConverted && (lead.converted_account_id || lead.converted_contact_id || lead.converted_deal_id) && (
-          <Card title="Converted To">
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              {lead.converted_contact_id && (<Link href={`/dashboard/crm/contacts/${lead.converted_contact_id}`} style={chipLink}>→ Contact</Link>)}
-              {lead.converted_account_id && (<Link href={`/dashboard/crm/accounts/${lead.converted_account_id}`} style={chipLink}>→ Account</Link>)}
-              {lead.converted_deal_id && (<Link href={`/dashboard/crm/deals/${lead.converted_deal_id}`} style={chipLink}>→ Deal</Link>)}
-            </div>
-          </Card>
+          <ConvertedBanner
+            convertedAt={lead.converted_at || null}
+            accountId={lead.converted_account_id || null}
+            contactId={lead.converted_contact_id || null}
+            dealId={lead.converted_deal_id || null}
+            onReopen={handleReopen}
+            reopening={reopening}
+          />
         )}
 
         {isB2C && (
@@ -280,11 +321,19 @@ export default function LeadDetailPage() {
         onConverted={reload}
       />
 
+      <LeadDisqualifyModal
+        leadId={id}
+        open={disqualifyOpen}
+        initialOutcome={disqualifyOutcome}
+        onClose={() => setDisqualifyOpen(false)}
+        onDone={reload}
+      />
+
       <LeadEditModal
         lead={lead}
         open={editOpen}
         onClose={() => setEditOpen(false)}
-        onSaved={(updated) => { setLead(updated); reload(); }}
+        onSaved={(updated) => { setLead(updated as LifecycleLead); reload(); }}
       />
     </div>
   );
@@ -321,15 +370,73 @@ function PhoneField({ phone, prefill, leadId, displayName }: { phone?: string | 
   );
 }
 
-function Badge({ children, tone }: { children: React.ReactNode; tone: 'business' | 'consumer' | 'success' | 'muted' }) {
+function Badge({ children, tone }: { children: React.ReactNode; tone: 'business' | 'consumer' | 'success' | 'muted' | 'warning' | 'danger' }) {
   const colors = {
     business: { bg: '#3b82f6', fg: '#fff' },
     consumer: { bg: '#8b5cf6', fg: '#fff' },
-    success: { bg: '#10b981', fg: '#fff' },
-    muted: { bg: 'var(--s3)', fg: 'var(--text-dim)' },
+    success:  { bg: '#10b981', fg: '#fff' },
+    warning:  { bg: '#f59e0b', fg: '#fff' },
+    danger:   { bg: '#ef4444', fg: '#fff' },
+    muted:    { bg: 'var(--s3)', fg: 'var(--text-dim)' },
   }[tone];
   return (
     <span style={{ background: colors.bg, color: colors.fg, fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 5, textTransform: 'uppercase', letterSpacing: 0.4 }}>{children}</span>
+  );
+}
+
+function DisqualifiedBanner({
+  outcome, lostReason, disqualifiedAt, onReopen, reopening,
+}: {
+  outcome: 'unqualified' | 'lost';
+  lostReason: string | null;
+  disqualifiedAt: string | null;
+  onReopen: () => void;
+  reopening: boolean;
+}) {
+  const tone = outcome === 'lost'
+    ? { bg: 'rgba(239,68,68,0.10)', border: '#ef4444', label: 'LEAD MARKED AS LOST', accent: '#ef4444' }
+    : { bg: 'rgba(245,158,11,0.10)', border: '#f59e0b', label: 'LEAD DISQUALIFIED', accent: '#f59e0b' };
+  return (
+    <div style={{ background: tone.bg, border: `1px solid ${tone.border}`, borderRadius: 14, padding: 16, display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+      <div style={{ flex: 1, minWidth: 220 }}>
+        <div style={{ fontSize: 10, fontWeight: 800, color: tone.accent, letterSpacing: 0.6 }}>{tone.label}</div>
+        {lostReason && <div style={{ color: 'var(--text)', marginTop: 4, fontSize: 14 }}>Reason: {lostReason}</div>}
+        {disqualifiedAt && <div style={{ color: 'var(--text-dim)', marginTop: 2, fontSize: 12 }}>On {new Date(disqualifiedAt).toLocaleString()}</div>}
+      </div>
+      <button onClick={onReopen} disabled={reopening} style={{ background: '#10b981', border: 'none', color: '#fff', padding: '8px 16px', borderRadius: 8, fontWeight: 700, cursor: reopening ? 'not-allowed' : 'pointer', opacity: reopening ? 0.7 : 1 }}>
+        {reopening ? 'Re-opening…' : 'Re-open Lead'}
+      </button>
+    </div>
+  );
+}
+
+function ConvertedBanner({
+  convertedAt, accountId, contactId, dealId, onReopen, reopening,
+}: {
+  convertedAt: string | null;
+  accountId: string | null;
+  contactId: string | null;
+  dealId: string | null;
+  onReopen: () => void;
+  reopening: boolean;
+}) {
+  return (
+    <div style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid #10b981', borderRadius: 14, padding: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+        <div style={{ flex: 1, minWidth: 220 }}>
+          <div style={{ fontSize: 10, fontWeight: 800, color: '#10b981', letterSpacing: 0.6 }}>LEAD CONVERTED</div>
+          {convertedAt && <div style={{ color: 'var(--text-dim)', marginTop: 2, fontSize: 12 }}>On {new Date(convertedAt).toLocaleString()}</div>}
+        </div>
+        <button onClick={onReopen} disabled={reopening} title="Disconnects this lead from the deal/contact/account so it can be re-worked. The other records stay intact." style={{ background: 'transparent', border: '1px solid #10b981', color: '#10b981', padding: '8px 16px', borderRadius: 8, fontWeight: 700, cursor: reopening ? 'not-allowed' : 'pointer', opacity: reopening ? 0.7 : 1 }}>
+          {reopening ? 'Re-opening…' : 'Re-open Lead'}
+        </button>
+      </div>
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 12 }}>
+        {contactId && (<Link href={`/dashboard/crm/contacts/${contactId}`} style={chipLink}>→ Contact</Link>)}
+        {accountId && (<Link href={`/dashboard/crm/accounts/${accountId}`} style={chipLink}>→ Account</Link>)}
+        {dealId    && (<Link href={`/dashboard/crm/deals/${dealId}`}       style={chipLink}>→ Deal</Link>)}
+      </div>
+    </div>
   );
 }
 

@@ -55,6 +55,15 @@ export const crmLeads = {
     ),
   bulkAssign: (body: { lead_ids: string[]; owner_id?: string; territory_id?: string }) =>
     api.post<Wrapped<{ updated: number }>>(`${BASE}/leads/bulk-assign`, body),
+  // Lifecycle: disqualify with a reason and reopen.
+  // Disqualify routes through the existing PATCH so the server's status-transition
+  // audit + disqualified_at stamping (lead lifecycle Step 1) fires uniformly.
+  disqualify: (id: string, body: { status: 'unqualified' | 'lost'; lost_reason?: string }) =>
+    api.patch<Wrapped<Lead>>(`${BASE}/leads/${id}`, body),
+  // Dedicated POST so the crm_lead_history row carries field='reopened' as a single
+  // canonical event — reports can WHERE field='reopened' to attribute reactivations.
+  reopen: (id: string, body?: { reason?: string }) =>
+    api.post<Wrapped<Lead>>(`${BASE}/leads/${id}/reopen`, body || {}),
 };
 
 export const crmContacts = {
