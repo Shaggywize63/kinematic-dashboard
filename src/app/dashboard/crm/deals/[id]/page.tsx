@@ -12,21 +12,8 @@ import AiDraftReplyPanel from '../../../../../components/crm/AiDraftReplyPanel';
 import CallButton from '../../../../../components/crm/shared/CallButton';
 import ActivityTimeline from '../../../../../components/crm/ActivityTimeline';
 import DealEditModal from '../../../../../components/crm/DealEditModal';
+import DealCloseModal, { type DealCloseOutcome } from '../../../../../components/crm/DealCloseModal';
 import { formatINR } from '../../../../../lib/formatCurrency';
-
-const LOST_REASONS = [
-  'Price too high',
-  'Lost to competitor',
-  'No budget / budget cut',
-  'No decision maker reached',
-  'Bad timing / not ready',
-  'Product doesn\'t fit needs',
-  'No response from prospect',
-  'Stayed with current solution',
-  'Missing features',
-  'Project cancelled',
-  'Other',
-];
 
 export default function DealDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -44,10 +31,7 @@ export default function DealDetailPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [closeOpen, setCloseOpen] = useState(false);
-  const [closeOutcome, setCloseOutcome] = useState<'won' | 'lost'>('won');
-  const [closeReason, setCloseReason] = useState('');
-  const [closeLostOther, setCloseLostOther] = useState('');
-  const [closing, setClosing] = useState(false);
+  const [closeOutcome, setCloseOutcome] = useState<DealCloseOutcome>('won');
   const [reopening, setReopening] = useState(false);
 
   const reload = async () => {
@@ -77,24 +61,9 @@ export default function DealDetailPage() {
     try { await crmDeals.moveStage(deal.id, { stage_id: stageId }); toast.success('Stage updated'); reload(); }
     catch (e: any) { toast.error(e.message || 'Failed'); }
   };
-  const closeDeal = async () => {
-    if (!deal) return;
-    setClosing(true);
-    try {
-      if (closeOutcome === 'won') {
-        await crmDeals.win(deal.id, { reason: closeReason || undefined });
-        toast.success('Deal closed as Won 🎉');
-      } else {
-        const lostReason = closeReason === 'Other' ? (closeLostOther || 'Other') : closeReason;
-        await crmDeals.lose(deal.id, { reason: lostReason || undefined });
-        toast.success('Deal closed as Lost');
-      }
-      setCloseOpen(false);
-      setCloseReason('');
-      setCloseLostOther('');
-      reload();
-    } catch (e: any) { toast.error(e.message || 'Close failed'); }
-    finally { setClosing(false); }
+  const openCloseModal = (outcome: DealCloseOutcome) => {
+    setCloseOutcome(outcome);
+    setCloseOpen(true);
   };
   const reopenDeal = async () => {
     if (!deal) return;
@@ -139,6 +108,19 @@ export default function DealDetailPage() {
   const stages = pipeline?.stages || [];
   const primary = contacts.find((c) => c.is_primary) || contacts[0];
 
+  // The backend persists lost_reason / win_reason / closed_at on the deal
+  // row (see commit 982ee3fc notes) but our shared `Deal` type predates
+  // those fields. Read them defensively so the banner can surface them
+  // without forcing a schema-wide type update.
+  const dealExtra = deal as Deal & {
+    lost_reason?: string | null;
+    win_reason?: string | null;
+    closed_at?: string | null;
+  };
+  const closedAtLabel = dealExtra.closed_at
+    ? new Date(dealExtra.closed_at).toLocaleDateString()
+    : null;
+
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(280px, 1fr)', gap: 18 }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
@@ -157,9 +139,6 @@ export default function DealDetailPage() {
             </div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <button onClick={() => setEditOpen(true)} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>Edit</button>
-              {deal.status === 'open' && (
-                <button onClick={() => { setCloseOutcome('won'); setCloseOpen(true); }} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>Close Deal</button>
-              )}
               {deal.status !== 'open' && (
                 <button onClick={reopenDeal} disabled={reopening} style={{ background: 'var(--s3)', border: '1px solid var(--primary)', color: 'var(--primary)', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: reopening ? 'not-allowed' : 'pointer', opacity: reopening ? 0.6 : 1 }}>{reopening ? 'Re-opening...' : 'Re-open Deal'}</button>
               )}
@@ -167,16 +146,81 @@ export default function DealDetailPage() {
               <button onClick={() => router.back()} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer' }}>Back</button>
             </div>
           </div>
+
+          {/* Open: prominent Won/Lost actions, matching iOS DealDetailView
+              (982ee3fc) so a rep doesn't need to bounce to the kanban to
+              close a deal. Wider buttons so they're hard to miss. */}
+          {deal.status === 'open' && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
+              <button
+                onClick={() => openCloseModal('won')}
+                style={{
+                  background: '#10b981', border: 'none', color: '#fff',
+                  padding: '14px', borderRadius: 10, fontWeight: 800, fontSize: 14,
+                  cursor: 'pointer',
+                  boxShadow: '0 1px 0 rgba(0,0,0,0.04) inset',
+                }}
+              >
+                ✓ Mark Won
+              </button>
+              <button
+                onClick={() => openCloseModal('lost')}
+                style={{
+                  background: '#ef4444', border: 'none', color: '#fff',
+                  padding: '14px', borderRadius: 10, fontWeight: 800, fontSize: 14,
+                  cursor: 'pointer',
+                  boxShadow: '0 1px 0 rgba(0,0,0,0.04) inset',
+                }}
+              >
+                ✗ Mark Lost
+              </button>
+            </div>
+          )}
+
+          {/* Closed: full-width status banner. Surfaces win/lost reason if
+              the backend payload includes it; falls back gracefully when
+              fields are absent on older records. */}
           {deal.status === 'won' && (
-            <div style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.4)', color: '#10b981', borderRadius: 10, padding: 10, fontSize: 13, fontWeight: 700, marginBottom: 14, textAlign: 'center' }}>
-              ✓ This deal is closed as WON
+            <div
+              style={{
+                background: 'rgba(16,185,129,0.12)',
+                border: '1px solid rgba(16,185,129,0.4)',
+                color: '#10b981',
+                borderRadius: 10, padding: 14, marginBottom: 14,
+                display: 'flex', flexDirection: 'column', gap: 4,
+              }}
+            >
+              <div style={{ fontSize: 13, fontWeight: 800 }}>
+                ✓ This deal is closed as WON{closedAtLabel ? ` · ${closedAtLabel}` : ''}
+              </div>
+              {dealExtra.win_reason && (
+                <div style={{ fontSize: 12, color: 'var(--text)', opacity: 0.85 }}>
+                  Reason: {dealExtra.win_reason}
+                </div>
+              )}
             </div>
           )}
           {deal.status === 'lost' && (
-            <div style={{ background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.4)', color: '#ef4444', borderRadius: 10, padding: 10, fontSize: 13, fontWeight: 700, marginBottom: 14, textAlign: 'center' }}>
-              ✗ This deal is closed as LOST
+            <div
+              style={{
+                background: 'rgba(239,68,68,0.10)',
+                border: '1px solid rgba(239,68,68,0.4)',
+                color: '#ef4444',
+                borderRadius: 10, padding: 14, marginBottom: 14,
+                display: 'flex', flexDirection: 'column', gap: 4,
+              }}
+            >
+              <div style={{ fontSize: 13, fontWeight: 800 }}>
+                ✗ This deal is closed as LOST{closedAtLabel ? ` · ${closedAtLabel}` : ''}
+              </div>
+              {dealExtra.lost_reason && (
+                <div style={{ fontSize: 12, color: 'var(--text)', opacity: 0.85 }}>
+                  Reason: {dealExtra.lost_reason}
+                </div>
+              )}
             </div>
           )}
+
           {stages.length > 0 && deal.status === 'open' && (
             <div style={{ marginBottom: 14 }}>
               <DealStageProgress stages={stages} currentStageId={deal.stage_id} onMove={moveStage} />
@@ -283,39 +327,13 @@ export default function DealDetailPage() {
         onSaved={(updated) => { setDeal(updated); reload(); }}
       />
 
-      {closeOpen && (
-        <div onClick={(e) => { if (e.target === e.currentTarget) setCloseOpen(false); }} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 22, maxWidth: 460, width: '100%' }}>
-            <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text)', marginBottom: 4 }}>Close Deal</div>
-            <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 14 }}>Mark this deal as won or lost. You can re-open it later if needed.</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
-              <button type="button" onClick={() => setCloseOutcome('won')} style={{ padding: '12px', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer', border: closeOutcome === 'won' ? '2px solid #10b981' : '1px solid var(--border)', background: closeOutcome === 'won' ? 'rgba(16,185,129,0.12)' : 'var(--s3)', color: closeOutcome === 'won' ? '#10b981' : 'var(--text)' }}>✓ Won</button>
-              <button type="button" onClick={() => setCloseOutcome('lost')} style={{ padding: '12px', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer', border: closeOutcome === 'lost' ? '2px solid #ef4444' : '1px solid var(--border)', background: closeOutcome === 'lost' ? 'rgba(239,68,68,0.10)' : 'var(--s3)', color: closeOutcome === 'lost' ? '#ef4444' : 'var(--text)' }}>✗ Lost</button>
-            </div>
-            {closeOutcome === 'lost' ? (
-              <div style={{ marginBottom: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>Lost Reason <span style={{ color: '#ef4444' }}>*</span></span>
-                <select value={closeReason} onChange={(e) => { setCloseReason(e.target.value); setCloseLostOther(''); }} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 }}>
-                  <option value="">— Select a reason —</option>
-                  {LOST_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
-                </select>
-                {closeReason === 'Other' && (
-                  <input value={closeLostOther} onChange={(e) => setCloseLostOther(e.target.value)} placeholder="Describe the reason…" style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 }} />
-                )}
-              </div>
-            ) : (
-              <label style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 14 }}>
-                <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>Win Reason (optional)</span>
-                <input value={closeReason} onChange={(e) => setCloseReason(e.target.value)} placeholder="e.g. Competitive pricing, great demo, referral…" style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 }} />
-              </label>
-            )}
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button onClick={() => setCloseOpen(false)} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontSize: 13 }}>Cancel</button>
-              <button onClick={closeDeal} disabled={closing} style={{ background: closeOutcome === 'won' ? '#10b981' : '#ef4444', border: 'none', color: '#fff', padding: '8px 18px', borderRadius: 8, fontWeight: 700, cursor: closing ? 'not-allowed' : 'pointer', fontSize: 13, opacity: closing ? 0.7 : 1 }}>{closing ? 'Closing...' : `Close as ${closeOutcome === 'won' ? 'Won' : 'Lost'}`}</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <DealCloseModal
+        dealId={deal.id}
+        open={closeOpen}
+        initialOutcome={closeOutcome}
+        onClose={() => setCloseOpen(false)}
+        onClosed={reload}
+      />
     </div>
   );
 }
