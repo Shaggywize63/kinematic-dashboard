@@ -500,15 +500,31 @@ function RoutePlanContent() {
     const fes: any[]       = allFes.filter((u: any) => u.role === 'executive' || u.role === 'field_executive');
     const storeList: any[] = storesRes.status === 'fulfilled' ? (Array.isArray(storesRes.value) ? storesRes.value : (storesRes.value?.data ?? [])) : [];
 
+    // CSV columns mirror the "New Plan" form fields exactly so users can
+    // upload via CSV without re-learning the data model. Plan-level fields
+    // (fe_employee_id, plan_date, activity_names, vehicle_type, frequency,
+    // territory_label, notes) repeat across each outlet row belonging to the
+    // same plan — the backend groups rows by (fe_employee_id, plan_date) into
+    // a single plan with multiple outlets. `activity_names` accepts a
+    // semicolon-separated list to match the multi-activity picker.
+    const fe1 = fes[0]?.employee_id ?? 'FE-001';
+    const fe2 = fes[1]?.employee_id ?? 'FE-002';
+    const st1 = storeList[0]?.store_code ?? 'ST-001';
+    const st2 = storeList[1]?.store_code ?? 'ST-002';
+    const st3 = storeList[2]?.store_code ?? 'ST-003';
+    const act1 = activities[0]?.name ?? 'Sales';
+    const act2 = activities[1]?.name || activities[0]?.name || 'Audit';
     const lines: string[] = [
-      'activity_name,fe_employee_id,store_code,target_type,target_notes,target_value,visit_order,planned_duration_min',
+      'fe_employee_id,plan_date,activity_names,vehicle_type,frequency,territory_label,notes,store_code,target_type,target_notes,target_value,visit_order,planned_duration_min',
       '# ---- EXAMPLE ROWS (delete these before uploading) ----',
-      `${activities[0]?.name ?? 'Sales'},${fes[0]?.employee_id ?? 'FE-001'},${storeList[0]?.store_code ?? 'ST-001'},order_collection,"Take full order",5000,1,30`,
-      `${activities[0]?.name ?? 'Sales'},${fes[0]?.employee_id ?? 'FE-001'},${storeList[1]?.store_code ?? 'ST-002'},stock_check,,0,2,20`,
-      `${activities[1]?.name || activities[0]?.name || 'Audit'},${fes[1]?.employee_id ?? 'FE-002'},${storeList[0]?.store_code ?? 'ST-001'},merchandising,"Display products",0,1,25`,
+      '# Plan 1 — FE-001 visiting 2 stops on the same day (plan-level fields repeat per row)',
+      `${fe1},${importDate},${act1},2w_petrol,daily,North Zone Cluster A,"Push new SKU promo",${st1},order_collection,"Take full order",5000,1,30`,
+      `${fe1},${importDate},${act1},2w_petrol,daily,North Zone Cluster A,"Push new SKU promo",${st2},stock_check,,0,2,20`,
+      '# Plan 2 — FE-002 with multiple activities (semicolon-separated) on a single stop',
+      `${fe2},${importDate},${act1};${act2},4w_ev,weekly,South Zone,"Quarterly audit run",${st3},merchandising,"Display products on shelf 2",0,1,25`,
       '',
       '',
-      '# ---- YOUR ACTIVITIES (activity_name column) ----',
+      '# ---- YOUR ACTIVITIES (activity_names column — use ; to combine multiple) ----',
       ...activities.map(a => `# ${a.name}`),
       '',
       '# ---- YOUR FIELD EXECUTIVES (fe_employee_id column) ----',
@@ -519,8 +535,14 @@ function RoutePlanContent() {
         ? storeList.map((s: any) => `# ${s.store_code ?? '(no code)'}  →  ${s.name ?? ''} (${s.store_type ?? ''})`)
         : ['# No stores yet — add stores first in Other Management > Stores']),
       '',
-      '# ---- VALID TARGET TYPES ----',
+      '# ---- VALID TARGET TYPES (target_type column) ----',
       '# order_collection | stock_check | merchandising | scheme_communication | data_collection | display_check | general',
+      '',
+      '# ---- VALID VEHICLE TYPES (vehicle_type column — used for CO₂ calc) ----',
+      '# 2w_petrol | 2w_ev | 4w_petrol | 4w_diesel | 4w_ev | public_bus | auto_rickshaw | walking',
+      '',
+      '# ---- VALID FREQUENCY VALUES (frequency column) ----',
+      '# daily | weekly | monthly | custom',
     ];
 
     const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
@@ -1194,10 +1216,13 @@ function RoutePlanContent() {
                   <Icon d={IC.info} s={14} c={C.blue} /> Required CSV Format
                 </div>
                 <div style={{ fontFamily: 'monospace', fontSize: 11, color: C.gray, lineHeight: 1.7 }}>
-                  fe_employee_id, store_code, activity_name, target_type, target_notes, target_value, visit_order<br />
-                  FE-001, ST-101, Merchandising, order_collection, &quot;Take full order&quot;, 5000, 1<br />
-                  FE-001, ST-102, Stock Check, stock_check, , , 2<br />
-                  FE-002, ST-201, Merchandising, merchandising, &quot;Shelf display&quot;, , 1
+                  fe_employee_id, plan_date, activity_names, vehicle_type, frequency, territory_label, notes, store_code, target_type, target_notes, target_value, visit_order, planned_duration_min<br />
+                  FE-001, 2025-05-16, Sales, 2w_petrol, daily, North Zone, &quot;Promo push&quot;, ST-101, order_collection, &quot;Take full order&quot;, 5000, 1, 30<br />
+                  FE-001, 2025-05-16, Sales, 2w_petrol, daily, North Zone, &quot;Promo push&quot;, ST-102, stock_check, , , 2, 20<br />
+                  FE-002, 2025-05-16, Sales;Audit, 4w_ev, weekly, South Zone, &quot;Audit run&quot;, ST-201, merchandising, &quot;Shelf display&quot;, , 1, 25
+                </div>
+                <div style={{ fontSize: 11, color: C.grayd, marginTop: 8, lineHeight: 1.5 }}>
+                  Plan-level fields (fe_employee_id, plan_date, activity_names, vehicle_type, frequency, territory_label, notes) repeat per stop. Use <b>;</b> to combine multiple activities in one cell.
                 </div>
               </div>
 
@@ -1240,7 +1265,7 @@ function RoutePlanContent() {
 
               {/* Import result */}
               {importResult && (
-                <div style={{ marginTop: 16, background: importResult.failed === 0 ? C.greenD : C.yellowD, border: `1px solid ${importResult.failed === 0 ? C.greenB : C.yellowB}`, borderRadius: 12, padding: 16 }}>
+                <div style={{ marginTop: 16, background: importResult.failed === 0 ? C.greenD : C.yellowD, border: `1px solid ${C.greenB}` : `1px solid ${C.yellowB}`, borderRadius: 12, padding: 16 }}>
                   <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 15, fontWeight: 800, color: importResult.failed === 0 ? C.green : C.yellow, marginBottom: 10 }}>
                     {importResult.failed === 0 ? '✓ Import Complete' : '⚠ Import Partial'}
                   </div>
