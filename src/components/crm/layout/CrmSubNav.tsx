@@ -16,7 +16,10 @@ const ALL_LINKS = [
   // /dashboard/crm/tasks redirects to /dashboard/crm/activities?type=task.
   { href: '/dashboard/crm/activities', label: 'Activities' },
   { href: '/dashboard/crm/whatsapp', label: 'WhatsApp' },
-  { href: '/dashboard/crm/leaderboard', label: 'Leaderboard' },
+  // Leaderboard tab removed — it now lives on the CRM Overview
+  // (/dashboard/crm/dashboard) as a compact top-10 widget, with a
+  // "See full leaderboard →" link to /dashboard/crm/leaderboard for
+  // the deeper top-50 view.
   { href: '/dashboard/crm/reports', label: 'Reports' },
   { href: '/dashboard/crm/settings', label: 'Settings' },
 ];
