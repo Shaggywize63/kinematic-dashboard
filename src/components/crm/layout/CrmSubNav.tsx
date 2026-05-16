@@ -16,6 +16,7 @@ const ALL_LINKS = [
   // /dashboard/crm/tasks redirects to /dashboard/crm/activities?type=task.
   { href: '/dashboard/crm/activities', label: 'Activities' },
   { href: '/dashboard/crm/whatsapp', label: 'WhatsApp' },
+  { href: '/dashboard/crm/leaderboard', label: 'Leaderboard' },
   { href: '/dashboard/crm/reports', label: 'Reports' },
   { href: '/dashboard/crm/settings', label: 'Settings' },
 ];

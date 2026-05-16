@@ -1,4 +1,5 @@
 import * as demo from './demoMocks';
+import { demoLeaderboard } from './demoLeaderboardMock';
 import { isUUID } from './utils';
 
 export function resolveApiUrl(): string {
@@ -41,6 +42,7 @@ const TTL_OVERRIDES: Array<[RegExp, number]> = [
   [/^\/api\/v1\/crm\/(lead-sources|territories|products|email-templates|whatsapp-templates|automations|assignment-rules|custom-fields|settings)\b/, 5 * 60_000],
   // Analytics — backend already caches 60s, mirror on the client
   [/^\/api\/v1\/crm\/analytics\b/,                       60_000],
+  [/^\/api\/v1\/crm\/leaderboard\b/,                     60_000],
   [/^\/api\/v1\/analytics\b/,                            60_000],
   // Live ops — keep short
   [/^\/api\/v1\/live-tracking\b/,                        15_000],
@@ -132,6 +134,15 @@ class ApiClient {
     // canned JSON instead of touching the network so every dashboard renders
     // populated values.
     if (this.getUserEmail() === demo.DEMO_USER_EMAIL) {
+      // Leaderboard has its own query-string-sensitive mock that the generic
+      // matcher can't model (the path varies by metric/period/from/to). Try
+      // it first; fall through to the generic matcher otherwise.
+      const lbPath = path.split('?')[0];
+      const lbNorm = lbPath.startsWith('/api/v1') ? lbPath.slice('/api/v1'.length) : lbPath;
+      if (lbNorm === '/crm/leaderboard' && (options.method || 'GET').toUpperCase() === 'GET') {
+        const qs = path.includes('?') ? path.slice(path.indexOf('?') + 1) : '';
+        return demoLeaderboard(new URLSearchParams(qs)) as unknown as T;
+      }
       // Pass the parsed body so mocks that need to persist user input (e.g.
       // creating a WhatsApp template) can read it.
       let parsedBody: unknown;
@@ -279,7 +290,7 @@ class ApiClient {
     return qs ? '?' + qs : '';
   }
 
-  // ── Auth ──────────────────────────────────────────────────────────────────
+  // ── Auth ───────────────────────────────────────────────────────────────────
   login(email: string, password: string) {
     return this.post<{ success: boolean; data: { user: object; access_token: string } }>(
       '/api/v1/auth/login',
@@ -410,54 +421,54 @@ class ApiClient {
     return this.get(`/api/v1/misc/security/alerts/all${this.sanitizeParams(params)}`);
   }
 
-  // ── Organisation (current user's org) ───────────────────────────────
+  // ── Organisation (current user's org) ──────────────────────────────────
   getMyOrg() { return this.get('/api/v1/organisations/me'); }
   updateMyOrg(data: object) { return this.patch('/api/v1/organisations/me', data); }
 
-  // ── Distribution: GSTIN verify + states ──────────────────────────────
+  // ── Distribution: GSTIN verify + states ───────────────────────────────
   verifyGstin(gstin: string) { return this.post<{ success: boolean; data: any }>('/api/v1/distribution/gstin/verify', { gstin }); }
   getDistStates() { return this.get('/api/v1/distribution/gstin/states'); }
 
-  // ── Distribution: Brands ─────────────────────────────────────────────
+  // ── Distribution: Brands ───────────────────────────────────────────
   getBrands(params?: Record<string, string>) { return this.get(`/api/v1/distribution/brands${this.sanitizeParams(params)}`); }
   getBrand(id: string) { return this.get(`/api/v1/distribution/brands/${id}`); }
   createBrand(data: object) { return this.post('/api/v1/distribution/brands', data); }
   updateBrand(id: string, data: object) { return this.patch(`/api/v1/distribution/brands/${id}`, data); }
   deleteBrand(id: string) { return this.delete(`/api/v1/distribution/brands/${id}`); }
 
-  // ── Distribution: Distributors ───────────────────────────────────────
+  // ── Distribution: Distributors ────────────────────────────────────────
   getDistributors(params?: Record<string, string>) { return this.get(`/api/v1/distribution/distributors${this.sanitizeParams(params)}`); }
   getDistributor(id: string) { return this.get(`/api/v1/distribution/distributors/${id}`); }
   createDistributor(data: object) { return this.post('/api/v1/distribution/distributors', data); }
   updateDistributor(id: string, data: object) { return this.patch(`/api/v1/distribution/distributors/${id}`, data); }
   getDistributorBilling(id: string) { return this.get(`/api/v1/distribution/distributors/${id}/billing-summary`); }
 
-  // ── Distribution: Price Lists ────────────────────────────────────────
+  // ── Distribution: Price Lists ───────────────────────────────────────
   getPriceLists() { return this.get('/api/v1/distribution/price-lists'); }
   getPriceList(id: string) { return this.get(`/api/v1/distribution/price-lists/${id}`); }
   createPriceList(data: object) { return this.post('/api/v1/distribution/price-lists', data); }
   bulkAddPriceItems(id: string, items: Array<object>) { return this.post(`/api/v1/distribution/price-lists/${id}/items:bulk`, { items }); }
   activatePriceList(id: string) { return this.post(`/api/v1/distribution/price-lists/${id}/activate`, {}); }
 
-  // ── Distribution: Orders (admin) ─────────────────────────────────────
+  // ── Distribution: Orders (admin) ────────────────────────────────────
   getDistOrders(params?: Record<string, string>) { return this.get(`/api/v1/distribution/orders${this.sanitizeParams(params)}`); }
   getDistOrder(id: string) { return this.get(`/api/v1/distribution/orders/${id}`); }
   approveDistOrder(id: string) { return this.post(`/api/v1/distribution/orders/${id}/approve`, {}); }
   cancelDistOrder(id: string, reason?: string) { return this.post(`/api/v1/distribution/orders/${id}/cancel`, { reason }); }
 
-  // ── Distribution: Invoices (M2) ──────────────────────────────────────
+  // ── Distribution: Invoices (M2) ─────────────────────────────────────
   getInvoices(params?: Record<string, string>) { return this.get(`/api/v1/distribution/invoices${this.sanitizeParams(params)}`); }
   getInvoice(id: string) { return this.get(`/api/v1/distribution/invoices/${id}`); }
   issueInvoice(orderId: string) { return this.post('/api/v1/distribution/invoices', { order_id: orderId }); }
   cancelInvoice(id: string, reason?: string) { return this.post(`/api/v1/distribution/invoices/${id}/cancel`, { reason }); }
 
-  // ── Distribution: Dispatches (M2) ────────────────────────────────────
+  // ── Distribution: Dispatches (M2) ─────────────────────────────────────
   getDispatches(params?: Record<string, string>) { return this.get(`/api/v1/distribution/dispatches${this.sanitizeParams(params)}`); }
   createDispatch(data: object) { return this.post('/api/v1/distribution/dispatches', data); }
   attachEwayBill(id: string, data: object) { return this.post(`/api/v1/distribution/dispatches/${id}/eway-bill`, data); }
   markDispatchOut(id: string) { return this.post(`/api/v1/distribution/dispatches/${id}/mark-out`, {}); }
 
-  // ── Distribution: Payments + Returns + Ledger (M2/M3) ────────────────
+  // ── Distribution: Payments + Returns + Ledger (M2/M3) ────────────────────────
   getDistPayments(params?: Record<string, string>) { return this.get(`/api/v1/distribution/payments${this.sanitizeParams(params)}`); }
   getDistReturns(params?: Record<string, string>) { return this.get(`/api/v1/distribution/returns${this.sanitizeParams(params)}`); }
   approveDistReturn(id: string) { return this.post(`/api/v1/distribution/returns/${id}/approve`, {}); }
@@ -465,14 +476,14 @@ class ApiClient {
   getLedger(params?: Record<string, string>) { return this.get(`/api/v1/distribution/ledger${this.sanitizeParams(params)}`); }
   getAgeing(params?: Record<string, string>) { return this.get(`/api/v1/distribution/ledger/ageing${this.sanitizeParams(params)}`); }
 
-  // ── Distribution: Schemes (M3) ───────────────────────────────────────
+  // ── Distribution: Schemes (M3) ──────────────────────────────────────
   getSchemes() { return this.get('/api/v1/distribution/schemes'); }
   getScheme(id: string) { return this.get(`/api/v1/distribution/schemes/${id}`); }
   createScheme(data: object) { return this.post('/api/v1/distribution/schemes', data); }
   updateScheme(id: string, data: object) { return this.patch(`/api/v1/distribution/schemes/${id}`, data); }
   previewScheme(data: object) { return this.post('/api/v1/distribution/schemes/preview', data); }
 
-  // ── Distribution: Consumer / Secondary Sales (M3) ────────────────────
+  // ── Distribution: Consumer / Secondary Sales (M3) ────────────────────────
   getSecondarySales(params?: Record<string, string>) { return this.get(`/api/v1/distribution/secondary-sales${this.sanitizeParams(params)}`); }
   createSecondarySale(data: object) { return this.post('/api/v1/distribution/secondary-sales', data); }
 }

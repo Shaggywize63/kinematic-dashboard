@@ -3,6 +3,7 @@ import Link from 'next/link';
 
 const REPORTS = [
   { href: '/dashboard/crm/reports/builder', title: '🛠 Custom Report Builder', desc: 'Pick entity, fields, filters, grouping, and export to CSV.', highlight: true },
+  { href: '/dashboard/crm/leaderboard', title: '🏆 Sales Leaderboard', desc: 'Rank reps by deals won — toggle Count vs Revenue across MTD/QTD/YTD.' },
   { href: '/dashboard/crm/reports/forecast', title: 'Forecast', desc: 'Pipeline vs committed vs closed by period.' },
   { href: '/dashboard/crm/reports/win-loss', title: 'Win/Loss', desc: 'Win rate by rep, source, and stage.' },
   { href: '/dashboard/crm/reports/activity-heatmap', title: 'Activity Heatmap', desc: 'When are reps most active?' },
