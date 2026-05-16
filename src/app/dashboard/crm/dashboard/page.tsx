@@ -7,6 +7,7 @@ import { fmtValue, type DashboardUnit } from '../../../../lib/formatCurrency';
 import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
 import StatCard from '../../../../components/crm/shared/StatCard';
 import SalesLeaderboard from '../../../../components/crm/SalesLeaderboard';
+import PinnedAnalyticsSection from '../../../../components/crm/analytics/PinnedAnalyticsSection';
 import { getStoredUser, canAccess } from '../../../../lib/auth';
 
 // Recharts is heavy (~150 KB gzipped). Lazy-load each chart so the dashboard
@@ -46,9 +47,6 @@ const STAT_WIDGETS: Array<{ id: WidgetId; label: string }> = [
   { id: 'stat_conversion', label: 'Conversion' },
 ];
 
-// Panel widgets are full-width sections (not grid tiles, not charts).
-// Currently just the Top Reps leaderboard — gets its own group in the
-// customizer so it's easy to toggle independently of stat tiles.
 const PANEL_WIDGETS: Array<{ id: WidgetId; label: string }> = [
   { id: 'panel_leaderboard', label: 'Top Reps' },
 ];
@@ -88,17 +86,11 @@ export default function CrmDashboardPage() {
   const [loading, setLoading] = useState(true);
   const range = useCrmDateRange((s) => ({ from: s.from, to: s.to }));
 
-  // Customization state
   const [canCustomize, setCanCustomize] = useState(false);
   const [visibleWidgets, setVisibleWidgets] = useState<Set<WidgetId>>(new Set(ALL_WIDGETS));
   const [showCustomizer, setShowCustomizer] = useState(false);
   const [savingLayout, setSavingLayout] = useState(false);
   const [crmConfig, setCrmConfig] = useState<Record<string, unknown>>({});
-  // Cost ↔ Weight toggle. Backend re-aggregates every monetary metric in kg
-  // by joining deals → line_items → products when unit === 'weight'.
-  // Persisted per-user in localStorage. We initialise to 'inr' so SSR + first
-  // client render match (no hydration warning); the saved choice is applied
-  // in useEffect once mounted.
   const [unit, setUnit] = useState<DashboardUnit>('inr');
   useEffect(() => {
     try {
@@ -123,9 +115,6 @@ export default function CrmDashboardPage() {
       setCrmConfig(cfg);
       const layout = cfg.dashboard_layout as { widgets?: WidgetId[] } | undefined;
       if (layout?.widgets && Array.isArray(layout.widgets) && layout.widgets.length > 0) {
-        // Existing saved layouts won't include the new `panel_leaderboard`
-        // widget — opt-in by default so orgs that already customized their
-        // dashboard still see the leaderboard once on next deploy.
         const stored = new Set<WidgetId>(layout.widgets);
         if (!stored.has('panel_leaderboard')) stored.add('panel_leaderboard');
         setVisibleWidgets(stored);
@@ -138,12 +127,8 @@ export default function CrmDashboardPage() {
     setLoading(true);
     (async () => {
       try {
-        // Single round-trip — the backend runs the 6 sub-queries in parallel
-        // server-side, so this collapses 6 HTTPS calls into 1. `unit` swaps
-        // every monetary aggregation between rupees and kg.
         const [r, leadsRes] = await Promise.all([
           crmAnalytics.dashboardComplete(range, unit),
-          // Slim list for the geo map — only the fields LeadsGeoMap reads.
           crmLeads.list({ limit: 500 }),
         ]);
         if (cancel) return;
@@ -168,8 +153,6 @@ export default function CrmDashboardPage() {
   }, [range.from, range.to, unit]);
 
   const fmtPct = (n?: number) => `${(Number(n || 0) * 100).toFixed(1)}%`;
-  // The numbers themselves swap units server-side based on the `unit` query
-  // param; this just picks the right formatter (₹ vs kg/T).
   const fmtMoney = (n?: number) => fmtValue(n ?? 0, unit);
   const revenueTrend = forecast.map((f) => ({ period: f.period, revenue: f.closed }));
 
@@ -204,10 +187,6 @@ export default function CrmDashboardPage() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
       <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-        {/* Cost ↔ Weight toggle — every rupee metric on the dashboard
-            (stat cards + Pipeline Value / Forecast / Revenue charts)
-            switches to kg derived from line items × product weight. Deals
-            without line items contribute 0 in weight mode. */}
         <div
           role="tablist"
           aria-label="Display unit"
@@ -242,6 +221,10 @@ export default function CrmDashboardPage() {
         )}
       </div>
 
+      {/* Pinned analytics widgets — surfaces anything the user pinned from
+          the Lead Analytics page. Renders nothing when no widgets are pinned. */}
+      <PinnedAnalyticsSection />
+
       {visibleStatCount > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
           {isVisible('stat_open_pipeline') && <StatCard label="Open Pipeline" value={fmtMoney(summary?.open_deal_value)} hint={`${summary?.open_deals || 0} deals`} loading={loading} />}
@@ -255,17 +238,12 @@ export default function CrmDashboardPage() {
         </div>
       )}
 
-      {/* Top Reps — sits right under the stat tiles so the day's leaders
-          are visible at a glance. Compact mode (top 10, MTD) keeps the
-          home page tight; the "See full leaderboard →" link drops into
-          the standalone /dashboard/crm/leaderboard view for top 50. */}
       {isVisible('panel_leaderboard') && (
         <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
           <SalesLeaderboard compact />
         </div>
       )}
 
-      {/* Map gets full width so the bubbles + legend + side panel fit cleanly. */}
       {isVisible('chart_geo_map') && (
         <div style={{ display: 'block' }}>
           <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
