@@ -12,7 +12,7 @@ export * from './demo/factoriesB';
 import {
   mockDashboardInit, mockSummary, mockTrends, mockFeed, mockHeatmap,
   mockLocations, mockUsers, mockAttendanceTeam, mockStores, mockFormTemplates,
-  mockRoutePlans, mockActivities, mockAssets, mockSecurityAlerts, mockVisitLogs,
+  mockActivities, mockAssets, mockSecurityAlerts, mockVisitLogs,
   mockSubmissions,
 } from './demo/factoriesA';
 import {
@@ -172,32 +172,6 @@ const DIST_RETURNS = [
   { id: 'demo-ret-5', return_no: 'RET-26-0018', distributor_id: 'demo-dist-3', distributor_name: 'North Delhi Distributors',   invoice_no: 'INV-FY26-008214', reason: 'Distributor overstocked', value: 24300, status: 'pending',  created_at: new Date(Date.now() - 1*86400000).toISOString() },
 ];
 
-const DIST_LEDGER = (() => {
-  const rows: Array<Record<string, unknown>> = [];
-  let balance = 0;
-  // Build a synthetic but believable ledger across distributors
-  for (let i = 0; i < 22; i++) {
-    const dist = DIST_DISTRIBUTORS[i % DIST_DISTRIBUTORS.length];
-    const isInvoice = i % 3 !== 2;
-    const amount = isInvoice ? 180000 + (i * 24500) : 120000 + (i * 18500);
-    if (isInvoice) balance += amount; else balance -= amount;
-    rows.push({
-      id: `demo-led-${i + 1}`,
-      entry_no: `LED-${String(70001 + i).padStart(6, '0')}`,
-      entry_type: isInvoice ? 'invoice' : 'payment',
-      distributor_id: dist.id,
-      distributor_name: dist.name,
-      reference_no: isInvoice ? `INV-FY26-${String(8210 + i).padStart(6, '0')}` : `PMT-${String(50101 + i).padStart(6, '0')}`,
-      debit: isInvoice ? amount : 0,
-      credit: isInvoice ? 0 : amount,
-      balance,
-      posted_at: new Date(Date.now() - (22 - i) * 86400000).toISOString(),
-      narration: isInvoice ? 'Invoice raised' : 'Payment received against invoice',
-    });
-  }
-  return rows.reverse();
-})();
-
 const DIST_AGEING = DIST_DISTRIBUTORS.slice(0, 8).map((d, i) => {
   const current = 75000 + i * 22000;
   const b30 = i % 3 === 0 ? 45000 + i * 8500 : 0;
@@ -227,26 +201,6 @@ const DIST_SCHEMES = [
   { id: 'demo-sch-5', name: 'Festive Combo Pack — Surf + Lifebuoy',      code: 'COMBO-FEST-26',  scheme_type: 'combo',        brand: 'HUL',        start_date: new Date(Date.now() - 21*86400000).toISOString().slice(0,10), end_date: new Date(Date.now() + 14*86400000).toISOString().slice(0,10), status: 'active', applies_to: 'wholesaler',       uses: 47, created_at: new Date(Date.now() - 25*86400000).toISOString() },
 ];
 
-const DIST_SECONDARY = Array.from({ length: 14 }, (_, i) => {
-  const dist = DIST_DISTRIBUTORS[i % DIST_DISTRIBUTORS.length];
-  const retailers = ['Sharma Kirana', 'Anand General Store', 'Modern Mart', 'Quick Stop', 'Padma Stores', 'Sai Provisions', 'Maharaja Bazaar', 'Vinayak Traders'];
-  const skus = ['Maggi 70g x 12', 'Lifebuoy Soap 125g x 24', 'Tata Salt 1kg x 10', 'Britannia Marie 250g x 12', 'Surf Excel 1kg x 6', 'Parle-G 100g x 36', 'Dabur Honey 250g x 12'];
-  const amount = 18500 + (i * 4200) + Math.round(Math.random() * 6000);
-  return {
-    id: `demo-secsale-${i + 1}`,
-    bill_no: `BILL-${String(70010 + i).padStart(6, '0')}`,
-    distributor_id: dist.id,
-    distributor_name: dist.name,
-    retailer_name: retailers[i % retailers.length],
-    retailer_city: ['Mumbai', 'Bengaluru', 'Delhi', 'Chennai', 'Hyderabad', 'Pune', 'Ahmedabad', 'Kolkata'][i % 8],
-    sku: skus[i % skus.length],
-    qty: 6 + (i % 12),
-    amount,
-    sold_at: new Date(Date.now() - (i + 1) * 86400000).toISOString(),
-    captured_by: ['Arjun Sharma', 'Priya Patel', 'Rahul Verma', 'Sneha Rao', 'Amit Singh'][i % 5],
-  };
-});
-
 const DIST_GSTIN_STATES = [
   { code: '27', name: 'Maharashtra' },
   { code: '29', name: 'Karnataka' },
@@ -261,6 +215,258 @@ const DIST_GSTIN_STATES = [
   { code: '09', name: 'Uttar Pradesh' },
   { code: '23', name: 'Madhya Pradesh' },
 ];
+
+// Aggregated ageing for /distribution/ledger/ageing — the page expects
+// { total_outstanding, buckets: { '0_30', '31_60', '61_90', '90_plus' } }.
+const DIST_AGEING_SUMMARY = (() => {
+  const tot = DIST_AGEING.reduce((s, r) => ({
+    current: s.current + r.current,
+    b30:     s.b30 + r.bucket_1_30,
+    b60:     s.b60 + r.bucket_31_60,
+    b90:     s.b90 + r.bucket_61_90,
+    b90p:    s.b90p + r.bucket_90_plus,
+  }), { current: 0, b30: 0, b60: 0, b90: 0, b90p: 0 });
+  return {
+    total_outstanding: tot.current + tot.b30 + tot.b60 + tot.b90 + tot.b90p,
+    buckets: {
+      '0_30':    tot.current + tot.b30,
+      '31_60':   tot.b60,
+      '61_90':   tot.b90,
+      '90_plus': tot.b90p,
+    },
+  };
+})();
+
+// Ledger entries reshaped to match what the page reads (dr/cr,
+// running_balance, ref_table/ref_id, notes). Built off the same invoices
+// + payments fixture so numbers line up across pages.
+const DIST_LEDGER_ENTRIES = (() => {
+  type Row = { id: string; posted_at: string; entry_type: string; ref_table: string; ref_id: string; dr: number; cr: number; running_balance: number; notes: string };
+  const rows: Row[] = [];
+  let bal = 0;
+  for (let i = 0; i < 22; i++) {
+    const isInvoice = i % 3 !== 2;
+    const amount = isInvoice ? 180000 + (i * 24500) : 120000 + (i * 18500);
+    if (isInvoice) bal += amount; else bal -= amount;
+    rows.push({
+      id: `demo-led-${i + 1}`,
+      posted_at: new Date(Date.now() - (22 - i) * 86400000).toISOString(),
+      entry_type: isInvoice ? 'invoice' : 'payment',
+      ref_table: isInvoice ? 'invoices' : 'payments',
+      ref_id: isInvoice ? `demo-inv-${(i % 8) + 1}` : `demo-pay-${(i % 16) + 1}`,
+      dr: isInvoice ? amount : 0,
+      cr: isInvoice ? 0 : amount,
+      running_balance: bal,
+      notes: isInvoice ? 'Invoice raised' : 'Payment received against open invoices',
+    });
+  }
+  return rows.reverse();
+})();
+
+// Secondary sales reshaped to match what the page reads (outlet_id,
+// sku_id, period_start, period_end, source, notes). The previous
+// retailer_name/sku-string shape made the page show "—" everywhere.
+const DIST_SECONDARY_FEED = Array.from({ length: 14 }, (_, i) => {
+  const sources = ['manual', 'estimated', 'qr'] as const;
+  const periodEnd = new Date(Date.now() - (i + 1) * 86400000);
+  const periodStart = new Date(periodEnd.getTime() - 6 * 86400000);
+  return {
+    id: `demo-secsale-${i + 1}`,
+    outlet_id: `demo-outlet-${String(1000 + i).padEnd(8, '0')}-aaaa-bbbb-cccc-${String(i).padStart(12, '0')}`,
+    sku_id:    `demo-sku-${String(2000 + (i % 8)).padEnd(7, '0')}-dddd-eeee-ffff-${String(i % 8).padStart(12, '0')}`,
+    qty: 6 + (i % 12),
+    period_start: periodStart.toISOString().slice(0, 10),
+    period_end:   periodEnd.toISOString().slice(0, 10),
+    source: sources[i % sources.length],
+    notes: ([
+      'Captured at Sharma Kirana, Mumbai',
+      'QR-scanned at Anand General Store, Bengaluru',
+      'Estimated based on visible stock at Modern Mart, Delhi',
+      'Captured at Quick Stop, Chennai',
+      'Padma Stores Hyderabad — bill 70014',
+      'Sai Provisions Pune — bill 70015',
+      'Maharaja Bazaar Ahmedabad — bill 70016',
+      null,
+    ] as Array<string | null>)[i % 8],
+    created_at: new Date(Date.now() - (i + 1) * 86400000).toISOString(),
+  };
+});
+
+// Security alerts for /misc/security/alerts/all — the page expects an
+// array of { id, type, action, lat, lng, created_at, user:{...} }. The
+// previous mock returned an empty list so the page rendered the "No
+// security violations detected yet" empty state on the demo.
+const SECURITY_ALERTS = (() => {
+  const users = [
+    { id: 'demo-fe-1', name: 'Arjun Sharma',   employee_id: 'FE-1042', role: 'executive',  zones: { name: 'Mumbai West' } },
+    { id: 'demo-fe-2', name: 'Priya Patel',    employee_id: 'FE-1051', role: 'executive',  zones: { name: 'Bangalore North' } },
+    { id: 'demo-fe-3', name: 'Rahul Verma',    employee_id: 'FE-1063', role: 'supervisor', zones: { name: 'Delhi Central' } },
+    { id: 'demo-fe-4', name: 'Sneha Rao',      employee_id: 'FE-1078', role: 'executive',  zones: { name: 'Chennai South' } },
+    { id: 'demo-fe-5', name: 'Amit Singh',     employee_id: 'FE-1085', role: 'executive',  zones: { name: 'Hyderabad East' } },
+    { id: 'demo-fe-6', name: 'Karthik Pillai', employee_id: 'FE-1092', role: 'executive',  zones: { name: 'Pune Central' } },
+  ];
+  const actions = ['ATTENDANCE_CHECKIN', 'FORM_SUBMIT', 'VISIT_CHECKIN', 'ATTENDANCE_CHECKOUT', 'PHOTO_UPLOAD'];
+  const out: Array<{ id: string; type: 'MOCK_LOCATION' | 'VPN_DETECTED'; action: string; lat: number | null; lng: number | null; created_at: string; user: typeof users[number] }> = [];
+  const cities: Array<[number, number]> = [
+    [19.0760, 72.8777], [12.9716, 77.5946], [28.6139, 77.2090], [13.0827, 80.2707],
+    [17.3850, 78.4867], [18.5204, 73.8567], [22.5726, 88.3639], [26.9124, 75.7873],
+  ];
+  for (let i = 0; i < 8; i++) {
+    const isVpn = i % 3 === 0;
+    const u = users[i % users.length];
+    const c = cities[i % cities.length];
+    out.push({
+      id: `demo-sec-${i + 1}`,
+      type: isVpn ? 'VPN_DETECTED' : 'MOCK_LOCATION',
+      action: actions[i % actions.length],
+      lat: isVpn ? null : c[0] + (Math.random() - 0.5) * 0.02,
+      lng: isVpn ? null : c[1] + (Math.random() - 0.5) * 0.02,
+      created_at: new Date(Date.now() - i * 86400000 * 1.25).toISOString(),
+      user: u,
+    });
+  }
+  return out;
+})();
+
+// Route plans reshaped to match the RoutePlan interface the page
+// renders (fe_name, plan_date, status, outlets[]). The factory's old
+// shape was missing several fields and the page crashed on .outlets.map.
+const ROUTE_PLANS = (() => {
+  const fes = [
+    { id: 'demo-fe-1', name: 'Arjun Sharma',   employee_id: 'FE-1042', mobile: '+91 98201 11111', zone: 'Mumbai West',      city: 'Mumbai' },
+    { id: 'demo-fe-2', name: 'Priya Patel',    employee_id: 'FE-1051', mobile: '+91 98202 22222', zone: 'Bangalore North',  city: 'Bengaluru' },
+    { id: 'demo-fe-3', name: 'Rahul Verma',    employee_id: 'FE-1063', mobile: '+91 98203 33333', zone: 'Delhi Central',    city: 'Delhi' },
+    { id: 'demo-fe-4', name: 'Sneha Rao',      employee_id: 'FE-1078', mobile: '+91 98204 44444', zone: 'Chennai South',    city: 'Chennai' },
+    { id: 'demo-fe-5', name: 'Amit Singh',     employee_id: 'FE-1085', mobile: '+91 98205 55555', zone: 'Hyderabad East',   city: 'Hyderabad' },
+    { id: 'demo-fe-6', name: 'Karthik Pillai', employee_id: 'FE-1092', mobile: '+91 98206 66666', zone: 'Pune Central',     city: 'Pune' },
+    { id: 'demo-fe-7', name: 'Pooja Joshi',    employee_id: 'FE-1107', mobile: '+91 98207 77777', zone: 'Ahmedabad West',   city: 'Ahmedabad' },
+    { id: 'demo-fe-8', name: 'Manish Khanna',  employee_id: 'FE-1118', mobile: '+91 98208 88888', zone: 'Kolkata North',    city: 'Kolkata' },
+  ];
+  const cityCoords: Record<string, [number, number]> = {
+    Mumbai: [19.0760, 72.8777], Bengaluru: [12.9716, 77.5946], Delhi: [28.6139, 77.2090],
+    Chennai: [13.0827, 80.2707], Hyderabad: [17.3850, 78.4867], Pune: [18.5204, 73.8567],
+    Ahmedabad: [23.0225, 72.5714], Kolkata: [22.5726, 88.3639],
+  };
+  const storeNames = ['Sharma Kirana', 'Anand General Store', 'Modern Mart', 'Quick Stop', 'Padma Stores', 'Sai Provisions', 'Maharaja Bazaar', 'Vinayak Traders', 'Krishna Foods', 'Lakshmi Mart'];
+  const statuses = ['completed', 'in_progress', 'partial', 'pending', 'completed', 'in_progress', 'pending', 'partial', 'completed', 'in_progress'] as const;
+  const vehicles = ['2w_petrol', '4w_petrol', '4w_diesel', '2w_ev', '4w_ev', '2w_petrol', 'auto_rickshaw', '4w_petrol', '2w_petrol', 'public_bus'];
+
+  return Array.from({ length: 10 }, (_, i) => {
+    const fe = fes[i % fes.length];
+    const status = statuses[i];
+    const [baseLat, baseLng] = cityCoords[fe.city] ?? [19.0760, 72.8777];
+    const total = 4 + (i % 4);
+    const visited = status === 'completed' ? total : status === 'in_progress' ? Math.max(1, Math.floor(total / 2)) : status === 'partial' ? Math.max(1, total - 2) : 0;
+    const missed = status === 'pending' ? 0 : total - visited;
+    const completion = Math.round((visited / total) * 100);
+    const planDate = new Date(Date.now() - (i - 2) * 86400000).toISOString().slice(0, 10);
+    const co2Planned = +(total * 4.8 * 0.072 * (i % 3 === 0 ? 2.4 : 1)).toFixed(2);
+    const co2Actual = +(visited * 4.8 * 0.072 * (i % 3 === 0 ? 2.4 : 1)).toFixed(2);
+
+    const outlets = Array.from({ length: total }, (_, j) => {
+      const outletStatus = j < visited ? 'visited' : j === visited && status === 'in_progress' ? 'in_progress' : 'pending';
+      return {
+        id: `demo-stop-${i}-${j}`,
+        visit_order: j + 1,
+        target_type: ['order', 'survey', 'merchandising', 'collection'][j % 4],
+        target_notes: ['Push festive combo', 'Q4 visibility audit', 'Display refresh', 'Collect outstanding'][j % 4],
+        target_value: 8500 + j * 2200,
+        status: outletStatus,
+        checkin_at:  outletStatus === 'visited' ? new Date(Date.now() - (i - 2) * 86400000 + (8 + j) * 3600000).toISOString() : undefined,
+        checkout_at: outletStatus === 'visited' ? new Date(Date.now() - (i - 2) * 86400000 + (8 + j) * 3600000 + 25 * 60000).toISOString() : undefined,
+        order_amount: outletStatus === 'visited' ? 6500 + j * 1850 : undefined,
+        actual_duration_min: outletStatus === 'visited' ? 20 + (j * 4) % 18 : undefined,
+        planned_duration_min: 25,
+        store_id: `demo-store-${i}-${j}`,
+        store_name: `${storeNames[(i + j) % storeNames.length]} - ${fe.city} ${j + 1}`,
+        store_code: `STR-${String(20000 + i * 10 + j).padStart(5, '0')}`,
+        store_address: `Shop ${j + 1}, ${['MG Road', 'Park Street', 'Linking Road', 'FC Road', 'Brigade Road'][j % 5]}, ${fe.city}`,
+        store_type: ['kirana', 'modern_trade', 'wholesaler', 'pharmacy'][j % 4],
+        store_lat: baseLat + (Math.random() - 0.5) * 0.08,
+        store_lng: baseLng + (Math.random() - 0.5) * 0.08,
+        store_phone: `+91 98${String(300 + i * 10 + j).slice(-3)} ${String(10000 + i * 100 + j).slice(-5)}`,
+        store_owner: ['Mr Sharma', 'Mrs Iyer', 'Mr Kumar', 'Mrs Gupta', 'Mr Pillai', 'Mr Joshi'][(i + j) % 6],
+        zone_name: fe.zone,
+        checkin_distance_m: outletStatus === 'visited' ? Math.round(8 + Math.random() * 35) : undefined,
+      };
+    });
+
+    return {
+      id: `demo-plan-${i + 1}`,
+      user_id: fe.id,
+      plan_date: planDate,
+      total_outlets: total,
+      visited_outlets: visited,
+      missed_outlets: missed,
+      completion_pct: completion,
+      status,
+      notes: i % 4 === 0 ? 'Festive beat — push combo packs' : undefined,
+      frequency: ['weekly', 'biweekly', 'daily'][i % 3],
+      territory_label: `${fe.zone} Beat ${(i % 3) + 1}`,
+      fe_name: fe.name,
+      fe_employee_id: fe.employee_id,
+      fe_mobile: fe.mobile,
+      zone_name: fe.zone,
+      city_name: fe.city,
+      vehicle_type: vehicles[i],
+      co2_kg_planned: co2Planned,
+      co2_kg_actual: co2Actual,
+      outlets,
+    };
+  });
+})();
+
+const ROUTE_PLAN_SUMMARY = (() => {
+  const total_outlets = ROUTE_PLANS.reduce((s, p) => s + p.total_outlets, 0);
+  const visited       = ROUTE_PLANS.reduce((s, p) => s + p.visited_outlets, 0);
+  const missed        = ROUTE_PLANS.reduce((s, p) => s + p.missed_outlets, 0);
+  const completed     = ROUTE_PLANS.filter(p => p.status === 'completed').length;
+  const partial       = ROUTE_PLANS.filter(p => p.status === 'partial').length;
+  const in_progress   = ROUTE_PLANS.filter(p => p.status === 'in_progress').length;
+  const pending       = ROUTE_PLANS.filter(p => p.status === 'pending').length;
+  const total_fes     = new Set(ROUTE_PLANS.map(p => p.user_id)).size;
+  return {
+    total_fes, total_outlets,
+    visited_outlets: visited, missed_outlets: missed,
+    completed_plans: completed, partial_plans: partial,
+    in_progress_plans: in_progress, pending_plans: pending,
+    avg_completion: Math.round(ROUTE_PLANS.reduce((s, p) => s + p.completion_pct, 0) / ROUTE_PLANS.length),
+  };
+})();
+
+const ROUTE_PLAN_ESG = (() => {
+  const totalKm = ROUTE_PLANS.reduce((s, p) => s + p.total_outlets * 4.8, 0);
+  const planned = ROUTE_PLANS.reduce((s, p) => s + (p.co2_kg_planned ?? 0), 0);
+  const actual  = ROUTE_PLANS.reduce((s, p) => s + (p.co2_kg_actual ?? 0), 0);
+  const by_vehicle: Record<string, { km: number; co2_kg: number; plan_count: number }> = {};
+  for (const p of ROUTE_PLANS) {
+    const v = p.vehicle_type ?? '2w_petrol';
+    const e = by_vehicle[v] ?? { km: 0, co2_kg: 0, plan_count: 0 };
+    e.km += p.total_outlets * 4.8;
+    e.co2_kg += p.co2_kg_actual ?? 0;
+    e.plan_count += 1;
+    by_vehicle[v] = e;
+  }
+  const daily_series = Array.from({ length: 14 }, (_, i) => ({
+    day: new Date(Date.now() - (13 - i) * 86400000).toISOString().slice(0, 10),
+    co2_kg: +(2.4 + Math.sin(i / 2) + Math.random() * 1.5).toFixed(2),
+  }));
+  return {
+    range: {
+      from: new Date(Date.now() - 13 * 86400000).toISOString().slice(0, 10),
+      to:   new Date().toISOString().slice(0, 10),
+    },
+    total_co2_kg_planned: +planned.toFixed(2),
+    total_co2_kg_actual:  +actual.toFixed(2),
+    total_km:             +totalKm.toFixed(1),
+    delta_vs_planned_pct: planned > 0 ? +(((actual - planned) / planned) * 100).toFixed(1) : 0,
+    by_vehicle, daily_series,
+    equivalents: {
+      trees_year: +(actual / 21).toFixed(1),
+      home_days:  +(actual / 4.5).toFixed(1),
+    },
+  };
+})();
 
 // ---------------------------------------------------------------------------
 // Path → mock router. Returns the wrapped {success, data} payload, or
@@ -308,16 +514,13 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
     if (path === '/visit-logs' || path === '/visits/team' || path === '/visits') return mockVisitLogs() as unknown as T;
     if (path === '/forms/templates' || path === '/form-templates') return mockFormTemplates() as unknown as T;
     if (path === '/forms/submissions' || path === '/submissions')  return mockSubmissions() as unknown as T;
-    if (path === '/route-plans')                return mockRoutePlans() as unknown as T;
+    if (path === '/route-plans')                return list(ROUTE_PLANS) as unknown as T;
     if (path === '/activity-mappings')          return list([]) as unknown as T;
     if (path === '/activities')                 return mockActivities() as unknown as T;
     if (path === '/assets')                     return mockAssets() as unknown as T;
     if (path === '/security/alerts')            return mockSecurityAlerts() as unknown as T;
     if (path === '/stores')                     return mockStores() as unknown as T;
 
-    // Distribution / wholesale module — primary trade pipeline. Every list
-    // page calls a different /api/v1/distribution/* path; without these
-    // matchers the demo's Distribution screens render empty.
     if (path === '/distribution/brands')                  return list(DIST_BRANDS) as unknown as T;
     if (path === '/distribution/distributors')            return list(DIST_DISTRIBUTORS) as unknown as T;
     if (path === '/distribution/price-lists')             return list(DIST_PRICE_LISTS) as unknown as T;
@@ -326,12 +529,11 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
     if (path === '/distribution/dispatches')              return list(DIST_DISPATCHES) as unknown as T;
     if (path === '/distribution/payments')                return list(DIST_PAYMENTS) as unknown as T;
     if (path === '/distribution/returns')                 return list(DIST_RETURNS) as unknown as T;
-    if (path === '/distribution/ledger')                  return list(DIST_LEDGER) as unknown as T;
-    if (path === '/distribution/ledger/ageing')           return list(DIST_AGEING) as unknown as T;
+    if (path === '/distribution/ledger')                  return wrap({ entries: DIST_LEDGER_ENTRIES }) as unknown as T;
+    if (path === '/distribution/ledger/ageing')           return wrap(DIST_AGEING_SUMMARY) as unknown as T;
     if (path === '/distribution/schemes')                 return list(DIST_SCHEMES) as unknown as T;
-    if (path === '/distribution/secondary-sales')         return list(DIST_SECONDARY) as unknown as T;
+    if (path === '/distribution/secondary-sales')         return list(DIST_SECONDARY_FEED) as unknown as T;
     if (path === '/distribution/gstin/states')            return list(DIST_GSTIN_STATES) as unknown as T;
-    // By-id detail endpoints
     {
       const brandById = path.match(/^\/distribution\/brands\/([^/]+)$/);
       if (brandById) return wrap(DIST_BRANDS.find(b => b.id === brandById[1]) || DIST_BRANDS[0]) as unknown as T;
@@ -342,12 +544,9 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
         const d = DIST_DISTRIBUTORS.find(x => x.id === distBilling[1]) || DIST_DISTRIBUTORS[0];
         const age = DIST_AGEING.find(a => a.distributor_id === d.id) ?? DIST_AGEING[0];
         return wrap({
-          distributor_id: d.id,
-          distributor_name: d.name,
-          credit_limit: d.credit_limit,
-          payment_terms_days: d.payment_terms_days,
-          outstanding: age.total_outstanding,
-          available_credit: age.available_credit,
+          distributor_id: d.id, distributor_name: d.name,
+          credit_limit: d.credit_limit, payment_terms_days: d.payment_terms_days,
+          outstanding: age.total_outstanding, available_credit: age.available_credit,
           ytd_sales: 4_850_000 + Math.round(Math.random() * 2_400_000),
           last_payment_at: new Date(Date.now() - 7 * 86400000).toISOString(),
           last_invoice_at: new Date(Date.now() - 2 * 86400000).toISOString(),
@@ -362,9 +561,7 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
           items: Array.from({ length: 10 }, (_, i) => ({
             id: `${pl.id}-item-${i + 1}`,
             sku: ['Maggi 70g', 'Surf Excel 1kg', 'Tata Salt 1kg', 'Britannia Marie', 'Parle-G 100g', 'Lifebuoy Soap 125g', 'Dabur Honey 250g', 'Bru Coffee 100g', 'Saffola Oil 1L', 'Real Juice 1L'][i],
-            unit: 'case',
-            list_price: 240 + i * 18,
-            min_qty: 1, max_qty: 999,
+            unit: 'case', list_price: 240 + i * 18, min_qty: 1, max_qty: 999,
           })),
         }) as unknown as T;
       }
@@ -376,10 +573,8 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
           items: Array.from({ length: o.item_count }, (_, i) => ({
             id: `${o.id}-line-${i + 1}`,
             sku: ['Maggi 70g x 12', 'Surf 1kg x 6', 'Tata Salt 1kg x 10', 'Marie 250g x 12', 'Parle-G 100g x 36', 'Lifebuoy 125g x 24', 'Honey 250g x 12'][i % 7],
-            qty: 10 + (i * 4),
-            unit_price: 240 + i * 22,
-            total: (10 + (i * 4)) * (240 + i * 22),
-            tax_pct: 18,
+            qty: 10 + (i * 4), unit_price: 240 + i * 22,
+            total: (10 + (i * 4)) * (240 + i * 22), tax_pct: 18,
           })),
         }) as unknown as T;
       }
@@ -391,10 +586,8 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
           items: Array.from({ length: 6 }, (_, i) => ({
             id: `${inv.id}-line-${i + 1}`,
             sku: ['Maggi 70g x 12', 'Surf 1kg x 6', 'Tata Salt 1kg x 10', 'Marie 250g x 12', 'Parle-G 100g x 36', 'Lifebuoy 125g x 24'][i],
-            qty: 12 + i * 3,
-            unit_price: 248 + i * 18,
-            line_total: (12 + i * 3) * (248 + i * 18),
-            tax_pct: 18,
+            qty: 12 + i * 3, unit_price: 248 + i * 18,
+            line_total: (12 + i * 3) * (248 + i * 18), tax_pct: 18,
           })),
         }) as unknown as T;
       }
@@ -481,7 +674,7 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
         { id: 'demo-client-3', name: 'Wayne Enterprises', is_active: true },
       ]) as unknown as T;
     }
-    if (path === '/misc/security/alerts/all') return list([]) as unknown as T;
+    if (path === '/misc/security/alerts/all') return wrap({ data: SECURITY_ALERTS, totalCount: SECURITY_ALERTS.length }) as unknown as T;
     if (path === '/notifications/history')    return list([]) as unknown as T;
     if (path === '/candidates' || path.startsWith('/candidates?')) {
       return list(HR_CANDIDATES) as unknown as T;
@@ -491,12 +684,13 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
       return wrap({ data: [], total: 0 }) as unknown as T;
     }
     if (path === '/broadcast/admin') return mockBroadcastAdmin() as unknown as T;
-    if (path === '/route-plans/summary') {
-      return wrap({
-        total_fes: 10, total_outlets: 42, visited_outlets: 22, missed_outlets: 2,
-        completed_plans: 3, partial_plans: 2, in_progress_plans: 4, pending_plans: 1,
-        avg_completion: 56,
-      }) as unknown as T;
+    if (path === '/route-plans/summary')     return wrap(ROUTE_PLAN_SUMMARY) as unknown as T;
+    if (path === '/route-plans/esg-summary') return wrap(ROUTE_PLAN_ESG) as unknown as T;
+    {
+      const planById = path.match(/^\/route-plans\/([^/]+)$/);
+      if (planById && !['summary', 'esg-summary'].includes(planById[1])) {
+        return wrap(ROUTE_PLANS.find(p => p.id === planById[1]) || ROUTE_PLANS[0]) as unknown as T;
+      }
     }
 
     if (path === '/hr/dashboard' || path === '/hr/summary') {
@@ -545,13 +739,10 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
           const c = clients[i % clients.length];
           const ts = new Date(Date.now() - i * 1000 * 60 * (3 + (i % 10))).toISOString();
           return {
-            id: 'demo-audit-' + i,
-            created_at: ts,
-            action: a.action,
-            entity_table: a.entity,
+            id: 'demo-audit-' + i, created_at: ts,
+            action: a.action, entity_table: a.entity,
             entity_id: i % 4 === 0 ? null : 'demo-' + a.entity + '-' + (i + 1),
-            actor: u,
-            client: c.id ? c : null,
+            actor: u, client: c.id ? c : null,
             ip_address: '203.0.113.' + (10 + (i % 200)),
             metadata: { method: a.method, path: `/api/v1/${a.entity.replace('-', '/')}${i % 4 === 0 ? '' : '/demo-' + a.entity + '-' + (i + 1)}`, status: a.status },
             payload: null,
@@ -587,26 +778,31 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
   }
 
   if (m === 'POST' || m === 'PATCH' || m === 'PUT') {
-    // GSTIN verify — return a "valid format" response so the demo's
-    // distributor form moves past the verify step.
     if (m === 'POST' && path === '/distribution/gstin/verify') {
       const gstin = String((bodyObj as { gstin?: string }).gstin || '').toUpperCase();
-      if (gstin.length !== 15) {
-        return wrap({ valid: false, reason: 'format', source: 'demo' }) as unknown as T;
-      }
+      if (gstin.length !== 15) return wrap({ valid: false, reason: 'format', source: 'demo' }) as unknown as T;
       const state_code = gstin.slice(0, 2);
       const pan = gstin.slice(2, 12);
       const state = DIST_GSTIN_STATES.find(s => s.code === state_code);
       return wrap({
-        valid: !!state,
-        reason: state ? null : 'unknown_state',
-        state_code,
-        pan,
+        valid: !!state, reason: state ? null : 'unknown_state',
+        state_code, pan,
         legal_name: 'Demo Distributor Pvt Ltd',
-        business_name: 'Demo Distributor',
-        trade_name: 'Demo Distributor',
-        status: 'Active',
-        source: 'demo',
+        business_name: 'Demo Distributor', trade_name: 'Demo Distributor',
+        status: 'Active', source: 'demo',
+      }) as unknown as T;
+    }
+    if (m === 'POST' && path === '/route-plans/optimize') {
+      const outlets = ((bodyObj as { outlets?: Array<{ id: string }> }).outlets) ?? [];
+      const original_km  = +(outlets.length * 5.2).toFixed(1);
+      const optimized_km = +(outlets.length * 3.4).toFixed(1);
+      const factor = 0.072;
+      return wrap({
+        ordered: outlets.map(o => o.id),
+        original_km, optimized_km,
+        saved_km: +(original_km - optimized_km).toFixed(1),
+        saved_co2_kg: +((original_km - optimized_km) * factor).toFixed(2),
+        method: 'nearest_neighbour_2opt_haversine',
       }) as unknown as T;
     }
     if (m === 'PUT' && path === '/crm/dashboard-layouts/analytics') {
