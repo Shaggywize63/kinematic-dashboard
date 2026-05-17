@@ -7,10 +7,9 @@ import { crmSettings } from '../../../lib/crmApi';
 const ALL_LINKS = [
   { href: '/dashboard/crm/dashboard', label: 'Dashboard' },
   { href: '/dashboard/crm/leads', label: 'Leads' },
-  // Lead Analytics is a section on the CRM Dashboard (no separate page).
-  // The hash anchors to <div id="lead-analytics"> in LeadAnalyticsSection
-  // and the browser scrolls to it on click.
-  { href: '/dashboard/crm/dashboard#lead-analytics', label: 'Lead Analytics' },
+  // Customisable widget grid lives on its own route now — the CRM
+  // Overview is back to the legacy stat-card + fixed-chart surface.
+  { href: '/dashboard/crm/leads/analytics', label: 'Lead Analytics' },
   { href: '/dashboard/crm/contacts', label: 'Contacts' },
   { href: '/dashboard/crm/accounts', label: 'Accounts', hideForB2C: true },
   { href: '/dashboard/crm/deals', label: 'Deals' },
@@ -30,7 +29,6 @@ const ALL_LINKS = [
 export default function CrmSubNav() {
   const pathname = usePathname();
   const [isB2C, setIsB2C] = useState(false);
-  const [hash, setHash] = useState('');
 
   useEffect(() => {
     crmSettings.get().then((r) => {
@@ -38,24 +36,14 @@ export default function CrmSubNav() {
     }).catch(() => {});
   }, []);
 
-  // Track URL hash so the Lead Analytics tab can light up when the user
-  // is on /dashboard/crm/dashboard#lead-analytics. usePathname() doesn't
-  // include the hash, so we listen for hashchange + initial state.
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const update = () => setHash(window.location.hash);
-    update();
-    window.addEventListener('hashchange', update);
-    return () => window.removeEventListener('hashchange', update);
-  }, []);
-
   const links = ALL_LINKS.filter((l) => !(l.hideForB2C && isB2C));
   const isActive = (href: string) => {
-    const [path, hashPart] = href.split('#');
-    // Hash-anchored tab is only active when both pathname AND hash match.
-    if (hashPart) return pathname === path && hash === '#' + hashPart;
-    // Plain Dashboard tab loses active state once a hash anchor takes over.
-    if (href === '/dashboard/crm/dashboard') return pathname === href && !hash;
+    // /dashboard/crm/leads/analytics must NOT match the /dashboard/crm/leads
+    // tab as a prefix, so the Lead Analytics tab gets sole ownership of
+    // that route. Resolve the most specific match first.
+    if (href === '/dashboard/crm/leads') {
+      return pathname === href || (pathname.startsWith(href + '/') && pathname !== '/dashboard/crm/leads/analytics');
+    }
     return pathname === href || pathname.startsWith(href + '/');
   };
 

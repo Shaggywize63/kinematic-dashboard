@@ -6,7 +6,6 @@ import { crmAnalytics, crmSettings, crmLeads } from '../../../../lib/crmApi';
 import { fmtValue, type DashboardUnit } from '../../../../lib/formatCurrency';
 import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
 import StatCard from '../../../../components/crm/shared/StatCard';
-import LeadAnalyticsSection from '../../../../components/crm/analytics/LeadAnalyticsSection';
 import { getStoredUser, canAccess } from '../../../../lib/auth';
 
 // Recharts is heavy (~150 KB gzipped). Lazy-load each chart so the dashboard
@@ -274,11 +273,6 @@ export default function CrmDashboardPage() {
         </div>
       )}
 
-      {/* Lead Analytics — fully customisable widget grid. Drag/resize, chart-type
-          picker per tile, add/remove from a 15-widget catalog. Sits below the
-          fixed stat cards + charts so existing users see no layout change. */}
-      <LeadAnalyticsSection />
-
       {visibleStatCount === 0 && visibleChartCount === 0 && (
         <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 32, textAlign: 'center', color: 'var(--text-dim)' }}>
           <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Empty dashboard</div>
@@ -299,7 +293,6 @@ export default function CrmDashboardPage() {
 
             <div style={{ background: 'var(--s3)', borderRadius: 8, padding: 10, fontSize: 12, color: 'var(--text-dim)', marginBottom: 14 }}>
               Layout is saved per organisation and applies to all CRM users. Hidden widgets won't appear or load data.
-              For the customisable Lead Analytics grid below, use the +Add widget / Edit layout buttons on that section directly.
             </div>
 
             <div style={{ marginBottom: 14 }}>
