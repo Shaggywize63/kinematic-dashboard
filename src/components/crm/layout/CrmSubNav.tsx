@@ -5,18 +5,25 @@ import { useEffect, useState } from 'react';
 import { crmSettings } from '../../../lib/crmApi';
 
 const ALL_LINKS = [
-  { href: '/dashboard/crm/dashboard', label: 'Overview' },
+  { href: '/dashboard/crm/dashboard', label: 'Dashboard' },
   { href: '/dashboard/crm/leads', label: 'Leads' },
+  // Customisable widget grid lives on its own route now — the CRM
+  // Overview is back to the legacy stat-card + fixed-chart surface.
   { href: '/dashboard/crm/leads/analytics', label: 'Lead Analytics' },
+  { href: '/dashboard/crm/contacts', label: 'Contacts' },
+  { href: '/dashboard/crm/accounts', label: 'Accounts', hideForB2C: true },
   { href: '/dashboard/crm/deals', label: 'Deals' },
   { href: '/dashboard/crm/pipeline', label: 'Pipeline' },
-  { href: '/dashboard/crm/accounts', label: 'Accounts', hideForB2C: true },
-  { href: '/dashboard/crm/contacts', label: 'Contacts' },
+  { href: '/dashboard/crm/products', label: 'Products' },
+  // Tasks merged into Activities — tasks are now activities of type='task'.
+  // /dashboard/crm/tasks redirects to /dashboard/crm/activities?type=task.
   { href: '/dashboard/crm/activities', label: 'Activities' },
-  { href: '/dashboard/crm/templates', label: 'Templates' },
+  { href: '/dashboard/crm/whatsapp', label: 'WhatsApp' },
   { href: '/dashboard/crm/reports', label: 'Reports' },
-  { href: '/dashboard/crm/leaderboard', label: 'Leaderboard' },
   { href: '/dashboard/crm/settings', label: 'Settings' },
+  // Help & lifecycle — same screen as iOS / Android so reps get the same
+  // onboarding map on every surface.
+  { href: '/dashboard/crm/help', label: 'Help' },
 ];
 
 export default function CrmSubNav() {
@@ -30,11 +37,13 @@ export default function CrmSubNav() {
   }, []);
 
   const links = ALL_LINKS.filter((l) => !(l.hideForB2C && isB2C));
-  // Exact match for Lead Analytics so it doesn't also light up on /leads/<id>.
-  // Otherwise startsWith for parent routes.
   const isActive = (href: string) => {
-    if (href === '/dashboard/crm/leads/analytics') return pathname === href;
-    if (href === '/dashboard/crm/leads') return pathname === href || (pathname.startsWith(href + '/') && pathname !== '/dashboard/crm/leads/analytics');
+    // /dashboard/crm/leads/analytics must NOT match the /dashboard/crm/leads
+    // tab as a prefix, so the Lead Analytics tab gets sole ownership of
+    // that route. Resolve the most specific match first.
+    if (href === '/dashboard/crm/leads') {
+      return pathname === href || (pathname.startsWith(href + '/') && pathname !== '/dashboard/crm/leads/analytics');
+    }
     return pathname === href || pathname.startsWith(href + '/');
   };
 
