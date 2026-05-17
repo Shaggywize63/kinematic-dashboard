@@ -620,6 +620,130 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
 
     if (path === '/crm/dashboard-layouts/analytics')        return wrap(CRM_ANALYTICS_LAYOUT)       as unknown as T;
     if (path === '/crm/dashboard-layouts/overview')         return wrap(CRM_OVERVIEW_LAYOUT)        as unknown as T;
+    if (path === '/crm/dashboard-layouts/ffm')              return wrap(null)                       as unknown as T;
+
+    // ── FFM (Field Force Management) analytics — 16 widgets ─────────────
+    if (path.startsWith('/analytics/ffm/')) {
+      const FES = [
+        { id: 'fe-1', name: 'Arjun Sharma' },
+        { id: 'fe-2', name: 'Priya Patel' },
+        { id: 'fe-3', name: 'Rahul Verma' },
+        { id: 'fe-4', name: 'Anjali Singh' },
+        { id: 'fe-5', name: 'Vikram Reddy' },
+        { id: 'fe-6', name: 'Suresh Kumar' },
+        { id: 'fe-7', name: 'Kavita Rao' },
+        { id: 'fe-8', name: 'Manish Iyer' },
+      ];
+      const sub = path.slice('/analytics/ffm/'.length);
+      switch (sub) {
+        case 'beat-adherence':
+          return wrap(FES.map((fe, i) => {
+            const planned = 12 + (i % 5);
+            const visited = Math.max(0, planned - (i % 4));
+            return { fe_id: fe.id, fe_name: fe.name, planned, visited, adherence_pct: Math.round((visited / planned) * 1000) / 10 };
+          })) as unknown as T;
+        case 'outlet-coverage':
+          return wrap(FES.map((fe, i) => {
+            const universe = 80 + i * 6;
+            const visited_mtd = Math.round(universe * (0.62 + (i % 4) * 0.07));
+            return { fe_id: fe.id, fe_name: fe.name, universe, visited_mtd, coverage_pct: Math.round((visited_mtd / universe) * 1000) / 10 };
+          })) as unknown as T;
+        case 'frequency-compliance':
+          return wrap([
+            { outlet_type: 'Kirana',       due_visits: 240, on_time: 198, compliance_pct: 82.5 },
+            { outlet_type: 'Modern Trade', due_visits: 84,  on_time: 76,  compliance_pct: 90.5 },
+            { outlet_type: 'Pharmacy',     due_visits: 56,  on_time: 48,  compliance_pct: 85.7 },
+            { outlet_type: 'Cosmetics',    due_visits: 42,  on_time: 31,  compliance_pct: 73.8 },
+            { outlet_type: 'Wholesale',    due_visits: 28,  on_time: 26,  compliance_pct: 92.9 },
+          ]) as unknown as T;
+        case 'productive-calls':
+          return wrap(FES.map((fe, i) => {
+            const visits = 35 + i * 4;
+            const productive = Math.round(visits * (0.55 + (i % 5) * 0.06));
+            return { fe_id: fe.id, fe_name: fe.name, visits, productive, productive_pct: Math.round((productive / visits) * 1000) / 10 };
+          })) as unknown as T;
+        case 'order-strike-rate':
+          return wrap(FES.map((fe, i) => {
+            const visits = 38 + i * 3;
+            const orders = Math.round(visits * (0.42 + (i % 6) * 0.05));
+            return { fe_id: fe.id, fe_name: fe.name, visits, orders, strike_pct: Math.round((orders / visits) * 1000) / 10 };
+          })) as unknown as T;
+        case 'aov':
+          return wrap(Array.from({ length: 8 }, (_, i) => ({
+            week: `W${i + 1}`,
+            aov_inr: 4200 + i * 280 + (i % 3) * 150,
+            orders:  120 + i * 14,
+          }))) as unknown as T;
+        case 'new-outlets':
+          return wrap(FES.map((fe, i) => ({ fe_id: fe.id, fe_name: fe.name, new_outlet_count: 2 + ((i * 3) % 11) }))) as unknown as T;
+        case 'visit-duration':
+          return wrap([
+            { bucket: '<2 min (drive-by)', visit_count: 42 },
+            { bucket: '2-5 min',           visit_count: 128 },
+            { bucket: '5-20 min',          visit_count: 312 },
+            { bucket: '20-30 min',         visit_count: 96 },
+            { bucket: '30 min+',           visit_count: 48 },
+          ]) as unknown as T;
+        case 'idle-heatmap': {
+          const rows: Array<{ fe_name: string; hour: number; idle_min: number }> = [];
+          for (const fe of FES.slice(0, 5)) {
+            for (let h = 9; h <= 18; h++) {
+              rows.push({ fe_name: fe.name, hour: h, idle_min: Math.max(0, (h * 7 + fe.name.length) % 45) });
+            }
+          }
+          return wrap(rows) as unknown as T;
+        }
+        case 'distance-travelled':
+          return wrap(Array.from({ length: 14 }, (_, i) => {
+            const km = 38 + (i % 5) * 11 + (i % 3) * 4;
+            return {
+              day: new Date(Date.now() - (13 - i) * 86400000).toISOString().slice(0, 10),
+              km_total: km,
+              co2_kg: +(km * 0.072).toFixed(2),
+            };
+          })) as unknown as T;
+        case 'off-route':
+          return wrap([
+            { outlet_name: 'Shree Krishna Stores', fe_name: 'Arjun Sharma', distance_km: 4.2, planned_beat: 'Andheri-W-Beat-3',  visited_at: new Date(Date.now() - 2 * 86400000).toISOString() },
+            { outlet_name: 'Bansal Provision',     fe_name: 'Priya Patel',  distance_km: 7.8, planned_beat: 'Borivali-Beat-1',    visited_at: new Date(Date.now() - 3 * 86400000).toISOString() },
+            { outlet_name: 'Saraswati Kirana',     fe_name: 'Rahul Verma',  distance_km: 3.1, planned_beat: 'Koramangala-Beat-2', visited_at: new Date(Date.now() - 1 * 86400000).toISOString() },
+            { outlet_name: 'MK Modern Grocers',    fe_name: 'Anjali Singh', distance_km: 6.4, planned_beat: 'HSR-Beat-1',         visited_at: new Date(Date.now() - 4 * 86400000).toISOString() },
+            { outlet_name: 'Annapurna Foods',      fe_name: 'Vikram Reddy', distance_km: 5.5, planned_beat: 'Jubilee-Beat-2',     visited_at: new Date(Date.now() - 5 * 86400000).toISOString() },
+          ]) as unknown as T;
+        case 'attendance-punctuality':
+          return wrap(FES.map((fe, i) => ({
+            fe_id: fe.id, fe_name: fe.name,
+            on_time: 18 - (i % 4),
+            late:    (i % 5),
+            absent:  (i % 3),
+          }))) as unknown as T;
+        case 'stuck-fes':
+          return wrap([
+            { fe_id: 'fe-7', fe_name: 'Kavita Rao',  days_since_last_activity: 8,  last_visit_at: new Date(Date.now() -  8 * 86400000).toISOString() },
+            { fe_id: 'fe-3', fe_name: 'Rahul Verma', days_since_last_activity: 4,  last_visit_at: new Date(Date.now() -  4 * 86400000).toISOString() },
+            { fe_id: 'fe-8', fe_name: 'Manish Iyer', days_since_last_activity: 11, last_visit_at: new Date(Date.now() - 11 * 86400000).toISOString() },
+          ]) as unknown as T;
+        case 'security-violations':
+          return wrap(FES.map((fe, i) => {
+            const mock_location = (i % 5 === 0) ? 1 : 0;
+            const vpn_detected  = (i % 7 === 0) ? 1 : 0;
+            return { fe_id: fe.id, fe_name: fe.name, mock_location, vpn_detected, violation_count: mock_location + vpn_detected };
+          })) as unknown as T;
+        case 'form-completion':
+          return wrap(FES.map((fe, i) => {
+            const required = 24 + (i % 6) * 3;
+            const submitted = Math.max(0, required - (i % 5) - 1);
+            return { fe_id: fe.id, fe_name: fe.name, required, submitted, completion_pct: Math.round((submitted / required) * 1000) / 10 };
+          })) as unknown as T;
+        case 'top-performers':
+          return wrap(FES.map((fe, i) => ({
+            fe_id: fe.id, fe_name: fe.name,
+            revenue_inr:      580000 - i * 42000,
+            orders:           138 - i * 8,
+            outlets_covered:   62 - i * 3,
+          })).sort((a, b) => b.revenue_inr - a.revenue_inr)) as unknown as T;
+      }
+    }
 
     if (path === '/misc/clients') {
       return list([
@@ -778,6 +902,9 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
     }
     if (m === 'PUT' && path === '/crm/dashboard-layouts/overview') {
       return wrap((bodyObj as object) ?? CRM_OVERVIEW_LAYOUT) as unknown as T;
+    }
+    if (m === 'PUT' && path === '/crm/dashboard-layouts/ffm') {
+      return wrap((bodyObj as object) ?? { widgets: [], layouts: { lg: [], md: [], sm: [] } }) as unknown as T;
     }
     if (m === 'POST' && path === '/crm/dashboard-layouts/overview/pin') {
       const w = bodyObj as { id?: string; widget_type?: string; chart_type?: string };
