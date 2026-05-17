@@ -37,13 +37,6 @@ import {
   PLAN_RISK_FORECAST, HR_CANDIDATES,
 } from './demo/seedData';
 
-// ────────────────────────────────────────────────────────────────────────────
-// Distribution module seed data — distributors, brands, orders, invoices,
-// dispatches, payments, ledger, schemes, secondary sales. Wired to every
-// /api/v1/distribution/* path the dashboard hits via lib/api.ts so the
-// demo's wholesale module renders populated instead of empty.
-// ────────────────────────────────────────────────────────────────────────────
-
 const DIST_BRANDS = [
   { id: 'demo-brand-1', name: 'HUL',       code: 'HUL',  is_active: true,  created_at: new Date(Date.now() - 200*86400000).toISOString() },
   { id: 'demo-brand-2', name: 'ITC',       code: 'ITC',  is_active: true,  created_at: new Date(Date.now() - 180*86400000).toISOString() },
@@ -202,44 +195,23 @@ const DIST_SCHEMES = [
 ];
 
 const DIST_GSTIN_STATES = [
-  { code: '27', name: 'Maharashtra' },
-  { code: '29', name: 'Karnataka' },
-  { code: '07', name: 'Delhi' },
-  { code: '33', name: 'Tamil Nadu' },
-  { code: '36', name: 'Telangana' },
-  { code: '24', name: 'Gujarat' },
-  { code: '19', name: 'West Bengal' },
-  { code: '08', name: 'Rajasthan' },
-  { code: '32', name: 'Kerala' },
-  { code: '06', name: 'Haryana' },
-  { code: '09', name: 'Uttar Pradesh' },
-  { code: '23', name: 'Madhya Pradesh' },
+  { code: '27', name: 'Maharashtra' }, { code: '29', name: 'Karnataka' }, { code: '07', name: 'Delhi' },
+  { code: '33', name: 'Tamil Nadu' }, { code: '36', name: 'Telangana' }, { code: '24', name: 'Gujarat' },
+  { code: '19', name: 'West Bengal' }, { code: '08', name: 'Rajasthan' }, { code: '32', name: 'Kerala' },
+  { code: '06', name: 'Haryana' }, { code: '09', name: 'Uttar Pradesh' }, { code: '23', name: 'Madhya Pradesh' },
 ];
 
-// Aggregated ageing for /distribution/ledger/ageing — the page expects
-// { total_outstanding, buckets: { '0_30', '31_60', '61_90', '90_plus' } }.
 const DIST_AGEING_SUMMARY = (() => {
   const tot = DIST_AGEING.reduce((s, r) => ({
-    current: s.current + r.current,
-    b30:     s.b30 + r.bucket_1_30,
-    b60:     s.b60 + r.bucket_31_60,
-    b90:     s.b90 + r.bucket_61_90,
-    b90p:    s.b90p + r.bucket_90_plus,
+    current: s.current + r.current, b30: s.b30 + r.bucket_1_30,
+    b60: s.b60 + r.bucket_31_60, b90: s.b90 + r.bucket_61_90, b90p: s.b90p + r.bucket_90_plus,
   }), { current: 0, b30: 0, b60: 0, b90: 0, b90p: 0 });
   return {
     total_outstanding: tot.current + tot.b30 + tot.b60 + tot.b90 + tot.b90p,
-    buckets: {
-      '0_30':    tot.current + tot.b30,
-      '31_60':   tot.b60,
-      '61_90':   tot.b90,
-      '90_plus': tot.b90p,
-    },
+    buckets: { '0_30': tot.current + tot.b30, '31_60': tot.b60, '61_90': tot.b90, '90_plus': tot.b90p },
   };
 })();
 
-// Ledger entries reshaped to match what the page reads (dr/cr,
-// running_balance, ref_table/ref_id, notes). Built off the same invoices
-// + payments fixture so numbers line up across pages.
 const DIST_LEDGER_ENTRIES = (() => {
   type Row = { id: string; posted_at: string; entry_type: string; ref_table: string; ref_id: string; dr: number; cr: number; running_balance: number; notes: string };
   const rows: Row[] = [];
@@ -263,9 +235,6 @@ const DIST_LEDGER_ENTRIES = (() => {
   return rows.reverse();
 })();
 
-// Secondary sales reshaped to match what the page reads (outlet_id,
-// sku_id, period_start, period_end, source, notes). The previous
-// retailer_name/sku-string shape made the page show "—" everywhere.
 const DIST_SECONDARY_FEED = Array.from({ length: 14 }, (_, i) => {
   const sources = ['manual', 'estimated', 'qr'] as const;
   const periodEnd = new Date(Date.now() - (i + 1) * 86400000);
@@ -279,23 +248,15 @@ const DIST_SECONDARY_FEED = Array.from({ length: 14 }, (_, i) => {
     period_end:   periodEnd.toISOString().slice(0, 10),
     source: sources[i % sources.length],
     notes: ([
-      'Captured at Sharma Kirana, Mumbai',
-      'QR-scanned at Anand General Store, Bengaluru',
-      'Estimated based on visible stock at Modern Mart, Delhi',
-      'Captured at Quick Stop, Chennai',
-      'Padma Stores Hyderabad — bill 70014',
-      'Sai Provisions Pune — bill 70015',
-      'Maharaja Bazaar Ahmedabad — bill 70016',
-      null,
+      'Captured at Sharma Kirana, Mumbai', 'QR-scanned at Anand General Store, Bengaluru',
+      'Estimated based on visible stock at Modern Mart, Delhi', 'Captured at Quick Stop, Chennai',
+      'Padma Stores Hyderabad — bill 70014', 'Sai Provisions Pune — bill 70015',
+      'Maharaja Bazaar Ahmedabad — bill 70016', null,
     ] as Array<string | null>)[i % 8],
     created_at: new Date(Date.now() - (i + 1) * 86400000).toISOString(),
   };
 });
 
-// Security alerts for /misc/security/alerts/all — the page expects an
-// array of { id, type, action, lat, lng, created_at, user:{...} }. The
-// previous mock returned an empty list so the page rendered the "No
-// security violations detected yet" empty state on the demo.
 const SECURITY_ALERTS = (() => {
   const users = [
     { id: 'demo-fe-1', name: 'Arjun Sharma',   employee_id: 'FE-1042', role: 'executive',  zones: { name: 'Mumbai West' } },
@@ -328,9 +289,6 @@ const SECURITY_ALERTS = (() => {
   return out;
 })();
 
-// Route plans reshaped to match the RoutePlan interface the page
-// renders (fe_name, plan_date, status, outlets[]). The factory's old
-// shape was missing several fields and the page crashed on .outlets.map.
 const ROUTE_PLANS = (() => {
   const fes = [
     { id: 'demo-fe-1', name: 'Arjun Sharma',   employee_id: 'FE-1042', mobile: '+91 98201 11111', zone: 'Mumbai West',      city: 'Mumbai' },
@@ -468,10 +426,6 @@ const ROUTE_PLAN_ESG = (() => {
   };
 })();
 
-// ---------------------------------------------------------------------------
-// Path → mock router. Returns the wrapped {success, data} payload, or
-// undefined to fall through to the network call.
-// ---------------------------------------------------------------------------
 const list = <T,>(rows: T[]) => ({ success: true, data: rows });
 const wrap = <T,>(body: T)  => ({ success: true, data: body });
 
@@ -700,7 +654,21 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
     }
 
     if (path === '/settings' || path === '/settings/org') return wrap({}) as unknown as T;
-    if (path === '/roles')   return list([]) as unknown as T;
+    if (path === '/roles') {
+      // rolesApi.list expects a RAW OrgRole[] (typed as Wrapped<T> = T) —
+      // returning the {success,data:[]} envelope would make roles.map crash
+      // on the CRM Settings page where the result is used directly.
+      const now = new Date().toISOString();
+      return ([
+        { id: 'demo-role-1', org_id: 'demo-org-999', client_id: null, name: 'Super Admin',     description: 'Full access to every module + settings.',                parent_id: null,            position: 0, color: '#E0282C', permissions: ['*'], permissions_write: ['*'], assigned_cities: [], created_at: now, updated_at: now, user_count: 1 },
+        { id: 'demo-role-2', org_id: 'demo-org-999', client_id: null, name: 'Sales Director',  description: 'Owns the entire sales org — pipelines, forecasts, team.', parent_id: 'demo-role-1',   position: 1, color: '#3B82F6', permissions: ['crm.*', 'analytics.*'], permissions_write: ['crm.*'], assigned_cities: [], created_at: now, updated_at: now, user_count: 2 },
+        { id: 'demo-role-3', org_id: 'demo-org-999', client_id: null, name: 'Regional Manager', description: 'Owns a region — supervises area managers and FEs.',       parent_id: 'demo-role-2',   position: 2, color: '#8B5CF6', permissions: ['crm.read', 'crm.leads.write', 'crm.deals.write'], permissions_write: ['crm.leads.write'], assigned_cities: ['Mumbai', 'Pune'], created_at: now, updated_at: now, user_count: 4 },
+        { id: 'demo-role-4', org_id: 'demo-org-999', client_id: null, name: 'Area Manager',     description: 'Owns a beat / cluster — supervises 5-10 FEs.',           parent_id: 'demo-role-3',   position: 3, color: '#F59E0B', permissions: ['crm.read', 'crm.leads.write'],                       permissions_write: [],                       assigned_cities: ['Bengaluru'], created_at: now, updated_at: now, user_count: 6 },
+        { id: 'demo-role-5', org_id: 'demo-org-999', client_id: null, name: 'Field Executive', description: 'On-ground rep — captures orders, runs visit plans.',     parent_id: 'demo-role-4',   position: 4, color: '#10B981', permissions: ['crm.read', 'crm.leads.create', 'crm.activities.create'], permissions_write: [],          assigned_cities: ['Delhi', 'Chennai'], created_at: now, updated_at: now, user_count: 24 },
+        { id: 'demo-role-6', org_id: 'demo-org-999', client_id: null, name: 'Inside Sales',    description: 'Phone / WhatsApp inbound + outbound. No field visits.',  parent_id: 'demo-role-2',   position: 5, color: '#14B8A6', permissions: ['crm.leads.read', 'crm.leads.write', 'crm.contacts.write'], permissions_write: ['crm.leads.write'], assigned_cities: [], created_at: now, updated_at: now, user_count: 3 },
+        { id: 'demo-role-7', org_id: 'demo-org-999', client_id: null, name: 'Read-only Auditor', description: 'View-only across CRM + ops. Used for compliance / partners.', parent_id: 'demo-role-1', position: 6, color: '#94A3B8', permissions: ['*.read'], permissions_write: [],                          assigned_cities: [], created_at: now, updated_at: now, user_count: 1 },
+      ]) as unknown as T;
+    }
     if (path === '/modules') return list([]) as unknown as T;
 
     if (path === '/audit-log') {
