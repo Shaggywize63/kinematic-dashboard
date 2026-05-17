@@ -6,6 +6,7 @@ import { crmAnalytics, crmSettings, crmLeads } from '../../../../lib/crmApi';
 import { fmtValue, type DashboardUnit } from '../../../../lib/formatCurrency';
 import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
 import StatCard from '../../../../components/crm/shared/StatCard';
+import PinnedOverviewSection from '../../../../components/crm/analytics/PinnedOverviewSection';
 import { getStoredUser, canAccess } from '../../../../lib/auth';
 
 // Recharts is heavy (~150 KB gzipped). Lazy-load each chart so the dashboard
@@ -211,6 +212,11 @@ export default function CrmDashboardPage() {
           </button>
         )}
       </div>
+
+      {/* Pinned analytics widgets — only renders when the user has pinned
+          something from Lead Analytics. Sits above the stat cards so the
+          rep's hand-picked KPIs are the first thing they see. */}
+      <PinnedOverviewSection />
 
       {visibleStatCount > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>

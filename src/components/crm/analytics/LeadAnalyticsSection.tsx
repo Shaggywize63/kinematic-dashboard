@@ -1,15 +1,12 @@
 'use client';
 /**
- * Embeddable Lead Analytics customizer for the CRM Dashboard.
+ * Embeddable Lead Analytics customizer for the dedicated Lead Analytics page.
  *
  * - "Edit layout" toggle puts the grid in drag/resize mode.
  * - "+ Add widget" opens a modal listing the 15-widget catalog.
- * - Per-tile menu: chart-type switcher + remove (no pin — widgets already
- *   live on the dashboard).
+ * - Per-tile menu: chart-type switcher, pin to Overview, remove.
  * - Layout persists per-user under (org_id, page='analytics') on every
  *   change (debounced 800ms) so refresh restores the exact state.
- *
- * Renders inline as a section on /dashboard/crm/dashboard.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Responsive, WidthProvider, type Layout, type Layouts } from 'react-grid-layout';
@@ -59,8 +56,6 @@ export default function LeadAnalyticsSection() {
         setLoadError(null);
       })
       .catch((err) => {
-        // Surface the actual error so the user (and us) know why this
-        // failed — backend not deployed yet, table missing, etc.
         const msg = err?.message || String(err);
         console.error('[LeadAnalyticsSection] layout load failed:', err);
         setLoadError(msg);
@@ -71,7 +66,7 @@ export default function LeadAnalyticsSection() {
 
   useEffect(() => {
     if (loading) return;
-    if (!dirty.current) return; // skip first render after load
+    if (!dirty.current) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
       crmDashboardLayouts.save('analytics', config).catch((err) => {
@@ -93,8 +88,7 @@ export default function LeadAnalyticsSection() {
   const addWidget = (meta: WidgetMeta) => {
     const newWidget: WidgetInstance = { id: cryptoRandomId(), widget_type: meta.type, chart_type: meta.defaultChart };
     setConfig((c) => {
-      // Clone arrays — don't mutate previous state (was the silent bug
-      // that caused stale layouts and duplicate keys after Add → Remove).
+      // Clone arrays — don't mutate previous state.
       const next: DashboardConfig = {
         widgets: [...c.widgets, newWidget],
         layouts: {
@@ -134,6 +128,19 @@ export default function LeadAnalyticsSection() {
     dirty.current = true;
   };
 
+  // Pin a widget to the CRM Overview. Hits the backend /overview/pin
+  // helper which appends without disturbing other pinned widgets.
+  const pinToOverview = async (widget: WidgetInstance) => {
+    const meta = widgetByType(widget.widget_type);
+    try {
+      await crmDashboardLayouts.pinToOverview(widget);
+      toast.success(`Pinned "${meta?.title ?? widget.widget_type}" to CRM Overview`);
+    } catch (e: unknown) {
+      const msg = (e as Error)?.message ?? 'unknown error';
+      toast.error(`Failed to pin: ${msg.slice(0, 120)}`);
+    }
+  };
+
   const onLayoutChange = (_: Layout[], allLayouts: Layouts) => {
     setConfig((c) => ({ ...c, layouts: allLayouts as DashboardConfig['layouts'] }));
     dirty.current = true;
@@ -157,7 +164,7 @@ export default function LeadAnalyticsSection() {
           <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700 }}>Lead Analytics</div>
           <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', marginTop: 2 }}>Custom widgets</div>
           <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>
-            Drag, resize, and pick chart types. Layout saves automatically.
+            Drag, resize, pick chart types, and pin favorites to the CRM Overview. Layout saves automatically.
           </div>
         </div>
         <button onClick={() => setAdding(true)} style={primaryBtn}>
@@ -168,9 +175,6 @@ export default function LeadAnalyticsSection() {
         </button>
       </div>
 
-      {/* Surface load errors inline so users / on-call know why the section is
-          empty. Most common cause: backend deployment lag or the dashboard-
-          layouts endpoint not yet live. */}
       {loadError && (
         <div style={{
           marginBottom: 12,
@@ -227,7 +231,13 @@ export default function LeadAnalyticsSection() {
                   DRAG TO MOVE • DRAG CORNER TO RESIZE
                 </div>
               )}
-              <AnalyticsWidget widget={w} isEditing={editing} onRemove={removeWidget} onChangeChartType={changeChartType} />
+              <AnalyticsWidget
+                widget={w}
+                isEditing={editing}
+                onRemove={removeWidget}
+                onChangeChartType={changeChartType}
+                onPinToOverview={pinToOverview}
+              />
             </div>
           ))}
         </ResponsiveGridLayout>
