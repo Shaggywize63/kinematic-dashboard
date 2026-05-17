@@ -682,6 +682,209 @@ const CRM_PRODUCTS = [
   { id: 'demo-prod-5', name: 'GI Wire 8 SWG', sku: 'GI-8',  unit_price: 92,  unit: 'kg',  is_active: true },
 ];
 
+// ── Extended analytics (15 widgets for the customisable Lead Analytics page) ──
+// Values mirror backend src/utils/demoCrm.ts so refresh shows identical data.
+
+const CRM_LEAD_VELOCITY = (() => {
+  const now = new Date();
+  return Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
+    const total = 35 + i * 6;
+    const qualified = Math.round(total * (0.35 + i * 0.03));
+    const prev = i === 0 ? null : Math.round((35 + (i - 1) * 6) * (0.35 + (i - 1) * 0.03));
+    const mom = prev == null ? null : Math.round(((qualified - prev) / prev) * 1000) / 10;
+    return { month: d.toISOString().slice(0, 7), total, qualified, mom_growth_pct: mom };
+  });
+})();
+
+const CRM_TIME_TO_FIRST_TOUCH = {
+  avg_minutes: 42,
+  median_minutes: 28,
+  sla_breach_pct: 18.5,
+  total: 124,
+  breaches: 23,
+  sla_minutes: 60,
+  distribution: [
+    { bucket: '<5m',    count: 22 },
+    { bucket: '5–15m',  count: 38 },
+    { bucket: '15–60m', count: 41 },
+    { bucket: '1–4h',   count: 14 },
+    { bucket: '4–24h',  count: 7 },
+    { bucket: '>24h',   count: 2 },
+  ],
+};
+
+const CRM_STUCK_LEADS_KPI = {
+  count_7d: 18,
+  count_14d: 9,
+  count_30d: 4,
+  top_owners: [
+    { owner_id: 'demo-user-id', count: 5 },
+    { owner_id: 'demo-user-2',  count: 3 },
+    { owner_id: 'demo-user-3',  count: 1 },
+  ],
+};
+
+const CRM_LOST_REASONS = [
+  { reason: 'Price too high',    count: 14 },
+  { reason: 'Chose competitor',  count: 11 },
+  { reason: 'No budget',         count: 9 },
+  { reason: 'Bad timing',        count: 6 },
+  { reason: 'Lost contact',      count: 4 },
+  { reason: 'Project cancelled', count: 3 },
+];
+
+const CRM_WON_REASONS = [
+  { reason: 'Better pricing',         count: 12 },
+  { reason: 'Faster delivery',        count: 9 },
+  { reason: 'Existing relationship',  count: 7 },
+  { reason: 'Better product quality', count: 5 },
+  { reason: 'Local support',          count: 3 },
+];
+
+const CRM_DISQUAL_REASONS = [
+  { reason: 'Not in service area', count: 8 },
+  { reason: 'Below min order qty', count: 6 },
+  { reason: 'Wrong industry',      count: 4 },
+  { reason: 'No authority',        count: 3 },
+];
+
+const CRM_STAGE_CONVERSION = [
+  { from_stage: 'Discovery',     to_stage: 'Qualification', entered: 48, advanced: 36, rate: 75.0 },
+  { from_stage: 'Qualification', to_stage: 'Proposal',      entered: 36, advanced: 22, rate: 61.1 },
+  { from_stage: 'Proposal',      to_stage: 'Negotiation',   entered: 22, advanced: 14, rate: 63.6 },
+  { from_stage: 'Negotiation',   to_stage: 'Closed Won',    entered: 14, advanced: 9,  rate: 64.3 },
+];
+
+const CRM_LEAD_AGING = [
+  { bucket: '0–7d',   count: 14 },
+  { bucket: '8–30d',  count: 22 },
+  { bucket: '31–60d', count: 9 },
+  { bucket: '60+d',   count: 5 },
+];
+
+const CRM_COHORT_CONVERSION = (() => {
+  const now = new Date();
+  return Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
+    const total = 28 + i * 4;
+    const cells = Array.from({ length: 7 }, (_, age) => {
+      const cumPct = Math.min(45, age * (6 + i));
+      return { age_months: age, converted: Math.round(total * (cumPct / 100)), rate: cumPct };
+    });
+    return { cohort_month: d.toISOString().slice(0, 7), total, cells };
+  });
+})();
+
+const CRM_ENGAGEMENT_COMPARISON = {
+  won:  { avg: 7.2, count: 18 },
+  lost: { avg: 3.1, count: 24 },
+};
+
+const CRM_DAYS_SINCE_TOUCH = [
+  { bucket: '0d',     count: 8 },
+  { bucket: '1–3d',   count: 16 },
+  { bucket: '4–7d',   count: 11 },
+  { bucket: '8–14d',  count: 7 },
+  { bucket: '15–30d', count: 4 },
+  { bucket: '30+d',   count: 3 },
+];
+
+const CRM_SCORE_BAND_CONVERSION = [
+  { band: '0–19',   total: 14, converted: 1,  rate: 7.1 },
+  { band: '20–39',  total: 22, converted: 3,  rate: 13.6 },
+  { band: '40–59',  total: 31, converted: 8,  rate: 25.8 },
+  { band: '60–79',  total: 28, converted: 14, rate: 50.0 },
+  { band: '80–100', total: 18, converted: 12, rate: 66.7 },
+];
+
+const CRM_TERRITORY_CONVERSION = [
+  { territory: 'Maharashtra', total: 42, converted: 14, rate: 33.3 },
+  { territory: 'Karnataka',   total: 31, converted: 11, rate: 35.5 },
+  { territory: 'Tamil Nadu',  total: 24, converted: 7,  rate: 29.2 },
+  { territory: 'Delhi',       total: 18, converted: 6,  rate: 33.3 },
+  { territory: 'Gujarat',     total: 16, converted: 5,  rate: 31.3 },
+  { territory: 'Telangana',   total: 12, converted: 4,  rate: 33.3 },
+  { territory: 'West Bengal', total: 9,  converted: 2,  rate: 22.2 },
+];
+
+const CRM_TOUCHPOINTS_TO_RESPONSE = [
+  { bucket: '1',  count: 12 },
+  { bucket: '2',  count: 18 },
+  { bucket: '3',  count: 14 },
+  { bucket: '4',  count: 9 },
+  { bucket: '5+', count: 11 },
+  { bucket: 'No response', count: 24 },
+];
+
+const CRM_LEADS_AT_RISK = [
+  { lead_id: 'demo-lead-1',  name: 'Vikram Reddy (Skyline Developers)',  score: 88, owner_id: 'demo-user-id', days_idle: 16 },
+  { lead_id: 'demo-lead-4',  name: 'Neha Gupta (Vega Infra)',            score: 92, owner_id: 'demo-user-id', days_idle: 21 },
+  { lead_id: 'demo-lead-7',  name: 'Manish Khanna (Konkan Steel)',       score: 81, owner_id: 'demo-user-id', days_idle: 18 },
+  { lead_id: 'demo-lead-10', name: 'Karan Verma (Suryadev Cement)',      score: 84, owner_id: 'demo-user-id', days_idle: 14 },
+  { lead_id: 'demo-lead-11', name: 'Aditya Nair (Helios Constructions)', score: 78, owner_id: 'demo-user-id', days_idle: 22 },
+];
+
+// ── Dashboard layouts (per-user widget grid persistence) ────────────────
+
+const CRM_ANALYTICS_LAYOUT = {
+  widgets: [
+    { id: 'demo-wgt-1', widget_type: 'lead_velocity',         chart_type: 'line', config: {} },
+    { id: 'demo-wgt-2', widget_type: 'stuck_leads',           chart_type: 'number', config: {} },
+    { id: 'demo-wgt-3', widget_type: 'lead_aging',            chart_type: 'bar', config: {} },
+    { id: 'demo-wgt-4', widget_type: 'won_reasons',           chart_type: 'horizontal-bar', config: {} },
+    { id: 'demo-wgt-5', widget_type: 'leads_at_risk',         chart_type: 'table', config: {} },
+    { id: 'demo-wgt-6', widget_type: 'score_band_conversion', chart_type: 'bar', config: {} },
+  ],
+  layouts: {
+    lg: [
+      { i: 'demo-wgt-1', x: 0, y: 0, w: 6, h: 4 },
+      { i: 'demo-wgt-2', x: 6, y: 0, w: 3, h: 3 },
+      { i: 'demo-wgt-3', x: 9, y: 0, w: 3, h: 4 },
+      { i: 'demo-wgt-4', x: 0, y: 4, w: 6, h: 4 },
+      { i: 'demo-wgt-5', x: 6, y: 4, w: 6, h: 5 },
+      { i: 'demo-wgt-6', x: 0, y: 8, w: 6, h: 4 },
+    ],
+    md: [
+      { i: 'demo-wgt-1', x: 0, y: 0,  w: 8, h: 4 },
+      { i: 'demo-wgt-2', x: 0, y: 4,  w: 4, h: 3 },
+      { i: 'demo-wgt-3', x: 4, y: 4,  w: 4, h: 4 },
+      { i: 'demo-wgt-4', x: 0, y: 8,  w: 8, h: 4 },
+      { i: 'demo-wgt-5', x: 0, y: 12, w: 8, h: 5 },
+      { i: 'demo-wgt-6', x: 0, y: 17, w: 8, h: 4 },
+    ],
+    sm: [
+      { i: 'demo-wgt-1', x: 0, y: 0,  w: 2, h: 4 },
+      { i: 'demo-wgt-2', x: 0, y: 4,  w: 2, h: 3 },
+      { i: 'demo-wgt-3', x: 0, y: 7,  w: 2, h: 4 },
+      { i: 'demo-wgt-4', x: 0, y: 11, w: 2, h: 4 },
+      { i: 'demo-wgt-5', x: 0, y: 15, w: 2, h: 5 },
+      { i: 'demo-wgt-6', x: 0, y: 20, w: 2, h: 4 },
+    ],
+  },
+};
+
+const CRM_OVERVIEW_LAYOUT = {
+  widgets: [
+    { id: 'demo-pin-1', widget_type: 'stuck_leads',   chart_type: 'number', config: {} },
+    { id: 'demo-pin-2', widget_type: 'lead_velocity', chart_type: 'line',   config: {} },
+  ],
+  layouts: {
+    lg: [
+      { i: 'demo-pin-1', x: 0, y: 0, w: 6, h: 4 },
+      { i: 'demo-pin-2', x: 6, y: 0, w: 6, h: 4 },
+    ],
+    md: [
+      { i: 'demo-pin-1', x: 0, y: 0, w: 4, h: 4 },
+      { i: 'demo-pin-2', x: 4, y: 0, w: 4, h: 4 },
+    ],
+    sm: [
+      { i: 'demo-pin-1', x: 0, y: 0, w: 2, h: 4 },
+      { i: 'demo-pin-2', x: 0, y: 4, w: 2, h: 4 },
+    ],
+  },
+};
+
 // Seed templates the demo user sees out of the box. New ones the demo user
 // creates are persisted to localStorage (key DEMO_WA_TEMPLATES_KEY) and
 // merged on read so the round-trip "create → see in list" works without a
@@ -991,6 +1194,28 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
     if (path === '/crm/analytics/lead-score-distribution') return wrap(CRM_SCORE_DIST)         as unknown as T;
     if (path === '/crm/analytics/by-state')                return list([])                     as unknown as T;
 
+    // Extended analytics (15 widgets that power the customisable Lead
+    // Analytics page + the Pinned strip on the CRM Overview).
+    if (path === '/crm/analytics/lead-velocity')            return wrap(CRM_LEAD_VELOCITY)          as unknown as T;
+    if (path === '/crm/analytics/time-to-first-touch')      return wrap(CRM_TIME_TO_FIRST_TOUCH)    as unknown as T;
+    if (path === '/crm/analytics/stuck-leads')              return wrap(CRM_STUCK_LEADS_KPI)        as unknown as T;
+    if (path === '/crm/analytics/lost-reasons')             return wrap(CRM_LOST_REASONS)           as unknown as T;
+    if (path === '/crm/analytics/won-reasons')              return wrap(CRM_WON_REASONS)            as unknown as T;
+    if (path === '/crm/analytics/disqualification-reasons') return wrap(CRM_DISQUAL_REASONS)        as unknown as T;
+    if (path === '/crm/analytics/stage-conversion')         return wrap(CRM_STAGE_CONVERSION)       as unknown as T;
+    if (path === '/crm/analytics/lead-aging')               return wrap(CRM_LEAD_AGING)             as unknown as T;
+    if (path === '/crm/analytics/cohort-conversion')        return wrap(CRM_COHORT_CONVERSION)      as unknown as T;
+    if (path === '/crm/analytics/engagement-comparison')    return wrap(CRM_ENGAGEMENT_COMPARISON)  as unknown as T;
+    if (path === '/crm/analytics/days-since-touch')         return wrap(CRM_DAYS_SINCE_TOUCH)       as unknown as T;
+    if (path === '/crm/analytics/score-band-conversion')    return wrap(CRM_SCORE_BAND_CONVERSION)  as unknown as T;
+    if (path === '/crm/analytics/territory-conversion')     return wrap(CRM_TERRITORY_CONVERSION)   as unknown as T;
+    if (path === '/crm/analytics/touchpoints-to-response')  return wrap(CRM_TOUCHPOINTS_TO_RESPONSE)as unknown as T;
+    if (path === '/crm/analytics/leads-at-risk')            return wrap(CRM_LEADS_AT_RISK)          as unknown as T;
+
+    // Per-user dashboard layouts (the widget grid + pinned-on-overview).
+    if (path === '/crm/dashboard-layouts/analytics')        return wrap(CRM_ANALYTICS_LAYOUT)       as unknown as T;
+    if (path === '/crm/dashboard-layouts/overview')         return wrap(CRM_OVERVIEW_LAYOUT)        as unknown as T;
+
     // ---- Misc / Platform endpoints ----
     if (path === '/misc/clients') {
       return list([
@@ -1118,6 +1343,54 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
 
   // Mutations: pretend-success no-op so the demo can click around without 500s.
   if (m === 'POST' || m === 'PATCH' || m === 'PUT') {
+    // Dashboard layouts — return a layout-shaped body so the FE doesn't crash
+    // on `.widgets`. PUT replaces the entire layout; we just echo back what
+    // the caller sent (or the seed if it sent nothing).
+    if (m === 'PUT' && path === '/crm/dashboard-layouts/analytics') {
+      return wrap((bodyObj as object) ?? CRM_ANALYTICS_LAYOUT) as unknown as T;
+    }
+    if (m === 'PUT' && path === '/crm/dashboard-layouts/overview') {
+      return wrap((bodyObj as object) ?? CRM_OVERVIEW_LAYOUT) as unknown as T;
+    }
+    // Pin a widget onto the CRM Overview — append the widget + a default
+    // grid item to each breakpoint so the page can re-render without
+    // re-fetching.
+    if (m === 'POST' && path === '/crm/dashboard-layouts/overview/pin') {
+      const w = bodyObj as { id?: string; widget_type?: string; chart_type?: string };
+      if (w?.id && w?.widget_type) {
+        const next = {
+          widgets: [...CRM_OVERVIEW_LAYOUT.widgets, w],
+          layouts: {
+            lg: [...CRM_OVERVIEW_LAYOUT.layouts.lg, { i: w.id, x: 0, y: 8,  w: 6, h: 4 }],
+            md: [...CRM_OVERVIEW_LAYOUT.layouts.md, { i: w.id, x: 0, y: 8,  w: 4, h: 4 }],
+            sm: [...CRM_OVERVIEW_LAYOUT.layouts.sm, { i: w.id, x: 0, y: 16, w: 2, h: 4 }],
+          },
+        };
+        return wrap(next) as unknown as T;
+      }
+      return wrap(CRM_OVERVIEW_LAYOUT) as unknown as T;
+    }
+    // Mark a lead as won — return a lead-shaped row so the FE's optimistic
+    // update has all the fields it expects. We don't bother looking up by
+    // id; the demo data is small enough that any lead works as the base.
+    {
+      const wonM = path.match(/^\/crm\/leads\/([^/]+)\/won$/);
+      if (m === 'POST' && wonM) {
+        const base = CRM_LEADS[0];
+        return wrap({
+          ...base,
+          id: wonM[1],
+          status: 'converted',
+          won_reason: (bodyObj as { reason?: string }).reason ?? null,
+          won_at: new Date().toISOString(),
+        }) as unknown as T;
+      }
+      const reopenM = path.match(/^\/crm\/leads\/([^/]+)\/reopen$/);
+      if (m === 'POST' && reopenM) {
+        const base = CRM_LEADS[0];
+        return wrap({ ...base, id: reopenM[1], status: 'working', is_converted: false }) as unknown as T;
+      }
+    }
     // Demo template CRUD: persist locally so the WhatsApp page can see what
     // the user just created. Backend writes would otherwise be silently
     // dropped by the noop response below.
@@ -1153,6 +1426,23 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
     return wrap({ id: 'demo-noop-' + Math.random().toString(36).slice(2, 8), ok: true, demo: true }) as unknown as T;
   }
   if (m === 'DELETE') {
+    // Remove a widget from one of the per-user dashboard layouts. Returns a
+    // layout-shaped body so consumers can swap state without re-fetching.
+    {
+      const layoutDelM = path.match(/^\/crm\/dashboard-layouts\/(analytics|overview)\/widgets\/([^/]+)$/);
+      if (layoutDelM) {
+        const src = layoutDelM[1] === 'overview' ? CRM_OVERVIEW_LAYOUT : CRM_ANALYTICS_LAYOUT;
+        const wid = layoutDelM[2];
+        return wrap({
+          widgets: src.widgets.filter(w => w.id !== wid),
+          layouts: {
+            lg: src.layouts.lg.filter(it => it.i !== wid),
+            md: src.layouts.md.filter(it => it.i !== wid),
+            sm: src.layouts.sm.filter(it => it.i !== wid),
+          },
+        }) as unknown as T;
+      }
+    }
     if (path.startsWith('/crm/whatsapp-templates/')) {
       const id = path.split('/').pop() || '';
       const list = readDemoWaTemplates().filter((r) => r.id !== id);
