@@ -9,8 +9,8 @@
  * The chart-type switcher per widget is still wired so users can flip
  * Bar → Line → Donut etc. without rebuilding.
  */
-import api from '../api';
-import type { ChartType } from '../crm/widgetCatalog';
+import api from './api';
+import type { ChartType } from './crm/widgetCatalog';
 
 type Wrapped<T> = { success: boolean; data: T };
 
