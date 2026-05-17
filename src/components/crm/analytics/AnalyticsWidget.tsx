@@ -4,61 +4,99 @@
  * handles all 15 widget types — switches on `widget.widget_type` to
  * pick the right fetcher, then on `widget.chart_type` to pick the
  * Recharts visual.
+ *
+ * Special-case: widget_type === 'custom' reads its data source + X/Y
+ * fields from widget.config (built via CustomChartBuilder). The
+ * supported chart types are unrestricted for custom widgets.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ResponsiveContainer, BarChart, Bar, LineChart, Line, AreaChart, Area,
   PieChart, Pie, Cell, XAxis, YAxis, Tooltip, Legend, CartesianGrid,
 } from 'recharts';
-import { X, Pin, MoreVertical, AlertTriangle, Inbox } from 'lucide-react';
+import { X, Pin, MoreVertical, AlertTriangle, Inbox, Edit3 } from 'lucide-react';
 import { crmAnalyticsExt, type WidgetInstance } from '../../../lib/crmAnalyticsExtApi';
-import { widgetByType, type ChartType } from '../../../lib/crm/widgetCatalog';
+import { widgetByType, datasetById, type ChartType, type WidgetMeta } from '../../../lib/crm/widgetCatalog';
 
-// Curated palette — cooler tones first, accent reds later. Reads better in
-// donuts / pies where adjacent colours need contrast.
 const COLORS = ['#3B82F6', '#10B981', '#8B5CF6', '#F59E0B', '#EC4899', '#14B8A6', '#F97316', '#84CC16', '#06B6D4', '#E0282C'];
 
-// Category gets a 3px top stripe on the card so the eye can group at a
-// glance — Velocity vs Risk vs Quality etc.
 const ACCENT_BY_CATEGORY: Record<string, string> = {
   Velocity:   '#3B82F6',
   Quality:    '#8B5CF6',
   Pipeline:   '#F59E0B',
   Engagement: '#14B8A6',
   Risk:       '#E0282C',
+  Custom:     '#06B6D4',
 };
+
+interface CustomConfig {
+  data_source?: string;
+  x_field?: string;
+  y_field?: string;
+  label?: string;
+}
 
 interface Props {
   widget: WidgetInstance;
   onRemove?: (id: string) => void;
   onPinToOverview?: (w: WidgetInstance) => void;
   onChangeChartType?: (id: string, chartType: ChartType) => void;
+  onEdit?: (w: WidgetInstance) => void;
   isEditing?: boolean;
   pinned?: boolean;
 }
 
-export default function AnalyticsWidget({ widget, onRemove, onPinToOverview, onChangeChartType, pinned = false }: Props) {
-  const meta = widgetByType(widget.widget_type);
+// Synthetic meta for the 'custom' widget type. The fixed widgets all live
+// in WIDGET_CATALOG; custom widgets carry their data source in
+// widget.config instead and can pick any chart type.
+function customMeta(widget: WidgetInstance): WidgetMeta {
+  const cfg = (widget.config as CustomConfig | undefined) ?? {};
+  const ds  = cfg.data_source ? datasetById(cfg.data_source) : undefined;
+  return {
+    type: 'custom',
+    title: cfg.label?.trim() || ds?.label || 'Custom Chart',
+    description: ds?.description ?? 'Configure this widget via Edit chart.',
+    category: 'Custom',
+    endpoint: '',
+    supportedCharts: ['bar', 'line', 'area', 'pie', 'donut', 'horizontal-bar', 'table'],
+    defaultChart: 'bar',
+    defaultSize: { w: 6, h: 4 },
+  };
+}
+
+export default function AnalyticsWidget({ widget, onRemove, onPinToOverview, onChangeChartType, onEdit, pinned = false }: Props) {
+  const meta = useMemo<WidgetMeta | undefined>(
+    () => widget.widget_type === 'custom' ? customMeta(widget) : widgetByType(widget.widget_type),
+    [widget],
+  );
+
   const [data, setData] = useState<unknown>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [hovered, setHovered] = useState(false);
 
+  // Re-fetch on widget type OR data-source change (custom widgets).
+  const cfgKey = widget.widget_type === 'custom'
+    ? JSON.stringify((widget.config as CustomConfig | undefined)?.data_source ?? '')
+    : '';
+
   useEffect(() => {
     if (!meta) { setError('Unknown widget'); setLoading(false); return; }
     setLoading(true);
-    fetchWidgetData(widget.widget_type)
+    fetchWidgetData(widget)
       .then(d => { setData(d); setError(null); })
       .catch((e: Error) => setError(e.message || 'Load failed'))
       .finally(() => setLoading(false));
-  }, [widget.widget_type, meta]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [widget.widget_type, cfgKey, meta]);
 
   if (!meta) {
     return <div style={cardStyle(false)}><div style={header}><div style={title}>Unknown widget</div></div><div style={body}><div style={empty}>Widget type not recognised</div></div></div>;
   }
 
   const accent = ACCENT_BY_CATEGORY[meta.category] ?? 'var(--primary)';
+  const isCustom = widget.widget_type === 'custom';
 
   return (
     <div
@@ -89,6 +127,12 @@ export default function AnalyticsWidget({ widget, onRemove, onPinToOverview, onC
                   ))}
                   <div style={menuDivider} />
                 </>
+              )}
+              {isCustom && onEdit && (
+                <button onClick={() => { onEdit(widget); setMenuOpen(false); }} style={menuItem}>
+                  <Edit3 size={13} style={{ marginRight: 6, verticalAlign: 'middle' }} />
+                  Edit chart…
+                </button>
               )}
               {!pinned && onPinToOverview && (
                 <button onClick={() => { onPinToOverview(widget); setMenuOpen(false); }} style={menuItem}>
@@ -121,8 +165,13 @@ export default function AnalyticsWidget({ widget, onRemove, onPinToOverview, onC
   );
 }
 
-async function fetchWidgetData(widgetType: string): Promise<unknown> {
-  switch (widgetType) {
+async function fetchWidgetData(widget: WidgetInstance): Promise<unknown> {
+  if (widget.widget_type === 'custom') {
+    const dsId = (widget.config as CustomConfig | undefined)?.data_source;
+    if (!dsId) return [];
+    return fetchCustomDataset(dsId);
+  }
+  switch (widget.widget_type) {
     case 'lead_velocity':            return (await crmAnalyticsExt.leadVelocity()).data;
     case 'time_to_first_touch':      return (await crmAnalyticsExt.timeToFirstTouch()).data;
     case 'stuck_leads':              return (await crmAnalyticsExt.stuckLeads()).data;
@@ -138,12 +187,61 @@ async function fetchWidgetData(widgetType: string): Promise<unknown> {
     case 'territory_conversion':     return (await crmAnalyticsExt.territoryConversion()).data;
     case 'touchpoints_to_response':  return (await crmAnalyticsExt.touchpointsToResponse()).data;
     case 'leads_at_risk':            return (await crmAnalyticsExt.leadsAtRisk()).data;
-    default: throw new Error(`Unknown widget: ${widgetType}`);
+    default: throw new Error(`Unknown widget: ${widget.widget_type}`);
+  }
+}
+
+// Map a CUSTOM_DATASETS id → array of rows. Some datasets unwrap a nested
+// array from the wider response (e.g. time_to_first_touch.distribution).
+async function fetchCustomDataset(id: string): Promise<unknown> {
+  switch (id) {
+    case 'lead_velocity':                    return (await crmAnalyticsExt.leadVelocity()).data;
+    case 'time_to_first_touch_distribution': return (await crmAnalyticsExt.timeToFirstTouch()).data.distribution;
+    case 'lost_reasons':                     return (await crmAnalyticsExt.lostReasons()).data;
+    case 'won_reasons':                      return (await crmAnalyticsExt.wonReasons()).data;
+    case 'disqualification_reasons':         return (await crmAnalyticsExt.disqualificationReasons()).data;
+    case 'stage_conversion':                 return (await crmAnalyticsExt.stageConversion()).data;
+    case 'lead_aging':                       return (await crmAnalyticsExt.leadAging()).data;
+    case 'days_since_touch':                 return (await crmAnalyticsExt.daysSinceTouch()).data;
+    case 'score_band_conversion':            return (await crmAnalyticsExt.scoreBandConversion()).data;
+    case 'territory_conversion':             return (await crmAnalyticsExt.territoryConversion()).data;
+    case 'touchpoints_to_response':          return (await crmAnalyticsExt.touchpointsToResponse()).data;
+    case 'leads_at_risk':                    return (await crmAnalyticsExt.leadsAtRisk()).data;
+    case 'stuck_leads_top_owners':           return (await crmAnalyticsExt.stuckLeads()).data.top_owners;
+    default: throw new Error(`Unknown dataset: ${id}`);
   }
 }
 
 function WidgetBody({ widget, data, accent }: { widget: WidgetInstance; data: unknown; accent: string }) {
   const chart = widget.chart_type as ChartType;
+
+  if (widget.widget_type === 'custom') {
+    const cfg = (widget.config as CustomConfig | undefined) ?? {};
+    if (!cfg.data_source || !cfg.x_field || !cfg.y_field) {
+      return <EmptyState label="Click ⋮ → Edit chart to configure" />;
+    }
+    const rows = (data as Array<Record<string, unknown>> | null) ?? [];
+    if (!rows.length) return <EmptyState label="No data for this selection" />;
+    const x = cfg.x_field, y = cfg.y_field;
+
+    if (chart === 'table') {
+      const yLabel = ds(cfg.data_source)?.fields.find(f => f.key === y)?.label ?? y;
+      const xLabel = ds(cfg.data_source)?.fields.find(f => f.key === x)?.label ?? x;
+      return <TableView rows={rows.map(r => ({ [xLabel]: r[x] as string | number, [yLabel]: r[y] as string | number }))} />;
+    }
+    if (chart === 'pie' || chart === 'donut') {
+      const series = rows.map(r => ({ name: String(r[x] ?? ''), value: Number(r[y] ?? 0) }));
+      return <PieSeries data={series} donut={chart === 'donut'} />;
+    }
+    if (chart === 'horizontal-bar') {
+      const series = rows.map(r => ({ name: String(r[x] ?? ''), value: Number(r[y] ?? 0) }));
+      return <HBarSeries data={series} accent={accent} />;
+    }
+    const series = rows.map(r => ({ name: String(r[x] ?? ''), [y]: Number(r[y] ?? 0) }));
+    if (chart === 'line') return <LineSeries data={series} keys={[y]} accent={accent} />;
+    if (chart === 'area') return <AreaSeries data={series} keys={[y]} accent={accent} />;
+    return <BarSeries data={series} keys={[y]} accent={accent} />;
+  }
 
   switch (widget.widget_type) {
     case 'lead_velocity': {
@@ -246,6 +344,8 @@ function WidgetBody({ widget, data, accent }: { widget: WidgetInstance; data: un
   }
   return <div style={empty}>Unsupported chart type</div>;
 }
+
+function ds(id: string) { return datasetById(id); }
 
 const tooltipStyle: React.CSSProperties = {
   background: 'var(--s2)',
@@ -351,9 +451,6 @@ function AreaSeries({ data, keys, accent }: { data: any[]; keys: string[]; accen
   );
 }
 function PieSeries({ data, donut }: { data: Array<{ name: string; value: number }>; donut: boolean }) {
-  // Drop zero-value slices so their labels don't stack at the same angle.
-  // Recharts will otherwise render "0%" labels on top of each other and the
-  // chart looks like a single big slice with a pile of overlapping text.
   const filtered = data.filter(d => d.value > 0);
   const total = filtered.reduce((s, d) => s + d.value, 0);
   if (!filtered.length || total === 0) return <EmptyState label="No data" />;
@@ -370,8 +467,6 @@ function PieSeries({ data, donut }: { data: Array<{ name: string; value: number 
           paddingAngle={2}
           label={({ name, value }) => {
             const pct = (value / total) * 100;
-            // Only label slices that are big enough to be readable. Smaller
-            // slices live in the legend + tooltip.
             return pct >= 6 ? `${name} ${pct.toFixed(0)}%` : '';
           }}
           labelLine={false}

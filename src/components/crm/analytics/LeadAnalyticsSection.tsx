@@ -4,17 +4,21 @@
  *
  * - "Edit layout" toggle puts the grid in drag/resize mode.
  * - "+ Add widget" opens a modal listing the 15-widget catalog.
- * - Per-tile menu: chart-type switcher, pin to Overview, remove.
+ * - "Build chart" opens the custom chart builder (pick dataset + X/Y axes
+ *   + chart type and save as a free-form widget).
+ * - Per-tile menu: chart-type switcher, edit-chart (custom only),
+ *   pin to Overview, remove.
  * - Layout persists per-user under (org_id, page='analytics') on every
  *   change (debounced 800ms) so refresh restores the exact state.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Responsive, WidthProvider, type Layout, type Layouts } from 'react-grid-layout';
-import { Plus, Edit3, Save, X, BarChart3, LineChart as LineIcon, PieChart, Layers, Activity } from 'lucide-react';
+import { Plus, Edit3, Save, X, BarChart3, LineChart as LineIcon, PieChart, Layers, Activity, Sliders } from 'lucide-react';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 
 import AnalyticsWidget from './AnalyticsWidget';
+import CustomChartBuilder from './CustomChartBuilder';
 import { WIDGET_CATALOG, widgetByType, type WidgetMeta, type ChartType } from '../../../lib/crm/widgetCatalog';
 import { crmDashboardLayouts, type DashboardConfig, type WidgetInstance, type GridItem } from '../../../lib/crmAnalyticsExtApi';
 import { toast } from 'sonner';
@@ -33,16 +37,18 @@ const CATEGORY_ICONS: Record<string, React.ElementType> = {
   Risk: Layers,
 };
 
+// 'new' = building a brand-new chart, WidgetInstance = editing an existing one,
+// null = builder closed.
+type BuilderState = null | 'new' | WidgetInstance;
+
 export default function LeadAnalyticsSection() {
   const [config, setConfig] = useState<DashboardConfig>({ widgets: [], layouts: {} });
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [builder, setBuilder] = useState<BuilderState>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Track whether the user has actually made a change. Skip the first save
-  // (right after load) so we don't bounce a no-op write back to the server
-  // for every page mount.
   const dirty = useRef(false);
 
   useEffect(() => {
@@ -85,10 +91,10 @@ export default function LeadAnalyticsSection() {
     sm: config.layouts.sm ?? defaultLayoutFor(config.widgets, 2),
   }), [config]);
 
-  const addWidget = (meta: WidgetMeta) => {
-    const newWidget: WidgetInstance = { id: cryptoRandomId(), widget_type: meta.type, chart_type: meta.defaultChart };
+  // Shared helper used by both the preset "Add widget" flow and the
+  // custom-chart "Build chart" save flow.
+  const appendWidget = (newWidget: WidgetInstance, size: { w: number; h: number }) => {
     setConfig((c) => {
-      // Clone arrays — don't mutate previous state.
       const next: DashboardConfig = {
         widgets: [...c.widgets, newWidget],
         layouts: {
@@ -100,12 +106,17 @@ export default function LeadAnalyticsSection() {
       for (const bp of ['lg', 'md', 'sm'] as const) {
         const arr = next.layouts[bp]!;
         const maxY = arr.reduce((m, it) => Math.max(m, it.y + it.h), 0);
-        const w = Math.min(meta.defaultSize.w, COLS[bp]);
-        arr.push({ i: newWidget.id, x: 0, y: maxY, w, h: meta.defaultSize.h });
+        const w = Math.min(size.w, COLS[bp]);
+        arr.push({ i: newWidget.id, x: 0, y: maxY, w, h: size.h });
       }
       return next;
     });
     dirty.current = true;
+  };
+
+  const addWidget = (meta: WidgetMeta) => {
+    const newWidget: WidgetInstance = { id: cryptoRandomId(), widget_type: meta.type, chart_type: meta.defaultChart };
+    appendWidget(newWidget, meta.defaultSize);
     setAdding(false);
     toast.success(`Added ${meta.title}`);
   };
@@ -132,14 +143,37 @@ export default function LeadAnalyticsSection() {
   // helper which appends without disturbing other pinned widgets.
   const pinToOverview = async (widget: WidgetInstance) => {
     const meta = widgetByType(widget.widget_type);
+    const label = (widget.widget_type === 'custom'
+      ? (widget.config as { label?: string } | undefined)?.label
+      : null) || meta?.title || widget.widget_type;
     try {
       await crmDashboardLayouts.pinToOverview(widget);
-      toast.success(`Pinned "${meta?.title ?? widget.widget_type}" to CRM Overview`);
+      toast.success(`Pinned "${label}" to CRM Overview`);
     } catch (e: unknown) {
       const msg = (e as Error)?.message ?? 'unknown error';
       toast.error(`Failed to pin: ${msg.slice(0, 120)}`);
     }
   };
+
+  // Custom-chart builder save handler. If `builder` is a WidgetInstance,
+  // replace the existing widget in place (keeps the same layout slot).
+  // If `builder === 'new'`, append a fresh tile at the bottom.
+  const onCustomSave = (widget: WidgetInstance) => {
+    if (typeof builder === 'object' && builder !== null) {
+      setConfig((c) => ({
+        ...c,
+        widgets: c.widgets.map((w) => (w.id === widget.id ? widget : w)),
+      }));
+      dirty.current = true;
+      toast.success('Chart updated');
+    } else {
+      appendWidget(widget, { w: 6, h: 4 });
+      toast.success('Custom chart added');
+    }
+    setBuilder(null);
+  };
+
+  const editCustom = (widget: WidgetInstance) => setBuilder(widget);
 
   const onLayoutChange = (_: Layout[], allLayouts: Layouts) => {
     setConfig((c) => ({ ...c, layouts: allLayouts as DashboardConfig['layouts'] }));
@@ -164,11 +198,14 @@ export default function LeadAnalyticsSection() {
           <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700 }}>Lead Analytics</div>
           <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', marginTop: 2 }}>Custom widgets</div>
           <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>
-            Drag, resize, pick chart types, and pin favorites to the CRM Overview. Layout saves automatically.
+            Add presets, build your own charts with custom X / Y axes, drag &amp; resize, and pin favorites to the CRM Overview. Layout saves automatically.
           </div>
         </div>
         <button onClick={() => setAdding(true)} style={primaryBtn}>
           <Plus size={14} /> Add widget
+        </button>
+        <button onClick={() => setBuilder('new')} style={secondaryBtn}>
+          <Sliders size={14} /> Build chart
         </button>
         <button onClick={() => setEditing((e) => !e)} style={editing ? activeBtn : secondaryBtn}>
           {editing ? <><Save size={14} /> Done</> : <><Edit3 size={14} /> Edit layout</>}
@@ -197,11 +234,16 @@ export default function LeadAnalyticsSection() {
           <BarChart3 size={32} style={{ marginBottom: 10, opacity: 0.5 }} />
           <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>No analytics widgets added</div>
           <div style={{ fontSize: 12, margin: '6px 0 14px' }}>
-            Pick from 15 lead-management widgets — conversion, velocity, engagement, risk, and more.
+            Pick from 15 preset widgets, or build your own chart with custom X / Y axes.
           </div>
-          <button onClick={() => setAdding(true)} style={{ ...primaryBtn, margin: '0 auto' }}>
-            <Plus size={14} /> Add your first widget
-          </button>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+            <button onClick={() => setAdding(true)} style={primaryBtn}>
+              <Plus size={14} /> Add preset
+            </button>
+            <button onClick={() => setBuilder('new')} style={secondaryBtn}>
+              <Sliders size={14} /> Build custom chart
+            </button>
+          </div>
         </div>
       )}
 
@@ -237,6 +279,7 @@ export default function LeadAnalyticsSection() {
                 onRemove={removeWidget}
                 onChangeChartType={changeChartType}
                 onPinToOverview={pinToOverview}
+                onEdit={editCustom}
               />
             </div>
           ))}
@@ -244,6 +287,13 @@ export default function LeadAnalyticsSection() {
       )}
 
       {adding && <AddWidgetDialog onPick={addWidget} onClose={() => setAdding(false)} existing={config.widgets} />}
+      {builder !== null && (
+        <CustomChartBuilder
+          onSave={onCustomSave}
+          onClose={() => setBuilder(null)}
+          initial={typeof builder === 'object' ? builder : null}
+        />
+      )}
     </div>
   );
 }
@@ -267,7 +317,7 @@ function AddWidgetDialog({ onPick, onClose, existing }: { onPick: (w: WidgetMeta
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text)' }}>Add analytics widget</div>
             <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>
-              Pick any widget — already-added ones show &quot;Added&quot;.
+              Pick any preset — already-added ones show &quot;Added&quot;. For full control, use the &quot;Build chart&quot; button instead.
             </div>
           </div>
           <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer' }}>

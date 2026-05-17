@@ -1,12 +1,14 @@
 /**
- * Catalogue of the 15 Lead Analytics widgets.
+ * Catalogue of the 15 Lead Analytics widgets + the custom-chart dataset
+ * registry that powers the "Build chart" flow.
  *
- * Each entry is the FE-side metadata for a `widget_type` that the backend
- * exposes under /api/v1/crm/analytics/<endpoint>. Used by:
- *   - The "Add widget" dialog (renders the title + description)
- *   - The widget renderer (picks a Recharts component from chart_type)
- *   - The customizer popover (restricts chart_type choices to supportedCharts)
- *   - The grid (uses defaultSize for newly added widgets)
+ * WIDGET_CATALOG drives the "Add widget" picker — fixed presets with a
+ * preset data source, supported chart types, and default size.
+ *
+ * CUSTOM_DATASETS describes the same analytics endpoints from a "row-and-
+ * column" perspective: which fields a user can pick as X and Y axes when
+ * they build a chart themselves. The 'custom' widget_type pairs that
+ * registry with a free chart-type choice — see CustomChartBuilder.tsx.
  */
 
 export type ChartType =
@@ -35,13 +37,14 @@ export type WidgetType =
   | 'score_band_conversion'
   | 'territory_conversion'
   | 'touchpoints_to_response'
-  | 'leads_at_risk';
+  | 'leads_at_risk'
+  | 'custom';
 
 export interface WidgetMeta {
   type: WidgetType;
   title: string;
   description: string;
-  category: 'Velocity' | 'Quality' | 'Pipeline' | 'Engagement' | 'Risk';
+  category: 'Velocity' | 'Quality' | 'Pipeline' | 'Engagement' | 'Risk' | 'Custom';
   endpoint: string;                 // GET path under /api/v1/crm/analytics
   supportedCharts: ChartType[];
   defaultChart: ChartType;
@@ -68,3 +71,135 @@ export const WIDGET_CATALOG: WidgetMeta[] = [
 
 export const widgetByType = (type: string): WidgetMeta | undefined =>
   WIDGET_CATALOG.find(w => w.type === type);
+
+// ────────────────────────────────────────────────────────────────────────────
+// Custom-chart dataset registry. Each entry describes:
+//   - which underlying endpoint to fetch
+//   - what fields the user can pick for the X / Y axis
+//   - sensible defaults to seed the builder
+// The renderer in AnalyticsWidget knows how to resolve a dataset id → array
+// of rows (including unwrapping nested arrays like
+// time_to_first_touch.distribution).
+// ────────────────────────────────────────────────────────────────────────────
+
+export interface DatasetField {
+  key: string;
+  label: string;
+  type: 'string' | 'number';
+}
+
+export interface CustomDataset {
+  id: string;
+  label: string;
+  description: string;
+  fields: DatasetField[];
+  defaultX: string;
+  defaultY: string;
+}
+
+export const CUSTOM_DATASETS: CustomDataset[] = [
+  { id: 'lead_velocity', label: 'Lead Velocity (monthly)',
+    description: 'Total + qualified leads per month, with MoM growth.',
+    fields: [
+      { key: 'month',          label: 'Month',          type: 'string' },
+      { key: 'total',          label: 'Total leads',    type: 'number' },
+      { key: 'qualified',      label: 'Qualified',      type: 'number' },
+      { key: 'mom_growth_pct', label: 'MoM growth %',   type: 'number' },
+    ],
+    defaultX: 'month', defaultY: 'qualified' },
+  { id: 'time_to_first_touch_distribution', label: 'Time to First Touch — distribution',
+    description: 'How many leads were first-touched in each time bucket.',
+    fields: [
+      { key: 'bucket', label: 'Bucket', type: 'string' },
+      { key: 'count',  label: 'Count',  type: 'number' },
+    ],
+    defaultX: 'bucket', defaultY: 'count' },
+  { id: 'lost_reasons', label: 'Lost Reasons',
+    description: 'Counts of reasons leads were marked Lost.',
+    fields: [
+      { key: 'reason', label: 'Reason', type: 'string' },
+      { key: 'count',  label: 'Count',  type: 'number' },
+    ],
+    defaultX: 'reason', defaultY: 'count' },
+  { id: 'won_reasons', label: 'Won Reasons',
+    description: 'What worked on the leads you marked Won.',
+    fields: [
+      { key: 'reason', label: 'Reason', type: 'string' },
+      { key: 'count',  label: 'Count',  type: 'number' },
+    ],
+    defaultX: 'reason', defaultY: 'count' },
+  { id: 'disqualification_reasons', label: 'Disqualification Reasons',
+    description: 'Why leads end up Unqualified.',
+    fields: [
+      { key: 'reason', label: 'Reason', type: 'string' },
+      { key: 'count',  label: 'Count',  type: 'number' },
+    ],
+    defaultX: 'reason', defaultY: 'count' },
+  { id: 'stage_conversion', label: 'Stage Conversion',
+    description: 'Counts and rate advancing between each consecutive pipeline stage.',
+    fields: [
+      { key: 'from_stage', label: 'From stage', type: 'string' },
+      { key: 'to_stage',   label: 'To stage',   type: 'string' },
+      { key: 'entered',    label: 'Entered',    type: 'number' },
+      { key: 'advanced',   label: 'Advanced',   type: 'number' },
+      { key: 'rate',       label: 'Rate %',     type: 'number' },
+    ],
+    defaultX: 'from_stage', defaultY: 'rate' },
+  { id: 'lead_aging', label: 'Lead Aging',
+    description: 'Open leads by age bucket.',
+    fields: [
+      { key: 'bucket', label: 'Age bucket', type: 'string' },
+      { key: 'count',  label: 'Count',      type: 'number' },
+    ],
+    defaultX: 'bucket', defaultY: 'count' },
+  { id: 'days_since_touch', label: 'Days Since Last Touch',
+    description: 'Distribution of how long open leads have gone without activity.',
+    fields: [
+      { key: 'bucket', label: 'Bucket', type: 'string' },
+      { key: 'count',  label: 'Count',  type: 'number' },
+    ],
+    defaultX: 'bucket', defaultY: 'count' },
+  { id: 'score_band_conversion', label: 'Score-Band Conversion',
+    description: 'Conversion stats per AI-score band.',
+    fields: [
+      { key: 'band',      label: 'Score band', type: 'string' },
+      { key: 'total',     label: 'Total',      type: 'number' },
+      { key: 'converted', label: 'Converted',  type: 'number' },
+      { key: 'rate',      label: 'Rate %',     type: 'number' },
+    ],
+    defaultX: 'band', defaultY: 'rate' },
+  { id: 'territory_conversion', label: 'Territory Conversion',
+    description: 'Lead volume + conversion rate by state / city.',
+    fields: [
+      { key: 'territory', label: 'Territory', type: 'string' },
+      { key: 'total',     label: 'Total',     type: 'number' },
+      { key: 'converted', label: 'Converted', type: 'number' },
+      { key: 'rate',      label: 'Rate %',    type: 'number' },
+    ],
+    defaultX: 'territory', defaultY: 'total' },
+  { id: 'touchpoints_to_response', label: 'Touchpoints to Response',
+    description: 'How many outbound touches before a lead responds.',
+    fields: [
+      { key: 'bucket', label: 'Touches', type: 'string' },
+      { key: 'count',  label: 'Count',   type: 'number' },
+    ],
+    defaultX: 'bucket', defaultY: 'count' },
+  { id: 'leads_at_risk', label: 'Leads at Risk',
+    description: 'High-score open leads that have gone quiet.',
+    fields: [
+      { key: 'name',       label: 'Name',        type: 'string' },
+      { key: 'score',      label: 'Score',       type: 'number' },
+      { key: 'days_idle',  label: 'Days idle',   type: 'number' },
+    ],
+    defaultX: 'name', defaultY: 'score' },
+  { id: 'stuck_leads_top_owners', label: 'Stuck Leads — top owners',
+    description: 'Reps with the most stuck (14d+) leads.',
+    fields: [
+      { key: 'owner_id', label: 'Owner', type: 'string' },
+      { key: 'count',    label: 'Count', type: 'number' },
+    ],
+    defaultX: 'owner_id', defaultY: 'count' },
+];
+
+export const datasetById = (id: string): CustomDataset | undefined =>
+  CUSTOM_DATASETS.find(d => d.id === id);
