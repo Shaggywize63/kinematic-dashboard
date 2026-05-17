@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import api from '../../../lib/api';
 import { useClient } from '../../../context/ClientContext';
+import FfmAnalyticsSection from '../../../components/ffm/analytics/FfmAnalyticsSection';
 
 // Recharts is ~80 KB gz; load it only when this page actually renders.
 const TffAreaChart = dynamic(() => import('../../../components/charts/TffAreaChart'), {
@@ -48,7 +49,7 @@ interface SummaryData {
   [key: string]: any;
 }
 
-// ── Heatmap types ─────────────────────────────────────────────────────────────
+// ── Heatmap types ────────────────────────────────────────────────────────────────────────
 interface HeatmapHour  { hour: number; count: number; }
 interface HeatmapRow   { date: string; day: string; hours: HeatmapHour[]; total: number; }
 interface HeatmapResponse {
@@ -65,7 +66,7 @@ interface HeatmapResponse {
   };
 }
 
-// ── Heatmap helpers ───────────────────────────────────────────────────────────
+// ── Heatmap helpers ──────────────────────────────────────────────────────────────────────────
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
 function heatColor(value: number, max: number): string {
@@ -192,7 +193,7 @@ function ContactActivityHeatmap({ data, loading }: { data: HeatmapResponse | nul
     </div>
   );
 }
-// ── End Heatmap ───────────────────────────────────────────────────────────────
+// ── End Heatmap ─────────────────────────────────────────────────────────────────────────────
 
 interface TrendItem { label:string; date:string; tff:number; engagements:number; }
 
@@ -273,7 +274,7 @@ export default function AnalyticsPage() {
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-end', flexWrap:'wrap', gap:10 }}>
         <div>
           <div style={{ fontSize:15, fontWeight:800, fontFamily:"'Syne',sans-serif" }}>Analytics</div>
-          <div style={{ fontSize:11, color:C.gray, marginTop:2 }}>Performance trends and metrics</div>
+          <div style={{ fontSize:11, color:C.gray, marginTop:2 }}>Performance trends, field-force metrics &amp; customisable widgets</div>
         </div>
         <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
           {[
@@ -409,7 +410,7 @@ export default function AnalyticsPage() {
 
       {/* Predictive Insights */}
       {!loading && trends.length > 0 && (() => {
-        // ── Compute insights from existing data ──────────────────────────────
+        // ── Compute insights from existing data ─────────────────────────────────
 
         // 1. TFF Momentum: compare avg of first half vs second half of trend period
         const half = Math.floor(trends.length / 2);
@@ -565,6 +566,9 @@ export default function AnalyticsPage() {
           </div>
         );
       })()}
+
+      {/* Customisable Field-Force widget grid (merged from FFM Analytics) */}
+      <FfmAnalyticsSection />
     </div>
   );
 }

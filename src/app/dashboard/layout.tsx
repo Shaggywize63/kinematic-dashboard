@@ -200,7 +200,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       { href: '/dashboard',                              label: 'Dashboard',           icon: 'M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z M9 22V12h6v10', module: 'dashboard' },
       { href: '/dashboard/attendance-overview',          label: 'Attendance',          icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z', module: 'attendance' },
       { href: '/dashboard/analytics',                    label: 'Analytics',           icon: 'M18 20V10 M12 20V4 M6 20v-6', module: 'analytics' },
-      { href: '/dashboard/ffm-analytics',                label: 'FFM Analytics',       icon: 'M3 3v18h18 M7 14l4-4 4 4 5-5', module: 'analytics' },
       { href: '/dashboard/live-tracking',                label: 'Live Tracking',       icon: 'M12 22s-8-4.5-8-11.8A8 8 0 0112 2a8 8 0 018 8.2c0 7.3-8 11.8-8 11.8z M12 13a3 3 0 100-6 3 3 0 000 6z', module: 'live_tracking' },
       { href: '/dashboard/other-management/activities',  label: 'Activity Management', icon: 'M12 2v20 M2 12h20', module: 'activities' },
       { href: '/dashboard/planograms',                   label: 'Planograms',          icon: 'M3 5h18 M3 12h18 M3 19h18 M7 5v14 M17 5v14', module: 'planograms' },
