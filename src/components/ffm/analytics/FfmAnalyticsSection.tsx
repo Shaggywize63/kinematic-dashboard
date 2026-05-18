@@ -3,8 +3,8 @@
  * Field Force Analytics — read-and-customise widget grid.
  *
  * Mirrors LeadAnalyticsSection but for the field-force surface. 16 preset
- * widgets, drag/resize, per-tile chart-type switcher, pin to overview.
- * No custom-chart builder (deferred to v2).
+ * widgets + a custom chart builder, drag/resize, per-tile chart-type
+ * switcher, pin to overview.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Responsive, WidthProvider, type Layout, type Layouts } from 'react-grid-layout';
@@ -14,18 +14,19 @@ import {
 } from 'recharts';
 import {
   Plus, Edit3, Save, X, BarChart3, LineChart as LineIcon, Activity, Layers,
-  AlertTriangle, MoreVertical, Pin, Inbox, Users, Truck, Award,
+  AlertTriangle, MoreVertical, Inbox, Users, Truck, Award, Wand2,
 } from 'lucide-react';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 import { toast } from 'sonner';
 
 import {
-  FFM_WIDGET_CATALOG, ffmWidgetByType, ffmAnalytics,
+  FFM_WIDGET_CATALOG, ffmWidgetByType, ffmDatasetById, fetchFfmDataset,
   type FfmWidgetMeta, type FfmWidgetType,
 } from '../../../lib/ffmAnalyticsConfig';
 import { crmDashboardLayouts, type DashboardConfig, type WidgetInstance, type GridItem } from '../../../lib/crmAnalyticsExtApi';
 import type { ChartType } from '../../../lib/crm/widgetCatalog';
+import FfmCustomChartBuilder from './FfmCustomChartBuilder';
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
 
@@ -33,7 +34,6 @@ const ROW_HEIGHT = 60;
 const COLS = { lg: 12, md: 8, sm: 2 };
 const BREAKPOINTS = { lg: 1200, md: 768, sm: 0 };
 
-// 7 categories with distinct accent colours so the cards group visually.
 const ACCENT_BY_CATEGORY: Record<string, string> = {
   Coverage:     '#3B82F6',
   Quality:      '#8B5CF6',
@@ -55,6 +55,8 @@ const CATEGORY_ICONS: Record<string, React.ElementType> = {
   Growth:       BarChart3,
 };
 
+type CustomConfig = { data_source?: string; x_field?: string; y_field?: string; label?: string };
+
 // ─────────────────────────────────────────────────────────────────────────
 // Section component
 // ─────────────────────────────────────────────────────────────────────────
@@ -64,15 +66,13 @@ export default function FfmAnalyticsSection() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [building, setBuilding] = useState(false);
+  const [editingCustom, setEditingCustom] = useState<WidgetInstance | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dirty = useRef(false);
 
   useEffect(() => {
-    // Reuse the same /dashboard-layouts API as CRM, but with page='ffm'.
-    // The backend route accepts any string for :page, but only 'analytics'
-    // and 'overview' are persisted today — 'ffm' will get added with the
-    // FFM endpoints. Until then we fall back to the in-memory default.
     crmDashboardLayouts.get('ffm' as unknown as 'analytics')
       .then((r) => {
         const cfg = r?.data ?? defaultLayout();
@@ -135,6 +135,20 @@ export default function FfmAnalyticsSection() {
     toast.success(`Added ${meta.title}`);
   };
 
+  const saveCustomChart = (w: WidgetInstance) => {
+    const isEdit = config.widgets.some((existing) => existing.id === w.id);
+    if (isEdit) {
+      setConfig((c) => ({ ...c, widgets: c.widgets.map((it) => (it.id === w.id ? w : it)) }));
+      dirty.current = true;
+      toast.success('Chart updated');
+    } else {
+      appendWidget(w, { w: 6, h: 4 });
+      toast.success('Chart added');
+    }
+    setBuilding(false);
+    setEditingCustom(null);
+  };
+
   const removeWidget = (id: string) => {
     setConfig((c) => ({
       widgets: c.widgets.filter((w) => w.id !== id),
@@ -169,10 +183,11 @@ export default function FfmAnalyticsSection() {
           <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700 }}>Field Force Analytics</div>
           <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', marginTop: 2 }}>Beat, productivity, discipline &amp; growth</div>
           <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>
-            16 widgets covering coverage, quality, productivity, efficiency, discipline, risk, and growth. Drag, resize, switch chart types — layout saves automatically.
+            16 presets + custom chart builder. Drag, resize, switch chart types — layout saves automatically.
           </div>
         </div>
         <button onClick={() => setAdding(true)} style={primaryBtn}><Plus size={14} /> Add widget</button>
+        <button onClick={() => setBuilding(true)} style={secondaryBtn}><Wand2 size={14} /> Build chart</button>
         <button onClick={() => setEditing((e) => !e)} style={editing ? activeBtn : secondaryBtn}>
           {editing ? <><Save size={14} /> Done</> : <><Edit3 size={14} /> Edit layout</>}
         </button>
@@ -188,10 +203,15 @@ export default function FfmAnalyticsSection() {
         <div style={{ padding: 40, textAlign: 'center', background: 'var(--s3)', border: '1px dashed var(--border)', borderRadius: 12, color: 'var(--text-dim)' }}>
           <BarChart3 size={32} style={{ marginBottom: 10, opacity: 0.5 }} />
           <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>No FFM widgets yet</div>
-          <div style={{ fontSize: 12, margin: '6px 0 14px' }}>Pick from 16 field-force widgets.</div>
-          <button onClick={() => setAdding(true)} style={{ ...primaryBtn, margin: '0 auto' }}>
-            <Plus size={14} /> Add your first widget
-          </button>
+          <div style={{ fontSize: 12, margin: '6px 0 14px' }}>Pick from 16 field-force presets — or build your own.</div>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+            <button onClick={() => setAdding(true)} style={primaryBtn}>
+              <Plus size={14} /> Add preset
+            </button>
+            <button onClick={() => setBuilding(true)} style={secondaryBtn}>
+              <Wand2 size={14} /> Build chart
+            </button>
+          </div>
         </div>
       )}
 
@@ -221,13 +241,25 @@ export default function FfmAnalyticsSection() {
                   DRAG TO MOVE • DRAG CORNER TO RESIZE
                 </div>
               )}
-              <FfmWidget widget={w} onRemove={removeWidget} onChangeChartType={changeChartType} />
+              <FfmWidget
+                widget={w}
+                onRemove={removeWidget}
+                onChangeChartType={changeChartType}
+                onEditCustom={(widget) => setEditingCustom(widget)}
+              />
             </div>
           ))}
         </ResponsiveGridLayout>
       )}
 
       {adding && <AddFfmWidgetDialog onPick={addWidget} onClose={() => setAdding(false)} existing={config.widgets} />}
+      {(building || editingCustom) && (
+        <FfmCustomChartBuilder
+          onSave={saveCustomChart}
+          onClose={() => { setBuilding(false); setEditingCustom(null); }}
+          initial={editingCustom}
+        />
+      )}
     </div>
   );
 }
@@ -236,11 +268,16 @@ export default function FfmAnalyticsSection() {
 // Widget renderer
 // ─────────────────────────────────────────────────────────────────────────
 
-function FfmWidget({ widget, onRemove, onChangeChartType }: {
+function FfmWidget({ widget, onRemove, onChangeChartType, onEditCustom }: {
   widget: WidgetInstance;
   onRemove: (id: string) => void;
   onChangeChartType: (id: string, c: ChartType) => void;
+  onEditCustom: (w: WidgetInstance) => void;
 }) {
+  if (widget.widget_type === 'ffm_custom') {
+    return <FfmCustomWidget widget={widget} onRemove={onRemove} onChangeChartType={onChangeChartType} onEdit={onEditCustom} />;
+  }
+
   const meta = ffmWidgetByType(widget.widget_type);
   const [data, setData] = useState<unknown>(null);
   const [loading, setLoading] = useState(true);
@@ -251,8 +288,8 @@ function FfmWidget({ widget, onRemove, onChangeChartType }: {
   useEffect(() => {
     if (!meta) { setError('Unknown widget'); setLoading(false); return; }
     setLoading(true);
-    fetchFfm(widget.widget_type as FfmWidgetType)
-      .then(d => { setData(d); setError(null); })
+    fetchFfmDataset(widget.widget_type)
+      .then((d) => { setData(d); setError(null); })
       .catch((e: Error) => setError(e.message || 'Load failed'))
       .finally(() => setLoading(false));
   }, [widget.widget_type, meta]);
@@ -308,26 +345,122 @@ function FfmWidget({ widget, onRemove, onChangeChartType }: {
   );
 }
 
-async function fetchFfm(type: FfmWidgetType): Promise<unknown> {
-  switch (type) {
-    case 'beat_adherence':      return (await ffmAnalytics.beatAdherence()).data;
-    case 'outlet_coverage':     return (await ffmAnalytics.outletCoverage()).data;
-    case 'frequency':           return (await ffmAnalytics.frequency()).data;
-    case 'productive_calls':    return (await ffmAnalytics.productiveCalls()).data;
-    case 'strike_rate':         return (await ffmAnalytics.strikeRate()).data;
-    case 'aov':                 return (await ffmAnalytics.aov()).data;
-    case 'new_outlets':         return (await ffmAnalytics.newOutlets()).data;
-    case 'visit_duration':      return (await ffmAnalytics.visitDuration()).data;
-    case 'idle_heatmap':        return (await ffmAnalytics.idleHeatmap()).data;
-    case 'distance':            return (await ffmAnalytics.distance()).data;
-    case 'off_route':           return (await ffmAnalytics.offRoute()).data;
-    case 'punctuality':         return (await ffmAnalytics.punctuality()).data;
-    case 'stuck_fes':           return (await ffmAnalytics.stuckFes()).data;
-    case 'security_violations': return (await ffmAnalytics.securityViolations()).data;
-    case 'form_completion':     return (await ffmAnalytics.formCompletion()).data;
-    case 'top_performers':      return (await ffmAnalytics.topPerformers()).data;
-    default: throw new Error(`Unknown FFM widget: ${type}`);
+function FfmCustomWidget({ widget, onRemove, onChangeChartType, onEdit }: {
+  widget: WidgetInstance;
+  onRemove: (id: string) => void;
+  onChangeChartType: (id: string, c: ChartType) => void;
+  onEdit: (w: WidgetInstance) => void;
+}) {
+  const cfg = (widget.config as CustomConfig | undefined) ?? {};
+  const ds = ffmDatasetById(cfg.data_source ?? '');
+  const [data, setData] = useState<unknown[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [hovered, setHovered] = useState(false);
+
+  useEffect(() => {
+    if (!ds) { setError('Dataset not found'); setLoading(false); return; }
+    setLoading(true);
+    fetchFfmDataset(ds.id)
+      .then((d) => { setData(d ?? []); setError(null); })
+      .catch((e: Error) => setError(e.message || 'Load failed'))
+      .finally(() => setLoading(false));
+  }, [ds]);
+
+  if (!ds) {
+    return (
+      <div style={cardStyle(false)}>
+        <div style={hdr}><div style={titleStyle}>{cfg.label ?? 'Custom chart'}</div></div>
+        <div style={body}><div style={empty}>Dataset not found</div></div>
+      </div>
+    );
   }
+
+  const accent = 'var(--primary)';
+  const chart = widget.chart_type as ChartType;
+  const xKey = cfg.x_field ?? ds.defaultX;
+  const yKey = cfg.y_field ?? ds.defaultY;
+  const supported: ChartType[] = ['bar', 'line', 'area', 'pie', 'donut', 'horizontal-bar', 'table'];
+
+  return (
+    <div style={cardStyle(hovered)} onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
+      <div style={{ height: 3, background: accent, flexShrink: 0 }} />
+      <div style={hdr}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={titleStyle}>{cfg.label || ds.label}</div>
+          <div style={{ ...subtitle, color: accent }}>Custom · {ds.label}</div>
+        </div>
+        <div style={{ position: 'relative' }}>
+          <button onClick={() => setMenuOpen(o => !o)} style={iconBtn} aria-label="Widget options"><MoreVertical size={16} /></button>
+          {menuOpen && (
+            <div style={menu} onMouseLeave={() => setMenuOpen(false)}>
+              <div style={menuLabel}>Chart type</div>
+              {supported.map(c => (
+                <button key={c} onClick={() => { onChangeChartType(widget.id, c); setMenuOpen(false); }}
+                  style={{ ...menuItem, background: widget.chart_type === c ? 'var(--primary)' : 'transparent', color: widget.chart_type === c ? '#fff' : 'var(--text)' }}>
+                  {chartLabel(c)}
+                </button>
+              ))}
+              <div style={menuDivider} />
+              <button onClick={() => { onEdit(widget); setMenuOpen(false); }} style={menuItem}>
+                <Edit3 size={13} style={{ marginRight: 6, verticalAlign: 'middle' }} /> Edit chart
+              </button>
+              <button onClick={() => { onRemove(widget.id); setMenuOpen(false); }} style={{ ...menuItem, color: '#ef4444' }}>
+                <X size={13} style={{ marginRight: 6, verticalAlign: 'middle' }} /> Remove widget
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div style={body}>
+        {loading && <div style={empty}><div style={skel} /></div>}
+        {!loading && error && (
+          <div style={{ ...empty, color: '#ef4444' }}>
+            <AlertTriangle size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} /> {error}
+          </div>
+        )}
+        {!loading && !error && (
+          <CustomChartBody rows={data as Array<Record<string, unknown>>} ds={ds} xKey={xKey} yKey={yKey} chart={chart} accent={accent} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function CustomChartBody({ rows, ds, xKey, yKey, chart, accent }: {
+  rows: Array<Record<string, unknown>>;
+  ds: NonNullable<ReturnType<typeof ffmDatasetById>>;
+  xKey: string;
+  yKey: string;
+  chart: ChartType;
+  accent: string;
+}) {
+  if (!rows.length) return <EmptyState label="No data yet" />;
+
+  if (chart === 'table') {
+    const tableRows = rows.map((r) => {
+      const out: Record<string, string | number> = {};
+      for (const f of ds.fields) {
+        const v = r[f.key];
+        out[f.label] = (v as string | number) ?? '';
+      }
+      return out;
+    });
+    return <TableView rows={tableRows} />;
+  }
+
+  const series = rows.map((r) => ({
+    name: String(r[xKey] ?? '—'),
+    value: Number(r[yKey] ?? 0),
+  }));
+
+  if (chart === 'pie' || chart === 'donut') return <PieSeries data={series} donut={chart === 'donut'} />;
+  if (chart === 'horizontal-bar') return <HBarSeries data={series} accent={accent} />;
+  if (chart === 'line') return <LineSeries data={series} accent={accent} />;
+  if (chart === 'area') return <AreaSeries data={series} accent={accent} />;
+  return <BarSeries data={series} accent={accent} />;
 }
 
 function FfmWidgetBody({ widget, meta, data, accent }: { widget: WidgetInstance; meta: FfmWidgetMeta; data: unknown; accent: string }) {
@@ -335,8 +468,6 @@ function FfmWidgetBody({ widget, meta, data, accent }: { widget: WidgetInstance;
   const rows = (data as any[]) ?? [];
   if (!rows.length) return <EmptyState label="No data yet" />;
 
-  // Map each dataset to a {x, y, suffix} shape so we can dispatch to the
-  // shared chart helpers without 16 separate render functions.
   const shape = pickShape(meta.type as FfmWidgetType, rows);
   if (!shape) return <EmptyState label="Unsupported data shape" />;
   const { series, suffix, tableRows, valueLabel } = shape;
@@ -346,13 +477,10 @@ function FfmWidgetBody({ widget, meta, data, accent }: { widget: WidgetInstance;
   if (chart === 'horizontal-bar') return <HBarSeries data={series.map(s => ({ name: s.name, value: s.value }))} accent={accent} valueLabel={valueLabel} />;
   if (chart === 'line') return <LineSeries data={series} accent={accent} />;
   if (chart === 'area') return <AreaSeries data={series} accent={accent} />;
-  // Heatmap → fall back to table (Recharts has no first-class heatmap).
   if (chart === 'heatmap') return <TableView rows={tableRows} />;
   return <BarSeries data={series} suffix={suffix} accent={accent} />;
 }
 
-// Map each widget type → the (series, suffix, tableRows) tuple the chart
-// helpers expect. Centralises the per-dataset shape knowledge.
 function pickShape(type: FfmWidgetType, rows: any[]): {
   series: Array<{ name: string; value: number }>;
   suffix?: string;
@@ -406,7 +534,6 @@ function pickShape(type: FfmWidgetType, rows: any[]): {
         tableRows: rows.map((r: any) => ({ Bucket: r.bucket, Visits: r.visit_count })),
       };
     case 'idle_heatmap': {
-      // No native heatmap — render as a pivoted table { FE × Hour }.
       const fes = Array.from(new Set(rows.map((r: any) => r.fe_name)));
       const pivot: Record<string, Record<string, string | number>> = {};
       for (const fe of fes) pivot[fe] = { FE: fe };
@@ -526,8 +653,7 @@ function AddFfmWidgetDialog({ onPick, onClose, existing }: {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// Defaults — when the user has nothing saved, seed a 6-widget starter grid
-// so they see something useful immediately.
+// Defaults — seed a 6-widget starter grid for first-time visitors.
 // ─────────────────────────────────────────────────────────────────────────
 
 function defaultLayout(): DashboardConfig {
@@ -584,8 +710,7 @@ function chartLabel(c: ChartType): string {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// Inline chart helpers (small dup of AnalyticsWidget's — kept inline to
-// avoid coupling FFM to the CRM analytics module).
+// Inline chart helpers (kept local so FFM doesn't depend on CRM analytics).
 // ─────────────────────────────────────────────────────────────────────────
 
 const tooltipStyle: React.CSSProperties = { background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px', fontSize: 12, boxShadow: '0 4px 14px rgba(0,0,0,0.25)' };
