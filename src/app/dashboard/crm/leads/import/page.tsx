@@ -22,13 +22,24 @@ function downloadTemplate() {
   a.click(); URL.revokeObjectURL(url);
 }
 
+// Summary shape now returned by POST /import/commit. Backend collapses every
+// row through findOrCreateLead, so we get a definitive created-vs-merged
+// split rather than a "looks duplicate, ignored" warning list.
+interface CommitSummary {
+  total: number;
+  created: number;
+  merged: number;
+  error_count: number;
+}
+
 export default function LeadImportPage() {
   const router = useRouter();
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [job, setJob] = useState<ImportJob | null>(null);
   const [headers, setHeaders] = useState<string[]>([]);
   const [mapping, setMapping] = useState<Record<string, string>>({});
   const [sample, setSample] = useState<Array<Record<string, unknown>>>([]);
+  const [summary, setSummary] = useState<CommitSummary | null>(null);
   const [busy, setBusy] = useState(false);
 
   const upload = async (file: File) => {
@@ -69,9 +80,18 @@ export default function LeadImportPage() {
     if (!job) return;
     setBusy(true);
     try {
-      await crmImport.commit({ job_id: job.id });
-      toast.success('Import committed');
-      router.push('/dashboard/crm/leads');
+      const r = await crmImport.commit({ job_id: job.id });
+      // Backend now returns summary inline — render the breakdown instead of
+      // an opaque "Import committed" toast.
+      const updated = (r.data ?? r) as ImportJob & { summary?: CommitSummary };
+      setJob(updated);
+      if (updated.summary) {
+        setSummary(updated.summary);
+        setStep(4);
+      } else {
+        toast.success('Import committed');
+        router.push('/dashboard/crm/leads');
+      }
     } catch (e: any) { toast.error(e.message || 'Commit failed'); } finally { setBusy(false); }
   };
 
@@ -84,9 +104,14 @@ export default function LeadImportPage() {
         </button>
       </div>
       <div style={{ display: 'flex', gap: 12, marginBottom: 18 }}>
-        {[1, 2, 3].map((s) => (
-          <div key={s} style={{ flex: 1, padding: 10, borderRadius: 8, background: step >= s ? 'var(--primary)' : 'var(--s3)', color: step >= s ? '#fff' : 'var(--text-dim)', fontSize: 12, fontWeight: 700, textAlign: 'center' }}>
-            Step {s}: {s === 1 ? 'Upload' : s === 2 ? 'Map Columns' : 'Review & Commit'}
+        {[
+          { s: 1, label: 'Upload' },
+          { s: 2, label: 'Map Columns' },
+          { s: 3, label: 'Review' },
+          { s: 4, label: 'Summary' },
+        ].map(({ s, label }) => (
+          <div key={s} style={{ flex: 1, padding: 10, borderRadius: 8, background: step >= (s as 1|2|3|4) ? 'var(--primary)' : 'var(--s3)', color: step >= (s as 1|2|3|4) ? '#fff' : 'var(--text-dim)', fontSize: 12, fontWeight: 700, textAlign: 'center' }}>
+            Step {s}: {label}
           </div>
         ))}
       </div>
@@ -102,6 +127,10 @@ export default function LeadImportPage() {
             Choose File
             <input type="file" accept=".csv,.xlsx" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f); }} />
           </label>
+          <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 14, maxWidth: 480, margin: '14px auto 0' }}>
+            Duplicates across phone + email are merged automatically — both within this file and
+            against your existing leads. You&rsquo;ll see the create-vs-merge breakdown after import.
+          </div>
         </div>
       )}
       {step === 2 && (
@@ -149,6 +178,72 @@ export default function LeadImportPage() {
           </div>
         </div>
       )}
+      {step === 4 && summary && (
+        <div>
+          <div style={{ textAlign: 'center', padding: '20px 0 24px' }}>
+            <div style={{ fontSize: 38, marginBottom: 6 }}>✅</div>
+            <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--text)' }}>Import complete</div>
+            <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4 }}>
+              Cross-channel dedup ran on every row before insert.
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 18 }}>
+            <SummaryCard label="Processed"        value={summary.total}      tint="var(--text-dim)" />
+            <SummaryCard label="New leads"        value={summary.created}    tint="rgb(34, 197, 94)" />
+            <SummaryCard label="Merged into existing" value={summary.merged} tint="rgb(99, 179, 237)" />
+            {summary.error_count > 0 && (
+              <SummaryCard label="Errors" value={summary.error_count} tint="rgb(239, 68, 68)" />
+            )}
+          </div>
+
+          {summary.merged > 0 && (
+            <div style={{
+              background: 'rgba(99, 179, 237, 0.08)', border: '1px solid rgba(99, 179, 237, 0.25)',
+              borderRadius: 8, padding: 12, fontSize: 12, color: 'var(--text)', marginBottom: 12,
+            }}>
+              💡 {summary.merged} row{summary.merged === 1 ? '' : 's'} matched existing leads by phone or email.
+              Each is attached as an additional source on the original lead — no duplicates created.
+              Check Lead Sources for the &ldquo;Excel/CSV Import&rdquo; attribution.
+            </div>
+          )}
+
+          {summary.error_count > 0 && job?.errors && (
+            <div style={{
+              background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.25)',
+              borderRadius: 8, padding: 12, fontSize: 12, color: 'var(--text)', marginBottom: 12,
+            }}>
+              <div style={{ fontWeight: 700, marginBottom: 6 }}>
+                {summary.error_count} row{summary.error_count === 1 ? '' : 's'} skipped
+              </div>
+              <ul style={{ margin: 0, paddingLeft: 18, color: 'var(--text-dim)' }}>
+                {(job.errors as Array<{ row: number; reason: string }>).slice(0, 5).map((e, i) => (
+                  <li key={i}>Row {e.row}: {e.reason}</li>
+                ))}
+                {job.errors.length > 5 && <li>…and {job.errors.length - 5} more</li>}
+              </ul>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <button onClick={() => { setStep(1); setJob(null); setHeaders([]); setMapping({}); setSample([]); setSummary(null); }} style={btnGhost}>
+              Import another file
+            </button>
+            <button onClick={() => router.push('/dashboard/crm/leads')} style={btnPrimary}>
+              View leads →
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SummaryCard({ label, value, tint }: { label: string; value: number; tint: string }) {
+  return (
+    <div style={{ background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 10, padding: 12 }}>
+      <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 700 }}>{label}</div>
+      <div style={{ fontSize: 24, fontWeight: 800, color: tint, marginTop: 4 }}>{value.toLocaleString()}</div>
     </div>
   );
 }
