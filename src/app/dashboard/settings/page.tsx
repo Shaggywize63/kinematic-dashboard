@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../../../lib/api';
 import CitySelect from '../../../components/CitySelect';
+import FieldTrackingCadencePicker from '../../../components/FieldTrackingCadencePicker';
 import { AuthUser } from '../../../types';
 import { ALL_MODULES, MODULE_GROUPS, MODULE_GROUP_LABELS } from '../../../lib/modules';
 
@@ -399,6 +400,12 @@ export default function SettingsPage() {
             <input type="range" min="20" max="200" value={radius} onChange={e => setRadius(Number(e.target.value))} style={{ width: '100%', accentColor: C.red, cursor: 'pointer' }} />
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, fontSize: 11, color: C.gray, fontWeight: 600 }}><span>20 m</span><span>200 m</span></div>
           </div>
+
+          {/* Field Tracking cadence picker — embedded sub-card.
+              Sits inside Operational Environment because it's another
+              "org-wide rule that drives mobile app behavior" — same
+              semantic bucket as the geofence radius above. */}
+          <FieldTrackingCadencePicker />
         </div>
 
         {/* Access Control & Permissions */}
