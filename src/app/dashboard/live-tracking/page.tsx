@@ -71,6 +71,59 @@ const Dot = ({ color, size=8 }: { color:string; size?:number }) => (
   </div>
 );
 
+/* ── Trail CSV download ──
+ * Excel opens UTF-8 CSV natively when the BOM (﻿) is present. We
+ * use that instead of pulling SheetJS just to write one sheet — keeps
+ * the bundle lean.
+ *
+ * Columns: index, IST date/time, lat, lng, activity_type, battery,
+ * UTC timestamp (for audit / cross-tz analysis).
+ */
+function downloadTrailCsv(fe: FELoc | null | undefined, trail: TrailPoint[]) {
+  if (!fe || !trail.length) return;
+  const date = new Date().toISOString().slice(0, 10);
+  const safeName = (fe.name || 'fe').replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').toLowerCase() || 'fe';
+  const filename = `${safeName}-trail-${date}.csv`;
+
+  const esc = (v: string | number | null | undefined): string => {
+    if (v === null || v === undefined) return '';
+    const s = String(v);
+    if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+    return s;
+  };
+
+  const header = ['#', 'Date (IST)', 'Time (IST)', 'Latitude', 'Longitude', 'Activity', 'Battery %', 'Captured At (UTC)'];
+  const lines: string[] = [header.map(esc).join(',')];
+  trail.forEach((p, i) => {
+    const dt = new Date(p.captured_at);
+    const istDate = isNaN(dt.getTime()) ? '' : dt.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+    const istTime = isNaN(dt.getTime()) ? '' : dt.toLocaleTimeString('en-GB', { timeZone: 'Asia/Kolkata', hour12: false });
+    lines.push([
+      i + 1,
+      istDate,
+      istTime,
+      p.lat,
+      p.lng,
+      p.activity_type ?? '',
+      p.battery_percentage ?? '',
+      p.captured_at,
+    ].map(esc).join(','));
+  });
+
+  // ﻿ BOM lets Excel auto-detect UTF-8 (so ° / ₹ / non-ASCII names render correctly).
+  // \r\n line endings match the Excel CSV convention.
+  const csv = '﻿' + lines.join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 /* ── Map Component ── */
 function LiveMap({
   fes, supervisors, outlets, warehouses,
@@ -736,19 +789,31 @@ export default function LiveTrackingPage() {
                 </div>
               )}
 
-              {/* Trail legend — shown only when an FE is selected with pings */}
+              {/* Trail legend — shown only when an FE is selected with pings.
+                  Doubles as a download trigger: clicking it exports the
+                  selected FE's trail as a UTF-8 CSV that Excel opens
+                  natively. */}
               {selectedType === 'fe' && selectedTrail.length > 1 && (
-                <div style={{ position:'absolute', top:12, left:12,
-                  background:'var(--s1)', border:`1px solid ${C.border}`,
-                  borderRadius:10, padding:'6px 12px', fontSize:11, color:C.gray,
-                  display:'flex', alignItems:'center', gap:8 }}>
+                <button
+                  onClick={() => downloadTrailCsv(selFE as FELoc | null, selectedTrail)}
+                  title="Download today's trail as CSV (opens in Excel)"
+                  style={{ position:'absolute', top:12, left:12,
+                    background:'var(--s1)', border:`1px solid ${C.border}`,
+                    borderRadius:10, padding:'6px 10px 6px 12px', fontSize:11, color:C.gray,
+                    display:'flex', alignItems:'center', gap:8, cursor:'pointer',
+                    fontFamily:"'DM Sans',sans-serif" }}>
                   <svg width="20" height="3" style={{ flexShrink:0 }}>
                     <line x1="0" y1="1.5" x2="20" y2="1.5"
                       stroke={selFE ? (STATUS_COLOR[selFE.status] || '#63B3ED') : '#63B3ED'}
                       strokeWidth="3" strokeDasharray="4 3" strokeLinecap="round" />
                   </svg>
-                  Today's trail · {selectedTrail.length} pings
-                </div>
+                  <span>Today&apos;s trail · {selectedTrail.length} pings</span>
+                  <span style={{ marginLeft:4, padding:'2px 6px', borderRadius:6,
+                    background:`${C.blue}18`, color:C.blue, fontSize:10, fontWeight:700,
+                    display:'inline-flex', alignItems:'center', gap:3 }}>
+                    ↓ CSV
+                  </span>
+                </button>
               )}
 
               {/* Layer legend */}
@@ -812,6 +877,17 @@ export default function LiveTrackingPage() {
                         <div style={{ fontSize:10, color:C.grayd, marginTop:2 }}>{s.l}</div>
                       </div>
                     ))}
+                    {/* CSV / Excel download — only shown when there's a non-empty trail. */}
+                    {selectedTrail.length > 0 && (
+                      <button onClick={() => downloadTrailCsv(selFE as FELoc | null, selectedTrail)}
+                        title="Download today's trail as CSV (opens in Excel)"
+                        style={{ background:`${C.blue}18`, border:`1px solid ${C.blue}40`,
+                          color:C.blue, padding:'8px 14px', borderRadius:10, fontSize:12,
+                          fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif",
+                          display:'flex', alignItems:'center', gap:6, flexShrink:0 }}>
+                        ↓ Download trail (Excel)
+                      </button>
+                    )}
                     {!selFE.lat && <div style={{ fontSize:11, color:C.yellow, padding:'4px 10px', background:C.yellowD, borderRadius:8 }}>⚠️ No GPS</div>}
                   </>
                 )}
