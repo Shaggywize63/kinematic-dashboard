@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { crmIntegrations } from '../../../../../lib/crmApi';
@@ -31,14 +31,14 @@ const PROVIDERS: Array<{
     id: 'meta_lead_ads',
     label: 'Meta Lead Ads',
     desc: 'Facebook + Instagram lead forms. Real-time push via Meta App.',
-    available: false,
+    available: true,
     icon: '📘',
   },
   {
     id: 'google_ads',
     label: 'Google Ads',
     desc: 'Lead Form Extensions. Webhook-based, no OAuth needed.',
-    available: false,
+    available: true,
     icon: '🌐',
   },
   {
@@ -75,6 +75,19 @@ function formatLastEvent(when: string | null, count: number): string {
   if (hr < 24) return `${count} lead${count === 1 ? '' : 's'} · ${hr}h ago`;
   const d = Math.round(hr / 24);
   return `${count} lead${count === 1 ? '' : 's'} · ${d}d ago`;
+}
+
+// Generate a 32-char hex verify token for Meta — admin pastes this into
+// the Meta App webhook subscription so we can echo the challenge back.
+// Browser-safe (uses window.crypto.getRandomValues when available).
+function genVerifyToken(): string {
+  const bytes = new Uint8Array(16);
+  if (typeof window !== 'undefined' && window.crypto?.getRandomValues) {
+    window.crypto.getRandomValues(bytes);
+  } else {
+    for (let i = 0; i < 16; i++) bytes[i] = Math.floor(Math.random() * 256);
+  }
+  return Array.from(bytes).map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
 // ── Page ────────────────────────────────────────────────────────────────────────
@@ -259,15 +272,52 @@ function ConnectModal({
   const [label, setLabel] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  // Meta-specific credential inputs (kept null/empty for other providers
+  // so the same component covers everything).
+  const [appSecret, setAppSecret] = useState('');
+  const [pageAccessToken, setPageAccessToken] = useState('');
+  const [pageId, setPageId] = useState('');
+  // Auto-generate a fresh verify token per session; admin pastes this
+  // into Meta's webhook subscription. Memoised so re-renders don't
+  // reroll the token while the modal is open.
+  const verifyToken = useMemo(() => provider === 'meta_lead_ads' ? genVerifyToken() : '', [provider]);
+
   const submit = async () => {
     if (!label.trim()) {
       toast.error('Give this connection a name so you can identify it later');
       return;
     }
+    if (provider === 'meta_lead_ads') {
+      if (!appSecret.trim() || !pageAccessToken.trim()) {
+        toast.error('Meta needs both App Secret and Page Access Token');
+        return;
+      }
+    }
     setSubmitting(true);
     try {
-      const r = await crmIntegrations.create({ provider, label: label.trim() });
-      onCreated(r.data);
+      const body: Parameters<typeof crmIntegrations.create>[0] = {
+        provider,
+        label: label.trim(),
+      };
+      if (provider === 'meta_lead_ads') {
+        body.config = {
+          verify_token: verifyToken,
+          ...(pageId.trim() ? { page_id: pageId.trim() } : {}),
+        };
+        body.credentials = {
+          app_secret: appSecret.trim(),
+          page_access_token: pageAccessToken.trim(),
+        };
+      }
+      const r = await crmIntegrations.create(body);
+      // Embed verify_token in the integration's config-derived view so the
+      // success modal can show it back to the admin (we generated it on
+      // the client; backend stored it in config; sending it back here
+      // avoids a second fetch).
+      onCreated({
+        ...r.data,
+        config: { ...(r.data.config ?? {}), ...(provider === 'meta_lead_ads' ? { verify_token: verifyToken } : {}) },
+      });
     } catch (e: any) {
       toast.error(e.message || 'Connection failed');
       setSubmitting(false);
@@ -283,8 +333,10 @@ function ConnectModal({
             value={label}
             onChange={(e) => setLabel(e.target.value)}
             placeholder={
-              provider === 'web_form'        ? 'e.g. Acme.com Contact Form'        :
-              provider === 'generic_webhook' ? 'e.g. Zapier — Newsletter Signups'  : ''
+              provider === 'web_form'        ? 'e.g. Acme.com Contact Form'           :
+              provider === 'generic_webhook' ? 'e.g. Zapier — Newsletter Signups'    :
+              provider === 'meta_lead_ads'   ? 'e.g. Acme Facebook Page'              :
+              provider === 'google_ads'      ? 'e.g. Festive Search Campaign'         : ''
             }
             autoFocus
             style={input}
@@ -294,6 +346,58 @@ function ConnectModal({
             can target it. You can rename it later from Lead Sources.
           </div>
         </div>
+
+        {/* Meta-specific credential inputs */}
+        {provider === 'meta_lead_ads' && (
+          <>
+            <div>
+              <label style={fieldLabel}>App Secret</label>
+              <input
+                type="password"
+                value={appSecret}
+                onChange={(e) => setAppSecret(e.target.value)}
+                placeholder="From Meta App → Settings → Basic"
+                style={{ ...input, fontFamily: 'monospace' }}
+              />
+              <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 4 }}>
+                Used to verify webhook signatures (HMAC-SHA256). Stored encrypted.
+              </div>
+            </div>
+            <div>
+              <label style={fieldLabel}>Page Access Token</label>
+              <input
+                type="password"
+                value={pageAccessToken}
+                onChange={(e) => setPageAccessToken(e.target.value)}
+                placeholder="From Graph API Explorer → Page token"
+                style={{ ...input, fontFamily: 'monospace' }}
+              />
+              <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 4 }}>
+                Used to fetch each lead&rsquo;s field data via Graph API. Long-lived
+                Page tokens are recommended (60-day expiry → refresh).
+              </div>
+            </div>
+            <div>
+              <label style={fieldLabel}>Page ID (optional)</label>
+              <input
+                value={pageId}
+                onChange={(e) => setPageId(e.target.value)}
+                placeholder="Multi-Page apps only — filter incoming events"
+                style={input}
+              />
+              <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 4 }}>
+                Leave blank to accept lead events from any Page your app is subscribed to.
+              </div>
+            </div>
+            <div>
+              <label style={fieldLabel}>Verify Token (we generated this)</label>
+              <input value={verifyToken} readOnly style={{ ...input, fontFamily: 'monospace', fontSize: 11 }} />
+              <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 4 }}>
+                You&rsquo;ll paste this into Meta&rsquo;s webhook subscription on the next screen.
+              </div>
+            </div>
+          </>
+        )}
 
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
           <button onClick={onClose} style={ghostBtn} disabled={submitting}>Cancel</button>
@@ -310,6 +414,7 @@ function ConnectModal({
 function SuccessModal({ integration, onClose }: { integration: Integration; onClose: () => void }) {
   const url = integration.webhook_url ?? '';
   const provider = integration.provider;
+  const verifyToken = (integration.config as Record<string, unknown> | undefined)?.verify_token as string | undefined;
 
   const jsSnippet =
     provider === 'web_form'
@@ -348,6 +453,40 @@ function SuccessModal({ integration, onClose }: { integration: Integration; onCl
     );
   };
 
+  // Provider-specific setup steps shown above the URL.
+  const setupSteps =
+    provider === 'meta_lead_ads' ? (
+      <div style={{
+        background: 'rgba(59, 130, 246, 0.06)', border: '1px solid rgba(59, 130, 246, 0.25)',
+        borderRadius: 8, padding: 12, fontSize: 12, color: 'var(--text)',
+      }}>
+        <div style={{ fontWeight: 700, marginBottom: 8 }}>Wire it up in Meta:</div>
+        <ol style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7 }}>
+          <li>Open your Meta App → <strong>Products → Webhooks → Page</strong>.</li>
+          <li>Click <strong>Subscribe to this object → Edit subscription</strong>.</li>
+          <li>Paste the <em>Webhook URL</em> below as Callback URL.</li>
+          <li>Paste the <em>Verify Token</em> below.</li>
+          <li>Subscribe to the <code style={{ background: 'var(--s3)', padding: '1px 4px', borderRadius: 3 }}>leadgen</code> field.</li>
+          <li>For each Page you want leads from, click <strong>Subscribe</strong>.</li>
+        </ol>
+      </div>
+    ) : provider === 'google_ads' ? (
+      <div style={{
+        background: 'rgba(59, 130, 246, 0.06)', border: '1px solid rgba(59, 130, 246, 0.25)',
+        borderRadius: 8, padding: 12, fontSize: 12, color: 'var(--text)',
+      }}>
+        <div style={{ fontWeight: 700, marginBottom: 8 }}>Wire it up in Google Ads:</div>
+        <ol style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7 }}>
+          <li>Open your campaign → <strong>Assets → Lead Form Asset</strong>.</li>
+          <li>Edit the asset → <strong>Lead Delivery Options → Webhook integration</strong>.</li>
+          <li>Paste the <em>Webhook URL</em> below.</li>
+          <li>The <em>Key</em> is already embedded in the URL — Google Ads will read it
+            from the <code style={{ background: 'var(--s3)', padding: '1px 4px', borderRadius: 3 }}>?key=…</code> parameter.</li>
+          <li>Click <strong>Send test data</strong> in Google Ads to verify the connection.</li>
+        </ol>
+      </div>
+    ) : null;
+
   return (
     <Modal
       onClose={onClose}
@@ -355,6 +494,8 @@ function SuccessModal({ integration, onClose }: { integration: Integration; onCl
       subtitle="Copy your webhook URL now — the secret is only shown once. We auto-created a matching lead source you'll see in reports."
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {setupSteps}
+
         <div>
           <label style={fieldLabel}>Webhook URL</label>
           <div style={{ display: 'flex', gap: 6 }}>
@@ -362,9 +503,24 @@ function SuccessModal({ integration, onClose }: { integration: Integration; onCl
             <button onClick={() => copy(url, 'Webhook URL')} style={ghostBtn}>Copy</button>
           </div>
           <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 4 }}>
-            Paste this URL into the provider's webhook field, or POST JSON to it from your site.
+            Paste this URL into the provider&rsquo;s webhook field, or POST JSON to it from your site.
           </div>
         </div>
+
+        {/* Meta-specific verify token display */}
+        {provider === 'meta_lead_ads' && verifyToken && (
+          <div>
+            <label style={fieldLabel}>Verify Token</label>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <input value={verifyToken} readOnly style={{ ...input, fontFamily: 'monospace', fontSize: 11 }} />
+              <button onClick={() => copy(verifyToken, 'Verify Token')} style={ghostBtn}>Copy</button>
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 4 }}>
+              Meta echoes this back during the subscription handshake — we verify the match
+              before accepting any incoming leadgen events.
+            </div>
+          </div>
+        )}
 
         {jsSnippet && (
           <div>
@@ -381,18 +537,20 @@ function SuccessModal({ integration, onClose }: { integration: Integration; onCl
           </div>
         )}
 
-        <div>
-          <label style={fieldLabel}>Quick test (curl)</label>
-          <textarea
-            value={curlSnippet}
-            readOnly
-            rows={4}
-            style={{ ...input, fontFamily: 'monospace', fontSize: 11 }}
-          />
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
-            <button onClick={() => copy(curlSnippet, 'curl command')} style={ghostBtn}>Copy curl</button>
+        {provider !== 'meta_lead_ads' && provider !== 'google_ads' && (
+          <div>
+            <label style={fieldLabel}>Quick test (curl)</label>
+            <textarea
+              value={curlSnippet}
+              readOnly
+              rows={4}
+              style={{ ...input, fontFamily: 'monospace', fontSize: 11 }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
+              <button onClick={() => copy(curlSnippet, 'curl command')} style={ghostBtn}>Copy curl</button>
+            </div>
           </div>
-        </div>
+        )}
 
         <div style={{
           background: 'rgba(251, 146, 60, 0.08)', border: '1px solid rgba(251, 146, 60, 0.25)',
