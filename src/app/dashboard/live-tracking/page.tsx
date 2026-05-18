@@ -42,6 +42,7 @@ interface Warehouse {
   address?: string; city?: string; is_active: boolean;
 }
 interface Zone { id: string; name: string; city?: string; }
+interface TrailPoint { lat: number; lng: number; battery_percentage?: number; captured_at: string; activity_type?: string; }
 
 /* ── Layer config ── */
 const LAYERS = [
@@ -74,15 +75,18 @@ const Dot = ({ color, size=8 }: { color:string; size?:number }) => (
 function LiveMap({
   fes, supervisors, outlets, warehouses,
   activeLayers, selectedId, onSelect,
-  mapLoaded,
+  mapLoaded, trail, trailColor,
 }: {
   fes: FELoc[]; supervisors: FELoc[]; outlets: Outlet[]; warehouses: Warehouse[];
   activeLayers: Set<string>; selectedId: string|null; onSelect:(id:string,type:string)=>void;
   mapLoaded: boolean;
+  trail?: TrailPoint[];
+  trailColor?: string;
 }) {
   const mapRef  = useRef<HTMLDivElement>(null);
   const mapInst = useRef<any>(null);
   const markers = useRef<any[]>([]);
+  const trailLayer = useRef<any>(null);
 
   // Init map
   useEffect(() => {
@@ -155,14 +159,39 @@ function LiveMap({
       });
     }
 
+    // Trail polyline — the selected FE's day-long breadcrumb. Cleared and
+    // rebuilt on every dependency change so it stays in sync with the
+    // 60-second auto-refresh of the markers above.
+    if (trailLayer.current) {
+      trailLayer.current.remove();
+      trailLayer.current = null;
+    }
+    if (trail && trail.length > 1) {
+      const coords = trail
+        .filter((p) => typeof p.lat === 'number' && typeof p.lng === 'number')
+        .map((p) => [p.lat, p.lng] as [number, number]);
+      if (coords.length > 1) {
+        trailLayer.current = L.polyline(coords, {
+          color: trailColor || '#63B3ED',
+          weight: 3,
+          opacity: 0.85,
+          dashArray: '4 6',
+          lineCap: 'round',
+          lineJoin: 'round',
+        }).addTo(mapInst.current);
+      }
+    }
+
     // Auto-fit bounds if markers exist
     const hasPins = markers.current.length > 0;
     if (hasPins) {
-      const group = L.featureGroup(markers.current);
+      const layers: any[] = [...markers.current];
+      if (trailLayer.current) layers.push(trailLayer.current);
+      const group = L.featureGroup(layers);
       mapInst.current.fitBounds(group.getBounds().pad(0.15));
     }
 
-  }, [mapLoaded, fes, supervisors, outlets, warehouses, activeLayers, selectedId, onSelect]);
+  }, [mapLoaded, fes, supervisors, outlets, warehouses, activeLayers, selectedId, onSelect, trail, trailColor]);
 
   const popupHtml = (name:string, role:string, color:string, status:string, zone?:string, checkinAt?:string, engagements?:number, tff?:number, battery?:number, lastSeen?:string, device?:string, os?:string) => {
     const diff = lastSeen ? Math.round((new Date().getTime() - new Date(lastSeen).getTime()) / 60000) : null;
@@ -218,6 +247,7 @@ export default function LiveTrackingPage() {
   // Selection
   const [selectedId,   setSelectedId]   = useState<string|null>(null);
   const [selectedType, setSelectedType] = useState<string|null>(null);
+  const [selectedTrail, setSelectedTrail] = useState<TrailPoint[]>([]);
 
   // Low Battery
   const [lowBatteryFilter,    setLowBatteryFilter]    = useState(false);
@@ -326,6 +356,22 @@ export default function LiveTrackingPage() {
       document.removeEventListener('visibilitychange', onVisibility);
     };
   }, [fetchAll]);
+
+  // Fetch the selected FE's day-long location trail. Refreshes on every
+  // poll tick (via lastSync) so new pings extend the polyline without a
+  // page reload.
+  useEffect(() => {
+    if (selectedType !== 'fe' || !selectedId) {
+      setSelectedTrail([]);
+      return;
+    }
+    const date = new Date().toISOString().slice(0, 10);
+    let cancelled = false;
+    api.get<{ success: boolean; data: TrailPoint[] }>(`/api/v1/users/${selectedId}/location-trail?date=${date}`)
+      .then((r) => { if (!cancelled) setSelectedTrail(r.data ?? []); })
+      .catch(() => { if (!cancelled) setSelectedTrail([]); });
+    return () => { cancelled = true; };
+  }, [selectedId, selectedType, lastSync]);
 
   /* ── Derived / filtered ── */
   const q = search.toLowerCase();
@@ -676,6 +722,8 @@ export default function LiveTrackingPage() {
                 selectedId={selectedId}
                 onSelect={(id, type) => { setSelectedId(id); setSelectedType(type); }}
                 mapLoaded={mapLoaded}
+                trail={selectedType === 'fe' ? selectedTrail : undefined}
+                trailColor={selFE ? (STATUS_COLOR[selFE.status] || '#63B3ED') : '#63B3ED'}
               />
 
               {/* No GPS notice */}
@@ -685,6 +733,21 @@ export default function LiveTrackingPage() {
                   borderRadius:10, padding:'8px 14px', fontSize:12, color:C.yellow,
                   display:'flex', alignItems:'center', gap:7, pointerEvents:'none', whiteSpace:'nowrap' }}>
                   ⚠️ No GPS coordinates yet — FEs need to check in with location enabled
+                </div>
+              )}
+
+              {/* Trail legend — shown only when an FE is selected with pings */}
+              {selectedType === 'fe' && selectedTrail.length > 1 && (
+                <div style={{ position:'absolute', top:12, left:12,
+                  background:'var(--s1)', border:`1px solid ${C.border}`,
+                  borderRadius:10, padding:'6px 12px', fontSize:11, color:C.gray,
+                  display:'flex', alignItems:'center', gap:8 }}>
+                  <svg width="20" height="3" style={{ flexShrink:0 }}>
+                    <line x1="0" y1="1.5" x2="20" y2="1.5"
+                      stroke={selFE ? (STATUS_COLOR[selFE.status] || '#63B3ED') : '#63B3ED'}
+                      strokeWidth="3" strokeDasharray="4 3" strokeLinecap="round" />
+                  </svg>
+                  Today's trail · {selectedTrail.length} pings
                 </div>
               )}
 
@@ -742,6 +805,7 @@ export default function LiveTrackingPage() {
                       { l:'Status',    v: selFE.status.replace('_',' '), c: STATUS_COLOR[selFE.status]||C.gray },
                       { l:'Check-in',  v: selFE.checkin_at ? new Date(selFE.checkin_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : '—', c: C.white },
                       { l:'TFF Today', v: String(selFE.today_tff ?? '—'), c: C.green },
+                      { l:'Trail',     v: selectedTrail.length > 0 ? `${selectedTrail.length} pings` : '—', c: selectedTrail.length > 0 ? '#63B3ED' : C.gray },
                     ].map((s,i) => (
                       <div key={i} style={{ textAlign:'center' }}>
                         <div style={{ fontFamily:"'Syne',sans-serif", fontSize:16, fontWeight:800, color:s.c, textTransform:'capitalize' }}>{s.v}</div>
