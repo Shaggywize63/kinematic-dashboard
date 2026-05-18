@@ -13,6 +13,7 @@ import type {
   Product, ProductCategory, DealLineItem,
   WhatsappTemplate, WhatsappLog,
 } from '../types/crm';
+import type { Integration, InboundEvent, IntegrationProvider } from '../types/integrations';
 
 type Wrapped<T> = { success: boolean; data: T };
 export interface DateRangeParams { from?: string; to?: string }
@@ -255,6 +256,34 @@ export const crmSettings = {
   seedDefaults: () => api.post<Wrapped<{ seeded: number }>>(`${BASE}/settings/seed-defaults`, {}),
 };
 
+// ── Lead-source integrations (admin) ─────────────────────────────────────────────
+// Note: integrations live at /api/v1/integrations (not under /crm) on
+// the backend because the public webhook ingestion routes need to be
+// mounted before the auth catch-all. The dashboard surfaces them as a
+// CRM Settings child page anyway — the URL doesn't need to match.
+const INTEGRATIONS_BASE = '/api/v1/integrations';
+
+export const crmIntegrations = {
+  list: () => api.get<Wrapped<Integration[]>>(INTEGRATIONS_BASE),
+  get: (id: string) => api.get<Wrapped<Integration>>(`${INTEGRATIONS_BASE}/${id}`),
+  create: (body: {
+    provider: IntegrationProvider;
+    label?: string;
+    config?: Record<string, unknown>;
+    credentials?: Record<string, unknown>;
+  }) => api.post<Wrapped<Integration>>(INTEGRATIONS_BASE, body),
+  update: (id: string, body: {
+    label?: string;
+    status?: string;
+    config?: Record<string, unknown>;
+    credentials?: Record<string, unknown>;
+  }) => api.patch<Wrapped<Integration>>(`${INTEGRATIONS_BASE}/${id}`, body),
+  remove: (id: string) => api.delete<Wrapped<{ success: true }>>(`${INTEGRATIONS_BASE}/${id}`),
+  test: (id: string) => api.post<Wrapped<{ ok: boolean; status: string }>>(`${INTEGRATIONS_BASE}/${id}/test`, {}),
+  events: (id: string, limit: number = 50) =>
+    api.get<Wrapped<InboundEvent[]>>(`${INTEGRATIONS_BASE}/${id}/events?limit=${limit}`),
+};
+
 const crmApi = {
   leads: crmLeads, contacts: crmContacts, accounts: crmAccounts, deals: crmDeals,
   lineItems: crmLineItems, pipelines: crmPipelines, stages: crmStages,
@@ -267,6 +296,7 @@ const crmApi = {
   whatsappTemplates: crmWhatsappTemplates, whatsapp: crmWhatsapp,
   locations: crmStatesApi, cities: crmCitiesApi,
   import: crmImport, analytics: crmAnalytics, ai: crmAi, settings: crmSettings,
+  integrations: crmIntegrations,
 };
 
 export default crmApi;

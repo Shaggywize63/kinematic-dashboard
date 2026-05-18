@@ -1,0 +1,473 @@
+'use client';
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { toast } from 'sonner';
+import { crmIntegrations } from '../../../../../lib/crmApi';
+import type { Integration, IntegrationProvider, IntegrationStatus } from '../../../../../types/integrations';
+
+// ── Provider catalogue ─────────────────────────────────────────────────────────
+const PROVIDERS: Array<{
+  id: IntegrationProvider;
+  label: string;
+  desc: string;
+  available: boolean;
+  icon: string;
+}> = [
+  {
+    id: 'web_form',
+    label: 'Web Form',
+    desc: 'Drop a JS snippet on your site. Submissions land as leads instantly.',
+    available: true,
+    icon: '📝',
+  },
+  {
+    id: 'generic_webhook',
+    label: 'Generic Webhook',
+    desc: 'Sign + POST any JSON. Works with Zapier, Make, custom backends.',
+    available: true,
+    icon: '🔗',
+  },
+  {
+    id: 'meta_lead_ads',
+    label: 'Meta Lead Ads',
+    desc: 'Facebook + Instagram lead forms. Real-time push via Meta App.',
+    available: false,
+    icon: '📘',
+  },
+  {
+    id: 'google_ads',
+    label: 'Google Ads',
+    desc: 'Lead Form Extensions. Webhook-based, no OAuth needed.',
+    available: false,
+    icon: '🌐',
+  },
+  {
+    id: 'zoho',
+    label: 'Zoho CRM',
+    desc: 'OAuth + 15-min polling. Pulls existing pipeline into Kinematic.',
+    available: false,
+    icon: '🔄',
+  },
+];
+
+const STATUS_STYLES: Record<IntegrationStatus, { bg: string; color: string; label: string }> = {
+  active:   { bg: 'rgba(34, 197, 94, 0.12)',  color: 'rgb(34, 197, 94)',  label: 'Active'   },
+  pending:  { bg: 'rgba(251, 146, 60, 0.12)', color: 'rgb(251, 146, 60)', label: 'Pending'  },
+  error:    { bg: 'rgba(239, 68, 68, 0.12)',  color: 'rgb(239, 68, 68)',  label: 'Error'    },
+  disabled: { bg: 'rgba(156, 163, 175, 0.12)', color: 'rgb(156, 163, 175)', label: 'Disabled' },
+};
+
+function providerLabel(id: string): string {
+  return PROVIDERS.find((p) => p.id === id)?.label ?? id;
+}
+
+function providerIcon(id: string): string {
+  return PROVIDERS.find((p) => p.id === id)?.icon ?? '🔌';
+}
+
+function formatLastEvent(when: string | null, count: number): string {
+  if (!when || count === 0) return 'No events yet';
+  const ms = Date.now() - new Date(when).getTime();
+  const min = Math.round(ms / 60000);
+  if (min < 1)  return `${count} lead${count === 1 ? '' : 's'} · just now`;
+  if (min < 60) return `${count} lead${count === 1 ? '' : 's'} · ${min} min ago`;
+  const hr = Math.round(min / 60);
+  if (hr < 24) return `${count} lead${count === 1 ? '' : 's'} · ${hr}h ago`;
+  const d = Math.round(hr / 24);
+  return `${count} lead${count === 1 ? '' : 's'} · ${d}d ago`;
+}
+
+// ── Page ────────────────────────────────────────────────────────────────────────
+export default function IntegrationsPage() {
+  const [integrations, setIntegrations] = useState<Integration[]>([]);
+  const [loaded, setLoaded]     = useState(false);
+  const [pickingProvider, setPickingProvider] = useState(false);
+  const [connectFor, setConnectFor] = useState<IntegrationProvider | null>(null);
+  const [success, setSuccess] = useState<Integration | null>(null);
+
+  const load = async () => {
+    try {
+      const r = await crmIntegrations.list();
+      setIntegrations(r.data ?? []);
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to load integrations');
+    } finally { setLoaded(true); }
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const handleDisconnect = async (i: Integration) => {
+    if (!confirm(`Disconnect “${i.label}”? Inbound leads will stop arriving immediately. Existing leads attributed to this source remain in your CRM.`)) return;
+    try {
+      await crmIntegrations.remove(i.id);
+      toast.success(`${i.label} disconnected`);
+      setIntegrations((list) => list.filter((x) => x.id !== i.id));
+    } catch (e: any) {
+      toast.error(e.message || 'Disconnect failed');
+    }
+  };
+
+  return (
+    <div>
+      <Link
+        href="/dashboard/crm/settings"
+        style={{ fontSize: 12, color: 'var(--text-dim)', textDecoration: 'none', marginBottom: 14, display: 'inline-block' }}
+      >
+        ← Back to Settings
+      </Link>
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
+        <div>
+          <h1 style={{ margin: 0, fontSize: 20, color: 'var(--text)', fontWeight: 800 }}>Lead-Source Integrations</h1>
+          <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-dim)', maxWidth: 640 }}>
+            Connect your website forms, ad platforms, and other CRMs so leads land in Kinematic automatically. Cross-channel duplicates merge by phone or email.
+          </p>
+        </div>
+        <button
+          onClick={() => setPickingProvider(true)}
+          style={primaryBtn}
+        >
+          + Add integration
+        </button>
+      </div>
+
+      {/* ── Active integrations ── */}
+      {!loaded ? (
+        <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-dim)', fontSize: 13 }}>Loading…</div>
+      ) : integrations.length === 0 ? (
+        <div style={{
+          background: 'var(--s2)', border: '1px dashed var(--border)', borderRadius: 14,
+          padding: 48, textAlign: 'center', marginBottom: 20,
+        }}>
+          <div style={{ fontSize: 32, marginBottom: 10 }}>🔌</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>No integrations yet</div>
+          <div style={{ fontSize: 12, color: 'var(--text-dim)', maxWidth: 380, margin: '0 auto 18px' }}>
+            Pick a source below to start pulling leads in. The web form is the fastest — paste one line of JavaScript on your site.
+          </div>
+          <button onClick={() => setPickingProvider(true)} style={primaryBtn}>Connect your first source</button>
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 12, marginBottom: 24 }}>
+          {integrations.map((i) => {
+            const style = STATUS_STYLES[i.status] ?? STATUS_STYLES.disabled;
+            return (
+              <div key={i.id} style={{
+                background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14,
+                padding: 16, display: 'flex', flexDirection: 'column', gap: 12,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                  <div style={{ fontSize: 26, lineHeight: 1 }}>{providerIcon(i.provider)}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {i.label}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2 }}>{providerLabel(i.provider)}</div>
+                  </div>
+                  <span style={{
+                    fontSize: 10, fontWeight: 700, padding: '4px 8px', borderRadius: 20,
+                    background: style.bg, color: style.color,
+                  }}>{style.label}</span>
+                </div>
+
+                <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>
+                  {formatLastEvent(i.last_synced_at, i.last_event_count)}
+                </div>
+
+                {i.last_error && (
+                  <div style={{
+                    fontSize: 11, color: 'rgb(239, 68, 68)', background: 'rgba(239, 68, 68, 0.08)',
+                    border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: 6, padding: '6px 8px',
+                  }}>
+                    {i.last_error.slice(0, 140)}
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', gap: 6, marginTop: 'auto' }}>
+                  <button onClick={() => handleDisconnect(i)} style={ghostBtnDanger}>Disconnect</button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── Add-integration: provider picker ── */}
+      {pickingProvider && (
+        <Modal onClose={() => setPickingProvider(false)} title="Connect a lead source" subtitle="Pick where your leads come from. New providers are added every release.">
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10 }}>
+            {PROVIDERS.map((p) => (
+              <button
+                key={p.id}
+                disabled={!p.available}
+                onClick={() => { setPickingProvider(false); setConnectFor(p.id); }}
+                style={{
+                  textAlign: 'left',
+                  background: p.available ? 'var(--s3)' : 'var(--s2)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 10, padding: 14, cursor: p.available ? 'pointer' : 'not-allowed',
+                  color: 'var(--text)', opacity: p.available ? 1 : 0.55,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                  <span style={{ fontSize: 22 }}>{p.icon}</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, flex: 1 }}>{p.label}</span>
+                  {!p.available && (
+                    <span style={{
+                      fontSize: 9, fontWeight: 700, color: 'var(--text-dim)', padding: '2px 6px',
+                      background: 'var(--s4)', borderRadius: 4,
+                    }}>SOON</span>
+                  )}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text-dim)', lineHeight: 1.4 }}>{p.desc}</div>
+              </button>
+            ))}
+          </div>
+        </Modal>
+      )}
+
+      {/* ── Connect modal ── */}
+      {connectFor && (
+        <ConnectModal
+          provider={connectFor}
+          onClose={() => setConnectFor(null)}
+          onCreated={(integration) => {
+            setConnectFor(null);
+            setSuccess(integration);
+            // Refresh the list so the new card shows up under "Active".
+            load();
+          }}
+        />
+      )}
+
+      {/* ── Success modal: show webhook URL once ── */}
+      {success && (
+        <SuccessModal integration={success} onClose={() => setSuccess(null)} />
+      )}
+    </div>
+  );
+}
+
+// ── Connect modal ──────────────────────────────────────────────────────────────────────
+function ConnectModal({
+  provider, onClose, onCreated,
+}: {
+  provider: IntegrationProvider;
+  onClose: () => void;
+  onCreated: (i: Integration) => void;
+}) {
+  const meta = PROVIDERS.find((p) => p.id === provider)!;
+  const [label, setLabel] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const submit = async () => {
+    if (!label.trim()) {
+      toast.error('Give this connection a name so you can identify it later');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const r = await crmIntegrations.create({ provider, label: label.trim() });
+      onCreated(r.data);
+    } catch (e: any) {
+      toast.error(e.message || 'Connection failed');
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Modal onClose={onClose} title={`Connect ${meta.label}`} subtitle={meta.desc}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div>
+          <label style={fieldLabel}>Connection name</label>
+          <input
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            placeholder={
+              provider === 'web_form'        ? 'e.g. Acme.com Contact Form'        :
+              provider === 'generic_webhook' ? 'e.g. Zapier — Newsletter Signups'  : ''
+            }
+            autoFocus
+            style={input}
+          />
+          <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 4 }}>
+            We&rsquo;ll auto-create a matching lead source so reports and assignment rules
+            can target it. You can rename it later from Lead Sources.
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button onClick={onClose} style={ghostBtn} disabled={submitting}>Cancel</button>
+          <button onClick={submit} style={primaryBtn} disabled={submitting}>
+            {submitting ? 'Connecting…' : 'Connect'}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ── Success modal: show webhook URL + JS snippet ─────────────────────────────────────────────
+function SuccessModal({ integration, onClose }: { integration: Integration; onClose: () => void }) {
+  const url = integration.webhook_url ?? '';
+  const provider = integration.provider;
+
+  const jsSnippet =
+    provider === 'web_form'
+      ? `<form id="kinematic-lead-form">
+  <input name="name"    placeholder="Name"  required />
+  <input name="email"   placeholder="Email" type="email" />
+  <input name="phone"   placeholder="Phone" type="tel"   required />
+  <input name="company" placeholder="Company" />
+  <button type="submit">Get a callback</button>
+</form>
+<script>
+  document.getElementById('kinematic-lead-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const data = Object.fromEntries(new FormData(e.target));
+    data.referrer_url = location.href;
+    await fetch(${JSON.stringify(url)}, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    e.target.reset();
+    alert('Thanks! We\\'ll be in touch.');
+  });
+</script>`
+      : null;
+
+  const curlSnippet =
+    `curl -X POST "${url}" \\
+  -H "Content-Type: application/json" \\
+  -d '{"name":"Test Lead","email":"test@example.com","phone":"+919876543210"}'`;
+
+  const copy = (text: string, what: string) => {
+    navigator.clipboard.writeText(text).then(
+      () => toast.success(`${what} copied to clipboard`),
+      () => toast.error('Copy failed — select and copy manually'),
+    );
+  };
+
+  return (
+    <Modal
+      onClose={onClose}
+      title="✅ Connected"
+      subtitle="Copy your webhook URL now — the secret is only shown once. We auto-created a matching lead source you'll see in reports."
+    >
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div>
+          <label style={fieldLabel}>Webhook URL</label>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <input value={url} readOnly style={{ ...input, fontFamily: 'monospace', fontSize: 11 }} />
+            <button onClick={() => copy(url, 'Webhook URL')} style={ghostBtn}>Copy</button>
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 4 }}>
+            Paste this URL into the provider's webhook field, or POST JSON to it from your site.
+          </div>
+        </div>
+
+        {jsSnippet && (
+          <div>
+            <label style={fieldLabel}>Paste-and-go HTML snippet</label>
+            <textarea
+              value={jsSnippet}
+              readOnly
+              rows={14}
+              style={{ ...input, fontFamily: 'monospace', fontSize: 11, resize: 'vertical' }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
+              <button onClick={() => copy(jsSnippet, 'HTML snippet')} style={ghostBtn}>Copy snippet</button>
+            </div>
+          </div>
+        )}
+
+        <div>
+          <label style={fieldLabel}>Quick test (curl)</label>
+          <textarea
+            value={curlSnippet}
+            readOnly
+            rows={4}
+            style={{ ...input, fontFamily: 'monospace', fontSize: 11 }}
+          />
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
+            <button onClick={() => copy(curlSnippet, 'curl command')} style={ghostBtn}>Copy curl</button>
+          </div>
+        </div>
+
+        <div style={{
+          background: 'rgba(251, 146, 60, 0.08)', border: '1px solid rgba(251, 146, 60, 0.25)',
+          borderRadius: 8, padding: 10, fontSize: 11, color: 'var(--text)',
+        }}>
+          ⚠️ The webhook URL contains a secret. Anyone with the URL can post leads to your CRM
+          (rate-limited to 200/min). Don&rsquo;t commit it to a public repo — use a server-side
+          form proxy or environment variable when embedding.
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <button onClick={onClose} style={primaryBtn}>I&rsquo;ve copied it</button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ── Modal primitive ─────────────────────────────────────────────────────────────────
+function Modal({
+  children, onClose, title, subtitle,
+}: {
+  children: React.ReactNode;
+  onClose: () => void;
+  title: string;
+  subtitle?: string;
+}) {
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 999,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: 'var(--s1)', border: '1px solid var(--border)', borderRadius: 14,
+          maxWidth: 640, width: '100%', maxHeight: '90vh', overflow: 'auto',
+          padding: 24, boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
+        }}
+      >
+        <div style={{ marginBottom: 18 }}>
+          <h2 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: 'var(--text)' }}>{title}</h2>
+          {subtitle && (
+            <p style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--text-dim)' }}>{subtitle}</p>
+          )}
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// ── Inline style tokens (matches the rest of the settings pages) ────────────────────────
+const fieldLabel: React.CSSProperties = {
+  display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-dim)',
+  textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 6,
+};
+const input: React.CSSProperties = {
+  width: '100%', background: 'var(--s3)', border: '1px solid var(--border)',
+  color: 'var(--text)', padding: '9px 12px', borderRadius: 8, fontSize: 13, outline: 'none',
+  fontFamily: 'inherit',
+};
+const primaryBtn: React.CSSProperties = {
+  background: 'var(--primary)', border: 'none', color: '#fff',
+  padding: '9px 18px', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer',
+};
+const ghostBtn: React.CSSProperties = {
+  background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)',
+  padding: '9px 14px', borderRadius: 8, fontSize: 13, cursor: 'pointer', fontWeight: 600,
+};
+const ghostBtnDanger: React.CSSProperties = {
+  ...ghostBtn,
+  color: 'rgb(239, 68, 68)',
+  borderColor: 'rgba(239, 68, 68, 0.4)',
+};
