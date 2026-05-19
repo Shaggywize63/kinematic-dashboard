@@ -97,49 +97,163 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-manrope); letter-spacing: -0.01
 .animate-slide-in { animation: slideIn 0.35s cubic-bezier(0.22,1,0.36,1) both; }
 
 /* ============================================================================
-   Mobile responsive overrides
-   The dashboard pages use inline styles with multi-column grids and flex rows.
-   These rules collapse them gracefully on small screens without touching the
-   per-page code. Selectors target the most common layout primitives.
+   Mobile responsive overrides — catches pages whose inline styles use fixed
+   grid templates, fixed widths, or non-wrapping flex rows. Targets the
+   *generic patterns* React serialises so we don't have to touch every
+   per-page file. Layered in two breakpoints:
+
+     1023px and below — tablets + phones. Sidebar already collapses to a
+       drawer at this width (DashboardLayout.useIsMobile(1024)), so it's
+       safe to also collapse content grids.
+     640px and below — phones only. More aggressive: inputs full-width,
+       smaller paddings, larger touch targets, headings downsized.
+
+   All selectors are inline-style attribute matches with `!important` to
+   beat the inline specificity. Order matters — broader rules earlier,
+   tighter overrides later.
    ============================================================================ */
 @media (max-width: 1023px) {
-  /* Force any inline-styled CSS grid that uses ", 1fr)" templates to a single
-     column on small screens (covers KPI strips, card grids, etc.). */
-  [style*="grid-template-columns: repeat"] {
+  /* ── Grids: any inline grid using fr units collapses to one column.
+        Covers `1fr 1fr`, `2fr 1fr`, `minmax(0, 2fr) minmax(280px, 1fr)`,
+        and `repeat(auto-fit, minmax(NNpx, 1fr))`. */
+  [style*="grid-template-columns"][style*="fr"] {
     grid-template-columns: 1fr !important;
   }
+  [style*="grid-template-columns: repeat"],
   [style*="grid-template-columns:repeat"] {
     grid-template-columns: 1fr !important;
   }
-  /* Filter / toolbar rows (flex with gap) wrap to multiple lines */
+
+  /* ── Flex rows with justify-content space-between (header bars, toolbar
+        rows) wrap to multiple lines so action buttons drop below titles. */
+  [style*="justify-content: space-between"]:not([style*="flex-direction: column"]),
+  [style*="justifyContent:space-between"]:not([style*="flexDirection:column"]) {
+    flex-wrap: wrap !important;
+  }
+  /* Pre-existing rule for explicit flex-wrap */
   [style*="display:flex"][style*="flex-wrap"],
   [style*="display: flex"][style*="flex-wrap"] {
     flex-wrap: wrap !important;
   }
-  /* Tables in cards become horizontally scrollable instead of overflowing */
-  table { display: block; overflow-x: auto; max-width: 100%; }
-  /* Anything with a fixed min-width should not push the viewport */
-  [style*="min-width:1000"], [style*="min-width: 1000"],
-  [style*="min-width:1200"], [style*="min-width: 1200"] { min-width: 100% !important; }
-  /* Reduce big paddings */
-  [style*="padding:25"][style*="px"] { padding: 14px !important; }
-  [style*="padding:30"][style*="px"] { padding: 16px !important; }
-  /* Make the live-tracking sidebar (the FE list) full-width on mobile */
+
+  /* ── Fixed wide sidebars / aside columns collapse to full width.
+        Catches the common 240/280/300/320px hand-coded panels. */
+  main [style*="width: 240px"], main [style*="width:240px"],
+  main [style*="width: 260px"], main [style*="width:260px"],
+  main [style*="width: 280px"], main [style*="width:280px"],
+  main [style*="width: 300px"], main [style*="width:300px"],
+  main [style*="width: 320px"], main [style*="width:320px"],
   main [style*="width:280"][style*="flexShrink"],
   main [style*="width: 280"][style*="flexShrink"] {
     width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* ── Big min-widths shouldn't push the viewport. */
+  [style*="min-width: 800"], [style*="min-width:800"],
+  [style*="min-width: 900"], [style*="min-width:900"],
+  [style*="min-width: 1000"], [style*="min-width:1000"],
+  [style*="min-width: 1100"], [style*="min-width:1100"],
+  [style*="min-width: 1200"], [style*="min-width:1200"] {
+    min-width: 0 !important;
+  }
+
+  /* ── Tables: keep table layout (don't break with display:block) but make
+        sure parents scroll. Most data tables in the codebase wrap their
+        <table> in an overflow-x:auto div already; this just ensures the
+        table doesn't shrink columns below their content width. */
+  table { width: 100% !important; min-width: 0 !important; }
+
+  /* ── Padding reductions on big card containers. */
+  [style*="padding: 22"], [style*="padding:22"],
+  [style*="padding: 24"], [style*="padding:24"],
+  [style*="padding: 25"], [style*="padding:25"],
+  [style*="padding: 28"], [style*="padding:28"],
+  [style*="padding: 30"], [style*="padding:30"] {
+    padding: 14px !important;
   }
 }
 
 @media (max-width: 640px) {
-  /* Even tighter stacking for phones */
-  [style*="display:flex"]:not([style*="flex-direction:column"]):not([style*="flex-direction: column"]) {
+  /* ── Heading font sizes scale down on phones. */
+  [style*="font-size: 32"], [style*="font-size:32"] { font-size: 22px !important; }
+  [style*="font-size: 28"], [style*="font-size:28"] { font-size: 20px !important; }
+  [style*="font-size: 24"], [style*="font-size:24"] { font-size: 18px !important; }
+  [style*="font-size: 22"], [style*="font-size:22"] { font-size: 17px !important; }
+
+  /* ── Card body padding tighter. */
+  [style*="padding: 18"], [style*="padding:18"],
+  [style*="padding: 20"], [style*="padding:20"] { padding: 12px !important; }
+  [style*="padding: 14"], [style*="padding:14"],
+  [style*="padding: 16"], [style*="padding:16"] { padding: 10px !important; }
+
+  /* ── Form inputs span available width so they don't overflow cards. */
+  input[type="text"], input[type="tel"], input[type="email"],
+  input[type="number"], input[type="search"], input[type="date"],
+  input[type="password"], input[type="url"], select, textarea {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    box-sizing: border-box;
+  }
+  /* Search inputs in toolbars often set minWidth: 240 — clamp to viewport. */
+  [style*="min-width: 240"], [style*="min-width:240"],
+  [style*="min-width: 260"], [style*="min-width:260"] {
+    min-width: 0 !important;
+  }
+
+  /* ── Make detail-page action button rows breathe instead of cramming. */
+  [style*="justify-content: flex-end"]:not([style*="flex-direction: column"]),
+  [style*="justifyContent:flex-end"]:not([style*="flexDirection:column"]) {
+    justify-content: flex-start !important;
     flex-wrap: wrap !important;
   }
-  /* Inputs / selects: full-width on phones */
-  input, select, textarea { max-width: 100% !important; }
-  /* Cards and panels: edge-to-edge */
-  [style*="border-radius:16"], [style*="border-radius: 16"] { border-radius: 12px !important; }
+
+  /* ── Border radii a touch smaller for phones. */
+  [style*="border-radius: 16"], [style*="border-radius:16"],
+  [style*="border-radius: 18"], [style*="border-radius:18"],
+  [style*="border-radius: 20"], [style*="border-radius:20"] {
+    border-radius: 12px !important;
+  }
+
+  /* ── Tables on phones: opt-in compact card layout for any table that
+        marks itself .responsive-cards (ContactsTable, future tables).
+        Removes <thead>, stacks each <tr> as a card, and inserts the
+        column label from data-label on each <td>. */
+  table.responsive-cards { display: block; }
+  table.responsive-cards thead { display: none; }
+  table.responsive-cards tbody { display: block; }
+  table.responsive-cards tr {
+    display: block;
+    background: var(--s3);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+  }
+  table.responsive-cards td {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    border: none !important;
+    padding: 4px 0 !important;
+    font-size: 13px;
+  }
+  table.responsive-cards td::before {
+    content: attr(data-label);
+    color: var(--text-dim);
+    font-size: 10px;
+    text-transform: uppercase;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    flex-shrink: 0;
+    min-width: 70px;
+  }
+  table.responsive-cards td[data-label=""]::before { content: none; }
+
+  /* Headings don't break mid-word. */
+  h1, h2, h3 { word-break: break-word; overflow-wrap: anywhere; }
 }
 
 /* CRM: visible affordance for clickable links — underline detail links and chip links */
