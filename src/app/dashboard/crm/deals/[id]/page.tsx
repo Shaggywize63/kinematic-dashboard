@@ -31,6 +31,32 @@ const LOST_REASONS = [
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
+// Friendly labels for the raw `event_type` rows the API returns. Falls
+// back to a Title-Cased version of the raw enum when an event isn't
+// known — keeps the history section honest about new event types.
+const EVENT_LABEL: Record<string, string> = {
+  stage_changed: 'Stage changed',
+  status_changed: 'Status changed',
+  amount_changed: 'Amount changed',
+  closed_won: 'Closed as Won',
+  closed_lost: 'Closed as Lost',
+  reopened: 'Re-opened',
+  created: 'Deal created',
+  note_added: 'Note added',
+};
+const labelEvent = (e: string) => EVENT_LABEL[e] || e.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+
+/**
+ * IST-formatted date + time tuple for the history feed. Returns
+ * { date: 'May 19, 2026', time: '02:47 PM', ts: '2026-05-19T09:17:00Z' }.
+ */
+function fmtIst(iso: string) {
+  const d = new Date(iso);
+  const date = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' });
+  const time = d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' });
+  return { date, time, ts: iso };
+}
+
 export default function DealDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -183,162 +209,182 @@ export default function DealDetailPage() {
   const hasPipeline = !!deal.pipeline_id && stages.length > 0;
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(280px, 1fr)', gap: 18 }}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-        <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 22 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
-            <div>
-              <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)' }}>{deal.name}</div>
-              <div style={{ fontSize: 13, color: 'var(--text-dim)' }}>
-                {deal.account_id ? (
-                  <Link href={`/dashboard/crm/accounts/${deal.account_id}`} style={{ color: 'var(--primary)' }}>
-                    {deal.account_name || 'View account'}
-                  </Link>
-                ) : 'No account'}
-                {deal.lead_id && (<><span> · </span><Link href={`/dashboard/crm/leads/${deal.lead_id}`} style={{ color: 'var(--primary)' }}>From lead</Link></>)}
-                {pipeline && (<><span> · </span><span title="Current pipeline">📋 {pipeline.name}</span></>)}
+    <div>
+      {/* Breadcrumb sits ABOVE the detail card so it spans the full page
+          width and reads cleanly even on narrow screens (where the card
+          would otherwise squash it). */}
+      {hasPipeline && (
+        <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, padding: 12, marginBottom: 14 }}>
+          {deal.status === 'open' ? (
+            <DealStageProgress
+              stages={stages}
+              currentStageId={deal.stage_id}
+              daysInStage={daysInStage}
+              daysToClose={daysToClose}
+              onMove={moveStage}
+              onMarkComplete={markStageComplete}
+            />
+          ) : (
+            <DealStageProgress stages={stages} currentStageId={deal.stage_id} />
+          )}
+        </div>
+      )}
+
+      {/* Responsive 2-column layout — flex+wrap so the right column drops
+          below the left on narrow screens instead of squashing into 280px.
+          Left gets `flex 2 1 380px`, right `flex 1 1 280px` — both stay
+          full width on mobile. */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 18, alignItems: 'flex-start' }}>
+        <div style={{ flex: '2 1 380px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 18 }}>
+          <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 22 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14, gap: 12, flexWrap: 'wrap' }}>
+              <div style={{ flex: '1 1 220px', minWidth: 0 }}>
+                <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', wordBreak: 'break-word' }}>{deal.name}</div>
+                <div style={{ fontSize: 13, color: 'var(--text-dim)' }}>
+                  {deal.account_id ? (
+                    <Link href={`/dashboard/crm/accounts/${deal.account_id}`} style={{ color: 'var(--primary)' }}>
+                      {deal.account_name || 'View account'}
+                    </Link>
+                  ) : 'No account'}
+                  {deal.lead_id && (<><span> · </span><Link href={`/dashboard/crm/leads/${deal.lead_id}`} style={{ color: 'var(--primary)' }}>From lead</Link></>)}
+                  {pipeline && (<><span> · </span><span title="Current pipeline">📋 {pipeline.name}</span></>)}
+                </div>
+              </div>
+              {/* Action buttons wrap onto their own row on narrow screens. */}
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                <button onClick={() => setPipelineModalOpen(true)}
+                  style={{ background: hasPipeline ? 'var(--s3)' : 'var(--primary)', border: hasPipeline ? '1px solid var(--border)' : 'none', color: hasPipeline ? 'var(--text)' : '#fff', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontWeight: 700 }}>
+                  {hasPipeline ? 'Move pipeline' : '+ Add to pipeline'}
+                </button>
+                <button onClick={() => setEditOpen(true)} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>Edit</button>
+                {deal.status === 'open' && (
+                  <button onClick={() => { setCloseOutcome('won'); setCloseOpen(true); }} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>Close Deal</button>
+                )}
+                {deal.status !== 'open' && (
+                  <button onClick={reopenDeal} disabled={reopening} style={{ background: 'var(--s3)', border: '1px solid var(--primary)', color: 'var(--primary)', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: reopening ? 'not-allowed' : 'pointer', opacity: reopening ? 0.6 : 1 }}>{reopening ? 'Re-opening...' : 'Re-open Deal'}</button>
+                )}
+                <button onClick={handleDelete} disabled={deleting} style={{ background: 'transparent', border: '1px solid #ef4444', color: '#ef4444', padding: '8px 14px', borderRadius: 8, cursor: deleting ? 'not-allowed' : 'pointer', opacity: deleting ? 0.6 : 1 }}>{deleting ? 'Deleting...' : 'Delete'}</button>
+                <button onClick={() => router.back()} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer' }}>Back</button>
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <button onClick={() => setPipelineModalOpen(true)}
-                style={{ background: hasPipeline ? 'var(--s3)' : 'var(--primary)', border: hasPipeline ? '1px solid var(--border)' : 'none', color: hasPipeline ? 'var(--text)' : '#fff', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontWeight: 700 }}>
-                {hasPipeline ? 'Move pipeline' : '+ Add to pipeline'}
-              </button>
-              <button onClick={() => setEditOpen(true)} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>Edit</button>
-              {deal.status === 'open' && (
-                <button onClick={() => { setCloseOutcome('won'); setCloseOpen(true); }} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>Close Deal</button>
-              )}
-              {deal.status !== 'open' && (
-                <button onClick={reopenDeal} disabled={reopening} style={{ background: 'var(--s3)', border: '1px solid var(--primary)', color: 'var(--primary)', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: reopening ? 'not-allowed' : 'pointer', opacity: reopening ? 0.6 : 1 }}>{reopening ? 'Re-opening...' : 'Re-open Deal'}</button>
-              )}
-              <button onClick={handleDelete} disabled={deleting} style={{ background: 'transparent', border: '1px solid #ef4444', color: '#ef4444', padding: '8px 14px', borderRadius: 8, cursor: deleting ? 'not-allowed' : 'pointer', opacity: deleting ? 0.6 : 1 }}>{deleting ? 'Deleting...' : 'Delete'}</button>
-              <button onClick={() => router.back()} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer' }}>Back</button>
-            </div>
-          </div>
-          {deal.status === 'won' && (
-            <div style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.4)', color: '#10b981', borderRadius: 10, padding: 10, fontSize: 13, fontWeight: 700, marginBottom: 14, textAlign: 'center' }}>
-              ✓ This deal is closed as WON
-            </div>
-          )}
-          {deal.status === 'lost' && (
-            <div style={{ background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.4)', color: '#ef4444', borderRadius: 10, padding: 10, fontSize: 13, fontWeight: 700, marginBottom: 14, textAlign: 'center' }}>
-              ✗ This deal is closed as LOST
-            </div>
-          )}
-          {hasPipeline && deal.status === 'open' ? (
-            <div style={{ marginBottom: 14 }}>
-              <DealStageProgress
-                stages={stages}
-                currentStageId={deal.stage_id}
-                daysInStage={daysInStage}
-                daysToClose={daysToClose}
-                onMove={moveStage}
-                onMarkComplete={markStageComplete}
-              />
-            </div>
-          ) : !hasPipeline && deal.status === 'open' ? (
-            <div style={{
-              marginBottom: 14, padding: 14, background: 'var(--s3)', border: '1px dashed var(--border)',
-              borderRadius: 10, fontSize: 13, color: 'var(--text-dim)', display: 'flex',
-              alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap',
-            }}>
-              <div>
-                <strong style={{ color: 'var(--text)' }}>This deal is not on a pipeline yet.</strong>
-                <span> Add it to a pipeline to see the stage breadcrumb and forecast win probability.</span>
+            {deal.status === 'won' && (
+              <div style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.4)', color: '#10b981', borderRadius: 10, padding: 10, fontSize: 13, fontWeight: 700, marginBottom: 14, textAlign: 'center' }}>
+                ✓ This deal is closed as WON
               </div>
-              <button onClick={() => setPipelineModalOpen(true)} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>+ Add to pipeline</button>
+            )}
+            {deal.status === 'lost' && (
+              <div style={{ background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.4)', color: '#ef4444', borderRadius: 10, padding: 10, fontSize: 13, fontWeight: 700, marginBottom: 14, textAlign: 'center' }}>
+                ✗ This deal is closed as LOST
+              </div>
+            )}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 14, fontSize: 13 }}>
+              <Field label="Amount" value={formatINR(deal.amount || 0)} />
+              <Field label="Stage" value={deal.stage_name} />
+              <Field label="Status" value={deal.status} />
+              <Field label="Probability" value={`${Math.round((deal.probability || 0) * 100)}%`} />
+              <Field label="Close Date" value={deal.expected_close_date ? new Date(deal.expected_close_date).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' }) : null} />
+              <Field label="Owner" value={deal.owner_name} />
             </div>
-          ) : hasPipeline && deal.status !== 'open' ? (
-            <div style={{ marginBottom: 14 }}>
-              <DealStageProgress stages={stages} currentStageId={deal.stage_id} />
-            </div>
-          ) : null}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 14, fontSize: 13 }}>
-            <Field label="Amount" value={formatINR(deal.amount || 0)} />
-            <Field label="Stage" value={deal.stage_name} />
-            <Field label="Status" value={deal.status} />
-            <Field label="Probability" value={`${Math.round((deal.probability || 0) * 100)}%`} />
-            <Field label="Close Date" value={deal.expected_close_date ? new Date(deal.expected_close_date).toLocaleDateString() : null} />
-            <Field label="Owner" value={deal.owner_name} />
           </div>
+
+          <Card title={`Contacts (${contacts.length})`}>
+            {contacts.length === 0 ? (
+              <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>
+                {deal.primary_contact_id ? (
+                  <Link href={`/dashboard/crm/contacts/${deal.primary_contact_id}`} style={{ color: 'var(--primary)' }}>View primary contact</Link>
+                ) : 'No contacts linked.'}
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {contacts.map((dc) => {
+                  const c = dc.contact;
+                  const name = c?.full_name || `${c?.first_name || ''} ${c?.last_name || ''}`.trim() || c?.email || '—';
+                  return (
+                    <div key={dc.contact_id} style={{ ...rowLink, padding: 0, background: 'transparent', border: 'none', flexWrap: 'wrap' }}>
+                      <Link href={`/dashboard/crm/contacts/${dc.contact_id}`} style={{ ...rowLink, flex: '1 1 220px', marginRight: 0, minWidth: 0 }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ color: 'var(--text)', fontWeight: 600, wordBreak: 'break-word' }}>
+                            {name}
+                            {dc.is_primary && <span style={{ marginLeft: 8, fontSize: 9, background: 'var(--primary)', color: '#fff', padding: '2px 6px', borderRadius: 4, fontWeight: 700 }}>PRIMARY</span>}
+                          </div>
+                          <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{dc.role || c?.title || c?.email || '—'}</div>
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{c?.phone || ''}</div>
+                      </Link>
+                      <CallButton
+                        phone={c?.phone}
+                        prefillSubject={`Call about ${deal.name}`}
+                        dealId={deal.id}
+                        size="sm"
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </Card>
+
+          <Card title={`Activities (${activities.length})`}><ActivityTimeline activities={activities} /></Card>
+
+          <Card title="History">
+            {history.length === 0 ? (
+              <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>No events yet.</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {history.map((h) => {
+                  const t = fmtIst(h.created_at);
+                  const isStageChange = !!(h.from_stage && h.to_stage);
+                  return (
+                    <div key={h.id} style={{
+                      display: 'flex', flexDirection: 'column', gap: 4,
+                      padding: '10px 12px', background: 'var(--s3)', borderRadius: 8,
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{labelEvent(h.event_type)}</span>
+                        {isStageChange && (
+                          <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>
+                            <span style={{ color: 'var(--text)' }}>{h.from_stage}</span>
+                            <span> → </span>
+                            <span style={{ color: '#3E9EFF', fontWeight: 700 }}>{h.to_stage}</span>
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--text-dim)', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        <span>{t.date}</span>
+                        <span>·</span>
+                        <span>{t.time} IST</span>
+                        <span title={t.ts} style={{ fontFamily: 'ui-monospace, monospace', opacity: 0.6 }}>· {t.ts}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </Card>
+
+          <AiDraftReplyPanel dealId={id} />
         </div>
 
-        <Card title={`Contacts (${contacts.length})`}>
-          {contacts.length === 0 ? (
-            <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>
-              {deal.primary_contact_id ? (
-                <Link href={`/dashboard/crm/contacts/${deal.primary_contact_id}`} style={{ color: 'var(--primary)' }}>View primary contact</Link>
-              ) : 'No contacts linked.'}
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {contacts.map((dc) => {
-                const c = dc.contact;
-                const name = c?.full_name || `${c?.first_name || ''} ${c?.last_name || ''}`.trim() || c?.email || '—';
-                return (
-                  <div key={dc.contact_id} style={{ ...rowLink, padding: 0, background: 'transparent', border: 'none' }}>
-                    <Link href={`/dashboard/crm/contacts/${dc.contact_id}`} style={{ ...rowLink, flex: 1, marginRight: 0 }}>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ color: 'var(--text)', fontWeight: 600 }}>
-                          {name}
-                          {dc.is_primary && <span style={{ marginLeft: 8, fontSize: 9, background: 'var(--primary)', color: '#fff', padding: '2px 6px', borderRadius: 4, fontWeight: 700 }}>PRIMARY</span>}
-                        </div>
-                        <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{dc.role || c?.title || c?.email || '—'}</div>
-                      </div>
-                      <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{c?.phone || ''}</div>
-                    </Link>
-                    <CallButton
-                      phone={c?.phone}
-                      prefillSubject={`Call about ${deal.name}`}
-                      dealId={deal.id}
-                      size="sm"
-                    />
-                  </div>
-                );
-              })}
-            </div>
+        <div style={{ flex: '1 1 280px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 18 }}>
+          {primary && (
+            <Card title="Primary Contact">
+              <Link href={`/dashboard/crm/contacts/${primary.contact_id}`} style={chipLink}>
+                → {primary.contact?.full_name || `${primary.contact?.first_name || ''} ${primary.contact?.last_name || ''}`.trim() || 'View contact'}
+              </Link>
+            </Card>
           )}
-        </Card>
 
-        <Card title={`Activities (${activities.length})`}><ActivityTimeline activities={activities} /></Card>
-
-        <Card title="History">
-          {history.length === 0 ? (
-            <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>No events yet.</div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {history.map((h) => (
-                <div key={h.id} style={{ display: 'flex', justifyContent: 'space-between', padding: 10, background: 'var(--s3)', borderRadius: 8, fontSize: 12 }}>
-                  <div><span style={{ color: 'var(--text)' }}>{h.event_type}</span>{h.from_stage && h.to_stage && <span style={{ color: 'var(--text-dim)' }}> · {h.from_stage} → {h.to_stage}</span>}</div>
-                  <div style={{ color: 'var(--text-dim)' }}>{new Date(h.created_at).toLocaleString()}</div>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
-
-        <AiDraftReplyPanel dealId={id} />
-      </div>
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-        {primary && (
-          <Card title="Primary Contact">
-            <Link href={`/dashboard/crm/contacts/${primary.contact_id}`} style={chipLink}>
-              → {primary.contact?.full_name || `${primary.contact?.first_name || ''} ${primary.contact?.last_name || ''}`.trim() || 'View contact'}
-            </Link>
-          </Card>
-        )}
-
-        <WinProbabilityGauge
-          probability={winProb?.probability ?? deal.ai_win_probability ?? deal.probability ?? 0}
-          confidence={winProb?.confidence ?? deal.ai_win_confidence ?? undefined}
-          drivers={winProb?.drivers}
-          ai
-        />
-        <button onClick={loadWinProb} disabled={winBusy} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontSize: 12 }}>
-          {winBusy ? 'Predicting...' : 'Re-forecast Win Probability'}
-        </button>
-        <NextBestActionCard action={nba} onLoad={loadNba} loading={nbaBusy} />
+          <WinProbabilityGauge
+            probability={winProb?.probability ?? deal.ai_win_probability ?? deal.probability ?? 0}
+            confidence={winProb?.confidence ?? deal.ai_win_confidence ?? undefined}
+            drivers={winProb?.drivers}
+            ai
+          />
+          <button onClick={loadWinProb} disabled={winBusy} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontSize: 12 }}>
+            {winBusy ? 'Predicting...' : 'Re-forecast Win Probability'}
+          </button>
+          <NextBestActionCard action={nba} onLoad={loadNba} loading={nbaBusy} />
+        </div>
       </div>
 
       <DealEditModal
@@ -405,9 +451,9 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
 
 function Field({ label, value }: { label: string; value?: string | null }) {
   return (
-    <div>
+    <div style={{ minWidth: 0 }}>
       <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>{label}</div>
-      <div style={{ color: 'var(--text)', marginTop: 2 }}>{value || '—'}</div>
+      <div style={{ color: 'var(--text)', marginTop: 2, wordBreak: 'break-word' }}>{value || '—'}</div>
     </div>
   );
 }
