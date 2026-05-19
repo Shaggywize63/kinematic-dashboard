@@ -45,6 +45,9 @@ export default function NewContactPage() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (form.phone && form.phone.length !== 10) {
+      return toast.error('Primary mobile must be a 10-digit number');
+    }
     setBusy(true);
     try {
       const payload: Record<string, unknown> = {
@@ -71,15 +74,26 @@ export default function NewContactPage() {
     } catch (err: any) { toast.error(err.message || 'Create failed'); setBusy(false); }
   };
 
-  const text = (k: keyof Form, label: string, opts: { type?: string; required?: boolean } = {}) => (
+  // `text()` builds a labelled <input>. When `opts.phone` is true the input
+  // accepts numeric input only (no letters), caps the value at 10 digits,
+  // and shows the phone keypad on mobile.
+  const text = (k: keyof Form, label: string, opts: { type?: string; required?: boolean; phone?: boolean } = {}) => (
     <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
       <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>
         {label}{opts.required && <span style={{ color: '#ef4444', marginLeft: 3 }}>*</span>}
       </span>
       <input
-        type={opts.type || 'text'}
+        type={opts.phone ? 'tel' : (opts.type || 'text')}
+        inputMode={opts.phone ? 'numeric' : undefined}
+        pattern={opts.phone ? '[0-9]{10}' : undefined}
+        maxLength={opts.phone ? 10 : undefined}
+        autoComplete={opts.phone ? 'tel-national' : undefined}
+        placeholder={opts.phone ? '10-digit mobile' : undefined}
         value={form[k] as string}
-        onChange={(e) => setForm({ ...form, [k]: e.target.value })}
+        onChange={(e) => {
+          const v = opts.phone ? e.target.value.replace(/\D/g, '').slice(0, 10) : e.target.value;
+          setForm({ ...form, [k]: v });
+        }}
         required={opts.required}
         style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 }}
       />
@@ -106,9 +120,9 @@ export default function NewContactPage() {
       </p>
 
       {showToggle && (
-        <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
-          <button type="button" onClick={() => setForm({ ...form, is_b2c: true })} style={{ flex: 1, padding: '10px 14px', borderRadius: 8, border: `1px solid ${form.is_b2c ? 'var(--primary)' : 'var(--border)'}`, background: form.is_b2c ? 'var(--primary)' : 'var(--s3)', color: form.is_b2c ? '#fff' : 'var(--text)', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>B2C Customer</button>
-          <button type="button" onClick={() => setForm({ ...form, is_b2c: false })} style={{ flex: 1, padding: '10px 14px', borderRadius: 8, border: `1px solid ${!form.is_b2c ? 'var(--primary)' : 'var(--border)'}`, background: !form.is_b2c ? 'var(--primary)' : 'var(--s3)', color: !form.is_b2c ? '#fff' : 'var(--text)', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>B2B Contact</button>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 18, flexWrap: 'wrap' }}>
+          <button type="button" onClick={() => setForm({ ...form, is_b2c: true })} style={{ flex: '1 1 140px', padding: '10px 14px', borderRadius: 8, border: `1px solid ${form.is_b2c ? 'var(--primary)' : 'var(--border)'}`, background: form.is_b2c ? 'var(--primary)' : 'var(--s3)', color: form.is_b2c ? '#fff' : 'var(--text)', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>B2C Customer</button>
+          <button type="button" onClick={() => setForm({ ...form, is_b2c: false })} style={{ flex: '1 1 140px', padding: '10px 14px', borderRadius: 8, border: `1px solid ${!form.is_b2c ? 'var(--primary)' : 'var(--border)'}`, background: !form.is_b2c ? 'var(--primary)' : 'var(--s3)', color: !form.is_b2c ? '#fff' : 'var(--text)', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>B2B Contact</button>
         </div>
       )}
 
@@ -117,7 +131,7 @@ export default function NewContactPage() {
           {text('first_name', 'First Name', { required: true })}
           {text('last_name', 'Last Name')}
           {text('email', 'Email', { type: 'email', required: !form.is_b2c })}
-          {text('phone', 'Primary Mobile', { required: form.is_b2c })}
+          {text('phone', 'Primary Mobile', { required: form.is_b2c, phone: true })}
         </div>
         <AlternateMobiles
           values={form.alternate_mobiles}
@@ -158,7 +172,7 @@ export default function NewContactPage() {
         </>
       )}
 
-      <div style={{ display: 'flex', gap: 8, marginTop: 18, justifyContent: 'flex-end' }}>
+      <div style={{ display: 'flex', gap: 8, marginTop: 18, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
         <button type="button" onClick={() => router.back()} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 16px', borderRadius: 8, cursor: 'pointer' }}>Cancel</button>
         <button type="submit" disabled={busy} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 18px', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>{busy ? 'Saving...' : 'Create'}</button>
       </div>
