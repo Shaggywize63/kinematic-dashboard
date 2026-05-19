@@ -30,8 +30,9 @@ const C = {
 };
 
 // Small hook so the panel can react to the viewport (sheet-style on phones,
-// floating card on desktop).
-function useIsMobile(breakpoint = 640) {
+// floating card on desktop). 768px catches phones in landscape + tablets in
+// portrait so neither falls into the cramped desktop layout.
+function useIsMobile(breakpoint = 768) {
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -42,6 +43,28 @@ function useIsMobile(breakpoint = 640) {
     return () => mq.removeEventListener('change', handler);
   }, [breakpoint]);
   return isMobile;
+}
+
+// Tracks the visual viewport height so the chat panel resizes when the
+// mobile keyboard opens. Without this, the input field disappears behind
+// the keyboard on iOS Safari. visualViewport is supported on every
+// modern mobile browser; falls back to window.innerHeight when missing.
+function useVisualViewportHeight(active: boolean): number | null {
+  const [h, setH] = useState<number | null>(null);
+  useEffect(() => {
+    if (!active || typeof window === 'undefined') { setH(null); return; }
+    const vv: any = (window as any).visualViewport;
+    const update = () => setH(vv ? vv.height : window.innerHeight);
+    update();
+    if (vv) {
+      vv.addEventListener('resize', update);
+      vv.addEventListener('scroll', update);
+      return () => { vv.removeEventListener('resize', update); vv.removeEventListener('scroll', update); };
+    }
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, [active]);
+  return h;
 }
 
 // Web Speech API recogniser. Returns helpers + the `listening` flag.
@@ -151,6 +174,9 @@ export default function KinematicAI({ token }: { token: string }) {
   const pathname = usePathname();
   const inCrm = isCrmRoute(pathname || '');
   const isMobile = useIsMobile();
+  // Pulls the visual-viewport height so the panel re-sizes when the soft
+  // keyboard opens — only active when the chat is open + on mobile.
+  const vvh = useVisualViewportHeight(open && isMobile);
   // Track monthly KINI usage. Server returns it on every chat response and
   // also exposes a GET /crm/ai/usage endpoint we hit on open so the badge
   // is accurate before the first message.
@@ -166,6 +192,17 @@ export default function KinematicAI({ token }: { token: string }) {
       setTimeout(() => { void send(transcript); }, 30);
     },
   });
+
+  // Lock body scroll when the mobile sheet is open so the page underneath
+  // doesn't rubber-band behind the panel on iOS.
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    if (open && isMobile) {
+      const prev = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => { document.body.style.overflow = prev; };
+    }
+  }, [open, isMobile]);
 
   const fetchLive = useCallback(async () => {
     try {
@@ -300,20 +337,28 @@ Be elite, professional, and data-driven. Use **bold** for key metrics. Proactive
 
   // Sheet (mobile) vs floating card (desktop). On mobile the panel anchors
   // to the bottom of the viewport and fills the width, so it never overflows
-  // off-screen.
-  // Derived: have we hit the monthly cap? Used to grey-out send / mic /
-  // input and surface a friendly notice in the header.
+  // off-screen. Derived: have we hit the monthly cap? Used to grey-out
+  // send / mic / input and surface a friendly notice in the header.
   const capped = !!usage && !usage.exempt && usage.remaining === 0;
+
+  // Mobile sheet covers the full visual viewport. visualViewport.height
+  // shrinks when the keyboard opens, so the panel + input always stay
+  // above the keyboard. Falls back to 100dvh, then 100vh.
+  const mobileHeight = vvh ? `${vvh}px` : '100dvh';
 
   const panelStyle: React.CSSProperties = isMobile
     ? {
-        position: 'fixed', left: 0, right: 0, bottom: 0,
-        width: '100%', height: '85dvh', maxHeight: '90vh',
-        background: C.s2, borderTopLeftRadius: 20, borderTopRightRadius: 20,
+        position: 'fixed', left: 0, right: 0, top: 0,
+        width: '100%', height: mobileHeight,
+        background: C.s2,
         borderTop: `1px solid ${C.border}`,
         display: 'flex', flexDirection: 'column', zIndex: 999,
         boxShadow: '0 -20px 60px rgba(0,0,0,0.35)',
         animation: 'km-ai-slide-up .25s ease-out',
+        // Honor iOS notch + home indicator so the header isn't under the
+        // status bar and the input bar isn't under the home indicator.
+        paddingTop: 'env(safe-area-inset-top)',
+        paddingBottom: 'env(safe-area-inset-bottom)',
       }
     : {
         position: 'fixed', bottom: 105, right: 30, zIndex: 999,
@@ -333,29 +378,26 @@ Be elite, professional, and data-driven. Use **bold** for key metrics. Proactive
         @keyframes km-mic-pulse  { 0%,100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.18); opacity: 0.7; } }
       `}</style>
 
-      {/* Backdrop scrim on mobile so taps outside dismiss the sheet */}
-      {open && isMobile && (
-        <div onClick={() => setOpen(false)} style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 998,
-          animation: 'km-ai-slide-up .25s ease-out',
-        }} />
-      )}
-
       <button
         onClick={() => setOpen(o => !o)}
         aria-label="Open Kini AI"
         style={{
           position: 'fixed',
-          bottom: isMobile ? 20 : 30, right: isMobile ? 20 : 30,
-          zIndex: 1000, width: 60, height: 60, borderRadius: 22,
+          bottom: isMobile ? 'calc(20px + env(safe-area-inset-bottom))' : 30,
+          right: isMobile ? 16 : 30,
+          zIndex: 1000,
+          width: isMobile ? 56 : 60,
+          height: isMobile ? 56 : 60,
+          borderRadius: isMobile ? 20 : 22,
           background: open ? C.s3 : `linear-gradient(135deg, ${C.red}, #FF4D4D)`, color: '#fff',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          display: open && isMobile ? 'none' : 'flex',
+          alignItems: 'center', justifyContent: 'center',
           boxShadow: open ? 'none' : '0 10px 30px rgba(224,30,44,0.4)',
           cursor: 'pointer', border: 'none',
           animation: !open ? 'km-ai-pulse 2s infinite' : 'none',
           transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
         }}>
-        <span style={{ fontSize: 24, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))' }}>{open ? '✕' : '✦'}</span>
+        <span style={{ fontSize: 22, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))' }}>{open ? '✕' : '✦'}</span>
       </button>
 
       {open && (
@@ -364,27 +406,28 @@ Be elite, professional, and data-driven. Use **bold** for key metrics. Proactive
               both themes by using the brand red gradient as the only saturated
               element. */}
           <div style={{
-            padding: '16px 20px',
+            padding: isMobile ? '12px 16px' : '16px 20px',
             background: `linear-gradient(120deg, ${C.red} 0%, #FF4D4D 70%, ${C.blue} 130%)`,
             color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            flexShrink: 0,
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
               <div style={{
                 width: 36, height: 36, borderRadius: 12,
                 background: 'rgba(255,255,255,0.18)', backdropFilter: 'blur(8px)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 18,
+                fontSize: 18, flexShrink: 0,
               }}>✦</div>
-              <div>
+              <div style={{ minWidth: 0 }}>
                 <div style={{ fontWeight: 900, fontSize: 15, fontFamily: 'var(--font-manrope, inherit)', display: 'flex', alignItems: 'center', gap: 6 }}>
                   Kini AI {inCrm && <span style={{ fontSize: 9, background: 'rgba(255,255,255,0.18)', padding: '2px 8px', borderRadius: 999, fontWeight: 800, letterSpacing: 0.6 }}>CRM</span>}
                 </div>
-                <div style={{ fontSize: 10, fontWeight: 700, opacity: 0.9, textTransform: 'uppercase', letterSpacing: 1.2, marginTop: 2 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, opacity: 0.9, textTransform: 'uppercase', letterSpacing: 1.2, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {inCrm ? 'Agentic CRM Copilot' : 'Operations Assistant'}
                 </div>
               </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
               {usage && !usage.exempt && (
                 <span
                   title={`${usage.used} of ${usage.cap} AI queries this month`}
@@ -395,29 +438,47 @@ Be elite, professional, and data-driven. Use **bold** for key metrics. Proactive
                   }}
                 >{usage.used}/{usage.cap}</span>
               )}
-              <button
-                onClick={() => setMsgs([])}
-                title="Clear conversation"
-                style={{ background: 'rgba(255,255,255,0.18)', border: 'none', color: '#fff', fontSize: 10, cursor: 'pointer', padding: '6px 12px', borderRadius: 8, fontWeight: 700 }}
-              >Clear</button>
+              {!isMobile && (
+                <button
+                  onClick={() => setMsgs([])}
+                  title="Clear conversation"
+                  style={{ background: 'rgba(255,255,255,0.18)', border: 'none', color: '#fff', fontSize: 10, cursor: 'pointer', padding: '6px 12px', borderRadius: 8, fontWeight: 700 }}
+                >Clear</button>
+              )}
+              {/* Always-visible close on mobile — the FAB is hidden once the
+                  sheet is open, so the user needs an explicit dismiss target.
+                  Doubles as Clear on long-press not implemented; reps can
+                  swipe back via the OS back gesture or this X. */}
+              {isMobile && (
+                <button
+                  onClick={() => setOpen(false)}
+                  title="Close"
+                  aria-label="Close Kini"
+                  style={{ background: 'rgba(255,255,255,0.18)', border: 'none', color: '#fff', fontSize: 18, cursor: 'pointer', width: 32, height: 32, borderRadius: 10, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
+                >×</button>
+              )}
             </div>
           </div>
 
           {usage && !usage.exempt && usage.remaining === 0 && (
-            <div style={{ padding: '10px 16px', background: 'rgba(255,184,0,0.12)', borderBottom: '1px solid var(--border)', fontSize: 12, color: 'var(--text)' }}>
+            <div style={{ padding: '10px 16px', background: 'rgba(255,184,0,0.12)', borderBottom: '1px solid var(--border)', fontSize: 12, color: 'var(--text)', flexShrink: 0 }}>
               You've used all <strong>{usage.cap}</strong> AI queries this month. The counter resets on the 1st.
             </div>
           )}
 
-          <div style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: 16, scrollBehavior: 'smooth', background: C.s1 }}>
+          {/* Mobile gets tighter padding so message bubbles don't waste a
+              quarter of the screen on a 360px-wide phone. */}
+          <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '14px 12px' : '20px', display: 'flex', flexDirection: 'column', gap: isMobile ? 10 : 16, scrollBehavior: 'smooth', background: C.s1, WebkitOverflowScrolling: 'touch' as any }}>
             {msgs.length === 0 && (
               <EmptyState inCrm={inCrm} onTry={(t) => { setInput(t); }} />
             )}
             {msgs.map((m, i) => (
               <div key={i} style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
                 <div style={{
-                  padding: '11px 16px', borderRadius: 18,
-                  fontSize: 14, lineHeight: 1.55, maxWidth: '88%',
+                  padding: isMobile ? '9px 13px' : '11px 16px',
+                  borderRadius: isMobile ? 16 : 18,
+                  fontSize: isMobile ? 13.5 : 14, lineHeight: 1.5,
+                  maxWidth: isMobile ? '92%' : '88%',
                   background: m.role === 'user'
                     ? `linear-gradient(135deg, ${C.red}, #FF4D4D)`
                     : C.s2,
@@ -425,6 +486,8 @@ Be elite, professional, and data-driven. Use **bold** for key metrics. Proactive
                   border: m.role === 'user' ? 'none' : `1px solid ${C.border}`,
                   boxShadow: m.role === 'user' ? '0 6px 16px rgba(224,30,44,0.18)' : 'none',
                   animation: m.loading ? 'km-ai-shimmer 1.5s infinite' : 'none',
+                  wordBreak: 'break-word',
+                  overflowWrap: 'anywhere',
                 }}>
                   {m.loading ? (
                     <div style={{ display: 'flex', gap: 4, padding: '4px 2px' }}>
@@ -445,8 +508,10 @@ Be elite, professional, and data-driven. Use **bold** for key metrics. Proactive
           </div>
 
           <div style={{
-            padding: '14px 16px', background: C.s2, borderTop: `1px solid ${C.border}`,
+            padding: isMobile ? '10px 12px' : '14px 16px',
+            background: C.s2, borderTop: `1px solid ${C.border}`,
             display: 'flex', gap: 8, alignItems: 'center',
+            flexShrink: 0,
           }}>
             <input
               value={input}
@@ -455,7 +520,10 @@ Be elite, professional, and data-driven. Use **bold** for key metrics. Proactive
               disabled={busy || capped}
               style={{
                 flex: 1, background: C.s3, border: `1px solid ${C.border}`,
-                borderRadius: 14, padding: '12px 16px', color: C.white, fontSize: 14,
+                borderRadius: 14,
+                padding: isMobile ? '10px 12px' : '12px 16px',
+                color: C.white,
+                fontSize: 16,  // 16px prevents iOS Safari zooming on focus
                 outline: 'none', transition: 'border-color 0.2s',
                 minWidth: 0, // critical: lets the flex item shrink below its content
                 opacity: capped ? 0.5 : 1,
@@ -463,7 +531,7 @@ Be elite, professional, and data-driven. Use **bold** for key metrics. Proactive
               placeholder={
                 capped ? 'Limit reached — resets on the 1st'
                 : speech.listening ? 'Listening…'
-                : (inCrm ? 'Ask, or "add deal", "log call"… (हिन्दी, বাংলা, ଓଡ଼ିଆ, অসমীয়া also supported)' : 'Ask anything about operations…')
+                : (inCrm ? (isMobile ? 'Ask, or "add deal", "log call"…' : 'Ask, or "add deal", "log call"… (हिन्दी, বাংলা, ଓଡ଼ିଆ, অসমীয়া also supported)') : 'Ask anything about operations…')
               }
             />
 
@@ -476,7 +544,8 @@ Be elite, professional, and data-driven. Use **bold** for key metrics. Proactive
                 style={{
                   background: speech.listening ? C.red : C.s3,
                   border: `1px solid ${speech.listening ? C.red : C.border}`,
-                  borderRadius: 14, width: 44, height: 44,
+                  borderRadius: 14,
+                  width: isMobile ? 40 : 44, height: isMobile ? 40 : 44,
                   color: speech.listening ? '#fff' : C.white,
                   cursor: (busy || capped) ? 'not-allowed' : 'pointer',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -497,7 +566,8 @@ Be elite, professional, and data-driven. Use **bold** for key metrics. Proactive
               aria-label="Send"
               style={{
                 background: C.red, border: 'none', borderRadius: 14,
-                width: 44, height: 44, color: 'white', cursor: 'pointer',
+                width: isMobile ? 40 : 44, height: isMobile ? 40 : 44,
+                color: 'white', cursor: 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 opacity: (busy || capped || !input.trim()) ? 0.5 : 1,
                 flexShrink: 0, transition: 'opacity 0.2s',
