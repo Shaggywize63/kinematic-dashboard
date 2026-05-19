@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -16,7 +16,18 @@ const DealKanban = dynamic(() => import('../../../../components/crm/DealKanban')
 
 type ViewMode = 'list' | 'kanban';
 
-export default function DealsListPage() {
+// Next.js requires useSearchParams() to be wrapped in a Suspense boundary
+// for static prerendering. The page-level default export wraps the real
+// component in <Suspense> so the build stays static-friendly.
+export default function DealsListPageWrapper() {
+  return (
+    <Suspense fallback={<div style={{ color: 'var(--text-dim)' }}>Loading deals…</div>}>
+      <DealsListPage />
+    </Suspense>
+  );
+}
+
+function DealsListPage() {
   const router = useRouter();
   const search = useSearchParams();
   const initialView: ViewMode = search.get('view') === 'kanban' ? 'kanban' : 'list';
