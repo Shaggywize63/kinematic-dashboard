@@ -10,6 +10,16 @@ interface Props {
   onAssign?: (contactId: string, userId: string | null) => Promise<void>;
 }
 
+/**
+ * ContactsTable
+ *
+ * On wide screens this is a normal HTML <table>. On phones (≤640px),
+ * `globals.css` flips `.responsive-cards` into a card-stack layout —
+ * each row becomes a small card with `data-label`s replacing the
+ * <thead>. No JS / no re-render — pure CSS via the global rule, so
+ * every table that opts in (just add `responsive-cards` + data-label)
+ * gets the same treatment.
+ */
 export default function ContactsTable({ contacts, loading, isB2C = false, onAssign }: Props) {
   const td: React.CSSProperties = { padding: '12px 14px', fontSize: 13, color: 'var(--text)', borderBottom: '1px solid var(--border)' };
   const th: React.CSSProperties = { padding: '10px 14px', fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', textAlign: 'left', borderBottom: '1px solid var(--border)', background: 'var(--s2)', fontWeight: 700, letterSpacing: 0.6 };
@@ -17,7 +27,7 @@ export default function ContactsTable({ contacts, loading, isB2C = false, onAssi
   return (
     <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, overflow: 'hidden' }}>
       <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <table className="responsive-cards" style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
               <th style={th}>Name</th>
@@ -28,20 +38,20 @@ export default function ContactsTable({ contacts, loading, isB2C = false, onAssi
             </tr>
           </thead>
           <tbody>
-            {loading && <tr><td colSpan={colCount} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)' }}>Loading...</td></tr>}
-            {!loading && contacts.length === 0 && <tr><td colSpan={colCount} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)' }}>No contacts found.</td></tr>}
+            {loading && <tr><td colSpan={colCount} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)' }} data-label="">Loading...</td></tr>}
+            {!loading && contacts.length === 0 && <tr><td colSpan={colCount} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)' }} data-label="">No contacts found.</td></tr>}
             {contacts.map((c) => (
               <tr key={c.id}>
-                <td style={td}>
+                <td style={td} data-label="Name">
                   <Link href={`/dashboard/crm/contacts/${c.id}`} style={{ color: 'var(--text)', fontWeight: 600 }}>
                     {c.full_name || `${c.first_name || ''} ${c.last_name || ''}`.trim() || c.email}
                   </Link>
                   {c.title && <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{c.title}</div>}
                 </td>
-                {!isB2C && <td style={td}>{c.account_name || '—'}</td>}
-                <td style={td}>{c.email || '—'}</td>
-                <td style={td}>{c.phone || '—'}</td>
-                <td style={td}>
+                {!isB2C && <td style={td} data-label="Account">{c.account_name || '—'}</td>}
+                <td style={td} data-label="Email">{c.email || '—'}</td>
+                <td style={td} data-label="Phone">{c.phone || '—'}</td>
+                <td style={td} data-label="Owner">
                   {onAssign ? (
                     <InlineOwnerAssign
                       currentOwnerId={c.owner_id}
