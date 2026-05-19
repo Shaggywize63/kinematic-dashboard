@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { crmLeads, crmProducts } from '../../lib/crmApi';
 import { useClient } from '../../context/ClientContext';
@@ -22,6 +23,7 @@ interface Props {
 const TATA_TISCON_CLIENT_ID = 'a1f67468-526e-4734-be3a-2cb132cc2804';
 
 export default function LeadConvertModal({ leadId, defaultDealName, open, onClose, onConverted }: Props) {
+  const router = useRouter();
   const [createAccount, setCreateAccount] = useState(true);
   const [createDeal, setCreateDeal] = useState(true);
   const [dealName, setDealName] = useState(defaultDealName || '');
@@ -30,6 +32,28 @@ export default function LeadConvertModal({ leadId, defaultDealName, open, onClos
   const [productId, setProductId] = useState<string>('');
   const [products, setProducts] = useState<Product[]>([]);
   const [busy, setBusy] = useState(false);
+
+  // Pre-fill the deal name from the lead — caller usually passes a
+  // sensible default (e.g. "Acme Steel Opportunity"). If they didn't,
+  // fetch the lead and compose one from full_name / first+last / email
+  // so the field is never blank on open.
+  useEffect(() => {
+    if (!open) return;
+    if (defaultDealName) { setDealName(defaultDealName); return; }
+    let cancelled = false;
+    crmLeads.get(leadId).then((r) => {
+      if (cancelled) return;
+      const l: any = r.data;
+      const name =
+        l?.full_name ||
+        `${l?.first_name || ''} ${l?.last_name || ''}`.trim() ||
+        l?.company ||
+        l?.email ||
+        '';
+      if (name) setDealName(`${name} Opportunity`);
+    }).catch(() => { /* leave blank, rep can type */ });
+    return () => { cancelled = true; };
+  }, [open, defaultDealName, leadId]);
 
   // Tata Tiscon detection mirrors the dashboard ₹/Weight toggle gate:
   // a client-pinned user whose JWT carries Tata's client_id, OR a
@@ -89,20 +113,29 @@ export default function LeadConvertModal({ leadId, defaultDealName, open, onClos
   const submit = async () => {
     setBusy(true);
     try {
-      await crmLeads.convert(leadId, {
+      const r = await crmLeads.convert(leadId, {
         create_account: createAccount,
         create_deal: createDeal,
         deal_name: dealName || undefined,
         deal_amount: dealAmount ? Number(dealAmount) : undefined,
-        // Volume + product only sent when the weight UI is allowed; for
-        // non-Tata clients these stay undefined and the backend just uses
-        // the amount the rep typed.
         deal_volume_kg: allowWeight && dealVolumeKg ? Number(dealVolumeKg) : undefined,
         deal_product_id: allowWeight && productId ? productId : undefined,
       } as any);
       toast.success('Lead converted successfully');
       onConverted?.();
       onClose();
+
+      // After conversion, jump straight to the new Deal page so the rep
+      // can keep working there. The convert endpoint returns either a
+      // nested deal object or a flat deal_id depending on backend rev —
+      // try both, fall back to the deals list if neither is present.
+      const data: any = (r as any)?.data ?? r;
+      const dealId = data?.deal?.id || data?.deal_id;
+      if (createDeal && dealId) {
+        router.push(`/dashboard/crm/deals/${dealId}`);
+      } else if (createDeal) {
+        router.push('/dashboard/crm/deals');
+      }
     } catch (e: any) {
       toast.error(e.message || 'Conversion failed');
     } finally {
@@ -111,8 +144,8 @@ export default function LeadConvertModal({ leadId, defaultDealName, open, onClos
   };
 
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 24, width: 480, maxWidth: '95vw' }}>
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 22, width: 480, maxWidth: '100%', maxHeight: '90vh', overflowY: 'auto' }}>
         <h3 style={{ margin: '0 0 14px', color: 'var(--text)' }}>Convert Lead</h3>
         <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8, color: 'var(--text)', fontSize: 13 }}>
           <input type="checkbox" checked={createAccount} onChange={(e) => setCreateAccount(e.target.checked)} /> Create Account
@@ -122,8 +155,8 @@ export default function LeadConvertModal({ leadId, defaultDealName, open, onClos
         </label>
         {createDeal && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
-            <Field label="Deal name">
-              <input value={dealName} onChange={(e) => setDealName(e.target.value)} placeholder="Auto-named if blank" style={inputCss} />
+            <Field label="Deal name (editable)">
+              <input value={dealName} onChange={(e) => setDealName(e.target.value)} placeholder="e.g. Acme Steel Opportunity" style={inputCss} />
             </Field>
 
             {/* Weight-based sizing — Tata Tiscon only. Lets the rep
@@ -157,9 +190,9 @@ export default function LeadConvertModal({ leadId, defaultDealName, open, onClos
             )}
           </div>
         )}
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 14 }}>
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 14, flexWrap: 'wrap' }}>
           <button onClick={onClose} style={btnGhost}>Cancel</button>
-          <button onClick={submit} disabled={busy} style={btnPrimary}>{busy ? 'Converting...' : 'Convert'}</button>
+          <button onClick={submit} disabled={busy} style={btnPrimary}>{busy ? 'Converting...' : 'Convert & open deal'}</button>
         </div>
       </div>
     </div>
