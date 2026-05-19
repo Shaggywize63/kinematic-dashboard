@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
@@ -12,6 +12,7 @@ import AiDraftReplyPanel from '../../../../../components/crm/AiDraftReplyPanel';
 import CallButton from '../../../../../components/crm/shared/CallButton';
 import ActivityTimeline from '../../../../../components/crm/ActivityTimeline';
 import DealEditModal from '../../../../../components/crm/DealEditModal';
+import AddToPipelineModal from '../../../../../components/crm/AddToPipelineModal';
 import { formatINR } from '../../../../../lib/formatCurrency';
 
 const LOST_REASONS = [
@@ -28,11 +29,14 @@ const LOST_REASONS = [
   'Other',
 ];
 
+const MS_PER_DAY = 1000 * 60 * 60 * 24;
+
 export default function DealDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [deal, setDeal] = useState<Deal | null>(null);
   const [pipeline, setPipeline] = useState<Pipeline | null>(null);
+  const [allPipelines, setAllPipelines] = useState<Pipeline[]>([]);
   const [history, setHistory] = useState<DealHistoryEntry[]>([]);
   const [contacts, setContacts] = useState<DealContact[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
@@ -42,6 +46,7 @@ export default function DealDetailPage() {
   const [nbaBusy, setNbaBusy] = useState(false);
   const [winBusy, setWinBusy] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [pipelineModalOpen, setPipelineModalOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [closeOpen, setCloseOpen] = useState(false);
   const [closeOutcome, setCloseOutcome] = useState<'won' | 'lost'>('won');
@@ -54,19 +59,25 @@ export default function DealDetailPage() {
     if (!id) return;
     setLoading(true);
     try {
-      const [d, h, c, a] = await Promise.allSettled([
+      const [d, h, c, a, pp] = await Promise.allSettled([
         crmDeals.get(id),
         crmDeals.history(id),
         crmDeals.contacts(id),
         crmDeals.activities(id),
+        crmPipelines.list(),
       ]);
       if (d.status === 'fulfilled') {
         setDeal(d.value.data);
-        try { const p = await crmPipelines.get(d.value.data.pipeline_id); setPipeline(p.data); } catch {}
+        if (d.value.data.pipeline_id) {
+          try { const p = await crmPipelines.get(d.value.data.pipeline_id); setPipeline(p.data); } catch {}
+        } else {
+          setPipeline(null);
+        }
       }
       if (h.status === 'fulfilled') setHistory(h.value.data || []);
       if (c.status === 'fulfilled') setContacts(c.value.data || []);
       if (a.status === 'fulfilled') setActivities(a.value.data || []);
+      if (pp.status === 'fulfilled') setAllPipelines(pp.value.data || []);
     } catch (e: any) { toast.error(e.message || 'Load failed'); } finally { setLoading(false); }
   };
 
@@ -77,6 +88,37 @@ export default function DealDetailPage() {
     try { await crmDeals.moveStage(deal.id, { stage_id: stageId }); toast.success('Stage updated'); reload(); }
     catch (e: any) { toast.error(e.message || 'Failed'); }
   };
+
+  // Compute "days in current stage" from the most recent stage-change
+  // history event for this deal. Falls back to created_at when the deal
+  // has never moved.
+  const daysInStage = useMemo<number | undefined>(() => {
+    if (!deal) return undefined;
+    const sinceIso =
+      (deal as any).stage_changed_at ||
+      history.find((h) => h.event_type === 'stage_changed' || h.to_stage)?.created_at ||
+      deal.created_at;
+    if (!sinceIso) return undefined;
+    const diff = Date.now() - new Date(sinceIso).getTime();
+    return Math.max(0, Math.floor(diff / MS_PER_DAY));
+  }, [deal, history]);
+
+  const daysToClose = useMemo<number | null>(() => {
+    if (!deal?.expected_close_date) return null;
+    const diff = new Date(deal.expected_close_date).getTime() - Date.now();
+    return Math.ceil(diff / MS_PER_DAY);
+  }, [deal]);
+
+  const markStageComplete = () => {
+    if (!deal || !pipeline) return;
+    const sorted = [...(pipeline.stages || [])].sort((a, b) => a.position - b.position);
+    const currIdx = sorted.findIndex((s) => s.id === deal.stage_id);
+    for (let i = currIdx + 1; i < sorted.length; i++) {
+      if (sorted[i].stage_type === 'open') return moveStage(sorted[i].id);
+    }
+    toast.info('No more open stages — use Close Deal to mark won or lost.');
+  };
+
   const closeDeal = async () => {
     if (!deal) return;
     setClosing(true);
@@ -138,6 +180,7 @@ export default function DealDetailPage() {
   if (!deal) return <div style={{ color: 'var(--text-dim)' }}>Deal not found.</div>;
   const stages = pipeline?.stages || [];
   const primary = contacts.find((c) => c.is_primary) || contacts[0];
+  const hasPipeline = !!deal.pipeline_id && stages.length > 0;
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(280px, 1fr)', gap: 18 }}>
@@ -153,9 +196,14 @@ export default function DealDetailPage() {
                   </Link>
                 ) : 'No account'}
                 {deal.lead_id && (<><span> · </span><Link href={`/dashboard/crm/leads/${deal.lead_id}`} style={{ color: 'var(--primary)' }}>From lead</Link></>)}
+                {pipeline && (<><span> · </span><span title="Current pipeline">📋 {pipeline.name}</span></>)}
               </div>
             </div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button onClick={() => setPipelineModalOpen(true)}
+                style={{ background: hasPipeline ? 'var(--s3)' : 'var(--primary)', border: hasPipeline ? '1px solid var(--border)' : 'none', color: hasPipeline ? 'var(--text)' : '#fff', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontWeight: 700 }}>
+                {hasPipeline ? 'Move pipeline' : '+ Add to pipeline'}
+              </button>
               <button onClick={() => setEditOpen(true)} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>Edit</button>
               {deal.status === 'open' && (
                 <button onClick={() => { setCloseOutcome('won'); setCloseOpen(true); }} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>Close Deal</button>
@@ -177,11 +225,34 @@ export default function DealDetailPage() {
               ✗ This deal is closed as LOST
             </div>
           )}
-          {stages.length > 0 && deal.status === 'open' && (
+          {hasPipeline && deal.status === 'open' ? (
             <div style={{ marginBottom: 14 }}>
-              <DealStageProgress stages={stages} currentStageId={deal.stage_id} onMove={moveStage} />
+              <DealStageProgress
+                stages={stages}
+                currentStageId={deal.stage_id}
+                daysInStage={daysInStage}
+                daysToClose={daysToClose}
+                onMove={moveStage}
+                onMarkComplete={markStageComplete}
+              />
             </div>
-          )}
+          ) : !hasPipeline && deal.status === 'open' ? (
+            <div style={{
+              marginBottom: 14, padding: 14, background: 'var(--s3)', border: '1px dashed var(--border)',
+              borderRadius: 10, fontSize: 13, color: 'var(--text-dim)', display: 'flex',
+              alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap',
+            }}>
+              <div>
+                <strong style={{ color: 'var(--text)' }}>This deal is not on a pipeline yet.</strong>
+                <span> Add it to a pipeline to see the stage breadcrumb and forecast win probability.</span>
+              </div>
+              <button onClick={() => setPipelineModalOpen(true)} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>+ Add to pipeline</button>
+            </div>
+          ) : hasPipeline && deal.status !== 'open' ? (
+            <div style={{ marginBottom: 14 }}>
+              <DealStageProgress stages={stages} currentStageId={deal.stage_id} />
+            </div>
+          ) : null}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 14, fontSize: 13 }}>
             <Field label="Amount" value={formatINR(deal.amount || 0)} />
             <Field label="Stage" value={deal.stage_name} />
@@ -204,11 +275,6 @@ export default function DealDetailPage() {
               {contacts.map((dc) => {
                 const c = dc.contact;
                 const name = c?.full_name || `${c?.first_name || ''} ${c?.last_name || ''}`.trim() || c?.email || '—';
-                // Two side-by-side controls: the name (Link to contact) and
-                // an inline phone + Call button. Keeping the Call button as
-                // a *sibling* of the Link instead of a child avoids invalid
-                // nested-<a> HTML — tel: would render an <a> inside the
-                // contact-link <a> otherwise.
                 return (
                   <div key={dc.contact_id} style={{ ...rowLink, padding: 0, background: 'transparent', border: 'none' }}>
                     <Link href={`/dashboard/crm/contacts/${dc.contact_id}`} style={{ ...rowLink, flex: 1, marginRight: 0 }}>
@@ -281,6 +347,14 @@ export default function DealDetailPage() {
         open={editOpen}
         onClose={() => setEditOpen(false)}
         onSaved={(updated) => { setDeal(updated); reload(); }}
+      />
+
+      <AddToPipelineModal
+        deal={deal}
+        pipelines={allPipelines}
+        open={pipelineModalOpen}
+        onClose={() => setPipelineModalOpen(false)}
+        onUpdated={(updated) => { setDeal(updated); reload(); }}
       />
 
       {closeOpen && (
