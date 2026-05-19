@@ -1,13 +1,20 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { toast } from 'sonner';
 import { crmAnalytics, crmSettings, crmLeads } from '../../../../lib/crmApi';
 import { fmtValue, type DashboardUnit } from '../../../../lib/formatCurrency';
 import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
+import { useClient } from '../../../../context/ClientContext';
 import StatCard from '../../../../components/crm/shared/StatCard';
 import PinnedOverviewSection from '../../../../components/crm/analytics/PinnedOverviewSection';
 import { getStoredUser, canAccess } from '../../../../lib/auth';
+
+// Weight/INR toggle is bespoke for Tata Tiscon — they bill in metric
+// tonnes of TMT bar so the dashboard re-aggregates monetary numbers as
+// weight. No other client sells by mass, so the toggle is hidden for
+// everyone else and the unit is force-pinned to INR.
+const TATA_TISCON_CLIENT_ID = 'a1f67468-526e-4734-be3a-2cb132cc2804';
 
 // Recharts is heavy (~150 KB gzipped). Lazy-load each chart so the dashboard
 // initial bundle stays small and charts only download when their card paints.
@@ -87,14 +94,45 @@ export default function CrmDashboardPage() {
   const [savingLayout, setSavingLayout] = useState(false);
   const [crmConfig, setCrmConfig] = useState<Record<string, unknown>>({});
   const [unit, setUnit] = useState<DashboardUnit>('inr');
+
+  // Weight toggle gate: visible iff the active scope is Tata Tiscon.
+  //   * Client-level users (their JWT is pinned to one client) — check the
+  //     user's client_id on the stored profile.
+  //   * Platform admins — check the global client picker selection. Hops
+  //     between clients in the same browser session, so we re-evaluate on
+  //     selection change.
+  const { selectedClientId } = useClient();
+  const userClientId = useMemo<string | null>(() => {
+    try {
+      const raw = typeof window !== 'undefined' ? localStorage.getItem('kinematic_user') : null;
+      return raw ? (JSON.parse(raw)?.client_id ?? null) : null;
+    } catch { return null; }
+  }, []);
+  const allowWeightToggle =
+    userClientId === TATA_TISCON_CLIENT_ID ||
+    selectedClientId === TATA_TISCON_CLIENT_ID;
+
   useEffect(() => {
+    if (!allowWeightToggle) return; // Non-Tata clients never resurrect 'weight'.
     try {
       if (typeof window !== 'undefined' && window.localStorage.getItem('crm_dashboard_unit') === 'weight') {
         setUnit('weight');
       }
     } catch { /* ignore */ }
-  }, []);
+  }, [allowWeightToggle]);
+
+  // When the gate flips off (e.g. platform admin switches off Tata Tiscon
+  // via the global picker), force back to INR so the page doesn't keep
+  // rendering kilograms with no way to toggle out.
+  useEffect(() => {
+    if (!allowWeightToggle && unit !== 'inr') {
+      setUnit('inr');
+      try { window.localStorage.removeItem('crm_dashboard_unit'); } catch { /* ignore */ }
+    }
+  }, [allowWeightToggle, unit]);
+
   const setUnitPersisted = (next: DashboardUnit) => {
+    if (next === 'weight' && !allowWeightToggle) return; // defensive — toggle isn't rendered
     setUnit(next);
     try {
       if (typeof window !== 'undefined') window.localStorage.setItem('crm_dashboard_unit', next);
@@ -179,30 +217,32 @@ export default function CrmDashboardPage() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
       <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-        <div
-          role="tablist"
-          aria-label="Display unit"
-          style={{ display: 'inline-flex', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 8, padding: 3 }}
-        >
-          <button
-            role="tab"
-            aria-selected={unit === 'inr'}
-            onClick={() => setUnitPersisted('inr')}
-            style={{ padding: '4px 14px', borderRadius: 6, background: unit === 'inr' ? 'var(--s4)' : 'transparent', border: 'none', color: unit === 'inr' ? 'var(--text)' : 'var(--text-dim)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
-            title="Show monetary values in rupees"
+        {allowWeightToggle && (
+          <div
+            role="tablist"
+            aria-label="Display unit"
+            style={{ display: 'inline-flex', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 8, padding: 3 }}
           >
-            ₹ Cost
-          </button>
-          <button
-            role="tab"
-            aria-selected={unit === 'weight'}
-            onClick={() => setUnitPersisted('weight')}
-            style={{ padding: '4px 14px', borderRadius: 6, background: unit === 'weight' ? 'var(--s4)' : 'transparent', border: 'none', color: unit === 'weight' ? 'var(--text)' : 'var(--text-dim)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
-            title="Show metrics as weight (kg / tonnes), aggregated from deal line items"
-          >
-            ⚖ Weight
-          </button>
-        </div>
+            <button
+              role="tab"
+              aria-selected={unit === 'inr'}
+              onClick={() => setUnitPersisted('inr')}
+              style={{ padding: '4px 14px', borderRadius: 6, background: unit === 'inr' ? 'var(--s4)' : 'transparent', border: 'none', color: unit === 'inr' ? 'var(--text)' : 'var(--text-dim)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+              title="Show monetary values in rupees"
+            >
+              ₹ Cost
+            </button>
+            <button
+              role="tab"
+              aria-selected={unit === 'weight'}
+              onClick={() => setUnitPersisted('weight')}
+              style={{ padding: '4px 14px', borderRadius: 6, background: unit === 'weight' ? 'var(--s4)' : 'transparent', border: 'none', color: unit === 'weight' ? 'var(--text)' : 'var(--text-dim)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+              title="Show metrics as weight (kg / tonnes), aggregated from deal line items"
+            >
+              ⚖ Weight
+            </button>
+          </div>
+        )}
         {canCustomize && (
           <button
             onClick={() => setShowCustomizer(true)}
