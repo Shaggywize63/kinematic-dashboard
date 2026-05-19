@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { crmLeads, crmProducts } from '../../lib/crmApi';
+import { useClient } from '../../context/ClientContext';
 import type { Product } from '../../types/crm';
 
 interface Props {
@@ -12,10 +13,13 @@ interface Props {
   onConverted?: () => void;
 }
 
-// Convert flow now supports two ways to size the new deal:
-//   - Amount (₹) — direct rupee amount (legacy path)
-//   - Volume (kg) + Product — backend derives amount from product price/weight
-// Picking either fills the other when a product is selected.
+// Convert flow supports two ways to size the new deal:
+//   - Amount (₹) — direct rupee amount (everyone)
+//   - Volume (kg) + Product — backend derives amount from product
+//     price/weight. Bespoke for Tata Tiscon (TMT bar sold by metric
+//     tonne); no other client sells by mass so the weight section is
+//     gated to that client_id to keep the form clean for everyone else.
+const TATA_TISCON_CLIENT_ID = 'a1f67468-526e-4734-be3a-2cb132cc2804';
 
 export default function LeadConvertModal({ leadId, defaultDealName, open, onClose, onConverted }: Props) {
   const [createAccount, setCreateAccount] = useState(true);
@@ -27,16 +31,27 @@ export default function LeadConvertModal({ leadId, defaultDealName, open, onClos
   const [products, setProducts] = useState<Product[]>([]);
   const [busy, setBusy] = useState(false);
 
-  // Lazy-load weight-based products only when the modal opens. Filters to
-  // active products with both price and weight_kg so the kg → ₹ derivation
-  // is always valid.
+  // Tata Tiscon detection mirrors the dashboard ₹/Weight toggle gate:
+  // a client-pinned user whose JWT carries Tata's client_id, OR a
+  // platform admin (Sagar) who picked Tata via the global filter.
+  const { selectedClientId } = useClient();
+  const userClientId = useMemo<string | null>(() => {
+    try {
+      const raw = typeof window !== 'undefined' ? localStorage.getItem('kinematic_user') : null;
+      return raw ? (JSON.parse(raw)?.client_id ?? null) : null;
+    } catch { return null; }
+  }, []);
+  const allowWeight = userClientId === TATA_TISCON_CLIENT_ID || selectedClientId === TATA_TISCON_CLIENT_ID;
+
+  // Lazy-load weight-based products only when the modal opens AND the
+  // weight UI is in scope (no point fetching for non-Tata clients).
   useEffect(() => {
-    if (!open) return;
+    if (!open || !allowWeight) return;
     crmProducts.list().then((r) => {
       const list = (r.data || []).filter((p: any) => p.is_active !== false && p.price && p.weight_kg);
       setProducts(list as Product[]);
     }).catch(() => setProducts([]));
-  }, [open]);
+  }, [open, allowWeight]);
 
   const pricePerKg = useMemo(() => {
     const p = products.find((x) => x.id === productId);
@@ -79,11 +94,11 @@ export default function LeadConvertModal({ leadId, defaultDealName, open, onClos
         create_deal: createDeal,
         deal_name: dealName || undefined,
         deal_amount: dealAmount ? Number(dealAmount) : undefined,
-        // Send the volume + product through too so the backend can derive
-        // amount when only those are set (and so the deal carries the
-        // weight context for later analytics).
-        deal_volume_kg: dealVolumeKg ? Number(dealVolumeKg) : undefined,
-        deal_product_id: productId || undefined,
+        // Volume + product only sent when the weight UI is allowed; for
+        // non-Tata clients these stay undefined and the backend just uses
+        // the amount the rep typed.
+        deal_volume_kg: allowWeight && dealVolumeKg ? Number(dealVolumeKg) : undefined,
+        deal_product_id: allowWeight && productId ? productId : undefined,
       } as any);
       toast.success('Lead converted successfully');
       onConverted?.();
@@ -110,21 +125,32 @@ export default function LeadConvertModal({ leadId, defaultDealName, open, onClos
             <Field label="Deal name">
               <input value={dealName} onChange={(e) => setDealName(e.target.value)} placeholder="Auto-named if blank" style={inputCss} />
             </Field>
-            <Field label="Product (optional)">
-              <select value={productId} onChange={(e) => onProduct(e.target.value)} style={inputCss}>
-                <option value="">— None —</option>
-                {products.map((p) => <option key={p.id} value={p.id}>{p.name} (₹{Number(p.price).toFixed(0)}/unit · {p.weight_kg} kg)</option>)}
-              </select>
-            </Field>
-            {productId && (
-              <Field label="Volume (kg)">
-                <input value={dealVolumeKg} onChange={(e) => onVolume(e.target.value)} placeholder="e.g. 12500" type="number" step="0.01" style={inputCss} />
-              </Field>
+
+            {/* Weight-based sizing — Tata Tiscon only. Lets the rep
+                enter tonnage and the rupee amount auto-fills from the
+                product's price-per-kg. Hidden entirely for every other
+                client (their forms stay the simple "Amount only" path). */}
+            {allowWeight && (
+              <>
+                <Field label="Product (for weight → amount calc)">
+                  <select value={productId} onChange={(e) => onProduct(e.target.value)} style={inputCss}>
+                    <option value="">— None —</option>
+                    {products.map((p) => <option key={p.id} value={p.id}>{p.name} (₹{Number(p.price).toFixed(0)}/unit · {p.weight_kg} kg)</option>)}
+                  </select>
+                </Field>
+                {productId && (
+                  <Field label="Volume (kg)">
+                    <input value={dealVolumeKg} onChange={(e) => onVolume(e.target.value)} placeholder="e.g. 12500" type="number" step="0.01" style={inputCss} />
+                  </Field>
+                )}
+              </>
             )}
-            <Field label="Amount (INR)">
+
+            <Field label={allowWeight && productId ? 'Amount (auto-calculated from weight, editable)' : 'Amount (INR)'}>
               <input value={dealAmount} onChange={(e) => onAmount(e.target.value)} placeholder="0" type="number" step="0.01" style={inputCss} />
             </Field>
-            {productId && pricePerKg > 0 && (
+
+            {allowWeight && productId && pricePerKg > 0 && (
               <div style={{ fontSize: 11, color: 'var(--text-dim)', padding: '6px 10px', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 8 }}>
                 Rate: <strong style={{ color: 'var(--text)' }}>₹{pricePerKg.toFixed(2)}/kg</strong> — editing volume autofills amount and vice versa.
               </div>
