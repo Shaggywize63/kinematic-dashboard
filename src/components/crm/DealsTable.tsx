@@ -23,7 +23,7 @@ export default function DealsTable({ deals, loading, onAssign, selected, onToggl
   return (
     <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, overflow: 'hidden' }}>
       <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <table className="responsive-cards" style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
               {showSelection && (
@@ -41,22 +41,22 @@ export default function DealsTable({ deals, loading, onAssign, selected, onToggl
             </tr>
           </thead>
           <tbody>
-            {loading && <tr><td colSpan={colCount} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)' }}>Loading...</td></tr>}
-            {!loading && deals.length === 0 && <tr><td colSpan={colCount} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)' }}>No deals.</td></tr>}
+            {loading && <tr><td colSpan={colCount} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)' }} data-label="">Loading...</td></tr>}
+            {!loading && deals.length === 0 && <tr><td colSpan={colCount} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)' }} data-label="">No deals.</td></tr>}
             {deals.map((d) => (
               <tr key={d.id}>
                 {showSelection && (
-                  <td style={td}>
+                  <td style={td} data-label="">
                     <input type="checkbox" checked={selected!.has(d.id)} onChange={() => onToggle!(d.id)} />
                   </td>
                 )}
-                <td style={td}><Link href={`/dashboard/crm/deals/${d.id}`} style={{ color: 'var(--text)', fontWeight: 600 }}>{d.name}</Link></td>
-                <td style={td}>{d.account_name || '—'}</td>
-                <td style={td}>{formatINR(d.amount)}</td>
-                <td style={td}><StageBadge name={d.stage_name} won={d.status === 'won'} lost={d.status === 'lost'} /></td>
-                <td style={td}><span style={{ textTransform: 'capitalize' }}>{d.status}</span></td>
-                <td style={td}>{d.expected_close_date ? new Date(d.expected_close_date).toLocaleDateString() : '—'}</td>
-                <td style={td}>
+                <td style={td} data-label="Name"><Link href={`/dashboard/crm/deals/${d.id}`} style={{ color: 'var(--text)', fontWeight: 600 }}>{d.name}</Link></td>
+                <td style={td} data-label="Account">{d.account_name || '—'}</td>
+                <td style={td} data-label="Amount">{formatINR(d.amount)}</td>
+                <td style={td} data-label="Stage"><StageBadge name={d.stage_name} won={d.status === 'won'} lost={d.status === 'lost'} /></td>
+                <td style={td} data-label="Status"><span style={{ textTransform: 'capitalize' }}>{d.status}</span></td>
+                <td style={td} data-label="Close Date">{d.expected_close_date ? new Date(d.expected_close_date).toLocaleDateString() : '—'}</td>
+                <td style={td} data-label="Owner">
                   {onAssign ? (
                     <InlineOwnerAssign
                       currentOwnerId={d.owner_id}
