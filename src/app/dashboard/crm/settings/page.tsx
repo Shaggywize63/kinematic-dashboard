@@ -7,7 +7,7 @@ import { rolesApi, type OrgRole } from '../../../../lib/rolesApi';
 import type { BusinessType } from '../../../../types/crm';
 
 const SECTIONS = [
-  { href: '/dashboard/crm/settings/users', title: 'Team Members', desc: 'Add users, assign preset role + hierarchy, manage permissions.' },
+  { href: '/dashboard/crm/settings/users', title: 'Team Members', desc: 'Create CRM users scoped to the active client. Synced with global Settings → Users.' },
   { href: '/dashboard/crm/settings/locations', title: 'States & Cities', desc: 'Centralised location list used by forms and filters.' },
   { href: '/dashboard/crm/settings/pipelines', title: 'Pipelines', desc: 'Configure deal pipelines.' },
   { href: '/dashboard/crm/settings/stages', title: 'Stages', desc: 'Manage stages within pipelines.' },
@@ -27,6 +27,23 @@ const BUSINESS_OPTIONS: Array<{ value: BusinessType; label: string; desc: string
   { value: 'both', label: 'Mixed', desc: 'Show both. Each lead/contact can be tagged B2B or B2C individually.' },
 ];
 
+// Theme choice supports 'system' so the dashboard can follow the OS
+// preference (and re-render when it changes mid-session). The DOM
+// attribute always resolves to dark|light — 'system' is the user's
+// stored choice, not a renderable theme.
+type ThemeChoice = 'dark' | 'light' | 'system';
+
+function resolveSystemTheme(): 'dark' | 'light' {
+  if (typeof window === 'undefined') return 'dark';
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
+function applyTheme(t: ThemeChoice) {
+  if (typeof document === 'undefined') return;
+  const resolved = t === 'system' ? resolveSystemTheme() : t;
+  document.documentElement.setAttribute('data-theme', resolved);
+}
+
 export default function SettingsIndex() {
   // `null` until the first fetch resolves so the active-card highlight
   // doesn't flicker from a default ('both') to the saved value ('b2c').
@@ -39,14 +56,26 @@ export default function SettingsIndex() {
   // Theme is mirrored from the org-level Settings page (same localStorage key
   // + same data-theme attribute) so CRM-only clients (e.g. Tata Tiscon) who
   // can't reach /dashboard/settings still get a way to switch themes.
-  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+  // Default is 'system' so the dashboard follows the OS for first-time users.
+  const [theme, setTheme] = useState<ThemeChoice>('system');
   useEffect(() => {
-    const saved = (typeof window !== 'undefined' && localStorage.getItem('kinematic-theme')) as 'dark' | 'light' | null;
-    setTheme(saved ?? 'dark');
+    const saved = (typeof window !== 'undefined' && localStorage.getItem('kinematic-theme')) as ThemeChoice | null;
+    const next = (saved === 'dark' || saved === 'light' || saved === 'system') ? saved : 'system';
+    setTheme(next);
+    applyTheme(next);
   }, []);
-  const toggleTheme = (t: 'dark' | 'light') => {
+  // When the user picks 'system', mirror live OS changes so dark-mode at
+  // sunset on the OS instantly flips the dashboard without a refresh.
+  useEffect(() => {
+    if (theme !== 'system' || typeof window === 'undefined') return;
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const handler = () => applyTheme('system');
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, [theme]);
+  const toggleTheme = (t: ThemeChoice) => {
     setTheme(t);
-    if (typeof document !== 'undefined') document.documentElement.setAttribute('data-theme', t);
+    applyTheme(t);
     if (typeof window !== 'undefined') localStorage.setItem('kinematic-theme', t);
   };
   const [defaultRoleId, setDefaultRoleId] = useState<string>('');
@@ -109,6 +138,12 @@ export default function SettingsIndex() {
     catch (e: any) { toast.error(e.message || 'Seeding failed'); }
   };
 
+  const themeBtn = (value: ThemeChoice, label: string, icon: string) => (
+    <button onClick={() => toggleTheme(value)} style={{ padding: '8px 16px', borderRadius: 8, background: theme === value ? 'var(--s4)' : 'transparent', border: 'none', color: theme === value ? 'var(--text)' : 'var(--text-dim)', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+      <span>{icon}</span> {label}
+    </button>
+  );
+
   return (
     <div>
       {/* Theme — same toggle as the org Settings page, surfaced here so
@@ -118,15 +153,12 @@ export default function SettingsIndex() {
       <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 16, marginBottom: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
         <div>
           <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>Appearance</div>
-          <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>Choose dark or light theme for the dashboard.</div>
+          <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>Choose Light, Dark, or follow the operating system.</div>
         </div>
         <div style={{ display: 'inline-flex', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 10, padding: 4 }}>
-          <button onClick={() => toggleTheme('dark')} style={{ padding: '8px 16px', borderRadius: 8, background: theme === 'dark' ? 'var(--s4)' : 'transparent', border: 'none', color: theme === 'dark' ? 'var(--text)' : 'var(--text-dim)', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-            <span>🌙</span> Dark
-          </button>
-          <button onClick={() => toggleTheme('light')} style={{ padding: '8px 16px', borderRadius: 8, background: theme === 'light' ? 'var(--s4)' : 'transparent', border: 'none', color: theme === 'light' ? 'var(--text)' : 'var(--text-dim)', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-            <span>☀️</span> Light
-          </button>
+          {themeBtn('light',  'Light',  '☀️')}
+          {themeBtn('dark',   'Dark',   '🌙')}
+          {themeBtn('system', 'System', '🖥️')}
         </div>
       </div>
 
