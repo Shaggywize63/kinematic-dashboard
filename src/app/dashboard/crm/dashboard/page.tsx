@@ -253,11 +253,6 @@ export default function CrmDashboardPage() {
         )}
       </div>
 
-      {/* Pinned analytics widgets — only renders when the user has pinned
-          something from Lead Analytics. Sits above the stat cards so the
-          rep's hand-picked KPIs are the first thing they see. */}
-      <PinnedOverviewSection />
-
       {visibleStatCount > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
           {isVisible('stat_open_pipeline') && <StatCard label="Open Pipeline" value={fmtMoney(summary?.open_deal_value)} hint={`${summary?.open_deals || 0} deals`} loading={loading} />}
@@ -283,6 +278,12 @@ export default function CrmDashboardPage() {
           </div>
         </div>
       )}
+
+      {/* Pinned analytics widgets sit just below the map: KPIs the rep
+          picked from Lead Analytics live here, between the broad geo view
+          and the per-chart deep-dive grid. Renders nothing when no widgets
+          are pinned, so the layout collapses cleanly. */}
+      <PinnedOverviewSection />
 
       {visibleChartCount > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(420px, 100%), 1fr))', gap: 14 }}>
