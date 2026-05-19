@@ -1,168 +1,181 @@
 'use client';
-import { useEffect, useState } from 'react';
-import dynamic from 'next/dynamic';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { crmPipelines, crmDeals } from '../../../../lib/crmApi';
 import type { Pipeline, Deal } from '../../../../types/crm';
+import PipelineCreateModal from '../../../../components/crm/PipelineCreateModal';
+import { formatINR } from '../../../../lib/formatCurrency';
 
-// DealKanban pulls in @hello-pangea/dnd; lazy-load it so the page shell
-// renders before drag-and-drop bundle finishes downloading.
-const DealKanban = dynamic(() => import('../../../../components/crm/DealKanban'), {
-  ssr: false,
-  loading: () => <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-dim)', fontSize: 13 }}>Loading kanban…</div>,
-});
-
+/**
+ * Pipeline section, records-list view.
+ *
+ * Used to be the kanban; that has moved to the Deals page (toggled
+ * alongside the list view). This page is now a directory of pipelines:
+ * one row per pipeline showing name, stage count, open-deal count + total
+ * value, default flag, and quick actions. Click a row to expand stages
+ * with deal counts; "+ New Pipeline" opens a modal that builds the
+ * pipeline + stages in one shot.
+ */
 export default function PipelinePage() {
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
-  const [pipelineId, setPipelineId] = useState<string>('');
-  const [deals, setDeals] = useState<Deal[]>([]);
+  const [dealsByPipeline, setDealsByPipeline] = useState<Record<string, Deal[]>>({});
   const [loading, setLoading] = useState(true);
-  const [showAddPipeline, setShowAddPipeline] = useState(false);
-  const [newName, setNewName] = useState('');
-  const [adding, setAdding] = useState(false);
-  // Cost vs Weighted column totals — mirror of iOS/Android `crm.deals.showWeighted`.
-  // Persisted client-side so a manager who prefers weighted forecasting stays in
-  // that mode across visits.
-  const [showWeighted, setShowWeighted] = useState(false);
-  useEffect(() => {
-    try {
-      const v = localStorage.getItem('crm.deals.showWeighted');
-      if (v === '1') setShowWeighted(true);
-    } catch { /* private mode / SSR — ignore */ }
-  }, []);
-  const toggleWeighted = (next: boolean) => {
-    setShowWeighted(next);
-    try { localStorage.setItem('crm.deals.showWeighted', next ? '1' : '0'); } catch { /* ignore */ }
-  };
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [busyDefault, setBusyDefault] = useState<string | null>(null);
 
-  const loadPipelines = async () => {
+  const reload = async () => {
+    setLoading(true);
     try {
       const r = await crmPipelines.list();
-      setPipelines(r.data || []);
-      if (!pipelineId) {
-        const def = (r.data || []).find((p) => p.is_default) || (r.data || [])[0];
-        if (def) setPipelineId(def.id);
-      }
+      const list = r.data || [];
+      setPipelines(list);
+      // Fetch deals for each pipeline in parallel so the per-row counts
+      // appear without an extra click. Capped at "open" status — closed
+      // deals are noise in a pipeline summary.
+      const pairs = await Promise.allSettled(
+        list.map((p) => crmDeals.list({ pipeline_id: p.id, status: 'open', limit: 500 }).then((d) => [p.id, d.data || []] as const))
+      );
+      const map: Record<string, Deal[]> = {};
+      for (const r of pairs) if (r.status === 'fulfilled') map[r.value[0]] = r.value[1];
+      setDealsByPipeline(map);
     } catch (e: any) { toast.error(e.message || 'Failed to load pipelines'); }
+    finally { setLoading(false); }
   };
 
-  useEffect(() => { loadPipelines(); }, []);
+  useEffect(() => { reload(); }, []);
 
-  useEffect(() => {
-    if (!pipelineId) return;
-    (async () => {
-      setLoading(true);
-      try {
-        const r = await crmDeals.list({ pipeline_id: pipelineId, status: 'open' });
-        setDeals(r.data || []);
-      } catch (e: any) { toast.error(e.message || 'Failed to load deals'); }
-      finally { setLoading(false); }
-    })();
-  }, [pipelineId]);
-
-  const addPipeline = async () => {
-    if (!newName.trim()) return;
-    setAdding(true);
+  const makeDefault = async (p: Pipeline) => {
+    if (p.is_default) return;
+    setBusyDefault(p.id);
     try {
-      const r = await crmPipelines.create({ name: newName.trim(), is_default: pipelines.length === 0 } as any);
-      toast.success(`Pipeline "${newName.trim()}" created`);
-      setNewName('');
-      setShowAddPipeline(false);
-      await loadPipelines();
-      if (r.data?.id) setPipelineId(r.data.id);
-    } catch (e: any) { toast.error(e.message || 'Create failed'); }
-    finally { setAdding(false); }
+      await crmPipelines.update(p.id, { is_default: true } as any);
+      toast.success(`"${p.name}" is now the default pipeline`);
+      reload();
+    } catch (e: any) { toast.error(e.message || 'Update failed'); }
+    finally { setBusyDefault(null); }
   };
 
-  const current = pipelines.find((p) => p.id === pipelineId);
-  const stages = current?.stages || [];
+  const deletePipeline = async (p: Pipeline) => {
+    const openCount = (dealsByPipeline[p.id] || []).length;
+    if (openCount > 0) {
+      return toast.error(`Cannot delete: ${openCount} open deal${openCount === 1 ? ' is' : 's are'} still in this pipeline. Move them first.`);
+    }
+    if (!window.confirm(`Delete pipeline "${p.name}"? Its stages will be removed too. This cannot be undone.`)) return;
+    try {
+      await crmPipelines.remove(p.id);
+      toast.success('Pipeline deleted');
+      reload();
+    } catch (e: any) { toast.error(e.message || 'Delete failed'); }
+  };
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, gap: 8, flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <select
-            value={pipelineId}
-            onChange={(e) => setPipelineId(e.target.value)}
-            style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 }}
-          >
-            {pipelines.map((p) => <option key={p.id} value={p.id}>{p.name}{p.is_default ? ' (default)' : ''}</option>)}
-          </select>
-          <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>{deals.length} open deal{deals.length !== 1 ? 's' : ''}</span>
-          <label
-            title={showWeighted ? 'Column totals = Σ(amount × win-probability)' : 'Column totals = Σ(raw amount)'}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 4, padding: '6px 10px', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12, cursor: 'pointer', userSelect: 'none' }}
-          >
-            <input
-              type="checkbox"
-              checked={showWeighted}
-              onChange={(e) => toggleWeighted(e.target.checked)}
-              style={{ accentColor: 'var(--primary)' }}
-            />
-            <span style={{ color: 'var(--text-dim)', fontWeight: 600 }}>
-              {showWeighted ? 'Weighted' : 'Raw'}
-            </span>
-          </label>
-        </div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <Link
-            href={pipelineId ? `/dashboard/crm/deals/new?pipeline_id=${pipelineId}` : '/dashboard/crm/deals/new'}
-            style={{ background: 'var(--primary)', color: '#fff', padding: '7px 13px', borderRadius: 8, fontSize: 13, fontWeight: 700, textDecoration: 'none' }}
-            title="Add a new deal directly to this pipeline"
-          >+ New Deal</Link>
-          <Link
-            href="/dashboard/crm/leads?status=qualified"
-            style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '7px 13px', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}
-            title="Pick a qualified lead and convert it into a deal"
-          >Convert from leads</Link>
-          <button
-            onClick={() => setShowAddPipeline(!showAddPipeline)}
-            style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '7px 13px', borderRadius: 8, fontSize: 13, cursor: 'pointer', fontWeight: 600 }}
-          >
-            {showAddPipeline ? '✕' : '+ New Pipeline'}
-          </button>
-          <Link
-            href="/dashboard/crm/settings/pipelines"
-            style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '7px 13px', borderRadius: 8, fontSize: 13, fontWeight: 600 }}
-          >
-            Manage Pipelines
-          </Link>
+      <div style={{ marginBottom: 14, padding: '12px 16px', background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 10 }}>
+        <div style={{ fontSize: 13, color: 'var(--text-dim)', lineHeight: 1.6 }}>
+          Sales pipelines — each is a named, ordered set of stages a deal moves through (e.g. <em>Discovery → Qualification → Proposal → Negotiation → Closed Won</em>). Use multiple pipelines when you sell into clearly different motions (Enterprise vs SMB, India vs Export). The kanban view of any pipeline now lives on the <Link href="/dashboard/crm/deals" style={{ color: 'var(--primary)' }}>Deals</Link> page — toggle <strong style={{ color: 'var(--text)' }}>Kanban</strong> there.
         </div>
       </div>
 
-      {showAddPipeline && (
-        <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 10, padding: 14, marginBottom: 14, display: 'flex', gap: 8 }}>
-          <input
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && addPipeline()}
-            placeholder="New pipeline name (e.g. Enterprise Sales)"
-            style={{ flex: 1, background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 }}
-          />
-          <button onClick={addPipeline} disabled={adding} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: 'pointer', fontSize: 13 }}>
-            {adding ? 'Creating…' : 'Create'}
-          </button>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>
+          {pipelines.length} pipeline{pipelines.length === 1 ? '' : 's'}
+        </div>
+        <button onClick={() => setShowCreate(true)} style={btnPrimary}>+ New Pipeline</button>
+      </div>
+
+      {loading ? (
+        <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-dim)' }}>Loading pipelines…</div>
+      ) : pipelines.length === 0 ? (
+        <div style={{ padding: 40, textAlign: 'center', background: 'var(--s2)', border: '1px dashed var(--border)', borderRadius: 14 }}>
+          <div style={{ fontSize: 28, marginBottom: 10 }}>📋</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>No pipelines yet</div>
+          <div style={{ fontSize: 13, color: 'var(--text-dim)', marginBottom: 14, maxWidth: 480, marginLeft: 'auto', marginRight: 'auto', lineHeight: 1.5 }}>
+            A pipeline groups your stages (Discovery, Qualification, Proposal, Negotiation, Closed Won). Once you have one, deals move through its stages and the Deals → Kanban view groups them by column.
+          </div>
+          <button onClick={() => setShowCreate(true)} style={btnPrimary}>+ Create your first pipeline</button>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {pipelines.map((p) => {
+            const stages = (p.stages || []).slice().sort((a, b) => a.position - b.position);
+            const dealsHere = dealsByPipeline[p.id] || [];
+            const openValue = dealsHere.reduce((sum, d) => sum + Number((d as any).amount || 0), 0);
+            const isOpen = expanded === p.id;
+            return (
+              <div key={p.id} style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 14, cursor: 'pointer' }} onClick={() => setExpanded(isOpen ? null : p.id)}>
+                  <span style={{ fontSize: 16, color: 'var(--text-dim)', transform: isOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}>▸</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>{p.name}</span>
+                      {p.is_default && <span style={{ fontSize: 9, padding: '2px 8px', borderRadius: 4, background: 'var(--primary)', color: '#fff', fontWeight: 800, letterSpacing: 0.4 }}>DEFAULT</span>}
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>
+                      {stages.length} stage{stages.length === 1 ? '' : 's'} · {dealsHere.length} open deal{dealsHere.length === 1 ? '' : 's'} · {formatINR(openValue)}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }} onClick={(e) => e.stopPropagation()}>
+                    <Link href={`/dashboard/crm/deals?pipeline_id=${p.id}&view=kanban`} title="Open Kanban for this pipeline"
+                      style={chip('#3E9EFF')}>Kanban →</Link>
+                    {!p.is_default && (
+                      <button onClick={() => makeDefault(p)} disabled={busyDefault === p.id} style={chip('var(--text-dim)')}>
+                        {busyDefault === p.id ? 'Saving…' : 'Make default'}
+                      </button>
+                    )}
+                    <Link href={`/dashboard/crm/settings/stages?pipeline_id=${p.id}`} style={chip('var(--text-dim)')}>Edit stages</Link>
+                    <button onClick={() => deletePipeline(p)} style={chip('#ef4444')}>Delete</button>
+                  </div>
+                </div>
+                {isOpen && (
+                  <div style={{ borderTop: '1px solid var(--border)', padding: 14, background: 'var(--s1)' }}>
+                    {stages.length === 0 ? (
+                      <div style={{ fontSize: 13, color: 'var(--text-dim)' }}>
+                        No stages in this pipeline yet. <Link href={`/dashboard/crm/settings/stages?pipeline_id=${p.id}`} style={{ color: 'var(--primary)' }}>Add stages →</Link>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8 }}>
+                        {stages.map((s) => {
+                          const count = dealsHere.filter((d) => (d as any).stage_id === s.id).length;
+                          const value = dealsHere.filter((d) => (d as any).stage_id === s.id).reduce((sum, d) => sum + Number((d as any).amount || 0), 0);
+                          const typeColor = s.stage_type === 'won' ? '#10b981' : s.stage_type === 'lost' ? '#ef4444' : 'var(--primary)';
+                          return (
+                            <div key={s.id} style={{ background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 8, padding: 10 }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>{s.name}</span>
+                                <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 3, background: `${typeColor}22`, color: typeColor, fontWeight: 800, letterSpacing: 0.4 }}>{s.stage_type.toUpperCase()}</span>
+                              </div>
+                              <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>
+                                {count} deal{count === 1 ? '' : 's'} · {formatINR(value)}
+                              </div>
+                              <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 2 }}>
+                                Default win prob: {Math.round((Number((s as any).probability) || 0) * 100)}%
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 
-      {pipelines.length === 0 && !loading ? (
-        <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-dim)', background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14 }}>
-          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 8 }}>No pipelines yet</div>
-          <div style={{ fontSize: 13 }}>Create a pipeline above to start tracking deals through stages.</div>
-        </div>
-      ) : loading ? (
-        <div style={{ color: 'var(--text-dim)', padding: 24 }}>Loading kanban…</div>
-      ) : stages.length === 0 ? (
-        <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-dim)', background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14 }}>
-          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 6 }}>No stages in this pipeline</div>
-          <div style={{ fontSize: 13 }}>
-            Go to <Link href="/dashboard/crm/settings/stages" style={{ color: 'var(--primary)' }}>Settings → Stages</Link> to add stages.
-          </div>
-        </div>
-      ) : (
-        <DealKanban stages={stages} initialDeals={deals} showWeighted={showWeighted} />
-      )}
+      <PipelineCreateModal
+        open={showCreate}
+        onClose={() => setShowCreate(false)}
+        onCreated={() => { setShowCreate(false); reload(); }}
+        isFirstPipeline={pipelines.length === 0}
+      />
     </div>
   );
 }
+
+const btnPrimary: React.CSSProperties = { background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 16px', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer' };
+const chip = (color: string): React.CSSProperties => ({
+  background: 'transparent', border: `1px solid ${color}`, color, padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer', textDecoration: 'none', whiteSpace: 'nowrap',
+});
