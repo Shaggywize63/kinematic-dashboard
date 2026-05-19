@@ -8,10 +8,7 @@ import api from '../../../../lib/api';
 import type { Activity } from '../../../../types/crm';
 import { getStoredUser, canAccess } from '../../../../lib/auth';
 import UserSearchSelect, { type UserOption } from '../../../../components/crm/shared/UserSearchSelect';
-
-const TYPE_ICONS: Record<string, string> = {
-  call: '📞', email: '✉️', meeting: '📅', task: '✅', note: '📝', sms: '💬', whatsapp: '💚',
-};
+import { ActivityTypeIcon, activityTypeEmoji } from '../../../../components/crm/shared/ActivityTypeIcon';
 
 const TYPE_OPTIONS = ['', 'call', 'email', 'meeting', 'task', 'note', 'sms', 'whatsapp'];
 // Activity statuses surfaced on the filter — the same values the row actions
@@ -154,9 +151,13 @@ function ActivitiesPageInner() {
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 8, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {/* Native <select> options can't render React components — emoji-only
+              for the filter labels. activityTypeEmoji uses the WhatsApp green
+              circle 🟢 so the option at least colour-signals the brand even
+              without the real logo. */}
           <select value={type} onChange={(e) => setType(e.target.value)} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 }}>
             {TYPE_OPTIONS.map((t) => (
-              <option key={t} value={t}>{t ? `${TYPE_ICONS[t] || ''} ${t[0].toUpperCase() + t.slice(1)}s` : 'All Activities'}</option>
+              <option key={t} value={t}>{t ? `${activityTypeEmoji(t)} ${t[0].toUpperCase() + t.slice(1)}s` : 'All Activities'}</option>
             ))}
           </select>
           <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} title="Filter by status" style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 }}>
@@ -201,7 +202,9 @@ function ActivitiesPageInner() {
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, flexWrap: 'wrap' }}>
                   <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', flex: 1 }}>
-                    <span style={{ fontSize: 18, lineHeight: 1 }}>{TYPE_ICONS[a.type] || '📌'}</span>
+                    <span style={{ fontSize: 18, lineHeight: 1, display: 'inline-flex', alignItems: 'center' }}>
+                      <ActivityTypeIcon type={a.type} size={18} />
+                    </span>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 2 }}>
                         {a.subject || a.type}
