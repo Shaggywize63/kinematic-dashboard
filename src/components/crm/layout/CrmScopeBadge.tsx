@@ -9,6 +9,11 @@ interface Client { id: string; name: string }
 // Small chip rendered above CRM children showing which client (if any) the
 // admin is currently scoped to. Helps avoid the "configured the wrong
 // pipeline because I forgot which client was selected" mistake.
+//
+// Only meaningful for org-level admins (super_admin etc.) who can hop
+// between clients via the global picker — client-pinned users (JWT carries
+// client_id) can never switch scope, so a "Your client: X" badge is just
+// visual noise telling them what they already know. We hide it for them.
 export default function CrmScopeBadge() {
   const { selectedClientId } = useClient();
   const [clients, setClients] = useState<Client[]>([]);
@@ -16,22 +21,18 @@ export default function CrmScopeBadge() {
   const isClientLevel = !!(user as any)?.client_id;
 
   useEffect(() => {
+    if (isClientLevel) return; // No need to fetch when we won't render.
     if (clients.length > 0) return;
     api.get<{ data: Client[] }>('/api/v1/misc/clients')
       .then((res: any) => setClients(Array.isArray(res?.data) ? res.data : []))
       .catch(() => {});
-  }, [clients.length]);
+  }, [clients.length, isClientLevel]);
 
-  // For client-level users, show a locked badge with their client name.
-  if (isClientLevel) {
-    const myClient = clients.find((c) => c.id === (user as any).client_id);
-    return (
-      <div style={badgeBase('#10b981')}>
-        <span>🔒</span>
-        <span>Your client: <strong>{myClient?.name || 'Loading…'}</strong></span>
-      </div>
-    );
-  }
+  // Client-pinned users (e.g. a Tata Tiscon staff member) — hide the badge
+  // entirely. Their scope is permanent and surfaced everywhere else (their
+  // logo, their data); a redundant "Your client: Tata Tiscon" pill at the
+  // top of every CRM page adds clutter without informing.
+  if (isClientLevel) return null;
 
   if (!selectedClientId) {
     return (
