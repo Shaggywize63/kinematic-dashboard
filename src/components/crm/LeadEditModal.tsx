@@ -1,8 +1,8 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { crmLeads } from '../../lib/crmApi';
-import type { Lead, LeadStatus } from '../../types/crm';
+import { crmLeads, crmSettings } from '../../lib/crmApi';
+import type { BusinessType, Lead, LeadStatus } from '../../types/crm';
 import Modal from './shared/Modal';
 import LocationPicker from './LocationPicker';
 
@@ -11,7 +11,26 @@ interface Props { lead: Lead; open: boolean; onClose: () => void; onSaved: (upda
 export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
   const [form, setForm] = useState(() => seed(lead));
   const [busy, setBusy] = useState(false);
+  const [businessType, setBusinessType] = useState<BusinessType>('both');
+
   useEffect(() => { if (open) setForm(seed(lead)); }, [open, lead]);
+  // Fetch org's B2B/B2C mode on first open. We coerce form.is_b2c to match
+  // single-mode orgs so a rep can't toggle into the wrong type on edit.
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await crmSettings.get();
+        const t: BusinessType = r.data?.business_type ?? 'both';
+        if (cancelled) return;
+        setBusinessType(t);
+        if (t === 'b2b') setForm((f) => ({ ...f, is_b2c: false }));
+        if (t === 'b2c') setForm((f) => ({ ...f, is_b2c: true }));
+      } catch { /* default to 'both' */ }
+    })();
+    return () => { cancelled = true; };
+  }, [open]);
 
   const submit = async () => {
     setBusy(true);
@@ -24,14 +43,18 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
     } catch (e: any) { toast.error(e.message || 'Update failed'); } finally { setBusy(false); }
   };
 
+  const showToggle = businessType === 'both';
+
   return (
     <Modal open={open} onClose={onClose} title="Edit Lead"
       footer={<><button type="button" onClick={onClose} style={btn.secondary}>Cancel</button><button type="button" disabled={busy} onClick={submit} style={btn.primary(busy)}>{busy ? 'Saving…' : 'Save changes'}</button></>}>
       <p style={{ margin: '0 0 12px', fontSize: 12, color: 'var(--text-dim)' }}>Fields marked <span style={{ color: '#ef4444' }}>*</span> are required.</p>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-        <TB active={form.is_b2c} onClick={() => setForm({ ...form, is_b2c: true })}>B2C (Consumer)</TB>
-        <TB active={!form.is_b2c} onClick={() => setForm({ ...form, is_b2c: false })}>B2B (Business)</TB>
-      </div>
+      {showToggle && (
+        <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+          <TB active={form.is_b2c} onClick={() => setForm({ ...form, is_b2c: true })}>B2C (Consumer)</TB>
+          <TB active={!form.is_b2c} onClick={() => setForm({ ...form, is_b2c: false })}>B2B (Business)</TB>
+        </div>
+      )}
       <SL>Personal</SL><Grid>
         <F label="First Name" required value={form.first_name} onChange={(v) => setForm({ ...form, first_name: v })} />
         <F label="Last Name" value={form.last_name} onChange={(v) => setForm({ ...form, last_name: v })} />
