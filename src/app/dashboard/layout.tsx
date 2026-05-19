@@ -51,6 +51,24 @@ function Icon({ d, size = 18 }: { d: string; size?: number }) {
   );
 }
 
+// Brand-coloured WhatsApp logo for the nav. Special-cased outside the
+// generic Icon component because every other nav glyph is a single-colour
+// outline; WhatsApp needs the full #25D366 fill to read as the brand.
+function WhatsAppNavLogo({ size = 18 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 32 32" style={{ flexShrink: 0 }} aria-label="WhatsApp">
+      <path
+        fill="#25D366"
+        d="M16 0C7.163 0 0 7.163 0 16c0 2.823.742 5.586 2.151 8.019L0 32l8.183-2.143A15.93 15.93 0 0 0 16 32c8.837 0 16-7.163 16-16S24.837 0 16 0Zm0 29.273a13.27 13.27 0 0 1-7.105-2.06l-.509-.302-5.273 1.382 1.405-5.137-.331-.527A13.21 13.21 0 0 1 2.727 16C2.727 8.673 8.673 2.727 16 2.727S29.273 8.673 29.273 16 23.327 29.273 16 29.273Z"
+      />
+      <path
+        fill="#25D366"
+        d="M23.549 19.46c-.41-.205-2.448-1.207-2.828-1.345-.379-.138-.654-.205-.93.207-.275.411-1.069 1.345-1.31 1.62-.241.275-.482.31-.892.103-.41-.205-1.738-.64-3.31-2.04-1.224-1.092-2.05-2.44-2.291-2.852-.241-.412-.026-.635.18-.84.185-.184.41-.482.616-.723.205-.241.275-.414.41-.69.137-.275.069-.516-.034-.723-.103-.207-.93-2.241-1.275-3.069-.336-.806-.677-.696-.93-.71-.241-.012-.516-.014-.79-.014-.276 0-.722.103-1.1.516-.378.41-1.448 1.414-1.448 3.448 0 2.034 1.482 4 1.69 4.276.206.275 2.917 4.456 7.067 6.246.99.428 1.762.683 2.366.875.994.317 1.898.272 2.614.165.798-.12 2.448-1 2.793-1.965.346-.965.346-1.793.241-1.965-.103-.172-.378-.275-.79-.482Z"
+      />
+    </svg>
+  );
+}
+
 function useIsMobile(breakpoint = 1024) {
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
@@ -206,7 +224,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       { href: '/dashboard/crm/pipeline',         label: 'Pipeline',       icon: 'M3 5h6v14H3z M9 9h6v6H9z M15 5h6v14h-6z', module: 'crm_pipeline' },
       { href: '/dashboard/crm/products',         label: 'Products',       icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4', module: 'crm_products' },
       { href: '/dashboard/crm/activities',       label: 'Activities',     icon: 'M22 11.08V12a10 10 0 11-5.93-9.14 M22 4L12 14.01l-3-3', module: 'crm_activities' },
-      { href: '/dashboard/crm/whatsapp',         label: 'WhatsApp',       icon: 'M19 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V5a2 2 0 00-2-2z M3 9h18 M9 21V9', module: 'crm_whatsapp' },
+      // WhatsApp item is special-cased in the nav renderer so it gets the
+      // brand-coloured WhatsApp logo instead of the generic outline Icon.
+      { href: '/dashboard/crm/whatsapp',         label: 'WhatsApp',       icon: '', module: 'crm_whatsapp' },
       { href: '/dashboard/crm/reports',          label: 'Reports',        icon: 'M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6 M16 13H8 M16 17H8', module: 'crm_reports' },
       { href: '/dashboard/crm/settings',         label: 'Settings',       icon: 'M12 15a3 3 0 100-6 3 3 0 000 6z', module: 'crm_settings' },
       { href: '/dashboard/crm/help',             label: 'Help',           icon: 'M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3 M12 17h.01 M22 12a10 10 0 11-20 0 10 10 0 0120 0z', module: 'crm_dashboard' },
@@ -291,7 +311,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 {g.items.map((i:any) => (
                   <Link key={i.href} href={i.href}>
                     <div style={{ display:'flex', alignItems:'center', padding:'10px 20px', gap:12, color:isActive(i.href)?C.red:C.gray, background:isActive(i.href)?C.redD:'transparent', cursor:'pointer' }}>
-                      <Icon d={i.icon} size={18} />
+                      {/* Brand-coloured WhatsApp logo overrides the generic outline
+                          Icon for the one nav item that has a strong brand identity. */}
+                      {i.label === 'WhatsApp'
+                        ? <WhatsAppNavLogo size={18} />
+                        : <Icon d={i.icon} size={18} />}
                       {(isMobile || !collapsed) && <span style={{ fontSize:14 }}>{i.label}</span>}
                     </div>
                   </Link>
