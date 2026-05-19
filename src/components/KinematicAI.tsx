@@ -244,10 +244,26 @@ export default function KinematicAI({ token }: { token: string }) {
   }, []);
 
   const sys = () => {
-    const today = new Date().toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    // Explicit IST formatting + a directive so KINI never replies with UTC
+    // timestamps. Earlier builds let the model pick the time zone and it
+    // routinely answered with UTC, which confused reps doing follow-ups
+    // ("call them at 3pm" turned into "call them at 09:30" on the user's
+    // screen because UTC ≠ IST).
+    const today = new Date().toLocaleDateString('en-IN', {
+      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+      timeZone: 'Asia/Kolkata',
+    });
+    const nowIst = new Date().toLocaleTimeString('en-IN', {
+      hour: '2-digit', minute: '2-digit', hour12: true,
+      timeZone: 'Asia/Kolkata',
+    });
+    const timezoneNote = 'Time zone: Asia/Kolkata (IST, UTC+05:30). When you mention dates, times, or "now" in your replies, always express them in IST — never UTC. If a tool returns a UTC timestamp, convert it to IST before quoting it.';
+
     if (inCrm) {
       return `You are Kini AI — the CRM copilot for the Kinematic platform.
-Today: ${today}
+Today (IST): ${today}
+Current time (IST): ${nowIst}
+${timezoneNote}
 Current Route: ${pathname}
 
 You can call CRM tools to fetch leads, deals, accounts, contacts, activities, run analytics, draft replies, score leads, and predict win probability. When data is returned, render structured cards (deal_list, lead_list, draft_email, summary, next_best_action) so the user sees real records rather than raw JSON. Be proactive: suggest the next best action, flag stalled deals, and surface high-score leads. Use **bold** for metrics.`;
@@ -260,7 +276,9 @@ You can call CRM tools to fetch leads, deals, accounts, contacts, activities, ru
 
     return `You are Kini AI — premium operations assistant for the Kinematic field force platform.
 Current Context: User is viewing ${pathname}
-Today: ${today}
+Today (IST): ${today}
+Current time (IST): ${nowIst}
+${timezoneNote}
 
 ## LIVE OPERATIONS DATA
 ### Attendance Summary
