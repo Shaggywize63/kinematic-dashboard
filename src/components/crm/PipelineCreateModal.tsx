@@ -26,9 +26,18 @@ const DEFAULT_STAGES: DraftStage[] = [
   { id: 's6', name: 'Closed Lost',    stage_type: 'lost', probability: 0.00 },
 ];
 
-// Used to seed the React keys for fresh blank stages the rep adds.
 let _tmpKey = 100;
 const newKey = () => `s${_tmpKey++}`;
+
+// Per-stage-type colour palette. Used by the "+ Open / + Won / + Lost"
+// add buttons (so each kind reads visually distinct) and as a left-edge
+// accent on each stage row in the draft list (so reps can see at a
+// glance which rows are open / won / lost).
+const TYPE_COLOR: Record<DraftStage['stage_type'], string> = {
+  open: '#3E9EFF',   // blue — same as the current-stage chevron
+  won: '#10b981',    // green
+  lost: '#ef4444',   // red
+};
 
 /**
  * Create-pipeline modal that builds the pipeline AND its stages in one
@@ -76,14 +85,10 @@ export default function PipelineCreateModal({ open, onClose, onCreated, isFirstP
     }
     setSaving(true);
     try {
-      // 1) Create the pipeline row
       const r = await crmPipelines.create({ name: name.trim(), is_default: isDefault } as any);
       const pipelineId = r.data?.id;
       if (!pipelineId) throw new Error('Pipeline created but no id returned');
 
-      // 2) Create the stages in order. We POST them one-by-one (sequential)
-      //    so position values are deterministic — parallel inserts would
-      //    race on position assignment.
       for (let i = 0; i < cleanStages.length; i++) {
         const s = cleanStages[i];
         await crmStages.create({
@@ -97,7 +102,6 @@ export default function PipelineCreateModal({ open, onClose, onCreated, isFirstP
 
       toast.success(`Pipeline "${name.trim()}" created with ${cleanStages.length} stages`);
       onCreated(pipelineId);
-      // Reset for next open
       setName('');
       setStages(DEFAULT_STAGES.map((s) => ({ ...s })));
     } catch (e: any) {
@@ -107,11 +111,25 @@ export default function PipelineCreateModal({ open, onClose, onCreated, isFirstP
     }
   };
 
+  // Per-type add button — colours so reps can find Won/Lost without reading.
+  const addBtn = (type: 'open' | 'won' | 'lost', label: string): React.CSSProperties => ({
+    background: 'transparent',
+    border: `1px solid ${TYPE_COLOR[type]}`,
+    color: TYPE_COLOR[type],
+    padding: '4px 10px',
+    borderRadius: 6,
+    fontSize: 11,
+    fontWeight: 800,
+    cursor: 'pointer',
+    letterSpacing: 0.3,
+    whiteSpace: 'nowrap',
+  });
+
   return (
     <div onClick={(e) => { if (e.target === e.currentTarget && !saving) onClose(); }}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-      <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 24, width: 720, maxWidth: '100%', maxHeight: '90vh', overflowY: 'auto' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}>
+      <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 22, width: 720, maxWidth: '100%', maxHeight: '92vh', overflowY: 'auto' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14, gap: 12, flexWrap: 'wrap' }}>
           <div>
             <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.6, marginBottom: 4 }}>New Pipeline</div>
             <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text)' }}>Define name + stages in one go</div>
@@ -131,23 +149,34 @@ export default function PipelineCreateModal({ open, onClose, onCreated, isFirstP
           </label>
 
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 8, flexWrap: 'wrap' }}>
               <span style={lblCss}>Stages <span style={{ color: '#ef4444' }}>*</span></span>
-              <div style={{ display: 'flex', gap: 6 }}>
-                <button type="button" onClick={() => addStage('open')} style={btnGhost}>+ Open stage</button>
-                <button type="button" onClick={() => addStage('won')} style={btnGhost}>+ Won</button>
-                <button type="button" onClick={() => addStage('lost')} style={btnGhost}>+ Lost</button>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                <button type="button" onClick={() => addStage('open')} style={addBtn('open', '+ Open')}>+ Open stage</button>
+                <button type="button" onClick={() => addStage('won')}  style={addBtn('won', '+ Won')}>+ Won</button>
+                <button type="button" onClick={() => addStage('lost')} style={addBtn('lost', '+ Lost')}>+ Lost</button>
               </div>
             </div>
-            <div style={{ background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 10, padding: 10 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '24px 1fr 110px 100px 70px', gap: 8, padding: '4px 8px', fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.5 }}>
+            <div style={{ background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 10, padding: 10, overflowX: 'auto' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '24px 1fr 110px 100px 70px', gap: 8, padding: '4px 8px', fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.5, minWidth: 540 }}>
                 <span>#</span><span>Name</span><span>Type</span><span>Win %</span><span></span>
               </div>
               {stages.map((s, i) => (
-                <div key={s.id} style={{ display: 'grid', gridTemplateColumns: '24px 1fr 110px 100px 70px', gap: 8, padding: '6px 8px', alignItems: 'center', borderTop: '1px solid var(--border)' }}>
+                <div key={s.id} style={{
+                  display: 'grid', gridTemplateColumns: '24px 1fr 110px 100px 70px', gap: 8,
+                  padding: '6px 8px', alignItems: 'center', borderTop: '1px solid var(--border)',
+                  borderLeft: `3px solid ${TYPE_COLOR[s.stage_type]}`,
+                  background: `${TYPE_COLOR[s.stage_type]}08`,
+                  minWidth: 540,
+                }}>
                   <span style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 700 }}>{i + 1}</span>
                   <input value={s.name} onChange={(e) => updateStage(s.id, { name: e.target.value })} placeholder="Stage name" style={{ ...inputCss, padding: '6px 10px' }} />
-                  <select value={s.stage_type} onChange={(e) => updateStage(s.id, { stage_type: e.target.value as any })} style={{ ...inputCss, padding: '6px 8px' }}>
+                  <select value={s.stage_type} onChange={(e) => updateStage(s.id, { stage_type: e.target.value as any })}
+                    style={{
+                      ...inputCss, padding: '6px 8px',
+                      color: TYPE_COLOR[s.stage_type], fontWeight: 700,
+                      borderColor: TYPE_COLOR[s.stage_type],
+                    }}>
                     <option value="open">open</option>
                     <option value="won">won</option>
                     <option value="lost">lost</option>
@@ -165,11 +194,14 @@ export default function PipelineCreateModal({ open, onClose, onCreated, isFirstP
               {stages.length === 0 && <div style={{ padding: 16, textAlign: 'center', color: 'var(--text-dim)', fontSize: 12 }}>No stages yet — add at least one open + one closed.</div>}
             </div>
             <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 6, lineHeight: 1.5 }}>
-              <strong style={{ color: 'var(--text)' }}>Open</strong> stages live in the pipeline (Discovery, Qualification…). <strong style={{ color: 'var(--text)' }}>Won</strong> marks a sale; <strong style={{ color: 'var(--text)' }}>Lost</strong> is a closed-lost terminus. Win% is the default win probability when a deal enters this stage; KINI AI overrides it per-deal as activity flows in.
+              <strong style={{ color: TYPE_COLOR.open }}>Open</strong> stages live in the pipeline (Discovery, Qualification…).
+              <strong style={{ color: TYPE_COLOR.won, marginLeft: 6 }}>Won</strong> marks a sale;
+              <strong style={{ color: TYPE_COLOR.lost, marginLeft: 6 }}>Lost</strong> is a closed-lost terminus.
+              Win% is the default win probability when a deal enters this stage; KINI AI overrides it per-deal as activity flows in.
             </div>
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 6 }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
             <button onClick={onClose} disabled={saving} style={btnSecondary}>Cancel</button>
             <button onClick={submit} disabled={saving || !name.trim()} style={btnPrimary}>
               {saving ? 'Creating…' : `Create pipeline + ${stages.filter((s) => s.name.trim()).length} stage${stages.filter((s) => s.name.trim()).length === 1 ? '' : 's'}`}
@@ -185,5 +217,4 @@ const lblCss: React.CSSProperties = { fontSize: 11, color: 'var(--text-dim)', te
 const inputCss: React.CSSProperties = { background: 'var(--s4)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13, width: '100%', boxSizing: 'border-box' };
 const btnPrimary: React.CSSProperties = { background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 18px', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer' };
 const btnSecondary: React.CSSProperties = { background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 16px', borderRadius: 8, fontSize: 13, cursor: 'pointer' };
-const btnGhost: React.CSSProperties = { background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' };
 const miniBtn: React.CSSProperties = { background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '2px 6px', borderRadius: 4, fontSize: 11, cursor: 'pointer', minWidth: 22 };
