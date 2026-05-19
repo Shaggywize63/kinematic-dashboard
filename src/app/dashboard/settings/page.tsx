@@ -85,7 +85,7 @@ export default function SettingsPage() {
   const [roleForm, setRoleForm] = useState<{ name: string; client_id: string; description: string; color: string }>({
     name: '', client_id: '', description: '', color: '#6366f1',
   });
-  const [theme, setTheme] = useState<'dark'|'light'>('dark');
+  const [theme, setTheme] = useState<'dark'|'light'|'system'>('system');
   const [radius, setRadius] = useState(100);
   const [error, setError] = useState('');
 
@@ -126,15 +126,37 @@ export default function SettingsPage() {
     })();
   }, []);
 
-  // Sync Theme Initial State
+  // Sync Theme Initial State (now 3-way: dark / light / system).
+  // 'system' tracks the OS prefers-color-scheme media query so the
+  // dashboard follows whatever the user set at the OS level — and re-renders
+  // when they flip it (without a refresh).
   useEffect(() => {
-    const saved = localStorage.getItem('kinematic-theme') as 'dark'|'light' || 'dark';
-    setTheme(saved || 'dark');
+    const saved = (localStorage.getItem('kinematic-theme') as 'dark'|'light'|'system' | null) || 'system';
+    applyTheme(saved);
+    setTheme(saved);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const toggleTheme = (t: 'dark'|'light') => {
+  // Re-apply when the OS theme changes — only relevant while in 'system' mode.
+  useEffect(() => {
+    if (theme !== 'system' || typeof window === 'undefined') return;
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const handler = () => applyTheme('system');
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, [theme]);
+
+  const applyTheme = (t: 'dark'|'light'|'system') => {
+    if (typeof window === 'undefined') return;
+    const effective = t === 'system'
+      ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+      : t;
+    document.documentElement.setAttribute('data-theme', effective);
+  };
+
+  const toggleTheme = (t: 'dark'|'light'|'system') => {
     setTheme(t);
-    document.documentElement.setAttribute('data-theme', t);
+    applyTheme(t);
     localStorage.setItem('kinematic-theme', t);
   };
 
@@ -367,9 +389,12 @@ export default function SettingsPage() {
         <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 16, padding: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
           <div>
             <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 15, fontWeight: 800 }}>Appearance</div>
-            <div style={{ fontSize: 12, color: C.gray, marginTop: 2 }}>Choose dark or light theme for the dashboard.</div>
+            <div style={{ fontSize: 12, color: C.gray, marginTop: 2 }}>Follow your OS, or pick Dark / Light. Remembered across sessions.</div>
           </div>
           <div style={{ display: 'inline-flex', background: C.s3, border: `1px solid ${C.border}`, borderRadius: 10, padding: 4 }}>
+            <button onClick={() => toggleTheme('system')} style={{ padding: '8px 16px', borderRadius: 8, background: theme === 'system' ? C.s4 : 'transparent', border: 'none', color: theme === 'system' ? C.white : C.gray, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <span>🖥️</span> System
+            </button>
             <button onClick={() => toggleTheme('dark')} style={{ padding: '8px 16px', borderRadius: 8, background: theme === 'dark' ? C.s4 : 'transparent', border: 'none', color: theme === 'dark' ? C.white : C.gray, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
               <span>🌙</span> Dark
             </button>
@@ -658,8 +683,14 @@ export default function SettingsPage() {
               {/* Interface Appearance */}
               <div style={{ background: C.s3, border: `1px solid ${C.border}`, borderRadius: 12, padding: 24 }}>
                 <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 16, fontWeight: 800, marginBottom: 8 }}>Interface Appearance</div>
-                <div style={{ fontSize: 13, color: C.gray, marginBottom: 20 }}>Toggle between dark and light themes for the dashboard.</div>
+                <div style={{ fontSize: 13, color: C.gray, marginBottom: 20 }}>Follow your OS, or override with Dark / Light.</div>
                 <div style={{ display: 'flex', gap: 12 }}>
+                  <button onClick={() => toggleTheme('system')} style={{ flex: 1, padding: '14px', borderRadius: 10, background: theme === 'system' ? C.s4 : 'transparent', border: `1px solid ${theme === 'system' ? C.blue : C.border}`, cursor: 'pointer', transition: 'all .2s' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+                      <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'linear-gradient(135deg, #0D1117 0%, #0D1117 50%, #ffffff 50%, #ffffff 100%)', border: `2px solid ${theme === 'system' ? C.blue : '#30363d'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>🖥️</div>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: theme === 'system' ? C.white : C.gray }}>System</span>
+                    </div>
+                  </button>
                   <button onClick={() => toggleTheme('dark')} style={{ flex: 1, padding: '14px', borderRadius: 10, background: theme === 'dark' ? C.s4 : 'transparent', border: `1px solid ${theme === 'dark' ? C.blue : C.border}`, cursor: 'pointer', transition: 'all .2s' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
                       <div style={{ width: 44, height: 44, borderRadius: '50%', background: '#0D1117', border: `2px solid ${theme === 'dark' ? C.blue : '#30363d'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>🌙</div>
