@@ -1,8 +1,8 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { crmLeads, crmSettings } from '../../lib/crmApi';
-import type { BusinessType, Lead, LeadStatus } from '../../types/crm';
+import { crmLeads, crmSettings, crmLeadSources } from '../../lib/crmApi';
+import type { BusinessType, Lead, LeadStatus, LeadSource } from '../../types/crm';
 import Modal from './shared/Modal';
 import LocationPicker from './LocationPicker';
 
@@ -12,22 +12,29 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
   const [form, setForm] = useState(() => seed(lead));
   const [busy, setBusy] = useState(false);
   const [businessType, setBusinessType] = useState<BusinessType>('both');
+  const [sources, setSources] = useState<LeadSource[]>([]);
 
   useEffect(() => { if (open) setForm(seed(lead)); }, [open, lead]);
-  // Fetch org's B2B/B2C mode on first open. We coerce form.is_b2c to match
-  // single-mode orgs so a rep can't toggle into the wrong type on edit.
+  // Fetch org's B2B/B2C mode AND the active lead sources on first open. The
+  // sources list drives the Source <select>; we filter out is_active=false
+  // ones so reps can't pick a retired source on a record edit.
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
     (async () => {
       try {
-        const r = await crmSettings.get();
-        const t: BusinessType = r.data?.business_type ?? 'both';
+        const [s, src] = await Promise.allSettled([crmSettings.get(), crmLeadSources.list()]);
         if (cancelled) return;
-        setBusinessType(t);
-        if (t === 'b2b') setForm((f) => ({ ...f, is_b2c: false }));
-        if (t === 'b2c') setForm((f) => ({ ...f, is_b2c: true }));
-      } catch { /* default to 'both' */ }
+        if (s.status === 'fulfilled') {
+          const t: BusinessType = s.value.data?.business_type ?? 'both';
+          setBusinessType(t);
+          if (t === 'b2b') setForm((f) => ({ ...f, is_b2c: false }));
+          if (t === 'b2c') setForm((f) => ({ ...f, is_b2c: true }));
+        }
+        if (src.status === 'fulfilled') {
+          setSources((src.value.data || []).filter((x: LeadSource) => x.is_active !== false));
+        }
+      } catch { /* default to 'both' + empty sources */ }
     })();
     return () => { cancelled = true; };
   }, [open]);
@@ -35,7 +42,17 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
   const submit = async () => {
     setBusy(true);
     try {
-      const body: Record<string, unknown> = { first_name: form.first_name || null, last_name: form.last_name || null, email: form.email || null, phone: form.phone || null, status: form.status, is_b2c: form.is_b2c };
+      const body: Record<string, unknown> = {
+        first_name: form.first_name || null,
+        last_name: form.last_name || null,
+        email: form.email || null,
+        phone: form.phone || null,
+        status: form.status,
+        // Send null when the rep clears the picker, so the column actually
+        // clears (sending undefined would leave the existing value untouched).
+        source_id: form.source_id || null,
+        is_b2c: form.is_b2c,
+      };
       if (!form.is_b2c) { Object.assign(body, { company: form.company || null, title: form.title || null, industry: form.industry || null }); }
       else { Object.assign(body, { date_of_birth: form.date_of_birth || null, gender: form.gender || null, address_line1: form.address_line1 || null, city: form.city || null, state: form.state || null, postal_code: form.postal_code || null, country: form.country || null, preferred_contact_method: form.preferred_contact_method || null, marketing_consent: form.marketing_consent, whatsapp_consent: form.whatsapp_consent }); }
       const r = await crmLeads.update(lead.id, body);
@@ -60,8 +77,16 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
         <F label="Last Name" value={form.last_name} onChange={(v) => setForm({ ...form, last_name: v })} />
         <F label="Email" type="email" required={!form.is_b2c} value={form.email} onChange={(v) => setForm({ ...form, email: v })} />
         <F label="Phone" required={form.is_b2c} value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />
-        <SF label="Status" value={form.status} options={[{ value: 'new', label: 'New' }, { value: 'working', label: 'Working' }, { value: 'qualified', label: 'Qualified' }, { value: 'unqualified', label: 'Unqualified' }, { value: 'converted', label: 'Converted' }]} onChange={(v) => setForm({ ...form, status: v as LeadStatus })} />
       </Grid>
+
+      <SL>Lifecycle & Source</SL><Grid>
+        <SF label="Status" value={form.status} options={[{ value: 'new', label: 'New' }, { value: 'working', label: 'Working' }, { value: 'qualified', label: 'Qualified' }, { value: 'unqualified', label: 'Unqualified' }, { value: 'converted', label: 'Converted' }]} onChange={(v) => setForm({ ...form, status: v as LeadStatus })} />
+        {/* Source — list comes from the active lead-sources catalogue. Empty
+            value clears the FK back to NULL; reps can manage the list under
+            CRM Settings → Lead Sources. */}
+        <SF label="Source" value={form.source_id} options={[{ value: '', label: '— Unspecified —' }, ...sources.map((s) => ({ value: s.id, label: s.name }))]} onChange={(v) => setForm({ ...form, source_id: v })} />
+      </Grid>
+
       {!form.is_b2c ? (<><SL>Business Details</SL><Grid><F label="Company" required value={form.company} onChange={(v) => setForm({ ...form, company: v })} /><F label="Job Title" value={form.title} onChange={(v) => setForm({ ...form, title: v })} /><F label="Industry" value={form.industry} onChange={(v) => setForm({ ...form, industry: v })} /></Grid></>) : (
         <><SL>Customer Details</SL><Grid>
           <F label="Date of Birth" type="date" value={form.date_of_birth} onChange={(v) => setForm({ ...form, date_of_birth: v })} />
@@ -83,7 +108,7 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
   );
 }
 
-function seed(l: Lead) { return { first_name: l.first_name || '', last_name: l.last_name || '', email: l.email || '', phone: l.phone || '', status: l.status, company: l.company || '', title: l.title || '', industry: l.industry || '', is_b2c: !!l.is_b2c, date_of_birth: l.date_of_birth || '', gender: l.gender || '', address_line1: l.address_line1 || '', city: l.city || '', state: l.state || '', postal_code: l.postal_code || '', country: l.country || 'India', preferred_contact_method: l.preferred_contact_method || '', marketing_consent: !!l.marketing_consent, whatsapp_consent: !!l.whatsapp_consent }; }
+function seed(l: Lead) { return { first_name: l.first_name || '', last_name: l.last_name || '', email: l.email || '', phone: l.phone || '', status: l.status, source_id: (l as any).source_id || '', company: l.company || '', title: l.title || '', industry: l.industry || '', is_b2c: !!l.is_b2c, date_of_birth: l.date_of_birth || '', gender: l.gender || '', address_line1: l.address_line1 || '', city: l.city || '', state: l.state || '', postal_code: l.postal_code || '', country: l.country || 'India', preferred_contact_method: l.preferred_contact_method || '', marketing_consent: !!l.marketing_consent, whatsapp_consent: !!l.whatsapp_consent }; }
 function SL({ children }: { children: React.ReactNode }) { return <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, margin: '14px 0 8px' }}>{children}</div>; }
 function Grid({ children }: { children: React.ReactNode }) { return <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>{children}</div>; }
 function F(p: { label: string; value: string; onChange: (v: string) => void; type?: string; required?: boolean }) { return <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}><span style={lbl}>{p.label}{p.required && <span style={{ color: '#ef4444', marginLeft: 3 }}>*</span>}</span><input type={p.type || 'text'} value={p.value} onChange={(e) => p.onChange(e.target.value)} required={p.required} style={inp} /></label>; }
