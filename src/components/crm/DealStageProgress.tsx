@@ -16,24 +16,24 @@ interface Props {
 }
 
 /**
- * Salesforce-Path-style breadcrumb for deal stages, with a few upgrades:
- *   1. Chevron shape via CSS clip-path so the eye reads left → right flow.
- *   2. Past stages: light-green tick-stamped. Current: brand-red with
- *      live days-in-stage chip. Future: muted grey.
- *   3. "Mark Stage Complete" button on the right that auto-advances to
- *      the next OPEN stage. Stops at the last open stage; the rep uses
- *      the dedicated Close Deal dialog to mark won/lost (carries the
- *      reason capture).
- *   4. Hover any stage → its name + index appear in a tooltip; click any
- *      to jump (with confirmation handled by the page).
- *   5. Days-to-close summary tile on the right when expected_close_date
- *      is set — turns amber under 7d, red when overdue.
+ * Salesforce-Path-style breadcrumb for deal stages, rebuilt for clean
+ * text rendering at every screen size.
  *
- * "Better than Salesforce" specifically: SF's path doesn't surface
- * days-in-stage inline, requires page reload on stage move, and the
- * Mark-Complete button doesn't account for the "skipping a stage"
- * case (we honour gaps and just advance to the next non-skipped open
- * stage).
+ * Layout:
+ *   row 1 — subtitle ("Currently in: Qualification · 3d in stage") so
+ *           the stage name reads cleanly even if the chevron clips it.
+ *           When the deal's stage_id isn't in this pipeline, a warning
+ *           replaces the subtitle so the rep notices instead of seeing
+ *           a "blank current" path.
+ *   row 2 — chevron path (CSS clip-path), horizontal-scrolls on narrow
+ *           viewports so chevrons keep a usable width instead of
+ *           squashing text. Past chevrons green-tinted, current is
+ *           BLUE, future grey. Won/Lost reached use green/red.
+ *   row 3 — days-to-close pill + "Mark Complete" button on their own
+ *           row, separated from the chevrons so neither truncates.
+ *
+ * Text inside each chevron is single-line with ellipsis overflow, so
+ * long stage names stay legible without bleeding into neighbours.
  */
 export default function DealStageProgress({
   stages,
@@ -45,9 +45,9 @@ export default function DealStageProgress({
 }: Props) {
   const sorted = useMemo(() => [...stages].sort((a, b) => a.position - b.position), [stages]);
   const currentIdx = sorted.findIndex((s) => s.id === currentStageId);
-  const isClosedStage = currentIdx >= 0 && sorted[currentIdx]?.stage_type !== 'open';
+  const current = currentIdx >= 0 ? sorted[currentIdx] : null;
+  const isClosedStage = current ? current.stage_type !== 'open' : false;
 
-  // Next open stage after the current one. Used by Mark Complete.
   const nextOpenIdx = useMemo(() => {
     for (let i = currentIdx + 1; i < sorted.length; i++) {
       if (sorted[i].stage_type === 'open') return i;
@@ -58,80 +58,106 @@ export default function DealStageProgress({
   if (sorted.length === 0) return null;
 
   return (
-    <div style={{ display: 'flex', alignItems: 'stretch', gap: 8, flexWrap: 'wrap' }}>
-      <div style={{ flex: 1, minWidth: 0, display: 'flex', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 10, padding: 4, gap: 0, overflowX: 'auto' }}>
-        {sorted.map((s, i) => {
-          const reached = i < currentIdx;
-          const current = i === currentIdx;
-          const isWon = s.stage_type === 'won';
-          const isLost = s.stage_type === 'lost';
-
-          const palette = current
-            ? { bg: 'var(--primary)', fg: '#fff', sub: 'rgba(255,255,255,0.85)' }
-            : isWon && reached
-              ? { bg: 'rgba(16,185,129,0.18)', fg: '#10b981', sub: '#10b981' }
-              : isLost && reached
-                ? { bg: 'rgba(239,68,68,0.14)', fg: '#ef4444', sub: '#ef4444' }
-                : reached
-                  ? { bg: 'rgba(40,180,99,0.18)', fg: 'var(--green, #10b981)', sub: 'var(--text-dim)' }
-                  : { bg: 'transparent', fg: 'var(--text-dim)', sub: 'var(--text-dim)' };
-
-          // Chevron clip-path: pointed right except for the last stage
-          // (which is flush-right rectangular). First stage gets a flush
-          // left edge so the row reads as one connected path.
-          const isFirst = i === 0;
-          const isLast = i === sorted.length - 1;
-          const clip = isLast
-            ? `polygon(${isFirst ? '0% 0%' : '12px 0%'}, 100% 0%, 100% 100%, ${isFirst ? '0% 100%' : '12px 100%'}, 0% 50%)`
-            : `polygon(${isFirst ? '0% 0%' : '12px 0%'}, calc(100% - 12px) 0%, 100% 50%, calc(100% - 12px) 100%, ${isFirst ? '0% 100%' : '12px 100%'}, 0% 50%)`;
-
-          return (
-            <button
-              key={s.id}
-              onClick={() => onMove && onMove(s.id)}
-              disabled={!onMove || current}
-              title={`Stage ${i + 1} of ${sorted.length}: ${s.name}`}
-              style={{
-                flex: '1 1 0',
-                minWidth: 110,
-                position: 'relative',
-                padding: `10px ${isLast ? 14 : 22}px 10px ${isFirst ? 14 : 22}px`,
-                marginRight: isLast ? 0 : -10, // overlap so chevrons interlock
-                background: palette.bg,
-                color: palette.fg,
-                border: 'none',
-                cursor: onMove && !current ? 'pointer' : 'default',
-                fontSize: 11,
-                fontWeight: 700,
-                textTransform: 'uppercase',
-                letterSpacing: 0.5,
-                clipPath: clip,
-                WebkitClipPath: clip,
-                transition: 'background 0.15s',
-                lineHeight: 1.2,
-                textAlign: 'center',
-              }}>
-              <div>
-                {reached && !isLost && <span style={{ marginRight: 4, fontSize: 10 }}>✓</span>}
-                {isLost && reached && <span style={{ marginRight: 4, fontSize: 10 }}>✗</span>}
-                {s.name}
-              </div>
-              {current && typeof daysInStage === 'number' && (
-                <div style={{ fontSize: 9, marginTop: 3, opacity: 0.92, fontWeight: 800, letterSpacing: 0.3 }}>
-                  {daysInStage === 0 ? 'today' : `${daysInStage}d in stage`}
-                </div>
-              )}
-            </button>
-          );
-        })}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {/* Row 1 — subtitle. Stage name lives here in full so even if the
+          chevron truncates the label, the rep can still read it. */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.6 }}>
+          Stage progress
+        </span>
+        {current ? (
+          <span style={{ fontSize: 12, color: 'var(--text)', fontWeight: 700 }}>
+            Currently in: <span style={{ color: '#3E9EFF' }}>{current.name}</span>
+            {typeof daysInStage === 'number' && (
+              <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--text-dim)', fontWeight: 600 }}>
+                · {daysInStage === 0 ? 'today' : `${daysInStage}d in stage`}
+              </span>
+            )}
+          </span>
+        ) : (
+          <span style={{ fontSize: 12, color: '#f59e0b', fontWeight: 700 }}>
+            ⚠ Current stage is not in this pipeline — pick a valid stage below.
+          </span>
+        )}
       </div>
 
-      {/* Right-side: days-to-close + Mark Complete */}
+      {/* Row 2 — chevron path. Horizontal scroll on narrow screens so
+          chevrons keep their min-width and text doesn't compress. */}
+      <div style={{
+        background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 10,
+        padding: 4, overflowX: 'auto', overflowY: 'hidden',
+      }}>
+        <div style={{ display: 'flex', flexWrap: 'nowrap', minWidth: '100%' }}>
+          {sorted.map((s, i) => {
+            const reached = i < currentIdx;
+            const isCurrent = i === currentIdx;
+            const isWon = s.stage_type === 'won';
+            const isLost = s.stage_type === 'lost';
+
+            const palette = isCurrent
+              // Current — BLUE.
+              ? { bg: '#3E9EFF', fg: '#ffffff' }
+              : isWon && reached
+                ? { bg: 'rgba(16,185,129,0.20)', fg: '#10b981' }
+                : isLost && reached
+                  ? { bg: 'rgba(239,68,68,0.16)', fg: '#ef4444' }
+                  : reached
+                    ? { bg: 'rgba(16,185,129,0.18)', fg: '#10b981' }
+                    : { bg: 'transparent', fg: 'var(--text-dim)' };
+
+            const isFirst = i === 0;
+            const isLast = i === sorted.length - 1;
+            const clip = isLast
+              ? `polygon(${isFirst ? '0% 0%' : '14px 0%'}, 100% 0%, 100% 100%, ${isFirst ? '0% 100%' : '14px 100%'}, 0% 50%)`
+              : `polygon(${isFirst ? '0% 0%' : '14px 0%'}, calc(100% - 14px) 0%, 100% 50%, calc(100% - 14px) 100%, ${isFirst ? '0% 100%' : '14px 100%'}, 0% 50%)`;
+
+            return (
+              <button
+                key={s.id}
+                onClick={() => onMove && onMove(s.id)}
+                disabled={!onMove || isCurrent}
+                title={`Stage ${i + 1} of ${sorted.length}: ${s.name}`}
+                style={{
+                  flex: '1 1 0',
+                  minWidth: 140,
+                  position: 'relative',
+                  padding: `12px ${isLast ? 16 : 26}px 12px ${isFirst ? 16 : 26}px`,
+                  marginRight: isLast ? 0 : -12,
+                  background: palette.bg,
+                  color: palette.fg,
+                  border: 'none',
+                  cursor: onMove && !isCurrent ? 'pointer' : 'default',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  letterSpacing: 0.4,
+                  clipPath: clip,
+                  WebkitClipPath: clip,
+                  transition: 'background 0.15s',
+                  lineHeight: 1.2,
+                  textAlign: 'center',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}>
+                <span style={{ display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', verticalAlign: 'middle' }}>
+                  {reached && !isLost && <span style={{ marginRight: 4, fontSize: 10 }}>✓</span>}
+                  {isLost && reached && <span style={{ marginRight: 4, fontSize: 10 }}>✗</span>}
+                  {s.name}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Row 3 — days-to-close + Mark Complete on their own row so they
+          never overlap the chevrons even when the path is wide. */}
       {(daysToClose != null || (onMarkComplete && !isClosedStage && nextOpenIdx > -1)) && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           {daysToClose != null && (
             <div title={daysToClose < 0 ? 'Past expected close date' : 'Days remaining to expected close'} style={{
-              padding: '8px 12px', borderRadius: 8, fontSize: 11, fontWeight: 700,
+              padding: '6px 12px', borderRadius: 8, fontSize: 11, fontWeight: 700,
               background: daysToClose < 0 ? 'rgba(239,68,68,0.12)' : daysToClose < 7 ? 'rgba(245,158,11,0.14)' : 'var(--s3)',
               color: daysToClose < 0 ? '#ef4444' : daysToClose < 7 ? '#f59e0b' : 'var(--text-dim)',
               border: `1px solid ${daysToClose < 0 ? '#ef4444' : daysToClose < 7 ? '#f59e0b' : 'var(--border)'}`,
@@ -144,8 +170,8 @@ export default function DealStageProgress({
             <button onClick={onMarkComplete}
               title={`Advance to ${sorted[nextOpenIdx].name}`}
               style={{
-                background: 'var(--primary)', border: 'none', color: '#fff',
-                padding: '8px 14px', borderRadius: 8, fontSize: 11, fontWeight: 800,
+                background: '#3E9EFF', border: 'none', color: '#fff',
+                padding: '6px 14px', borderRadius: 8, fontSize: 11, fontWeight: 800,
                 cursor: 'pointer', textTransform: 'uppercase', letterSpacing: 0.5, whiteSpace: 'nowrap',
               }}>
               ✓ Mark Complete → {sorted[nextOpenIdx].name}
