@@ -55,7 +55,9 @@ export default function NewLeadPage() {
       if (s.status === 'fulfilled') {
         const t: BusinessType = s.value.data?.business_type ?? 'both';
         setBusinessType(t);
-        setForm((f) => ({ ...f, is_b2c: t === 'b2c' }));
+        // For single-mode orgs, pin is_b2c to match. Mixed orgs default to
+        // B2B (matches existing behaviour) — the toggle lets reps flip.
+        if (t !== 'both') setForm((f) => ({ ...f, is_b2c: t === 'b2c' }));
       }
       if (src.status === 'fulfilled') setSources((src.value.data || []).filter((x: LeadSource) => x.is_active));
       if (u.status === 'fulfilled') {
@@ -133,9 +135,16 @@ export default function NewLeadPage() {
     </label>
   );
 
+  // Single-mode orgs get a descriptive label; mixed orgs see a toggle so
+  // reps can pick lead type per record. Matches contacts/new behaviour.
+  const showToggle = businessType === 'both';
   const leadTypeLabel = businessType === 'b2c'
     ? 'Individual consumer lead — capture contact details and preferences.'
-    : 'Business lead — capture company and decision-maker info.';
+    : businessType === 'b2b'
+      ? 'Business lead — capture company and decision-maker info.'
+      : (form.is_b2c
+        ? 'Individual consumer lead — capture contact details and preferences.'
+        : 'Business lead — capture company and decision-maker info.');
 
   return (
     <form onSubmit={submit} style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 24, maxWidth: 820 }}>
@@ -145,6 +154,13 @@ export default function NewLeadPage() {
       </p>
 
       <ClientScopeField value={form.client_id} onChange={(id) => setForm({ ...form, client_id: id })} />
+
+      {showToggle && (
+        <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
+          <button type="button" onClick={() => setForm({ ...form, is_b2c: true })} style={{ flex: 1, padding: '10px 14px', borderRadius: 8, border: `1px solid ${form.is_b2c ? 'var(--primary)' : 'var(--border)'}`, background: form.is_b2c ? 'var(--primary)' : 'var(--s3)', color: form.is_b2c ? '#fff' : 'var(--text)', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>B2C Consumer</button>
+          <button type="button" onClick={() => setForm({ ...form, is_b2c: false })} style={{ flex: 1, padding: '10px 14px', borderRadius: 8, border: `1px solid ${!form.is_b2c ? 'var(--primary)' : 'var(--border)'}`, background: !form.is_b2c ? 'var(--primary)' : 'var(--s3)', color: !form.is_b2c ? '#fff' : 'var(--text)', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>B2B Business</button>
+        </div>
+      )}
 
 
       <Section title="Personal">
