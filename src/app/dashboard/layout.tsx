@@ -70,21 +70,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [otherOpen, setOtherOpen] = useState(false);
   const [token, setToken] = useState('');
   const [drawerOpen, setDrawerOpen] = useState(false);
-  // Whether the active org's CRM is configured for B2C. We fetch once on
-  // mount and use it to hide B2B-only nav entries (Accounts) from the
-  // sidebar for orgs that don't sell to companies.
-  const [isCrmB2C, setIsCrmB2C] = useState(false);
   const isMobile = useIsMobile(1024);
   const router = useRouter();
   const pathname = usePathname();
-
-  // Read the CRM business_type once so we can hide B2B-only nav entries.
-  // Failure is silent — we just default to B2B which keeps every entry visible.
-  useEffect(() => {
-    api.get<{ data?: { business_type?: string } }>('/api/v1/crm/settings')
-      .then((r: any) => { if ((r?.data?.business_type ?? r?.business_type) === 'b2c') setIsCrmB2C(true); })
-      .catch(() => {});
-  }, []);
 
   useEffect(() => {
     const u = getStoredUser();
@@ -155,11 +143,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   };
 
   const filterNav = (items: any[]) => {
-    // B2C orgs don't sell to companies — hide Accounts (and future B2B-only entries).
-    const visibleAfterB2C = items.filter((i) => !(i.hideForB2C && isCrmB2C));
     // superAdminOnly entries (e.g. Activity Log) — hidden for everyone else,
     // even other "platform admins".
-    const visibleAfterRole = visibleAfterB2C.filter((i) => !i.superAdminOnly || isSuperAdmin);
+    const visibleAfterRole = items.filter((i) => !i.superAdminOnly || isSuperAdmin);
     if (isPlatformAdmin) return visibleAfterRole;
     return visibleAfterRole.filter(i => hasModule(i.module));
   };
@@ -207,18 +193,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       { href: '/dashboard/route-plan',                   label: 'Route Plan',          icon: 'M9 20l-5.44-2.72A2 2 0 013 15.49V4.5a2 2 0 012.89-1.8L9 4 M9 4v16 M15 1l5.44 2.72A2 2 0 0121 5.51v10.98a2 2 0 01-2.89 1.8L15 17 M15 1v16', module: 'orders' },
       { href: '/dashboard/work-activities',              label: 'Work Activities',     icon: 'M12 2v20 M2 12h20 M5 5l14 14 M19 5L5 14', module: 'work_activities' },
     ]},
+    // ⚠ Items here must mirror the CRM sub-nav (components/crm/layout/CrmSubNav.tsx)
+    //   in label, order, and href. The sub-nav is the source-of-truth for what
+    //   pages exist; this sidebar just lets you jump to them without scrolling.
     { label: 'Lead Management', package: 'crm', items: [
-      { href: '/dashboard/crm/dashboard',        label: 'Overview',       icon: 'M3 3v18h18 M7 14l4-4 4 4 5-5', module: 'crm_dashboard' },
-      { href: '/dashboard/crm/leads/analytics',  label: 'Lead Analytics', icon: 'M18 20V10 M12 20V4 M6 20v-6', module: 'crm_leads' },
+      { href: '/dashboard/crm/dashboard',        label: 'Dashboard',      icon: 'M3 3v18h18 M7 14l4-4 4 4 5-5', module: 'crm_dashboard' },
       { href: '/dashboard/crm/leads',            label: 'Leads',          icon: 'M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 7a4 4 0 100-8 4 4 0 000 8z', module: 'crm_leads' },
+      { href: '/dashboard/crm/leads/analytics',  label: 'Lead Analytics', icon: 'M18 20V10 M12 20V4 M6 20v-6', module: 'crm_leads' },
+      { href: '/dashboard/crm/contacts',         label: 'Contacts',       icon: 'M20 21v-2a4 4 0 00-3-3.87 M4 21v-2a4 4 0 014-4h4a4 4 0 014 4v2 M16 3.13a4 4 0 010 7.75 M8 11a4 4 0 100-8 4 4 0 000 8z', module: 'crm_contacts' },
+      { href: '/dashboard/crm/accounts',         label: 'Accounts',       icon: 'M3 21h18 M3 7v14 M21 7v14 M3 7l9-4 9 4 M9 12h6', module: 'crm_accounts' },
       { href: '/dashboard/crm/deals',            label: 'Deals',          icon: 'M12 1v22 M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6', module: 'crm_deals' },
       { href: '/dashboard/crm/pipeline',         label: 'Pipeline',       icon: 'M3 5h6v14H3z M9 9h6v6H9z M15 5h6v14h-6z', module: 'crm_pipeline' },
-      { href: '/dashboard/crm/accounts',         label: 'Accounts',       icon: 'M3 21h18 M3 7v14 M21 7v14 M3 7l9-4 9 4 M9 12h6', module: 'crm_accounts', hideForB2C: true },
-      { href: '/dashboard/crm/contacts',         label: 'Contacts',       icon: 'M20 21v-2a4 4 0 00-3-3.87 M4 21v-2a4 4 0 014-4h4a4 4 0 014 4v2 M16 3.13a4 4 0 010 7.75 M8 11a4 4 0 100-8 4 4 0 000 8z', module: 'crm_contacts' },
+      { href: '/dashboard/crm/products',         label: 'Products',       icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4', module: 'crm_products' },
       { href: '/dashboard/crm/activities',       label: 'Activities',     icon: 'M22 11.08V12a10 10 0 11-5.93-9.14 M22 4L12 14.01l-3-3', module: 'crm_activities' },
-      { href: '/dashboard/crm/templates',        label: 'Templates',      icon: 'M19 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V5a2 2 0 00-2-2z M3 9h18 M9 21V9', module: 'crm_whatsapp' },
+      { href: '/dashboard/crm/whatsapp',         label: 'WhatsApp',       icon: 'M19 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V5a2 2 0 00-2-2z M3 9h18 M9 21V9', module: 'crm_whatsapp' },
       { href: '/dashboard/crm/reports',          label: 'Reports',        icon: 'M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6 M16 13H8 M16 17H8', module: 'crm_reports' },
       { href: '/dashboard/crm/settings',         label: 'Settings',       icon: 'M12 15a3 3 0 100-6 3 3 0 000 6z', module: 'crm_settings' },
+      { href: '/dashboard/crm/help',             label: 'Help',           icon: 'M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3 M12 17h.01 M22 12a10 10 0 11-20 0 10 10 0 0120 0z', module: 'crm_dashboard' },
     ]},
     { label: 'Supply Chain & Distribution', package: 'distribution', items: [
       { href: '/dashboard/distribution',                  label: 'Overview',     icon: 'M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z M9 22V12h6v10', module: 'distribution' },
