@@ -31,9 +31,6 @@ const LOST_REASONS = [
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
-// Friendly labels for the raw `event_type` rows the API returns. Falls
-// back to a Title-Cased version of the raw enum when an event isn't
-// known — keeps the history section honest about new event types.
 const EVENT_LABEL: Record<string, string> = {
   stage_changed: 'Stage changed',
   status_changed: 'Status changed',
@@ -46,10 +43,6 @@ const EVENT_LABEL: Record<string, string> = {
 };
 const labelEvent = (e: string) => EVENT_LABEL[e] || e.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 
-/**
- * IST-formatted date + time tuple for the history feed. Returns
- * { date: 'May 19, 2026', time: '02:47 PM', ts: '2026-05-19T09:17:00Z' }.
- */
 function fmtIst(iso: string) {
   const d = new Date(iso);
   const date = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' });
@@ -109,15 +102,49 @@ export default function DealDetailPage() {
 
   useEffect(() => { reload(); /* eslint-disable-next-line */ }, [id]);
 
+  // Stage moves from the chevron breadcrumb.
+  //
+  // The backend's moveStage endpoint can't accept a terminal (won/lost)
+  // stage as the target — closing a deal requires a reason via the
+  // dedicated `win` / `lose` endpoints. Clicking a Won/Lost chevron used
+  // to surface the backend's 400 as an "Application error" overlay; now
+  // we intercept those clicks here and open the Close-Deal modal with
+  // the right outcome pre-selected so the rep can confirm + add reason.
+  //
+  // Defence-in-depth: even the open-stage path is wrapped so any
+  // unexpected exception turns into a friendly toast, not a crash.
   const moveStage = async (stageId: string) => {
-    if (!deal) return;
-    try { await crmDeals.moveStage(deal.id, { stage_id: stageId }); toast.success('Stage updated'); reload(); }
-    catch (e: any) { toast.error(e.message || 'Failed'); }
+    if (!deal || !pipeline) return;
+    const target = (pipeline.stages || []).find((s) => s.id === stageId);
+    if (!target) {
+      toast.error('Stage not found in this pipeline');
+      return;
+    }
+    if (target.stage_type === 'won') {
+      setCloseOutcome('won');
+      setCloseReason('');
+      setCloseLostOther('');
+      setCloseOpen(true);
+      return;
+    }
+    if (target.stage_type === 'lost') {
+      setCloseOutcome('lost');
+      setCloseReason('');
+      setCloseLostOther('');
+      setCloseOpen(true);
+      return;
+    }
+    try {
+      await crmDeals.moveStage(deal.id, { stage_id: stageId });
+      toast.success(`Moved to ${target.name}`);
+      reload();
+    } catch (e: any) {
+      const msg = e?.message || e?.error || 'Stage update failed';
+      console.error('moveStage failed', e);
+      toast.error(msg);
+    }
   };
 
-  // Compute "days in current stage" from the most recent stage-change
-  // history event for this deal. Falls back to created_at when the deal
-  // has never moved.
   const daysInStage = useMemo<number | undefined>(() => {
     if (!deal) return undefined;
     const sinceIso =
@@ -161,7 +188,7 @@ export default function DealDetailPage() {
       setCloseReason('');
       setCloseLostOther('');
       reload();
-    } catch (e: any) { toast.error(e.message || 'Close failed'); }
+    } catch (e: any) { toast.error(e?.message || 'Close failed'); }
     finally { setClosing(false); }
   };
   const reopenDeal = async () => {
@@ -172,20 +199,20 @@ export default function DealDetailPage() {
       await crmDeals.update(deal.id, { status: 'open' } as any);
       toast.success('Deal re-opened');
       reload();
-    } catch (e: any) { toast.error(e.message || 'Re-open failed'); }
+    } catch (e: any) { toast.error(e?.message || 'Re-open failed'); }
     finally { setReopening(false); }
   };
   const loadNba = async () => {
     if (!deal) return;
     setNbaBusy(true);
     try { const r = await crmAi.nextBestAction(deal.id); setNba(r.data); }
-    catch (e: any) { toast.error(e.message || 'NBA failed'); } finally { setNbaBusy(false); }
+    catch (e: any) { toast.error(e?.message || 'NBA failed'); } finally { setNbaBusy(false); }
   };
   const loadWinProb = async () => {
     if (!deal) return;
     setWinBusy(true);
     try { const r = await crmAi.winProbability(deal.id); setWinProb(r.data); }
-    catch (e: any) { toast.error(e.message || 'Forecast failed'); } finally { setWinBusy(false); }
+    catch (e: any) { toast.error(e?.message || 'Forecast failed'); } finally { setWinBusy(false); }
   };
   const handleDelete = async () => {
     if (!deal) return;
@@ -197,7 +224,7 @@ export default function DealDetailPage() {
       router.refresh();
       router.push('/dashboard/crm/deals');
     } catch (e: any) {
-      toast.error(e.message || 'Delete failed');
+      toast.error(e?.message || 'Delete failed');
       setDeleting(false);
     }
   };
@@ -210,9 +237,6 @@ export default function DealDetailPage() {
 
   return (
     <div>
-      {/* Breadcrumb sits ABOVE the detail card so it spans the full page
-          width and reads cleanly even on narrow screens (where the card
-          would otherwise squash it). */}
       {hasPipeline && (
         <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, padding: 12, marginBottom: 14 }}>
           {deal.status === 'open' ? (
@@ -230,10 +254,6 @@ export default function DealDetailPage() {
         </div>
       )}
 
-      {/* Responsive 2-column layout — flex+wrap so the right column drops
-          below the left on narrow screens instead of squashing into 280px.
-          Left gets `flex 2 1 380px`, right `flex 1 1 280px` — both stay
-          full width on mobile. */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 18, alignItems: 'flex-start' }}>
         <div style={{ flex: '2 1 380px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 18 }}>
           <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 22 }}>
@@ -250,7 +270,6 @@ export default function DealDetailPage() {
                   {pipeline && (<><span> · </span><span title="Current pipeline">📋 {pipeline.name}</span></>)}
                 </div>
               </div>
-              {/* Action buttons wrap onto their own row on narrow screens. */}
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                 <button onClick={() => setPipelineModalOpen(true)}
                   style={{ background: hasPipeline ? 'var(--s3)' : 'var(--primary)', border: hasPipeline ? '1px solid var(--border)' : 'none', color: hasPipeline ? 'var(--text)' : '#fff', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontWeight: 700 }}>
