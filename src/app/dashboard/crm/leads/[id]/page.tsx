@@ -167,21 +167,27 @@ export default function LeadDetailPage() {
   const isLost = lead.status === 'lost';
   const isClosed = isConverted || isUnqualified || isLost;
 
+  // Responsive layout — flex+wrap so the right column drops below the
+  // left on narrow screens instead of squashing into 280px. Left gets
+  // `flex 2 1 380px`, right `flex 1 1 280px`. Both wrap onto a single
+  // column on mobile.
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(280px, 1fr)', gap: 18 }}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 18, alignItems: 'flex-start' }}>
+      <div style={{ flex: '2 1 380px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 18 }}>
         <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 22 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 14 }}>
+          {/* Header — avatar + name on the left, action buttons on the
+              right; both wrap to their own rows on narrow screens. */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 14, flexWrap: 'wrap' }}>
             <OwnerAvatar name={fullName} size={52} />
-            <div style={{ flex: 1 }}>
+            <div style={{ flex: '1 1 200px', minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)' }}>{fullName}</div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', wordBreak: 'break-word' }}>{fullName}</div>
                 <Badge tone={isB2C ? 'consumer' : 'business'}>{isB2C ? 'B2C' : 'B2B'}</Badge>
                 {isConverted && <Badge tone="success">Converted</Badge>}
                 {isUnqualified && <Badge tone="warning">Unqualified</Badge>}
                 {isLost && <Badge tone="danger">Lost</Badge>}
               </div>
-              <div style={{ fontSize: 13, color: 'var(--text-dim)' }}>
+              <div style={{ fontSize: 13, color: 'var(--text-dim)', wordBreak: 'break-word' }}>
                 {isB2C
                   ? [lead.city, lead.country].filter(Boolean).join(', ') || '—'
                   : (lead.title ? `${lead.title}${lead.company ? ` · ${lead.company}` : ''}` : (lead.company || '—'))}
@@ -236,13 +242,13 @@ export default function LeadDetailPage() {
               <button onClick={() => router.back()} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer' }}>Back</button>
             </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, fontSize: 13 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 14, fontSize: 13 }}>
             <Field label="Email" value={lead.email} />
             <PhoneField phone={lead.phone} prefill={waPrefill} leadId={lead.id} displayName={fullName} />
             <Field label="Status" value={lead.status} />
             <Field label="Source" value={lead.source_name} />
             <Field label="Owner" value={lead.owner_name || 'Unassigned'} />
-            <Field label="Created" value={new Date(lead.created_at).toLocaleString()} />
+            <Field label="Created" value={new Date(lead.created_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} />
           </div>
         </div>
 
@@ -271,8 +277,8 @@ export default function LeadDetailPage() {
 
         {isB2C && (
           <Card title="Customer Profile">
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, fontSize: 13 }}>
-              <Field label="Date of Birth" value={lead.date_of_birth ? new Date(lead.date_of_birth).toLocaleDateString() : null} />
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 14, fontSize: 13 }}>
+              <Field label="Date of Birth" value={lead.date_of_birth ? new Date(lead.date_of_birth).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' }) : null} />
               <Field label="Gender" value={lead.gender ? lead.gender.replace(/_/g, ' ') : null} />
               <Field label="Preferred Channel" value={lead.preferred_contact_method} />
               <Field label="Marketing Consent" value={lead.marketing_consent ? 'Yes' : 'No'} />
@@ -287,11 +293,11 @@ export default function LeadDetailPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {deals.map((d) => (
                 <Link key={d.id} href={`/dashboard/crm/deals/${d.id}`} style={rowLink}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ color: 'var(--text)', fontWeight: 600 }}>{d.name}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ color: 'var(--text)', fontWeight: 600, wordBreak: 'break-word' }}>{d.name}</div>
                     <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{d.stage_name} · {d.status}</div>
                   </div>
-                  <div style={{ color: 'var(--text)', fontWeight: 700 }}>{formatINR(d.amount || 0)}</div>
+                  <div style={{ color: 'var(--text)', fontWeight: 700, whiteSpace: 'nowrap' }}>{formatINR(d.amount || 0)}</div>
                 </Link>
               ))}
             </div>
@@ -302,7 +308,7 @@ export default function LeadDetailPage() {
         <AiDraftReplyPanel leadId={id} />
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+      <div style={{ flex: '1 1 280px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 18 }}>
         <LeadScoreBreakdown
           score={score?.score ?? lead.score}
           grade={(score?.grade ?? lead.score_grade) as any}
@@ -315,7 +321,7 @@ export default function LeadDetailPage() {
 
       <LeadConvertModal
         leadId={id}
-        defaultDealName={lead.company ? `${lead.company} Opportunity` : undefined}
+        defaultDealName={lead.company ? `${lead.company} Opportunity` : fullName}
         open={convertOpen}
         onClose={() => setConvertOpen(false)}
         onConverted={reload}
@@ -350,19 +356,19 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
 
 function Field({ label, value }: { label: string; value?: string | null }) {
   return (
-    <div>
+    <div style={{ minWidth: 0 }}>
       <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.6 }}>{label}</div>
-      <div style={{ color: 'var(--text)', marginTop: 2 }}>{value || '—'}</div>
+      <div style={{ color: 'var(--text)', marginTop: 2, wordBreak: 'break-word' }}>{value || '—'}</div>
     </div>
   );
 }
 
 function PhoneField({ phone, prefill, leadId, displayName }: { phone?: string | null; prefill: string; leadId: string; displayName: string }) {
   return (
-    <div>
+    <div style={{ minWidth: 0 }}>
       <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.6 }}>Phone</div>
       <div style={{ color: 'var(--text)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-        <span>{phone || '—'}</span>
+        <span style={{ wordBreak: 'break-word' }}>{phone || '—'}</span>
         <CallButton phone={phone} prefillSubject={`Call with ${displayName}`} leadId={leadId} size="sm" />
         <WhatsAppButton phone={phone} prefillText={prefill} size="sm" />
       </div>
@@ -401,7 +407,7 @@ function DisqualifiedBanner({
       <div style={{ flex: 1, minWidth: 220 }}>
         <div style={{ fontSize: 10, fontWeight: 800, color: tone.accent, letterSpacing: 0.6 }}>{tone.label}</div>
         {lostReason && <div style={{ color: 'var(--text)', marginTop: 4, fontSize: 14 }}>Reason: {lostReason}</div>}
-        {disqualifiedAt && <div style={{ color: 'var(--text-dim)', marginTop: 2, fontSize: 12 }}>On {new Date(disqualifiedAt).toLocaleString()}</div>}
+        {disqualifiedAt && <div style={{ color: 'var(--text-dim)', marginTop: 2, fontSize: 12 }}>On {new Date(disqualifiedAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}</div>}
       </div>
       <button onClick={onReopen} disabled={reopening} style={{ background: '#10b981', border: 'none', color: '#fff', padding: '8px 16px', borderRadius: 8, fontWeight: 700, cursor: reopening ? 'not-allowed' : 'pointer', opacity: reopening ? 0.7 : 1 }}>
         {reopening ? 'Re-opening…' : 'Re-open Lead'}
@@ -425,7 +431,7 @@ function ConvertedBanner({
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
         <div style={{ flex: 1, minWidth: 220 }}>
           <div style={{ fontSize: 10, fontWeight: 800, color: '#10b981', letterSpacing: 0.6 }}>LEAD CONVERTED</div>
-          {convertedAt && <div style={{ color: 'var(--text-dim)', marginTop: 2, fontSize: 12 }}>On {new Date(convertedAt).toLocaleString()}</div>}
+          {convertedAt && <div style={{ color: 'var(--text-dim)', marginTop: 2, fontSize: 12 }}>On {new Date(convertedAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}</div>}
         </div>
         <button onClick={onReopen} disabled={reopening} title="Disconnects this lead from the deal/contact/account so it can be re-worked. The other records stay intact." style={{ background: 'transparent', border: '1px solid #10b981', color: '#10b981', padding: '8px 16px', borderRadius: 8, fontWeight: 700, cursor: reopening ? 'not-allowed' : 'pointer', opacity: reopening ? 0.7 : 1 }}>
           {reopening ? 'Re-opening…' : 'Re-open Lead'}
