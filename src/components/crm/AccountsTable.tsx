@@ -9,18 +9,18 @@ export default function AccountsTable({ accounts, loading }: { accounts: Account
   return (
     <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, overflow: 'hidden' }}>
       <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <table className="responsive-cards" style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead><tr><th style={th}>Name</th><th style={th}>Industry</th><th style={th}>Revenue</th><th style={th}>Employees</th><th style={th}>Owner</th></tr></thead>
           <tbody>
-            {loading && <tr><td colSpan={5} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)' }}>Loading...</td></tr>}
-            {!loading && accounts.length === 0 && <tr><td colSpan={5} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)' }}>No accounts found.</td></tr>}
+            {loading && <tr><td colSpan={5} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)' }} data-label="">Loading...</td></tr>}
+            {!loading && accounts.length === 0 && <tr><td colSpan={5} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)' }} data-label="">No accounts found.</td></tr>}
             {accounts.map((a) => (
               <tr key={a.id}>
-                <td style={td}><Link href={`/dashboard/crm/accounts/${a.id}`} style={{ color: 'var(--text)', fontWeight: 600 }}>{a.name}</Link>{a.website && <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{a.website}</div>}</td>
-                <td style={td}>{a.industry || '—'}</td>
-                <td style={td}>{a.annual_revenue ? `$${Number(a.annual_revenue).toLocaleString()}` : '—'}</td>
-                <td style={td}>{a.employees || '—'}</td>
-                <td style={td}><div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><OwnerAvatar name={a.owner_name} size={24} /><span style={{ fontSize: 12 }}>{a.owner_name || 'Unassigned'}</span></div></td>
+                <td style={td} data-label="Name"><Link href={`/dashboard/crm/accounts/${a.id}`} style={{ color: 'var(--text)', fontWeight: 600 }}>{a.name}</Link>{a.website && <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{a.website}</div>}</td>
+                <td style={td} data-label="Industry">{a.industry || '—'}</td>
+                <td style={td} data-label="Revenue">{a.annual_revenue ? `$${Number(a.annual_revenue).toLocaleString()}` : '—'}</td>
+                <td style={td} data-label="Employees">{a.employees || '—'}</td>
+                <td style={td} data-label="Owner"><div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><OwnerAvatar name={a.owner_name} size={24} /><span style={{ fontSize: 12 }}>{a.owner_name || 'Unassigned'}</span></div></td>
               </tr>
             ))}
           </tbody>
