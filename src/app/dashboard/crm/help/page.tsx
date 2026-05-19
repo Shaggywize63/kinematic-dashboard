@@ -12,18 +12,6 @@ const SUPPORT_PHONE = '+91 88022 74880';
 const SUPPORT_PHONE_DIAL = '+918802274880';
 const SUPPORT_EMAIL = 's@kinematicapp.com';
 
-// Lead status → display colour. Matches the badges everywhere else in the
-// app so the lifecycle graph reads as "the thing you see on a lead card".
-const STATUS_COLORS: Record<string, string> = {
-  new:         '#6366f1',
-  working:     '#f59e0b',
-  nurturing:   '#06b6d4',
-  qualified:   '#10b981',
-  converted:   '#22c55e',
-  unqualified: '#94a3b8',
-  lost:        '#ef4444',
-};
-
 const STAGES = [
   { n: 1, title: 'Lead arrives',  detail: 'From a web form, lead-source integration (Meta/Google/Zoho), CSV import, KINI AI auto-capture, or a rep typing it in. Status starts as NEW; dedup runs immediately on phone+email so the same person never lands twice.' },
   { n: 2, title: 'Qualify',       detail: 'Call, WhatsApp or meet the lead. Move status NEW → WORKING → NURTURING → QUALIFIED. The AI score (0-100) and Lead Score Distribution chart help prioritise — focus on 70+.' },
@@ -45,7 +33,7 @@ const MODULES: Array<{ icon: string; title: string; what: string; when: string }
   { icon: '📋', title: 'Pipeline',             what: 'Kanban board of deals grouped by stage. Drag-drop to move; Win Probability auto-recomputes.', when: 'Use it every Monday to sweep the deals and decide what to push this week.' },
   { icon: '📦', title: 'Products',             what: 'SKU catalogue with price, weight, GST rate, category. Deals reference products via line items.', when: 'Set up once when you onboard; touch when prices change.' },
   { icon: '✅', title: 'Activities',           what: 'Call logs, meetings, emails, WhatsApp, tasks — every touchpoint a rep records.', when: 'Use it as your daily to-do. Calendar view shows what is due this week.' },
-  { icon: '💚', title: 'WhatsApp',             what: 'Send templates, see conversations, track delivery. Built on Meta Business API.', when: 'Use it for templated outreach (broadcast) or one-off replies on the same record.' },
+  { icon: '💬', title: 'WhatsApp',             what: 'Send templates, see conversations, track delivery. Built on Meta Business API.', when: 'Use it for templated outreach (broadcast) or one-off replies on the same record.' },
   { icon: '📑', title: 'Reports',              what: '10 built-in reports: Rep Leaderboard, Stage Funnel, Stuck Deals, Lead Aging, Win/Loss, Forecast, Sales Cycle, Activity Heatmap, Lead Source ROI, plus a Custom Report Builder.', when: 'Use it monthly for review; export any report to CSV.' },
   { icon: '⚙️', title: 'Settings',             what: '14 sub-pages: Team Members, Pipelines, Stages, Sources, Activity Types, Integrations, Automations, Assignment Rules, Territories, Scoring Model, Custom Fields, States & Cities, Business Type, Appearance.', when: 'Initial set-up + occasional tweaks.' },
   { icon: '❓', title: 'Help',                 what: "You're here.", when: 'When a teammate asks "how does X work?" — point them here.' },
@@ -53,7 +41,10 @@ const MODULES: Array<{ icon: string; title: string; what: string; when: string }
 
 const ACTIONS: Array<{ icon: string; color: string; title: string; detail: string }> = [
   { icon: '📞', color: '#1E88E5', title: 'Call',        detail: 'Dials the lead/contact and immediately logs a call activity. Cancel to keep the bare entry, save to add notes + duration.' },
-  { icon: '💬', color: '#25D366', title: 'WhatsApp',    detail: 'Opens a pre-filled WhatsApp thread. The conversation is captured by KINI Auto-Response if enabled.' },
+  // WhatsApp action keeps the chat-bubble emoji but uses the same neutral
+  // grey colour as Mark Unqualified so it doesn't stand out as the only
+  // brand-coloured row in the action list.
+  { icon: '💬', color: '#757575', title: 'WhatsApp',    detail: 'Opens a pre-filled WhatsApp thread. The conversation is captured by KINI Auto-Response if enabled.' },
   { icon: '✨', color: '#8E24AA', title: 'AI Score',    detail: 'Re-runs the KINI AI scoring model on the lead. The badge changes — green means high intent (70-100).' },
   { icon: '🔀', color: RED,       title: 'Convert',     detail: 'Promotes the lead to Contact + Account + Deal. You will be asked for a deal name, amount, and product so the new Deal lands on the pipeline ready to move.' },
   { icon: '👤', color: '#FB8C00', title: 'Assign',      detail: 'Hands the lead to another rep on the same team. Only same-client teammates are shown.' },
@@ -144,8 +135,25 @@ export default function CrmHelpPage() {
       <Hero />
 
       <Section label="The lead lifecycle" sub="From first touch to closed-won (or closed-lost).">
-        <LifecycleGraph />
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12, marginTop: 16 }}>
+        <div style={{
+          background: 'var(--s2)',
+          border: '1px solid var(--border)',
+          borderRadius: 14,
+          padding: 18,
+          fontSize: 13,
+          color: 'var(--text)',
+          lineHeight: 1.65,
+          marginBottom: 16,
+        }}>
+          Every lead in Kinematic moves through a small set of statuses. Reps don&rsquo;t do paperwork — they just keep the record honest by flipping the status as the relationship progresses, and the rest of the CRM (analytics, win-rate, forecasts, automations) reacts on its own.
+          <div style={{ marginTop: 10 }}>
+            New leads land in <strong style={{ color: 'var(--text)' }}>New</strong>. The moment a rep makes contact, it becomes <strong style={{ color: 'var(--text)' }}>Working</strong>. If the lead is interested but not yet committed, it sits in <strong style={{ color: 'var(--text)' }}>Nurturing</strong> until they&rsquo;re ready. Once they confirm a real intent to buy, mark them <strong style={{ color: 'var(--text)' }}>Qualified</strong> and hit Convert to spin up a Contact, Account and a Deal — that&rsquo;s when the lead becomes <strong style={{ color: 'var(--text)' }}>Converted</strong>.
+          </div>
+          <div style={{ marginTop: 10 }}>
+            Leads that don&rsquo;t fit are marked <strong style={{ color: 'var(--text)' }}>Unqualified</strong>; deals that fall apart are marked <strong style={{ color: 'var(--text)' }}>Lost</strong> with a reason and (optionally) the competitor that won. Either can be re-opened later from the lead detail if circumstances change. The five-step breakdown below walks through every transition in detail.
+          </div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12 }}>
           {STAGES.map((s) => (
             <div key={s.n} style={{
               background: 'var(--s2)',
@@ -346,94 +354,6 @@ function Hero() {
         Every call, WhatsApp, meeting or note logged along the way becomes an <strong style={{ color: 'var(--text)' }}>Activity</strong> visible to the entire team.
         The whole motion is observable in <strong style={{ color: 'var(--text)' }}>Reports</strong> and assistable by <strong style={{ color: RED }}>KINI AI</strong>.
       </div>
-    </div>
-  );
-}
-
-// Lead lifecycle as a flow graph. Six status nodes with arrows showing
-// every legal transition. Mobile-friendly: SVG scales by viewBox and the
-// container uses overflow-x:auto so on a 360px phone the user can scroll
-// to see the closed-loss branch.
-function LifecycleGraph() {
-  // Node positions on a 720x260 canvas. Five primary nodes across the top
-  // (open lifecycle) plus two closure nodes hanging below.
-  const nodes = [
-    { id: 'new',         label: 'New',         x:  60, y:  60 },
-    { id: 'working',     label: 'Working',     x: 200, y:  60 },
-    { id: 'nurturing',   label: 'Nurturing',   x: 340, y:  60 },
-    { id: 'qualified',   label: 'Qualified',   x: 480, y:  60 },
-    { id: 'converted',   label: 'Converted',   x: 640, y:  60 },
-    { id: 'unqualified', label: 'Unqualified', x: 290, y: 200 },
-    { id: 'lost',        label: 'Lost',        x: 480, y: 200 },
-  ];
-
-  const edges: Array<{ from: string; to: string; reopen?: boolean }> = [
-    { from: 'new',        to: 'working' },
-    { from: 'working',    to: 'nurturing' },
-    { from: 'working',    to: 'qualified' },
-    { from: 'nurturing',  to: 'qualified' },
-    { from: 'qualified',  to: 'converted' },
-    // Disqualification branches (from any open status — drawn from Working as the most common origin).
-    { from: 'working',    to: 'unqualified' },
-    { from: 'qualified',  to: 'lost' },
-    // Reopen edges — dashed.
-    { from: 'unqualified', to: 'working', reopen: true },
-    { from: 'lost',        to: 'working', reopen: true },
-  ];
-
-  const node = (id: string) => nodes.find((n) => n.id === id)!;
-
-  return (
-    <div style={{ overflowX: 'auto', background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
-      <svg viewBox="0 0 720 260" width="100%" style={{ minWidth: 560, display: 'block' }}>
-        <defs>
-          <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto" markerUnits="strokeWidth">
-            <path d="M0,0 L10,5 L0,10 Z" fill="var(--text-dim)" />
-          </marker>
-          <marker id="arrowhead-reopen" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto" markerUnits="strokeWidth">
-            <path d="M0,0 L10,5 L0,10 Z" fill="#10b981" />
-          </marker>
-        </defs>
-        {/* Edges (drawn first so nodes overlay them) */}
-        {edges.map((e, i) => {
-          const a = node(e.from); const b = node(e.to);
-          // Offset the endpoints so the arrowhead doesn't disappear under the node circle (r=26).
-          const dx = b.x - a.x, dy = b.y - a.y;
-          const len = Math.sqrt(dx * dx + dy * dy);
-          const ux = dx / len, uy = dy / len;
-          const x1 = a.x + ux * 30, y1 = a.y + uy * 30;
-          const x2 = b.x - ux * 30, y2 = b.y - uy * 30;
-          return (
-            <line
-              key={i}
-              x1={x1} y1={y1} x2={x2} y2={y2}
-              stroke={e.reopen ? '#10b981' : 'var(--text-dim)'}
-              strokeWidth={1.5}
-              strokeDasharray={e.reopen ? '5 4' : undefined}
-              markerEnd={`url(#${e.reopen ? 'arrowhead-reopen' : 'arrowhead'})`}
-            />
-          );
-        })}
-        {/* Nodes */}
-        {nodes.map((n) => {
-          const color = STATUS_COLORS[n.id] || '#888';
-          return (
-            <g key={n.id}>
-              <circle cx={n.x} cy={n.y} r={26} fill={color + '22'} stroke={color} strokeWidth={2} />
-              <text x={n.x} y={n.y + 5} textAnchor="middle" fontSize={11} fontWeight={700} fill={color} fontFamily="system-ui, -apple-system, sans-serif">
-                {n.label}
-              </text>
-            </g>
-          );
-        })}
-        {/* Legend */}
-        <g transform="translate(20, 240)">
-          <line x1={0} y1={0} x2={28} y2={0} stroke="var(--text-dim)" strokeWidth={1.5} markerEnd="url(#arrowhead)" />
-          <text x={36} y={4} fontSize={10} fill="var(--text-dim)" fontFamily="system-ui, -apple-system, sans-serif">forward transition</text>
-          <line x1={170} y1={0} x2={198} y2={0} stroke="#10b981" strokeWidth={1.5} strokeDasharray="5 4" markerEnd="url(#arrowhead-reopen)" />
-          <text x={206} y={4} fontSize={10} fill="#10b981" fontFamily="system-ui, -apple-system, sans-serif">reopen</text>
-        </g>
-      </svg>
     </div>
   );
 }
