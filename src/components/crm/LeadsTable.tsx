@@ -28,7 +28,7 @@ export default function LeadsTable({ leads, selected, onToggle, onToggleAll, loa
     <>
       <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, overflow: 'hidden' }}>
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <table className="responsive-cards" style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr>
                 <th style={{ ...thStyle, width: 40 }}>
@@ -46,10 +46,10 @@ export default function LeadsTable({ leads, selected, onToggle, onToggleAll, loa
             </thead>
             <tbody>
               {loading && (
-                <tr><td colSpan={colCount} style={{ ...tdStyle, textAlign: 'center', color: 'var(--text-dim)' }}>Loading leads...</td></tr>
+                <tr><td colSpan={colCount} style={{ ...tdStyle, textAlign: 'center', color: 'var(--text-dim)' }} data-label="">Loading leads...</td></tr>
               )}
               {!loading && leads.length === 0 && (
-                <tr><td colSpan={colCount} style={{ ...tdStyle, textAlign: 'center', color: 'var(--text-dim)' }}>No leads found.</td></tr>
+                <tr><td colSpan={colCount} style={{ ...tdStyle, textAlign: 'center', color: 'var(--text-dim)' }} data-label="">No leads found.</td></tr>
               )}
               {leads.map((l) => (
                 <LeadRow
@@ -73,9 +73,6 @@ export default function LeadsTable({ leads, selected, onToggle, onToggleAll, loa
   );
 }
 
-// Memoised row — re-renders only when its lead changes or its selection
-// state flips. Stable callbacks from the parent keep prop equality holding,
-// so toggling one checkbox no longer re-paints every other row.
 interface LeadRowProps {
   lead: Lead;
   isSelected: boolean;
@@ -94,28 +91,28 @@ const LeadRow = memo(function LeadRow({ lead: l, isSelected, onToggle, onScoreCl
 
   return (
     <tr>
-      <td style={tdStyle}><input type="checkbox" checked={isSelected} onChange={handleToggle} /></td>
-      <td style={tdStyle}>
+      <td style={tdStyle} data-label=""><input type="checkbox" checked={isSelected} onChange={handleToggle} /></td>
+      <td style={tdStyle} data-label="Name">
         <Link href={`/dashboard/crm/leads/${l.id}`} style={{ color: 'var(--text)', fontWeight: 600 }}>{fullName}</Link>
         {l.title && <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{l.title}</div>}
       </td>
-      {!isB2C && <td style={tdStyle}>{l.company || '—'}</td>}
-      <td style={tdStyle}>{l.phone || '—'}</td>
-      <td style={tdStyle}><span style={{ textTransform: 'capitalize' }}>{l.status}</span></td>
-      <td style={tdStyle}>
+      {!isB2C && <td style={tdStyle} data-label="Company">{l.company || '—'}</td>}
+      <td style={tdStyle} data-label="Phone">{l.phone || '—'}</td>
+      <td style={tdStyle} data-label="Status"><span style={{ textTransform: 'capitalize' }}>{l.status}</span></td>
+      <td style={tdStyle} data-label="Score">
         <button type="button" onClick={handleScore} title="Click to see score breakdown" style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer' }}>
           <LeadScoreBadge score={l.score} grade={l.score_grade} />
         </button>
       </td>
-      <td style={tdStyle}>{l.source_name || '—'}</td>
-      <td style={tdStyle}>
+      <td style={tdStyle} data-label="Source">{l.source_name || '—'}</td>
+      <td style={tdStyle} data-label="Owner">
         {onAssign ? (
           <InlineOwnerAssign currentOwnerId={l.owner_id} currentOwnerName={l.owner_name} onAssign={handleAssign} />
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><OwnerAvatar name={l.owner_name} size={24} /> <span style={{ fontSize: 12 }}>{l.owner_name || 'Unassigned'}</span></div>
         )}
       </td>
-      <td style={{ ...tdStyle, textAlign: 'right', whiteSpace: 'nowrap' }}>
+      <td style={{ ...tdStyle, textAlign: 'right', whiteSpace: 'nowrap' }} data-label="Action">
         {l.status === 'converted' ? (
           <span style={{ fontSize: 11, color: '#10b981', fontWeight: 700 }}>✓ Converted</span>
         ) : (
