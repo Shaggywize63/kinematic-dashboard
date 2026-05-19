@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { Component, useEffect, useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
@@ -41,13 +41,45 @@ const EVENT_LABEL: Record<string, string> = {
   created: 'Deal created',
   note_added: 'Note added',
 };
-const labelEvent = (e: string) => EVENT_LABEL[e] || e.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+const labelEvent = (e?: string) => {
+  if (!e) return 'Event';
+  return EVENT_LABEL[e] || e.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+};
 
-function fmtIst(iso: string) {
-  const d = new Date(iso);
-  const date = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' });
-  const time = d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' });
-  return { date, time, ts: iso };
+// IST-formatted date + time tuple. Returns sensible defaults so a missing
+// `created_at` never crashes the history feed.
+function fmtIst(iso?: string | null) {
+  if (!iso) return { date: '—', time: '—', ts: '' };
+  try {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return { date: '—', time: '—', ts: iso };
+    const date = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' });
+    const time = d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' });
+    return { date, time, ts: iso };
+  } catch { return { date: '—', time: '—', ts: iso }; }
+}
+
+// Minimal in-page error boundary so a render exception in any child
+// shows a friendly fallback instead of Next.js' opaque "Application
+// error" overlay. Each instance catches its own subtree.
+class SafeRender extends Component<{ label: string; children: ReactNode }, { error: Error | null }> {
+  state = { error: null as Error | null };
+  static getDerivedStateFromError(error: Error) { return { error }; }
+  componentDidCatch(error: Error, info: any) {
+    // eslint-disable-next-line no-console
+    console.error(`[deal-detail:${this.props.label}]`, error, info);
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid #ef4444', borderRadius: 10, padding: 12, fontSize: 12, color: '#ef4444' }}>
+          <strong>Could not render {this.props.label}.</strong>
+          <div style={{ marginTop: 4, color: 'var(--text-dim)', fontFamily: 'ui-monospace, monospace', fontSize: 11 }}>{this.state.error.message}</div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
 }
 
 export default function DealDetailPage() {
@@ -85,91 +117,94 @@ export default function DealDetailPage() {
         crmDeals.activities(id),
         crmPipelines.list(),
       ]);
-      if (d.status === 'fulfilled') {
-        setDeal(d.value.data);
-        if (d.value.data.pipeline_id) {
-          try { const p = await crmPipelines.get(d.value.data.pipeline_id); setPipeline(p.data); } catch {}
+      if (d.status === 'fulfilled' && d.value?.data) {
+        const dealData = d.value.data as Deal;
+        setDeal(dealData);
+        if (dealData.pipeline_id) {
+          try {
+            const p = await crmPipelines.get(dealData.pipeline_id);
+            setPipeline(p?.data || null);
+          } catch { setPipeline(null); }
         } else {
           setPipeline(null);
         }
       }
-      if (h.status === 'fulfilled') setHistory(h.value.data || []);
-      if (c.status === 'fulfilled') setContacts(c.value.data || []);
-      if (a.status === 'fulfilled') setActivities(a.value.data || []);
-      if (pp.status === 'fulfilled') setAllPipelines(pp.value.data || []);
-    } catch (e: any) { toast.error(e.message || 'Load failed'); } finally { setLoading(false); }
+      setHistory(h.status === 'fulfilled' ? (h.value?.data || []) : []);
+      setContacts(c.status === 'fulfilled' ? (c.value?.data || []) : []);
+      setActivities(a.status === 'fulfilled' ? (a.value?.data || []) : []);
+      setAllPipelines(pp.status === 'fulfilled' ? (pp.value?.data || []) : []);
+    } catch (e: any) {
+      // eslint-disable-next-line no-console
+      console.error('[deal-detail] reload failed', e);
+      toast.error(e?.message || 'Load failed');
+    } finally { setLoading(false); }
   };
 
   useEffect(() => { reload(); /* eslint-disable-next-line */ }, [id]);
 
-  // Stage moves from the chevron breadcrumb.
-  //
-  // The backend's moveStage endpoint can't accept a terminal (won/lost)
-  // stage as the target — closing a deal requires a reason via the
-  // dedicated `win` / `lose` endpoints. Clicking a Won/Lost chevron used
-  // to surface the backend's 400 as an "Application error" overlay; now
-  // we intercept those clicks here and open the Close-Deal modal with
-  // the right outcome pre-selected so the rep can confirm + add reason.
-  //
-  // Defence-in-depth: even the open-stage path is wrapped so any
-  // unexpected exception turns into a friendly toast, not a crash.
+  // Won/Lost chevron clicks open the Close-Deal modal (backend rejects
+  // direct moveStage to terminal stages). Open-stage clicks go through
+  // the API; both paths catch errors as toasts so nothing reaches the
+  // Next.js error overlay.
   const moveStage = async (stageId: string) => {
-    if (!deal || !pipeline) return;
-    const target = (pipeline.stages || []).find((s) => s.id === stageId);
-    if (!target) {
-      toast.error('Stage not found in this pipeline');
-      return;
-    }
-    if (target.stage_type === 'won') {
-      setCloseOutcome('won');
-      setCloseReason('');
-      setCloseLostOther('');
-      setCloseOpen(true);
-      return;
-    }
-    if (target.stage_type === 'lost') {
-      setCloseOutcome('lost');
-      setCloseReason('');
-      setCloseLostOther('');
-      setCloseOpen(true);
-      return;
-    }
     try {
+      if (!deal || !pipeline) return;
+      const target = (pipeline.stages || []).find((s) => s?.id === stageId);
+      if (!target) { toast.error('Stage not found in this pipeline'); return; }
+      if (target.stage_type === 'won') {
+        setCloseOutcome('won'); setCloseReason(''); setCloseLostOther(''); setCloseOpen(true);
+        return;
+      }
+      if (target.stage_type === 'lost') {
+        setCloseOutcome('lost'); setCloseReason(''); setCloseLostOther(''); setCloseOpen(true);
+        return;
+      }
       await crmDeals.moveStage(deal.id, { stage_id: stageId });
-      toast.success(`Moved to ${target.name}`);
+      toast.success(`Moved to ${target.name || 'next stage'}`);
       reload();
     } catch (e: any) {
-      const msg = e?.message || e?.error || 'Stage update failed';
-      console.error('moveStage failed', e);
-      toast.error(msg);
+      // eslint-disable-next-line no-console
+      console.error('[deal-detail] moveStage failed', e);
+      toast.error(e?.message || 'Stage update failed');
     }
   };
 
   const daysInStage = useMemo<number | undefined>(() => {
     if (!deal) return undefined;
-    const sinceIso =
-      (deal as any).stage_changed_at ||
-      history.find((h) => h.event_type === 'stage_changed' || h.to_stage)?.created_at ||
-      deal.created_at;
-    if (!sinceIso) return undefined;
-    const diff = Date.now() - new Date(sinceIso).getTime();
-    return Math.max(0, Math.floor(diff / MS_PER_DAY));
+    try {
+      const sinceIso =
+        (deal as any).stage_changed_at ||
+        history.find((h) => h?.event_type === 'stage_changed' || h?.to_stage)?.created_at ||
+        deal.created_at;
+      if (!sinceIso) return undefined;
+      const t = new Date(sinceIso).getTime();
+      if (Number.isNaN(t)) return undefined;
+      return Math.max(0, Math.floor((Date.now() - t) / MS_PER_DAY));
+    } catch { return undefined; }
   }, [deal, history]);
 
   const daysToClose = useMemo<number | null>(() => {
     if (!deal?.expected_close_date) return null;
-    const diff = new Date(deal.expected_close_date).getTime() - Date.now();
-    return Math.ceil(diff / MS_PER_DAY);
+    try {
+      const t = new Date(deal.expected_close_date).getTime();
+      if (Number.isNaN(t)) return null;
+      return Math.ceil((t - Date.now()) / MS_PER_DAY);
+    } catch { return null; }
   }, [deal]);
 
   const markStageComplete = () => {
-    if (!deal || !pipeline) return;
-    const sorted = [...(pipeline.stages || [])].sort((a, b) => a.position - b.position);
-    const currIdx = sorted.findIndex((s) => s.id === deal.stage_id);
-    for (let i = currIdx + 1; i < sorted.length; i++) {
-      if (sorted[i].stage_type === 'open') return moveStage(sorted[i].id);
+    try {
+      if (!deal || !pipeline) return;
+      const sorted = [...(pipeline.stages || [])].sort((a, b) => (a?.position ?? 0) - (b?.position ?? 0));
+      const currIdx = sorted.findIndex((s) => s?.id === deal.stage_id);
+      for (let i = currIdx + 1; i < sorted.length; i++) {
+        if (sorted[i]?.stage_type === 'open') { moveStage(sorted[i].id); return; }
+      }
+      toast.info('No more open stages — use Close Deal to mark won or lost.');
+    } catch (e: any) {
+      // eslint-disable-next-line no-console
+      console.error('[deal-detail] markStageComplete failed', e);
     }
-    toast.info('No more open stages — use Close Deal to mark won or lost.');
   };
 
   const closeDeal = async () => {
@@ -205,13 +240,13 @@ export default function DealDetailPage() {
   const loadNba = async () => {
     if (!deal) return;
     setNbaBusy(true);
-    try { const r = await crmAi.nextBestAction(deal.id); setNba(r.data); }
+    try { const r = await crmAi.nextBestAction(deal.id); setNba(r?.data || null); }
     catch (e: any) { toast.error(e?.message || 'NBA failed'); } finally { setNbaBusy(false); }
   };
   const loadWinProb = async () => {
     if (!deal) return;
     setWinBusy(true);
-    try { const r = await crmAi.winProbability(deal.id); setWinProb(r.data); }
+    try { const r = await crmAi.winProbability(deal.id); setWinProb(r?.data || null); }
     catch (e: any) { toast.error(e?.message || 'Forecast failed'); } finally { setWinBusy(false); }
   };
   const handleDelete = async () => {
@@ -232,26 +267,29 @@ export default function DealDetailPage() {
   if (loading) return <div style={{ color: 'var(--text-dim)' }}>Loading...</div>;
   if (!deal) return <div style={{ color: 'var(--text-dim)' }}>Deal not found.</div>;
   const stages = pipeline?.stages || [];
-  const primary = contacts.find((c) => c.is_primary) || contacts[0];
+  const primary = contacts.find((c) => c?.is_primary) || contacts[0];
   const hasPipeline = !!deal.pipeline_id && stages.length > 0;
+  const dealName = deal.name || 'Untitled deal';
 
   return (
     <div>
       {hasPipeline && (
-        <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, padding: 12, marginBottom: 14 }}>
-          {deal.status === 'open' ? (
-            <DealStageProgress
-              stages={stages}
-              currentStageId={deal.stage_id}
-              daysInStage={daysInStage}
-              daysToClose={daysToClose}
-              onMove={moveStage}
-              onMarkComplete={markStageComplete}
-            />
-          ) : (
-            <DealStageProgress stages={stages} currentStageId={deal.stage_id} />
-          )}
-        </div>
+        <SafeRender label="stage breadcrumb">
+          <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, padding: 12, marginBottom: 14 }}>
+            {deal.status === 'open' ? (
+              <DealStageProgress
+                stages={stages}
+                currentStageId={deal.stage_id || ''}
+                daysInStage={daysInStage}
+                daysToClose={daysToClose}
+                onMove={moveStage}
+                onMarkComplete={markStageComplete}
+              />
+            ) : (
+              <DealStageProgress stages={stages} currentStageId={deal.stage_id || ''} />
+            )}
+          </div>
+        </SafeRender>
       )}
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 18, alignItems: 'flex-start' }}>
@@ -259,7 +297,7 @@ export default function DealDetailPage() {
           <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 22 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14, gap: 12, flexWrap: 'wrap' }}>
               <div style={{ flex: '1 1 220px', minWidth: 0 }}>
-                <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', wordBreak: 'break-word' }}>{deal.name}</div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', wordBreak: 'break-word' }}>{dealName}</div>
                 <div style={{ fontSize: 13, color: 'var(--text-dim)' }}>
                   {deal.account_id ? (
                     <Link href={`/dashboard/crm/accounts/${deal.account_id}`} style={{ color: 'var(--primary)' }}>
@@ -297,95 +335,105 @@ export default function DealDetailPage() {
               </div>
             )}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 14, fontSize: 13 }}>
-              <Field label="Amount" value={formatINR(deal.amount || 0)} />
+              <Field label="Amount" value={formatINR(Number(deal.amount) || 0)} />
               <Field label="Stage" value={deal.stage_name} />
               <Field label="Status" value={deal.status} />
-              <Field label="Probability" value={`${Math.round((deal.probability || 0) * 100)}%`} />
-              <Field label="Close Date" value={deal.expected_close_date ? new Date(deal.expected_close_date).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' }) : null} />
+              <Field label="Probability" value={`${Math.round((Number(deal.probability) || 0) * 100)}%`} />
+              <Field label="Close Date" value={fmtIst(deal.expected_close_date).date} />
               <Field label="Owner" value={deal.owner_name} />
             </div>
           </div>
 
-          <Card title={`Contacts (${contacts.length})`}>
-            {contacts.length === 0 ? (
-              <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>
-                {deal.primary_contact_id ? (
-                  <Link href={`/dashboard/crm/contacts/${deal.primary_contact_id}`} style={{ color: 'var(--primary)' }}>View primary contact</Link>
-                ) : 'No contacts linked.'}
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {contacts.map((dc) => {
-                  const c = dc.contact;
-                  const name = c?.full_name || `${c?.first_name || ''} ${c?.last_name || ''}`.trim() || c?.email || '—';
-                  return (
-                    <div key={dc.contact_id} style={{ ...rowLink, padding: 0, background: 'transparent', border: 'none', flexWrap: 'wrap' }}>
-                      <Link href={`/dashboard/crm/contacts/${dc.contact_id}`} style={{ ...rowLink, flex: '1 1 220px', marginRight: 0, minWidth: 0 }}>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ color: 'var(--text)', fontWeight: 600, wordBreak: 'break-word' }}>
-                            {name}
-                            {dc.is_primary && <span style={{ marginLeft: 8, fontSize: 9, background: 'var(--primary)', color: '#fff', padding: '2px 6px', borderRadius: 4, fontWeight: 700 }}>PRIMARY</span>}
+          <SafeRender label="contacts">
+            <Card title={`Contacts (${contacts.length})`}>
+              {contacts.length === 0 ? (
+                <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>
+                  {deal.primary_contact_id ? (
+                    <Link href={`/dashboard/crm/contacts/${deal.primary_contact_id}`} style={{ color: 'var(--primary)' }}>View primary contact</Link>
+                  ) : 'No contacts linked.'}
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {contacts.map((dc) => {
+                    if (!dc) return null;
+                    const c = dc.contact;
+                    const name = c?.full_name || `${c?.first_name || ''} ${c?.last_name || ''}`.trim() || c?.email || '—';
+                    return (
+                      <div key={dc.contact_id || Math.random()} style={{ ...rowLink, padding: 0, background: 'transparent', border: 'none', flexWrap: 'wrap' }}>
+                        <Link href={`/dashboard/crm/contacts/${dc.contact_id}`} style={{ ...rowLink, flex: '1 1 220px', marginRight: 0, minWidth: 0 }}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ color: 'var(--text)', fontWeight: 600, wordBreak: 'break-word' }}>
+                              {name}
+                              {dc.is_primary && <span style={{ marginLeft: 8, fontSize: 9, background: 'var(--primary)', color: '#fff', padding: '2px 6px', borderRadius: 4, fontWeight: 700 }}>PRIMARY</span>}
+                            </div>
+                            <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{dc.role || c?.title || c?.email || '—'}</div>
                           </div>
-                          <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{dc.role || c?.title || c?.email || '—'}</div>
+                          <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{c?.phone || ''}</div>
+                        </Link>
+                        <CallButton
+                          phone={c?.phone}
+                          prefillSubject={`Call about ${dealName}`}
+                          dealId={deal.id}
+                          size="sm"
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </Card>
+          </SafeRender>
+
+          <SafeRender label="activities">
+            <Card title={`Activities (${activities.length})`}><ActivityTimeline activities={activities} /></Card>
+          </SafeRender>
+
+          <SafeRender label="history">
+            <Card title="History">
+              {history.length === 0 ? (
+                <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>No events yet.</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {history.map((h, idx) => {
+                    if (!h) return null;
+                    const t = fmtIst(h.created_at);
+                    const isStageChange = !!(h.from_stage && h.to_stage);
+                    return (
+                      <div key={h.id || idx} style={{
+                        display: 'flex', flexDirection: 'column', gap: 4,
+                        padding: '10px 12px', background: 'var(--s3)', borderRadius: 8,
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{labelEvent(h.event_type)}</span>
+                          {isStageChange && (
+                            <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>
+                              <span style={{ color: 'var(--text)' }}>{h.from_stage}</span>
+                              <span> → </span>
+                              <span style={{ color: '#3E9EFF', fontWeight: 700 }}>{h.to_stage}</span>
+                            </span>
+                          )}
                         </div>
-                        <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{c?.phone || ''}</div>
-                      </Link>
-                      <CallButton
-                        phone={c?.phone}
-                        prefillSubject={`Call about ${deal.name}`}
-                        dealId={deal.id}
-                        size="sm"
-                      />
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </Card>
-
-          <Card title={`Activities (${activities.length})`}><ActivityTimeline activities={activities} /></Card>
-
-          <Card title="History">
-            {history.length === 0 ? (
-              <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>No events yet.</div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {history.map((h) => {
-                  const t = fmtIst(h.created_at);
-                  const isStageChange = !!(h.from_stage && h.to_stage);
-                  return (
-                    <div key={h.id} style={{
-                      display: 'flex', flexDirection: 'column', gap: 4,
-                      padding: '10px 12px', background: 'var(--s3)', borderRadius: 8,
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{labelEvent(h.event_type)}</span>
-                        {isStageChange && (
-                          <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>
-                            <span style={{ color: 'var(--text)' }}>{h.from_stage}</span>
-                            <span> → </span>
-                            <span style={{ color: '#3E9EFF', fontWeight: 700 }}>{h.to_stage}</span>
-                          </span>
-                        )}
+                        <div style={{ fontSize: 11, color: 'var(--text-dim)', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                          <span>{t.date}</span>
+                          <span>·</span>
+                          <span>{t.time} IST</span>
+                          {t.ts && <span title={t.ts} style={{ fontFamily: 'ui-monospace, monospace', opacity: 0.6 }}>· {t.ts}</span>}
+                        </div>
                       </div>
-                      <div style={{ fontSize: 11, color: 'var(--text-dim)', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                        <span>{t.date}</span>
-                        <span>·</span>
-                        <span>{t.time} IST</span>
-                        <span title={t.ts} style={{ fontFamily: 'ui-monospace, monospace', opacity: 0.6 }}>· {t.ts}</span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </Card>
+                    );
+                  })}
+                </div>
+              )}
+            </Card>
+          </SafeRender>
 
-          <AiDraftReplyPanel dealId={id} />
+          <SafeRender label="AI draft reply">
+            <AiDraftReplyPanel dealId={id} />
+          </SafeRender>
         </div>
 
         <div style={{ flex: '1 1 280px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 18 }}>
-          {primary && (
+          {primary && primary.contact_id && (
             <Card title="Primary Contact">
               <Link href={`/dashboard/crm/contacts/${primary.contact_id}`} style={chipLink}>
                 → {primary.contact?.full_name || `${primary.contact?.first_name || ''} ${primary.contact?.last_name || ''}`.trim() || 'View contact'}
@@ -393,16 +441,20 @@ export default function DealDetailPage() {
             </Card>
           )}
 
-          <WinProbabilityGauge
-            probability={winProb?.probability ?? deal.ai_win_probability ?? deal.probability ?? 0}
-            confidence={winProb?.confidence ?? deal.ai_win_confidence ?? undefined}
-            drivers={winProb?.drivers}
-            ai
-          />
+          <SafeRender label="win probability">
+            <WinProbabilityGauge
+              probability={winProb?.probability ?? (deal as any).ai_win_probability ?? deal.probability ?? 0}
+              confidence={winProb?.confidence ?? (deal as any).ai_win_confidence ?? undefined}
+              drivers={winProb?.drivers}
+              ai
+            />
+          </SafeRender>
           <button onClick={loadWinProb} disabled={winBusy} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontSize: 12 }}>
             {winBusy ? 'Predicting...' : 'Re-forecast Win Probability'}
           </button>
-          <NextBestActionCard action={nba} onLoad={loadNba} loading={nbaBusy} />
+          <SafeRender label="next best action">
+            <NextBestActionCard action={nba} onLoad={loadNba} loading={nbaBusy} />
+          </SafeRender>
         </div>
       </div>
 
