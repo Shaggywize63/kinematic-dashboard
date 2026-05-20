@@ -168,6 +168,11 @@ export default function CrmUsersPage() {
   const [bulkFileName, setBulkFileName] = useState<string>('');
   const [bulkMap, setBulkMap] = useState<Record<FieldKey, number>>({ name: -1, mobile: -1, email: -1, hierarchy_role: -1, password: -1 });
   const fileRef = useRef<HTMLInputElement>(null);
+  // Scrolled-into-view when the edit/create panel opens so the admin sees
+  // the form fields rather than landing somewhere mid-page (especially
+  // common when the table is long and the Edit click happens far below
+  // the panel).
+  const formRef = useRef<HTMLDivElement>(null);
 
   const blank = {
     name: '', email: '', mobile: '',
@@ -219,6 +224,17 @@ export default function CrmUsersPage() {
   }, []);
 
   useEffect(() => { reload(); }, [reload]);
+
+  // When the edit/create panel opens, scroll it into view so the admin
+  // doesn't have to chase the form up the page. Smooth scroll, top-aligned
+  // with a small offset so the panel header stays clear of any sticky nav.
+  useEffect(() => {
+    if (!showAdd) return;
+    const id = window.setTimeout(() => {
+      formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 50); // brief delay so the panel is in the DOM before we measure
+    return () => window.clearTimeout(id);
+  }, [showAdd, editId]);
 
   const filtered = users.filter((u) => {
     if (!search.trim()) return true;
@@ -643,7 +659,7 @@ export default function CrmUsersPage() {
       )}
 
       {showAdd && (
-        <div style={{ background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 12, padding: 18, marginBottom: 16 }}>
+        <div ref={formRef} style={{ background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 12, padding: 18, marginBottom: 16, scrollMarginTop: 16 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
             <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>{editId ? 'Edit User' : 'New User'}</div>
             <button onClick={() => { setShowAdd(false); setEditId(null); setForm(blank); }} style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: 0 }}>×</button>
