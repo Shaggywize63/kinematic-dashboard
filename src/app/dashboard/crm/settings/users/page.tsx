@@ -14,6 +14,17 @@ import { rolesApi, type OrgRole } from '../../../../../lib/rolesApi';
 // 'sub_admin' under the hood. Tier checks fall through to the hierarchy.
 const DEFAULT_PRESET_ROLE = 'sub_admin';
 
+// Password policy mirrored from backend `validatePassword` in
+// src/middleware/security.ts (commit 508ff5b). Keep the bulk template and
+// client-side checks in sync with the server so users don't have to
+// round-trip a rejected POST to find out their CSV is invalid:
+//   - minimum 10 characters
+//   - not in the COMMON_PASSWORDS denylist (changeme123, password, qwerty…)
+//   - no obvious sequences (123456, abcdef, qwerty rows)
+//   - no 4+ identical characters in a row (aaaa, 1111)
+const PASSWORD_POLICY_HINT =
+  'Passwords must be ≥10 characters, not common (no "password", "qwerty", "admin"…), and contain no obvious sequences ("123456", "abcdef") or 4+ repeated chars in a row.';
+
 interface UserRow {
   id: string;
   name: string | null;
@@ -63,10 +74,26 @@ function parseCsv(text: string): string[][] {
   return rows;
 }
 
+// Strip non-digits, spaces, and the +91 country code from mobile values
+// pulled from CSV. Backend requires exactly 10 digits — a row with
+// "+91 98123 45601" or "98123-45601" would otherwise be rejected as
+// invalid even though the digits are fine.
+function sanitiseMobile(raw: string): string {
+  const digits = (raw || '').replace(/\D/g, '');
+  // Drop a leading 91 if the resulting number is 12 digits (Indian
+  // country code + 10-digit mobile). Don't strip otherwise — we don't
+  // want to accidentally cut off the first 2 digits of a valid number.
+  if (digits.length === 12 && digits.startsWith('91')) return digits.slice(2);
+  return digits;
+}
+
+// Sample passwords below comply with the backend policy (10+ chars, not in
+// COMMON_PASSWORDS, no sequences, no 4+ repeats). DO NOT replace with
+// short/common values — every row in the template would be rejected.
 const TEMPLATE_HEADER = 'name,mobile,email,hierarchy_role,password';
 const TEMPLATE_SAMPLE = `${TEMPLATE_HEADER}
-Rahul Sharma,9812345601,rahul@example.com,Regional Sales Lead,changeme123
-Priya Iyer,9812345602,,Field Manager,changeme123`;
+Rahul Sharma,9812345601,rahul@example.com,Regional Sales Lead,Welcome@2026!
+Priya Iyer,9812345602,,Field Manager,KinematicCrm9!`;
 
 // Helper: lift the picker's client id from localStorage. Used as a query
 // param fallback if a proxy ever strips the X-Client-Id header.
@@ -251,17 +278,32 @@ export default function CrmUsersPage() {
       if (iName < 0 || iMobile < 0) { toast.error('CSV must include at least `name` and `mobile` columns'); setBulkBusy(false); return; }
 
       const roleByName = new Map(roles.map((r) => [r.name.toLowerCase(), r]));
-      const ok: number = 0; let okCount = 0;
+      let okCount = 0;
       const failed: Array<{ name: string; error: string }> = [];
 
       for (const row of rows.slice(1)) {
         const name = (row[iName] || '').trim();
-        const mobile = (row[iMobile] || '').trim();
-        if (!name || !mobile) { failed.push({ name: name || '<no name>', error: 'name + mobile required' }); continue; }
+        const mobileRaw = (row[iMobile] || '').trim();
+        const mobile = sanitiseMobile(mobileRaw);
         const email = iEmail >= 0 ? (row[iEmail] || '').trim() : '';
         const hierarchyName = iHRole >= 0 ? (row[iHRole] || '').trim().toLowerCase() : '';
         const password = iPwd >= 0 ? (row[iPwd] || '').trim() : '';
         const hRole = hierarchyName ? roleByName.get(hierarchyName) : undefined;
+
+        // Client-side validation pass — surface the same errors the
+        // backend would return, but without burning a network round-trip
+        // (and a rate-limit slot) on rows we already know will fail.
+        if (!name) { failed.push({ name: '<no name>', error: 'name is required' }); continue; }
+        if (!mobile) { failed.push({ name, error: `mobile is required (got "${mobileRaw}")` }); continue; }
+        if (!/^\d{10}$/.test(mobile)) {
+          failed.push({ name, error: `mobile must be 10 digits after stripping +91/spaces (got "${mobile}")` });
+          continue;
+        }
+        if (!password) { failed.push({ name, error: 'password is required' }); continue; }
+        if (password.length < 10) {
+          failed.push({ name, error: `password too short (${password.length} chars, need ≥10)` });
+          continue;
+        }
 
         const payload: Record<string, unknown> = {
           name, mobile,
@@ -272,20 +314,22 @@ export default function CrmUsersPage() {
           permissions: hRole?.permissions ?? [],
           org_role_id: hRole?.id ?? null,
           is_active: true,
+          password,
         };
-        if (password) payload.password = password;
 
         try {
           await api.post('/api/v1/users', payload);
           okCount += 1;
         } catch (err: any) {
+          // Surface the backend's specific reason (e.g.
+          // "WEAK_PASSWORD: This password is too common.") instead of a
+          // generic "Create failed" so admins can see what to fix.
           failed.push({ name, error: err?.message || 'Create failed' });
         }
       }
       setBulkResult({ ok: okCount, failed });
       if (okCount > 0) reload();
       toast.success(`Imported ${okCount} of ${rows.length - 1} users${failed.length ? ` · ${failed.length} failed` : ''}`);
-      void ok;
     } catch (e: any) {
       toast.error(e.message || 'Bulk import failed');
     } finally {
@@ -293,6 +337,19 @@ export default function CrmUsersPage() {
       if (fileRef.current) fileRef.current.value = '';
     }
   };
+
+  // Group failed-row errors by reason so the result panel can show a
+  // summary line ("3 rows: WEAK_PASSWORD…") above the per-row list.
+  // Helpful when the same systemic problem (e.g. policy-violating template
+  // password) breaks every row.
+  const failureSummary = (() => {
+    if (!bulkResult || !bulkResult.failed.length) return [] as Array<{ reason: string; count: number }>;
+    const map = new Map<string, number>();
+    for (const f of bulkResult.failed) map.set(f.error, (map.get(f.error) ?? 0) + 1);
+    return Array.from(map.entries())
+      .map(([reason, count]) => ({ reason, count }))
+      .sort((a, b) => b.count - a.count);
+  })();
 
   return (
     <div>
@@ -318,6 +375,10 @@ export default function CrmUsersPage() {
               <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4, maxWidth: 640 }}>
                 CSV with header row. Required columns: <code style={{ background: 'var(--s4)', padding: '1px 4px', borderRadius: 3 }}>name</code>, <code style={{ background: 'var(--s4)', padding: '1px 4px', borderRadius: 3 }}>mobile</code>. Optional: <code style={{ background: 'var(--s4)', padding: '1px 4px', borderRadius: 3 }}>email</code>, <code style={{ background: 'var(--s4)', padding: '1px 4px', borderRadius: 3 }}>hierarchy_role</code> (matches role name from Role Hierarchy — drives module access), <code style={{ background: 'var(--s4)', padding: '1px 4px', borderRadius: 3 }}>password</code>.
               </div>
+              <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 8, maxWidth: 640, padding: 8, background: 'var(--s4)', border: '1px solid var(--border)', borderRadius: 6 }}>
+                <strong style={{ color: 'var(--text)' }}>Password policy:</strong> {PASSWORD_POLICY_HINT}
+                {' '}Mobiles can include <code>+91</code> or spaces — they're stripped before upload.
+              </div>
             </div>
             <button onClick={() => setShowBulk(false)} style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: 0 }}>×</button>
           </div>
@@ -339,6 +400,17 @@ export default function CrmUsersPage() {
                 <strong style={{ color: '#10b981' }}>{bulkResult.ok} imported</strong>
                 {bulkResult.failed.length > 0 && <> · <strong style={{ color: '#E01E2C' }}>{bulkResult.failed.length} failed</strong></>}
               </div>
+              {/* Summary by reason — surfaced above the per-row list so a
+                  systemic problem (every row failing the same check) is
+                  obvious at a glance. */}
+              {failureSummary.length > 0 && (
+                <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 8, padding: 8, background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 6 }}>
+                  <div style={{ fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>Failures by reason:</div>
+                  {failureSummary.map((s, i) => (
+                    <div key={i}>• <strong style={{ color: 'var(--text)' }}>{s.count}×</strong> {s.reason}</div>
+                  ))}
+                </div>
+              )}
               {bulkResult.failed.length > 0 && (
                 <div style={{ maxHeight: 140, overflowY: 'auto', fontSize: 11, color: 'var(--text-dim)' }}>
                   {bulkResult.failed.map((f, i) => (
@@ -368,7 +440,7 @@ export default function CrmUsersPage() {
               </select>
             </Field>
             <Field label={editId ? 'New Password (optional)' : 'Password'}>
-              <input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder={editId ? 'Leave blank to keep' : 'Minimum 8 characters'} style={input} />
+              <input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder={editId ? 'Leave blank to keep' : 'Minimum 10 characters'} style={input} />
             </Field>
           </div>
 
