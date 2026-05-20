@@ -29,6 +29,15 @@ const btn: React.CSSProperties = {
 };
 const btnSec: React.CSSProperties = { ...btn, background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)' };
 
+// Helper: pull the picker's client id from localStorage (same key as
+// api.ts uses to set the X-Client-Id header). Pinning it on the URL is
+// defense-in-depth — if a proxy strips custom headers the request still
+// scopes to the active tenant. Mirrors the CRM Team Members page (87cb279).
+function pickedClientId(): string | null {
+  if (typeof window === 'undefined') return null;
+  try { return window.localStorage.getItem('kinematic_selected_client'); } catch { return null; }
+}
+
 export default function LocationsSettingsPage() {
   const { selectedClientId } = useClient();
   const [rows, setRows] = useState<Location[]>([]);
@@ -40,7 +49,14 @@ export default function LocationsSettingsPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await api.get<ApiList<Location>>('/api/v1/crm/locations', { noCache: true } as RequestInit & { noCache?: boolean });
+      // Pin the picker's client_id as a query param in addition to the
+      // X-Client-Id header that api.ts already attaches. Defense in depth —
+      // if a proxy strips custom headers, the explicit ?client_id= still
+      // scopes the result to the active tenant on the backend.
+      let path = '/api/v1/crm/locations';
+      const sel = pickedClientId();
+      if (sel) path += `?client_id=${encodeURIComponent(sel)}`;
+      const r = await api.get<ApiList<Location>>(path, { noCache: true } as RequestInit & { noCache?: boolean });
       setRows(r.data || []);
     } catch (e: any) {
       toast.error(e.message || 'Failed to load locations');
