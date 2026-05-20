@@ -95,6 +95,47 @@ const TEMPLATE_SAMPLE = `${TEMPLATE_HEADER}
 Rahul Sharma,9812345601,rahul@example.com,Regional Sales Lead,Welcome@2026!
 Priya Iyer,9812345602,,Field Manager,KinematicCrm9!`;
 
+// Field definitions for the bulk-upload column matcher. Order matters —
+// rendered top-down in the mapping UI. `synonyms` powers auto-detect so
+// admins rarely have to map by hand. Keep entries lowercase / no spaces.
+type FieldKey = 'name' | 'mobile' | 'email' | 'hierarchy_role' | 'password';
+interface FieldDef { key: FieldKey; label: string; required: boolean; synonyms: string[]; hint?: string }
+const BULK_FIELDS: FieldDef[] = [
+  { key: 'name',     label: 'Full Name',      required: true,
+    synonyms: ['name', 'full_name', 'fullname', 'employee_name', 'contact_name', 'username', 'user_name'] },
+  { key: 'mobile',   label: 'Mobile',         required: true,
+    synonyms: ['mobile', 'phone', 'mobile_number', 'phone_number', 'contact_number', 'contact', 'mob', 'cell', 'cellphone', 'whatsapp'],
+    hint: 'Will be auto-sanitised: +91, spaces and dashes are stripped.' },
+  { key: 'email',    label: 'Email',          required: false,
+    synonyms: ['email', 'email_address', 'mail', 'e_mail', 'emailid', 'email_id'],
+    hint: 'Auto-generated from mobile if missing.' },
+  { key: 'hierarchy_role', label: 'Hierarchy Role', required: false,
+    synonyms: ['hierarchy_role', 'role', 'designation', 'position', 'title', 'job_title', 'level'],
+    hint: 'Matches a Role Hierarchy name (e.g. "Field Manager"). Case-insensitive.' },
+  { key: 'password', label: 'Password',       required: true,
+    synonyms: ['password', 'pwd', 'pass', 'login_password'],
+    hint: 'Must satisfy the policy below. Leave blank to auto-generate per row.' },
+];
+
+// Normalise a CSV header cell for synonym matching. Lower, trim, then
+// collapse any non-alphanumerics so "Full Name", "Full-Name", "Full_Name"
+// all match the same synonym.
+function normaliseHeader(s: string): string {
+  return (s || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+}
+
+// Auto-detect the best CSV column for each required/optional field. Returns
+// a column-index map; -1 means "no match found" → admin must pick manually.
+function autoMapHeader(header: string[]): Record<FieldKey, number> {
+  const normalised = header.map(normaliseHeader);
+  const out: Record<FieldKey, number> = { name: -1, mobile: -1, email: -1, hierarchy_role: -1, password: -1 };
+  for (const f of BULK_FIELDS) {
+    const idx = normalised.findIndex((h) => f.synonyms.includes(h));
+    out[f.key] = idx;
+  }
+  return out;
+}
+
 // Helper: lift the picker's client id from localStorage. Used as a query
 // param fallback if a proxy ever strips the X-Client-Id header.
 function pickedClientId(): string | null {
@@ -114,6 +155,13 @@ export default function CrmUsersPage() {
   const [showBulk, setShowBulk] = useState(false);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkResult, setBulkResult] = useState<{ ok: number; failed: Array<{ name: string; error: string }> } | null>(null);
+  // Bulk-upload column-matcher state — the file flows through three stages:
+  //   pick → map → import. Stored separately so the user can adjust column
+  //   mapping without re-uploading, and so errors don't blow away progress.
+  const [bulkHeader, setBulkHeader] = useState<string[] | null>(null);
+  const [bulkRows, setBulkRows] = useState<string[][] | null>(null);
+  const [bulkFileName, setBulkFileName] = useState<string>('');
+  const [bulkMap, setBulkMap] = useState<Record<FieldKey, number>>({ name: -1, mobile: -1, email: -1, hierarchy_role: -1, password: -1 });
   const fileRef = useRef<HTMLInputElement>(null);
 
   const blank = {
@@ -135,7 +183,12 @@ export default function CrmUsersPage() {
       const sel = pickedClientId();
       const suffix = sel ? `&client_id=${encodeURIComponent(sel)}` : '';
       const usersPath  = `/api/v1/users?limit=500${suffix}`;
-      const citiesPath = `/api/v1/cities?limit=500${suffix}`;
+      // `own_only=true` excludes the 868 global India seed rows so the
+      // assignment picker shows only cities the tenant has explicitly added
+      // — admins scope team members to their own beat, not all of India.
+      // (Backend management.controller.ts honours this flag; default is
+      // shared+own, which still powers Other Management → Cities.)
+      const citiesPath = `/api/v1/cities?limit=500&own_only=true${suffix}`;
 
       const [u, r, c] = await Promise.allSettled([
         api.get<any>(usersPath),
@@ -261,27 +314,59 @@ export default function CrmUsersPage() {
     URL.revokeObjectURL(url);
   };
 
+  // Stage 1 — file picked. Parse, then move to the column-mapping panel.
+  // Auto-detect column matches by synonym; the admin can correct any wrong
+  // guesses before importing. Keeps the original rows around so re-mapping
+  // doesn't require re-uploading the file.
   const onBulkFile = async (file: File) => {
     setBulkBusy(true);
     setBulkResult(null);
+    setBulkHeader(null);
+    setBulkRows(null);
     try {
       const text = await file.text();
       const rows = parseCsv(text);
-      if (rows.length < 2) { toast.error('CSV is empty (header + at least one row required)'); setBulkBusy(false); return; }
-      const header = rows[0].map((h) => h.trim().toLowerCase());
-      const idx = (k: string) => header.indexOf(k);
-      const iName = idx('name');
-      const iMobile = idx('mobile');
-      const iEmail = idx('email');
-      const iHRole = idx('hierarchy_role');
-      const iPwd = idx('password');
-      if (iName < 0 || iMobile < 0) { toast.error('CSV must include at least `name` and `mobile` columns'); setBulkBusy(false); return; }
+      if (rows.length < 2) { toast.error('CSV is empty (header + at least one data row required)'); return; }
+      const header = rows[0];
+      const data = rows.slice(1);
+      setBulkHeader(header);
+      setBulkRows(data);
+      setBulkFileName(file.name);
+      setBulkMap(autoMapHeader(header));
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to read CSV');
+    } finally {
+      setBulkBusy(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  };
 
+  // Stage 2 — admin confirmed column mapping. Validate every row client-side,
+  // then POST the valid ones sequentially so per-row errors keep their
+  // context for the result table.
+  const runBulkImport = async () => {
+    if (!bulkHeader || !bulkRows) return;
+    // Required-field mapping check first — the import button is also
+    // disabled when these are -1, but be defensive anyway.
+    const missing = BULK_FIELDS.filter((f) => f.required && bulkMap[f.key] < 0);
+    if (missing.length) {
+      toast.error(`Please map: ${missing.map((m) => m.label).join(', ')}`);
+      return;
+    }
+    setBulkBusy(true);
+    setBulkResult(null);
+    try {
       const roleByName = new Map(roles.map((r) => [r.name.toLowerCase(), r]));
       let okCount = 0;
       const failed: Array<{ name: string; error: string }> = [];
 
-      for (const row of rows.slice(1)) {
+      const iName = bulkMap.name;
+      const iMobile = bulkMap.mobile;
+      const iEmail = bulkMap.email;
+      const iHRole = bulkMap.hierarchy_role;
+      const iPwd = bulkMap.password;
+
+      for (const row of bulkRows) {
         const name = (row[iName] || '').trim();
         const mobileRaw = (row[iMobile] || '').trim();
         const mobile = sanitiseMobile(mobileRaw);
@@ -329,13 +414,24 @@ export default function CrmUsersPage() {
       }
       setBulkResult({ ok: okCount, failed });
       if (okCount > 0) reload();
-      toast.success(`Imported ${okCount} of ${rows.length - 1} users${failed.length ? ` · ${failed.length} failed` : ''}`);
+      toast.success(`Imported ${okCount} of ${bulkRows.length} users${failed.length ? ` · ${failed.length} failed` : ''}`);
     } catch (e: any) {
       toast.error(e.message || 'Bulk import failed');
     } finally {
       setBulkBusy(false);
-      if (fileRef.current) fileRef.current.value = '';
     }
+  };
+
+  // Reset the bulk-upload state so the admin can start over without
+  // re-opening the panel. Called from the "Start over" link in the
+  // mapping panel and after a successful import.
+  const resetBulk = () => {
+    setBulkHeader(null);
+    setBulkRows(null);
+    setBulkFileName('');
+    setBulkMap({ name: -1, mobile: -1, email: -1, hierarchy_role: -1, password: -1 });
+    setBulkResult(null);
+    if (fileRef.current) fileRef.current.value = '';
   };
 
   // Group failed-row errors by reason so the result panel can show a
@@ -362,7 +458,7 @@ export default function CrmUsersPage() {
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <Link href="/dashboard/crm/settings" style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, textDecoration: 'none' }}>← Back</Link>
-          <button onClick={() => { setShowBulk((s) => !s); setBulkResult(null); }} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Bulk Upload</button>
+          <button onClick={() => { setShowBulk((s) => !s); resetBulk(); }} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Bulk Upload</button>
           <button onClick={startCreate} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>+ Add User</button>
         </div>
       </div>
@@ -373,32 +469,150 @@ export default function CrmUsersPage() {
             <div>
               <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>Bulk Upload Users</div>
               <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4, maxWidth: 640 }}>
-                CSV with header row. Required columns: <code style={{ background: 'var(--s4)', padding: '1px 4px', borderRadius: 3 }}>name</code>, <code style={{ background: 'var(--s4)', padding: '1px 4px', borderRadius: 3 }}>mobile</code>. Optional: <code style={{ background: 'var(--s4)', padding: '1px 4px', borderRadius: 3 }}>email</code>, <code style={{ background: 'var(--s4)', padding: '1px 4px', borderRadius: 3 }}>hierarchy_role</code> (matches role name from Role Hierarchy — drives module access), <code style={{ background: 'var(--s4)', padding: '1px 4px', borderRadius: 3 }}>password</code>.
+                Drop any CSV — we&apos;ll detect your columns and let you map them. Required: <strong style={{ color: 'var(--text)' }}>Name</strong>, <strong style={{ color: 'var(--text)' }}>Mobile</strong>, <strong style={{ color: 'var(--text)' }}>Password</strong>. Optional: <strong style={{ color: 'var(--text)' }}>Email</strong>, <strong style={{ color: 'var(--text)' }}>Hierarchy Role</strong>.
               </div>
               <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 8, maxWidth: 640, padding: 8, background: 'var(--s4)', border: '1px solid var(--border)', borderRadius: 6 }}>
                 <strong style={{ color: 'var(--text)' }}>Password policy:</strong> {PASSWORD_POLICY_HINT}
-                {' '}Mobiles can include <code>+91</code> or spaces — they're stripped before upload.
+                {' '}Mobiles can include <code>+91</code> or spaces — they&apos;re stripped before upload.
               </div>
             </div>
-            <button onClick={() => setShowBulk(false)} style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: 0 }}>×</button>
+            <button onClick={() => { setShowBulk(false); resetBulk(); }} style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: 0 }}>×</button>
           </div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-            <button type="button" onClick={downloadTemplate} style={btnGhost}>Download template</button>
-            <input
-              ref={fileRef}
-              type="file"
-              accept=".csv,text/csv"
-              disabled={bulkBusy}
-              onChange={(e) => { const f = e.target.files?.[0]; if (f) onBulkFile(f); }}
-              style={{ ...input, padding: 6, width: 'auto' }}
-            />
-            {bulkBusy && <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>Importing…</span>}
-          </div>
+
+          {/* STAGE 1 — pick a file. Hidden once a CSV has been parsed; the
+              admin can still hit "Start over" to come back here. */}
+          {!bulkHeader && (
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+              <button type="button" onClick={downloadTemplate} style={btnGhost}>Download template</button>
+              <input
+                ref={fileRef}
+                type="file"
+                accept=".csv,text/csv"
+                disabled={bulkBusy}
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) onBulkFile(f); }}
+                style={{ ...input, padding: 6, width: 'auto' }}
+              />
+              {bulkBusy && <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>Parsing…</span>}
+            </div>
+          )}
+
+          {/* STAGE 2 — column mapper. Shown once a CSV is parsed and not yet
+              imported. Each required/optional field is paired with a
+              dropdown of the CSV's actual columns, auto-detected by
+              synonym. Required fields with no match get a red border. */}
+          {bulkHeader && bulkRows && !bulkResult && (
+            <div style={{ marginTop: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 6 }}>
+                <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>
+                  <strong style={{ color: 'var(--text)' }}>{bulkFileName}</strong> · {bulkRows.length} data row{bulkRows.length === 1 ? '' : 's'} · {bulkHeader.length} column{bulkHeader.length === 1 ? '' : 's'} detected
+                </div>
+                <button type="button" onClick={resetBulk} style={btnTiny}>Start over</button>
+              </div>
+
+              <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 10, padding: 8, background: 'var(--s4)', border: '1px solid var(--border)', borderRadius: 6 }}>
+                Match each Kinematic field to a column in your CSV. We&apos;ve auto-detected the obvious ones — adjust any that look wrong. Fields with <strong style={{ color: '#E01E2C' }}>*</strong> are required.
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 10, marginBottom: 12 }}>
+                {BULK_FIELDS.map((f) => {
+                  const sel = bulkMap[f.key];
+                  const missing = f.required && sel < 0;
+                  return (
+                    <div key={f.key} style={{ background: 'var(--s4)', border: `1px solid ${missing ? '#E01E2C' : 'var(--border)'}`, borderRadius: 8, padding: 10 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>
+                          {f.label}{f.required && <span style={{ color: '#E01E2C' }}> *</span>}
+                        </div>
+                        <span style={{ fontSize: 10, color: missing ? '#E01E2C' : sel >= 0 ? '#10b981' : 'var(--text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                          {missing ? 'Required' : sel >= 0 ? 'Mapped' : 'Skipped'}
+                        </span>
+                      </div>
+                      <select
+                        value={sel}
+                        onChange={(e) => setBulkMap({ ...bulkMap, [f.key]: parseInt(e.target.value, 10) })}
+                        style={input}
+                      >
+                        <option value={-1}>{f.required ? '— Pick a column —' : '— Skip this field —'}</option>
+                        {bulkHeader.map((h, i) => (
+                          <option key={i} value={i}>{h || `(column ${i + 1})`}</option>
+                        ))}
+                      </select>
+                      {f.hint && <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 6 }}>{f.hint}</div>}
+                      {/* Preview the first non-empty value the picked column
+                          would yield. Helps catch off-by-one mistakes
+                          ("oh, I mapped name → mobile by accident"). */}
+                      {sel >= 0 && (() => {
+                        const sample = bulkRows.find((r) => (r[sel] || '').trim() !== '')?.[sel]?.trim();
+                        if (!sample) return null;
+                        return (
+                          <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 6, fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            Preview: <span style={{ color: 'var(--text)' }}>{sample.length > 32 ? sample.slice(0, 32) + '…' : sample}</span>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* First-3-rows preview table — sanity-check the mapping
+                  before kicking off the import. */}
+              <div style={{ background: 'var(--s4)', border: '1px solid var(--border)', borderRadius: 8, padding: 10, marginBottom: 12, overflowX: 'auto' }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>Preview (first 3 rows after mapping)</div>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                  <thead>
+                    <tr>
+                      {BULK_FIELDS.map((f) => (
+                        <th key={f.key} style={{ textAlign: 'left', padding: '4px 8px', color: 'var(--text-dim)', borderBottom: '1px solid var(--border)', fontWeight: 700, textTransform: 'uppercase', fontSize: 10, letterSpacing: 0.4 }}>{f.label}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {bulkRows.slice(0, 3).map((row, ri) => (
+                      <tr key={ri}>
+                        {BULK_FIELDS.map((f) => {
+                          const idx = bulkMap[f.key];
+                          const val = idx >= 0 ? (row[idx] || '') : '';
+                          return (
+                            <td key={f.key} style={{ padding: '4px 8px', color: val ? 'var(--text)' : 'var(--text-dim)', borderBottom: '1px solid var(--border)' }}>
+                              {val || <em style={{ opacity: 0.5 }}>—</em>}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, alignItems: 'center' }}>
+                {BULK_FIELDS.filter((f) => f.required && bulkMap[f.key] < 0).length > 0 && (
+                  <span style={{ fontSize: 11, color: '#E01E2C', marginRight: 'auto' }}>
+                    Map the required fields above to enable import.
+                  </span>
+                )}
+                <button type="button" onClick={resetBulk} disabled={bulkBusy} style={btnGhost}>Cancel</button>
+                <button
+                  type="button"
+                  onClick={runBulkImport}
+                  disabled={bulkBusy || BULK_FIELDS.some((f) => f.required && bulkMap[f.key] < 0)}
+                  style={{ ...btnPrimary, opacity: (bulkBusy || BULK_FIELDS.some((f) => f.required && bulkMap[f.key] < 0)) ? 0.5 : 1 }}
+                >
+                  {bulkBusy ? 'Importing…' : `Import ${bulkRows.length} row${bulkRows.length === 1 ? '' : 's'}`}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* STAGE 3 — result summary. Shown after an import attempt. */}
           {bulkResult && (
             <div style={{ marginTop: 12, padding: 12, background: 'var(--s4)', border: '1px solid var(--border)', borderRadius: 8 }}>
-              <div style={{ fontSize: 12, color: 'var(--text)', marginBottom: bulkResult.failed.length ? 8 : 0 }}>
-                <strong style={{ color: '#10b981' }}>{bulkResult.ok} imported</strong>
-                {bulkResult.failed.length > 0 && <> · <strong style={{ color: '#E01E2C' }}>{bulkResult.failed.length} failed</strong></>}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: bulkResult.failed.length ? 8 : 0, gap: 8, flexWrap: 'wrap' }}>
+                <div style={{ fontSize: 12, color: 'var(--text)' }}>
+                  <strong style={{ color: '#10b981' }}>{bulkResult.ok} imported</strong>
+                  {bulkResult.failed.length > 0 && <> · <strong style={{ color: '#E01E2C' }}>{bulkResult.failed.length} failed</strong></>}
+                </div>
+                <button type="button" onClick={resetBulk} style={btnTiny}>Upload another file</button>
               </div>
               {/* Summary by reason — surfaced above the per-row list so a
                   systemic problem (every row failing the same check) is
