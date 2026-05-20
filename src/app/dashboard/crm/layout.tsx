@@ -20,27 +20,36 @@ export default function CrmLayout({ children }: { children: React.ReactNode }) {
           opacity: 0.9;
         }
       `}</style>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10, gap: 12, flexWrap: 'wrap' }}>
-        <div>
-          <h1 style={{
-            fontSize: 32, fontWeight: 900, margin: 0,
-            color: 'var(--primary)', letterSpacing: '-0.5px',
-            display: 'flex', alignItems: 'center', gap: 10,
-          }}>
-            CRM
-            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', letterSpacing: '1.2px', textTransform: 'uppercase' }}>
-              powered by Kini AI
-            </span>
-          </h1>
-          <CrmScopeBadge />
-        </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-          {/* Old top-level State / City filter removed — the new cascading
-              State → City → District → Block picker lives inside LeadFilters
-              on the Leads page. Keeping DateRangePicker here since it scopes
-              every CRM page, not just Leads. */}
-          <DateRangePicker />
-        </div>
+      {/*
+       * Centered CRM mark on top — the "powered by Kini AI" tagline shrinks
+       * on mobile via the media-query override below. CrmScopeBadge stays
+       * centered under the heading. DateRangePicker sits on its own row
+       * underneath so the heading line stays clean at every width.
+       */}
+      <style jsx>{`
+        .crm-mark { font-size: 32px; }
+        .crm-mark-sub { font-size: 11px; }
+        @media (max-width: 640px) {
+          .crm-mark { font-size: 24px; }
+          .crm-mark-sub { font-size: 9px; }
+        }
+      `}</style>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', marginBottom: 12, gap: 6 }}>
+        <h1 className="crm-mark" style={{
+          fontWeight: 900, margin: 0,
+          color: 'var(--primary)', letterSpacing: '-0.5px',
+          display: 'inline-flex', alignItems: 'center', gap: 10,
+          flexWrap: 'wrap', justifyContent: 'center',
+        }}>
+          CRM
+          <span className="crm-mark-sub" style={{ fontWeight: 700, color: 'var(--text-dim)', letterSpacing: '1.2px', textTransform: 'uppercase' }}>
+            powered by Kini AI
+          </span>
+        </h1>
+        <CrmScopeBadge />
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
+        <DateRangePicker />
       </div>
       <CrmSubNav />
       {/*

@@ -293,7 +293,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </nav>
 
           <div style={{ padding:20, borderTop:`1px solid ${C.border}` }}>
-            {(isMobile || !collapsed) && <div style={{ marginBottom:10, fontSize:12 }}>{user?.name || 'Admin'}</div>}
+            {(isMobile || !collapsed) && (
+              <div style={{ marginBottom:10 }}>
+                <div style={{ fontSize:13, fontWeight:700, color:C.white, lineHeight:1.2 }}>{user?.name || 'Admin'}</div>
+                {/* Designation = hierarchy role name (e.g. "Business Manager",
+                    "Consumer Champion"). Falls back to the legacy preset role
+                    label so we never show an empty descriptor. */}
+                <div style={{ fontSize:11, color:C.gray, marginTop:2, lineHeight:1.2 }}>
+                  {hierarchyRoleName || getRoleLabel(userRole)}
+                </div>
+              </div>
+            )}
             <button onClick={handleLogout} style={{ width:'100%', padding:'10px', background:'transparent', border:`1px solid ${C.border}`, color:C.gray, borderRadius:8, cursor:'pointer' }}>Sign Out</button>
 
             {user?.email === 'demo@kinematic.com' && (

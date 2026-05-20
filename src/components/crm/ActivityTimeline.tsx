@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import type { Activity } from '../../types/crm';
 import { format, formatDistanceToNow } from 'date-fns';
 import { crmActivities } from '../../lib/crmApi';
+import { ActivityTypeIcon } from './shared/ActivityTypeIcon';
 
 // Date + time in user-readable form. Falls back to '' on bad input so
 // the row still renders.
@@ -12,7 +13,10 @@ function fmtDateTime(iso?: string | null): string {
   try { return format(new Date(iso), 'd MMM yyyy, h:mm a'); } catch { return ''; }
 }
 
-const ICONS: Record<string, string> = { call: '📞', email: '✉️', meeting: '📅', task: '✅', note: '📝', sms: '💬', whatsapp: '💚' };
+// Emoji fallback table — kept for non-WhatsApp types. WhatsApp now
+// renders via the shared <ActivityTypeIcon> SVG (real brand mark) since
+// "💚" doesn't read as WhatsApp to anyone.
+const ICONS: Record<string, string> = { call: '📞', email: '✉️', meeting: '📅', task: '✅', note: '📝', sms: '💬' };
 
 const STATUS_COLORS: Record<string, string> = {
   open: '#6366f1', planned: '#6366f1', in_progress: '#f59e0b',
@@ -71,7 +75,9 @@ export default function ActivityTimeline({ activities, onChange }: Props) {
         const showActions = !!onChange;
         return (
           <div key={a.id} style={{ display: 'flex', gap: 12, padding: 12, background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 10, borderLeft: `4px solid ${statusColor}`, position: 'relative' }}>
-            <div style={{ fontSize: 18 }}>{ICONS[a.type] || '•'}</div>
+            <div style={{ fontSize: 18, display: 'flex', alignItems: 'center' }}>
+              {a.type === 'whatsapp' ? <ActivityTypeIcon type="whatsapp" size={20} /> : (ICONS[a.type] || '•')}
+            </div>
             <div style={{ flex: 1 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
                 <div style={{ flex: 1, minWidth: 0 }}>

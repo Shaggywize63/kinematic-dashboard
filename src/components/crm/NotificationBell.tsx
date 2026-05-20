@@ -3,14 +3,18 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { crmActivities } from '../../lib/crmApi';
 import type { Activity } from '../../types/crm';
+import { ActivityTypeIcon } from './shared/ActivityTypeIcon';
 
 // Bell-icon dropdown that surfaces upcoming + overdue CRM activities. Reads
 // crm_activities via the calendar endpoint with a ±7-day window and filters
 // to anything that's not yet completed. Counts overdue items in a red badge
 // so reps see them first.
 
+// WhatsApp lives outside this table — rendered via the shared
+// <ActivityTypeIcon> SVG so the brand mark shows up instead of a generic
+// green emoji. Everything else stays emoji-cheap.
 const TYPE_ICONS: Record<string, string> = {
-  call: '📞', email: '✉️', meeting: '📅', task: '✅', note: '📝', sms: '💬', whatsapp: '💚',
+  call: '📞', email: '✉️', meeting: '📅', task: '✅', note: '📝', sms: '💬',
 };
 
 function fmtRelative(due?: string | null): { label: string; overdue: boolean } {
@@ -138,7 +142,9 @@ export default function NotificationBell() {
               <Link key={a.id} href={href} onClick={() => setOpen(false)} style={{ display: 'block', padding: '10px 14px', borderBottom: '1px solid var(--border)', textDecoration: 'none' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
                   <span style={{ fontSize: 13, color: 'var(--text)', fontWeight: 700 }}>
-                    <span style={{ marginRight: 6 }}>{TYPE_ICONS[a.type] || '•'}</span>
+                    <span style={{ marginRight: 6, display: 'inline-flex', verticalAlign: 'middle' }}>
+                      {a.type === 'whatsapp' ? <ActivityTypeIcon type="whatsapp" size={14} /> : (TYPE_ICONS[a.type] || '•')}
+                    </span>
                     {a.subject || a.type}
                   </span>
                   <span style={{ fontSize: 10, fontWeight: 700, color: r.overdue ? '#E01E2C' : 'var(--text-dim)', whiteSpace: 'nowrap' }}>

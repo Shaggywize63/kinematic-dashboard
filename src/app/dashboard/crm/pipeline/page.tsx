@@ -98,28 +98,42 @@ export default function PipelinePage() {
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {pipelines.map((p) => {
+          {/*
+           * The list can contain both a shared "Default Sales Pipeline"
+           * (client_id IS NULL, set by the platform) AND a tenant-owned
+           * default. Only ONE row should highlight — prefer the tenant's
+           * own default. Backend deal-lookup follows the same rule
+           * (resolveDefaultPipeline in deals.service.ts).
+           */}
+          {(() => null)()}
+          {pipelines.map((p, _idx, all) => {
             const stages = (p.stages || []).slice().sort((a, b) => a.position - b.position);
             const dealsHere = dealsByPipeline[p.id] || [];
             const openValue = dealsHere.reduce((sum, d) => sum + Number((d as any).amount || 0), 0);
             const isOpen = expanded === p.id;
+            const effectiveDefaultId =
+              all.find((x) => x.is_default && (x as any).client_id)?.id
+              ?? all.find((x) => x.is_default)?.id
+              ?? null;
+            const isEffectiveDefault = p.id === effectiveDefaultId;
             return (
               <div key={p.id} style={{
-                // Highlight the default pipeline: thicker primary border + a
-                // subtle accent strip on the left so it's obvious at a glance.
-                background: p.is_default ? 'var(--s2)' : 'var(--s2)',
-                border: `1px solid ${p.is_default ? 'var(--primary)' : 'var(--border)'}`,
-                borderLeft: `4px solid ${p.is_default ? 'var(--primary)' : 'var(--border)'}`,
+                // Highlight only the effective default — thicker primary
+                // border + a left accent strip. Other is_default rows (e.g.
+                // a leftover shared one) render normally.
+                background: 'var(--s2)',
+                border: `1px solid ${isEffectiveDefault ? 'var(--primary)' : 'var(--border)'}`,
+                borderLeft: `4px solid ${isEffectiveDefault ? 'var(--primary)' : 'var(--border)'}`,
                 borderRadius: 12,
-                boxShadow: p.is_default ? '0 0 0 2px rgba(224,30,44,0.08)' : 'none',
+                boxShadow: isEffectiveDefault ? '0 0 0 2px rgba(224,30,44,0.08)' : 'none',
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 14, cursor: 'pointer' }} onClick={() => setExpanded(isOpen ? null : p.id)}>
                   <span style={{ fontSize: 16, color: 'var(--text-dim)', transform: isOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}>▸</span>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                      {p.is_default && <span title="Default pipeline" style={{ fontSize: 18, color: '#f5a623', lineHeight: 1 }}>★</span>}
+                      {isEffectiveDefault && <span title="Default pipeline" style={{ fontSize: 18, color: '#f5a623', lineHeight: 1 }}>★</span>}
                       <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>{p.name}</span>
-                      {p.is_default && <span style={{ fontSize: 9, padding: '2px 8px', borderRadius: 4, background: 'var(--primary)', color: '#fff', fontWeight: 800, letterSpacing: 0.4 }}>DEFAULT</span>}
+                      {isEffectiveDefault && <span style={{ fontSize: 9, padding: '2px 8px', borderRadius: 4, background: 'var(--primary)', color: '#fff', fontWeight: 800, letterSpacing: 0.4 }}>DEFAULT</span>}
                     </div>
                     <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>
                       {stages.length} stage{stages.length === 1 ? '' : 's'} · {dealsHere.length} open deal{dealsHere.length === 1 ? '' : 's'} · {formatINR(openValue)}
@@ -128,7 +142,7 @@ export default function PipelinePage() {
                   <div style={{ display: 'flex', gap: 6, alignItems: 'center' }} onClick={(e) => e.stopPropagation()}>
                     <Link href={`/dashboard/crm/deals?pipeline_id=${p.id}&view=kanban`} title="Open Kanban for this pipeline"
                       style={chip('#3E9EFF')}>Kanban →</Link>
-                    {!p.is_default && (
+                    {!isEffectiveDefault && (
                       <button onClick={() => makeDefault(p)} disabled={busyDefault === p.id} style={chip('var(--text-dim)')}>
                         {busyDefault === p.id ? 'Saving…' : 'Make default'}
                       </button>
