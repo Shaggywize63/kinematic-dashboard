@@ -102,16 +102,16 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-manrope); letter-spacing: -0.01
     grid-template-columns: 1fr !important;
   }
 
-  /* Flex rows with justify-content space-between (header bars, toolbar rows)
-     wrap to multiple lines so action buttons drop below titles. We ONLY add
-     flex-wrap when the element doesn't already declare flex-wrap explicitly —
-     this stops us from clobbering containers like the chevron path that need
-     to stay flex-wrap: nowrap with horizontal scroll. */
+  /* Flex rows with justify-content space-between wrap, but skip elements
+     that already declare flex-wrap to avoid clobbering the chevron path. */
   [style*="justify-content: space-between"]:not([style*="flex-direction: column"]):not([style*="flex-wrap"]):not([style*="flexWrap"]),
   [style*="justifyContent:space-between"]:not([style*="flexDirection:column"]):not([style*="flex-wrap"]):not([style*="flexWrap"]) {
     flex-wrap: wrap !important;
   }
 
+  /* Fixed-width side panels (200–320px) collapse to fluid. */
+  main [style*="width: 200px"], main [style*="width:200px"],
+  main [style*="width: 220px"], main [style*="width:220px"],
   main [style*="width: 240px"], main [style*="width:240px"],
   main [style*="width: 260px"], main [style*="width:260px"],
   main [style*="width: 280px"], main [style*="width:280px"],
@@ -142,7 +142,37 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-manrope); letter-spacing: -0.01
   }
 }
 
+@media (max-width: 768px) {
+  /* ── Stack flex layouts that try to keep 2 columns side-by-side. The
+        detail pages use `flex: 2 1 380px` / `flex: 1 1 280px`; on phones
+        the children should always go full-width and stack vertically so
+        the page never needs horizontal scroll. */
+  [style*="flex: 2 1 380"],
+  [style*="flex:2 1 380"],
+  [style*="flex: 2 1 360"],
+  [style*="flex:2 1 360"],
+  [style*="flex: 2 1 340"],
+  [style*="flex:2 1 340"],
+  [style*="flex: 1 1 280"],
+  [style*="flex:1 1 280"],
+  [style*="flex: 1 1 300"],
+  [style*="flex:1 1 300"],
+  [style*="flex: 1 1 320"],
+  [style*="flex:1 1 320"] {
+    flex-basis: 100% !important;
+    width: 100% !important;
+    min-width: 100% !important;
+  }
+}
+
 @media (max-width: 640px) {
+  /* ── Lock the dashboard chrome so nothing pushes past the viewport.
+        body already has overflow-x: hidden — this is belt-and-braces in
+        case a stray child has explicit width or transform. */
+  html, body { max-width: 100vw; overflow-x: clip; }
+  header, main, footer { max-width: 100vw; overflow-x: clip; }
+  main > div { max-width: 100%; }
+
   [style*="font-size: 32"], [style*="font-size:32"] { font-size: 22px !important; }
   [style*="font-size: 28"], [style*="font-size:28"] { font-size: 20px !important; }
   [style*="font-size: 24"], [style*="font-size:24"] { font-size: 18px !important; }
@@ -166,9 +196,7 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-manrope); letter-spacing: -0.01
     min-width: 0 !important;
   }
 
-  /* Detail-page action button rows breathe instead of cramming. Same
-     exception as above — don't override containers that explicitly
-     declare flex-wrap (chevron path stays nowrap with scroll). */
+  /* Detail-page action button rows breathe instead of cramming. */
   [style*="justify-content: flex-end"]:not([style*="flex-direction: column"]):not([style*="flex-wrap"]):not([style*="flexWrap"]),
   [style*="justifyContent:flex-end"]:not([style*="flexDirection:column"]):not([style*="flex-wrap"]):not([style*="flexWrap"]) {
     justify-content: flex-start !important;
@@ -179,6 +207,46 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-manrope); letter-spacing: -0.01
   [style*="border-radius: 18"], [style*="border-radius:18"],
   [style*="border-radius: 20"], [style*="border-radius:20"] {
     border-radius: 12px !important;
+  }
+
+  /* ── Global header (dashboard chrome): the Client Filter dropdown
+        was set to `width: 220px; flex-shrink: 0` which pushed the
+        whole header wider than a 360px phone. Clamp it down. */
+  header [style*="width: 220"] {
+    width: auto !important;
+    max-width: 140px !important;
+    flex-shrink: 1 !important;
+  }
+  header [style*="width: 220"] select,
+  header [style*="width: 220"] [role="combobox"] {
+    font-size: 11px !important;
+    padding: 4px 8px !important;
+  }
+
+  /* ── Header action button rows on lead/deal/account/contact detail
+        pages. The header `flex: 1 1 220px` title block plus 5-7 action
+        buttons must fit on a phone without horizontal scroll. Shrink
+        button padding + font so 3-4 buttons fit per row. */
+  main button {
+    font-size: 12px;
+    line-height: 1.2;
+  }
+  main button[style*="padding: 8px 14"],
+  main button[style*="padding: 8px 16"],
+  main button[style*="padding: 8px 18"],
+  main button[style*="padding: 10px 14"],
+  main button[style*="padding: 10px 16"] {
+    padding: 6px 10px !important;
+    font-size: 11px !important;
+    font-weight: 700;
+  }
+  /* Anchor "buttons" (Link styled like buttons) — same treatment. */
+  main a[style*="padding: 8px 14"],
+  main a[style*="padding: 8px 16"],
+  main a[style*="padding: 8px 18"] {
+    padding: 6px 10px !important;
+    font-size: 11px !important;
+    font-weight: 700;
   }
 
   /* Card-style tables on phones */
@@ -254,14 +322,9 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-manrope); letter-spacing: -0.01
     -webkit-clip-path: none !important;
     border-radius: 6px !important;
   }
-
-  /* The chevron's inner row MUST stay flex-wrap: nowrap. The general
-     responsive rules above already skip elements that declare flex-wrap
-     explicitly, but pin it here as belt-and-braces. */
   .stage-chevron-row > div {
     flex-wrap: nowrap !important;
   }
-
   .stage-chevron-actions {
     justify-content: flex-start !important;
   }
@@ -270,6 +333,17 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-manrope); letter-spacing: -0.01
     font-size: 10px !important;
     padding: 5px 10px !important;
     letter-spacing: 0.3px !important;
+  }
+
+  /* ── Lead / Deal detail page header: title block uses
+        `flex: 1 1 220px`; collapse to full-width so it doesn't
+        compete with the action button row. */
+  [style*="flex: 1 1 220"],
+  [style*="flex:1 1 220"],
+  [style*="flex: 1 1 200"],
+  [style*="flex:1 1 200"] {
+    flex-basis: 100% !important;
+    min-width: 100% !important;
   }
 }
 
