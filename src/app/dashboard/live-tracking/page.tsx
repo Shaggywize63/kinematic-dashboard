@@ -1,9 +1,10 @@
 'use client';
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import api from '../../../lib/api';
 import * as demoMocks from '../../../lib/demoMocks';
 import { getStoredUser } from '../../../lib/auth';
 import { LowBatteryKpi, LowBatteryAlert, LowBatteryFilter } from '../../../components/live-tracking/LowBattery';
+import useOsrmTrail from '../../../components/live-tracking/useOsrmTrail';
 
 const C = {
   bg: 'var(--bg)', s1: 'var(--s1)', s2: 'var(--s2)', s3: 'var(--s3)', s4: 'var(--s4)',
@@ -140,6 +141,23 @@ function LiveMap({
   const mapInst = useRef<any>(null);
   const markers = useRef<any[]>([]);
   const trailLayer = useRef<any>(null);
+  const trailDotLayer = useRef<any>(null);
+
+  // Extract lat/lng pairs from the trail and route them through OSRM so
+  // the polyline follows real roads (diversions, U-turns, etc.) instead
+  // of cutting straight across buildings. While OSRM is loading, the
+  // hook returns the raw straight-line points so the user sees the trail
+  // immediately; the polyline switches to the routed path the moment the
+  // response lands. Cached by (length, first, last) so the 60s poll
+  // doesn't refetch when the trail hasn't grown.
+  const trailPoints = useMemo<[number, number][] | null>(() => {
+    if (!trail || trail.length < 2) return null;
+    const pts = trail
+      .filter((p) => typeof p.lat === 'number' && typeof p.lng === 'number')
+      .map((p) => [p.lat, p.lng] as [number, number]);
+    return pts.length > 1 ? pts : null;
+  }, [trail]);
+  const { coords: routedCoords, routed: trailRouted } = useOsrmTrail(trailPoints);
 
   // Init map
   useEffect(() => {
@@ -212,39 +230,71 @@ function LiveMap({
       });
     }
 
-    // Trail polyline — the selected FE's day-long breadcrumb. Cleared and
-    // rebuilt on every dependency change so it stays in sync with the
-    // 60-second auto-refresh of the markers above.
-    if (trailLayer.current) {
-      trailLayer.current.remove();
-      trailLayer.current = null;
-    }
-    if (trail && trail.length > 1) {
-      const coords = trail
-        .filter((p) => typeof p.lat === 'number' && typeof p.lng === 'number')
-        .map((p) => [p.lat, p.lng] as [number, number]);
-      if (coords.length > 1) {
-        trailLayer.current = L.polyline(coords, {
-          color: trailColor || '#63B3ED',
-          weight: 3,
-          opacity: 0.85,
-          dashArray: '4 6',
-          lineCap: 'round',
-          lineJoin: 'round',
-        }).addTo(mapInst.current);
+    // Trail polyline + ping markers — the selected FE's day-long
+    // breadcrumb. Drawn from the OSRM-routed coords (road-snapped) when
+    // available; falls back to the raw straight-line path on the first
+    // render or if OSRM is down. Solid line when routed, dashed when
+    // straight-line fallback, so reps can tell whether the path follows
+    // real roads at a glance.
+    if (trailLayer.current) { trailLayer.current.remove(); trailLayer.current = null; }
+    if (trailDotLayer.current) { trailDotLayer.current.remove(); trailDotLayer.current = null; }
+    const polyCoords = routedCoords && routedCoords.length > 1 ? routedCoords : null;
+    if (polyCoords) {
+      const colour = trailColor || '#63B3ED';
+      // Outer glow for a smoother visual.
+      const glow = L.polyline(polyCoords, {
+        color: colour,
+        weight: 8,
+        opacity: 0.18,
+        lineCap: 'round',
+        lineJoin: 'round',
+      });
+      const main = L.polyline(polyCoords, {
+        color: colour,
+        weight: 4,
+        opacity: 0.95,
+        dashArray: trailRouted ? undefined : '4 6',
+        lineCap: 'round',
+        lineJoin: 'round',
+      });
+      trailLayer.current = L.layerGroup([glow, main]).addTo(mapInst.current);
+
+      // Drop tiny ping markers at each raw GPS capture so the rep can
+      // see where the FE actually stopped/checked in along the route.
+      if (trailPoints && trailPoints.length > 0) {
+        const dots: any[] = [];
+        trailPoints.forEach(([lat, lng], i) => {
+          const isFirst = i === 0;
+          const isLast = i === trailPoints.length - 1;
+          const radius = isFirst || isLast ? 6 : 3;
+          const fill = isLast ? colour : isFirst ? '#10b981' : '#ffffff';
+          const stroke = isLast ? '#ffffff' : isFirst ? '#ffffff' : colour;
+          const dot = L.circleMarker([lat, lng], {
+            radius,
+            color: stroke,
+            weight: 2,
+            fillColor: fill,
+            fillOpacity: 1,
+          });
+          dots.push(dot);
+        });
+        trailDotLayer.current = L.layerGroup(dots).addTo(mapInst.current);
       }
     }
 
-    // Auto-fit bounds if markers exist
+    // Auto-fit bounds if markers exist. Include the trail polyline +
+    // dot layer so the map frames the whole journey, not just the latest
+    // ping marker.
     const hasPins = markers.current.length > 0;
     if (hasPins) {
       const layers: any[] = [...markers.current];
       if (trailLayer.current) layers.push(trailLayer.current);
+      if (trailDotLayer.current) layers.push(trailDotLayer.current);
       const group = L.featureGroup(layers);
       mapInst.current.fitBounds(group.getBounds().pad(0.15));
     }
 
-  }, [mapLoaded, fes, supervisors, outlets, warehouses, activeLayers, selectedId, onSelect, trail, trailColor]);
+  }, [mapLoaded, fes, supervisors, outlets, warehouses, activeLayers, selectedId, onSelect, trail, trailColor, routedCoords, trailRouted, trailPoints]);
 
   const popupHtml = (name:string, role:string, color:string, status:string, zone?:string, checkinAt?:string, engagements?:number, tff?:number, battery?:number, lastSeen?:string, device?:string, os?:string) => {
     const diff = lastSeen ? Math.round((new Date().getTime() - new Date(lastSeen).getTime()) / 60000) : null;
