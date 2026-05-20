@@ -1,16 +1,14 @@
 'use client';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { DndContext, useDroppable, useDraggable, type DragEndEvent, PointerSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { toast } from 'sonner';
 import type { Deal, Stage } from '../../types/crm';
 import { crmDeals } from '../../lib/crmApi';
 import { useCrmKanbanStore } from '../../stores/crmKanbanStore';
 import DealCard from './DealCard';
+import LogoSpinner from '../shared/LogoSpinner';
 import { formatINR } from '../../lib/formatCurrency';
 
-// Kanban column. On phones (≤640px) `globals.css` stacks columns
-// vertically as full-width sections — drag-and-drop works in both
-// orientations because dnd-kit doesn't care about flex direction.
 function StageColumn({ stage, deals, showWeighted }: { stage: Stage; deals: Deal[]; showWeighted: boolean }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
   const total = deals.reduce((s, d) => {
@@ -64,19 +62,16 @@ function DraggableCard({ deal }: { deal: Deal }) {
 }
 
 export default function DealKanban({ stages, initialDeals, showWeighted = false }: { stages: Stage[]; initialDeals: Deal[]; showWeighted?: boolean }) {
-  // Register BOTH sensors simultaneously. dnd-kit fires whichever
-  // sensor's activation constraint is satisfied first, so:
-  //   - Desktop mouse: PointerSensor activates immediately (5px drag)
-  //   - Touch device: TouchSensor activates after 250ms long-press
-  // Earlier we swapped between them based on a device check, but laptops
-  // with touchscreens (and Chrome's "Toggle device toolbar") reported
-  // touch-capable AND tried to long-press for normal click-drag, which
-  // made desktop drag feel broken. Registering both fixes that.
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }),
   );
   const { deals, setDeals, moveDealOptimistic, rollbackMove } = useCrmKanbanStore();
+  // `moving` shows the Kinematic loader overlay while the moveStage API
+  // is in flight. The optimistic update repaints the columns instantly,
+  // but the API call can take 400-1500ms — the overlay tells reps the
+  // change is being persisted and blocks accidental double-drags.
+  const [moving, setMoving] = useState<string | null>(null);
 
   useEffect(() => {
     const byStage: Record<string, Deal[]> = {};
@@ -97,11 +92,12 @@ export default function DealKanban({ stages, initialDeals, showWeighted = false 
       if (list.find((d) => d.id === dealId)) fromStageId = sid;
     });
     if (!fromStageId || fromStageId === toStageId) return;
+    const targetStage = stages.find((s) => s.id === toStageId);
     moveDealOptimistic(dealId, fromStageId, toStageId);
+    setMoving(targetStage?.name || 'Updating');
     try {
       await crmDeals.moveStage(dealId, { stage_id: toStageId });
       toast.success('Deal moved');
-      const targetStage = stages.find((s) => s.id === toStageId);
       if (targetStage?.stage_type === 'won') {
         import('canvas-confetti').then(({ default: confetti }) => {
           confetti({ particleCount: 140, spread: 90, origin: { y: 0.6 }, colors: ['#28B463', '#F7B538', '#3E9EFF', '#E01E2C', '#7B61FF'] });
@@ -109,11 +105,13 @@ export default function DealKanban({ stages, initialDeals, showWeighted = false 
             confetti({ particleCount: 80, spread: 60, origin: { x: 0.2, y: 0.7 }, colors: ['#28B463', '#F7B538'] });
             confetti({ particleCount: 80, spread: 60, origin: { x: 0.8, y: 0.7 }, colors: ['#3E9EFF', '#7B61FF'] });
           }, 250);
-        }).catch(() => { /* confetti is decorative — never block on it */ });
+        }).catch(() => { /* decorative */ });
       }
     } catch (err: any) {
       rollbackMove(dealId, fromStageId, toStageId);
       toast.error(err.message || 'Move failed');
+    } finally {
+      setMoving(null);
     }
   };
 
@@ -129,16 +127,19 @@ export default function DealKanban({ stages, initialDeals, showWeighted = false 
       }}>
         💡 Long-press a card to drag it. Scroll down to see all stages.
       </div>
-      <div
-        className="kanban-board"
-        style={{
-          display: 'flex',
-          gap: 12,
-          overflowX: 'auto',
-          paddingBottom: 8,
-          scrollSnapType: 'x proximity',
-        }}>
-        {sortedStages.map((s) => <StageColumn key={s.id} stage={s} deals={deals[s.id] || []} showWeighted={showWeighted} />)}
+      <div style={{ position: 'relative' }}>
+        <div
+          className="kanban-board"
+          style={{
+            display: 'flex',
+            gap: 12,
+            overflowX: 'auto',
+            paddingBottom: 8,
+            scrollSnapType: 'x proximity',
+          }}>
+          {sortedStages.map((s) => <StageColumn key={s.id} stage={s} deals={deals[s.id] || []} showWeighted={showWeighted} />)}
+        </div>
+        {moving && <LogoSpinner overlay size={56} label={`Moving to ${moving}…`} />}
       </div>
     </DndContext>
   );

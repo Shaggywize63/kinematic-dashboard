@@ -81,6 +81,13 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-manrope); letter-spacing: -0.01
 @keyframes spin    { to { transform: rotate(360deg) } }
 @keyframes pulse   { 0%,100% { opacity: 1 } 50% { opacity: 0.25 } }
 
+/* Kinematic-branded loader — used by <LogoSpinner>. Pulse + soft
+   rotate so the brand mark feels alive while waiting on a network call. */
+@keyframes logoPulse {
+  0%, 100% { transform: scale(1) rotate(0deg);   opacity: 1; }
+  50%      { transform: scale(0.85) rotate(8deg); opacity: 0.55; }
+}
+
 .animate-fade-in  { animation: fadeIn  0.3s ease both; }
 .animate-fade-up  { animation: fadeUp  0.4s cubic-bezier(0.22,1,0.36,1) both; }
 .animate-slide-in { animation: slideIn 0.35s cubic-bezier(0.22,1,0.36,1) both; }
@@ -204,6 +211,8 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-manrope); letter-spacing: -0.01
     padding: 4px 8px !important;
   }
 
+  /* ── Detail-page action buttons. Tighter than before so 4 fit per row
+        on a 360px phone screen. Padding shrinks further; weight stays bold. */
   main button {
     font-size: 12px;
     line-height: 1.2;
@@ -213,19 +222,20 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-manrope); letter-spacing: -0.01
   main button[style*="padding: 8px 18"],
   main button[style*="padding: 10px 14"],
   main button[style*="padding: 10px 16"] {
-    padding: 6px 10px !important;
-    font-size: 11px !important;
+    padding: 5px 8px !important;
+    font-size: 10.5px !important;
     font-weight: 700;
+    border-radius: 6px !important;
   }
   main a[style*="padding: 8px 14"],
   main a[style*="padding: 8px 16"],
   main a[style*="padding: 8px 18"] {
-    padding: 6px 10px !important;
-    font-size: 11px !important;
+    padding: 5px 8px !important;
+    font-size: 10.5px !important;
     font-weight: 700;
+    border-radius: 6px !important;
   }
 
-  /* Card-style tables on phones */
   table.responsive-cards { display: block; }
   table.responsive-cards thead { display: none; }
   table.responsive-cards tbody { display: block; }
@@ -260,13 +270,7 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-manrope); letter-spacing: -0.01
 
   h1, h2, h3 { word-break: break-word; overflow-wrap: anywhere; }
 
-  /* ============================================================================
-     Kanban on phones — switch from horizontal swipe (couldn't fit columns
-     without horizontal scroll, even at 88vw) to a VERTICAL stack. Each
-     stage column becomes a full-width section laid out top-to-bottom.
-     Drag-and-drop still works via dnd-kit's vertical drag; the touch
-     long-press sensor is already enabled on touch devices.
-     ============================================================================ */
+  /* Kanban — vertical stack on phones */
   .kanban-touch-hint { display: block !important; }
   .kanban-board {
     flex-direction: column !important;
@@ -283,40 +287,31 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-manrope); letter-spacing: -0.01
     padding: 12px !important;
     max-height: none !important;
   }
-  /* Inside each column the deal list scrolls if very long (35 cards),
-     but cap it generously so a normal pipeline fits without nested
-     scroll. */
   .kanban-column > div:last-child {
     max-height: 60vh !important;
   }
 
-  /* Chevron breadcrumb */
-  .stage-chevron-row { padding: 3px !important; }
+  /* ── Chevron breadcrumb on phones. The CSS clip-path triangles caused
+        text to overlap with the chevron points on narrow widths — we
+        ditch the clip-path entirely on phones and use simple rounded
+        rectangles with a small gap between them. Still scrolls
+        horizontally if there are many stages. */
+  .stage-chevron-row {
+    padding: 4px !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+  }
   .stage-chevron-btn {
-    min-width: 110px !important;
-    font-size: 10px !important;
-    padding: 8px 14px !important;
-    letter-spacing: 0.3px !important;
-    margin-right: -6px !important;
-  }
-  .stage-chevron-btn:last-child { margin-right: 0 !important; }
-  .stage-chevron-btn:not(:first-child):not(:last-child) {
-    clip-path: polygon(6px 0%, calc(100% - 6px) 0%, 100% 50%, calc(100% - 6px) 100%, 6px 100%, 0% 50%) !important;
-    -webkit-clip-path: polygon(6px 0%, calc(100% - 6px) 0%, 100% 50%, calc(100% - 6px) 100%, 6px 100%, 0% 50%) !important;
-  }
-  .stage-chevron-btn:first-child:not(:last-child) {
-    clip-path: polygon(0% 0%, calc(100% - 6px) 0%, 100% 50%, calc(100% - 6px) 100%, 0% 100%, 0% 50%) !important;
-    -webkit-clip-path: polygon(0% 0%, calc(100% - 6px) 0%, 100% 50%, calc(100% - 6px) 100%, 0% 100%, 0% 50%) !important;
-  }
-  .stage-chevron-btn:last-child:not(:first-child) {
-    clip-path: polygon(6px 0%, 100% 0%, 100% 100%, 6px 100%, 0% 50%) !important;
-    -webkit-clip-path: polygon(6px 0%, 100% 0%, 100% 100%, 6px 100%, 0% 50%) !important;
-  }
-  .stage-chevron-btn:first-child:last-child {
+    min-width: 90px !important;
+    font-size: 9.5px !important;
+    padding: 7px 10px !important;
+    letter-spacing: 0.2px !important;
+    margin-right: 4px !important;
+    border-radius: 6px !important;
     clip-path: none !important;
     -webkit-clip-path: none !important;
-    border-radius: 6px !important;
   }
+  .stage-chevron-btn:last-child { margin-right: 0 !important; }
   .stage-chevron-row > div {
     flex-wrap: nowrap !important;
   }

@@ -13,6 +13,7 @@ import CallButton from '../../../../../components/crm/shared/CallButton';
 import ActivityTimeline from '../../../../../components/crm/ActivityTimeline';
 import DealEditModal from '../../../../../components/crm/DealEditModal';
 import AddToPipelineModal from '../../../../../components/crm/AddToPipelineModal';
+import LogoSpinner from '../../../../../components/shared/LogoSpinner';
 import { formatINR } from '../../../../../lib/formatCurrency';
 
 const LOST_REASONS = [
@@ -99,6 +100,7 @@ export default function DealDetailPage() {
   const [nba, setNba] = useState<NextBestAction | null>(null);
   const [winProb, setWinProb] = useState<WinProbability | null>(null);
   const [loading, setLoading] = useState(true);
+  const [stageMoving, setStageMoving] = useState(false);
   const [nbaBusy, setNbaBusy] = useState(false);
   const [winBusy, setWinBusy] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -160,6 +162,7 @@ export default function DealDetailPage() {
         setCloseOutcome('lost'); setCloseReason(''); setCloseLostOther(''); setCloseOpen(true);
         return;
       }
+      setStageMoving(true);
       await crmDeals.moveStage(deal.id, { stage_id: stageId });
       toast.success(`Moved to ${target.name || 'next stage'}`);
       reload();
@@ -167,7 +170,7 @@ export default function DealDetailPage() {
       // eslint-disable-next-line no-console
       console.error('[deal-detail] moveStage failed', e);
       toast.error(e?.message || 'Stage update failed');
-    }
+    } finally { setStageMoving(false); }
   };
 
   const daysInStage = useMemo<number | undefined>(() => {
@@ -248,14 +251,34 @@ export default function DealDetailPage() {
     if (!deal) return;
     setNbaBusy(true);
     try { const r = await crmAi.nextBestAction(deal.id); setNba(r?.data || null); }
-    catch (e: any) { toast.error(e?.message || 'NBA failed'); } finally { setNbaBusy(false); }
+    catch (e: any) {
+      // eslint-disable-next-line no-console
+      console.error('[deal-detail] NBA failed', e);
+      toast.error(e?.message || 'NBA failed');
+    } finally { setNbaBusy(false); }
   };
   const loadWinProb = async () => {
     if (!deal) return;
     setWinBusy(true);
     try { const r = await crmAi.winProbability(deal.id); setWinProb(r?.data || null); }
-    catch (e: any) { toast.error(e?.message || 'Forecast failed'); } finally { setWinBusy(false); }
+    catch (e: any) {
+      // eslint-disable-next-line no-console
+      console.error('[deal-detail] winProb failed', e);
+      toast.error(e?.message || 'Forecast failed');
+    } finally { setWinBusy(false); }
   };
+
+  // Auto-load AI Win Probability + Next Best Action the first time a
+  // deal loads. Reps were missing these because the previous build
+  // required clicking the button to fetch. Now both populate quietly on
+  // page open; the buttons still let users refresh.
+  useEffect(() => {
+    if (!deal) return;
+    if (!winProb && !winBusy) loadWinProb();
+    if (!nba && !nbaBusy) loadNba();
+    // eslint-disable-next-line
+  }, [deal?.id]);
+
   const handleDelete = async () => {
     if (!deal) return;
     if (!window.confirm('Delete this deal? This action cannot be undone.')) return;
@@ -278,12 +301,6 @@ export default function DealDetailPage() {
   const hasPipeline = !!deal.pipeline_id && stages.length > 0;
   const dealName = deal.name || 'Untitled deal';
 
-  // Resolve which stage the chevron should highlight. The backend's
-  // `win` / `lose` endpoints sometimes update `deal.status` without
-  // moving `deal.stage_id` to the corresponding terminal stage — so a
-  // Closed Won deal can still point at "Negotiation". For closed deals,
-  // we fall back to the first stage in the pipeline whose `stage_type`
-  // matches the deal's status (`won` / `lost`).
   const effectiveStageId = (() => {
     if (deal.status === 'won') {
       const wonStage = stages.find((s) => s?.stage_type === 'won');
@@ -299,7 +316,7 @@ export default function DealDetailPage() {
     <div>
       {hasPipeline && (
         <SafeRender label="stage breadcrumb">
-          <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, padding: 12, marginBottom: 14 }}>
+          <div style={{ position: 'relative', background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, padding: 12, marginBottom: 14 }}>
             {deal.status === 'open' ? (
               <DealStageProgress
                 stages={stages}
@@ -312,6 +329,7 @@ export default function DealDetailPage() {
             ) : (
               <DealStageProgress stages={stages} currentStageId={effectiveStageId} />
             )}
+            {stageMoving && <LogoSpinner overlay size={44} label="Updating stage…" />}
           </div>
         </SafeRender>
       )}
@@ -358,10 +376,6 @@ export default function DealDetailPage() {
                 ✗ This deal is closed as LOST
               </div>
             )}
-            {/* Stage field is shown ALWAYS so the canonical stage name
-                from the backend is visible regardless of what the
-                chevron resolves to. Avoids the "Closed Won deal still
-                shows previous stage" confusion. */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 14, fontSize: 13 }}>
               <Field label="Amount" value={formatINR(Number(deal.amount) || 0)} />
               <Field label="Stage" value={deal.stage_name} />
@@ -470,18 +484,32 @@ export default function DealDetailPage() {
           )}
 
           <SafeRender label="win probability">
-            <WinProbabilityGauge
-              probability={winProb?.probability ?? (deal as any).ai_win_probability ?? deal.probability ?? 0}
-              confidence={winProb?.confidence ?? (deal as any).ai_win_confidence ?? undefined}
-              drivers={winProb?.drivers}
-              ai
-            />
+            <div style={{ position: 'relative' }}>
+              <WinProbabilityGauge
+                probability={winProb?.probability ?? (deal as any).ai_win_probability ?? deal.probability ?? 0}
+                confidence={winProb?.confidence ?? (deal as any).ai_win_confidence ?? undefined}
+                drivers={winProb?.drivers}
+                ai
+              />
+              {winBusy && !winProb && (
+                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <LogoSpinner size={40} label="Forecasting…" />
+                </div>
+              )}
+            </div>
           </SafeRender>
           <button onClick={loadWinProb} disabled={winBusy} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontSize: 12 }}>
-            {winBusy ? 'Predicting...' : 'Re-forecast Win Probability'}
+            {winBusy ? 'Predicting…' : 'Re-forecast Win Probability'}
           </button>
           <SafeRender label="next best action">
-            <NextBestActionCard action={nba} onLoad={loadNba} loading={nbaBusy} />
+            <div style={{ position: 'relative' }}>
+              <NextBestActionCard action={nba} onLoad={loadNba} loading={nbaBusy} />
+              {nbaBusy && !nba && (
+                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <LogoSpinner size={40} label="Computing…" />
+                </div>
+              )}
+            </div>
           </SafeRender>
         </div>
       </div>
