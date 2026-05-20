@@ -72,14 +72,6 @@ const Dot = ({ color, size=8 }: { color:string; size?:number }) => (
   </div>
 );
 
-/* ── Trail CSV download ──
- * Excel opens UTF-8 CSV natively when the BOM (﻿) is present. We
- * use that instead of pulling SheetJS just to write one sheet — keeps
- * the bundle lean.
- *
- * Columns: index, IST date/time, lat, lng, activity_type, battery,
- * UTC timestamp (for audit / cross-tz analysis).
- */
 function downloadTrailCsv(fe: FELoc | null | undefined, trail: TrailPoint[]) {
   if (!fe || !trail.length) return;
   const date = new Date().toISOString().slice(0, 10);
@@ -111,8 +103,6 @@ function downloadTrailCsv(fe: FELoc | null | undefined, trail: TrailPoint[]) {
     ].map(esc).join(','));
   });
 
-  // ﻿ BOM lets Excel auto-detect UTF-8 (so ° / ₹ / non-ASCII names render correctly).
-  // \r\n line endings match the Excel CSV convention.
   const csv = '﻿' + lines.join('\r\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
@@ -125,7 +115,6 @@ function downloadTrailCsv(fe: FELoc | null | undefined, trail: TrailPoint[]) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-/* ── Map Component ── */
 function LiveMap({
   fes, supervisors, outlets, warehouses,
   activeLayers, selectedId, onSelect,
@@ -143,13 +132,6 @@ function LiveMap({
   const trailLayer = useRef<any>(null);
   const trailDotLayer = useRef<any>(null);
 
-  // Extract lat/lng pairs from the trail and route them through OSRM so
-  // the polyline follows real roads (diversions, U-turns, etc.) instead
-  // of cutting straight across buildings. While OSRM is loading, the
-  // hook returns the raw straight-line points so the user sees the trail
-  // immediately; the polyline switches to the routed path the moment the
-  // response lands. Cached by (length, first, last) so the 60s poll
-  // doesn't refetch when the trail hasn't grown.
   const trailPoints = useMemo<[number, number][] | null>(() => {
     if (!trail || trail.length < 2) return null;
     const pts = trail
@@ -159,25 +141,39 @@ function LiveMap({
   }, [trail]);
   const { coords: routedCoords, routed: trailRouted } = useOsrmTrail(trailPoints);
 
-  // Init map
   useEffect(() => {
     if (!mapLoaded || !mapRef.current || mapInst.current) return;
     const L = (window as any).L;
     if (!L) return;
     const map = L.map(mapRef.current, { zoomControl:false, attributionControl:false })
-      .setView([28.6139, 77.209], 10); // Default: Delhi
+      .setView([28.6139, 77.209], 10);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom:19 }).addTo(map);
     L.control.zoom({ position:'bottomright' }).addTo(map);
     mapInst.current = map;
   }, [mapLoaded]);
 
-  // Update markers
+  // Resize handler — when the layout flips between desktop (sidebar+map row)
+  // and mobile (sidebar above, map below), the map container changes height
+  // and Leaflet has to be told to recompute its tile grid. Without this the
+  // map renders as a tiny grey square after rotation / resize.
+  useEffect(() => {
+    if (!mapInst.current) return;
+    const onResize = () => mapInst.current?.invalidateSize();
+    window.addEventListener('resize', onResize);
+    window.addEventListener('orientationchange', onResize);
+    const t = setTimeout(onResize, 250); // initial pass after first paint
+    return () => {
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('orientationchange', onResize);
+      clearTimeout(t);
+    };
+  }, [mapLoaded]);
+
   useEffect(() => {
     if (!mapLoaded || !mapInst.current) return;
     const L = (window as any).L;
     if (!L) return;
 
-    // Clear old markers
     markers.current.forEach(m => m.remove());
     markers.current = [];
 
@@ -190,11 +186,9 @@ function LiveMap({
       markers.current.push(m);
     };
 
-    // FEs
     if (activeLayers.has('fe')) {
       fes.filter(fe => fe.lat && fe.lng).forEach(fe => {
-        // Use a default gray for unknown or stale status
-        const c = STATUS_COLOR[fe.status] || '#94a3b8'; // slate-400
+        const c = STATUS_COLOR[fe.status] || '#94a3b8';
         const sel = selectedId === fe.id;
         const html = `<div style="width:32px;height:32px;border-radius:50%;background:${c};border:${sel?'3px solid var(--text)':'2px solid var(--s1)'};display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;color:#000;box-shadow:0 2px 12px rgba(0,0,0,.6);${sel?'transform:scale(1.2)':''}">${fe.name?.[0] || '?'}</div>`;
         const popup = popupHtml(fe.name, fe.role, c, fe.status, fe.zone_name, fe.checkin_at, fe.today_engagements, fe.today_tff, fe.battery_percentage, fe.last_location_updated_at, fe.device_model, fe.os_version);
@@ -202,7 +196,6 @@ function LiveMap({
       });
     }
 
-    // Supervisors
     if (activeLayers.has('supervisor')) {
       supervisors.filter(s => s.lat && s.lng).forEach(sup => {
         const c = STATUS_COLOR[sup.status] || C.grayd;
@@ -212,7 +205,6 @@ function LiveMap({
       });
     }
 
-    // Outlets
     if (activeLayers.has('outlet')) {
       outlets.filter(o => o.lat && o.lng).forEach(o => {
         const html = `<div style="width:28px;height:28px;border-radius:6px;background:${C.yellow};border:2px solid var(--s1);display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 2px 10px rgba(0,0,0,.5)">🏪</div>`;
@@ -221,7 +213,6 @@ function LiveMap({
       });
     }
 
-    // Warehouses
     if (activeLayers.has('warehouse')) {
       warehouses.filter(w => w.latitude && w.longitude).forEach(w => {
         const html = `<div style="width:30px;height:30px;border-radius:6px;background:${C.purple};border:2px solid var(--s1);display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 2px 10px rgba(0,0,0,.5)">🏭</div>`;
@@ -230,23 +221,13 @@ function LiveMap({
       });
     }
 
-    // Trail polyline + ping markers — the selected FE's day-long
-    // breadcrumb. Drawn from the OSRM-routed coords (road-snapped) when
-    // available; falls back to the raw straight-line path on the first
-    // render or if OSRM is down. Solid line when routed, dashed when
-    // straight-line fallback, so reps can tell whether the path follows
-    // real roads at a glance.
-    //
-    // NOTE: must be `L.featureGroup` (not `L.layerGroup`) — the outer
-    // `fitBounds` call below iterates child layers via `getBounds()` /
-    // `getLatLng()`, and plain LayerGroups have neither, which threw
-    // "TypeError: layer.getLatLng is not a function" on every FE select.
+    // Trail polyline + ping markers. Must be `L.featureGroup` (not
+    // `L.layerGroup`) so the outer `fitBounds` can iterate child bounds.
     if (trailLayer.current) { trailLayer.current.remove(); trailLayer.current = null; }
     if (trailDotLayer.current) { trailDotLayer.current.remove(); trailDotLayer.current = null; }
     const polyCoords = routedCoords && routedCoords.length > 1 ? routedCoords : null;
     if (polyCoords) {
       const colour = trailColor || '#63B3ED';
-      // Outer glow for a smoother visual.
       const glow = L.polyline(polyCoords, {
         color: colour,
         weight: 8,
@@ -264,8 +245,6 @@ function LiveMap({
       });
       trailLayer.current = L.featureGroup([glow, main]).addTo(mapInst.current);
 
-      // Drop tiny ping markers at each raw GPS capture so the rep can
-      // see where the FE actually stopped/checked in along the route.
       if (trailPoints && trailPoints.length > 0) {
         const dots: any[] = [];
         trailPoints.forEach(([lat, lng], i) => {
@@ -287,9 +266,6 @@ function LiveMap({
       }
     }
 
-    // Auto-fit bounds if markers exist. Include the trail polyline +
-    // dot layer so the map frames the whole journey, not just the latest
-    // ping marker.
     const hasPins = markers.current.length > 0;
     if (hasPins) {
       const layers: any[] = [...markers.current];
@@ -346,22 +322,18 @@ export default function LiveTrackingPage() {
   const [mapLoaded,   setMapLoaded]   = useState(false);
   const [error,       setError]       = useState<string|null>(null);
 
-  // Filters
   const [search,       setSearch]       = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [zoneFilter,   setZoneFilter]   = useState('all');
   const [activeLayers, setActiveLayers] = useState<Set<string>>(new Set(['fe','supervisor','outlet','warehouse']));
 
-  // Selection
   const [selectedId,   setSelectedId]   = useState<string|null>(null);
   const [selectedType, setSelectedType] = useState<string|null>(null);
   const [selectedTrail, setSelectedTrail] = useState<TrailPoint[]>([]);
 
-  // Low Battery
   const [lowBatteryFilter,    setLowBatteryFilter]    = useState(false);
   const [lowBatteryDismissed, setLowBatteryDismissed] = useState(false);
 
-  /* ── Load Leaflet ── */
   useEffect(() => {
     if (typeof window === 'undefined') return;
     if ((window as any).L) { setMapLoaded(true); return; }
@@ -375,7 +347,6 @@ export default function LiveTrackingPage() {
     document.head.appendChild(css);
   }, []);
 
-  /* ── Fetch all data ── */
   const fetchAll = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -446,9 +417,6 @@ export default function LiveTrackingPage() {
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  // Auto-refresh every 60s, but pause when the tab is hidden so we don't
-  // hammer the API for users who left the dashboard open in a background
-  // tab. A single fetch fires immediately when the tab comes back.
   useEffect(() => {
     let id: ReturnType<typeof setInterval> | null = null;
     const start = () => { if (!id) id = setInterval(fetchAll, 60000); };
@@ -465,9 +433,6 @@ export default function LiveTrackingPage() {
     };
   }, [fetchAll]);
 
-  // Fetch the selected FE's day-long location trail. Refreshes on every
-  // poll tick (via lastSync) so new pings extend the polyline without a
-  // page reload.
   useEffect(() => {
     if (selectedType !== 'fe' || !selectedId) {
       setSelectedTrail([]);
@@ -481,7 +446,6 @@ export default function LiveTrackingPage() {
     return () => { cancelled = true; };
   }, [selectedId, selectedType, lastSync]);
 
-  /* ── Derived / filtered ── */
   const q = search.toLowerCase();
 
   const filteredFEs = fes.filter(fe => {
@@ -526,13 +490,11 @@ export default function LiveTrackingPage() {
     });
   };
 
-  // Stats
   const activeCount  = fes.filter(f => f.status === 'active').length;
   const breakCount   = fes.filter(f => f.status === 'on_break').length;
   const outCount     = fes.filter(f => f.status === 'checked_out').length;
   const absentCount  = fes.filter(f => f.status === 'absent').length;
 
-  // Selected entity details
   const selFE  = selectedType === 'fe'         ? fes.find(f => f.id === selectedId)
                : selectedType === 'supervisor'  ? supervisors.find(s => s.id === selectedId) : null;
   const selOut = selectedType === 'outlet'      ? outlets.find(o => o.id === selectedId) : null;
@@ -552,17 +514,40 @@ export default function LiveTrackingPage() {
         @keyframes kpulse    { 0%,100%{opacity:1} 50%{opacity:.2} }
         .leaflet-container   { background: var(--bg) !important; }
         .lt-row:hover        { background:${C.s4} !important; }
+
+        /* Mobile (<= 768px): stack the FE-list sidebar above the map so
+           the page actually fits on a phone. Sidebar becomes a short
+           horizontal-scroll list cap; map takes the rest. KPI strip
+           becomes a horizontal scroller so all six tiles stay legible. */
+        @media (max-width: 768px) {
+          .lt-page       { height: auto !important; min-height: calc(100vh - 80px); }
+          .lt-title      { font-size: 20px !important; }
+          .lt-subtitle   { font-size: 11px !important; }
+          .lt-kpis       { flex-wrap: nowrap !important; overflow-x: auto;
+                           -webkit-overflow-scrolling: touch; padding-bottom: 4px; }
+          .lt-kpis > div { min-width: 110px; flex: 0 0 auto !important; }
+          .lt-filters    { gap: 6px !important; }
+          .lt-shell      { flex-direction: column !important; gap: 12px !important; }
+          .lt-sidebar    { width: 100% !important; max-height: 38vh; }
+          .lt-mapcol     { min-height: 50vh; }
+          .lt-detail     { padding: 12px !important; gap: 10px !important; }
+          .lt-detail > * { font-size: 12px !important; }
+        }
+        @media (max-width: 480px) {
+          .lt-layer-pill { font-size: 11px !important; padding: 5px 9px !important; }
+          .lt-kpi-val    { font-size: 17px !important; }
+          .lt-sidebar    { max-height: 32vh; }
+        }
       `}</style>
 
-      <div style={{ display:'flex', flexDirection:'column', height:'calc(100vh - 80px)', gap:16, animation:'km-fadein .3s ease' }}>
+      <div className="lt-page" style={{ display:'flex', flexDirection:'column', height:'calc(100vh - 80px)', gap:16, animation:'km-fadein .3s ease' }}>
 
-        {/* ── Header ── */}
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-end', flexWrap:'wrap', gap:12, flexShrink:0 }}>
           <div>
-            <div style={{ fontFamily:"'Syne',sans-serif", fontSize:24, fontWeight:800, color:C.white, letterSpacing:'-0.3px' }}>
+            <div className="lt-title" style={{ fontFamily:"'Syne',sans-serif", fontSize:24, fontWeight:800, color:C.white, letterSpacing:'-0.3px' }}>
               Live Tracking
             </div>
-            <div style={{ fontSize:12, color:C.gray, marginTop:3 }}>
+            <div className="lt-subtitle" style={{ fontSize:12, color:C.gray, marginTop:3 }}>
               Real-time field visibility — FEs, supervisors, outlets & warehouses
             </div>
           </div>
@@ -574,7 +559,6 @@ export default function LiveTrackingPage() {
           </div>
         </div>
 
-        {/* ── Error banner ── */}
         {error && (
           <div style={{ padding:'10px 14px', background:C.redD, border:`1px solid ${C.redB}`,
             borderRadius:10, fontSize:12, color:C.red, display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
@@ -582,11 +566,9 @@ export default function LiveTrackingPage() {
           </div>
         )}
 
-        {/* ── Low Battery Alert ── */}
         <LowBatteryAlert fes={fes} dismissed={lowBatteryDismissed} onDismiss={() => setLowBatteryDismissed(true)} />
 
-        {/* ── KPI strip ── */}
-        <div style={{ display:'flex', gap:10, flexShrink:0 }}>
+        <div className="lt-kpis" style={{ display:'flex', gap:10, flexShrink:0 }}>
           {[
             { l:'Active',      v:activeCount, c:C.green  },
             { l:'On Break',    v:breakCount,  c:C.yellow },
@@ -596,23 +578,20 @@ export default function LiveTrackingPage() {
             { l:'Warehouses',  v:warehouses.filter(w=>w.is_active).length, c:C.purple },
           ].map((s,i) => (
             <div key={i} style={{ background:C.s2, border:`1px solid ${C.border}`, borderRadius:12, padding:'10px 16px', textAlign:'center', flex:1 }}>
-              <div style={{ fontFamily:"'Syne',sans-serif", fontSize:20, fontWeight:800, color:s.c }}>{loading?'—':s.v}</div>
+              <div className="lt-kpi-val" style={{ fontFamily:"'Syne',sans-serif", fontSize:20, fontWeight:800, color:s.c }}>{loading?'—':s.v}</div>
               <div style={{ fontSize:10, color:C.gray, marginTop:2 }}>{s.l}</div>
             </div>
           ))}
           <LowBatteryKpi fes={fes} loading={loading} />
         </div>
 
-        {/* ── Filters row ── */}
-        <div style={{ display:'flex', gap:10, flexWrap:'wrap', flexShrink:0 }}>
-          {/* Search */}
+        <div className="lt-filters" style={{ display:'flex', gap:10, flexWrap:'wrap', flexShrink:0 }}>
           <div style={{ position:'relative', flex:1, minWidth:200 }}>
             <span style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', fontSize:13, color:C.grayd }}>🔍</span>
             <input placeholder="Search FE, supervisor, outlet, warehouse…" value={search}
               onChange={e => setSearch(e.target.value)}
               style={{ ...inp, width:'100%', paddingLeft:30 }}/>
           </div>
-          {/* Status */}
           <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
             style={{ ...inp, minWidth:130 }}>
             <option value="all">All Statuses</option>
@@ -621,18 +600,15 @@ export default function LiveTrackingPage() {
             <option value="checked_out">Checked Out</option>
             <option value="absent">Absent</option>
           </select>
-          {/* Zone */}
           <select value={zoneFilter} onChange={e => setZoneFilter(e.target.value)}
             style={{ ...inp, minWidth:140 }}>
             <option value="all">All Zones</option>
             {zones.map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
           </select>
-          {/* Low Battery filter */}
           <LowBatteryFilter active={lowBatteryFilter} onToggle={() => setLowBatteryFilter(v => !v)} count={fes.filter(fe => fe.battery_percentage != null && fe.battery_percentage < 20).length} />
-          {/* Layer toggles */}
           <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
             {LAYERS.map(l => (
-              <button key={l.id} onClick={() => toggleLayer(l.id)}
+              <button key={l.id} onClick={() => toggleLayer(l.id)} className="lt-layer-pill"
                 style={{ padding:'6px 12px', borderRadius:20, cursor:'pointer',
                   border:`1.5px solid ${activeLayers.has(l.id) ? l.color : C.border}`,
                   background: activeLayers.has(l.id) ? `${l.color}18` : C.s3,
@@ -646,17 +622,13 @@ export default function LiveTrackingPage() {
           </div>
         </div>
 
-        {/* ── Main content: map + sidebar ── */}
-        <div style={{ flex:1, display:'flex', gap:16, minHeight:0 }}>
+        <div className="lt-shell" style={{ flex:1, display:'flex', gap:16, minHeight:0 }}>
 
-          {/* Sidebar list */}
-          <div style={{ width:280, flexShrink:0, display:'flex', flexDirection:'column', gap:0,
+          <div className="lt-sidebar" style={{ width:280, flexShrink:0, display:'flex', flexDirection:'column', gap:0,
             background:C.s2, border:`1px solid ${C.border}`, borderRadius:16, overflow:'hidden' }}>
 
-            {/* Scrollable list */}
             <div style={{ flex:1, overflowY:'auto' }}>
 
-              {/* FEs section */}
               {activeLayers.has('fe') && filteredFEs.length > 0 && (
                 <>
                   <div style={{ padding:'10px 14px 6px', fontSize:10, color:C.grayd, fontWeight:700,
@@ -703,7 +675,6 @@ export default function LiveTrackingPage() {
                 </>
               )}
 
-              {/* Supervisors section */}
               {activeLayers.has('supervisor') && filteredSups.length > 0 && (
                 <>
                   <div style={{ padding:'10px 14px 6px', fontSize:10, color:C.grayd, fontWeight:700,
@@ -748,7 +719,6 @@ export default function LiveTrackingPage() {
                 </>
               )}
 
-              {/* Outlets section */}
               {activeLayers.has('outlet') && filteredOutlets.length > 0 && (
                 <>
                   <div style={{ padding:'10px 14px 6px', fontSize:10, color:C.grayd, fontWeight:700,
@@ -777,7 +747,6 @@ export default function LiveTrackingPage() {
                 </>
               )}
 
-              {/* Warehouses section */}
               {activeLayers.has('warehouse') && filteredWarehouses.length > 0 && (
                 <>
                   <div style={{ padding:'10px 14px 6px', fontSize:10, color:C.grayd, fontWeight:700,
@@ -806,7 +775,6 @@ export default function LiveTrackingPage() {
                 </>
               )}
 
-              {/* Empty state */}
               {filteredFEs.length === 0 && filteredSups.length === 0 &&
                filteredOutlets.length === 0 && filteredWarehouses.length === 0 && (
                 <div style={{ textAlign:'center', padding:'40px 16px', color:C.grayd, fontSize:12 }}>
@@ -816,10 +784,8 @@ export default function LiveTrackingPage() {
             </div>
           </div>
 
-          {/* Map + detail panel */}
-          <div style={{ flex:1, display:'flex', flexDirection:'column', gap:0, minWidth:0 }}>
+          <div className="lt-mapcol" style={{ flex:1, display:'flex', flexDirection:'column', gap:0, minWidth:0 }}>
 
-            {/* Map */}
             <div style={{ flex:1, position:'relative', background:C.s3, borderRadius:selectedId?'16px 16px 0 0':16, overflow:'hidden', border:`1px solid ${C.border}` }}>
               <LiveMap
                 fes={filteredFEs}
@@ -834,7 +800,6 @@ export default function LiveTrackingPage() {
                 trailColor={selFE ? (STATUS_COLOR[selFE.status] || '#63B3ED') : '#63B3ED'}
               />
 
-              {/* No GPS notice */}
               {!loading && fes.length > 0 && fes.every(f => !f.lat || !f.lng) && (
                 <div style={{ position:'absolute', top:12, left:'50%', transform:'translateX(-50%)',
                   background:'var(--s1)', border:`1px solid ${C.yellow}40`,
@@ -844,10 +809,6 @@ export default function LiveTrackingPage() {
                 </div>
               )}
 
-              {/* Trail legend — shown only when an FE is selected with pings.
-                  Doubles as a download trigger: clicking it exports the
-                  selected FE's trail as a UTF-8 CSV that Excel opens
-                  natively. */}
               {selectedType === 'fe' && selectedTrail.length > 1 && (
                 <button
                   onClick={() => downloadTrailCsv(selFE as FELoc | null, selectedTrail)}
@@ -871,7 +832,6 @@ export default function LiveTrackingPage() {
                 </button>
               )}
 
-              {/* Layer legend */}
               <div style={{ position:'absolute', bottom:12, left:12,
                 background:'var(--s1)', border:`1px solid ${C.border}`,
                 borderRadius:10, padding:'8px 12px', display:'flex', gap:10, flexWrap:'wrap' }}>
@@ -884,9 +844,8 @@ export default function LiveTrackingPage() {
               </div>
             </div>
 
-            {/* Detail panel (shown when item selected) */}
             {(selFE || selOut || selWH) && (
-              <div style={{ background:C.s2, border:`1px solid ${C.border}`, borderTop:'none',
+              <div className="lt-detail" style={{ background:C.s2, border:`1px solid ${C.border}`, borderTop:'none',
                 borderRadius:'0 0 16px 16px', padding:'14px 18px',
                 display:'flex', gap:16, alignItems:'center', flexWrap:'wrap' }}>
                 <button onClick={() => { setSelectedId(null); setSelectedType(null); }}
@@ -932,7 +891,6 @@ export default function LiveTrackingPage() {
                         <div style={{ fontSize:10, color:C.grayd, marginTop:2 }}>{s.l}</div>
                       </div>
                     ))}
-                    {/* CSV / Excel download — only shown when there's a non-empty trail. */}
                     {selectedTrail.length > 0 && (
                       <button onClick={() => downloadTrailCsv(selFE as FELoc | null, selectedTrail)}
                         title="Download today's trail as CSV (opens in Excel)"
