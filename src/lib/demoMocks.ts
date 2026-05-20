@@ -21,6 +21,7 @@ import {
   mockOutletCoverage, mockBroadcasts, mockBroadcastAdmin, mockLearningMaterials,
   mockMobileHome,
 } from './demo/factoriesB';
+import { mockDealHistory, mockWinProbability, mockNextBestAction } from './demo/crmAiMocks';
 import {
   CRM_LEADS, CRM_PIPELINES, CRM_ACCOUNTS, CRM_CONTACTS, CRM_DEALS, CRM_ACTIVITIES,
   CRM_SOURCES, CRM_DASHBOARD_SUMMARY, CRM_PIPELINE_VALUE, CRM_FUNNEL, CRM_WIN_RATE,
@@ -582,7 +583,13 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
       if (/^\/crm\/leads\/[^/]+\/activities$/.test(path))    return list(CRM_ACTIVITIES.slice(0, 4)) as unknown as T;
       if (/^\/crm\/leads\/[^/]+\/deals$/.test(path))         return list(CRM_DEALS.slice(0, 2)) as unknown as T;
       if (/^\/crm\/leads\/[^/]+\/score-history$/.test(path)) return list([]) as unknown as T;
-      if (/^\/crm\/deals\/[^/]+\/(activities|history|contacts|notes|line-items)$/.test(path)) return list([]) as unknown as T;
+      {
+        // History gets a deal-id-keyed mock so the new History card in the
+        // deal-detail page has rows to render in the demo account.
+        const dealHistM = path.match(/^\/crm\/deals\/([^/]+)\/history$/);
+        if (dealHistM) return mockDealHistory(dealHistM[1]) as unknown as T;
+      }
+      if (/^\/crm\/deals\/[^/]+\/(activities|contacts|notes|line-items)$/.test(path)) return list([]) as unknown as T;
       if (/^\/crm\/accounts\/[^/]+\/contacts$/.test(path))   return list(CRM_CONTACTS.slice(0, 3))  as unknown as T;
       if (/^\/crm\/accounts\/[^/]+\/deals$/.test(path))      return list(CRM_DEALS.slice(0, 3))     as unknown as T;
       if (/^\/crm\/accounts\/[^/]+\/activities$/.test(path)) return list(CRM_ACTIVITIES.slice(0, 3))as unknown as T;
@@ -779,9 +786,6 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
 
     if (path === '/settings' || path === '/settings/org') return wrap({}) as unknown as T;
     if (path === '/roles') {
-      // rolesApi.list expects a RAW OrgRole[] (typed as Wrapped<T> = T) —
-      // returning the {success,data:[]} envelope would make roles.map crash
-      // on the CRM Settings page where the result is used directly.
       const now = new Date().toISOString();
       return ([
         { id: 'demo-role-1', org_id: 'demo-org-999', client_id: null, name: 'Super Admin',     description: 'Full access to every module + settings.',                parent_id: null,            position: 0, color: '#E0282C', permissions: ['*'], permissions_write: ['*'], assigned_cities: [], created_at: now, updated_at: now, user_count: 1 },
@@ -870,6 +874,15 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
   }
 
   if (m === 'POST' || m === 'PATCH' || m === 'PUT') {
+    // CRM AI endpoints — return realistic methodology / breakdown so the
+    // new "How is this calculated?" popups have data in the demo account
+    // (otherwise the generic noop response below would leave the cards empty).
+    if (m === 'POST') {
+      const winM = path.match(/^\/ai\/win-probability\/([^/]+)$/) || path.match(/^\/crm\/deals\/([^/]+)\/win-probability$/);
+      if (winM) return mockWinProbability(winM[1]) as unknown as T;
+      const nbaM = path.match(/^\/ai\/next-best-action\/([^/]+)$/) || path.match(/^\/crm\/deals\/([^/]+)\/next-action$/);
+      if (nbaM) return mockNextBestAction(nbaM[1]) as unknown as T;
+    }
     if (m === 'POST' && path === '/distribution/gstin/verify') {
       const gstin = String((bodyObj as { gstin?: string }).gstin || '').toUpperCase();
       if (gstin.length !== 15) return wrap({ valid: false, reason: 'format', source: 'demo' }) as unknown as T;
