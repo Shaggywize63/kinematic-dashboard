@@ -77,15 +77,21 @@ export default function RolesPage() {
       .catch(() => setDefaultRoleId(null));
   }, [selectedClientId]);
 
-  // Load city names once so the EditPanel can render the city-access checklist.
+  // Load city names so the EditPanel can render the city-access checklist.
+  // `own_only=true` excludes the 868 India seed rows so hierarchy roles
+  // can only constrain to cities the active client has explicitly added —
+  // matching the user-assignment picker on the Team Members page. Reloads
+  // when the picker changes since each tenant has its own city list.
   useEffect(() => {
-    api.get<{ data?: Array<{ name?: string; is_active?: boolean }> } | Array<{ name?: string; is_active?: boolean }>>('/api/v1/cities')
+    const sel = isClientLevel ? (storedUser as any)?.client_id : selectedClientId;
+    const suffix = sel ? `&client_id=${encodeURIComponent(sel)}` : '';
+    api.get<{ data?: Array<{ name?: string; is_active?: boolean }> } | Array<{ name?: string; is_active?: boolean }>>(`/api/v1/cities?limit=500&own_only=true${suffix}`)
       .then((res: any) => {
         const list = Array.isArray(res) ? res : (res?.data ?? []);
         setCities(list.filter((c: any) => c?.is_active !== false).map((c: any) => c.name).filter(Boolean));
       })
       .catch(() => setCities([]));
-  }, []);
+  }, [selectedClientId, isClientLevel, storedUser]);
 
   // Look up the active client's display name for the scope banner.
   useEffect(() => {
