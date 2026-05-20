@@ -16,11 +16,15 @@ interface Props {
 }
 
 /**
- * Salesforce-Path-style chevron breadcrumb. On phones (≤640px) the
- * `globals.css` rules under .stage-chevron-{row,btn,action} squeeze
- * padding, min-width, and font-size down so the path stays usable on
- * a 360px viewport — text-overflow ellipsis kicks in for long names
- * and the path scrolls horizontally inside its own container.
+ * Salesforce-Path-style chevron breadcrumb. Always renders the path on a
+ * single horizontal row with overflow scroll — never wraps to multiple
+ * lines (the inner row uses `flex-wrap: nowrap` and globals.css has a
+ * dedicated `!important` belt to enforce it on phones).
+ *
+ * Duplicates: if the backend returns the same stage id (or, defensively,
+ * the same name+position pair) twice — which can happen after a bad
+ * pipeline import — we dedupe before rendering so the path doesn't show
+ * the same step twice in a row.
  */
 export default function DealStageProgress({
   stages,
@@ -30,7 +34,21 @@ export default function DealStageProgress({
   onMove,
   onMarkComplete,
 }: Props) {
-  const sorted = useMemo(() => [...stages].sort((a, b) => a.position - b.position), [stages]);
+  const sorted = useMemo(() => {
+    const list = Array.isArray(stages) ? stages.filter(Boolean) : [];
+    // Dedupe by id first; if a row is missing an id (shouldn't happen but
+    // be defensive), fall back to name+position as the dedup key.
+    const seen = new Set<string>();
+    const unique: Stage[] = [];
+    for (const s of list) {
+      const key = s?.id || `${s?.name ?? ''}|${s?.position ?? ''}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      unique.push(s);
+    }
+    return unique.sort((a, b) => (a?.position ?? 0) - (b?.position ?? 0));
+  }, [stages]);
+
   const currentIdx = sorted.findIndex((s) => s.id === currentStageId);
   const current = currentIdx >= 0 ? sorted[currentIdx] : null;
   const isClosedStage = current ? current.stage_type !== 'open' : false;

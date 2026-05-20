@@ -64,21 +64,15 @@ html, body {
   height: 100%;
   background: var(--bg);
   color: var(--text);
-  /* Body always Inter — brand rule */
   font-family: var(--font-inter);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   transition: background-color 0.2s ease, color 0.2s ease;
-  /* Kill any horizontal scroll on small screens. Any element wider than
-     the viewport stays hidden instead of pushing the page right-to-left. */
   overflow-x: hidden;
   max-width: 100vw;
 }
 
-/* Headlines always Manrope — brand rule */
 h1, h2, h3, h4, h5, h6 { font-family: var(--font-manrope); letter-spacing: -0.01em; }
-
-/* Eyebrow / data labels */
 .font-mono, code, kbd, samp, pre { font-family: var(--font-jetbrains); }
 
 ::-webkit-scrollbar { width: 4px; height: 4px; }
@@ -97,25 +91,9 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-manrope); letter-spacing: -0.01
 .animate-slide-in { animation: slideIn 0.35s cubic-bezier(0.22,1,0.36,1) both; }
 
 /* ============================================================================
-   Mobile responsive overrides — catches pages whose inline styles use fixed
-   grid templates, fixed widths, or non-wrapping flex rows. Targets the
-   *generic patterns* React serialises so we don't have to touch every
-   per-page file. Layered in two breakpoints:
-
-     1023px and below — tablets + phones. Sidebar already collapses to a
-       drawer at this width (DashboardLayout.useIsMobile(1024)), so it's
-       safe to also collapse content grids.
-     640px and below — phones only. More aggressive: inputs full-width,
-       smaller paddings, larger touch targets, headings downsized.
-
-   All selectors are inline-style attribute matches with `!important` to
-   beat the inline specificity. Order matters — broader rules earlier,
-   tighter overrides later.
+   Mobile responsive overrides
    ============================================================================ */
 @media (max-width: 1023px) {
-  /* ── Grids: any inline grid using fr units collapses to one column.
-        Covers `1fr 1fr`, `2fr 1fr`, `minmax(0, 2fr) minmax(280px, 1fr)`,
-        and `repeat(auto-fit, minmax(NNpx, 1fr))`. */
   [style*="grid-template-columns"][style*="fr"] {
     grid-template-columns: 1fr !important;
   }
@@ -124,20 +102,16 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-manrope); letter-spacing: -0.01
     grid-template-columns: 1fr !important;
   }
 
-  /* ── Flex rows with justify-content space-between (header bars, toolbar
-        rows) wrap to multiple lines so action buttons drop below titles. */
-  [style*="justify-content: space-between"]:not([style*="flex-direction: column"]),
-  [style*="justifyContent:space-between"]:not([style*="flexDirection:column"]) {
-    flex-wrap: wrap !important;
-  }
-  /* Pre-existing rule for explicit flex-wrap */
-  [style*="display:flex"][style*="flex-wrap"],
-  [style*="display: flex"][style*="flex-wrap"] {
+  /* Flex rows with justify-content space-between (header bars, toolbar rows)
+     wrap to multiple lines so action buttons drop below titles. We ONLY add
+     flex-wrap when the element doesn't already declare flex-wrap explicitly —
+     this stops us from clobbering containers like the chevron path that need
+     to stay flex-wrap: nowrap with horizontal scroll. */
+  [style*="justify-content: space-between"]:not([style*="flex-direction: column"]):not([style*="flex-wrap"]):not([style*="flexWrap"]),
+  [style*="justifyContent:space-between"]:not([style*="flexDirection:column"]):not([style*="flex-wrap"]):not([style*="flexWrap"]) {
     flex-wrap: wrap !important;
   }
 
-  /* ── Fixed wide sidebars / aside columns collapse to full width.
-        Catches the common 240/280/300/320px hand-coded panels. */
   main [style*="width: 240px"], main [style*="width:240px"],
   main [style*="width: 260px"], main [style*="width:260px"],
   main [style*="width: 280px"], main [style*="width:280px"],
@@ -149,7 +123,6 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-manrope); letter-spacing: -0.01
     max-width: 100% !important;
   }
 
-  /* ── Big min-widths shouldn't push the viewport. */
   [style*="min-width: 800"], [style*="min-width:800"],
   [style*="min-width: 900"], [style*="min-width:900"],
   [style*="min-width: 1000"], [style*="min-width:1000"],
@@ -158,13 +131,8 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-manrope); letter-spacing: -0.01
     min-width: 0 !important;
   }
 
-  /* ── Tables: keep table layout (don't break with display:block) but make
-        sure parents scroll. Most data tables in the codebase wrap their
-        <table> in an overflow-x:auto div already; this just ensures the
-        table doesn't shrink columns below their content width. */
   table { width: 100% !important; min-width: 0 !important; }
 
-  /* ── Padding reductions on big card containers. */
   [style*="padding: 22"], [style*="padding:22"],
   [style*="padding: 24"], [style*="padding:24"],
   [style*="padding: 25"], [style*="padding:25"],
@@ -175,19 +143,16 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-manrope); letter-spacing: -0.01
 }
 
 @media (max-width: 640px) {
-  /* ── Heading font sizes scale down on phones. */
   [style*="font-size: 32"], [style*="font-size:32"] { font-size: 22px !important; }
   [style*="font-size: 28"], [style*="font-size:28"] { font-size: 20px !important; }
   [style*="font-size: 24"], [style*="font-size:24"] { font-size: 18px !important; }
   [style*="font-size: 22"], [style*="font-size:22"] { font-size: 17px !important; }
 
-  /* ── Card body padding tighter. */
   [style*="padding: 18"], [style*="padding:18"],
   [style*="padding: 20"], [style*="padding:20"] { padding: 12px !important; }
   [style*="padding: 14"], [style*="padding:14"],
   [style*="padding: 16"], [style*="padding:16"] { padding: 10px !important; }
 
-  /* ── Form inputs span available width so they don't overflow cards. */
   input[type="text"], input[type="tel"], input[type="email"],
   input[type="number"], input[type="search"], input[type="date"],
   input[type="password"], input[type="url"], select, textarea {
@@ -196,30 +161,27 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-manrope); letter-spacing: -0.01
     max-width: 100% !important;
     box-sizing: border-box;
   }
-  /* Search inputs in toolbars often set minWidth: 240 — clamp to viewport. */
   [style*="min-width: 240"], [style*="min-width:240"],
   [style*="min-width: 260"], [style*="min-width:260"] {
     min-width: 0 !important;
   }
 
-  /* ── Make detail-page action button rows breathe instead of cramming. */
-  [style*="justify-content: flex-end"]:not([style*="flex-direction: column"]),
-  [style*="justifyContent:flex-end"]:not([style*="flexDirection:column"]) {
+  /* Detail-page action button rows breathe instead of cramming. Same
+     exception as above — don't override containers that explicitly
+     declare flex-wrap (chevron path stays nowrap with scroll). */
+  [style*="justify-content: flex-end"]:not([style*="flex-direction: column"]):not([style*="flex-wrap"]):not([style*="flexWrap"]),
+  [style*="justifyContent:flex-end"]:not([style*="flexDirection:column"]):not([style*="flex-wrap"]):not([style*="flexWrap"]) {
     justify-content: flex-start !important;
     flex-wrap: wrap !important;
   }
 
-  /* ── Border radii a touch smaller for phones. */
   [style*="border-radius: 16"], [style*="border-radius:16"],
   [style*="border-radius: 18"], [style*="border-radius:18"],
   [style*="border-radius: 20"], [style*="border-radius:20"] {
     border-radius: 12px !important;
   }
 
-  /* ── Tables on phones: opt-in compact card layout for any table that
-        marks itself .responsive-cards (ContactsTable, future tables).
-        Removes <thead>, stacks each <tr> as a card, and inserts the
-        column label from data-label on each <td>. */
+  /* Card-style tables on phones */
   table.responsive-cards { display: block; }
   table.responsive-cards thead { display: none; }
   table.responsive-cards tbody { display: block; }
@@ -252,14 +214,9 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-manrope); letter-spacing: -0.01
   }
   table.responsive-cards td[data-label=""]::before { content: none; }
 
-  /* Headings don't break mid-word. */
   h1, h2, h3 { word-break: break-word; overflow-wrap: anywhere; }
 
-  /* ============================================================================
-     Kanban (Deals → ▦ Kanban) — desktop has 4-6 narrow columns side by side.
-     On phones each column dominates the viewport so the rep swipes between
-     them with scroll-snap. Long-press to drag (touch sensor in DealKanban.tsx).
-     ============================================================================ */
+  /* Kanban — columns dominate the viewport on phones */
   .kanban-touch-hint { display: block !important; }
   .kanban-board { scroll-snap-type: x mandatory !important; padding-bottom: 12px !important; }
   .kanban-column {
@@ -270,15 +227,7 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-manrope); letter-spacing: -0.01
     max-height: 70vh !important;
   }
 
-  /* ============================================================================
-     Stage chevron breadcrumb (deal detail) — desktop chevrons are 140px wide.
-     On phones each chevron shrinks to ~110px, font drops to 10px, padding
-     drops to 8px-14px, and the clip-path triangles shrink from 14px to 6px
-     so the text area inside each chevron is wide enough that long stage
-     names like "Qualification" don't get clipped behind the triangle.
-     Overall the path still scrolls horizontally inside its container so a
-     5-stage pipeline reads with one quick swipe.
-     ============================================================================ */
+  /* Chevron breadcrumb */
   .stage-chevron-row { padding: 3px !important; }
   .stage-chevron-btn {
     min-width: 110px !important;
@@ -288,8 +237,6 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-manrope); letter-spacing: -0.01
     margin-right: -6px !important;
   }
   .stage-chevron-btn:last-child { margin-right: 0 !important; }
-  /* Smaller clip-path triangles (6px instead of 14px) so text isn't eaten
-     by the chevron points. Per-position overrides for first / middle / last. */
   .stage-chevron-btn:not(:first-child):not(:last-child) {
     clip-path: polygon(6px 0%, calc(100% - 6px) 0%, 100% 50%, calc(100% - 6px) 100%, 6px 100%, 0% 50%) !important;
     -webkit-clip-path: polygon(6px 0%, calc(100% - 6px) 0%, 100% 50%, calc(100% - 6px) 100%, 6px 100%, 0% 50%) !important;
@@ -308,7 +255,13 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-manrope); letter-spacing: -0.01
     border-radius: 6px !important;
   }
 
-  /* Days-to-close pill + Mark Complete button — same row, smaller everything */
+  /* The chevron's inner row MUST stay flex-wrap: nowrap. The general
+     responsive rules above already skip elements that declare flex-wrap
+     explicitly, but pin it here as belt-and-braces. */
+  .stage-chevron-row > div {
+    flex-wrap: nowrap !important;
+  }
+
   .stage-chevron-actions {
     justify-content: flex-start !important;
   }
@@ -320,7 +273,7 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-manrope); letter-spacing: -0.01
   }
 }
 
-/* CRM: visible affordance for clickable links — underline detail links and chip links */
+/* CRM: visible affordance for clickable links */
 .crm-area a:not([class*="active"]):not([role="button"]) {
   text-decoration: underline;
   text-decoration-color: rgba(255,255,255,0.18);
@@ -328,7 +281,6 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-manrope); letter-spacing: -0.01
   transition: text-decoration-color 0.15s ease, color 0.15s ease;
 }
 .crm-area a:hover { text-decoration-color: currentColor; }
-/* But not for sub-nav pills / cards (they have their own active state) */
 .crm-area nav a,
 .crm-area a[style*="border-radius:12"],
 .crm-area a[style*="border-radius: 12"],
