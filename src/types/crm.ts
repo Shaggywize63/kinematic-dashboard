@@ -289,10 +289,40 @@ export interface NextBestAction {
   channel?: 'call' | 'email' | 'meeting' | 'task';
 }
 
+/**
+ * Structured breakdown of the win-probability heuristic, so the UI can
+ * render a "How is this calculated?" explainer popup. The backend
+ * computes:
+ *   final = stage_probability% × age_multiplier × engagement_multiplier
+ * unless the stage is `won` (locked at 100%) or `lost` (locked at 0%).
+ */
+export interface WinProbabilityBreakdown {
+  /** Set when the stage_type is `won` / `lost` and the score is locked. */
+  short_circuit?: 'won' | 'lost';
+  short_circuit_message?: string;
+  stage_probability: number;        // 0–100, from crm_deal_stages.probability
+  stage_name: string | null;
+  age_days: number;
+  age_multiplier: number;
+  age_label: string;
+  activities_30d: number;
+  engagement_multiplier: number;
+  engagement_label: string;
+  /** One-line maths string, e.g. "50% × 1.00 (age) × 1.20 (engagement) = 60%". */
+  formula_text: string;
+  final_probability: number;        // 0–100
+}
+
 export interface WinProbability {
-  deal_id: string; probability: number; confidence: number;
-  drivers: Array<{ name: string; impact: number; direction: 'positive' | 'negative' }>;
-  generated_at: string;
+  deal_id?: string;
+  /** Backend now emits 0-100; older code may pass 0-1. The gauge normalises. */
+  probability: number;
+  reasoning?: string;
+  breakdown?: WinProbabilityBreakdown;
+  // Legacy fields kept for backwards compatibility with earlier shapes.
+  confidence?: number;
+  drivers?: Array<{ name: string; impact: number; direction: 'positive' | 'negative' }>;
+  generated_at?: string;
 }
 
 export interface AnalyticsSummary {
