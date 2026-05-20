@@ -81,18 +81,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (typeof window !== 'undefined') {
       setToken(localStorage.getItem('kinematic_token') || '');
     }
-    // Refresh /auth/me on mount so entitlement-driven nav (CRM-only
-    // hiding, package gates) reflects the latest server-side state.
-    // Without this, sessions stored before enabled_modules /
-    // enabled_packages started shipping have empty arrays and the
-    // universal sections (Business, People, System) keep showing even
-    // for CRM-only clients like Hemanth.
     (async () => {
       try {
         const fresh: any = await api.get('/api/v1/auth/me');
         const next = fresh?.data ?? fresh;
         if (next && (next.enabled_modules || next.enabled_packages)) {
-          // Re-stamp localStorage so subsequent renders + reloads pick it up.
           try {
             localStorage.setItem('kinematic_user', JSON.stringify(next));
           } catch { /* ignore */ }
@@ -105,23 +98,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const handleLogout = () => { clearSession(); router.push('/login'); };
   const userRole = user?.role || '';
   const userPerms = user?.permissions || [];
-  // New entitlement source of truth (per-client SKUs from /auth/me).
-  // Falls back to legacy `permissions` array if backend hasn't been deployed yet.
   const enabledModules: string[] = Array.isArray(user?.enabled_modules) ? user.enabled_modules : [];
   const enabledPackages: string[] = Array.isArray(user?.enabled_packages) ? user.enabled_packages : [];
   const isActive = (href: string) => href === '/dashboard' ? pathname === '/dashboard' : pathname.startsWith(href);
-  // On mobile the sidebar lives in a drawer overlay (not in the document flow),
-  // so the main column gets zero left margin.
   const sideW = isMobile ? 0 : (collapsed ? 64 : 220);
   const drawerW = isMobile ? 240 : (collapsed ? 64 : 220);
   const sidebarVisible = isMobile ? drawerOpen : true;
 
-  // Close drawer when navigation happens (pathname change)
   useEffect(() => { if (isMobile) setDrawerOpen(false); }, [pathname, isMobile]);
 
   const isPlatformAdmin = (() => {
-    // Client-level users (their JWT pins them to one client) never see the global picker —
-    // they're already scoped server-side and the picker would just confuse them.
     if ((user as any)?.client_id) return false;
     const role = (userRole || '').toLowerCase().trim().replace(/-/g, '_');
     const name = (user?.name || '').toLowerCase().trim();
@@ -132,10 +118,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const isSuperAdmin = (userRole || '').toLowerCase().replace(/-/g, '_') === 'super_admin';
 
-  // A user "has" a module if either:
-  //   * the new entitlement list contains it (per-client SKU), OR
-  //   * the legacy per-user permissions array contains it (backwards compat
-  //     for sessions stored before /auth/me started returning enabled_modules).
   const hasModule = (m: string) => {
     if (!m) return true;
     if (enabledModules.length > 0) return enabledModules.includes(m);
@@ -143,58 +125,34 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   };
 
   const filterNav = (items: any[]) => {
-    // superAdminOnly entries (e.g. Activity Log) — hidden for everyone else,
-    // even other "platform admins".
     const visibleAfterRole = items.filter((i) => !i.superAdminOnly || isSuperAdmin);
     if (isPlatformAdmin) return visibleAfterRole;
     return visibleAfterRole.filter(i => hasModule(i.module));
   };
 
-  // CRM-only client detection. When the user's plan is just CRM (no Field
-  // Force, no Distribution), they should see a focused CRM-only nav —
-  // universal sections like People & Support / System Management / Business
-  // are nav clutter for a Tata-Tiscon-style deployment. Platform admins
-  // bypass this since they need the full nav to administer everyone.
   const isCrmOnlyClient =
     !isPlatformAdmin &&
     enabledPackages.includes('crm') &&
     !enabledPackages.includes('field_force') &&
     !enabledPackages.includes('distribution');
 
-  // Section-level gate. A section is hidden when:
-  //   * the user's client doesn't own the package (unless the section is universal), OR
-  //   * the user has no entitled items in that section after filtering.
-  // Platform admins (super_admin etc.) bypass the package check.
   const sectionVisible = (pkg: string | undefined, items: any[]) => {
     if (items.length === 0) return false;
     if (!pkg) return true;
     if (isPlatformAdmin) return true;
-    // CRM-only clients (e.g. Tata Tiscon) get a focused CRM-only nav —
-    // hide every other section regardless of universal grants.
     if (isCrmOnlyClient && pkg !== 'crm') return false;
-    if (['business', 'system', 'people', 'audit'].includes(pkg)) return true; // universal sections
-    if (enabledPackages.length === 0) return true; // legacy session, fall back open
+    if (['business', 'system', 'people', 'audit'].includes(pkg)) return true;
+    if (enabledPackages.length === 0) return true;
     return enabledPackages.includes(pkg);
   };
 
-  // Standard icon path strings. Two notes:
-  //   - WhatsApp: outline chat-bubble (Lucide "message-circle"). We
-  //     intentionally do NOT colour-fill this in the nav — every other
-  //     entry is a single-colour outline, so a green WhatsApp glyph
-  //     stood out as inconsistent. The brand-coloured logo still appears
-  //     in the activity-row icon and the WhatsApp page header where it
-  //     actually represents content.
-  //   - Settings: real gear/cog (Lucide "settings") — the prior icon
-  //     was just the inner dot of a gear with no outer teeth, so it
-  //     looked like a generic "circle" and reps couldn't tell it from
-  //     other dots.
   const ICON_WHATSAPP = 'M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z';
   const ICON_SETTINGS = 'M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z';
+  // Lucide "indian-rupee" — top + middle horizontal bars, the hook tail
+  // and the diagonal stroke. Replaces the previous USD "$" path so the
+  // Deals nav matches the rupee-denominated business.
+  const ICON_RUPEE = 'M6 3h12 M6 8h12 M6 13h3a4.5 4.5 0 0 0 0-9 M6 13l8 8';
 
-  // Six top-level sections aligned with the SKU model:
-  //   field_force | crm | distribution | business (universal)
-  //   system (universal, per-toggle) | people (universal) | audit (super-admin)
-  // Sections tagged with a `package` are hidden when the user's client doesn't own that SKU.
   const rawNavGroups = [
     { label: 'Field Force', package: 'field_force', items: [
       { href: '/dashboard',                              label: 'Dashboard',           icon: 'M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z M9 22V12h6v10', module: 'dashboard' },
@@ -207,16 +165,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       { href: '/dashboard/route-plan',                   label: 'Route Plan',          icon: 'M9 20l-5.44-2.72A2 2 0 013 15.49V4.5a2 2 0 012.89-1.8L9 4 M9 4v16 M15 1l5.44 2.72A2 2 0 0121 5.51v10.98a2 2 0 01-2.89 1.8L15 17 M15 1v16', module: 'orders' },
       { href: '/dashboard/work-activities',              label: 'Work Activities',     icon: 'M12 2v20 M2 12h20 M5 5l14 14 M19 5L5 14', module: 'work_activities' },
     ]},
-    // ⚠ Items here must mirror the CRM sub-nav (components/crm/layout/CrmSubNav.tsx)
-    //   in label, order, and href. The sub-nav is the source-of-truth for what
-    //   pages exist; this sidebar just lets you jump to them without scrolling.
     { label: 'Lead Management', package: 'crm', items: [
       { href: '/dashboard/crm/dashboard',        label: 'Dashboard',      icon: 'M3 3v18h18 M7 14l4-4 4 4 5-5', module: 'crm_dashboard' },
       { href: '/dashboard/crm/leads',            label: 'Leads',          icon: 'M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 7a4 4 0 100-8 4 4 0 000 8z', module: 'crm_leads' },
       { href: '/dashboard/crm/leads/analytics',  label: 'Lead Analytics', icon: 'M18 20V10 M12 20V4 M6 20v-6', module: 'crm_leads' },
       { href: '/dashboard/crm/contacts',         label: 'Contacts',       icon: 'M20 21v-2a4 4 0 00-3-3.87 M4 21v-2a4 4 0 014-4h4a4 4 0 014 4v2 M16 3.13a4 4 0 010 7.75 M8 11a4 4 0 100-8 4 4 0 000 8z', module: 'crm_contacts' },
       { href: '/dashboard/crm/accounts',         label: 'Accounts',       icon: 'M3 21h18 M3 7v14 M21 7v14 M3 7l9-4 9 4 M9 12h6', module: 'crm_accounts' },
-      { href: '/dashboard/crm/deals',            label: 'Deals',          icon: 'M12 1v22 M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6', module: 'crm_deals' },
+      { href: '/dashboard/crm/deals',            label: 'Deals',          icon: ICON_RUPEE, module: 'crm_deals' },
       { href: '/dashboard/crm/pipeline',         label: 'Pipeline',       icon: 'M3 5h6v14H3z M9 9h6v6H9z M15 5h6v14h-6z', module: 'crm_pipeline' },
       { href: '/dashboard/crm/products',         label: 'Products',       icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4', module: 'crm_products' },
       { href: '/dashboard/crm/activities',       label: 'Activities',     icon: 'M22 11.08V12a10 10 0 11-5.93-9.14 M22 4L12 14.01l-3-3', module: 'crm_activities' },
@@ -275,7 +230,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <ClientProvider>
       <div style={{ display:'flex', minHeight:'100vh', background:C.bg, color:C.white }}>
-        {/* Mobile drawer scrim */}
         {isMobile && drawerOpen && (
           <div onClick={() => setDrawerOpen(false)} style={{
             position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:998,
@@ -318,7 +272,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             {(isMobile || !collapsed) && <div style={{ marginBottom:10, fontSize:12 }}>{user?.name || 'Admin'}</div>}
             <button onClick={handleLogout} style={{ width:'100%', padding:'10px', background:'transparent', border:`1px solid ${C.border}`, color:C.gray, borderRadius:8, cursor:'pointer' }}>Sign Out</button>
 
-            {/* DEFINITIVE DEPLOYMENT BADGE */}
             {user?.email === 'demo@kinematic.com' && (
               <div style={{ marginTop:15, padding:10, background:'rgba(255,59,48,0.1)', border:'1px solid rgba(255,59,48,0.2)', borderRadius:8, textAlign:'center' }}>
                 <div style={{ color:C.red, fontSize:9, fontWeight:900 }}>DEMO ACTIVE</div>
