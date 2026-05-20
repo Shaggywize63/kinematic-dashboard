@@ -6,25 +6,20 @@
 @tailwind utilities;
 
 :root {
-  /* Brand families */
   --font-manrope:   'Manrope', 'Segoe UI', 'Helvetica Neue', Roboto, Arial, sans-serif;
   --font-inter:     'Inter', -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
   --font-jetbrains: 'JetBrains Mono', 'SF Mono', Consolas, Menlo, 'Courier New', monospace;
 
-  /* Brand palette — primaries */
   --k-red:    #D01E2C;
   --k-ink:    #0A0E1A;
   --k-paper:  #FFFFFF;
-  /* Secondaries */
   --k-navy:   #0E1A2E;
   --k-stone:  #FAFAFB;
   --k-rule:   #E4E6EB;
-  /* Functional (product UI only) */
   --k-success: #0A8A4E;
   --k-caution: #C97A00;
   --k-info:    #0066FF;
 
-  /* Dark Mode (default) — built on Deep Navy */
   --bg:       #0E1A2E;
   --s1:       #0A0F1D;
   --s2:       #0E1420;
@@ -102,14 +97,11 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-manrope); letter-spacing: -0.01
     grid-template-columns: 1fr !important;
   }
 
-  /* Flex rows with justify-content space-between wrap, but skip elements
-     that already declare flex-wrap to avoid clobbering the chevron path. */
   [style*="justify-content: space-between"]:not([style*="flex-direction: column"]):not([style*="flex-wrap"]):not([style*="flexWrap"]),
   [style*="justifyContent:space-between"]:not([style*="flexDirection:column"]):not([style*="flex-wrap"]):not([style*="flexWrap"]) {
     flex-wrap: wrap !important;
   }
 
-  /* Fixed-width side panels (200–320px) collapse to fluid. */
   main [style*="width: 200px"], main [style*="width:200px"],
   main [style*="width: 220px"], main [style*="width:220px"],
   main [style*="width: 240px"], main [style*="width:240px"],
@@ -143,10 +135,6 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-manrope); letter-spacing: -0.01
 }
 
 @media (max-width: 768px) {
-  /* ── Stack flex layouts that try to keep 2 columns side-by-side. The
-        detail pages use `flex: 2 1 380px` / `flex: 1 1 280px`; on phones
-        the children should always go full-width and stack vertically so
-        the page never needs horizontal scroll. */
   [style*="flex: 2 1 380"],
   [style*="flex:2 1 380"],
   [style*="flex: 2 1 360"],
@@ -166,9 +154,6 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-manrope); letter-spacing: -0.01
 }
 
 @media (max-width: 640px) {
-  /* ── Lock the dashboard chrome so nothing pushes past the viewport.
-        body already has overflow-x: hidden — this is belt-and-braces in
-        case a stray child has explicit width or transform. */
   html, body { max-width: 100vw; overflow-x: clip; }
   header, main, footer { max-width: 100vw; overflow-x: clip; }
   main > div { max-width: 100%; }
@@ -196,7 +181,6 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-manrope); letter-spacing: -0.01
     min-width: 0 !important;
   }
 
-  /* Detail-page action button rows breathe instead of cramming. */
   [style*="justify-content: flex-end"]:not([style*="flex-direction: column"]):not([style*="flex-wrap"]):not([style*="flexWrap"]),
   [style*="justifyContent:flex-end"]:not([style*="flexDirection:column"]):not([style*="flex-wrap"]):not([style*="flexWrap"]) {
     justify-content: flex-start !important;
@@ -209,9 +193,6 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-manrope); letter-spacing: -0.01
     border-radius: 12px !important;
   }
 
-  /* ── Global header (dashboard chrome): the Client Filter dropdown
-        was set to `width: 220px; flex-shrink: 0` which pushed the
-        whole header wider than a 360px phone. Clamp it down. */
   header [style*="width: 220"] {
     width: auto !important;
     max-width: 140px !important;
@@ -223,10 +204,6 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-manrope); letter-spacing: -0.01
     padding: 4px 8px !important;
   }
 
-  /* ── Header action button rows on lead/deal/account/contact detail
-        pages. The header `flex: 1 1 220px` title block plus 5-7 action
-        buttons must fit on a phone without horizontal scroll. Shrink
-        button padding + font so 3-4 buttons fit per row. */
   main button {
     font-size: 12px;
     line-height: 1.2;
@@ -240,7 +217,6 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-manrope); letter-spacing: -0.01
     font-size: 11px !important;
     font-weight: 700;
   }
-  /* Anchor "buttons" (Link styled like buttons) — same treatment. */
   main a[style*="padding: 8px 14"],
   main a[style*="padding: 8px 16"],
   main a[style*="padding: 8px 18"] {
@@ -284,15 +260,34 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-manrope); letter-spacing: -0.01
 
   h1, h2, h3 { word-break: break-word; overflow-wrap: anywhere; }
 
-  /* Kanban — columns dominate the viewport on phones */
+  /* ============================================================================
+     Kanban on phones — switch from horizontal swipe (couldn't fit columns
+     without horizontal scroll, even at 88vw) to a VERTICAL stack. Each
+     stage column becomes a full-width section laid out top-to-bottom.
+     Drag-and-drop still works via dnd-kit's vertical drag; the touch
+     long-press sensor is already enabled on touch devices.
+     ============================================================================ */
   .kanban-touch-hint { display: block !important; }
-  .kanban-board { scroll-snap-type: x mandatory !important; padding-bottom: 12px !important; }
+  .kanban-board {
+    flex-direction: column !important;
+    overflow-x: visible !important;
+    overflow-y: visible !important;
+    scroll-snap-type: none !important;
+    gap: 10px !important;
+    padding-bottom: 12px !important;
+  }
   .kanban-column {
-    min-width: 88vw !important;
-    max-width: 88vw !important;
-    flex: 0 0 88vw !important;
-    padding: 10px !important;
-    max-height: 70vh !important;
+    min-width: 100% !important;
+    max-width: 100% !important;
+    flex: 1 1 100% !important;
+    padding: 12px !important;
+    max-height: none !important;
+  }
+  /* Inside each column the deal list scrolls if very long (35 cards),
+     but cap it generously so a normal pipeline fits without nested
+     scroll. */
+  .kanban-column > div:last-child {
+    max-height: 60vh !important;
   }
 
   /* Chevron breadcrumb */
@@ -335,9 +330,6 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-manrope); letter-spacing: -0.01
     letter-spacing: 0.3px !important;
   }
 
-  /* ── Lead / Deal detail page header: title block uses
-        `flex: 1 1 220px`; collapse to full-width so it doesn't
-        compete with the action button row. */
   [style*="flex: 1 1 220"],
   [style*="flex:1 1 220"],
   [style*="flex: 1 1 200"],
