@@ -57,17 +57,12 @@ function fmtIst(iso?: string | null) {
   } catch { return { date: '—', time: '—', ts: iso }; }
 }
 
-// Normalise a history entry across possible API shapes. The backend can
-// send `event_type` / `eventType`, `created_at` / `createdAt`, etc.
-// Returns null when the row carries no useful info (drops empty events).
 function normaliseEvent(h: any): { id?: string; eventType: string; createdAt: string; fromStage?: string; toStage?: string } | null {
   if (!h || typeof h !== 'object') return null;
   const eventType = h.event_type || h.eventType || h.type || h.event || '';
   const createdAt = h.created_at || h.createdAt || h.timestamp || h.at || '';
   const fromStage = h.from_stage || h.fromStage || h.previous_stage || '';
   const toStage   = h.to_stage   || h.toStage   || h.next_stage     || '';
-  // A useful event has at least one of: a labelled event type, a real
-  // timestamp, or a stage transition. Empty rows are silently dropped.
   if (!eventType && !createdAt && !fromStage && !toStage) return null;
   return { id: h.id, eventType, createdAt, fromStage: fromStage || undefined, toStage: toStage || undefined };
 }
@@ -198,8 +193,6 @@ export default function DealDetailPage() {
     } catch { return null; }
   }, [deal]);
 
-  // Normalise + drop empty history rows up-front so the UI doesn't paint
-  // a wall of "Event — · — IST" placeholders.
   const usefulHistory = useMemo(() => {
     return (history || [])
       .map((h) => normaliseEvent(h))
@@ -285,6 +278,23 @@ export default function DealDetailPage() {
   const hasPipeline = !!deal.pipeline_id && stages.length > 0;
   const dealName = deal.name || 'Untitled deal';
 
+  // Resolve which stage the chevron should highlight. The backend's
+  // `win` / `lose` endpoints sometimes update `deal.status` without
+  // moving `deal.stage_id` to the corresponding terminal stage — so a
+  // Closed Won deal can still point at "Negotiation". For closed deals,
+  // we fall back to the first stage in the pipeline whose `stage_type`
+  // matches the deal's status (`won` / `lost`).
+  const effectiveStageId = (() => {
+    if (deal.status === 'won') {
+      const wonStage = stages.find((s) => s?.stage_type === 'won');
+      if (wonStage?.id) return wonStage.id;
+    } else if (deal.status === 'lost') {
+      const lostStage = stages.find((s) => s?.stage_type === 'lost');
+      if (lostStage?.id) return lostStage.id;
+    }
+    return deal.stage_id || '';
+  })();
+
   return (
     <div>
       {hasPipeline && (
@@ -293,14 +303,14 @@ export default function DealDetailPage() {
             {deal.status === 'open' ? (
               <DealStageProgress
                 stages={stages}
-                currentStageId={deal.stage_id || ''}
+                currentStageId={effectiveStageId}
                 daysInStage={daysInStage}
                 daysToClose={daysToClose}
                 onMove={moveStage}
                 onMarkComplete={markStageComplete}
               />
             ) : (
-              <DealStageProgress stages={stages} currentStageId={deal.stage_id || ''} />
+              <DealStageProgress stages={stages} currentStageId={effectiveStageId} />
             )}
           </div>
         </SafeRender>
@@ -348,9 +358,13 @@ export default function DealDetailPage() {
                 ✗ This deal is closed as LOST
               </div>
             )}
+            {/* Stage field is shown ALWAYS so the canonical stage name
+                from the backend is visible regardless of what the
+                chevron resolves to. Avoids the "Closed Won deal still
+                shows previous stage" confusion. */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 14, fontSize: 13 }}>
               <Field label="Amount" value={formatINR(Number(deal.amount) || 0)} />
-              {!hasPipeline && <Field label="Stage" value={deal.stage_name} />}
+              <Field label="Stage" value={deal.stage_name} />
               <Field label="Status" value={deal.status} />
               <Field label="Probability" value={`${Math.round((Number(deal.probability) || 0) * 100)}%`} />
               <Field label="Close Date" value={fmtIst(deal.expected_close_date).date} />
