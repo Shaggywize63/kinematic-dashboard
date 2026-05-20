@@ -57,6 +57,21 @@ function fmtIst(iso?: string | null) {
   } catch { return { date: '—', time: '—', ts: iso }; }
 }
 
+// Normalise a history entry across possible API shapes. The backend can
+// send `event_type` / `eventType`, `created_at` / `createdAt`, etc.
+// Returns null when the row carries no useful info (drops empty events).
+function normaliseEvent(h: any): { id?: string; eventType: string; createdAt: string; fromStage?: string; toStage?: string } | null {
+  if (!h || typeof h !== 'object') return null;
+  const eventType = h.event_type || h.eventType || h.type || h.event || '';
+  const createdAt = h.created_at || h.createdAt || h.timestamp || h.at || '';
+  const fromStage = h.from_stage || h.fromStage || h.previous_stage || '';
+  const toStage   = h.to_stage   || h.toStage   || h.next_stage     || '';
+  // A useful event has at least one of: a labelled event type, a real
+  // timestamp, or a stage transition. Empty rows are silently dropped.
+  if (!eventType && !createdAt && !fromStage && !toStage) return null;
+  return { id: h.id, eventType, createdAt, fromStage: fromStage || undefined, toStage: toStage || undefined };
+}
+
 class SafeRender extends Component<{ label: string; children: ReactNode }, { error: Error | null }> {
   state = { error: null as Error | null };
   static getDerivedStateFromError(error: Error) { return { error }; }
@@ -182,6 +197,14 @@ export default function DealDetailPage() {
       return Math.ceil((t - Date.now()) / MS_PER_DAY);
     } catch { return null; }
   }, [deal]);
+
+  // Normalise + drop empty history rows up-front so the UI doesn't paint
+  // a wall of "Event — · — IST" placeholders.
+  const usefulHistory = useMemo(() => {
+    return (history || [])
+      .map((h) => normaliseEvent(h))
+      .filter((e): e is NonNullable<ReturnType<typeof normaliseEvent>> => e !== null);
+  }, [history]);
 
   const markStageComplete = () => {
     try {
@@ -325,9 +348,6 @@ export default function DealDetailPage() {
                 ✗ This deal is closed as LOST
               </div>
             )}
-            {/* Stage info appears in exactly ONE place per page:
-                  - chevron breadcrumb above the card when the deal has a pipeline, OR
-                  - the "Stage" field below when the deal has no pipeline. */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 14, fontSize: 13 }}>
               <Field label="Amount" value={formatINR(Number(deal.amount) || 0)} />
               {!hasPipeline && <Field label="Stage" value={deal.stage_name} />}
@@ -384,35 +404,35 @@ export default function DealDetailPage() {
 
           <SafeRender label="history">
             <Card title="History">
-              {history.length === 0 ? (
+              {usefulHistory.length === 0 ? (
                 <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>No events yet.</div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {history.map((h, idx) => {
-                    if (!h) return null;
-                    const t = fmtIst(h.created_at);
-                    const isStageChange = !!(h.from_stage && h.to_stage);
+                  {usefulHistory.map((h, idx) => {
+                    const t = fmtIst(h.createdAt);
+                    const isStageChange = !!(h.fromStage && h.toStage);
                     return (
                       <div key={h.id || idx} style={{
                         display: 'flex', flexDirection: 'column', gap: 4,
                         padding: '10px 12px', background: 'var(--s3)', borderRadius: 8,
                       }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{labelEvent(h.event_type)}</span>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{labelEvent(h.eventType)}</span>
                           {isStageChange && (
                             <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>
-                              <span style={{ color: 'var(--text)' }}>{h.from_stage}</span>
+                              <span style={{ color: 'var(--text)' }}>{h.fromStage}</span>
                               <span> → </span>
-                              <span style={{ color: '#3E9EFF', fontWeight: 700 }}>{h.to_stage}</span>
+                              <span style={{ color: '#3E9EFF', fontWeight: 700 }}>{h.toStage}</span>
                             </span>
                           )}
                         </div>
-                        <div style={{ fontSize: 11, color: 'var(--text-dim)', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                          <span>{t.date}</span>
-                          <span>·</span>
-                          <span>{t.time} IST</span>
-                          {t.ts && <span title={t.ts} style={{ fontFamily: 'ui-monospace, monospace', opacity: 0.6 }}>· {t.ts}</span>}
-                        </div>
+                        {h.createdAt && (
+                          <div style={{ fontSize: 11, color: 'var(--text-dim)', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                            <span>{t.date}</span>
+                            <span>·</span>
+                            <span>{t.time} IST</span>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
