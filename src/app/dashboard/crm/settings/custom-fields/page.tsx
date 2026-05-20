@@ -222,7 +222,7 @@ export default function CustomFieldsPage() {
         <div style={{ fontSize: 32, marginBottom: 12 }}>🔒</div>
         <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>Admin Access Required</div>
         <div style={{ fontSize: 13, color: 'var(--text-dim)' }}>
-          Custom fields are visible to Sub-Admins and above only. Contact your administrator for access.
+          Custom fields are visible to admins and managers only. Contact your administrator for access.
         </div>
       </div>
     );

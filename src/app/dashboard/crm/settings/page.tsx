@@ -57,22 +57,18 @@ export default function SettingsIndex() {
   // + same data-theme attribute) so CRM-only clients (e.g. Tata Tiscon) who
   // can't reach /dashboard/settings still get a way to switch themes.
   // Default is 'system' so the dashboard follows the OS for first-time users.
-  const [theme, setTheme] = useState<ThemeChoice>('system');
+  // Default 'dark' so the theme doesn't follow OS-level auto-switching
+  // (admins reported the "system" setting flipping the dashboard with
+  // every macOS Auto / Windows Night Light transition). Once they pick a
+  // mode the choice persists across refreshes via the boot script in
+  // app/layout.tsx — no OS listener needed any more.
+  const [theme, setTheme] = useState<ThemeChoice>('dark');
   useEffect(() => {
     const saved = (typeof window !== 'undefined' && localStorage.getItem('kinematic-theme')) as ThemeChoice | null;
-    const next = (saved === 'dark' || saved === 'light' || saved === 'system') ? saved : 'system';
+    const next: ThemeChoice = saved === 'light' ? 'light' : 'dark';
     setTheme(next);
     applyTheme(next);
   }, []);
-  // When the user picks 'system', mirror live OS changes so dark-mode at
-  // sunset on the OS instantly flips the dashboard without a refresh.
-  useEffect(() => {
-    if (theme !== 'system' || typeof window === 'undefined') return;
-    const mq = window.matchMedia('(prefers-color-scheme: dark)');
-    const handler = () => applyTheme('system');
-    mq.addEventListener('change', handler);
-    return () => mq.removeEventListener('change', handler);
-  }, [theme]);
   const toggleTheme = (t: ThemeChoice) => {
     setTheme(t);
     applyTheme(t);
@@ -158,7 +154,9 @@ export default function SettingsIndex() {
         <div style={{ display: 'inline-flex', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 10, padding: 4 }}>
           {themeBtn('light',  'Light',  '☀️')}
           {themeBtn('dark',   'Dark',   '🌙')}
-          {themeBtn('system', 'System', '🖥️')}
+          {/* System mode removed — followed OS-level light/dark auto-switching
+              which admins called "random theme changes". Stick to an explicit
+              dark/light choice that survives every refresh. */}
         </div>
       </div>
 

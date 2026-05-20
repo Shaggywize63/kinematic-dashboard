@@ -48,17 +48,21 @@ export const viewport: Viewport = {
  * flash, no override on refresh, and it covers EVERY route, not just
  * the settings page.
  *
- * Default is "system" — matches OS preference on first install.
+ * Default is "dark" so the theme stays stable until the user explicitly
+ * opts into a different mode. The previous default of "system" caused
+ * the dashboard to flip whenever the OS auto-toggled between light/dark
+ * (macOS Auto, Windows Night light, scheduled themes) — admins called
+ * this "random theme changes". Once the user picks Light or Dark
+ * explicitly, we persist that choice and never re-derive from the OS.
  */
 const themeBootScript = `
 (function() {
   try {
-    var saved = localStorage.getItem('kinematic-theme') || 'system';
-    var effective = saved;
-    if (saved === 'system') {
-      effective = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
-    }
-    document.documentElement.setAttribute('data-theme', effective);
+    var saved = localStorage.getItem('kinematic-theme');
+    // Legacy "system" values stick around in older browsers; normalise to
+    // dark so the theme doesn't keep shifting under the user.
+    if (!saved || saved === 'system') saved = 'dark';
+    document.documentElement.setAttribute('data-theme', saved);
   } catch (_) {
     document.documentElement.setAttribute('data-theme', 'dark');
   }

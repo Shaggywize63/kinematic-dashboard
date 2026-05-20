@@ -131,7 +131,13 @@ export default function SettingsPage() {
   // dashboard follows whatever the user set at the OS level — and re-renders
   // when they flip it (without a refresh).
   useEffect(() => {
-    const saved = (localStorage.getItem('kinematic-theme') as 'dark'|'light'|'system' | null) || 'system';
+    // Default to 'dark' so the theme doesn't follow OS-level auto-switching
+    // (which was reported as "theme randomly changes"). Once the admin
+    // picks a mode the choice persists in localStorage and survives every
+    // refresh / route change because the boot script in app/layout.tsx
+    // re-applies it before paint.
+    const raw = localStorage.getItem('kinematic-theme') as 'dark'|'light'|'system' | null;
+    const saved: 'dark' | 'light' = raw === 'light' ? 'light' : 'dark';
     applyTheme(saved);
     setTheme(saved);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -392,9 +398,8 @@ export default function SettingsPage() {
             <div style={{ fontSize: 12, color: C.gray, marginTop: 2 }}>Follow your OS, or pick Dark / Light. Remembered across sessions.</div>
           </div>
           <div style={{ display: 'inline-flex', background: C.s3, border: `1px solid ${C.border}`, borderRadius: 10, padding: 4 }}>
-            <button onClick={() => toggleTheme('system')} style={{ padding: '8px 16px', borderRadius: 8, background: theme === 'system' ? C.s4 : 'transparent', border: 'none', color: theme === 'system' ? C.white : C.gray, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-              <span>🖥️</span> System
-            </button>
+            {/* "System" removed — followed OS auto-switching and made the
+                theme look "random" to admins. Stick to explicit choices. */}
             <button onClick={() => toggleTheme('dark')} style={{ padding: '8px 16px', borderRadius: 8, background: theme === 'dark' ? C.s4 : 'transparent', border: 'none', color: theme === 'dark' ? C.white : C.gray, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
               <span>🌙</span> Dark
             </button>
@@ -658,7 +663,14 @@ export default function SettingsPage() {
                     </div>
                     <div>
                       <div style={{ display: 'inline-flex', padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 800, background: `${roleColors[u.role] || C.gray}15`, color: roleColors[u.role] || C.gray, border: `1px solid ${roleColors[u.role] || C.gray}33`, textTransform: 'capitalize', marginBottom: 4 }}>
-                        {roleLabels[u.role] || u.role}
+                        {/* Show the hierarchy designation when one is set
+                            (Business Manager, Consumer Champion…); fall back
+                            to a neutral "Team Member" so we never expose
+                            internal preset role names like "Sub-Admin". The
+                            backend joins org_roles and stamps either
+                            org_role.name (the join) or a flat org_role_name
+                            on each row. */}
+                        {((u as any).org_role?.name) || ((u as any).org_role_name) || 'Team Member'}
                       </div>
                       <div style={{ fontSize: 10, color: C.gray, fontWeight: 600 }}>
                         {u.permissions?.length || 0} modules · {u.assigned_cities?.length ? `${u.assigned_cities.length} cities` : u.client_id ? `Client: ${clients.find(c => c.id === u.client_id)?.name || 'Unknown'}` : 'Global'}
@@ -683,14 +695,11 @@ export default function SettingsPage() {
               {/* Interface Appearance */}
               <div style={{ background: C.s3, border: `1px solid ${C.border}`, borderRadius: 12, padding: 24 }}>
                 <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 16, fontWeight: 800, marginBottom: 8 }}>Interface Appearance</div>
-                <div style={{ fontSize: 13, color: C.gray, marginBottom: 20 }}>Follow your OS, or override with Dark / Light.</div>
+                <div style={{ fontSize: 13, color: C.gray, marginBottom: 20 }}>Pick Dark or Light. The choice persists across refreshes.</div>
                 <div style={{ display: 'flex', gap: 12 }}>
-                  <button onClick={() => toggleTheme('system')} style={{ flex: 1, padding: '14px', borderRadius: 10, background: theme === 'system' ? C.s4 : 'transparent', border: `1px solid ${theme === 'system' ? C.blue : C.border}`, cursor: 'pointer', transition: 'all .2s' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-                      <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'linear-gradient(135deg, #0D1117 0%, #0D1117 50%, #ffffff 50%, #ffffff 100%)', border: `2px solid ${theme === 'system' ? C.blue : '#30363d'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>🖥️</div>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: theme === 'system' ? C.white : C.gray }}>System</span>
-                    </div>
-                  </button>
+                  {/* System mode removed — admins reported "random theme
+                      changes" because the OS auto-switched between
+                      light/dark. Two explicit choices only. */}
                   <button onClick={() => toggleTheme('dark')} style={{ flex: 1, padding: '14px', borderRadius: 10, background: theme === 'dark' ? C.s4 : 'transparent', border: `1px solid ${theme === 'dark' ? C.blue : C.border}`, cursor: 'pointer', transition: 'all .2s' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
                       <div style={{ width: 44, height: 44, borderRadius: '50%', background: '#0D1117', border: `2px solid ${theme === 'dark' ? C.blue : '#30363d'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>🌙</div>

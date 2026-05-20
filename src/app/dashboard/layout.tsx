@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
-import { getStoredUser, isSessionValid, clearSession, getRoleLabel } from '../../lib/auth';
+import { getStoredUser, isSessionValid, clearSession } from '../../lib/auth';
 import api from '../../lib/api';
 import { ClientProvider, useClient } from '../../context/ClientContext';
 import ClientSelect from '../../components/ClientSelect';
@@ -300,7 +300,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     "Consumer Champion"). Falls back to the legacy preset role
                     label so we never show an empty descriptor. */}
                 <div style={{ fontSize:11, color:C.gray, marginTop:2, lineHeight:1.2 }}>
-                  {hierarchyRoleName || getRoleLabel(userRole)}
+                  {/* Show only the hierarchy designation (Business Manager,
+                      Consumer Champion, etc.). Never expose the legacy preset
+                      role like "Sub-Admin" — admins consider that an
+                      implementation detail. */}
+                  {hierarchyRoleName || 'Team Member'}
                 </div>
               </div>
             )}
@@ -320,8 +324,37 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             height:65, background:C.s1, borderBottom:`1px solid ${C.border}`,
             display:'flex', alignItems:'center', justifyContent:'space-between',
             padding: isMobile ? '0 14px' : '0 25px', gap:10,
+            position: 'relative',
           }}>
-            <div style={{ display:'flex', alignItems:'center', gap:12, minWidth:0, flex:1 }}>
+            {/*
+             * CRM mark sits centred in the header strip when the user is on
+             * a CRM route. Absolute-positioned so left + right groups don't
+             * have to share width with it. Hidden on mobile to keep the
+             * compact name + actions clear.
+             */}
+            {pathname.startsWith('/dashboard/crm') && !isMobile && (
+              <div style={{
+                position: 'absolute', left: 0, right: 0, top: 0, bottom: 0,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                pointerEvents: 'none',
+              }}>
+                <div style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 10,
+                  fontWeight: 900, fontSize: 24, color: C.white, letterSpacing: '-0.5px',
+                }}>
+                  CRM
+                  <span style={{
+                    fontSize: 10, fontWeight: 800, padding: '3px 8px', borderRadius: 999,
+                    background: 'rgba(224,30,44,0.12)', color: C.red,
+                    border: `1px solid rgba(224,30,44,0.3)`, letterSpacing: 1,
+                    textTransform: 'uppercase',
+                  }}>
+                    powered by Kini AI
+                  </span>
+                </div>
+              </div>
+            )}
+            <div style={{ display:'flex', alignItems:'center', gap:12, minWidth:0, flex:1, zIndex: 1 }}>
               {isMobile && (
                 <button
                   onClick={() => setDrawerOpen(o => !o)}
@@ -336,11 +369,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   back to the legacy preset role label so we never render an
                   empty descriptor. */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                {/* Avatar uses a neutral surface — red is reserved for
+                    KINI AI. Initial sits over a subtle outlined chip so
+                    the identity reads as identity, not brand. */}
                 <div style={{
                   width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
-                  background: C.redD, color: C.red, display: 'flex',
+                  background: C.s4, color: C.white, display: 'flex',
                   alignItems: 'center', justifyContent: 'center',
-                  fontWeight: 800, fontSize: 13, border: `1px solid ${C.redB}`,
+                  fontWeight: 800, fontSize: 13, border: `1px solid ${C.border}`,
                 }}>
                   {(user?.name || 'U').slice(0, 1).toUpperCase()}
                 </div>
@@ -349,12 +385,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     {user?.name || 'Signed in'}
                   </span>
                   <span style={{ fontSize: isMobile ? 10 : 11, color: C.gray, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
-                    {hierarchyRoleName || getRoleLabel(userRole)}
+                    {/* Show only the hierarchy designation (Business Manager,
+                      Consumer Champion, etc.). Never expose the legacy preset
+                      role like "Sub-Admin" — admins consider that an
+                      implementation detail. */}
+                  {hierarchyRoleName || 'Team Member'}
                   </span>
                 </div>
               </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, zIndex: 1 }}>
               <NotificationBell />
               <GlobalClientFilter isPlatformAdmin={isPlatformAdmin} />
             </div>

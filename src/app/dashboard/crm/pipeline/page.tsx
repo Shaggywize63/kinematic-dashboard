@@ -125,7 +125,9 @@ export default function PipelinePage() {
                 border: `1px solid ${isEffectiveDefault ? 'var(--primary)' : 'var(--border)'}`,
                 borderLeft: `4px solid ${isEffectiveDefault ? 'var(--primary)' : 'var(--border)'}`,
                 borderRadius: 12,
-                boxShadow: isEffectiveDefault ? '0 0 0 2px rgba(224,30,44,0.08)' : 'none',
+                // Subtle outline that picks up the CRM accent colour
+                // (blue inside .crm-area; red is reserved for KINI AI).
+                boxShadow: isEffectiveDefault ? '0 0 0 2px rgba(0,102,255,0.10)' : 'none',
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 14, cursor: 'pointer' }} onClick={() => setExpanded(isOpen ? null : p.id)}>
                   <span style={{ fontSize: 16, color: 'var(--text-dim)', transform: isOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}>▸</span>

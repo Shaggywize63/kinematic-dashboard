@@ -53,6 +53,21 @@
   color-scheme: light;
 }
 
+/*
+ * CRM area uses the blue accent (--accent) wherever components reach for
+ * --primary. Red is reserved exclusively for the KINI AI badge / chat
+ * affordance per the brand request — KINI AI is rendered OUTSIDE
+ * .crm-area (top header + global chat widget) so its red survives the
+ * override below.
+ *
+ * Anything genuinely tied to brand red inside the CRM area should use
+ * an explicit colour (e.g. `#D01E2C` or `var(--k-red)`), not
+ * `var(--primary)`.
+ */
+.crm-area {
+  --primary: var(--k-info);
+}
+
 *, *::before, *::after { box-sizing: border-box; }
 
 html, body {
