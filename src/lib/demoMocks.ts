@@ -584,7 +584,7 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
       if (/^\/crm\/leads\/[^/]+\/deals$/.test(path))         return list(CRM_DEALS.slice(0, 2)) as unknown as T;
       if (/^\/crm\/leads\/[^/]+\/score-history$/.test(path)) return list([]) as unknown as T;
       {
-        // History gets a deal-id-keyed mock so the new History card in the
+        // History gets a deal-id-keyed mock so the History card in the
         // deal-detail page has rows to render in the demo account.
         const dealHistM = path.match(/^\/crm\/deals\/([^/]+)\/history$/);
         if (dealHistM) return mockDealHistory(dealHistM[1]) as unknown as T;
@@ -877,10 +877,13 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
     // CRM AI endpoints — return realistic methodology / breakdown so the
     // new "How is this calculated?" popups have data in the demo account
     // (otherwise the generic noop response below would leave the cards empty).
+    // Frontend calls live at `/api/v1/crm/ai/...` (see crmAi in crmApi.ts),
+    // so the regex must keep the `/crm` prefix — earlier versions only
+    // matched `/ai/...` and silently fell through to the noop.
     if (m === 'POST') {
-      const winM = path.match(/^\/ai\/win-probability\/([^/]+)$/) || path.match(/^\/crm\/deals\/([^/]+)\/win-probability$/);
+      const winM = path.match(/^\/crm\/ai\/win-probability\/([^/]+)$/);
       if (winM) return mockWinProbability(winM[1]) as unknown as T;
-      const nbaM = path.match(/^\/ai\/next-best-action\/([^/]+)$/) || path.match(/^\/crm\/deals\/([^/]+)\/next-action$/);
+      const nbaM = path.match(/^\/crm\/ai\/next-best-action\/([^/]+)$/);
       if (nbaM) return mockNextBestAction(nbaM[1]) as unknown as T;
     }
     if (m === 'POST' && path === '/distribution/gstin/verify') {
