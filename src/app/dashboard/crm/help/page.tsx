@@ -7,8 +7,78 @@
  * does this all fit together?" without a training session.
  */
 
+import { useEffect, useState } from 'react';
+
 const RED = '#E01E2C';
 const BLUE = '#3E9EFF';
+
+// Languages KINI AI understands (and the languages we have section labels
+// translated into). Order matches the in-text example list elsewhere in
+// the page. Stored as ISO 639-1 codes so we can extend without rewriting
+// the picker.
+type LangCode = 'en' | 'hi' | 'bn' | 'or' | 'as';
+const LANGS: Array<{ code: LangCode; label: string; native: string }> = [
+  { code: 'en', label: 'English',  native: 'English' },
+  { code: 'hi', label: 'Hindi',    native: 'हिन्दी' },
+  { code: 'bn', label: 'Bengali',  native: 'বাংলা' },
+  { code: 'or', label: 'Odia',     native: 'ଓଡ଼ିଆ' },
+  { code: 'as', label: 'Assamese', native: 'অসমীয়া' },
+];
+
+// Hand-translated UI surface. Section labels + hero copy only — long-form
+// paragraphs stay in English (KINI AI rephrases them on demand). Keys
+// match the original English text; missing translations fall back to
+// English so the page never blanks out.
+const T: Record<string, Partial<Record<LangCode, string>>> = {
+  // Hero
+  'How Kinematic CRM works': {
+    hi: 'Kinematic CRM कैसे काम करता है',
+    bn: 'Kinematic CRM কীভাবে কাজ করে',
+    or: 'Kinematic CRM କିପରି କାମ କରେ',
+    as: 'Kinematic CRM কেনেকৈ কাম কৰে',
+  },
+  'Everything you need to ship deals — at a glance.': {
+    hi: 'सौदे क्लोज़ करने के लिए जो कुछ चाहिए — एक नज़र में।',
+    bn: 'ডিল বন্ধ করতে যা যা দরকার — এক নজরে।',
+    or: 'ଡିଲ୍ ବନ୍ଦ କରିବାକୁ ଯାହା ସବୁ ଆବଶ୍ୟକ — ଗୋଟିଏ ନଜରରେ।',
+    as: 'ডিল বন্ধ কৰিবলৈ যি লাগে — এনজৰত।',
+  },
+  // Section labels
+  'The lead-to-deal lifecycle': {
+    hi: 'लीड से डील तक की यात्रा',
+    bn: 'লিড থেকে ডিল পর্যন্ত যাত্রা',
+    or: 'ଲିଡ୍‌ରୁ ଡିଲ୍ ପର୍ଯ୍ୟନ୍ତ ଯାତ୍ରା',
+    as: 'লিডৰ পৰা ডিললৈ যাত্ৰা',
+  },
+  'CRM modules': { hi: 'CRM मॉड्यूल', bn: 'CRM মডিউল', or: 'CRM ମଡ୍ୟୁଲ୍', as: 'CRM মডিউল' },
+  'Quick actions': { hi: 'त्वरित कार्य', bn: 'দ্রুত ক্রিয়া', or: 'ଶୀଘ୍ର କାର୍ଯ୍ୟ', as: 'দ্ৰুত কাৰ্য্য' },
+  'Reports & analytics': { hi: 'रिपोर्ट और एनालिटिक्स', bn: 'রিপোর্ট ও অ্যানালিটিক্স', or: 'ରିପୋର୍ଟ ଓ ଆନାଲିଟିକ୍ସ', as: 'ৰিপ‌ৰ্ট আৰু এনালিটিক্স' },
+  '✦ KINI AI capabilities': { hi: '✦ KINI AI क्षमताएँ', bn: '✦ KINI AI ক্ষমতা', or: '✦ KINI AI କ୍ଷମତା', as: '✦ KINI AI সক্ষমতা' },
+  'Tips & tricks': { hi: 'टिप्स और ट्रिक्स', bn: 'টিপস ও কৌশল', or: 'ଟିପ୍ସ୍ ଓ କୌଶଳ', as: 'টিপ্ছ আৰু কৌশল' },
+  'Need more help?': { hi: 'और सहायता चाहिए?', bn: 'আরও সাহায্য দরকার?', or: 'ଆଉ ସାହାଯ୍ୟ ଦରକାର?', as: 'অধিক সহায় লাগে?' },
+  // Language picker
+  'Display language': { hi: 'भाषा चुनें', bn: 'ভাষা নির্বাচন', or: 'ଭାଷା ବାଛନ୍ତୁ', as: 'ভাষা বাছনি' },
+};
+
+function useHelpLang(): [LangCode, (l: LangCode) => void] {
+  const [lang, setLang] = useState<LangCode>('en');
+  useEffect(() => {
+    try {
+      const saved = (localStorage.getItem('kinematic-help-lang') as LangCode | null);
+      if (saved && LANGS.some((l) => l.code === saved)) setLang(saved);
+    } catch { /* ignore */ }
+  }, []);
+  const update = (l: LangCode) => {
+    setLang(l);
+    try { localStorage.setItem('kinematic-help-lang', l); } catch { /* ignore */ }
+  };
+  return [lang, update];
+}
+
+function tr(en: string, lang: LangCode): string {
+  if (lang === 'en') return en;
+  return T[en]?.[lang] ?? en;
+}
 const SUPPORT_PHONE = '+91 88022 74880';
 const SUPPORT_PHONE_DIAL = '+918802274880';
 const SUPPORT_EMAIL = 's@kinematicapp.com';
@@ -17,7 +87,7 @@ const STAGES = [
   { n: 1, title: 'Lead arrives',  detail: 'From a web form, lead-source integration (Meta/Google/Zoho), CSV import, KINI AI auto-capture, or a rep typing it in. Status starts as NEW; dedup runs immediately on phone+email so the same person never lands twice.' },
   { n: 2, title: 'Qualify',       detail: 'Call, WhatsApp or meet the lead. Move status NEW → WORKING → NURTURING → QUALIFIED. The AI score (0-100) and Lead Score Distribution chart help prioritise — focus on 70+.' },
   { n: 3, title: 'Convert',       detail: 'Tap Convert. The deal name is pre-filled from the lead so you can edit it in one tap. Kinematic spins up a Contact, Account (B2B only), and a Deal placed on your default pipeline. You land straight on the new Deal page.' },
-  { n: 4, title: 'Move the deal', detail: 'On the Deal detail, a Salesforce-style chevron path shows your stage progress — blue is current, green ticks are past, grey is upcoming. Click any chevron to jump, or hit ✓ Mark Complete to advance one step. Win Probability + Next-Best-Action refresh from KINI AI as you go. Prefer a board view? Switch the Deals page to ▦ Kanban and drag deals between columns.' },
+  { n: 4, title: 'Move the deal', detail: 'On the Deal detail, an inline stage stepper shows your progress — blue is current, green ticks are past, grey is upcoming. Tap any stage to jump, or hit ✓ Mark Complete to advance one step. Win Probability + Next-Best-Action refresh from KINI AI as you go. Prefer a board view? Switch the Deals page to ▦ Kanban and drag deals between columns.' },
   { n: 5, title: 'Close',         detail: 'Mark Won (with amount + close date) or Lost (with reason + competitor). Won deals add to revenue charts and Forecast; lost reasons feed Win/Loss + Lost Reasons analytics.' },
 ];
 
@@ -48,7 +118,7 @@ const ACTIONS: Array<{ icon: string; color: string; title: string; detail: strin
   { icon: '💬', color: '#757575', title: 'WhatsApp',    detail: 'Opens a pre-filled WhatsApp thread. The conversation is captured by KINI Auto-Response if enabled.' },
   { icon: '✨', color: '#8E24AA', title: 'AI Score',    detail: 'Re-runs the KINI AI scoring model on the lead. The badge changes — green means high intent (70-100).' },
   { icon: '🔀', color: RED,       title: 'Convert',     detail: 'Promotes the lead to Contact + Account + Deal. The deal name pre-fills from the lead (editable); you land straight on the new Deal page so you can keep working.' },
-  { icon: '🧭', color: BLUE,      title: 'Add to pipeline',  detail: 'On the Deal detail. Picks a pipeline for the deal, lands it on the first open stage, and repaints the chevron breadcrumb. Reads "Move pipeline" when the deal is already on one.' },
+  { icon: '🧭', color: BLUE,      title: 'Add to pipeline',  detail: 'On the Deal detail. Picks a pipeline for the deal, lands it on the first open stage, and refreshes the stage stepper. Reads "Move pipeline" when the deal is already on one.' },
   { icon: '👤', color: '#FB8C00', title: 'Assign',      detail: 'Hands the lead/deal to another rep on the same team. Only same-client teammates are shown.' },
   { icon: '⏸️', color: '#757575', title: 'Mark Unqualified', detail: 'Closes the lead as not a fit (with a reason). Hidden from active views; can be reopened from the lead detail later.' },
   { icon: '❌', color: '#EF4444', title: 'Mark Lost',   detail: 'Closes the lead/deal as lost to a competitor / no decision. Captures reason for the Lost Reasons analytics widget.' },
@@ -109,8 +179,10 @@ const KINI_CAPABILITIES: Array<{ icon: string; title: string; detail: string; ex
   { icon: '🌐', title: 'Multi-language',
     detail: 'KINI replies in the language you write to it: English, हिन्दी (Devanagari), বাংলা, ଓଡ଼ିଆ, অসমীয়া. Tool calls (arguments, IDs) stay in English so data integrity is preserved.',
     examples: [
-      '"मुझे आज के सबसे गर्म लीड दिखाओ"',
-      '"মুম্বাইয়ের সব নতুন লিড দেখান"',
+      // Hindi: "Log a meeting with Ramesh tomorrow at 11 am"
+      '"रमेश के साथ कल सुबह 11 बजे मीटिंग लॉग करो"',
+      // Bengali: "Show me deals closing this month"
+      '"এই মাসে ক্লোজ হতে যাওয়া ডিলগুলো দেখান"',
     ]},
   { icon: '🎤', title: 'Voice in + voice out',
     detail: 'Hold the mic button on the chat widget. KINI transcribes via the browser\'s speech API and answers back if you enable Hands-Free in the header.',
@@ -149,11 +221,39 @@ const TIPS = [
 ];
 
 export default function CrmHelpPage() {
+  const [lang, setLang] = useHelpLang();
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
-      <Hero />
+      {/* Language picker — top of the help page, easy to find. Stored
+          per-browser so each rep gets their own preference. Section
+          labels + hero text re-render in the chosen language; longer
+          paragraphs stay English (ask KINI AI to translate them on
+          demand). */}
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
+        gap: 10, flexWrap: 'wrap',
+      }}>
+        <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700 }}>
+          🌐 {tr('Display language', lang)}
+        </span>
+        <select
+          value={lang}
+          onChange={(e) => setLang(e.target.value as LangCode)}
+          style={{
+            background: 'var(--s3)', border: '1px solid var(--border)',
+            borderRadius: 8, padding: '6px 10px', fontSize: 13,
+            color: 'var(--text)', cursor: 'pointer', outline: 'none',
+          }}
+        >
+          {LANGS.map((l) => (
+            <option key={l.code} value={l.code}>{l.native}</option>
+          ))}
+        </select>
+      </div>
 
-      <Section label="The lead-to-deal lifecycle" sub="From first touch to closed-won (or closed-lost).">
+      <Hero lang={lang} />
+
+      <Section lang={lang} label="The lead-to-deal lifecycle" sub="From first touch to closed-won (or closed-lost).">
         <div style={{
           background: 'var(--s2)',
           border: '1px solid var(--border)',
@@ -166,7 +266,7 @@ export default function CrmHelpPage() {
         }}>
           Every lead in Kinematic moves through a small set of statuses. Reps don&rsquo;t do paperwork — they just keep the record honest by flipping the status as the relationship progresses, and the rest of the CRM (analytics, win-rate, forecasts, automations) reacts on its own.
           <div style={{ marginTop: 10 }}>
-            New leads land in <strong style={{ color: 'var(--text)' }}>New</strong>. The moment a rep makes contact, it becomes <strong style={{ color: 'var(--text)' }}>Working</strong>. If the lead is interested but not yet committed, it sits in <strong style={{ color: 'var(--text)' }}>Nurturing</strong> until they&rsquo;re ready. Once they confirm a real intent to buy, hit <strong style={{ color: RED }}>Convert</strong> — the deal name pre-fills from the lead, a Contact + Account + Deal are spun up, and you land on the new Deal page ready to work the chevron breadcrumb.
+            New leads land in <strong style={{ color: 'var(--text)' }}>New</strong>. The moment a rep makes contact, it becomes <strong style={{ color: 'var(--text)' }}>Working</strong>. If the lead is interested but not yet committed, it sits in <strong style={{ color: 'var(--text)' }}>Nurturing</strong> until they&rsquo;re ready. Once they confirm a real intent to buy, hit <strong style={{ color: BLUE }}>Convert</strong> — the deal name pre-fills from the lead, a Contact + Account + Deal are spun up, and you land on the new Deal page ready to work the stage stepper.
           </div>
           <div style={{ marginTop: 10 }}>
             Leads that don&rsquo;t fit are marked <strong style={{ color: 'var(--text)' }}>Unqualified</strong>; deals that fall apart are marked <strong style={{ color: 'var(--text)' }}>Lost</strong> with a reason. Either can be re-opened later if circumstances change. The five-step breakdown below walks through every transition in detail.
@@ -196,7 +296,7 @@ export default function CrmHelpPage() {
         </div>
       </Section>
 
-      <Section label="Every section of the CRM" sub="What lives where, and when to reach for it.">
+      <Section lang={lang} label="CRM modules" sub="What lives where, and when to reach for it.">
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 10 }}>
           {MODULES.map((m) => (
             <div key={m.title} style={{
@@ -218,7 +318,7 @@ export default function CrmHelpPage() {
         </div>
       </Section>
 
-      <Section label="Lead / Deal detail actions" sub="The buttons on a lead/contact/deal record.">
+      <Section lang={lang} label="Quick actions" sub="The buttons on a lead/contact/deal record.">
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 10 }}>
           {ACTIONS.map((a) => (
             <div key={a.title} style={{
@@ -246,7 +346,7 @@ export default function CrmHelpPage() {
         </div>
       </Section>
 
-      <Section label="Reports & analytics" sub="Every report is one click away — these are the live links.">
+      <Section lang={lang} label="Reports & analytics" sub="Every report is one click away — these are the live links.">
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 10 }}>
           {ANALYTICS.map((a) => (
             <a key={a.title} href={a.href} style={{
@@ -270,7 +370,7 @@ export default function CrmHelpPage() {
         </div>
       </Section>
 
-      <Section label="✦ KINI AI capabilities" sub="What the AI copilot can do for you inside the CRM.">
+      <Section lang={lang} label="✦ KINI AI capabilities" sub="What the AI copilot can do for you inside the CRM.">
         <div style={{
           background: `linear-gradient(135deg, ${RED}0D, #6366f10D)`,
           border: `1px solid ${RED}33`,
@@ -313,7 +413,7 @@ export default function CrmHelpPage() {
         </div>
       </Section>
 
-      <Section label="Tips & tricks" sub="Small habits that save hours a week.">
+      <Section lang={lang} label="Tips & tricks" sub="Small habits that save hours a week.">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {TIPS.map((t, i) => (
             <div key={i} style={{
@@ -332,10 +432,12 @@ export default function CrmHelpPage() {
         </div>
       </Section>
 
-      <Section label="Need more help?">
+      <Section lang={lang} label="Need more help?">
         <div style={{
-          background: `linear-gradient(135deg, ${RED}14, ${RED}05)`,
-          border: `1px solid ${RED}40`,
+          // Neutral surface — keeps brand red exclusively for the KINI AI
+          // capabilities section above and the global KINI chat affordance.
+          background: 'var(--s2)',
+          border: '1px solid var(--border)',
           borderRadius: 14,
           padding: 20,
         }}>
@@ -371,29 +473,31 @@ export default function CrmHelpPage() {
   );
 }
 
-function Hero() {
+function Hero({ lang }: { lang: LangCode }) {
   return (
     <div style={{
-      background: `linear-gradient(135deg, ${RED}14, ${RED}05)`,
-      border: `1px solid ${RED}33`,
+      // Neutral surface — red is reserved for KINI AI elsewhere on the page.
+      background: 'var(--s2)',
+      border: '1px solid var(--border)',
       borderRadius: 18,
       padding: 24,
     }}>
       <div style={{ display: 'flex', gap: 14, alignItems: 'center', marginBottom: 10, flexWrap: 'wrap' }}>
         <div style={{
           width: 52, height: 52, borderRadius: '50%',
-          background: RED + '1F',
-          color: RED,
+          background: 'var(--s3)',
+          color: BLUE,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           fontSize: 26,
+          border: '1px solid var(--border)',
         }}>📚</div>
         <div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)' }}>How Kinematic CRM works</div>
-          <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>Everything you need to ship deals — at a glance.</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)' }}>{tr('How Kinematic CRM works', lang)}</div>
+          <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>{tr('Everything you need to ship deals — at a glance.', lang)}</div>
         </div>
       </div>
       <div style={{ fontSize: 14, color: 'var(--text-dim)', lineHeight: 1.65 }}>
-        A <strong style={{ color: 'var(--text)' }}>Lead</strong> becomes a <strong style={{ color: 'var(--text)' }}>Contact</strong> + <strong style={{ color: 'var(--text)' }}>Account</strong> when qualified. A <strong style={{ color: 'var(--text)' }}>Deal</strong> tracks the conversation about money, and a <strong style={{ color: BLUE }}>chevron path</strong> on the deal detail page shows your stage progress.
+        A <strong style={{ color: 'var(--text)' }}>Lead</strong> becomes a <strong style={{ color: 'var(--text)' }}>Contact</strong> + <strong style={{ color: 'var(--text)' }}>Account</strong> when qualified. A <strong style={{ color: 'var(--text)' }}>Deal</strong> tracks the conversation about money, and an inline <strong style={{ color: BLUE }}>stage stepper</strong> on the deal detail page shows your stage progress.
         Every call, WhatsApp, meeting or note logged along the way becomes an <strong style={{ color: 'var(--text)' }}>Activity</strong> visible to the entire team.
         The whole motion is observable in <strong style={{ color: 'var(--text)' }}>Reports</strong> and assistable by <strong style={{ color: RED }}>KINI AI</strong>.
       </div>
@@ -401,17 +505,18 @@ function Hero() {
   );
 }
 
-function Section({ label, sub, children }: { label: string; sub?: string; children: React.ReactNode }) {
+function Section({ lang, label, sub, children }: { lang: LangCode; label: string; sub?: string; children: React.ReactNode }) {
   return (
     <div>
       <div style={{
         fontSize: 11,
         fontWeight: 800,
-        color: RED,
+        // Section labels use the dim text colour now — red is for KINI AI only.
+        color: 'var(--text-dim)',
         letterSpacing: 1,
         textTransform: 'uppercase',
         marginBottom: sub ? 4 : 12,
-      }}>{label}</div>
+      }}>{tr(label, lang)}</div>
       {sub && <div style={{ fontSize: 13, color: 'var(--text-dim)', marginBottom: 12 }}>{sub}</div>}
       {children}
     </div>
