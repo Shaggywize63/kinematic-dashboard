@@ -82,8 +82,14 @@ export default function RolesPage() {
   // can only constrain to cities the active client has explicitly added —
   // matching the user-assignment picker on the Team Members page. Reloads
   // when the picker changes since each tenant has its own city list.
+  //
+  // IMPORTANT: dependency array must contain only stable primitives.
+  // `storedUser` is a fresh object from JSON.parse(localStorage…) on every
+  // render — including it here triggers an infinite render loop that
+  // freezes the page when the edit panel opens.
+  const ownClientId: string | null = isClientLevel ? ((storedUser as any)?.client_id ?? null) : null;
   useEffect(() => {
-    const sel = isClientLevel ? (storedUser as any)?.client_id : selectedClientId;
+    const sel = ownClientId ?? selectedClientId;
     const suffix = sel ? `&client_id=${encodeURIComponent(sel)}` : '';
     api.get<{ data?: Array<{ name?: string; is_active?: boolean }> } | Array<{ name?: string; is_active?: boolean }>>(`/api/v1/cities?limit=500&own_only=true${suffix}`)
       .then((res: any) => {
@@ -91,7 +97,7 @@ export default function RolesPage() {
         setCities(list.filter((c: any) => c?.is_active !== false).map((c: any) => c.name).filter(Boolean));
       })
       .catch(() => setCities([]));
-  }, [selectedClientId, isClientLevel, storedUser]);
+  }, [selectedClientId, ownClientId]);
 
   // Look up the active client's display name for the scope banner.
   useEffect(() => {
