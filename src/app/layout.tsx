@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -6,6 +6,30 @@ export const metadata: Metadata = {
   description:
     'Kinematic is a B2B SaaS field force management platform purpose-built for FMCG companies — from geo-fenced attendance to consumer contact reporting to incentive-linked performance, in a single mobile-first system designed for the conditions of actual fieldwork.',
   icons: { icon: '/favicon.svg' },
+};
+
+/**
+ * Viewport configuration — separated from `metadata` per Next.js 14
+ * convention. WITHOUT this export, mobile browsers default to a 980px
+ * desktop viewport and scale the page down, which:
+ *   1. Forces persistent horizontal scroll on phones (page is laid out
+ *      for 980px and the browser ships a 360px viewport).
+ *   2. Stops `@media (max-width: 640px)` rules from triggering because
+ *      the layout viewport is reported as 980px.
+ *   3. Shrinks UI text below readable sizes.
+ *
+ * Setting `width: 'device-width'` tells the browser to use the actual
+ * device pixel width as the layout viewport, which is what every CSS
+ * media-query rule in `globals.css` is sized against.
+ *
+ * `themeColor` moved here from `metadata` to silence the Next.js 14
+ * "Unsupported metadata themeColor" build warnings (visible in the
+ * earlier Vercel build log).
+ */
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
   themeColor: '#0E1A2E',
 };
 
