@@ -18,13 +18,13 @@ interface Props {
 /**
  * Salesforce-Path-style chevron breadcrumb. Always renders the path on a
  * single horizontal row with overflow scroll — never wraps to multiple
- * lines (the inner row uses `flex-wrap: nowrap` and globals.css has a
- * dedicated `!important` belt to enforce it on phones).
+ * lines.
  *
- * Duplicates: if the backend returns the same stage id (or, defensively,
- * the same name+position pair) twice — which can happen after a bad
- * pipeline import — we dedupe before rendering so the path doesn't show
- * the same step twice in a row.
+ * Dedup: when the backend returns stages with truly duplicate `id`s (rare,
+ * usually a bad import), we keep the first occurrence so the chevron
+ * doesn't show the same step twice. We do NOT dedup by name, because a
+ * legitimate pipeline can have two stages with the same name at different
+ * positions (and aggressive dedup was hiding real stages).
  */
 export default function DealStageProgress({
   stages,
@@ -36,14 +36,15 @@ export default function DealStageProgress({
 }: Props) {
   const sorted = useMemo(() => {
     const list = Array.isArray(stages) ? stages.filter(Boolean) : [];
-    // Dedupe by id first; if a row is missing an id (shouldn't happen but
-    // be defensive), fall back to name+position as the dedup key.
     const seen = new Set<string>();
     const unique: Stage[] = [];
     for (const s of list) {
-      const key = s?.id || `${s?.name ?? ''}|${s?.position ?? ''}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
+      // Only dedup when the id is a real non-empty string. Stages without
+      // a stable id pass through untouched.
+      if (s?.id && typeof s.id === 'string') {
+        if (seen.has(s.id)) continue;
+        seen.add(s.id);
+      }
       unique.push(s);
     }
     return unique.sort((a, b) => (a?.position ?? 0) - (b?.position ?? 0));
@@ -113,11 +114,11 @@ export default function DealStageProgress({
 
             return (
               <button
-                key={s.id}
+                key={s.id || i}
                 className="stage-chevron-btn"
                 onClick={() => onMove && onMove(s.id)}
                 disabled={!onMove || isCurrent}
-                title={`Stage ${i + 1} of ${sorted.length}: ${s.name}`}
+                title={`Stage ${i + 1} of ${sorted.length}: ${s.name || '(unnamed)'}`}
                 style={{
                   flex: '1 1 0',
                   minWidth: 140,
@@ -144,7 +145,7 @@ export default function DealStageProgress({
                 <span style={{ display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', verticalAlign: 'middle' }}>
                   {reached && !isLost && <span style={{ marginRight: 4, fontSize: 10 }}>✓</span>}
                   {isLost && reached && <span style={{ marginRight: 4, fontSize: 10 }}>✗</span>}
-                  {s.name}
+                  {s.name || `Stage ${i + 1}`}
                 </span>
               </button>
             );
