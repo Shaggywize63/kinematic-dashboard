@@ -167,7 +167,6 @@ export interface Activity {
   duration_min?: number | null; outcome?: string | null;
   lead_id?: string | null; contact_id?: string | null; account_id?: string | null; deal_id?: string | null;
   owner_id?: string | null; owner_name?: string | null;
-  // Optional single image attached at log time (e.g. site-visit photo).
   image_url?: string | null;
   created_at: string; updated_at: string;
 }
@@ -263,7 +262,6 @@ export interface CrmState {
 
 export interface CrmCity {
   id: string; org_id: string; state_id: string; name: string;
-  /** District the city falls under — optional for legacy rows. */
   district?: string | null;
   is_active: boolean;
   created_at: string; updated_at: string;
@@ -281,26 +279,50 @@ export interface LeadScore {
 }
 export interface ScoreBreakdown { score: number; factors: ScoreFactor[]; grade: 'A' | 'B' | 'C' | 'D'; }
 
-export interface NextBestAction {
-  deal_id?: string; lead_id?: string;
-  action: string; rationale: string;
-  priority: 'low' | 'medium' | 'high';
-  suggested_at?: string;
-  channel?: 'call' | 'email' | 'meeting' | 'task';
+/**
+ * Methodology shown in the NBA card's "How?" modal — surfaces the
+ * signals the model considered + the multi-step closing plan derived
+ * from history and recent activity.
+ */
+export interface NextBestActionMethodology {
+  signals: {
+    stage: { name: string | null; type: string | null; probability: number } | null;
+    days_in_stage: number | null;
+    deal_age_days: number;
+    win_probability: number | null;
+    activities_30d_total: number;
+    activities_30d_by_type: Record<string, number>;
+    last_activity_at: string | null;
+    last_activity_type: string | null;
+    days_since_last_touch: number | null;
+    stage_transitions: number;
+  };
+  closing_plan: Array<{
+    step: number;
+    action: string;
+    rationale: string;
+    when: 'now' | 'today' | 'this_week' | 'next_week';
+  }>;
+  reasoning: string;
 }
 
-/**
- * Structured breakdown of the win-probability heuristic, so the UI can
- * render a "How is this calculated?" explainer popup. The backend
- * computes:
- *   final = stage_probability% × age_multiplier × engagement_multiplier
- * unless the stage is `won` (locked at 100%) or `lost` (locked at 0%).
- */
+export interface NextBestAction {
+  deal_id?: string; lead_id?: string;
+  action: string;
+  /** Backend field. The card reads `reason ?? rationale` so older shapes still work. */
+  reason?: string;
+  rationale?: string;
+  priority: 'low' | 'medium' | 'high' | 'med';
+  suggested_at?: string;
+  suggested_when?: 'now' | 'today' | 'this_week' | 'next_week';
+  channel?: 'call' | 'email' | 'meeting' | 'task';
+  methodology?: NextBestActionMethodology;
+}
+
 export interface WinProbabilityBreakdown {
-  /** Set when the stage_type is `won` / `lost` and the score is locked. */
   short_circuit?: 'won' | 'lost';
   short_circuit_message?: string;
-  stage_probability: number;        // 0–100, from crm_deal_stages.probability
+  stage_probability: number;
   stage_name: string | null;
   age_days: number;
   age_multiplier: number;
@@ -308,18 +330,15 @@ export interface WinProbabilityBreakdown {
   activities_30d: number;
   engagement_multiplier: number;
   engagement_label: string;
-  /** One-line maths string, e.g. "50% × 1.00 (age) × 1.20 (engagement) = 60%". */
   formula_text: string;
-  final_probability: number;        // 0–100
+  final_probability: number;
 }
 
 export interface WinProbability {
   deal_id?: string;
-  /** Backend now emits 0-100; older code may pass 0-1. The gauge normalises. */
   probability: number;
   reasoning?: string;
   breakdown?: WinProbabilityBreakdown;
-  // Legacy fields kept for backwards compatibility with earlier shapes.
   confidence?: number;
   drivers?: Array<{ name: string; impact: number; direction: 'positive' | 'negative' }>;
   generated_at?: string;
@@ -367,7 +386,6 @@ export interface Product {
   id: string; org_id: string; category_id?: string | null;
   sku: string; name: string; description?: string | null;
   unit?: string | null; price: number;
-  /** Per-unit weight in kilograms — drives price-per-kg / per-tonne in the UI. */
   weight_kg?: number | null;
   currency: string;
   tax_rate_pct?: number | null; hsn_code?: string | null;
