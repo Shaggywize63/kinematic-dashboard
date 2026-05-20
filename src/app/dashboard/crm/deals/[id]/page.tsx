@@ -46,8 +46,6 @@ const labelEvent = (e?: string) => {
   return EVENT_LABEL[e] || e.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 };
 
-// IST-formatted date + time tuple. Returns sensible defaults so a missing
-// `created_at` never crashes the history feed.
 function fmtIst(iso?: string | null) {
   if (!iso) return { date: '—', time: '—', ts: '' };
   try {
@@ -59,9 +57,6 @@ function fmtIst(iso?: string | null) {
   } catch { return { date: '—', time: '—', ts: iso }; }
 }
 
-// Minimal in-page error boundary so a render exception in any child
-// shows a friendly fallback instead of Next.js' opaque "Application
-// error" overlay. Each instance catches its own subtree.
 class SafeRender extends Component<{ label: string; children: ReactNode }, { error: Error | null }> {
   state = { error: null as Error | null };
   static getDerivedStateFromError(error: Error) { return { error }; }
@@ -142,10 +137,6 @@ export default function DealDetailPage() {
 
   useEffect(() => { reload(); /* eslint-disable-next-line */ }, [id]);
 
-  // Won/Lost chevron clicks open the Close-Deal modal (backend rejects
-  // direct moveStage to terminal stages). Open-stage clicks go through
-  // the API; both paths catch errors as toasts so nothing reaches the
-  // Next.js error overlay.
   const moveStage = async (stageId: string) => {
     try {
       if (!deal || !pipeline) return;
@@ -336,7 +327,11 @@ export default function DealDetailPage() {
             )}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 14, fontSize: 13 }}>
               <Field label="Amount" value={formatINR(Number(deal.amount) || 0)} />
-              <Field label="Stage" value={deal.stage_name} />
+              {/* Stage field hidden when the chevron breadcrumb is present
+                  (already shows "Currently in: …"). Falls back to the
+                  field when the deal has no pipeline so the rep still
+                  sees the stage somewhere. */}
+              {!hasPipeline && <Field label="Stage" value={deal.stage_name} />}
               <Field label="Status" value={deal.status} />
               <Field label="Probability" value={`${Math.round((Number(deal.probability) || 0) * 100)}%`} />
               <Field label="Close Date" value={fmtIst(deal.expected_close_date).date} />
