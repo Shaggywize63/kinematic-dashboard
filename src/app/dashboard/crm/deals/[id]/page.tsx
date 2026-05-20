@@ -268,10 +268,6 @@ export default function DealDetailPage() {
     } finally { setWinBusy(false); }
   };
 
-  // Auto-load AI Win Probability + Next Best Action the first time a
-  // deal loads. Reps were missing these because the previous build
-  // required clicking the button to fetch. Now both populate quietly on
-  // page open; the buttons still let users refresh.
   useEffect(() => {
     if (!deal) return;
     if (!winProb && !winBusy) loadWinProb();
@@ -489,6 +485,8 @@ export default function DealDetailPage() {
                 probability={winProb?.probability ?? (deal as any).ai_win_probability ?? deal.probability ?? 0}
                 confidence={winProb?.confidence ?? (deal as any).ai_win_confidence ?? undefined}
                 drivers={winProb?.drivers}
+                reasoning={winProb?.reasoning}
+                breakdown={winProb?.breakdown}
                 ai
               />
               {winBusy && !winProb && (
