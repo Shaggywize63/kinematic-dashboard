@@ -254,6 +254,70 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-manrope); letter-spacing: -0.01
 
   /* Headings don't break mid-word. */
   h1, h2, h3 { word-break: break-word; overflow-wrap: anywhere; }
+
+  /* ============================================================================
+     Kanban (Deals → ▦ Kanban) — desktop has 4-6 narrow columns side by side.
+     On phones each column dominates the viewport so the rep swipes between
+     them with scroll-snap. Long-press to drag (touch sensor in DealKanban.tsx).
+     ============================================================================ */
+  .kanban-touch-hint { display: block !important; }
+  .kanban-board { scroll-snap-type: x mandatory !important; padding-bottom: 12px !important; }
+  .kanban-column {
+    min-width: 88vw !important;
+    max-width: 88vw !important;
+    flex: 0 0 88vw !important;
+    padding: 10px !important;
+    max-height: 70vh !important;
+  }
+
+  /* ============================================================================
+     Stage chevron breadcrumb (deal detail) — desktop chevrons are 140px wide.
+     On phones each chevron shrinks to ~110px, font drops to 10px, padding
+     drops to 8px-14px, and the clip-path triangles shrink from 14px to 6px
+     so the text area inside each chevron is wide enough that long stage
+     names like "Qualification" don't get clipped behind the triangle.
+     Overall the path still scrolls horizontally inside its container so a
+     5-stage pipeline reads with one quick swipe.
+     ============================================================================ */
+  .stage-chevron-row { padding: 3px !important; }
+  .stage-chevron-btn {
+    min-width: 110px !important;
+    font-size: 10px !important;
+    padding: 8px 14px !important;
+    letter-spacing: 0.3px !important;
+    margin-right: -6px !important;
+  }
+  .stage-chevron-btn:last-child { margin-right: 0 !important; }
+  /* Smaller clip-path triangles (6px instead of 14px) so text isn't eaten
+     by the chevron points. Per-position overrides for first / middle / last. */
+  .stage-chevron-btn:not(:first-child):not(:last-child) {
+    clip-path: polygon(6px 0%, calc(100% - 6px) 0%, 100% 50%, calc(100% - 6px) 100%, 6px 100%, 0% 50%) !important;
+    -webkit-clip-path: polygon(6px 0%, calc(100% - 6px) 0%, 100% 50%, calc(100% - 6px) 100%, 6px 100%, 0% 50%) !important;
+  }
+  .stage-chevron-btn:first-child:not(:last-child) {
+    clip-path: polygon(0% 0%, calc(100% - 6px) 0%, 100% 50%, calc(100% - 6px) 100%, 0% 100%, 0% 50%) !important;
+    -webkit-clip-path: polygon(0% 0%, calc(100% - 6px) 0%, 100% 50%, calc(100% - 6px) 100%, 0% 100%, 0% 50%) !important;
+  }
+  .stage-chevron-btn:last-child:not(:first-child) {
+    clip-path: polygon(6px 0%, 100% 0%, 100% 100%, 6px 100%, 0% 50%) !important;
+    -webkit-clip-path: polygon(6px 0%, 100% 0%, 100% 100%, 6px 100%, 0% 50%) !important;
+  }
+  .stage-chevron-btn:first-child:last-child {
+    clip-path: none !important;
+    -webkit-clip-path: none !important;
+    border-radius: 6px !important;
+  }
+
+  /* Days-to-close pill + Mark Complete button — same row, smaller everything */
+  .stage-chevron-actions {
+    justify-content: flex-start !important;
+  }
+  .stage-chevron-actions > div,
+  .stage-chevron-actions > button {
+    font-size: 10px !important;
+    padding: 5px 10px !important;
+    letter-spacing: 0.3px !important;
+  }
 }
 
 /* CRM: visible affordance for clickable links — underline detail links and chip links */
