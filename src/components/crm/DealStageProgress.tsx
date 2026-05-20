@@ -16,24 +16,11 @@ interface Props {
 }
 
 /**
- * Salesforce-Path-style breadcrumb for deal stages, rebuilt for clean
- * text rendering at every screen size.
- *
- * Layout:
- *   row 1 — subtitle ("Currently in: Qualification · 3d in stage") so
- *           the stage name reads cleanly even if the chevron clips it.
- *           When the deal's stage_id isn't in this pipeline, a warning
- *           replaces the subtitle so the rep notices instead of seeing
- *           a "blank current" path.
- *   row 2 — chevron path (CSS clip-path), horizontal-scrolls on narrow
- *           viewports so chevrons keep a usable width instead of
- *           squashing text. Past chevrons green-tinted, current is
- *           BLUE, future grey. Won/Lost reached use green/red.
- *   row 3 — days-to-close pill + "Mark Complete" button on their own
- *           row, separated from the chevrons so neither truncates.
- *
- * Text inside each chevron is single-line with ellipsis overflow, so
- * long stage names stay legible without bleeding into neighbours.
+ * Salesforce-Path-style chevron breadcrumb. On phones (≤640px) the
+ * `globals.css` rules under .stage-chevron-{row,btn,action} squeeze
+ * padding, min-width, and font-size down so the path stays usable on
+ * a 360px viewport — text-overflow ellipsis kicks in for long names
+ * and the path scrolls horizontally inside its own container.
  */
 export default function DealStageProgress({
   stages,
@@ -59,14 +46,12 @@ export default function DealStageProgress({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      {/* Row 1 — subtitle. Stage name lives here in full so even if the
-          chevron truncates the label, the rep can still read it. */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.6 }}>
           Stage progress
         </span>
         {current ? (
-          <span style={{ fontSize: 12, color: 'var(--text)', fontWeight: 700 }}>
+          <span style={{ fontSize: 12, color: 'var(--text)', fontWeight: 700, minWidth: 0, wordBreak: 'break-word' }}>
             Currently in: <span style={{ color: '#3E9EFF' }}>{current.name}</span>
             {typeof daysInStage === 'number' && (
               <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--text-dim)', fontWeight: 600 }}>
@@ -81,9 +66,7 @@ export default function DealStageProgress({
         )}
       </div>
 
-      {/* Row 2 — chevron path. Horizontal scroll on narrow screens so
-          chevrons keep their min-width and text doesn't compress. */}
-      <div style={{
+      <div className="stage-chevron-row" style={{
         background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 10,
         padding: 4, overflowX: 'auto', overflowY: 'hidden',
       }}>
@@ -95,7 +78,6 @@ export default function DealStageProgress({
             const isLost = s.stage_type === 'lost';
 
             const palette = isCurrent
-              // Current — BLUE.
               ? { bg: '#3E9EFF', fg: '#ffffff' }
               : isWon && reached
                 ? { bg: 'rgba(16,185,129,0.20)', fg: '#10b981' }
@@ -114,6 +96,7 @@ export default function DealStageProgress({
             return (
               <button
                 key={s.id}
+                className="stage-chevron-btn"
                 onClick={() => onMove && onMove(s.id)}
                 disabled={!onMove || isCurrent}
                 title={`Stage ${i + 1} of ${sorted.length}: ${s.name}`}
@@ -151,10 +134,8 @@ export default function DealStageProgress({
         </div>
       </div>
 
-      {/* Row 3 — days-to-close + Mark Complete on their own row so they
-          never overlap the chevrons even when the path is wide. */}
       {(daysToClose != null || (onMarkComplete && !isClosedStage && nextOpenIdx > -1)) && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+        <div className="stage-chevron-actions" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           {daysToClose != null && (
             <div title={daysToClose < 0 ? 'Past expected close date' : 'Days remaining to expected close'} style={{
               padding: '6px 12px', borderRadius: 8, fontSize: 11, fontWeight: 700,
