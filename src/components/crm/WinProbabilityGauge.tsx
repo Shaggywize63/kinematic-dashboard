@@ -15,12 +15,6 @@ interface Props {
   breakdown?: WinProbabilityBreakdown;
 }
 
-/**
- * Backend started returning probability as 0-100; some callers (and the
- * legacy `Deal.probability` field) still pass 0-1. Anything ≤1 we treat
- * as a fraction; anything larger is already a percent. This keeps a
- * stage at "100% win probability" from rendering as 10000% → clamped.
- */
 function toPct(p: number): number {
   if (!Number.isFinite(p)) return 0;
   const raw = Math.abs(p) <= 1 ? p * 100 : p;
@@ -36,10 +30,10 @@ export default function WinProbabilityGauge({ probability, confidence, drivers, 
 
   return (
     <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>Win Probability</div>
-          {ai && <AiBadge />}
+          {ai && <AiBadge label="Powered by KINI AI" />}
         </div>
         {canExplain && (
           <button
@@ -116,13 +110,6 @@ function FactorRow({ label, value, impact, accent }: { label: string; value: str
   );
 }
 
-/**
- * Explainer modal — shows the step-by-step maths behind the gauge so
- * reps don't have to take the number on faith. Renders three modes:
- *   - Won/Lost short-circuit (locked figure, single reason line)
- *   - Full heuristic (stage prob × age mult × engagement mult = final)
- *   - Fallback prose (when only `reasoning` is present)
- */
 function ExplainerModal({
   onClose,
   breakdown,
@@ -141,22 +128,25 @@ function ExplainerModal({
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
       style={{
         position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 400,
-        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
       }}
     >
-      <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 24, maxWidth: 540, width: '100%', maxHeight: '85vh', overflowY: 'auto' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
-          <div>
+      <div style={{
+        background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14,
+        padding: 'clamp(16px, 4vw, 24px)',
+        maxWidth: 540, width: '100%', maxHeight: '90vh', overflowY: 'auto',
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6, gap: 12 }}>
+          <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text)' }}>How is this calculated?</div>
             <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>Breakdown of the {probability}% win probability</div>
           </div>
-          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', fontSize: 22, cursor: 'pointer', lineHeight: 1, padding: 0 }}>×</button>
+          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', fontSize: 22, cursor: 'pointer', lineHeight: 1, padding: 0, flexShrink: 0 }}>×</button>
         </div>
 
-        {/* Headline number */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', background: 'var(--s3)', borderRadius: 10, marginTop: 14, marginBottom: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', background: 'var(--s3)', borderRadius: 10, marginTop: 14, marginBottom: 14, flexWrap: 'wrap' }}>
           <div style={{ fontSize: 36, fontWeight: 800, color }}>{probability}%</div>
-          <div style={{ flex: 1, fontSize: 12, color: 'var(--text-dim)' }}>
+          <div style={{ flex: 1, fontSize: 12, color: 'var(--text-dim)', minWidth: 200 }}>
             {breakdown?.short_circuit ? breakdown.short_circuit_message : reasoning || 'Heuristic estimate from stage probability, deal age, and recent engagement.'}
           </div>
         </div>
@@ -167,12 +157,12 @@ function ExplainerModal({
           <HeuristicBreakdown breakdown={breakdown} />
         ) : (
           <div style={{ fontSize: 12, color: 'var(--text-dim)', fontStyle: 'italic' }}>
-            No structured breakdown was returned by the AI service. The plain-text reasoning above is the only explanation available for this calculation.
+            No structured breakdown was returned by KINI AI. The plain-text reasoning above is the only explanation available for this calculation.
           </div>
         )}
 
         <div style={{ marginTop: 18, padding: '10px 12px', background: 'var(--s3)', borderRadius: 8, fontSize: 11, color: 'var(--text-dim)' }}>
-          <strong style={{ color: 'var(--text)' }}>How the formula works:</strong> we start with the stage's configured win probability (set in pipeline settings), then multiply by a deal-age factor (deals older than 60 days are penalised) and an engagement factor (deals with more recent activities get a small boost, capped at ×1.50). The result is clamped to 0–100%.
+          <strong style={{ color: 'var(--text)' }}>How the formula works:</strong> we start with the stage&apos;s configured win probability (set in pipeline settings), then multiply by a deal-age factor (deals older than 60 days are penalised) and an engagement factor (deals with more recent activities get a small boost, capped at ×1.50). The result is clamped to 0–100% and explained in plain English by KINI AI.
         </div>
       </div>
     </div>
