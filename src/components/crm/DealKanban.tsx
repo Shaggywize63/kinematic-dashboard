@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { DndContext, useDroppable, useDraggable, type DragEndEvent, PointerSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { toast } from 'sonner';
 import type { Deal, Stage } from '../../types/crm';
@@ -8,9 +8,9 @@ import { useCrmKanbanStore } from '../../stores/crmKanbanStore';
 import DealCard from './DealCard';
 import { formatINR } from '../../lib/formatCurrency';
 
-// Kanban column. On phones (≤640px) `globals.css` overrides the width to
-// ~88vw so each column dominates the viewport and the user swipes
-// horizontally between columns instead of seeing four squished panes.
+// Kanban column. On phones (≤640px) `globals.css` stacks columns
+// vertically as full-width sections — drag-and-drop works in both
+// orientations because dnd-kit doesn't care about flex direction.
 function StageColumn({ stage, deals, showWeighted }: { stage: Stage; deals: Deal[]; showWeighted: boolean }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
   const total = deals.reduce((s, d) => {
@@ -63,26 +63,19 @@ function DraggableCard({ deal }: { deal: Deal }) {
   );
 }
 
-// Detect touch device once on mount so we can use a long-press to start
-// drags on phones (prevents accidental drags during horizontal column
-// scroll). Desktop keeps the immediate-drag PointerSensor.
-function useIsTouchDevice() {
-  const [touch, setTouch] = useState(false);
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    setTouch('ontouchstart' in window || (navigator as any)?.maxTouchPoints > 0);
-  }, []);
-  return touch;
-}
-
 export default function DealKanban({ stages, initialDeals, showWeighted = false }: { stages: Stage[]; initialDeals: Deal[]; showWeighted?: boolean }) {
-  const isTouch = useIsTouchDevice();
-  // Touch: 250ms long-press + 8px tolerance so swiping the board
-  // horizontally doesn't trigger drag mode by accident. Mouse: still
-  // immediate, 5px threshold (matches the pre-mobile behaviour).
-  const pointer = useSensor(PointerSensor, { activationConstraint: { distance: 5 } });
-  const touch = useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } });
-  const sensors = useSensors(isTouch ? touch : pointer);
+  // Register BOTH sensors simultaneously. dnd-kit fires whichever
+  // sensor's activation constraint is satisfied first, so:
+  //   - Desktop mouse: PointerSensor activates immediately (5px drag)
+  //   - Touch device: TouchSensor activates after 250ms long-press
+  // Earlier we swapped between them based on a device check, but laptops
+  // with touchscreens (and Chrome's "Toggle device toolbar") reported
+  // touch-capable AND tried to long-press for normal click-drag, which
+  // made desktop drag feel broken. Registering both fixes that.
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }),
+  );
   const { deals, setDeals, moveDealOptimistic, rollbackMove } = useCrmKanbanStore();
 
   useEffect(() => {
@@ -128,15 +121,13 @@ export default function DealKanban({ stages, initialDeals, showWeighted = false 
 
   return (
     <DndContext sensors={sensors} onDragEnd={onDragEnd}>
-      {/* On phones the touch hint sits above the board so reps know how to
-          drag. Hidden on desktop. */}
       <div className="kanban-touch-hint" style={{
         display: 'none',
         fontSize: 11, color: 'var(--text-dim)', padding: '6px 10px',
         background: 'var(--s3)', border: '1px solid var(--border)',
         borderRadius: 8, marginBottom: 8, textAlign: 'center',
       }}>
-        💡 Long-press a card to drag it. Swipe ↔ to scroll between stages.
+        💡 Long-press a card to drag it. Scroll down to see all stages.
       </div>
       <div
         className="kanban-board"
