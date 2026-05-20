@@ -85,8 +85,21 @@ export default function CrmUsersPage() {
   const reload = useCallback(async () => {
     setLoading(true);
     try {
+      // Pin the request to the picker's client_id as a query param in
+      // addition to the X-Client-Id header that api.ts already attaches.
+      // Defense in depth — if a proxy strips custom headers, the explicit
+      // ?client_id= still scopes the result to the active tenant on the
+      // backend. Mirrors the localStorage key used by api.ts.
+      let usersPath = '/api/v1/users?limit=500';
+      try {
+        const sel = typeof window !== 'undefined'
+          ? window.localStorage.getItem('kinematic_selected_client')
+          : null;
+        if (sel) usersPath += `&client_id=${encodeURIComponent(sel)}`;
+      } catch { /* ignore — header still carries the scope */ }
+
       const [u, r] = await Promise.allSettled([
-        api.get<any>('/api/v1/users?limit=500'),
+        api.get<any>(usersPath),
         rolesApi.list(),
       ]);
       if (u.status === 'fulfilled') {
