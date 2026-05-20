@@ -35,7 +35,12 @@ interface UserRow {
   client_id?: string | null;
   is_active?: boolean;
   permissions?: string[] | null;
+  // Backend (getUsers in misc.controller.ts) returns BOTH the id list
+  // (used by the edit form) and the resolved name list (used by the
+  // table column). Older responses without the join still work — the
+  // table column falls back to "—".
   assigned_cities?: string[] | null;
+  assigned_city_names?: string[] | null;
 }
 
 // Shape returned by /api/v1/cities. Backend management.controller.ts
@@ -727,21 +732,41 @@ export default function CrmUsersPage() {
               <th style={th}>Email</th>
               <th style={th}>Mobile</th>
               <th style={th}>Hierarchy</th>
+              <th style={th}>Cities</th>
               <th style={th}>Status</th>
               <th style={{ ...th, textAlign: 'right' }}>Actions</th>
             </tr>
           </thead>
           <tbody>
-            {loading && <tr><td colSpan={6} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)' }}>Loading users…</td></tr>}
-            {!loading && filtered.length === 0 && <tr><td colSpan={6} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)' }}>No users yet — click <strong style={{ color: 'var(--text)' }}>+ Add User</strong> or <strong style={{ color: 'var(--text)' }}>Bulk Upload</strong>.</td></tr>}
+            {loading && <tr><td colSpan={7} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)' }}>Loading users…</td></tr>}
+            {!loading && filtered.length === 0 && <tr><td colSpan={7} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)' }}>No users yet — click <strong style={{ color: 'var(--text)' }}>+ Add User</strong> or <strong style={{ color: 'var(--text)' }}>Bulk Upload</strong>.</td></tr>}
             {filtered.map((u) => {
               const hRoleName = u.org_role_id ? (roles.find((r) => r.id === u.org_role_id)?.name ?? '—') : '—';
+              // Resolve city names: prefer the server-joined names; fall
+              // back to looking up assigned_cities ids against the
+              // tenant-scoped cities list we already loaded for the form.
+              const cityNames: string[] = u.assigned_city_names && u.assigned_city_names.length
+                ? u.assigned_city_names
+                : (u.assigned_cities || []).map((cid) => cities.find((c) => c.id === cid)?.name).filter(Boolean) as string[];
               return (
                 <tr key={u.id}>
                   <td style={td}><strong style={{ color: 'var(--text)' }}>{u.name || '—'}</strong></td>
                   <td style={td}>{u.email || '—'}</td>
                   <td style={td}>{u.mobile || '—'}</td>
                   <td style={td}><span style={{ fontSize: 12, color: 'var(--text-dim)' }}>{hRoleName}</span></td>
+                  <td style={td}>
+                    {cityNames.length === 0 ? (
+                      <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>—</span>
+                    ) : cityNames.length <= 2 ? (
+                      <span style={{ fontSize: 12, color: 'var(--text)' }}>{cityNames.join(', ')}</span>
+                    ) : (
+                      // 3+ cities — show count + full list on hover so the
+                      // column stays readable on smaller screens.
+                      <span title={cityNames.join(', ')} style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 4, background: 'var(--s4)', border: '1px solid var(--border)', fontSize: 11, fontWeight: 700, color: 'var(--text)' }}>
+                        {cityNames.length} cities
+                      </span>
+                    )}
+                  </td>
                   <td style={td}>
                     <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 4, background: u.is_active === false ? 'rgba(224,30,44,0.15)' : 'rgba(0,217,126,0.15)', color: u.is_active === false ? '#E01E2C' : '#10b981', fontSize: 10, fontWeight: 800, letterSpacing: 0.4 }}>
                       {u.is_active === false ? 'INACTIVE' : 'ACTIVE'}
