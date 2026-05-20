@@ -31,6 +31,10 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 5,
   themeColor: '#0E1A2E',
+  // `viewport-fit: cover` lets `env(safe-area-inset-*)` resolve to real
+  // values on notched iOS devices — without this the KINI AI floating
+  // button sits too low and gets clipped by the home-indicator strip.
+  viewportFit: 'cover',
 };
 
 /**

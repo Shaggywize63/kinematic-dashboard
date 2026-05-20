@@ -117,7 +117,7 @@ export default function PipelinePage() {
               ?? null;
             const isEffectiveDefault = p.id === effectiveDefaultId;
             return (
-              <div key={p.id} style={{
+              <div key={p.id} className="pipeline-row" style={{
                 // Highlight only the effective default — thicker primary
                 // border + a left accent strip. Other is_default rows (e.g.
                 // a leftover shared one) render normally.
@@ -129,9 +129,13 @@ export default function PipelinePage() {
                 // (blue inside .crm-area; red is reserved for KINI AI).
                 boxShadow: isEffectiveDefault ? '0 0 0 2px rgba(0,102,255,0.10)' : 'none',
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 14, cursor: 'pointer' }} onClick={() => setExpanded(isOpen ? null : p.id)}>
-                  <span style={{ fontSize: 16, color: 'var(--text-dim)', transform: isOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}>▸</span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
+                {/* Row layout: chevron + title block + actions. On mobile
+                    (≤640px) the actions wrap below the title via the
+                    `pipeline-row-actions` rule in globals.css so 4
+                    chips don't squish into 30px each. */}
+                <div className="pipeline-row-head" style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: 14, cursor: 'pointer', flexWrap: 'wrap' }} onClick={() => setExpanded(isOpen ? null : p.id)}>
+                  <span style={{ fontSize: 16, color: 'var(--text-dim)', transform: isOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s', flexShrink: 0, marginTop: 2 }}>▸</span>
+                  <div style={{ flex: '1 1 220px', minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                       {isEffectiveDefault && <span title="Default pipeline" style={{ fontSize: 18, color: '#f5a623', lineHeight: 1 }}>★</span>}
                       <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>{p.name}</span>
@@ -141,7 +145,7 @@ export default function PipelinePage() {
                       {stages.length} stage{stages.length === 1 ? '' : 's'} · {dealsHere.length} open deal{dealsHere.length === 1 ? '' : 's'} · {formatINR(openValue)}
                     </div>
                   </div>
-                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }} onClick={(e) => e.stopPropagation()}>
+                  <div className="pipeline-row-actions" style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }} onClick={(e) => e.stopPropagation()}>
                     <Link href={`/dashboard/crm/deals?pipeline_id=${p.id}&view=kanban`} title="Open Kanban for this pipeline"
                       style={chip('#3E9EFF')}>Kanban →</Link>
                     {!isEffectiveDefault && (

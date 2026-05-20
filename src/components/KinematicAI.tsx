@@ -401,8 +401,13 @@ Be elite, professional, and data-driven. Use **bold** for key metrics. Proactive
         aria-label="Open Kini AI"
         style={{
           position: 'fixed',
-          bottom: isMobile ? 'calc(20px + env(safe-area-inset-bottom))' : 30,
-          right: isMobile ? 16 : 30,
+          // Raise the button on mobile so the dashboard's footer + iOS
+          // home-indicator strip don't clip it. Previous bottom:20px was
+          // colliding with the footer text band and ate the lower
+          // 10-15px of the FAB on narrow screens. 88px + safe-area keeps
+          // the whole circle visible above both.
+          bottom: isMobile ? 'calc(88px + env(safe-area-inset-bottom))' : 30,
+          right: isMobile ? 'calc(16px + env(safe-area-inset-right))' : 30,
           zIndex: 1000,
           width: isMobile ? 56 : 60,
           height: isMobile ? 56 : 60,

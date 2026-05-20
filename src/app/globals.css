@@ -68,6 +68,50 @@
   --primary: var(--k-info);
 }
 
+/*
+ * Mobile responsiveness sweep for the CRM area. Most pages use inline
+ * flex/grid styles tuned for desktop — these rules act as guard-rails at
+ * narrow widths so nothing leaks off-screen.
+ *
+ *   - .crm-area * with display:flex auto-wraps so action chips never
+ *     collapse to 20px each.
+ *   - Tables get horizontal scroll so columns stay legible.
+ *   - The pipeline page's row actions stack to a second line under the
+ *     title so each chip stays tappable.
+ *   - Avoid touching anything outside .crm-area (the global chat widget
+ *     and the dashboard chrome have their own responsive logic).
+ */
+@media (max-width: 640px) {
+  .crm-area {
+    /* Leaves room for the floating KINI button at bottom-right without
+       forcing every page to add its own bottom padding. */
+    padding-bottom: 96px;
+  }
+  .crm-area table {
+    /* If a page renders a wide table, allow horizontal scroll inside the
+       parent rather than overflowing the viewport. The parent has to be
+       overflow-x:auto for this to take effect; most CRM tables already
+       wrap their <table> in a scrolling container. */
+    min-width: 0;
+  }
+  .crm-area .pipeline-row-head {
+    /* Make sure the title block + action chips both wrap nicely on
+       small screens. flex-wrap is already declared inline; this rule
+       just forces the actions group onto its own line at ≤640px. */
+    flex-wrap: wrap;
+  }
+  .crm-area .pipeline-row-actions {
+    width: 100%;
+    margin-top: 8px;
+  }
+}
+
+/* Block horizontal overflow at the body level — any inline style that
+   reaches past the viewport (large tables, fixed-width modal headers)
+   becomes a horizontal scrollbar inside its own container, never the
+   whole page. */
+html, body { max-width: 100vw; overflow-x: hidden; }
+
 *, *::before, *::after { box-sizing: border-box; }
 
 html, body {
