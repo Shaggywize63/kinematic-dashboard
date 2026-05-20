@@ -548,7 +548,10 @@ function cardStyle(hovered: boolean): React.CSSProperties {
     height: '100%',
     display: 'flex',
     flexDirection: 'column',
-    overflow: 'hidden',
+    // `overflow: visible` so the per-widget options menu (rendered absolute
+    // inside the header) doesn't get clipped by the card. Chart clipping
+    // happens in `body` below, which still hides overflow.
+    overflow: 'visible',
     transition: 'transform .15s ease, box-shadow .15s ease, border-color .15s ease',
     transform: hovered ? 'translateY(-2px)' : 'translateY(0)',
     boxShadow: hovered ? '0 6px 20px rgba(0,0,0,0.25)' : '0 1px 3px rgba(0,0,0,0.08)',
@@ -558,7 +561,8 @@ function cardStyle(hovered: boolean): React.CSSProperties {
 const header: React.CSSProperties = { display: 'flex', alignItems: 'flex-start', padding: '12px 14px', gap: 8 };
 const title: React.CSSProperties = { fontSize: 13, fontWeight: 700, color: 'var(--text)' };
 const subtitle: React.CSSProperties = { fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.6, marginTop: 2, fontWeight: 700 };
-const body: React.CSSProperties = { flex: 1, padding: '4px 10px 10px', display: 'flex', flexDirection: 'column', minHeight: 0 };
+// Body owns the overflow clip now — charts stay inside their tile.
+const body: React.CSSProperties = { flex: 1, padding: '4px 10px 10px', display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden', borderBottomLeftRadius: 14, borderBottomRightRadius: 14 };
 const empty: React.CSSProperties = { fontSize: 12, color: 'var(--text-dim)', textAlign: 'center', padding: 24, flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' };
 const iconBtn: React.CSSProperties = { background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center', borderRadius: 6 };
 const menu: React.CSSProperties = { position: 'absolute', top: 'calc(100% + 4px)', right: 0, background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 10, padding: 4, minWidth: 180, zIndex: 50, boxShadow: '0 10px 28px rgba(0,0,0,0.35)' };

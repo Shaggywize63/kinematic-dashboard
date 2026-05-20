@@ -182,7 +182,9 @@ function DealsListPage() {
             </>
           )}
         </div>
-        <Link href="/dashboard/crm/deals/new" style={{ background: 'var(--primary)', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700 }}>+ New Deal</Link>
+        {/* New Deal button removed by design — deals are created exclusively
+            via the lead-conversion flow (Lead detail → Convert) so the deal
+            inherits the lead's qualification, source, and history. */}
       </div>
 
       {view === 'kanban' ? (

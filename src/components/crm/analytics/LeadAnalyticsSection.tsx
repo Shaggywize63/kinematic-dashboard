@@ -262,7 +262,10 @@ export default function LeadAnalyticsSection() {
           draggableHandle=".widget-drag-handle"
         >
           {config.widgets.map((w) => (
-            <div key={w.id} style={{ position: 'relative' }}>
+            // overflow:visible so the widget's options dropdown can escape the
+            // react-grid-layout cell (otherwise the "Remove widget" item gets
+            // clipped). The inner widget body still hides its own overflow.
+            <div key={w.id} style={{ position: 'relative', overflow: 'visible' }}>
               {editing && (
                 <div className="widget-drag-handle" style={{
                   position: 'absolute', top: 0, left: 0, right: 0, height: 24, zIndex: 10,

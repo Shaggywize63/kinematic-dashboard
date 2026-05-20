@@ -41,6 +41,12 @@ interface UserRow {
   // table column falls back to "—".
   assigned_cities?: string[] | null;
   assigned_city_names?: string[] | null;
+  // KINI AI usage — backend (getUsers) joins kini_usage for the current
+  // month and stamps these two fields. `kini_used_this_month` is summed
+  // across platforms; `kini_monthly_cap` is the env/policy cap (default
+  // 20). Both are optional so older API responses don't break the column.
+  kini_used_this_month?: number | null;
+  kini_monthly_cap?: number | null;
 }
 
 // Shape returned by /api/v1/cities. Backend management.controller.ts
@@ -749,13 +755,14 @@ export default function CrmUsersPage() {
               <th style={th}>Mobile</th>
               <th style={th}>Hierarchy</th>
               <th style={th}>Cities</th>
+              <th style={th}>Kini AI</th>
               <th style={th}>Status</th>
               <th style={{ ...th, textAlign: 'right' }}>Actions</th>
             </tr>
           </thead>
           <tbody>
-            {loading && <tr><td colSpan={7} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)' }}>Loading users…</td></tr>}
-            {!loading && filtered.length === 0 && <tr><td colSpan={7} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)' }}>No users yet — click <strong style={{ color: 'var(--text)' }}>+ Add User</strong> or <strong style={{ color: 'var(--text)' }}>Bulk Upload</strong>.</td></tr>}
+            {loading && <tr><td colSpan={8} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)' }}>Loading users…</td></tr>}
+            {!loading && filtered.length === 0 && <tr><td colSpan={8} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)' }}>No users yet — click <strong style={{ color: 'var(--text)' }}>+ Add User</strong> or <strong style={{ color: 'var(--text)' }}>Bulk Upload</strong>.</td></tr>}
             {filtered.map((u) => {
               const hRoleName = u.org_role_id ? (roles.find((r) => r.id === u.org_role_id)?.name ?? '—') : '—';
               // Resolve city names: prefer the server-joined names; fall
@@ -782,6 +789,28 @@ export default function CrmUsersPage() {
                         {cityNames.length} cities
                       </span>
                     )}
+                  </td>
+                  <td style={td}>
+                    {(() => {
+                      // Kini AI credits — used / cap for the current month.
+                      // Backend stamps both fields on the user row. Capped
+                      // bar caps at 100% width even if the user somehow
+                      // exceeds (shouldn't happen — the gate blocks 21+).
+                      const used = Math.max(0, u.kini_used_this_month ?? 0);
+                      const cap = Math.max(1, u.kini_monthly_cap ?? 20);
+                      const pct = Math.min(100, Math.round((used / cap) * 100));
+                      const tone = used >= cap ? '#E01E2C' : used >= cap * 0.8 ? '#f59e0b' : '#10b981';
+                      return (
+                        <div style={{ minWidth: 96 }}>
+                          <div style={{ fontSize: 11, color: 'var(--text)', fontWeight: 700 }}>
+                            {used} <span style={{ color: 'var(--text-dim)', fontWeight: 400 }}>/ {cap}</span>
+                          </div>
+                          <div style={{ marginTop: 4, height: 4, background: 'var(--s4)', borderRadius: 2, overflow: 'hidden' }}>
+                            <div style={{ width: `${pct}%`, height: '100%', background: tone, transition: 'width 0.2s' }} />
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </td>
                   <td style={td}>
                     <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 4, background: u.is_active === false ? 'rgba(224,30,44,0.15)' : 'rgba(0,217,126,0.15)', color: u.is_active === false ? '#E01E2C' : '#10b981', fontSize: 10, fontWeight: 800, letterSpacing: 0.4 }}>

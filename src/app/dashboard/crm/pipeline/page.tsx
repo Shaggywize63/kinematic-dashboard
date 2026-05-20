@@ -104,11 +104,20 @@ export default function PipelinePage() {
             const openValue = dealsHere.reduce((sum, d) => sum + Number((d as any).amount || 0), 0);
             const isOpen = expanded === p.id;
             return (
-              <div key={p.id} style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12 }}>
+              <div key={p.id} style={{
+                // Highlight the default pipeline: thicker primary border + a
+                // subtle accent strip on the left so it's obvious at a glance.
+                background: p.is_default ? 'var(--s2)' : 'var(--s2)',
+                border: `1px solid ${p.is_default ? 'var(--primary)' : 'var(--border)'}`,
+                borderLeft: `4px solid ${p.is_default ? 'var(--primary)' : 'var(--border)'}`,
+                borderRadius: 12,
+                boxShadow: p.is_default ? '0 0 0 2px rgba(224,30,44,0.08)' : 'none',
+              }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 14, cursor: 'pointer' }} onClick={() => setExpanded(isOpen ? null : p.id)}>
                   <span style={{ fontSize: 16, color: 'var(--text-dim)', transform: isOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}>▸</span>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      {p.is_default && <span title="Default pipeline" style={{ fontSize: 18, color: '#f5a623', lineHeight: 1 }}>★</span>}
                       <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>{p.name}</span>
                       {p.is_default && <span style={{ fontSize: 9, padding: '2px 8px', borderRadius: 4, background: 'var(--primary)', color: '#fff', fontWeight: 800, letterSpacing: 0.4 }}>DEFAULT</span>}
                     </div>

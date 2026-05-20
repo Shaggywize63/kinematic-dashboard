@@ -98,6 +98,30 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const handleLogout = () => { clearSession(); router.push('/login'); };
   const userRole = user?.role || '';
   const userPerms = user?.permissions || [];
+  // Fetch the hierarchy role label once so the top header can show "Name ·
+  // Business Manager" (the hierarchy name) instead of just the legacy
+  // preset role. Cached in localStorage so repeat visits skip the round
+  // trip. Resolves quietly if the API isn't reachable — falls back to the
+  // preset label.
+  const [hierarchyRoleName, setHierarchyRoleName] = useState<string>('');
+  useEffect(() => {
+    const orgRoleId = (user as any)?.org_role_id;
+    if (!orgRoleId) { setHierarchyRoleName(''); return; }
+    const cacheKey = `kin_role_name_${orgRoleId}`;
+    try {
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) { setHierarchyRoleName(cached); return; }
+    } catch { /* ignore */ }
+    api.get<any>(`/api/v1/roles/${orgRoleId}`)
+      .then((r: any) => {
+        const name = (r?.data?.name || r?.name || '') as string;
+        if (name) {
+          setHierarchyRoleName(name);
+          try { localStorage.setItem(cacheKey, name); } catch { /* ignore */ }
+        }
+      })
+      .catch(() => { /* fall back to preset role */ });
+  }, [user?.id]);
   const enabledModules: string[] = Array.isArray(user?.enabled_modules) ? user.enabled_modules : [];
   const enabledPackages: string[] = Array.isArray(user?.enabled_packages) ? user.enabled_packages : [];
   const isActive = (href: string) => href === '/dashboard' ? pathname === '/dashboard' : pathname.startsWith(href);
@@ -297,9 +321,28 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   <Icon d="M3 12h18 M3 6h18 M3 18h18" size={22} />
                 </button>
               )}
-              <span style={{ fontWeight:700, fontSize: isMobile ? 13 : 15, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
-                {pathname.split('/').pop()?.toUpperCase() || 'DASHBOARD'}
-              </span>
+              {/* User identity badge — name + hierarchy role label. The
+                  hierarchy name comes from /api/v1/roles/:id (cached); falls
+                  back to the legacy preset role label so we never render an
+                  empty descriptor. */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                <div style={{
+                  width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
+                  background: C.redD, color: C.red, display: 'flex',
+                  alignItems: 'center', justifyContent: 'center',
+                  fontWeight: 800, fontSize: 13, border: `1px solid ${C.redB}`,
+                }}>
+                  {(user?.name || 'U').slice(0, 1).toUpperCase()}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, lineHeight: 1.15 }}>
+                  <span style={{ fontWeight: 700, fontSize: isMobile ? 13 : 14, color: C.white, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+                    {user?.name || 'Signed in'}
+                  </span>
+                  <span style={{ fontSize: isMobile ? 10 : 11, color: C.gray, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+                    {hierarchyRoleName || getRoleLabel(userRole)}
+                  </span>
+                </div>
+              </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <NotificationBell />
