@@ -236,6 +236,11 @@ function LiveMap({
     // render or if OSRM is down. Solid line when routed, dashed when
     // straight-line fallback, so reps can tell whether the path follows
     // real roads at a glance.
+    //
+    // NOTE: must be `L.featureGroup` (not `L.layerGroup`) — the outer
+    // `fitBounds` call below iterates child layers via `getBounds()` /
+    // `getLatLng()`, and plain LayerGroups have neither, which threw
+    // "TypeError: layer.getLatLng is not a function" on every FE select.
     if (trailLayer.current) { trailLayer.current.remove(); trailLayer.current = null; }
     if (trailDotLayer.current) { trailDotLayer.current.remove(); trailDotLayer.current = null; }
     const polyCoords = routedCoords && routedCoords.length > 1 ? routedCoords : null;
@@ -257,7 +262,7 @@ function LiveMap({
         lineCap: 'round',
         lineJoin: 'round',
       });
-      trailLayer.current = L.layerGroup([glow, main]).addTo(mapInst.current);
+      trailLayer.current = L.featureGroup([glow, main]).addTo(mapInst.current);
 
       // Drop tiny ping markers at each raw GPS capture so the rep can
       // see where the FE actually stopped/checked in along the route.
@@ -278,7 +283,7 @@ function LiveMap({
           });
           dots.push(dot);
         });
-        trailDotLayer.current = L.layerGroup(dots).addTo(mapInst.current);
+        trailDotLayer.current = L.featureGroup(dots).addTo(mapInst.current);
       }
     }
 
