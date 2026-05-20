@@ -7,6 +7,12 @@ import { useClient } from '../../../../../context/ClientContext';
 // Settings → Locations — manage the State / City / District / Block master
 // list per client. Powers the cascading filters on the Leads page. Supports
 // bulk paste of CSV rows.
+//
+// The Add modal sources State + City from the global India reference set
+// (`crm_states` + `crm_cities`, 36 states / 354 cities) so admins pick
+// instead of free-typing — that avoids "Mumbai" vs "Mumbai " vs "mumbai"
+// dupes leaking into lead filters. District + Block stay free-text because
+// they're tenant-specific cuts that aren't part of the reference data.
 
 interface Location {
   id: string;
@@ -17,6 +23,8 @@ interface Location {
   client_id: string | null;
   is_active: boolean;
 }
+interface RefState { id: string; name: string; code?: string | null }
+interface RefCity  { id: string; name: string; state_id: string }
 interface ApiList<T> { success?: boolean; data?: T[] }
 
 const inputStyle: React.CSSProperties = {
@@ -49,10 +57,6 @@ export default function LocationsSettingsPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      // Pin the picker's client_id as a query param in addition to the
-      // X-Client-Id header that api.ts already attaches. Defense in depth —
-      // if a proxy strips custom headers, the explicit ?client_id= still
-      // scopes the result to the active tenant on the backend.
       let path = '/api/v1/crm/locations';
       const sel = pickedClientId();
       if (sel) path += `?client_id=${encodeURIComponent(sel)}`;
@@ -135,19 +139,85 @@ export default function LocationsSettingsPage() {
   );
 }
 
+/**
+ * Add Location modal.
+ *
+ * State + City are dropdowns sourced from the India reference set
+ * (`/api/v1/crm/states` + cascading `/api/v1/crm/states/:id/cities`) — the
+ * `applySharedOrOwn` filter on the backend already exposes the 36-state /
+ * 354-city seed to every client. Picking from the dropdown avoids the
+ * "Mumbai" / "Mumbai " / "mumbai" dupes that free-text was causing in
+ * lead filters. District + Block stay free-text because they're
+ * tenant-specific cuts that aren't part of the reference data.
+ */
 function AddLocationModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
-  const [state, setState]       = useState('');
-  const [city, setCity]         = useState('');
+  const [states, setStates]   = useState<RefState[]>([]);
+  const [cities, setCities]   = useState<RefCity[]>([]);
+  const [statesLoading, setStatesLoading] = useState(true);
+  const [citiesLoading, setCitiesLoading] = useState(false);
+  const [stateId, setStateId] = useState('');
+  const [cityId, setCityId]   = useState('');
   const [district, setDistrict] = useState('');
   const [block, setBlock]       = useState('');
   const [saving, setSaving]     = useState(false);
 
+  // Load states on mount.
+  useEffect(() => {
+    (async () => {
+      try {
+        const sel = pickedClientId();
+        const path = sel ? `/api/v1/crm/states?client_id=${encodeURIComponent(sel)}` : '/api/v1/crm/states';
+        const r = await api.get<ApiList<RefState>>(path);
+        setStates(r.data || []);
+      } catch (e: any) {
+        toast.error(e?.message || 'Failed to load states');
+      } finally { setStatesLoading(false); }
+    })();
+  }, []);
+
+  // Cascading: fetch cities whenever the selected state changes.
+  useEffect(() => {
+    if (!stateId) { setCities([]); setCityId(''); return; }
+    let cancelled = false;
+    (async () => {
+      setCitiesLoading(true);
+      try {
+        const sel = pickedClientId();
+        const path = sel
+          ? `/api/v1/crm/states/${stateId}/cities?client_id=${encodeURIComponent(sel)}`
+          : `/api/v1/crm/states/${stateId}/cities`;
+        const r = await api.get<ApiList<RefCity>>(path);
+        if (!cancelled) {
+          setCities(r.data || []);
+          setCityId('');
+        }
+      } catch (e: any) {
+        if (!cancelled) toast.error(e?.message || 'Failed to load cities');
+      } finally { if (!cancelled) setCitiesLoading(false); }
+    })();
+    return () => { cancelled = true; };
+  }, [stateId]);
+
+  const selectedStateName = states.find((s) => s.id === stateId)?.name || '';
+  const selectedCityName  = cities.find((c) => c.id === cityId)?.name  || '';
+
   const save = async () => {
-    if (!state.trim() || !city.trim()) { toast.error('State and City are required'); return; }
+    if (!selectedStateName || !selectedCityName) {
+      toast.error('Please pick a State and City from the dropdowns');
+      return;
+    }
     setSaving(true);
     try {
-      await api.post('/api/v1/crm/locations', { state: state.trim(), city: city.trim(), district: district.trim() || undefined, block: block.trim() || undefined });
-      toast.success('Location added');
+      // The backend stores name strings (not foreign keys to crm_states/cities)
+      // because crm_client_locations is a denormalised hierarchy table.
+      // Send the picked names — backend stamps tenant via X-Client-Id / picker.
+      await api.post('/api/v1/crm/locations', {
+        state: selectedStateName,
+        city:  selectedCityName,
+        district: district.trim() || undefined,
+        block:    block.trim()    || undefined,
+      });
+      toast.success(`${selectedCityName}, ${selectedStateName} added`);
       onSaved();
     } catch (e: any) { toast.error(e.message || 'Save failed'); }
     finally { setSaving(false); }
@@ -155,13 +225,36 @@ function AddLocationModal({ onClose, onSaved }: { onClose: () => void; onSaved: 
 
   return (
     <Modal onClose={onClose} title="Add location">
-      <Field label="State"><input style={inputStyle} value={state} onChange={(e) => setState(e.target.value)} placeholder="e.g. Maharashtra" autoFocus /></Field>
-      <Field label="City"><input style={inputStyle} value={city} onChange={(e) => setCity(e.target.value)} placeholder="e.g. Mumbai" /></Field>
-      <Field label="District (optional)"><input style={inputStyle} value={district} onChange={(e) => setDistrict(e.target.value)} placeholder="e.g. Mumbai Suburban" /></Field>
-      <Field label="Block (optional)"><input style={inputStyle} value={block} onChange={(e) => setBlock(e.target.value)} placeholder="e.g. Andheri West" /></Field>
+      <Field label="State *">
+        <select style={inputStyle} value={stateId} onChange={(e) => setStateId(e.target.value)} disabled={statesLoading}>
+          <option value="">{statesLoading ? 'Loading states…' : '— Pick a state —'}</option>
+          {states.map((s) => (
+            <option key={s.id} value={s.id}>{s.name}</option>
+          ))}
+        </select>
+      </Field>
+      <Field label="City *">
+        <select style={inputStyle} value={cityId} onChange={(e) => setCityId(e.target.value)} disabled={!stateId || citiesLoading}>
+          <option value="">
+            {!stateId ? 'Pick a state first' : citiesLoading ? 'Loading cities…' : cities.length === 0 ? 'No cities for this state' : '— Pick a city —'}
+          </option>
+          {cities.map((c) => (
+            <option key={c.id} value={c.id}>{c.name}</option>
+          ))}
+        </select>
+      </Field>
+      <Field label="District (optional)">
+        <input style={inputStyle} value={district} onChange={(e) => setDistrict(e.target.value)} placeholder="e.g. Mumbai Suburban" />
+      </Field>
+      <Field label="Block (optional)">
+        <input style={inputStyle} value={block} onChange={(e) => setBlock(e.target.value)} placeholder="e.g. Andheri West" />
+      </Field>
+      <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 6 }}>
+        Only the picked city gets added to your locations list. Add more from the dropdown one at a time, or use Bulk Import for a large CSV.
+      </div>
       <ModalActions>
         <button style={btnSec} onClick={onClose}>Cancel</button>
-        <button style={btn}    onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
+        <button style={btn}    onClick={save} disabled={saving || !cityId}>{saving ? 'Saving…' : 'Save'}</button>
       </ModalActions>
     </Modal>
   );
