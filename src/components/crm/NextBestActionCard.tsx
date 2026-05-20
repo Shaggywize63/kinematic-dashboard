@@ -18,10 +18,6 @@ const WHEN_LABEL: Record<string, string> = {
   next_week: 'Next week',
 };
 
-/**
- * Normalise priority — backend uses 'high'/'med'/'low', frontend used to
- * use 'high'/'medium'/'low'. Either shape arrives in `priority`.
- */
 function priorityKey(p?: string): 'high' | 'medium' | 'low' {
   if (p === 'high') return 'high';
   if (p === 'low') return 'low';
@@ -39,7 +35,6 @@ export default function NextBestActionCard({
 }) {
   const prio = priorityKey(action?.priority as string | undefined);
   const tone = prio === 'high' ? '#E01E2C' : prio === 'medium' ? '#F7B538' : '#28B463';
-  // Backend returns `reason`; older shapes used `rationale`. Accept both.
   const reasonText = action?.reason ?? action?.rationale ?? '';
   const [openExplainer, setOpenExplainer] = useState(false);
   const methodology = action?.methodology;
@@ -48,9 +43,9 @@ export default function NextBestActionCard({
   return (
     <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, gap: 8, flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>Next Best Action</div>
-          <AiBadge />
+          <AiBadge label="Powered by KINI AI" />
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
           {canExplain && (
@@ -115,12 +110,6 @@ export default function NextBestActionCard({
   );
 }
 
-/**
- * "How is this calculated?" modal — shows the inputs the model considered
- * (deal age, days in stage, last touch, activity mix, etc.) followed by
- * the step-by-step closing plan it produced. The plan is the part reps
- * actually read; the signals are there so they trust the recommendation.
- */
 function ExplainerModal({
   onClose,
   methodology,
@@ -158,7 +147,6 @@ function ExplainerModal({
           <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', fontSize: 22, cursor: 'pointer', lineHeight: 1, padding: 0, flexShrink: 0 }}>×</button>
         </div>
 
-        {/* Headline recommendation */}
         <div style={{
           display: 'flex', alignItems: 'center', gap: 12,
           padding: '14px 16px', background: 'var(--s3)', borderRadius: 10,
@@ -181,11 +169,9 @@ function ExplainerModal({
           </div>
         </div>
 
-        {/* Signals considered */}
         <SectionHeader>Signals considered</SectionHeader>
         <SignalsGrid signals={signals} />
 
-        {/* Closing plan */}
         {closing_plan.length > 0 && (
           <>
             <SectionHeader>Closing plan</SectionHeader>
@@ -198,7 +184,7 @@ function ExplainerModal({
         )}
 
         <div style={{ marginTop: 18, padding: '10px 12px', background: 'var(--s3)', borderRadius: 8, fontSize: 11, color: 'var(--text-dim)', lineHeight: 1.5 }}>
-          <strong style={{ color: 'var(--text)' }}>How the recommender works:</strong> we feed Claude Haiku the deal&apos;s current stage, win probability, age, days in stage, last 30 days of activities (by type), and stage transition history. The model picks the next single action AND a 3–5 step closing plan ordered by urgency. Refreshes are cached for 6 hours — click <strong style={{ color: 'var(--text)' }}>Suggest</strong> on the card to force a re-compute.
+          <strong style={{ color: 'var(--text)' }}>How the recommender works:</strong> KINI AI is given the deal&apos;s current stage, win probability, age, days in stage, last 30 days of activities (by type), and stage transition history. It picks the next single action AND a 3–5 step closing plan ordered by urgency. Refreshes are cached for 6 hours — click <strong style={{ color: 'var(--text)' }}>Suggest</strong> on the card to force a re-compute.
         </div>
       </div>
     </div>
