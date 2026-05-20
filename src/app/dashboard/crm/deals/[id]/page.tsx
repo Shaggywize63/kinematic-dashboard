@@ -325,14 +325,12 @@ export default function DealDetailPage() {
                 ✗ This deal is closed as LOST
               </div>
             )}
-            {/* Field grid — the Stage field is ALWAYS shown so the rep
-                can see the canonical stage name even when the chevron
-                breadcrumb above can't resolve the stage_id (e.g. when
-                the pipeline returns stages with different ids than the
-                one stamped on the deal). */}
+            {/* Stage info appears in exactly ONE place per page:
+                  - chevron breadcrumb above the card when the deal has a pipeline, OR
+                  - the "Stage" field below when the deal has no pipeline. */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 14, fontSize: 13 }}>
               <Field label="Amount" value={formatINR(Number(deal.amount) || 0)} />
-              <Field label="Stage" value={deal.stage_name} />
+              {!hasPipeline && <Field label="Stage" value={deal.stage_name} />}
               <Field label="Status" value={deal.status} />
               <Field label="Probability" value={`${Math.round((Number(deal.probability) || 0) * 100)}%`} />
               <Field label="Close Date" value={fmtIst(deal.expected_close_date).date} />
