@@ -24,7 +24,13 @@ interface UserRow {
   client_id?: string | null;
   is_active?: boolean;
   permissions?: string[] | null;
+  assigned_cities?: string[] | null;
 }
+
+// Shape returned by /api/v1/cities. Backend management.controller.ts
+// already scopes by tenant (cd57c3f), so this list reflects the currently
+// picked client.
+interface CityRow { id: string; name: string }
 
 // Tiny CSV parser — purpose-built. Splits on newlines (LF or CRLF),
 // fields on commas, supports double-quoted fields with embedded commas
@@ -62,9 +68,17 @@ const TEMPLATE_SAMPLE = `${TEMPLATE_HEADER}
 Rahul Sharma,9812345601,rahul@example.com,Regional Sales Lead,changeme123
 Priya Iyer,9812345602,,Field Manager,changeme123`;
 
+// Helper: lift the picker's client id from localStorage. Used as a query
+// param fallback if a proxy ever strips the X-Client-Id header.
+function pickedClientId(): string | null {
+  if (typeof window === 'undefined') return null;
+  try { return window.localStorage.getItem('kinematic_selected_client'); } catch { return null; }
+}
+
 export default function CrmUsersPage() {
   const [users, setUsers] = useState<UserRow[]>([]);
   const [roles, setRoles] = useState<OrgRole[]>([]);
+  const [cities, setCities] = useState<CityRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -79,6 +93,7 @@ export default function CrmUsersPage() {
     name: '', email: '', mobile: '',
     org_role_id: '' as string,
     password: '',
+    assigned_cities: [] as string[],
   };
   const [form, setForm] = useState(blank);
 
@@ -90,23 +105,29 @@ export default function CrmUsersPage() {
       // Defense in depth — if a proxy strips custom headers, the explicit
       // ?client_id= still scopes the result to the active tenant on the
       // backend. Mirrors the localStorage key used by api.ts.
-      let usersPath = '/api/v1/users?limit=500';
-      try {
-        const sel = typeof window !== 'undefined'
-          ? window.localStorage.getItem('kinematic_selected_client')
-          : null;
-        if (sel) usersPath += `&client_id=${encodeURIComponent(sel)}`;
-      } catch { /* ignore — header still carries the scope */ }
+      const sel = pickedClientId();
+      const suffix = sel ? `&client_id=${encodeURIComponent(sel)}` : '';
+      const usersPath  = `/api/v1/users?limit=500${suffix}`;
+      const citiesPath = `/api/v1/cities?limit=500${suffix}`;
 
-      const [u, r] = await Promise.allSettled([
+      const [u, r, c] = await Promise.allSettled([
         api.get<any>(usersPath),
         rolesApi.list(),
+        api.get<any>(citiesPath),
       ]);
       if (u.status === 'fulfilled') {
         const list = (u.value.data?.data || u.value.data?.users || u.value.data || []) as UserRow[];
         setUsers(Array.isArray(list) ? list : []);
       }
       if (r.status === 'fulfilled') setRoles(((r.value as any) ?? []) as OrgRole[]);
+      if (c.status === 'fulfilled') {
+        // Cities controller returns { data: [...] }; accept either wrapped
+        // or bare arrays so this survives the inevitable response shape
+        // drift.
+        const raw = (c.value as any)?.data ?? c.value ?? [];
+        const list = Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : [];
+        setCities(list.filter((x: any) => x?.id && x?.name) as CityRow[]);
+      }
     } catch (e: any) {
       toast.error(e.message || 'Failed to load users');
     } finally { setLoading(false); }
@@ -129,6 +150,11 @@ export default function CrmUsersPage() {
       mobile: u.mobile || '',
       org_role_id: u.org_role_id || '',
       password: '',
+      // Backend may return either an array of UUIDs (preferred) or an
+      // array of city assignment objects {city_id}; coerce defensively.
+      assigned_cities: Array.isArray(u.assigned_cities)
+        ? (u.assigned_cities as any[]).map((x) => typeof x === 'string' ? x : x?.city_id).filter(Boolean) as string[]
+        : [],
     });
     setShowAdd(true);
   };
@@ -141,6 +167,15 @@ export default function CrmUsersPage() {
     if (!orgRoleId) return [];
     const r = roles.find((x) => x.id === orgRoleId);
     return r?.permissions ?? [];
+  };
+
+  const toggleCity = (id: string) => {
+    setForm((f) => ({
+      ...f,
+      assigned_cities: f.assigned_cities.includes(id)
+        ? f.assigned_cities.filter((x) => x !== id)
+        : [...f.assigned_cities, id],
+    }));
   };
 
   const save = async () => {
@@ -159,6 +194,9 @@ export default function CrmUsersPage() {
         mobile: form.mobile.trim(),
         permissions: permissionsForRole(form.org_role_id),
         org_role_id: form.org_role_id || null,
+        // Backend createUser/updateUser writes these to user_city_assignments;
+        // empty array clears any existing assignments on update.
+        assigned_cities: form.assigned_cities,
         is_active: true,
       };
       if (editId) {
@@ -334,6 +372,42 @@ export default function CrmUsersPage() {
             </Field>
           </div>
 
+          {/* Assigned Cities — backend createUser/updateUser writes these to
+              user_city_assignments. Cities list is auto-scoped to the picked
+              tenant (the X-Client-Id fix in management.controller.ts cd57c3f)
+              so admins only see cities for the client they're browsing. */}
+          <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 6 }}>
+              <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text)' }}>Assigned Cities (multi-select)</div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button type="button" onClick={() => setForm((p) => ({ ...p, assigned_cities: cities.map((c) => c.id) }))} style={btnTiny}>Select all</button>
+                <button type="button" onClick={() => setForm((p) => ({ ...p, assigned_cities: [] }))} style={btnTiny}>Clear</button>
+              </div>
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 8 }}>
+              The user will only see data for these cities. Leave empty to grant org-wide access.
+              {' '}
+              <strong style={{ color: 'var(--text)' }}>{form.assigned_cities.length}</strong> of {cities.length} selected.
+            </div>
+            {cities.length === 0 ? (
+              <div style={{ background: 'var(--s4)', border: '1px dashed var(--border)', borderRadius: 8, padding: 14, textAlign: 'center', color: 'var(--text-dim)', fontSize: 12 }}>
+                No cities configured for this tenant. Add them under <Link href="/dashboard/other-management/cities" style={{ color: 'var(--primary)' }}>Cities</Link> first.
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 6, maxHeight: 220, overflowY: 'auto', padding: 4 }}>
+                {cities.map((c) => {
+                  const checked = form.assigned_cities.includes(c.id);
+                  return (
+                    <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--s4)', padding: '6px 10px', borderRadius: 6, cursor: 'pointer', border: `1px solid ${checked ? 'var(--primary)' : 'var(--border)'}` }}>
+                      <input type="checkbox" checked={checked} onChange={() => toggleCity(c.id)} />
+                      <span style={{ fontSize: 12, fontWeight: 600, color: checked ? 'var(--text)' : 'var(--text-dim)' }}>{c.name}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
           {/* Show what the user is inheriting from the picked hierarchy role
               so admins can spot-check before saving. */}
           {form.org_role_id && (
@@ -416,3 +490,4 @@ const th: React.CSSProperties = { padding: '10px 14px', fontSize: 11, color: 'va
 const btnGhost: React.CSSProperties = { background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, cursor: 'pointer' };
 const btnPrimary: React.CSSProperties = { background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 18px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer' };
 const btnSmall: React.CSSProperties = { background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' };
+const btnTiny: React.CSSProperties = { background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '3px 8px', borderRadius: 6, fontSize: 10, fontWeight: 700, cursor: 'pointer' };
