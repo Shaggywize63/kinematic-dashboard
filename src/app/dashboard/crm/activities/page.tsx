@@ -84,6 +84,23 @@ function ActivitiesPageInner() {
     }
   };
 
+  // Delete affordance — backend DELETE /api/v1/crm/activities/:id is wired to
+  // crud.softDelete so rows are recoverable from the DB if needed. Confirm
+  // guards against accidental clicks on the small ✕ button.
+  const removeActivity = async (a: Activity) => {
+    if (!confirm('Delete this activity?')) return;
+    setBusyId(a.id);
+    try {
+      await crmActivities.remove(a.id);
+      toast.success('Activity deleted');
+      reload();
+    } catch (e: any) {
+      toast.error(e.message || 'Delete failed');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   const filtered = useMemo(() => {
     return activities.filter((a) => {
       if (type && a.type !== type) return false;
@@ -199,6 +216,7 @@ function ActivitiesPageInner() {
                 background: 'var(--s2)', border: `1px solid ${isOverdue ? '#ef4444' : 'var(--border)'}`,
                 borderRadius: 10, padding: '12px 14px',
                 borderLeft: `4px solid ${isOverdue ? '#ef4444' : statusColor}`,
+                position: 'relative',
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, flexWrap: 'wrap' }}>
                   <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', flex: 1 }}>
@@ -274,6 +292,20 @@ function ActivitiesPageInner() {
                     </button>
                   )}
                 </div>
+
+                {/* Delete affordance — small ✕ in top-right corner. Distinct
+                    from the "Cancel" status button: that flips status to
+                    cancelled, this hard-removes the activity (soft-delete on
+                    the backend so it's recoverable). */}
+                <button
+                  onClick={() => removeActivity(a)}
+                  disabled={busyId === a.id}
+                  title="Delete activity"
+                  aria-label="Delete activity"
+                  style={btnDelete}
+                >
+                  ✕
+                </button>
               </div>
             );
           })}
@@ -288,3 +320,11 @@ const btnGreen: React.CSSProperties = { ...btnBase, border: '1px solid #10b981',
 const btnAmber: React.CSSProperties = { ...btnBase, border: '1px solid #f59e0b', color: '#f59e0b' };
 const btnGhost: React.CSSProperties = { ...btnBase, border: '1px solid var(--border)', color: 'var(--text-dim)' };
 const btnGray: React.CSSProperties = { ...btnBase, border: '1px solid var(--text-dim)', color: 'var(--text-dim)' };
+const btnDelete: React.CSSProperties = {
+  position: 'absolute', top: 8, right: 8,
+  width: 22, height: 22, padding: 0,
+  borderRadius: 4, border: '1px solid transparent',
+  background: 'transparent', color: 'var(--text-dim)',
+  fontSize: 12, lineHeight: 1, cursor: 'pointer',
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+};

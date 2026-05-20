@@ -44,6 +44,23 @@ export default function ActivityTimeline({ activities, onChange }: Props) {
     }
   };
 
+  // Hard-delete affordance — backend wires DELETE /api/v1/crm/activities/:id
+  // to crud.softDelete so the row is recoverable from the DB if needed. Guard
+  // with a confirm() so an accidental click on the small ✕ doesn't nuke data.
+  const removeActivity = async (a: Activity) => {
+    if (!confirm('Delete this activity?')) return;
+    setBusyId(a.id);
+    try {
+      await crmActivities.remove(a.id);
+      toast.success('Activity deleted');
+      onChange?.();
+    } catch (e: any) {
+      toast.error(e.message || 'Delete failed');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   if (!activities.length) return <div style={{ color: 'var(--text-dim)', padding: 16, textAlign: 'center' }}>No activities yet.</div>;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -53,7 +70,7 @@ export default function ActivityTimeline({ activities, onChange }: Props) {
         const statusColor = status ? (STATUS_COLORS[status] || 'var(--text-dim)') : 'var(--text-dim)';
         const showActions = !!onChange;
         return (
-          <div key={a.id} style={{ display: 'flex', gap: 12, padding: 12, background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 10, borderLeft: `4px solid ${statusColor}` }}>
+          <div key={a.id} style={{ display: 'flex', gap: 12, padding: 12, background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 10, borderLeft: `4px solid ${statusColor}`, position: 'relative' }}>
             <div style={{ fontSize: 18 }}>{ICONS[a.type] || '•'}</div>
             <div style={{ flex: 1 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
@@ -121,6 +138,20 @@ export default function ActivityTimeline({ activities, onChange }: Props) {
                 </div>
               )}
             </div>
+            {/* Delete affordance — small ✕ in top-right corner of the row. Only
+                rendered when onChange is provided so read-only embeds (e.g.
+                printable views) stay clean. */}
+            {showActions && (
+              <button
+                onClick={() => removeActivity(a)}
+                disabled={busyId === a.id}
+                title="Delete activity"
+                aria-label="Delete activity"
+                style={btnDelete}
+              >
+                ✕
+              </button>
+            )}
           </div>
         );
       })}
@@ -133,3 +164,11 @@ const btnGreen: React.CSSProperties = { ...btnBase, border: '1px solid #10b981',
 const btnAmber: React.CSSProperties = { ...btnBase, border: '1px solid #f59e0b', color: '#f59e0b' };
 const btnGhost: React.CSSProperties = { ...btnBase, border: '1px solid var(--border)', color: 'var(--text-dim)' };
 const btnGray: React.CSSProperties = { ...btnBase, border: '1px solid var(--text-dim)', color: 'var(--text-dim)' };
+const btnDelete: React.CSSProperties = {
+  position: 'absolute', top: 8, right: 8,
+  width: 22, height: 22, padding: 0,
+  borderRadius: 4, border: '1px solid transparent',
+  background: 'transparent', color: 'var(--text-dim)',
+  fontSize: 12, lineHeight: 1, cursor: 'pointer',
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+};
