@@ -559,3 +559,8 @@ class ApiClient {
 
 export const api = new ApiClient(API_URL);
 export default api;
+
+/** Re-exported so non-class consumers (e.g. the CSV download hook on
+ *  the leads page) can build absolute URLs without duplicating the
+ *  resolveApiUrl logic. */
+export const API_BASE_URL = API_URL;

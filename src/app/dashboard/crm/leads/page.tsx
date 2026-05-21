@@ -3,7 +3,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { crmLeads, crmLeadSources, crmSettings } from '../../../../lib/crmApi';
-import api from '../../../../lib/api';
+import api, { API_BASE_URL } from '../../../../lib/api';
+import { getStoredToken } from '../../../../lib/auth';
 import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
 import type { Lead, LeadSource } from '../../../../types/crm';
 import LeadsTable from '../../../../components/crm/LeadsTable';
@@ -21,6 +22,47 @@ export default function LeadsListPage() {
   const [showAssignMenu, setShowAssignMenu] = useState(false);
   const [usersLoading, setUsersLoading] = useState(false);
   const [isB2C, setIsB2C] = useState(false);
+  const [exporting, setExporting] = useState(false);
+
+  // CSV download — calls the backend export endpoint with the same
+  // server-side filters the list is already using (state/city/district/
+  // block + date range), then triggers a browser download from the
+  // returned blob. Tenant + city scope is enforced server-side so the
+  // export can never leak rows the user isn't allowed to see.
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const qs = new URLSearchParams();
+      if (range.from)       qs.set('from', range.from);
+      if (range.to)         qs.set('to',   range.to);
+      if (filters.state)    qs.set('state',    filters.state);
+      if (filters.city)     qs.set('city',     filters.city);
+      if (filters.district) qs.set('district', filters.district);
+      if (filters.block)    qs.set('block',    filters.block);
+      const url = `${API_BASE_URL}/api/v1/crm/leads/export${qs.toString() ? `?${qs.toString()}` : ''}`;
+      const token = getStoredToken();
+      const res = await fetch(url, {
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      if (!res.ok) throw new Error(`Export failed (HTTP ${res.status})`);
+      const blob = await res.blob();
+      const objUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = objUrl;
+      a.download = `leads-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(objUrl);
+      toast.success('Leads exported');
+    } catch (e: any) {
+      toast.error(e.message || 'Export failed');
+    } finally {
+      setExporting(false);
+    }
+  };
   const assignMenuRef = useRef<HTMLDivElement>(null);
   const range = useCrmDateRange((s) => ({ from: s.from, to: s.to }));
 
@@ -169,7 +211,16 @@ export default function LeadsListPage() {
             </>
           )}
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={handleExport}
+            disabled={exporting}
+            title="Download leads as CSV (current filters apply)"
+            style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: exporting ? 'not-allowed' : 'pointer', opacity: exporting ? 0.6 : 1 }}
+          >
+            {exporting ? 'Exporting…' : '⬇ Export CSV'}
+          </button>
           <Link href="/dashboard/crm/leads/import" style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600 }}>Import</Link>
           <Link href="/dashboard/crm/leads/new" style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700 }}>+ New Lead</Link>
         </div>
