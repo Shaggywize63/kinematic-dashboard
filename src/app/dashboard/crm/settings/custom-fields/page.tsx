@@ -94,6 +94,16 @@ export default function CustomFieldsPage() {
   const [busy, setBusy] = useState<Record<string, boolean>>({});
   const [accessDenied, setAccessDenied] = useState(false);
   const [editing, setEditing] = useState<{ entity: string; key: string; label: string; required: boolean } | null>(null);
+  // Edit dialog for true custom fields (id-keyed in the table, separate
+  // from the built-in override editor above which keys off entity+key).
+  const [editingCustom, setEditingCustom] = useState<{
+    id: string;
+    label: string;
+    required: boolean;
+    field_type: CustomField['field_type'];
+    optionsRaw: string;
+  } | null>(null);
+  const [savingCustom, setSavingCustom] = useState(false);
 
   const [entity, setEntity] = useState<CustomField['entity_type']>('lead');
   const [fieldKey, setFieldKey] = useState('');
@@ -169,6 +179,44 @@ export default function CustomFieldsPage() {
       reload();
     } catch (e: any) { toast.error(e.message || 'Delete failed'); }
     finally { setBusy((b) => ({ ...b, [cf.id]: false })); }
+  };
+
+  const startEditCustom = (cf: CustomField) => {
+    setEditingCustom({
+      id: cf.id,
+      label: cf.label,
+      required: !!cf.required,
+      field_type: cf.field_type,
+      optionsRaw: Array.isArray(cf.options) ? cf.options.join(', ') : '',
+    });
+  };
+
+  const saveEditCustom = async () => {
+    if (!editingCustom) return;
+    if (!editingCustom.label.trim()) return toast.error('Label is required');
+    const needsOptions = editingCustom.field_type === 'select' || editingCustom.field_type === 'multiselect';
+    const parsed = needsOptions
+      ? editingCustom.optionsRaw.split(',').map((s) => s.trim()).filter(Boolean)
+      : undefined;
+    if (needsOptions && (!parsed || parsed.length === 0)) {
+      return toast.error('Add at least one option for select/multiselect');
+    }
+    setSavingCustom(true);
+    try {
+      const body: Record<string, unknown> = {
+        label: editingCustom.label.trim(),
+        required: editingCustom.required,
+      };
+      if (parsed !== undefined) body.options = parsed;
+      await crmCustomFields.update(editingCustom.id, body as any);
+      toast.success('Field updated');
+      setEditingCustom(null);
+      reload();
+    } catch (e: any) {
+      toast.error(e.message || 'Update failed');
+    } finally {
+      setSavingCustom(false);
+    }
   };
 
   const saveOverride = async (entityName: string, key: string, override: FieldOverride) => {
@@ -359,6 +407,7 @@ export default function CustomFieldsPage() {
                     <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', padding: '2px 6px', borderRadius: 4, background: '#f59e0b15', color: '#f59e0b' }}>Custom</span>
                   </td>
                   <td style={td}>
+                    <button onClick={() => startEditCustom(c)} disabled={!!busy[c.id]} style={{ ...btnSmall, marginRight: 6 }}>Edit</button>
                     <button onClick={() => remove(c)} disabled={!!busy[c.id]} style={{ ...btnSmallDanger, opacity: busy[c.id] ? 0.5 : 1 }}>{busy[c.id] ? '...' : 'Delete'}</button>
                   </td>
                 </tr>
@@ -408,6 +457,61 @@ export default function CustomFieldsPage() {
                 style={btnPrimary}
               >
                 Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit dialog for true custom fields. Allows changing label,
+          required flag, and (for select/multiselect) the options list.
+          field_type + field_key are immutable post-create — changing
+          them would invalidate every stored value. */}
+      {editingCustom && (
+        <div onClick={() => setEditingCustom(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 24, maxWidth: 460, width: '100%' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, marginBottom: 4 }}>Edit Custom Field</div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>{editingCustom.field_type}</div>
+              </div>
+              <button onClick={() => setEditingCustom(null)} style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', fontSize: 22, cursor: 'pointer', padding: 0, lineHeight: 1 }}>×</button>
+            </div>
+
+            <div style={{ background: 'var(--s3)', borderRadius: 8, padding: 10, fontSize: 12, color: 'var(--text-dim)', marginBottom: 14 }}>
+              Field type and key can&apos;t be changed after creation (changing them would invalidate every stored value). Delete + re-create if you need a different shape.
+            </div>
+
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, marginBottom: 4 }}>Display Label</div>
+              <input
+                value={editingCustom.label}
+                onChange={(e) => setEditingCustom({ ...editingCustom, label: e.target.value })}
+                style={{ width: '100%', background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13, boxSizing: 'border-box' }}
+              />
+            </div>
+
+            {(editingCustom.field_type === 'select' || editingCustom.field_type === 'multiselect') && (
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, marginBottom: 4 }}>Options (comma-separated)</div>
+                <input
+                  value={editingCustom.optionsRaw}
+                  onChange={(e) => setEditingCustom({ ...editingCustom, optionsRaw: e.target.value })}
+                  placeholder="Option 1, Option 2, Option 3"
+                  style={{ width: '100%', background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13, boxSizing: 'border-box' }}
+                />
+              </div>
+            )}
+
+            <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, color: 'var(--text)', marginBottom: 16 }}>
+              <input type="checkbox" checked={editingCustom.required} onChange={(e) => setEditingCustom({ ...editingCustom, required: e.target.checked })} />
+              Required field
+            </label>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button onClick={() => setEditingCustom(null)} disabled={savingCustom} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontSize: 13 }}>Cancel</button>
+              <button onClick={saveEditCustom} disabled={savingCustom} style={{ ...btnPrimary, opacity: savingCustom ? 0.6 : 1, cursor: savingCustom ? 'not-allowed' : 'pointer' }}>
+                {savingCustom ? 'Saving…' : 'Save'}
               </button>
             </div>
           </div>

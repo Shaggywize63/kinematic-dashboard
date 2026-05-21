@@ -68,6 +68,12 @@ export default function SettingsIndex() {
     setTheme(t);
     applyTheme(t);
     if (typeof window !== 'undefined') localStorage.setItem('kinematic-theme', t);
+    // Mirror to a 1-year cookie so server-rendered <html data-theme>
+    // matches on hard refresh — kills the FOUC where the page started
+    // dark and then "randomly" switched to light a beat later.
+    try {
+      document.cookie = `kinematic-theme=${t}; path=/; max-age=${60 * 60 * 24 * 365}; SameSite=Lax`;
+    } catch { /* ignore */ }
   };
   const [defaultRoleId, setDefaultRoleId] = useState<string>('');
   const [roles, setRoles] = useState<OrgRole[]>([]);

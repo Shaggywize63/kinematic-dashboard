@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import { cookies } from 'next/headers';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -26,6 +27,11 @@ export const metadata: Metadata = {
  * "Unsupported metadata themeColor" build warnings (visible in the
  * earlier Vercel build log).
  */
+// Force dynamic rendering on the root layout — we read the
+// `kinematic-theme` cookie via next/headers and need it on every
+// request, so the layout can't be statically pre-rendered.
+export const dynamic = 'force-dynamic';
+
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
@@ -38,27 +44,22 @@ export const viewport: Viewport = {
 };
 
 /**
- * Synchronous theme boot script — runs BEFORE the body renders, before
- * React hydrates, before any CSS variables resolve.
- *
- * Behaviour:
- *   1. Pull `kinematic-theme` from localStorage. Only 'dark' and 'light'
- *      are honoured; anything else (legacy 'system', stray values, an
- *      empty store) normalises to 'dark' so the page never starts in an
- *      ambiguous state.
- *   2. Stamp the resolved value onto BOTH `<html data-theme>` (drives
- *      our --bg / --text / --primary tokens) AND `color-scheme` (drives
- *      native form controls + scrollbars). Without color-scheme the
- *      browser may flash light scrollbars on a dark theme during the
- *      first paint.
- *   3. Re-stamp on visibilitychange when the doc becomes visible again.
- *      Catches a class of bug where the theme appears to "flip" — the
- *      browser restores a bfcache page without our boot script running,
- *      so data-theme can disappear after a back-button navigation.
- *   4. Re-stamp on the `storage` event so changes in another tab
- *      propagate immediately, instead of the two tabs disagreeing.
- *
- * Inline, IIFE-wrapped, idempotent. Safe to run on every nav.
+ * Theme resolution chain (FOUC-proof):
+ *   1. Server reads the `kinematic-theme` cookie via next/headers and
+ *      stamps it onto <html data-theme> + style.color-scheme during
+ *      SSR. The first byte of HTML the browser receives already has
+ *      the correct theme attribute — no "starts dark, switches to
+ *      light" flash.
+ *   2. Inline boot script (below) runs synchronously before React
+ *      hydrates. Reads localStorage as the canonical client-side
+ *      store; if it differs from the cookie (older session that
+ *      pre-dates cookie write, or another tab updated localStorage
+ *      first), re-stamps. Also wires up storage + visibilitychange
+ *      so the theme survives bfcache restores and stays in sync
+ *      across tabs.
+ *   3. Settings pages write to BOTH localStorage and the cookie when
+ *      the user toggles. Cookie lifetime is 1 year so the SSR-time
+ *      stamp survives.
  */
 const themeBootScript = `
 (function() {
@@ -67,24 +68,39 @@ const themeBootScript = `
     document.documentElement.setAttribute('data-theme', v);
     document.documentElement.style.colorScheme = v;
   }
-  function read() {
+  function readLs() {
     try { return localStorage.getItem('kinematic-theme') || ''; } catch (_) { return ''; }
   }
-  apply(read());
+  function readCookie() {
+    try {
+      var m = (document.cookie || '').match(/(?:^|; )kinematic-theme=([^;]*)/);
+      return m ? decodeURIComponent(m[1]) : '';
+    } catch (_) { return ''; }
+  }
+  // localStorage wins over cookie — localStorage is the user-driven
+  // store, cookie just mirrors it for SSR. If localStorage is empty,
+  // fall back to the cookie so an SSR-stamped value isn't undone on
+  // hydrate.
+  apply(readLs() || readCookie());
   try {
     window.addEventListener('storage', function(e) {
-      if (e.key === 'kinematic-theme') apply(read());
+      if (e.key === 'kinematic-theme') apply(readLs() || readCookie());
     });
     document.addEventListener('visibilitychange', function() {
-      if (document.visibilityState === 'visible') apply(read());
+      if (document.visibilityState === 'visible') apply(readLs() || readCookie());
     });
   } catch (_) {}
 })();
 `;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  // SSR-time theme read. Cookie is set by the settings pages whenever
+  // the user toggles. Defaults to 'dark' when missing so the cold-start
+  // (first ever visit) is deterministic.
+  const cookieStore = cookies();
+  const cookieTheme = cookieStore.get('kinematic-theme')?.value === 'light' ? 'light' : 'dark';
   return (
-    <html lang="en">
+    <html lang="en" data-theme={cookieTheme} style={{ colorScheme: cookieTheme }}>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
       </head>

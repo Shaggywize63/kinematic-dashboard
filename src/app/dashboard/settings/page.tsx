@@ -157,6 +157,12 @@ export default function SettingsPage() {
     setTheme(t);
     applyTheme(t);
     try { localStorage.setItem('kinematic-theme', t); } catch { /* ignore */ }
+    // Mirror to a 1-year cookie so the server-rendered <html data-theme>
+    // matches on the next hard refresh — no FOUC. Same-origin SameSite=Lax
+    // means it travels on every request to the dashboard.
+    try {
+      document.cookie = `kinematic-theme=${t}; path=/; max-age=${60 * 60 * 24 * 365}; SameSite=Lax`;
+    } catch { /* ignore */ }
   };
 
   const fetchData = useCallback(async () => {
