@@ -6,6 +6,7 @@ import dynamic from 'next/dynamic';
 import { getStoredUser, isSessionValid, clearSession } from '../../lib/auth';
 import api from '../../lib/api';
 import { ClientProvider, useClient } from '../../context/ClientContext';
+import { CityScopeProvider } from '../../context/CityScopeContext';
 import ClientSelect from '../../components/ClientSelect';
 import NotificationBell from '../../components/crm/NotificationBell';
 
@@ -253,6 +254,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <ClientProvider>
+      <CityScopeProvider>
       <div style={{ display:'flex', minHeight:'100vh', background:C.bg, color:C.white }}>
         {isMobile && drawerOpen && (
           <div onClick={() => setDrawerOpen(false)} style={{
@@ -406,6 +408,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </main>
         {token && <KinematicAI token={token} />}
       </div>
+      </CityScopeProvider>
     </ClientProvider>
   );
 }

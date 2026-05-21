@@ -205,10 +205,29 @@ class ApiClient {
       } catch { /* ignore */ }
     }
 
+    // CRM city scope — auto-attach the picked city to GET requests that
+    // already use a city filter (leads, contacts, reports). Picker source
+    // is the CityScopePicker (stored in localStorage as
+    // kinematic_selected_city). Only fires on CRM endpoints; skipped if
+    // the caller already specified a `city=` (their value wins) or if no
+    // city is picked. Backend still caps results via the user's
+    // assigned_city_names, so this can only narrow within scope.
+    let pathWithCity = path;
+    try {
+      const method = (options.method || 'GET').toUpperCase();
+      if (method === 'GET' && path.startsWith('/api/v1/crm/') && !/[?&]city=/i.test(path)) {
+        const city = typeof window !== 'undefined' ? window.localStorage.getItem('kinematic_selected_city') : null;
+        if (city) {
+          const sep = path.includes('?') ? '&' : '?';
+          pathWithCity = `${path}${sep}city=${encodeURIComponent(city)}`;
+        }
+      }
+    } catch { /* ignore */ }
+
     // GLOBAL PROTECTION: Strip invalid client_id, but ALLOW "Kinematic"
-    let safePath = path;
-    if (path.includes('client_id=')) {
-      safePath = path.replace(/client_id=([^&]*)/g, (match, val) => {
+    let safePath = pathWithCity;
+    if (pathWithCity.includes('client_id=')) {
+      safePath = pathWithCity.replace(/client_id=([^&]*)/g, (match, val) => {
         // ALLOW "Kinematic" and any UUID
         return (val === 'Kinematic' || isUUID(val)) ? match : '';
       })

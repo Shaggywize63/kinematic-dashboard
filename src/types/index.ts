@@ -9,6 +9,12 @@ export interface AuthUser {
   enabled_modules?: string[]; // per-client SKU entitlements (source: client_modules + universal)
   enabled_packages?: string[]; // package SKUs the client owns: field_force | distribution | crm | business | system | people | audit
   assigned_cities?: string[];
+  // Resolved city NAMES (from user_city_assignments → cities.name). Used
+  // by the CityScopePicker to render a per-tenant city filter. Backed by
+  // /auth/me; missing on older sessions, in which case the picker falls
+  // back to the tenant's full city list.
+  assigned_city_names?: string[];
+  role_assigned_cities?: string[];
   is_active: boolean;
 }
 
