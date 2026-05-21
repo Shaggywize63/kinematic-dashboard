@@ -80,6 +80,13 @@ export default function NewLeadPage() {
     if (form.phone && form.phone.length !== 10) {
       return toast.error('Primary mobile must be a 10-digit number');
     }
+    // City is required on EVERY lead — without it the per-user city
+    // scope filter has nothing to match against and the lead would
+    // leak to other reps. Block submit early with a clear message
+    // instead of letting the backend 400.
+    if (!form.city || !form.city.trim()) {
+      return toast.error('City is required — pick from the city dropdown.');
+    }
     setBusy(true);
     try {
       const payload: Record<string, unknown> = {
@@ -91,6 +98,11 @@ export default function NewLeadPage() {
         product_ids: form.product_ids.length > 0 ? form.product_ids : undefined,
         alternate_mobiles: form.alternate_mobiles.length ? form.alternate_mobiles : undefined,
         client_id: form.client_id || undefined,
+        // City + state always sent (B2B + B2C). Backend schema enforces
+        // city.min(1); state is optional but auto-inferred client-side
+        // from the city catalog when the user picks an assigned city.
+        city: form.city.trim(),
+        state: form.state || undefined,
       };
       if (!form.is_b2c) {
         Object.assign(payload, { company: form.company || undefined, title: form.title || undefined, industry: form.industry || undefined });
@@ -98,7 +110,6 @@ export default function NewLeadPage() {
         Object.assign(payload, {
           date_of_birth: form.date_of_birth || undefined, gender: form.gender || undefined,
           address_line1: form.address_line1 || undefined, address_line2: form.address_line2 || undefined,
-          city: form.city || undefined, state: form.state || undefined,
           postal_code: form.postal_code || undefined, country: form.country || undefined,
           preferred_contact_method: form.preferred_contact_method || undefined,
           marketing_consent: form.marketing_consent, whatsapp_consent: form.whatsapp_consent,
@@ -217,13 +228,22 @@ export default function NewLeadPage() {
       </Section>
 
       {!form.is_b2c ? (
-        <Section title="Business Details">
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
-            {text('company', 'Company', { required: true })}
-            {text('title', 'Job Title')}
-            {text('industry', 'Industry')}
-          </div>
-        </Section>
+        <>
+          <Section title="Business Details">
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
+              {text('company', 'Company', { required: true })}
+              {text('title', 'Job Title')}
+              {text('industry', 'Industry')}
+            </div>
+          </Section>
+          {/* City is required on B2B leads too — the per-user city-scope
+              filter applies to every lead row regardless of B2B/B2C. */}
+          <Section title="Location">
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
+              <LocationPicker stateValue={form.state} cityValue={form.city} onChange={({ state, city }) => setForm({ ...form, state, city })} />
+            </div>
+          </Section>
+        </>
       ) : (
         <>
           <Section title="Customer Details">
