@@ -4,9 +4,9 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { crmActivities } from '../../../../lib/crmApi';
-import api from '../../../../lib/api';
+import api, { API_BASE_URL } from '../../../../lib/api';
 import type { Activity } from '../../../../types/crm';
-import { getStoredUser, canAccess } from '../../../../lib/auth';
+import { getStoredUser, canAccess, getStoredToken } from '../../../../lib/auth';
 import UserSearchSelect, { type UserOption } from '../../../../components/crm/shared/UserSearchSelect';
 import { ActivityTypeIcon, activityTypeEmoji } from '../../../../components/crm/shared/ActivityTypeIcon';
 
@@ -39,6 +39,38 @@ function ActivitiesPageInner() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [users, setUsers] = useState<UserOption[]>([]);
   const [feFilter, setFeFilter] = useState('');
+  const [exporting, setExporting] = useState(false);
+
+  // CSV download — hits the backend export endpoint with the current
+  // filters and streams the file to the browser via a blob URL. Mirrors
+  // the leads export flow.
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const qs = new URLSearchParams();
+      if (type) qs.set('type', type);
+      if (statusFilter) qs.set('status', statusFilter);
+      if (feFilter) qs.set('owner_id', feFilter);
+      const url = `${API_BASE_URL}/api/v1/crm/activities/export${qs.toString() ? `?${qs.toString()}` : ''}`;
+      const token = getStoredToken();
+      const res = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+      if (!res.ok) throw new Error(`Export failed (HTTP ${res.status})`);
+      const blob = await res.blob();
+      const objUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = objUrl;
+      a.download = `activities-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(objUrl);
+      toast.success('Activities exported');
+    } catch (e: any) {
+      toast.error(e.message || 'Export failed');
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const reload = async () => {
     setLoading(true);
@@ -188,7 +220,18 @@ function ActivitiesPageInner() {
             </span>
           )}
         </div>
-        <Link href="/dashboard/crm/activities/new" style={{ background: 'var(--primary)', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>+ Log Activity</Link>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={handleExport}
+            disabled={exporting}
+            title="Download activities as CSV (current filters apply)"
+            style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: exporting ? 'not-allowed' : 'pointer', opacity: exporting ? 0.6 : 1 }}
+          >
+            {exporting ? 'Exporting…' : '⬇ Export CSV'}
+          </button>
+          <Link href="/dashboard/crm/activities/new" style={{ background: 'var(--primary)', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>+ Log Activity</Link>
+        </div>
       </div>
 
       {loading ? (

@@ -206,8 +206,15 @@ export default function CustomFieldsPage() {
       const body: Record<string, unknown> = {
         label: editingCustom.label.trim(),
         required: editingCustom.required,
+        // Allow changing the input type post-create. The "Edit Custom
+        // Field" modal warns admins that any values already stored
+        // for this field will keep their original shape; the new type
+        // only affects future writes. Backend still validates the
+        // enum so we can't end up with an invalid field_type.
+        field_type: editingCustom.field_type,
       };
       if (parsed !== undefined) body.options = parsed;
+      else if (!needsOptions) body.options = null; // wipe when no longer needed
       await crmCustomFields.update(editingCustom.id, body as any);
       toast.success('Field updated');
       setEditingCustom(null);
@@ -417,6 +424,26 @@ export default function CustomFieldsPage() {
         )}
       </div>
 
+      {/* Quick-add button at the bottom of the table — saves a scroll
+          when admins are reviewing the existing list and want to add
+          one more. Scrolls back to the Add Custom Field form at the
+          top so the rep can fill it in. */}
+      <div style={{ display: 'flex', justifyContent: 'center', marginTop: 14 }}>
+        <button
+          type="button"
+          onClick={() => {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+          style={{
+            background: 'var(--s3)', border: '1px dashed var(--border)',
+            color: 'var(--text)', padding: '10px 18px', borderRadius: 10,
+            cursor: 'pointer', fontSize: 13, fontWeight: 700,
+          }}
+        >
+          + Add another field
+        </button>
+      </div>
+
       {/* Edit built-in field modal */}
       {editing && (
         <div onClick={() => setEditing(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}>
@@ -479,16 +506,32 @@ export default function CustomFieldsPage() {
             </div>
 
             <div style={{ background: 'var(--s3)', borderRadius: 8, padding: 10, fontSize: 12, color: 'var(--text-dim)', marginBottom: 14 }}>
-              Field type and key can&apos;t be changed after creation (changing them would invalidate every stored value). Delete + re-create if you need a different shape.
+              The field key stays fixed after creation. You can change the
+              <strong style={{ color: 'var(--text)' }}> input type</strong>,
+              label, and required flag — values already saved on records
+              keep their original shape; the new type only affects future
+              writes.
             </div>
 
-            <div style={{ marginBottom: 12 }}>
-              <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, marginBottom: 4 }}>Display Label</div>
-              <input
-                value={editingCustom.label}
-                onChange={(e) => setEditingCustom({ ...editingCustom, label: e.target.value })}
-                style={{ width: '100%', background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13, boxSizing: 'border-box' }}
-              />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, marginBottom: 4 }}>Display Label</div>
+                <input
+                  value={editingCustom.label}
+                  onChange={(e) => setEditingCustom({ ...editingCustom, label: e.target.value })}
+                  style={{ width: '100%', background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13, boxSizing: 'border-box' }}
+                />
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, marginBottom: 4 }}>Input Type</div>
+                <select
+                  value={editingCustom.field_type}
+                  onChange={(e) => setEditingCustom({ ...editingCustom, field_type: e.target.value as CustomField['field_type'] })}
+                  style={{ width: '100%', background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13, boxSizing: 'border-box' }}
+                >
+                  {TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
             </div>
 
             {(editingCustom.field_type === 'select' || editingCustom.field_type === 'multiselect') && (

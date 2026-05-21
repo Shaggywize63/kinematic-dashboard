@@ -6,6 +6,7 @@ import { crmLeads, crmSettings, crmLeadSources, crmProducts } from '../../../../
 import api from '../../../../../lib/api';
 import type { BusinessType, LeadSource, Product } from '../../../../../types/crm';
 import LocationPicker from '../../../../../components/crm/LocationPicker';
+import CustomFieldsSection from '../../../../../components/crm/CustomFieldsSection';
 import UserSearchSelect, { type UserOption } from '../../../../../components/crm/shared/UserSearchSelect';
 import AlternateMobiles from '../../../../../components/crm/AlternateMobiles';
 import ClientScopeField from '../../../../../components/ClientScopeField';
@@ -24,6 +25,9 @@ type Form = {
   product_ids: string[];
   alternate_mobiles: string[];
   client_id: string;
+  // Free-form jsonb for admin-defined custom fields. Keys match
+  // crm_custom_field_defs.field_key for the current entity.
+  custom_fields: Record<string, unknown>;
 };
 
 const empty: Form = {
@@ -33,6 +37,7 @@ const empty: Form = {
   preferred_contact_method: '', marketing_consent: false, whatsapp_consent: false,
   source_id: '', owner_id: '', status: 'new', product_ids: [], alternate_mobiles: [],
   client_id: '',
+  custom_fields: {},
 };
 
 export default function NewLeadPage() {
@@ -103,6 +108,10 @@ export default function NewLeadPage() {
         // from the city catalog when the user picks an assigned city.
         city: form.city.trim(),
         state: form.state || undefined,
+        // Admin-defined custom fields (jsonb). Empty object means
+        // there were either no custom fields configured for this
+        // entity or the rep didn't fill any. Backend keeps the column.
+        custom_fields: Object.keys(form.custom_fields).length > 0 ? form.custom_fields : undefined,
       };
       if (!form.is_b2c) {
         Object.assign(payload, { company: form.company || undefined, title: form.title || undefined, industry: form.industry || undefined });
@@ -297,6 +306,14 @@ export default function NewLeadPage() {
           </div>
         </Section>
       )}
+
+      {/* Admin-defined extra fields for leads. Hides itself entirely
+          when no custom fields are configured. */}
+      <CustomFieldsSection
+        entity="lead"
+        values={form.custom_fields}
+        onChange={(cf) => setForm({ ...form, custom_fields: cf })}
+      />
 
       <div style={{ display: 'flex', gap: 8, marginTop: 18, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
         <button type="button" onClick={() => router.back()} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 16px', borderRadius: 8, cursor: 'pointer' }}>Cancel</button>
