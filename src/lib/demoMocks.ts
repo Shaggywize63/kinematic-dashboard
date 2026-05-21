@@ -33,6 +33,7 @@ import {
   CRM_TERRITORY_CONVERSION, CRM_TOUCHPOINTS_TO_RESPONSE, CRM_LEADS_AT_RISK,
   CRM_ANALYTICS_LAYOUT, CRM_OVERVIEW_LAYOUT, CRM_WA_TEMPLATES_SEED,
   readDemoWaTemplates, writeDemoWaTemplates, pushDemoWaTemplate,
+  readDemoCustomFields, writeDemoCustomFields,
   PLANOGRAMS, PLAN_ASSIGNMENTS, PLAN_CAPTURES, planRecognitionFor, planComplianceFor,
   PLAN_TREND, PLAN_STORE_RANKING, PLAN_CHRONIC_GAPS, PLAN_SKU_VISIBILITY,
   PLAN_RISK_FORECAST, HR_CANDIDATES,
@@ -453,6 +454,45 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
     if (path === '/analytics/attendance-today') return mockAttendanceTeam() as unknown as T;
     if (path === '/analytics/mobile-home')      return mockMobileHome() as unknown as T;
 
+    if (path === '/auth/me') {
+      // Demo user is treated as a super_admin so every feature
+      // surface (multi-tenant pickers, the global City filter,
+      // hierarchy-scoped lists) renders with permissive access. The
+      // fields below match what /auth/me now returns on the real
+      // backend post-recent-changes — keep in lockstep with
+      // src/controllers/auth.controller.ts.
+      return wrap({
+        id: 'demo-user-999',
+        org_id: 'demo-org-999',
+        client_id: null,
+        name: 'Demo Admin',
+        email: DEMO_USER_EMAIL,
+        mobile: '9000000000',
+        role: 'super_admin',
+        employee_id: 'DEMO-ADMIN',
+        zone_id: null,
+        supervisor_id: null,
+        city: 'Bangalore',
+        state: 'Karnataka',
+        avatar_url: null,
+        org_role_id: null,
+        org_role: null,
+        is_active: true,
+        joined_date: '2024-01-01',
+        created_at: '2024-01-01T00:00:00Z',
+        permissions: [],
+        enabled_modules: ['crm','distribution','people','reports','analytics','attendance','live_tracking','wms','manpower','clients'],
+        enabled_packages: ['crm','distribution','field_force','business','system','people','audit'],
+        location_ping_interval_seconds: 600,
+        business_type: 'both',
+        // No per-user / role city cap → effective scope is null →
+        // demo admin sees every row. Picker still renders since the
+        // tenant has cities (mockCities returns 10).
+        assigned_cities: [],
+        assigned_city_names: [],
+        role_assigned_cities: [],
+      }) as unknown as T;
+    }
     if (path === '/users')                      return mockUsers() as unknown as T;
     if (path === '/attendance/team')            return mockAttendanceTeam() as unknown as T;
     if (path === '/zones')                      return mockZones() as unknown as T;
@@ -567,7 +607,7 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
     }
     if (path === '/crm/automations')         return list([])               as unknown as T;
     if (path === '/crm/assignment-rules')    return list([])               as unknown as T;
-    if (path === '/crm/custom-fields')       return list([])               as unknown as T;
+    if (path === '/crm/custom-fields')       return list(readDemoCustomFields()) as unknown as T;
     if (path === '/crm/settings')            return wrap({})               as unknown as T;
 
     {
@@ -953,6 +993,52 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
         return wrap({ ...base, id: reopenM[1], status: 'working', is_converted: false }) as unknown as T;
       }
     }
+    // ── CRM Custom Fields write handlers ────────────────────────────
+    // Persists through localStorage so admins can experiment in the
+    // demo account without hitting a real DB. Mirrors the WhatsApp
+    // template pattern below.
+    if (m === 'POST' && path === '/crm/custom-fields') {
+      const list = readDemoCustomFields();
+      const row = {
+        id: 'demo-cf-' + Math.random().toString(36).slice(2, 8),
+        org_id: 'demo-org-999',
+        client_id: null,
+        is_active: true,
+        position: list.length,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        ...bodyObj,
+      };
+      list.push(row);
+      writeDemoCustomFields(list);
+      return wrap(row) as unknown as T;
+    }
+    if (m === 'PATCH' && /^\/crm\/custom-fields\/[^/]+$/.test(path)) {
+      const id = path.split('/').pop() || '';
+      const list = readDemoCustomFields();
+      const idx = list.findIndex((r) => (r as { id?: string }).id === id);
+      if (idx >= 0) {
+        list[idx] = { ...list[idx], ...bodyObj, updated_at: new Date().toISOString() };
+        writeDemoCustomFields(list);
+        return wrap(list[idx]) as unknown as T;
+      }
+      return wrap({ id, ...bodyObj }) as unknown as T;
+    }
+    if (m === 'POST' && path === '/crm/custom-fields/reorder') {
+      // Body: { items: [{ id, position }] }
+      const items = Array.isArray((bodyObj as { items?: unknown[] }).items)
+        ? ((bodyObj as { items: Array<{ id: string; position: number }> }).items)
+        : [];
+      const list = readDemoCustomFields();
+      const posById = new Map(items.map((it) => [it.id, it.position]));
+      const updated = list.map((r) => {
+        const id = (r as { id?: string }).id;
+        return id && posById.has(id) ? { ...r, position: posById.get(id) as number } : r;
+      });
+      writeDemoCustomFields(updated);
+      return wrap({ ok: true, count: items.length }) as unknown as T;
+    }
+
     if (m === 'POST' && path === '/crm/whatsapp-templates') {
       const row = {
         id: 'demo-wa-tpl-' + Math.random().toString(36).slice(2, 8),
@@ -1003,6 +1089,11 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
       const id = path.split('/').pop() || '';
       const list = readDemoWaTemplates().filter((r) => r.id !== id);
       writeDemoWaTemplates(list);
+    }
+    if (/^\/crm\/custom-fields\/[^/]+$/.test(path)) {
+      const id = path.split('/').pop() || '';
+      const list = readDemoCustomFields().filter((r) => (r as { id?: string }).id !== id);
+      writeDemoCustomFields(list);
     }
     return wrap({ ok: true, demo: true }) as unknown as T;
   }

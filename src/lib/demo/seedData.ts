@@ -429,6 +429,48 @@ export function pushDemoWaTemplate(row: Record<string, unknown>) {
   writeDemoWaTemplates(list);
 }
 
+// ── CRM Custom Fields (demo) ────────────────────────────────────────
+//
+// Seed a handful of fields that exercise the full input-type set so the
+// Custom Fields page and the New Lead form both have something to
+// render in the demo account. Writes flow through localStorage so the
+// admin can add / edit / reorder fields within a session.
+export const CRM_CUSTOM_FIELDS_SEED: Array<Record<string, unknown>> = [
+  { id: 'demo-cf-1', org_id: 'demo-org-999', client_id: null, entity_type: 'lead',
+    field_key: 'tax_id',          label: 'Tax ID',           field_type: 'text',     required: false, position: 0, is_active: true,
+    created_at: _now(-30), updated_at: _now(-30) },
+  { id: 'demo-cf-2', org_id: 'demo-org-999', client_id: null, entity_type: 'lead',
+    field_key: 'preferred_brand', label: 'Preferred Brand',  field_type: 'select',   required: false, position: 1, is_active: true,
+    options: ['Tata Tiscon', 'JSW Steel', 'SAIL'],
+    created_at: _now(-25), updated_at: _now(-25) },
+  { id: 'demo-cf-3', org_id: 'demo-org-999', client_id: null, entity_type: 'lead',
+    field_key: 'budget',          label: 'Budget',           field_type: 'currency', required: false, position: 2, is_active: true,
+    created_at: _now(-20), updated_at: _now(-20) },
+  { id: 'demo-cf-4', org_id: 'demo-org-999', client_id: null, entity_type: 'lead',
+    field_key: 'site_photo',      label: 'Site Photo',       field_type: 'image',    required: false, position: 3, is_active: true,
+    created_at: _now(-15), updated_at: _now(-15) },
+  { id: 'demo-cf-5', org_id: 'demo-org-999', client_id: null, entity_type: 'lead',
+    field_key: 'project_notes',   label: 'Project Notes',    field_type: 'longtext', required: false, position: 4, is_active: true,
+    created_at: _now(-10), updated_at: _now(-10) }
+];
+
+export const DEMO_CUSTOM_FIELDS_KEY = 'kinematic_demo_custom_fields';
+
+export function readDemoCustomFields(): Array<Record<string, unknown>> {
+  if (typeof window === 'undefined') return CRM_CUSTOM_FIELDS_SEED;
+  try {
+    const raw = window.localStorage.getItem(DEMO_CUSTOM_FIELDS_KEY);
+    if (!raw) return CRM_CUSTOM_FIELDS_SEED.slice();
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : CRM_CUSTOM_FIELDS_SEED.slice();
+  } catch { return CRM_CUSTOM_FIELDS_SEED.slice(); }
+}
+
+export function writeDemoCustomFields(rows: Array<Record<string, unknown>>) {
+  if (typeof window === 'undefined') return;
+  try { window.localStorage.setItem(DEMO_CUSTOM_FIELDS_KEY, JSON.stringify(rows)); } catch { /* quota */ }
+}
+
 // Planogram mocks
 export const PLAN_SHELVES = [
   { index: 0, capacity: 18 }, { index: 1, capacity: 18 }, { index: 2, capacity: 18 }, { index: 3, capacity: 18 }

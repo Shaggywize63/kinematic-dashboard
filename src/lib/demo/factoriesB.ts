@@ -46,9 +46,21 @@ export const mockBroadcast = () => ({
 
 export const mockCities = () => ({
   success: true,
+  // Broader demo city set so the cascading state→city pickers, the
+  // user-assignment multiselect, and the new global CityScopePicker
+  // all have realistic options to render. Matches the cities the
+  // demo team is assigned to in mockUsers.
   data: [
-    { id: 'c1', name: 'Bangalore', state: 'Karnataka', is_active: true },
-    { id: 'c2', name: 'Mumbai', state: 'Maharashtra', is_active: true }
+    { id: 'demo-city-bangalore', name: 'Bangalore', state: 'Karnataka',      country: 'India', is_active: true, client_id: null },
+    { id: 'demo-city-mumbai',    name: 'Mumbai',    state: 'Maharashtra',    country: 'India', is_active: true, client_id: null },
+    { id: 'demo-city-delhi',     name: 'Delhi',     state: 'Delhi',          country: 'India', is_active: true, client_id: null },
+    { id: 'demo-city-gurugram',  name: 'Gurugram',  state: 'Haryana',        country: 'India', is_active: true, client_id: null },
+    { id: 'demo-city-noida',     name: 'Noida',     state: 'Uttar Pradesh',  country: 'India', is_active: true, client_id: null },
+    { id: 'demo-city-hyderabad', name: 'Hyderabad', state: 'Telangana',      country: 'India', is_active: true, client_id: null },
+    { id: 'demo-city-pune',      name: 'Pune',      state: 'Maharashtra',    country: 'India', is_active: true, client_id: null },
+    { id: 'demo-city-chennai',   name: 'Chennai',   state: 'Tamil Nadu',     country: 'India', is_active: true, client_id: null },
+    { id: 'demo-city-kolkata',   name: 'Kolkata',   state: 'West Bengal',    country: 'India', is_active: true, client_id: null },
+    { id: 'demo-city-ahmedabad', name: 'Ahmedabad', state: 'Gujarat',        country: 'India', is_active: true, client_id: null }
   ]
 });
 

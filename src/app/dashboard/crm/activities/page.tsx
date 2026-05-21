@@ -51,6 +51,37 @@ function ActivitiesPageInner() {
       if (type) qs.set('type', type);
       if (statusFilter) qs.set('status', statusFilter);
       if (feFilter) qs.set('owner_id', feFilter);
+      // Demo-account short-circuit — raw fetch() bypasses api.ts's demo
+      // intercept, so we'd otherwise hit the real backend with a demo
+      // token and 401. Build the CSV from the in-memory rows so the demo
+      // flow demonstrates the export without talking to the network.
+      const demoEmail = (() => {
+        try { const raw = window.localStorage.getItem('kinematic_user'); return raw ? (JSON.parse(raw)?.email || '').toLowerCase() : ''; } catch { return ''; }
+      })();
+      if (demoEmail === 'demo@kinematic.com') {
+        const rows = filtered;
+        const header = ['Type','Subject','Body','Status','Due At','Completed At','Owner','Linked Entity','Created At'];
+        const escape = (v: unknown): string => {
+          if (v === null || v === undefined) return '';
+          const s = String(v);
+          return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+        };
+        const body = rows.map((a: any) => {
+          const linkedEntity = a.lead_id ? 'Lead' : a.contact_id ? 'Contact' : a.deal_id ? 'Deal' : a.account_id ? 'Account' : '';
+          const status = (a.status as string) || (a.completed_at ? 'completed' : 'open');
+          return [a.type, a.subject, a.body || a.description, status, a.due_at, a.completed_at, a.assigned_to_name || a.owner_name || '', linkedEntity, a.created_at].map(escape).join(',');
+        }).join('\n');
+        const csv = `${header.join(',')}\n${body}\n`;
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+        const objUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = objUrl; a.download = `activities-${new Date().toISOString().slice(0, 10)}.csv`;
+        document.body.appendChild(a); a.click(); a.remove();
+        URL.revokeObjectURL(objUrl);
+        toast.success('Activities exported (demo)');
+        setExporting(false);
+        return;
+      }
       const url = `${API_BASE_URL}/api/v1/crm/activities/export${qs.toString() ? `?${qs.toString()}` : ''}`;
       const token = getStoredToken();
       // Forward BOTH the auth bearer AND the active X-Client-Id picker

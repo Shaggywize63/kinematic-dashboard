@@ -104,11 +104,31 @@ export const mockLocations = () => ({
 export const mockUsers = () => ({
   success: true,
   data: [
-    { id: 'fe1', name: 'Arjun Sharma', employee_id: 'KIN-001', role: 'executive', city: 'Bangalore', is_active: true },
-    { id: 'fe2', name: 'Priya Patel', employee_id: 'KIN-002', role: 'executive', city: 'Mumbai', is_active: true },
-    { id: 'fe3', name: 'Rahul Verma', employee_id: 'KIN-003', role: 'executive', city: 'Delhi', is_active: true },
-    { id: 'fe4', name: 'Sneha Rao', employee_id: 'KIN-004', role: 'supervisor', city: 'Hyderabad', is_active: true },
-    { id: 'fe5', name: 'Amit Singh', employee_id: 'KIN-005', role: 'executive', city: 'Pune', is_active: true }
+    // Demo team — every row carries the fields the dashboard Team
+    // Members table relies on: `org_role.name` for the Hierarchy
+    // designation, `assigned_cities` + `assigned_city_names` for the
+    // city pills, and `kini_used_this_month` + `kini_monthly_cap` for
+    // the new KINI AI usage column.
+    { id: 'fe1', name: 'Arjun Sharma', employee_id: 'KIN-001', email: 'arjun@demo.in', mobile: '9000000001', role: 'executive', city: 'Bangalore', is_active: true,
+      org_role_id: 'demo-role-aso',  org_role: { id: 'demo-role-aso',  name: 'Area Sales Officer' },
+      assigned_cities: ['demo-city-bangalore'], assigned_city_names: ['Bangalore'],
+      kini_used_this_month: 4, kini_monthly_cap: 20, permissions: [] },
+    { id: 'fe2', name: 'Priya Patel',  employee_id: 'KIN-002', email: 'priya@demo.in', mobile: '9000000002', role: 'executive', city: 'Mumbai',    is_active: true,
+      org_role_id: 'demo-role-aso',  org_role: { id: 'demo-role-aso',  name: 'Area Sales Officer' },
+      assigned_cities: ['demo-city-mumbai'], assigned_city_names: ['Mumbai'],
+      kini_used_this_month: 11, kini_monthly_cap: 20, permissions: [] },
+    { id: 'fe3', name: 'Rahul Verma',  employee_id: 'KIN-003', email: 'rahul@demo.in', mobile: '9000000003', role: 'executive', city: 'Delhi',     is_active: true,
+      org_role_id: 'demo-role-asm',  org_role: { id: 'demo-role-asm',  name: 'Area Sales Manager' },
+      assigned_cities: ['demo-city-delhi','demo-city-noida','demo-city-gurugram'], assigned_city_names: ['Delhi','Noida','Gurugram'],
+      kini_used_this_month: 7, kini_monthly_cap: 20, permissions: [] },
+    { id: 'fe4', name: 'Sneha Rao',    employee_id: 'KIN-004', email: 'sneha@demo.in', mobile: '9000000004', role: 'supervisor', city: 'Hyderabad', is_active: true,
+      org_role_id: 'demo-role-bm',   org_role: { id: 'demo-role-bm',   name: 'Business Manager' },
+      assigned_cities: ['demo-city-hyderabad','demo-city-bangalore'], assigned_city_names: ['Hyderabad','Bangalore'],
+      kini_used_this_month: 18, kini_monthly_cap: 20, permissions: [] },
+    { id: 'fe5', name: 'Amit Singh',   employee_id: 'KIN-005', email: 'amit@demo.in',  mobile: '9000000005', role: 'executive', city: 'Pune',      is_active: true,
+      org_role_id: 'demo-role-cc',   org_role: { id: 'demo-role-cc',   name: 'Consumer Champion' },
+      assigned_cities: ['demo-city-pune'], assigned_city_names: ['Pune'],
+      kini_used_this_month: 2, kini_monthly_cap: 20, permissions: [] }
   ]
 });
 

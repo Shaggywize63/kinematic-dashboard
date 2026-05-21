@@ -39,6 +39,40 @@ export default function LeadsListPage() {
       if (filters.city)     qs.set('city',     filters.city);
       if (filters.district) qs.set('district', filters.district);
       if (filters.block)    qs.set('block',    filters.block);
+      // Demo-account short-circuit — raw fetch() bypasses api.ts's
+      // demo intercept, so we'd otherwise hit the real backend with a
+      // demo token and 401. Build the CSV from the in-memory rows
+      // instead so the demo flow demonstrates the export without
+      // talking to the network.
+      const demoEmail = (() => {
+        try { const raw = window.localStorage.getItem('kinematic_user'); return raw ? (JSON.parse(raw)?.email || '').toLowerCase() : ''; } catch { return ''; }
+      })();
+      if (demoEmail === 'demo@kinematic.com') {
+        const rows = filtered;
+        const header = ['First Name','Last Name','Email','Phone','Company','Title','State','City','Status','Score','Source','Owner','Created At'];
+        const escape = (v: unknown): string => {
+          if (v === null || v === undefined) return '';
+          const s = String(v);
+          return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+        };
+        const body = rows.map((l: any) => [
+          l.first_name, l.last_name, l.email, l.phone, l.company, l.title,
+          l.state, l.city, l.status, l.score,
+          (sources.find((s: any) => s.id === l.source_id) as any)?.name || '',
+          (l.owner_name || ''),
+          l.created_at,
+        ].map(escape).join(',')).join('\n');
+        const csv = `${header.join(',')}\n${body}\n`;
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+        const objUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = objUrl; a.download = `leads-${new Date().toISOString().slice(0, 10)}.csv`;
+        document.body.appendChild(a); a.click(); a.remove();
+        URL.revokeObjectURL(objUrl);
+        toast.success('Leads exported (demo)');
+        setExporting(false);
+        return;
+      }
       const url = `${API_BASE_URL}/api/v1/crm/leads/export${qs.toString() ? `?${qs.toString()}` : ''}`;
       const token = getStoredToken();
       // Forward both Authorization AND X-Client-Id. The raw fetch
