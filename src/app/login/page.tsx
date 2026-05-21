@@ -24,47 +24,65 @@ interface Feature {
   accent: string;
 }
 
-// 12 marquee features scattered around the form. Order here defines the
+// 20 marquee features scattered around the form. Order here defines the
 // position index used in CONSTELLATION below — keep them in lockstep.
 const FEATURES: Feature[] = [
-  // Field Tracking (4)
+  // Field Tracking (7)
   { icon: '📍', title: 'Live GPS Trail',          group: 'field',  accent: '#F59E0B' },
   { icon: '🤳', title: 'Selfie Attendance',       group: 'field',  accent: '#EAB308' },
   { icon: '🗺',  title: 'Smart Route Plans',      group: 'field',  accent: '#22C55E' },
-  { icon: '🆘', title: 'SOS Alerts',              group: 'field',  accent: '#EF4444' },
-  // Lead Management (5)
+  { icon: '🆘', title: 'SOS + Battery Alerts',    group: 'field',  accent: '#EF4444' },
+  { icon: '📸', title: 'Geo-Tagged CC / ECC',     group: 'field',  accent: '#06B6D4' },
+  { icon: '⏱',  title: 'Hours + Idle Time',      group: 'field',  accent: '#8B5CF6' },
+  { icon: '📊', title: 'Live Heatmap',            group: 'field',  accent: '#F97316' },
+  // Lead Management (8)
   { icon: '✦', title: 'KINI AI Copilot',          group: 'leads',  accent: '#E01E2C' },
   { icon: '🎯', title: 'AI Lead Scoring',         group: 'leads',  accent: '#3E9EFF' },
   { icon: '🔀', title: 'Lead → Deal in 1 Tap',    group: 'leads',  accent: '#10B981' },
   { icon: '💬', title: 'WhatsApp + Email',        group: 'leads',  accent: '#25D366' },
   { icon: '📑', title: 'Reports + Forecast',      group: 'leads',  accent: '#EC4899' },
-  // Supply Chain (3)
+  { icon: '🪜', title: 'Pipeline + Kanban',       group: 'leads',  accent: '#6366F1' },
+  { icon: '🔮', title: 'Win-Probability + NBA',   group: 'leads',  accent: '#A855F7' },
+  { icon: '🌐', title: 'Multi-language',          group: 'leads',  accent: '#0EA5E9' },
+  // Supply Chain (5)
   { icon: '🏬', title: 'Distributor Network',     group: 'supply', accent: '#10B981' },
   { icon: '🧾', title: 'GST-Grade Invoicing',     group: 'supply', accent: '#F59E0B' },
+  { icon: '💳', title: 'Payments + Returns',      group: 'supply', accent: '#3E9EFF' },
+  { icon: '📦', title: 'SKU Catalogue',           group: 'supply', accent: '#8B5CF6' },
   { icon: '🔌', title: 'Tally Bridge',            group: 'supply', accent: '#06B6D4' },
 ];
 
-// Hand-tuned constellation around a ~440px-wide centred form. Each entry
-// is an absolute position relative to the viewport (using top/left/right
-// in vh/vw + a small rotation). Picked to leave the form's bounds clear
-// at ≥1100px width while still feeling scattered, not gridded.
+// Hand-tuned constellation around a ~380px-wide centred form. Each entry
+// is an absolute position relative to the viewport (top/left/right/bottom
+// in % + a small rotation). Slot count = FEATURES.length; pattern keeps a
+// clear corridor through the centre so the form's bounds stay readable
+// at ≥1200px width while still feeling scattered.
 interface SlotStyle { top?: string; left?: string; right?: string; bottom?: string; rotate: number; floatVariant: 1 | 2 | 3; delay: number }
 const CONSTELLATION: SlotStyle[] = [
-  // Top row
-  { top: '6%',   left:  '4%',  rotate: -5, floatVariant: 1, delay: 0.05 },
-  { top: '10%',  left: '22%',  rotate:  3, floatVariant: 2, delay: 0.20 },
-  { top: '5%',   right:'22%',  rotate: -4, floatVariant: 3, delay: 0.32 },
-  { top: '9%',   right: '4%',  rotate:  6, floatVariant: 1, delay: 0.12 },
-  // Mid row
-  { top: '38%',  left:  '2%',  rotate: -7, floatVariant: 2, delay: 0.40 },
-  { top: '46%',  left: '14%',  rotate:  4, floatVariant: 3, delay: 0.55 },
-  { top: '42%',  right: '2%',  rotate:  5, floatVariant: 1, delay: 0.48 },
-  { top: '50%',  right:'14%',  rotate: -3, floatVariant: 2, delay: 0.62 },
-  // Bottom row
-  { bottom:'8%', left:  '6%',  rotate:  6, floatVariant: 3, delay: 0.70 },
-  { bottom:'12%',left: '24%',  rotate: -4, floatVariant: 1, delay: 0.78 },
-  { bottom:'10%',right:'24%',  rotate:  3, floatVariant: 2, delay: 0.85 },
-  { bottom:'7%', right: '5%',  rotate: -6, floatVariant: 3, delay: 0.92 },
+  // Top band (6 cards)
+  { top: '3%',  left:  '2%',  rotate: -6, floatVariant: 1, delay: 0.04 },
+  { top: '8%',  left: '16%',  rotate:  4, floatVariant: 2, delay: 0.10 },
+  { top: '3%',  left: '32%',  rotate: -3, floatVariant: 3, delay: 0.16 },
+  { top: '4%',  right:'32%',  rotate:  5, floatVariant: 1, delay: 0.22 },
+  { top: '7%',  right:'16%',  rotate: -5, floatVariant: 2, delay: 0.28 },
+  { top: '3%',  right: '2%',  rotate:  6, floatVariant: 3, delay: 0.34 },
+  // Upper-mid band (4 cards, hugging the form's shoulders)
+  { top: '24%', left:  '1%',  rotate:  4, floatVariant: 2, delay: 0.40 },
+  { top: '30%', left: '12%',  rotate: -5, floatVariant: 3, delay: 0.46 },
+  { top: '28%', right:'12%',  rotate:  3, floatVariant: 1, delay: 0.52 },
+  { top: '23%', right: '1%',  rotate: -6, floatVariant: 2, delay: 0.58 },
+  // Lower-mid band (4 cards, hugging the form's waist)
+  { top: '55%', left:  '1%',  rotate: -4, floatVariant: 3, delay: 0.64 },
+  { top: '62%', left: '12%',  rotate:  5, floatVariant: 1, delay: 0.70 },
+  { top: '60%', right:'12%',  rotate: -3, floatVariant: 2, delay: 0.76 },
+  { top: '56%', right: '1%',  rotate:  6, floatVariant: 3, delay: 0.82 },
+  // Bottom band (6 cards)
+  { bottom: '3%', left:  '2%', rotate:  5, floatVariant: 1, delay: 0.88 },
+  { bottom: '7%', left: '16%', rotate: -4, floatVariant: 2, delay: 0.94 },
+  { bottom: '3%', left: '32%', rotate:  3, floatVariant: 3, delay: 1.00 },
+  { bottom: '4%', right:'32%', rotate: -5, floatVariant: 1, delay: 1.06 },
+  { bottom: '6%', right:'16%', rotate:  4, floatVariant: 2, delay: 1.12 },
+  { bottom: '3%', right: '2%', rotate: -6, floatVariant: 3, delay: 1.18 },
 ];
 
 const PALETTE = {
@@ -215,11 +233,11 @@ export default function LoginPage() {
                 left: slot.left,
                 right: slot.right,
                 bottom: slot.bottom,
-                width: 200,
+                width: 178,
                 background: PALETTE.surface,
                 border: `1px solid ${PALETTE.border}`,
-                borderRadius: 14,
-                padding: '12px 13px',
+                borderRadius: 13,
+                padding: '11px 12px 10px',
                 boxShadow: '0 10px 28px rgba(15, 30, 60, 0.08)',
                 pointerEvents: 'auto',
                 cursor: 'default',
@@ -398,11 +416,13 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* MOBILE — orderly stack below the form. Hidden on desktop via CSS. */}
+      {/* MOBILE — orderly stack below the form. Hidden on desktop via CSS.
+          On mobile the centred form drops position:absolute and flows
+          naturally above this block, so we DON'T add a top margin —
+          adding one used to leave a viewport-tall blank gap. */}
       <div className="login-mobile-stack" style={{
         display: 'none', flexDirection: 'column', gap: 12,
         padding: '24px 20px 40px',
-        marginTop: 'calc(100vh + 12px)', // push below the centred form on mobile
       }}>
         <div style={{
           fontFamily: "'Syne',sans-serif", fontSize: 14, fontWeight: 800,
