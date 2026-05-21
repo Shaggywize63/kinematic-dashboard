@@ -1,12 +1,47 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { crmCustomFields, crmSettings } from '../../../../../lib/crmApi';
+import api from '../../../../../lib/api';
 import type { CustomField } from '../../../../../types/crm';
 import { getStoredUser, canAccess } from '../../../../../lib/auth';
 
 const ENTITIES: Array<CustomField['entity_type']> = ['lead', 'contact', 'account', 'deal'];
-const TYPES: Array<CustomField['field_type']> = ['text', 'number', 'date', 'select', 'multiselect', 'boolean'];
+// Full set of supported input types. Render-side hooks (form renderer
+// in CustomFieldsSection) know what to do with each. Keep in lockstep
+// with the backend zod enum in crm.validators.ts.
+const TYPES: Array<CustomField['field_type']> = [
+  'text', 'longtext',
+  'number', 'currency',
+  'boolean',
+  'date', 'datetime',
+  'select', 'multiselect', 'radio',
+  'url', 'email', 'phone',
+  'image', 'file',
+];
+
+// Human-readable labels for the picker. Drives the option text in the
+// "Input Type" dropdown so admins see "Single-select dropdown" instead
+// of "select".
+const TYPE_LABELS: Record<CustomField['field_type'], string> = {
+  text:        'Text (single line)',
+  longtext:    'Long text (paragraph)',
+  number:      'Number',
+  currency:    'Currency (₹)',
+  boolean:     'Checkbox (yes / no)',
+  date:        'Date',
+  datetime:    'Date & time',
+  select:      'Dropdown (single)',
+  multiselect: 'Multi-select chips',
+  radio:       'Radio buttons',
+  url:         'URL',
+  email:       'Email',
+  phone:       'Phone (10-digit)',
+  image:       'Image upload',
+  file:        'File upload',
+};
+
+const TYPES_REQUIRING_OPTIONS = new Set<CustomField['field_type']>(['select', 'multiselect', 'radio']);
 
 // Built-in standard fields for each entity
 type BuiltinField = { key: string; label: string; type: string; required?: boolean };
@@ -113,6 +148,17 @@ export default function CustomFieldsPage() {
   const [required, setRequired] = useState(false);
   const [filter, setFilter] = useState<'all' | CustomField['entity_type']>('lead');
   const [showBuiltin, setShowBuiltin] = useState(true);
+  // Ref onto the field_key input so the "+ Add another field" button
+  // at the bottom can scroll the form into view AND focus the first
+  // field — the rep can start typing immediately.
+  const fieldKeyRef = useRef<HTMLInputElement | null>(null);
+  // Drag-and-drop state for the custom-fields table. dragId is the
+  // row currently being dragged; overId is the row it's hovering on.
+  // Set on dragstart/dragover, cleared on dragend. The actual reorder
+  // happens on drop via reorderTo().
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [overId, setOverId] = useState<string | null>(null);
+  const [reordering, setReordering] = useState(false);
 
   const reload = async () => {
     setLoading(true);
@@ -147,7 +193,7 @@ export default function CustomFieldsPage() {
     if (items.some((i) => i.entity_type === entity && i.field_key === fieldKey.trim())) {
       return toast.error(`A field with key "${fieldKey.trim()}" already exists for ${entity}`);
     }
-    const needsOptions = fieldType === 'select' || fieldType === 'multiselect';
+    const needsOptions = TYPES_REQUIRING_OPTIONS.has(fieldType);
     const parsedOptions = needsOptions ? optionsRaw.split(',').map((s) => s.trim()).filter(Boolean) : undefined;
     if (needsOptions && (!parsedOptions || parsedOptions.length === 0)) return toast.error('Add at least one option for select/multiselect');
     setCreating(true);
@@ -181,6 +227,54 @@ export default function CustomFieldsPage() {
     finally { setBusy((b) => ({ ...b, [cf.id]: false })); }
   };
 
+  // Drag-drop reorder. `targetId` is where dragId should land. Computes
+  // the new position list (re-numbered 0..n) for the affected entity
+  // group and POSTs the whole batch in one request.
+  const reorderTo = async (dragIdLocal: string, targetId: string) => {
+    if (!dragIdLocal || dragIdLocal === targetId) return;
+    const dragged = items.find((i) => i.id === dragIdLocal);
+    const target  = items.find((i) => i.id === targetId);
+    if (!dragged || !target) return;
+    if (dragged.entity_type !== target.entity_type) {
+      // Don't allow drag across entities — moving a "lead" field into
+      // the "contact" group would change its semantics. Block silently;
+      // visual cue happens at drop time.
+      return;
+    }
+
+    // Build the new order within this entity group only. Other entities'
+    // positions stay untouched.
+    const group = items.filter((i) => i.entity_type === dragged.entity_type)
+      .sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+    const without = group.filter((i) => i.id !== dragIdLocal);
+    const targetIdx = without.findIndex((i) => i.id === targetId);
+    const reordered = [
+      ...without.slice(0, targetIdx),
+      dragged,
+      ...without.slice(targetIdx),
+    ];
+    // Re-number from 0 so positions stay tidy.
+    const payload = reordered.map((i, idx) => ({ id: i.id, position: idx }));
+
+    // Optimistic UI: stamp the new positions before the server roundtrip
+    // so the rows snap immediately instead of waiting for reload.
+    const lookup = new Map(payload.map((p) => [p.id, p.position]));
+    setItems((prev) => prev.map((i) =>
+      lookup.has(i.id) ? { ...i, position: lookup.get(i.id) as number } : i
+    ));
+
+    setReordering(true);
+    try {
+      await api.post('/api/v1/crm/custom-fields/reorder', { items: payload });
+      // Don't reload — the optimistic update already shows the right order.
+    } catch (e: any) {
+      toast.error(e?.message || 'Reorder failed');
+      reload(); // revert by refetching authoritative state
+    } finally {
+      setReordering(false);
+    }
+  };
+
   const startEditCustom = (cf: CustomField) => {
     setEditingCustom({
       id: cf.id,
@@ -194,7 +288,7 @@ export default function CustomFieldsPage() {
   const saveEditCustom = async () => {
     if (!editingCustom) return;
     if (!editingCustom.label.trim()) return toast.error('Label is required');
-    const needsOptions = editingCustom.field_type === 'select' || editingCustom.field_type === 'multiselect';
+    const needsOptions = TYPES_REQUIRING_OPTIONS.has(editingCustom.field_type);
     const parsed = needsOptions
       ? editingCustom.optionsRaw.split(',').map((s) => s.trim()).filter(Boolean)
       : undefined;
@@ -301,13 +395,13 @@ export default function CustomFieldsPage() {
           <select value={entity} onChange={(e) => { setEntity(e.target.value as CustomField['entity_type']); setFilter(e.target.value as CustomField['entity_type']); }} style={input}>
             {ENTITIES.map((e) => <option key={e} value={e}>{e[0].toUpperCase() + e.slice(1)}</option>)}
           </select>
-          <input value={fieldKey} onChange={(e) => setFieldKey(e.target.value.toLowerCase())} placeholder="field_key (e.g. tax_id)" style={input} />
+          <input ref={fieldKeyRef} value={fieldKey} onChange={(e) => setFieldKey(e.target.value.toLowerCase())} placeholder="field_key (e.g. tax_id)" style={input} />
           <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Display label" style={input} />
           <select value={fieldType} onChange={(e) => setFieldType(e.target.value as CustomField['field_type'])} style={input}>
-            {TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+            {TYPES.map((t) => <option key={t} value={t}>{TYPE_LABELS[t]}</option>)}
           </select>
         </div>
-        {(fieldType === 'select' || fieldType === 'multiselect') && (
+        {TYPES_REQUIRING_OPTIONS.has(fieldType) && (
           <input value={optionsRaw} onChange={(e) => setOptionsRaw(e.target.value)} placeholder="Comma-separated options (e.g. Hot, Warm, Cold)" style={{ ...input, width: '100%', marginBottom: 8 }} />
         )}
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 12 }}>
@@ -343,6 +437,7 @@ export default function CustomFieldsPage() {
           <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
             <thead>
               <tr>
+                <th style={{ ...th, width: 24 }} title="Drag column"></th>
                 <th style={th}>Entity</th>
                 <th style={th}>Key</th>
                 <th style={th}>Label</th>
@@ -363,6 +458,9 @@ export default function CustomFieldsPage() {
                 const saving = savingOverride === k;
                 return (
                   <tr key={`builtin-${f.entity}-${f.key}`}>
+                    {/* Empty drag cell — built-in fields aren't draggable
+                        since their position is intrinsic to the form. */}
+                    <td style={{ ...td, width: 24 }}></td>
                     <td style={td}><span style={{ background: 'var(--s3)', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 700, textTransform: 'uppercase' }}>{f.entity}</span></td>
                     <td style={td}><code style={{ background: 'var(--s3)', padding: '1px 5px', borderRadius: 3, fontSize: 11 }}>{f.key}</code></td>
                     <td style={td}>
@@ -401,14 +499,48 @@ export default function CustomFieldsPage() {
 
               {/* Custom fields */}
               {visible.length === 0 && !showBuiltin && (
-                <tr><td colSpan={7} style={{ ...td, color: 'var(--text-dim)', textAlign: 'center', padding: 20 }}>No custom fields yet.</td></tr>
+                <tr><td colSpan={8} style={{ ...td, color: 'var(--text-dim)', textAlign: 'center', padding: 20 }}>No custom fields yet.</td></tr>
               )}
-              {visible.map((c) => (
-                <tr key={c.id}>
+              {visible.map((c) => {
+                const isDragging = dragId === c.id;
+                const isOver     = overId === c.id && dragId && dragId !== c.id;
+                return (
+                <tr
+                  key={c.id}
+                  draggable
+                  onDragStart={(e) => {
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.setData('text/plain', c.id);
+                    setDragId(c.id);
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    if (overId !== c.id) setOverId(c.id);
+                  }}
+                  onDragLeave={() => { if (overId === c.id) setOverId(null); }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    const id = e.dataTransfer.getData('text/plain') || dragId || '';
+                    setDragId(null); setOverId(null);
+                    if (id) reorderTo(id, c.id);
+                  }}
+                  onDragEnd={() => { setDragId(null); setOverId(null); }}
+                  style={{
+                    opacity: isDragging ? 0.4 : 1,
+                    // Soft top border on the row being hovered so the
+                    // drop target is obvious without a separate ghost
+                    // element.
+                    borderTop: isOver ? '2px solid var(--primary)' : undefined,
+                    background: isOver ? 'rgba(0,102,255,0.05)' : undefined,
+                    cursor: reordering ? 'wait' : 'grab',
+                  }}
+                >
+                  <td style={{ ...td, width: 24, color: 'var(--text-dim)', userSelect: 'none' }} title="Drag to reorder">⋮⋮</td>
                   <td style={td}><span style={{ background: 'var(--s3)', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 700, textTransform: 'uppercase' }}>{c.entity_type}</span></td>
                   <td style={td}><code style={{ background: 'var(--s3)', padding: '1px 5px', borderRadius: 3, fontSize: 11 }}>{c.field_key}</code></td>
                   <td style={td}>{c.label}</td>
-                  <td style={td}>{c.field_type}</td>
+                  <td style={td}>{TYPE_LABELS[c.field_type] ?? c.field_type}</td>
                   <td style={td}>{c.required ? '✓' : ''}</td>
                   <td style={td}>
                     <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', padding: '2px 6px', borderRadius: 4, background: '#f59e0b15', color: '#f59e0b' }}>Custom</span>
@@ -418,7 +550,8 @@ export default function CustomFieldsPage() {
                     <button onClick={() => remove(c)} disabled={!!busy[c.id]} style={{ ...btnSmallDanger, opacity: busy[c.id] ? 0.5 : 1 }}>{busy[c.id] ? '...' : 'Delete'}</button>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         )}
@@ -432,7 +565,14 @@ export default function CustomFieldsPage() {
         <button
           type="button"
           onClick={() => {
+            // Scroll the form into view first, then focus the field_key
+            // input so the rep can start typing immediately. Two-step
+            // ordering matters — focusing first would steal the smooth-
+            // scroll target on Safari.
             window.scrollTo({ top: 0, behavior: 'smooth' });
+            // Wait for the scroll animation to settle before focusing
+            // (otherwise iOS yanks the viewport back to the input).
+            window.setTimeout(() => fieldKeyRef.current?.focus(), 300);
           }}
           style={{
             background: 'var(--s3)', border: '1px dashed var(--border)',
@@ -529,12 +669,12 @@ export default function CustomFieldsPage() {
                   onChange={(e) => setEditingCustom({ ...editingCustom, field_type: e.target.value as CustomField['field_type'] })}
                   style={{ width: '100%', background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13, boxSizing: 'border-box' }}
                 >
-                  {TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                  {TYPES.map((t) => <option key={t} value={t}>{TYPE_LABELS[t]}</option>)}
                 </select>
               </div>
             </div>
 
-            {(editingCustom.field_type === 'select' || editingCustom.field_type === 'multiselect') && (
+            {TYPES_REQUIRING_OPTIONS.has(editingCustom.field_type) && (
               <div style={{ marginBottom: 12 }}>
                 <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, marginBottom: 4 }}>Options (comma-separated)</div>
                 <input

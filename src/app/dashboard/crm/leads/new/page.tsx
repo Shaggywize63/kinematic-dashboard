@@ -239,10 +239,19 @@ export default function NewLeadPage() {
       {!form.is_b2c ? (
         <>
           <Section title="Business Details">
+            {/* Custom fields render inline inside this grid so admin-
+                defined fields look like part of the form, not a tacked-
+                on extension. CustomFieldsSection yields raw <label>
+                children with no wrapper of its own. */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
               {text('company', 'Company', { required: true })}
               {text('title', 'Job Title')}
               {text('industry', 'Industry')}
+              <CustomFieldsSection
+                entity="lead"
+                values={form.custom_fields}
+                onChange={(cf) => setForm({ ...form, custom_fields: cf })}
+              />
             </div>
           </Section>
           {/* City is required on B2B leads too — the per-user city-scope
@@ -263,10 +272,18 @@ export default function NewLeadPage() {
             </div>
           </Section>
           <Section title="Address">
+            {/* Custom fields are inlined into the B2C Address grid for
+                the same reason they're in the B2B grid above — they
+                read as part of the form, not a footnote. */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
               {text('address_line1', 'Address Line 1')}{text('address_line2', 'Address Line 2')}
               <LocationPicker stateValue={form.state} cityValue={form.city} onChange={({ state, city }) => setForm({ ...form, state, city })} />
               {text('postal_code', 'Postal Code')}{text('country', 'Country')}
+              <CustomFieldsSection
+                entity="lead"
+                values={form.custom_fields}
+                onChange={(cf) => setForm({ ...form, custom_fields: cf })}
+              />
             </div>
           </Section>
           <Section title="Consent">
@@ -306,14 +323,6 @@ export default function NewLeadPage() {
           </div>
         </Section>
       )}
-
-      {/* Admin-defined extra fields for leads. Hides itself entirely
-          when no custom fields are configured. */}
-      <CustomFieldsSection
-        entity="lead"
-        values={form.custom_fields}
-        onChange={(cf) => setForm({ ...form, custom_fields: cf })}
-      />
 
       <div style={{ display: 'flex', gap: 8, marginTop: 18, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
         <button type="button" onClick={() => router.back()} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 16px', borderRadius: 8, cursor: 'pointer' }}>Cancel</button>

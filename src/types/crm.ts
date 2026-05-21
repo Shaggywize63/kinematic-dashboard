@@ -235,7 +235,14 @@ export interface CustomField {
   // the server actually returns + validates against.
   entity_type: 'lead' | 'contact' | 'account' | 'deal';
   field_key: string; label: string;
-  field_type: 'text' | 'number' | 'date' | 'select' | 'multiselect' | 'boolean';
+  field_type:
+    | 'text' | 'longtext'
+    | 'number' | 'currency'
+    | 'boolean'
+    | 'date' | 'datetime'
+    | 'select' | 'multiselect' | 'radio'
+    | 'url' | 'email' | 'phone'
+    | 'image' | 'file';
   options?: string[] | null; required?: boolean; position?: number;
   created_at: string;
 }
