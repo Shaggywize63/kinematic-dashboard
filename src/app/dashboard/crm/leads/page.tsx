@@ -41,11 +41,19 @@ export default function LeadsListPage() {
       if (filters.block)    qs.set('block',    filters.block);
       const url = `${API_BASE_URL}/api/v1/crm/leads/export${qs.toString() ? `?${qs.toString()}` : ''}`;
       const token = getStoredToken();
-      const res = await fetch(url, {
-        headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-      });
+      // Forward both Authorization AND X-Client-Id. The raw fetch
+      // bypasses api.ts so the active client picker has to be attached
+      // manually — without it a super_admin's export ignores the
+      // current tenant selection and returns every client's leads.
+      const headers: Record<string, string> = {};
+      if (token) headers.Authorization = `Bearer ${token}`;
+      try {
+        const sel = window.localStorage.getItem('kinematic_selected_client');
+        if (sel && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sel)) {
+          headers['X-Client-Id'] = sel;
+        }
+      } catch { /* ignore */ }
+      const res = await fetch(url, { headers });
       if (!res.ok) throw new Error(`Export failed (HTTP ${res.status})`);
       const blob = await res.blob();
       const objUrl = URL.createObjectURL(blob);

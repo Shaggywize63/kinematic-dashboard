@@ -418,6 +418,17 @@ export default function CustomFieldsPage() {
           <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
             Fields ({builtinVisible.length + visible.length} total — {builtinVisible.length} system, {visible.length} custom)
           </div>
+          {visible.length > 1 && (
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              fontSize: 11, color: 'var(--text-dim)',
+              background: 'var(--s3)', padding: '3px 9px', borderRadius: 999,
+              border: '1px solid var(--border)',
+            }}>
+              <span style={{ fontSize: 13, lineHeight: 1 }}>⠿</span>
+              Drag the grip on a custom row to reorder
+            </div>
+          )}
           <div style={{ display: 'flex', gap: 4, marginLeft: 'auto', flexWrap: 'wrap', alignItems: 'center' }}>
             <button
               onClick={() => setShowBuiltin((v) => !v)}
@@ -437,7 +448,7 @@ export default function CustomFieldsPage() {
           <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
             <thead>
               <tr>
-                <th style={{ ...th, width: 24 }} title="Drag column"></th>
+                <th style={{ ...th, width: 32, textAlign: 'center', fontSize: 9, opacity: 0.6 }} title="Drag rows to reorder">↕</th>
                 <th style={th}>Entity</th>
                 <th style={th}>Key</th>
                 <th style={th}>Label</th>
@@ -458,9 +469,11 @@ export default function CustomFieldsPage() {
                 const saving = savingOverride === k;
                 return (
                   <tr key={`builtin-${f.entity}-${f.key}`}>
-                    {/* Empty drag cell — built-in fields aren't draggable
-                        since their position is intrinsic to the form. */}
-                    <td style={{ ...td, width: 24 }}></td>
+                    {/* Locked cell — built-in fields aren't draggable;
+                        their position is intrinsic to the form. The
+                        🔒 glyph signals "you can't move me" to balance
+                        with the ⠿ grip on custom rows. */}
+                    <td style={{ ...td, width: 32, textAlign: 'center', color: 'var(--text-dim)', opacity: 0.4, fontSize: 12 }} title="Built-in fields can't be reordered">🔒</td>
                     <td style={td}><span style={{ background: 'var(--s3)', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 700, textTransform: 'uppercase' }}>{f.entity}</span></td>
                     <td style={td}><code style={{ background: 'var(--s3)', padding: '1px 5px', borderRadius: 3, fontSize: 11 }}>{f.key}</code></td>
                     <td style={td}>
@@ -536,7 +549,22 @@ export default function CustomFieldsPage() {
                     cursor: reordering ? 'wait' : 'grab',
                   }}
                 >
-                  <td style={{ ...td, width: 24, color: 'var(--text-dim)', userSelect: 'none' }} title="Drag to reorder">⋮⋮</td>
+                  <td
+                    style={{
+                      ...td, width: 32, textAlign: 'center', verticalAlign: 'middle',
+                      color: 'var(--text-dim)', userSelect: 'none',
+                      cursor: reordering ? 'wait' : 'grab',
+                      // Tint the grip cell so it reads as a handle, not
+                      // an empty column. Hover/active states give the
+                      // rep affordance feedback before they start drag.
+                      background: isOver ? 'rgba(0,102,255,0.18)' : 'var(--s3)',
+                      fontFamily: 'system-ui, -apple-system, "Segoe UI Symbol", sans-serif',
+                      fontSize: 16, lineHeight: 1, fontWeight: 700,
+                    }}
+                    title="Drag to reorder this field"
+                  >
+                    ⠿
+                  </td>
                   <td style={td}><span style={{ background: 'var(--s3)', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 700, textTransform: 'uppercase' }}>{c.entity_type}</span></td>
                   <td style={td}><code style={{ background: 'var(--s3)', padding: '1px 5px', borderRadius: 3, fontSize: 11 }}>{c.field_key}</code></td>
                   <td style={td}>{c.label}</td>

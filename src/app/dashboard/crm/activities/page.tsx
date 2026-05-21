@@ -53,7 +53,20 @@ function ActivitiesPageInner() {
       if (feFilter) qs.set('owner_id', feFilter);
       const url = `${API_BASE_URL}/api/v1/crm/activities/export${qs.toString() ? `?${qs.toString()}` : ''}`;
       const token = getStoredToken();
-      const res = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+      // Forward BOTH the auth bearer AND the active X-Client-Id picker
+      // value (super_admin uses this to scope to one tenant). Raw fetch
+      // bypasses api.ts so we have to attach the header manually —
+      // without it the export ignores the client filter and returns
+      // every tenant's activities.
+      const headers: Record<string, string> = {};
+      if (token) headers.Authorization = `Bearer ${token}`;
+      try {
+        const sel = window.localStorage.getItem('kinematic_selected_client');
+        if (sel && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sel)) {
+          headers['X-Client-Id'] = sel;
+        }
+      } catch { /* ignore */ }
+      const res = await fetch(url, { headers });
       if (!res.ok) throw new Error(`Export failed (HTTP ${res.status})`);
       const blob = await res.blob();
       const objUrl = URL.createObjectURL(blob);
