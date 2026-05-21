@@ -106,6 +106,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // preset label.
   const [hierarchyRoleName, setHierarchyRoleName] = useState<string>('');
   useEffect(() => {
+    // Prefer the role name baked into the user object itself —
+    // /auth/me now joins org_roles and returns `org_role: { id, name }`.
+    // Falls back to a one-time fetch + cache for older sessions that
+    // pre-date the join, so a stale localStorage doesn't blank the
+    // designation forever.
+    const joined = (user as any)?.org_role?.name as string | undefined;
+    if (joined) { setHierarchyRoleName(joined); return; }
     const orgRoleId = (user as any)?.org_role_id;
     if (!orgRoleId) { setHierarchyRoleName(''); return; }
     const cacheKey = `kin_role_name_${orgRoleId}`;

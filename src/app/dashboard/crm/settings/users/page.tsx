@@ -764,7 +764,16 @@ export default function CrmUsersPage() {
             {loading && <tr><td colSpan={8} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)' }}>Loading users…</td></tr>}
             {!loading && filtered.length === 0 && <tr><td colSpan={8} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)' }}>No users yet — click <strong style={{ color: 'var(--text)' }}>+ Add User</strong> or <strong style={{ color: 'var(--text)' }}>Bulk Upload</strong>.</td></tr>}
             {filtered.map((u) => {
-              const hRoleName = u.org_role_id ? (roles.find((r) => r.id === u.org_role_id)?.name ?? '—') : '—';
+              // Prefer the server-joined role name (getUsers in
+              // misc.controller.ts now returns org_role.name alongside
+              // each row). Fall back to looking up the locally-loaded
+              // roles list, then to "—" only when the user truly has no
+              // hierarchy role assigned. Never shows "Team Member" as a
+              // catch-all — admins want to see the real designation.
+              const joinedName = (u as any)?.org_role?.name as string | undefined;
+              const hRoleName = joinedName
+                || (u.org_role_id ? roles.find((r) => r.id === u.org_role_id)?.name : undefined)
+                || '—';
               // Resolve city names: prefer the server-joined names; fall
               // back to looking up assigned_cities ids against the
               // tenant-scoped cities list we already loaded for the form.
