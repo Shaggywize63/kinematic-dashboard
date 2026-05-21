@@ -421,12 +421,12 @@ export default function CustomFieldsPage() {
           {visible.length > 1 && (
             <div style={{
               display: 'inline-flex', alignItems: 'center', gap: 6,
-              fontSize: 11, color: 'var(--text-dim)',
-              background: 'var(--s3)', padding: '3px 9px', borderRadius: 999,
-              border: '1px solid var(--border)',
+              fontSize: 11, color: 'var(--primary)',
+              background: 'rgba(0,102,255,0.08)', padding: '4px 10px', borderRadius: 999,
+              border: '1px solid var(--primary)', fontWeight: 600,
             }}>
-              <span style={{ fontSize: 13, lineHeight: 1 }}>⠿</span>
-              Drag the grip on a custom row to reorder
+              <GripIcon size={12} />
+              Drag the blue grip on any custom row to reorder
             </div>
           )}
           <div style={{ display: 'flex', gap: 4, marginLeft: 'auto', flexWrap: 'wrap', alignItems: 'center' }}>
@@ -448,7 +448,7 @@ export default function CustomFieldsPage() {
           <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
             <thead>
               <tr>
-                <th style={{ ...th, width: 32, textAlign: 'center', fontSize: 9, opacity: 0.6 }} title="Drag rows to reorder">↕</th>
+                <th style={{ ...th, width: 44, textAlign: 'center', fontSize: 9 }} title="Drag rows to reorder">SORT</th>
                 <th style={th}>Entity</th>
                 <th style={th}>Key</th>
                 <th style={th}>Label</th>
@@ -473,7 +473,7 @@ export default function CustomFieldsPage() {
                         their position is intrinsic to the form. The
                         🔒 glyph signals "you can't move me" to balance
                         with the ⠿ grip on custom rows. */}
-                    <td style={{ ...td, width: 32, textAlign: 'center', color: 'var(--text-dim)', opacity: 0.4, fontSize: 12 }} title="Built-in fields can't be reordered">🔒</td>
+                    <td style={{ ...td, width: 44, textAlign: 'center', color: 'var(--text-dim)', opacity: 0.4, fontSize: 12 }} title="Built-in fields can't be reordered">🔒</td>
                     <td style={td}><span style={{ background: 'var(--s3)', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 700, textTransform: 'uppercase' }}>{f.entity}</span></td>
                     <td style={td}><code style={{ background: 'var(--s3)', padding: '1px 5px', borderRadius: 3, fontSize: 11 }}>{f.key}</code></td>
                     <td style={td}>
@@ -551,19 +551,24 @@ export default function CustomFieldsPage() {
                 >
                   <td
                     style={{
-                      ...td, width: 32, textAlign: 'center', verticalAlign: 'middle',
-                      color: 'var(--text-dim)', userSelect: 'none',
+                      ...td, width: 44, textAlign: 'center', verticalAlign: 'middle',
+                      userSelect: 'none',
                       cursor: reordering ? 'wait' : 'grab',
-                      // Tint the grip cell so it reads as a handle, not
-                      // an empty column. Hover/active states give the
-                      // rep affordance feedback before they start drag.
-                      background: isOver ? 'rgba(0,102,255,0.18)' : 'var(--s3)',
-                      fontFamily: 'system-ui, -apple-system, "Segoe UI Symbol", sans-serif',
-                      fontSize: 16, lineHeight: 1, fontWeight: 700,
+                      // Strong primary tint so the grip cell is unmistakable
+                      // as a drag handle, not an empty column.
+                      background: isOver ? 'rgba(0,102,255,0.28)' : 'rgba(0,102,255,0.12)',
+                      borderRight: '1px solid var(--border)',
+                      padding: 0,
                     }}
                     title="Drag to reorder this field"
                   >
-                    ⠿
+                    <div style={{
+                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                      width: 28, height: 28, borderRadius: 6,
+                      background: 'var(--primary)', color: '#fff',
+                    }}>
+                      <GripIcon size={14} />
+                    </div>
                   </td>
                   <td style={td}><span style={{ background: 'var(--s3)', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 700, textTransform: 'uppercase' }}>{c.entity_type}</span></td>
                   <td style={td}><code style={{ background: 'var(--s3)', padding: '1px 5px', borderRadius: 3, fontSize: 11 }}>{c.field_key}</code></td>
@@ -729,6 +734,29 @@ export default function CustomFieldsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+// Six-dot grip handle as inline SVG. Font-based glyphs (⠿ / ⋮⋮) silently
+// disappeared on a few browser/OS combos because the surrounding font
+// stack didn't carry the codepoint. SVG renders everywhere identically.
+function GripIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="currentColor"
+      aria-hidden="true"
+      style={{ display: 'block' }}
+    >
+      <circle cx="5"  cy="3"  r="1.4" />
+      <circle cx="11" cy="3"  r="1.4" />
+      <circle cx="5"  cy="8"  r="1.4" />
+      <circle cx="11" cy="8"  r="1.4" />
+      <circle cx="5"  cy="13" r="1.4" />
+      <circle cx="11" cy="13" r="1.4" />
+    </svg>
   );
 }
 
