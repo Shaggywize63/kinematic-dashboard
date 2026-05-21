@@ -27,21 +27,16 @@ const BUSINESS_OPTIONS: Array<{ value: BusinessType; label: string; desc: string
   { value: 'both', label: 'Mixed', desc: 'Show both. Each lead/contact can be tagged B2B or B2C individually.' },
 ];
 
-// Theme choice supports 'system' so the dashboard can follow the OS
-// preference (and re-render when it changes mid-session). The DOM
-// attribute always resolves to dark|light — 'system' is the user's
-// stored choice, not a renderable theme.
-type ThemeChoice = 'dark' | 'light' | 'system';
-
-function resolveSystemTheme(): 'dark' | 'light' {
-  if (typeof window === 'undefined') return 'dark';
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-}
+// Two-state theme — 'system' was removed because OS auto-switching was
+// the root cause of "random theme flips" reported by admins. The DOM
+// attribute + native color-scheme are kept in lockstep so scrollbars
+// and form controls match the page.
+type ThemeChoice = 'dark' | 'light';
 
 function applyTheme(t: ThemeChoice) {
   if (typeof document === 'undefined') return;
-  const resolved = t === 'system' ? resolveSystemTheme() : t;
-  document.documentElement.setAttribute('data-theme', resolved);
+  document.documentElement.setAttribute('data-theme', t);
+  document.documentElement.style.colorScheme = t;
 }
 
 export default function SettingsIndex() {

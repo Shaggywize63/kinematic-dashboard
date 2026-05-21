@@ -85,7 +85,10 @@ export default function SettingsPage() {
   const [roleForm, setRoleForm] = useState<{ name: string; client_id: string; description: string; color: string }>({
     name: '', client_id: '', description: '', color: '#6366f1',
   });
-  const [theme, setTheme] = useState<'dark'|'light'|'system'>('system');
+  // Two-state theme (no 'system' anymore — OS auto-switching was the
+  // root cause of "random theme changes" admins reported). Default
+  // 'dark' is overwritten on mount from localStorage.
+  const [theme, setTheme] = useState<'dark'|'light'>('dark');
   const [radius, setRadius] = useState(100);
   const [error, setError] = useState('');
 
@@ -131,39 +134,29 @@ export default function SettingsPage() {
   // dashboard follows whatever the user set at the OS level — and re-renders
   // when they flip it (without a refresh).
   useEffect(() => {
-    // Default to 'dark' so the theme doesn't follow OS-level auto-switching
-    // (which was reported as "theme randomly changes"). Once the admin
-    // picks a mode the choice persists in localStorage and survives every
-    // refresh / route change because the boot script in app/layout.tsx
-    // re-applies it before paint.
-    const raw = localStorage.getItem('kinematic-theme') as 'dark'|'light'|'system' | null;
-    const saved: 'dark' | 'light' = raw === 'light' ? 'light' : 'dark';
-    applyTheme(saved);
-    setTheme(saved);
+    // Single source of truth is localStorage + the inline boot script
+    // in app/layout.tsx. This effect only mirrors the saved value into
+    // the local React state so the active button highlights correctly.
+    // Anything that ISN'T explicitly 'light' resolves to 'dark' —
+    // legacy 'system' values, empty stores, and corrupt strings all
+    // collapse to the same baseline.
+    try {
+      const raw = localStorage.getItem('kinematic-theme');
+      setTheme(raw === 'light' ? 'light' : 'dark');
+    } catch { setTheme('dark'); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Re-apply when the OS theme changes — only relevant while in 'system' mode.
-  useEffect(() => {
-    if (theme !== 'system' || typeof window === 'undefined') return;
-    const mq = window.matchMedia('(prefers-color-scheme: dark)');
-    const handler = () => applyTheme('system');
-    mq.addEventListener('change', handler);
-    return () => mq.removeEventListener('change', handler);
-  }, [theme]);
-
-  const applyTheme = (t: 'dark'|'light'|'system') => {
-    if (typeof window === 'undefined') return;
-    const effective = t === 'system'
-      ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
-      : t;
-    document.documentElement.setAttribute('data-theme', effective);
+  const applyTheme = (t: 'dark'|'light') => {
+    if (typeof document === 'undefined') return;
+    document.documentElement.setAttribute('data-theme', t);
+    document.documentElement.style.colorScheme = t;
   };
 
-  const toggleTheme = (t: 'dark'|'light'|'system') => {
+  const toggleTheme = (t: 'dark'|'light') => {
     setTheme(t);
     applyTheme(t);
-    localStorage.setItem('kinematic-theme', t);
+    try { localStorage.setItem('kinematic-theme', t); } catch { /* ignore */ }
   };
 
   const fetchData = useCallback(async () => {

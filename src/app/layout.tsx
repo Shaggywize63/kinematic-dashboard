@@ -38,38 +38,47 @@ export const viewport: Viewport = {
 };
 
 /**
- * Synchronous boot script that runs BEFORE React hydrates.
+ * Synchronous theme boot script — runs BEFORE the body renders, before
+ * React hydrates, before any CSS variables resolve.
  *
- * The dashboard's settings page applied data-theme via a `useEffect` on
- * mount, but that fires AFTER the first paint — so every page load
- * (and every route that doesn't host the settings useEffect) started at
- * the CSS default (dark), regardless of what the user had saved in
- * localStorage. Result: pick "Light" → refresh → back to dark.
+ * Behaviour:
+ *   1. Pull `kinematic-theme` from localStorage. Only 'dark' and 'light'
+ *      are honoured; anything else (legacy 'system', stray values, an
+ *      empty store) normalises to 'dark' so the page never starts in an
+ *      ambiguous state.
+ *   2. Stamp the resolved value onto BOTH `<html data-theme>` (drives
+ *      our --bg / --text / --primary tokens) AND `color-scheme` (drives
+ *      native form controls + scrollbars). Without color-scheme the
+ *      browser may flash light scrollbars on a dark theme during the
+ *      first paint.
+ *   3. Re-stamp on visibilitychange when the doc becomes visible again.
+ *      Catches a class of bug where the theme appears to "flip" — the
+ *      browser restores a bfcache page without our boot script running,
+ *      so data-theme can disappear after a back-button navigation.
+ *   4. Re-stamp on the `storage` event so changes in another tab
+ *      propagate immediately, instead of the two tabs disagreeing.
  *
- * This inline script applies the saved theme (or the OS preference for
- * "system") to <html data-theme> synchronously in <head>, so the CSS
- * variables resolve to the right values on the very first paint. No
- * flash, no override on refresh, and it covers EVERY route, not just
- * the settings page.
- *
- * Default is "dark" so the theme stays stable until the user explicitly
- * opts into a different mode. The previous default of "system" caused
- * the dashboard to flip whenever the OS auto-toggled between light/dark
- * (macOS Auto, Windows Night light, scheduled themes) — admins called
- * this "random theme changes". Once the user picks Light or Dark
- * explicitly, we persist that choice and never re-derive from the OS.
+ * Inline, IIFE-wrapped, idempotent. Safe to run on every nav.
  */
 const themeBootScript = `
 (function() {
-  try {
-    var saved = localStorage.getItem('kinematic-theme');
-    // Legacy "system" values stick around in older browsers; normalise to
-    // dark so the theme doesn't keep shifting under the user.
-    if (!saved || saved === 'system') saved = 'dark';
-    document.documentElement.setAttribute('data-theme', saved);
-  } catch (_) {
-    document.documentElement.setAttribute('data-theme', 'dark');
+  function apply(t) {
+    var v = (t === 'light' ? 'light' : 'dark');
+    document.documentElement.setAttribute('data-theme', v);
+    document.documentElement.style.colorScheme = v;
   }
+  function read() {
+    try { return localStorage.getItem('kinematic-theme') || ''; } catch (_) { return ''; }
+  }
+  apply(read());
+  try {
+    window.addEventListener('storage', function(e) {
+      if (e.key === 'kinematic-theme') apply(read());
+    });
+    document.addEventListener('visibilitychange', function() {
+      if (document.visibilityState === 'visible') apply(read());
+    });
+  } catch (_) {}
 })();
 `;
 
