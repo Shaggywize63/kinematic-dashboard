@@ -230,7 +230,10 @@ export interface Automation {
 
 export interface CustomField {
   id: string; org_id: string;
-  entity: 'lead' | 'contact' | 'account' | 'deal';
+  // Backend column is `entity_type` (lead/contact/account/deal). Older
+  // code used `entity`; rename kept here so the field name matches what
+  // the server actually returns + validates against.
+  entity_type: 'lead' | 'contact' | 'account' | 'deal';
   field_key: string; label: string;
   field_type: 'text' | 'number' | 'date' | 'select' | 'multiselect' | 'boolean';
   options?: string[] | null; required?: boolean; position?: number;

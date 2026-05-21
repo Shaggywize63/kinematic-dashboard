@@ -5,7 +5,7 @@ import { crmCustomFields, crmSettings } from '../../../../../lib/crmApi';
 import type { CustomField } from '../../../../../types/crm';
 import { getStoredUser, canAccess } from '../../../../../lib/auth';
 
-const ENTITIES: Array<CustomField['entity']> = ['lead', 'contact', 'account', 'deal'];
+const ENTITIES: Array<CustomField['entity_type']> = ['lead', 'contact', 'account', 'deal'];
 const TYPES: Array<CustomField['field_type']> = ['text', 'number', 'date', 'select', 'multiselect', 'boolean'];
 
 // Built-in standard fields for each entity
@@ -95,13 +95,13 @@ export default function CustomFieldsPage() {
   const [accessDenied, setAccessDenied] = useState(false);
   const [editing, setEditing] = useState<{ entity: string; key: string; label: string; required: boolean } | null>(null);
 
-  const [entity, setEntity] = useState<CustomField['entity']>('lead');
+  const [entity, setEntity] = useState<CustomField['entity_type']>('lead');
   const [fieldKey, setFieldKey] = useState('');
   const [label, setLabel] = useState('');
   const [fieldType, setFieldType] = useState<CustomField['field_type']>('text');
   const [optionsRaw, setOptionsRaw] = useState('');
   const [required, setRequired] = useState(false);
-  const [filter, setFilter] = useState<'all' | CustomField['entity']>('lead');
+  const [filter, setFilter] = useState<'all' | CustomField['entity_type']>('lead');
   const [showBuiltin, setShowBuiltin] = useState(true);
 
   const reload = async () => {
@@ -134,17 +134,21 @@ export default function CustomFieldsPage() {
   const create = async () => {
     if (!fieldKey.trim() || !label.trim()) return toast.error('Field key and label are required');
     if (!/^[a-z][a-z0-9_]*$/.test(fieldKey.trim())) return toast.error('Key must be lowercase, start with a letter, use only a-z 0-9 and _');
-    if (items.some((i) => i.entity === entity && i.field_key === fieldKey.trim())) {
+    if (items.some((i) => i.entity_type === entity && i.field_key === fieldKey.trim())) {
       return toast.error(`A field with key "${fieldKey.trim()}" already exists for ${entity}`);
     }
     const needsOptions = fieldType === 'select' || fieldType === 'multiselect';
     const parsedOptions = needsOptions ? optionsRaw.split(',').map((s) => s.trim()).filter(Boolean) : undefined;
     if (needsOptions && (!parsedOptions || parsedOptions.length === 0)) return toast.error('Add at least one option for select/multiselect');
     setCreating(true);
+    // Backend (customFieldSchema in src/validators/crm.validators.ts) expects
+    // `entity_type` — sending `entity` silently failed validation and the
+    // POST returned 400 before reaching the DB, so clicks on "+ Add Field"
+    // looked like dead clicks.
     const payload: Record<string, unknown> = {
-      entity, field_key: fieldKey.trim(), label: label.trim(),
+      entity_type: entity, field_key: fieldKey.trim(), label: label.trim(),
       field_type: fieldType, required,
-      position: items.filter((i) => i.entity === entity).length,
+      position: items.filter((i) => i.entity_type === entity).length,
     };
     if (parsedOptions !== undefined) payload.options = parsedOptions;
     try {
@@ -228,7 +232,7 @@ export default function CustomFieldsPage() {
     );
   }
 
-  const visible = filter === 'all' ? items : items.filter((i) => i.entity === filter);
+  const visible = filter === 'all' ? items : items.filter((i) => i.entity_type === filter);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -239,7 +243,7 @@ export default function CustomFieldsPage() {
           Adds an extra field to lead, contact, account, or deal records. Field key is the API identifier — use lowercase + underscores only.
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 8, marginBottom: 8 }}>
-          <select value={entity} onChange={(e) => { setEntity(e.target.value as CustomField['entity']); setFilter(e.target.value as CustomField['entity']); }} style={input}>
+          <select value={entity} onChange={(e) => { setEntity(e.target.value as CustomField['entity_type']); setFilter(e.target.value as CustomField['entity_type']); }} style={input}>
             {ENTITIES.map((e) => <option key={e} value={e}>{e[0].toUpperCase() + e.slice(1)}</option>)}
           </select>
           <input value={fieldKey} onChange={(e) => setFieldKey(e.target.value.toLowerCase())} placeholder="field_key (e.g. tax_id)" style={input} />
@@ -346,7 +350,7 @@ export default function CustomFieldsPage() {
               )}
               {visible.map((c) => (
                 <tr key={c.id}>
-                  <td style={td}><span style={{ background: 'var(--s3)', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 700, textTransform: 'uppercase' }}>{c.entity}</span></td>
+                  <td style={td}><span style={{ background: 'var(--s3)', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 700, textTransform: 'uppercase' }}>{c.entity_type}</span></td>
                   <td style={td}><code style={{ background: 'var(--s3)', padding: '1px 5px', borderRadius: 3, fontSize: 11 }}>{c.field_key}</code></td>
                   <td style={td}>{c.label}</td>
                   <td style={td}>{c.field_type}</td>
