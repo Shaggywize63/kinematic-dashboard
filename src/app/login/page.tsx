@@ -7,77 +7,64 @@ import { saveSession, landingRouteFor } from '../../lib/auth';
 /**
  * Login page — light-themed marketing surface + sign-in form.
  *
- * Layout: the page covers the full viewport on desktop with a
- * feature-card grid on the left (≈60% width) and the sign-in card
- * pinned to the right rail. On narrow screens (≤960px) the grid drops
- * below the form. Cards stagger-fade in on mount and lift on hover.
+ * Desktop layout: the sign-in card is fixed dead-centre of the viewport,
+ * and 12 marquee feature cards float around it like a constellation —
+ * each with its own gentle drift animation (different phase + duration
+ * per card) and a small initial rotation so the cluster feels alive.
  *
- * Light surface only — the rest of the app honours the user's
- * dark/light theme post-login, but the login screen is always light
- * so the marketing impression is consistent regardless of the saved
- * theme. The form itself uses the same auth flow as before;
- * everything new is presentational.
+ * Mobile (≤960px): the constellation collapses to a single orderly
+ * column — logo + headline + form first, then the feature grid below
+ * as a recap. Floating layouts would overlap the form at narrow widths.
  */
 
 interface Feature {
   icon: string;
   title: string;
-  description: string;
+  group: 'field' | 'leads' | 'supply';
   accent: string;
 }
 
-interface FeatureGroup {
-  label: string;
-  caption: string;
-  tone: string;
-  items: Feature[];
-}
+// 12 marquee features scattered around the form. Order here defines the
+// position index used in CONSTELLATION below — keep them in lockstep.
+const FEATURES: Feature[] = [
+  // Field Tracking (4)
+  { icon: '📍', title: 'Live GPS Trail',          group: 'field',  accent: '#F59E0B' },
+  { icon: '🤳', title: 'Selfie Attendance',       group: 'field',  accent: '#EAB308' },
+  { icon: '🗺',  title: 'Smart Route Plans',      group: 'field',  accent: '#22C55E' },
+  { icon: '🆘', title: 'SOS Alerts',              group: 'field',  accent: '#EF4444' },
+  // Lead Management (5)
+  { icon: '✦', title: 'KINI AI Copilot',          group: 'leads',  accent: '#E01E2C' },
+  { icon: '🎯', title: 'AI Lead Scoring',         group: 'leads',  accent: '#3E9EFF' },
+  { icon: '🔀', title: 'Lead → Deal in 1 Tap',    group: 'leads',  accent: '#10B981' },
+  { icon: '💬', title: 'WhatsApp + Email',        group: 'leads',  accent: '#25D366' },
+  { icon: '📑', title: 'Reports + Forecast',      group: 'leads',  accent: '#EC4899' },
+  // Supply Chain (3)
+  { icon: '🏬', title: 'Distributor Network',     group: 'supply', accent: '#10B981' },
+  { icon: '🧾', title: 'GST-Grade Invoicing',     group: 'supply', accent: '#F59E0B' },
+  { icon: '🔌', title: 'Tally Bridge',            group: 'supply', accent: '#06B6D4' },
+];
 
-// Three pillars. Each card is one capability the platform ships today.
-// Keep titles short (≤24 chars) and descriptions to one tight line so the
-// grid stays scannable.
-const FEATURE_GROUPS: FeatureGroup[] = [
-  {
-    label: 'Field Tracking',
-    caption: 'Real-time visibility into every rep on the ground.',
-    tone: '#F59E0B',
-    items: [
-      { icon: '📍', title: 'Live GPS Trail',         description: '10-minute breadcrumb pings + day-long polyline on the supervisor map.', accent: '#F59E0B' },
-      { icon: '🤳', title: 'Selfie + Geo Attendance', description: 'Geo-fenced check-in with face capture. Auto-flags out-of-zone marks.',   accent: '#EAB308' },
-      { icon: '🗺',  title: 'Smart Route Plans',     description: 'AI-ordered daily beats. Nearest-neighbour optimisation + carbon scoring.', accent: '#22C55E' },
-      { icon: '🆘', title: 'SOS + Low-Battery Alerts',description: 'One-tap distress + automatic battery + offline alerts to supervisors.', accent: '#EF4444' },
-      { icon: '📸', title: 'Geo-Tagged CC / ECC',     description: 'Consumer-contact forms with GPS, photo, GST-grade audit trail.',        accent: '#06B6D4' },
-      { icon: '⏱',  title: 'Hours + Idle Time',     description: 'Work-hour totals, idle minutes, location dwell — per FE, per day.',     accent: '#8B5CF6' },
-    ],
-  },
-  {
-    label: 'Lead Management',
-    caption: 'CRM that closes deals, not just records them.',
-    tone: '#3E9EFF',
-    items: [
-      { icon: '✦', title: 'KINI AI Copilot',     description: 'Plain-English commands across leads, deals, and reports. Ask, act, automate.', accent: '#E01E2C' },
-      { icon: '🎯', title: 'AI Lead Scoring',     description: 'ICP weights + behaviour signals. Focus on the 70+ scores first.',         accent: '#3E9EFF' },
-      { icon: '🔀', title: 'Lead → Deal in One Tap',description: 'Convert spawns Contact + Account + Deal with the name pre-filled.',         accent: '#10B981' },
-      { icon: '🪜', title: 'Pipeline + Kanban',   description: 'Drag-drop deal stages. Multiple pipelines per business motion.',             accent: '#6366F1' },
-      { icon: '💬', title: 'WhatsApp + Email',    description: 'Native WhatsApp Business templates. Email tracking with open + click receipts.', accent: '#25D366' },
-      { icon: '🔮', title: 'Win-Probability + NBA',description: 'Model-backed forecasts + a Next-Best-Action card on every open deal.',     accent: '#8B5CF6' },
-      { icon: '📑', title: '10+ Reports + Builder',description: 'Funnel, stuck deals, lead aging, source ROI — plus a drag-drop custom builder.', accent: '#EC4899' },
-      { icon: '🌐', title: 'Multi-language',      description: 'KINI replies in हिन्दी, বাংলা, ଓଡ଼ିଆ, অসমীয়া + English.',                  accent: '#0EA5E9' },
-    ],
-  },
-  {
-    label: 'Supply Chain',
-    caption: 'Distributor onboarding to invoice reconciliation.',
-    tone: '#10B981',
-    items: [
-      { icon: '🏬', title: 'Distributor Network',    description: 'Onboard distributors, retailers, sub-stockists with KYC + credit limits.', accent: '#10B981' },
-      { icon: '🧾', title: 'GST-Grade Invoicing',    description: 'CGST/SGST/IGST splits, e-invoice IRN, immutable double-entry ledger.',     accent: '#F59E0B' },
-      { icon: '💳', title: 'Payments + Returns',     description: 'UPI / cheque / bank tracking. Credit notes on returns auto-post to the ledger.', accent: '#3E9EFF' },
-      { icon: '📦', title: 'SKU Catalogue',          description: 'Weight-based pricing, multi-pack, batch + expiry, channel-specific MRPs.',  accent: '#8B5CF6' },
-      { icon: '📊', title: 'Stock Movement',         description: 'Real-time inventory across warehouses, vans, and retailer outlets.',          accent: '#EC4899' },
-      { icon: '🔌', title: 'Tally Bridge (v1)',      description: 'Direct sync to Tally Prime / ERP 9. Eliminate manual re-keying entirely.',     accent: '#06B6D4' },
-    ],
-  },
+// Hand-tuned constellation around a ~440px-wide centred form. Each entry
+// is an absolute position relative to the viewport (using top/left/right
+// in vh/vw + a small rotation). Picked to leave the form's bounds clear
+// at ≥1100px width while still feeling scattered, not gridded.
+interface SlotStyle { top?: string; left?: string; right?: string; bottom?: string; rotate: number; floatVariant: 1 | 2 | 3; delay: number }
+const CONSTELLATION: SlotStyle[] = [
+  // Top row
+  { top: '6%',   left:  '4%',  rotate: -5, floatVariant: 1, delay: 0.05 },
+  { top: '10%',  left: '22%',  rotate:  3, floatVariant: 2, delay: 0.20 },
+  { top: '5%',   right:'22%',  rotate: -4, floatVariant: 3, delay: 0.32 },
+  { top: '9%',   right: '4%',  rotate:  6, floatVariant: 1, delay: 0.12 },
+  // Mid row
+  { top: '38%',  left:  '2%',  rotate: -7, floatVariant: 2, delay: 0.40 },
+  { top: '46%',  left: '14%',  rotate:  4, floatVariant: 3, delay: 0.55 },
+  { top: '42%',  right: '2%',  rotate:  5, floatVariant: 1, delay: 0.48 },
+  { top: '50%',  right:'14%',  rotate: -3, floatVariant: 2, delay: 0.62 },
+  // Bottom row
+  { bottom:'8%', left:  '6%',  rotate:  6, floatVariant: 3, delay: 0.70 },
+  { bottom:'12%',left: '24%',  rotate: -4, floatVariant: 1, delay: 0.78 },
+  { bottom:'10%',right:'24%',  rotate:  3, floatVariant: 2, delay: 0.85 },
+  { bottom:'7%', right: '5%',  rotate: -6, floatVariant: 3, delay: 0.92 },
 ];
 
 const PALETTE = {
@@ -142,34 +129,45 @@ export default function LoginPage() {
       color: PALETTE.ink,
       position: 'relative', overflow: 'hidden',
     }}>
-      {/* Soft brand-tinted bloom in the background — keeps the surface
-          interesting without competing with the cards. */}
-      <div aria-hidden style={{ position: 'absolute', top: -160, right: -160, width: 540, height: 540, borderRadius: '50%', background: 'radial-gradient(circle, rgba(208,30,44,0.08) 0%, transparent 60%)', pointerEvents: 'none' }} />
-      <div aria-hidden style={{ position: 'absolute', bottom: -120, left: -120, width: 460, height: 460, borderRadius: '50%', background: 'radial-gradient(circle, rgba(62,158,255,0.07) 0%, transparent 60%)', pointerEvents: 'none' }} />
-
       <style jsx global>{`
-        @keyframes loginFadeUp {
-          from { opacity: 0; transform: translateY(14px); }
-          to   { opacity: 1; transform: translateY(0); }
+        @keyframes loginFadeIn {
+          from { opacity: 0; transform: translateY(8px) scale(0.96); }
+          to   { opacity: 1; transform: translateY(0)   scale(1); }
         }
-        @keyframes loginFloat {
-          0%, 100% { transform: translateY(0); }
-          50%      { transform: translateY(-4px); }
+        /* Three float variants so neighbouring cards don't bob in lockstep. */
+        @keyframes floatA {
+          0%, 100% { transform: translate(0, 0)   rotate(var(--rot, 0deg)); }
+          50%      { transform: translate(6px, -10px) rotate(var(--rot, 0deg)); }
+        }
+        @keyframes floatB {
+          0%, 100% { transform: translate(0, 0)   rotate(var(--rot, 0deg)); }
+          50%      { transform: translate(-8px, -6px) rotate(var(--rot, 0deg)); }
+        }
+        @keyframes floatC {
+          0%, 100% { transform: translate(0, 0)   rotate(var(--rot, 0deg)); }
+          50%      { transform: translate(4px, 8px) rotate(var(--rot, 0deg)); }
         }
         @keyframes spin { to { transform: rotate(360deg); } }
-        .feature-card {
-          animation: loginFadeUp 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
-          transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+        @keyframes formPop {
+          0%   { opacity: 0; transform: translate(-50%, -48%) scale(0.92); }
+          60%  { opacity: 1; transform: translate(-50%, -50%) scale(1.01); }
+          100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
         }
-        .feature-card:hover {
-          transform: translateY(-4px);
-          box-shadow: 0 14px 36px rgba(15, 30, 60, 0.10);
+
+        .floating-card {
+          /* Entry animation runs once, then we hand off to the continuous
+             float so the card never stops moving (slowly). The continuous
+             animation owns the transform via the --rot CSS var. */
+          opacity: 0;
+          animation:
+            loginFadeIn 0.7s cubic-bezier(0.16, 1, 0.3, 1) var(--entry-delay, 0s) forwards,
+            var(--float-anim, floatA) var(--float-dur, 8s) ease-in-out infinite;
+          animation-delay: var(--entry-delay, 0s), calc(var(--entry-delay, 0s) + 0.7s);
         }
-        .feature-icon {
-          animation: loginFloat 4s ease-in-out infinite;
-        }
-        .login-card {
-          animation: loginFadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+        .floating-card:hover {
+          z-index: 5;
+          /* Pause the drift on hover so the user can read the card. */
+          animation-play-state: paused, paused;
         }
         .login-input:focus {
           border-color: ${PALETTE.red} !important;
@@ -179,299 +177,260 @@ export default function LoginPage() {
           transform: translateY(-1px);
           box-shadow: 0 14px 30px rgba(208,30,44,0.30);
         }
-        /*
-         * Page is a 2×2 grid:
-         *   [ header  | form ]
-         *   [ features | form ]
-         * Form spans both rows on the right rail; align-self:start pins
-         * the card to the TOP so it sits at the same height as the
-         * "Motion Made Measurable" headline on the left. On mobile the
-         * grid collapses to a single column with the explicit order
-         * header → form → features.
-         */
-        .login-grid {
-          display: grid;
-          grid-template-columns: minmax(0, 1fr) 440px;
-          grid-template-areas:
-            "header  form"
-            "features form";
-          gap: 32px;
-          width: 100%;
-          padding: 48px 48px 56px;
-          align-items: start;
-        }
-        .login-header   { grid-area: header; }
-        .login-features { grid-area: features; }
-        .login-form-pane {
-          grid-area: form;
-          display: flex;
-          justify-content: center;
-          align-self: start;   /* match the headline's top edge */
-        }
+
         @media (max-width: 960px) {
-          .login-grid {
-            grid-template-columns: 1fr;
-            grid-template-areas:
-              "header"
-              "form"
-              "features";
-            gap: 24px;
-            padding: 28px 20px 40px;
+          /* Mobile: collapse the constellation into a normal vertical
+             stack — logo + headline → form → recap grid. */
+          .login-constellation { display: none !important; }
+          .login-card-center {
+            position: static !important;
+            transform: none !important;
+            margin: 0 auto;
+            animation: loginFadeIn 0.6s ease both !important;
           }
-          .login-form-pane { justify-content: stretch; }
+          .login-mobile-stack { display: flex !important; }
+        }
+        @media (min-width: 961px) {
+          .login-mobile-stack { display: none !important; }
         }
       `}</style>
 
-      <div className="login-grid" style={{ position: 'relative', zIndex: 1 }}>
-        {/* HEADER — logo + wordmark + KINI pill + hero headline. Sits on
-            top of the left column on desktop; first block on mobile. */}
-        <header className="login-header" style={{ display: 'flex', flexDirection: 'column' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 28, flexWrap: 'wrap' }}>
-            <img src="/logo-mark.png" alt="Kinematic" style={{ width: 44, height: 44, objectFit: 'contain' }} />
+      {/* Background blooms */}
+      <div aria-hidden style={{ position: 'absolute', top: -160, right: -160, width: 540, height: 540, borderRadius: '50%', background: 'radial-gradient(circle, rgba(208,30,44,0.08) 0%, transparent 60%)', pointerEvents: 'none' }} />
+      <div aria-hidden style={{ position: 'absolute', bottom: -120, left: -120, width: 460, height: 460, borderRadius: '50%', background: 'radial-gradient(circle, rgba(62,158,255,0.07) 0%, transparent 60%)', pointerEvents: 'none' }} />
+
+      {/* DESKTOP — constellation of floating cards around the form */}
+      <div className="login-constellation" style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 1 }}>
+        {FEATURES.map((f, i) => {
+          const slot = CONSTELLATION[i % CONSTELLATION.length];
+          const floatAnim = `float${slot.floatVariant === 1 ? 'A' : slot.floatVariant === 2 ? 'B' : 'C'}`;
+          const floatDur  = 7 + (i % 4); // 7s / 8s / 9s / 10s — desync neighbours
+          return (
+            <div
+              key={f.title}
+              className="floating-card"
+              style={{
+                position: 'absolute',
+                top: slot.top,
+                left: slot.left,
+                right: slot.right,
+                bottom: slot.bottom,
+                width: 200,
+                background: PALETTE.surface,
+                border: `1px solid ${PALETTE.border}`,
+                borderRadius: 14,
+                padding: '12px 13px',
+                boxShadow: '0 10px 28px rgba(15, 30, 60, 0.08)',
+                pointerEvents: 'auto',
+                cursor: 'default',
+                ['--rot' as any]: `${slot.rotate}deg`,
+                ['--entry-delay' as any]: `${slot.delay}s`,
+                ['--float-anim' as any]: floatAnim,
+                ['--float-dur' as any]: `${floatDur}s`,
+                transform: `rotate(${slot.rotate}deg)`,
+              }}
+            >
+              <div style={{
+                width: 30, height: 30, borderRadius: 9,
+                background: `${f.accent}14`, color: f.accent,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 16, marginBottom: 7,
+              }}>{f.icon}</div>
+              <div style={{ fontWeight: 800, fontSize: 12, color: PALETTE.ink, letterSpacing: '-0.1px' }}>
+                {f.title}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* CENTERED LOGIN CARD */}
+      <div
+        className="login-card-center"
+        style={{
+          position: 'absolute',
+          top: '50%', left: '50%',
+          transform: 'translate(-50%, -50%)',
+          width: '100%', maxWidth: 380,
+          padding: '0 20px',
+          zIndex: 10,
+          animation: 'formPop 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.1s both',
+        }}
+      >
+        <div style={{
+          background: PALETTE.surface,
+          border: `1px solid ${PALETTE.border}`,
+          borderRadius: 20,
+          padding: 32,
+          boxShadow: '0 30px 80px rgba(15, 30, 60, 0.12)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+            <img src="/logo-mark.png" alt="Kinematic" style={{ width: 40, height: 40, objectFit: 'contain' }} />
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                <span style={{ fontFamily: "'Syne',sans-serif", fontSize: 22, fontWeight: 900, letterSpacing: '-0.3px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <span style={{ fontFamily: "'Syne',sans-serif", fontSize: 20, fontWeight: 900, letterSpacing: '-0.3px' }}>
                   Kinematic
                 </span>
-                {/* "Powered with KINI AI" pill — sits right next to the
-                    wordmark and uses the brand red the rest of the app
-                    reserves for KINI surfaces. */}
                 <span style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 5,
-                  fontSize: 10, fontWeight: 800, letterSpacing: 0.6,
+                  display: 'inline-flex', alignItems: 'center', gap: 4,
+                  fontSize: 9, fontWeight: 800, letterSpacing: 0.6,
                   textTransform: 'uppercase', color: PALETTE.red,
-                  background: PALETTE.redSoft, padding: '4px 9px',
+                  background: PALETTE.redSoft, padding: '3px 7px',
                   border: '1px solid rgba(208,30,44,0.22)', borderRadius: 999,
                 }}>
-                  <span style={{ fontSize: 11, lineHeight: 1 }}>✦</span>
+                  <span style={{ fontSize: 10, lineHeight: 1 }}>✦</span>
                   Powered with KINI AI
                 </span>
               </div>
-              <div style={{ fontSize: 11, color: PALETTE.inkDim, fontWeight: 600, letterSpacing: 0.4, textTransform: 'uppercase', marginTop: 2 }}>
-                Field Force · CRM · Supply Chain
-              </div>
             </div>
           </div>
 
-          <h2 style={{
-            fontFamily: "'Syne',sans-serif", fontSize: 40, fontWeight: 900,
-            margin: '0 0 12px', letterSpacing: '-0.8px', maxWidth: 720, lineHeight: 1.1,
-            animation: 'loginFadeUp 0.5s cubic-bezier(0.16,1,0.3,1) both',
+          <h1 style={{
+            fontFamily: "'Syne',sans-serif", fontSize: 26, fontWeight: 900,
+            margin: '0 0 6px', letterSpacing: '-0.5px', color: PALETTE.ink, lineHeight: 1.15,
           }}>
             Motion Made <span style={{ color: PALETTE.red }}>Measurable</span>.
-          </h2>
-          <p style={{
-            fontSize: 15, color: PALETTE.inkDim, margin: '0 0 32px', maxWidth: 620, lineHeight: 1.55,
-            animation: 'loginFadeUp 0.55s cubic-bezier(0.16,1,0.3,1) 0.08s both',
-          }}>
-            One platform for field tracking, lead management, and supply chain — purpose-built for India&apos;s field-first businesses.
+          </h1>
+          <p style={{ fontSize: 12.5, color: PALETTE.inkDim, margin: '0 0 22px' }}>
+            Sign in to your Kinematic account.
           </p>
-        </header>
 
-        {/* FEATURES — three-pillar marketing grid. Below the header on
-            desktop (left column); below the form on mobile so reps don't
-            scroll past it to sign in. */}
-        <section className="login-features" style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
-            {FEATURE_GROUPS.map((group, gi) => (
-              <div key={group.label}>
-                {/* Pillar header — gives the grid a clear story (Field
-                    Tracking / Lead Management / Supply Chain) rather
-                    than a flat 18-card wall. */}
-                <div style={{
-                  display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 12,
-                  animation: `loginFadeUp 0.55s cubic-bezier(0.16,1,0.3,1) ${0.15 + gi * 0.15}s both`,
-                }}>
-                  <span style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 6,
-                    fontFamily: "'Syne',sans-serif", fontSize: 16, fontWeight: 900,
-                    color: PALETTE.ink, letterSpacing: '-0.2px',
-                  }}>
-                    <span style={{
-                      width: 8, height: 8, borderRadius: 2, background: group.tone,
-                      display: 'inline-block',
-                    }} />
-                    {group.label}
-                  </span>
-                  <span style={{ fontSize: 12, color: PALETTE.inkDim }}>
-                    {group.caption}
-                  </span>
-                </div>
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))',
-                  gap: 12,
-                }}>
-                  {group.items.map((f, i) => (
-                    <div
-                      key={f.title}
-                      className="feature-card"
-                      style={{
-                        background: PALETTE.surface,
-                        border: `1px solid ${PALETTE.border}`,
-                        borderRadius: 14,
-                        padding: '14px 14px 12px',
-                        // Stagger inside each group so pillars fill in
-                        // sequentially top-to-bottom, left-to-right.
-                        animationDelay: `${0.22 + gi * 0.15 + i * 0.045}s`,
-                        boxShadow: '0 1px 2px rgba(15, 30, 60, 0.04)',
-                      }}
-                    >
-                      <div
-                        className="feature-icon"
-                        style={{
-                          width: 34, height: 34, borderRadius: 10,
-                          background: `${f.accent}14`,
-                          color: f.accent,
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontSize: 17, marginBottom: 9,
-                          animationDelay: `${i * 0.12}s`,
-                        }}
-                      >
-                        {f.icon}
-                      </div>
-                      <div style={{ fontWeight: 800, fontSize: 12.5, color: PALETTE.ink, marginBottom: 3, letterSpacing: '-0.1px' }}>
-                        {f.title}
-                      </div>
-                      <div style={{ fontSize: 11.5, color: PALETTE.inkDim, lineHeight: 1.5 }}>
-                        {f.description}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div>
+              <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: PALETTE.inkDim, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 6 }}>
+                Email Address
+              </label>
+              <div style={{ position: 'relative' }}>
+                <svg style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', opacity: 0.45 }} width={15} height={15} viewBox="0 0 24 24" fill="none" stroke={PALETTE.ink} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+                  <polyline points="22,6 12,13 2,6" />
+                </svg>
+                <input
+                  className="login-input"
+                  type="email" value={email} onChange={(e) => { setEmail(e.target.value); setError(''); }}
+                  placeholder="you@company.com" required
+                  style={{
+                    width: '100%', background: PALETTE.bg,
+                    border: `1.5px solid ${PALETTE.borderSoft}`, color: PALETTE.ink,
+                    borderRadius: 11, padding: '11px 14px 11px 36px', fontSize: 14,
+                    outline: 'none', transition: 'border-color 0.18s, box-shadow 0.18s',
+                    fontFamily: "'DM Sans',sans-serif",
+                  }}
+                />
               </div>
-            ))}
-        </section>
+            </div>
 
-        {/* FORM — pinned to the right column on desktop (align-self:start
-            so it sits at the headline's top edge); appears between the
-            header and the feature grid on mobile. */}
-        <section className="login-form-pane">
-          <div className="login-card" style={{
-            width: '100%', maxWidth: 380,
+            <div>
+              <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: PALETTE.inkDim, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 6 }}>
+                Password
+              </label>
+              <div style={{ position: 'relative' }}>
+                <svg style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', opacity: 0.45 }} width={15} height={15} viewBox="0 0 24 24" fill="none" stroke={PALETTE.ink} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                  <path d="M7 11V7a5 5 0 0110 0v4" />
+                </svg>
+                <input
+                  className="login-input"
+                  type={showPass ? 'text' : 'password'} value={password}
+                  onChange={(e) => { setPassword(e.target.value); setError(''); }}
+                  placeholder="Enter your password" required
+                  style={{
+                    width: '100%', background: PALETTE.bg,
+                    border: `1.5px solid ${PALETTE.borderSoft}`, color: PALETTE.ink,
+                    borderRadius: 11, padding: '11px 42px 11px 36px', fontSize: 14,
+                    outline: 'none', transition: 'border-color 0.18s, box-shadow 0.18s',
+                    fontFamily: "'DM Sans',sans-serif",
+                  }}
+                />
+                <button type="button" onClick={() => setShowPass((p) => !p)} aria-label={showPass ? 'Hide password' : 'Show password'}
+                  style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', opacity: 0.55, padding: 4 }}>
+                  {showPass ? (
+                    <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={PALETTE.ink} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24" />
+                      <line x1="1" y1="1" x2="23" y2="23" />
+                    </svg>
+                  ) : (
+                    <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={PALETTE.ink} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {error && (
+              <div style={{ background: PALETTE.redSoft, border: `1px solid rgba(208,30,44,0.22)`, borderRadius: 10, padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke={PALETTE.red} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
+                </svg>
+                <span style={{ fontSize: 12, color: PALETTE.red, fontWeight: 600 }}>{error}</span>
+              </div>
+            )}
+
+            <button
+              type="submit" disabled={loading || !email || !password}
+              className="login-submit"
+              style={{
+                width: '100%',
+                background: loading || !email || !password ? 'rgba(208,30,44,0.55)' : PALETTE.red,
+                color: '#fff', border: 'none', borderRadius: 12,
+                padding: '13px', fontSize: 14, fontWeight: 700,
+                fontFamily: "'Syne',sans-serif",
+                cursor: loading || !email || !password ? 'not-allowed' : 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+                transition: 'transform 0.18s, box-shadow 0.18s, background 0.18s',
+                marginTop: 6,
+                boxShadow: loading || !email || !password ? 'none' : '0 8px 22px rgba(208,30,44,0.26)',
+              }}
+            >
+              {loading
+                ? <><div style={{ width: 16, height: 16, border: '2px solid rgba(255,255,255,0.35)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} /> Signing in…</>
+                : 'Sign In →'
+              }
+            </button>
+
+            <p style={{ textAlign: 'center', fontSize: 12, color: PALETTE.inkDim, margin: '6px 0 0' }}>
+              Forgot password?{' '}
+              <span style={{ color: PALETTE.red, cursor: 'pointer', fontWeight: 700 }}>Contact your administrator</span>
+            </p>
+          </form>
+        </div>
+      </div>
+
+      {/* MOBILE — orderly stack below the form. Hidden on desktop via CSS. */}
+      <div className="login-mobile-stack" style={{
+        display: 'none', flexDirection: 'column', gap: 12,
+        padding: '24px 20px 40px',
+        marginTop: 'calc(100vh + 12px)', // push below the centred form on mobile
+      }}>
+        <div style={{
+          fontFamily: "'Syne',sans-serif", fontSize: 14, fontWeight: 800,
+          color: PALETTE.inkDim, textTransform: 'uppercase', letterSpacing: 0.6,
+          textAlign: 'center', marginBottom: 4,
+        }}>
+          What you get
+        </div>
+        {FEATURES.map((f, i) => (
+          <div key={f.title} style={{
             background: PALETTE.surface,
             border: `1px solid ${PALETTE.border}`,
-            borderRadius: 20,
-            padding: 32,
-            boxShadow: '0 20px 60px rgba(15, 30, 60, 0.10)',
+            borderRadius: 12,
+            padding: '12px 14px',
+            display: 'flex', alignItems: 'center', gap: 12,
+            animation: `loginFadeIn 0.5s cubic-bezier(0.16,1,0.3,1) ${0.1 + i * 0.04}s both`,
           }}>
-            <h1 style={{
-              fontFamily: "'Syne',sans-serif", fontSize: 24, fontWeight: 800,
-              margin: '0 0 6px', letterSpacing: '-0.3px', color: PALETTE.ink,
-            }}>
-              Welcome back
-            </h1>
-            <p style={{ fontSize: 13, color: PALETTE.inkDim, margin: '0 0 24px' }}>
-              Sign in to your Kinematic account.
-            </p>
-
-            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {/* Email */}
-              <div>
-                <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: PALETTE.inkDim, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 6 }}>
-                  Email Address
-                </label>
-                <div style={{ position: 'relative' }}>
-                  <svg style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', opacity: 0.45 }} width={15} height={15} viewBox="0 0 24 24" fill="none" stroke={PALETTE.ink} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-                    <polyline points="22,6 12,13 2,6" />
-                  </svg>
-                  <input
-                    className="login-input"
-                    type="email" value={email} onChange={(e) => { setEmail(e.target.value); setError(''); }}
-                    placeholder="you@company.com" required
-                    style={{
-                      width: '100%', background: PALETTE.bg,
-                      border: `1.5px solid ${PALETTE.borderSoft}`, color: PALETTE.ink,
-                      borderRadius: 11, padding: '11px 14px 11px 36px', fontSize: 14,
-                      outline: 'none', transition: 'border-color 0.18s, box-shadow 0.18s',
-                      fontFamily: "'DM Sans',sans-serif",
-                    }}
-                  />
-                </div>
-              </div>
-
-              {/* Password */}
-              <div>
-                <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: PALETTE.inkDim, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 6 }}>
-                  Password
-                </label>
-                <div style={{ position: 'relative' }}>
-                  <svg style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', opacity: 0.45 }} width={15} height={15} viewBox="0 0 24 24" fill="none" stroke={PALETTE.ink} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                    <path d="M7 11V7a5 5 0 0110 0v4" />
-                  </svg>
-                  <input
-                    className="login-input"
-                    type={showPass ? 'text' : 'password'} value={password}
-                    onChange={(e) => { setPassword(e.target.value); setError(''); }}
-                    placeholder="Enter your password" required
-                    style={{
-                      width: '100%', background: PALETTE.bg,
-                      border: `1.5px solid ${PALETTE.borderSoft}`, color: PALETTE.ink,
-                      borderRadius: 11, padding: '11px 42px 11px 36px', fontSize: 14,
-                      outline: 'none', transition: 'border-color 0.18s, box-shadow 0.18s',
-                      fontFamily: "'DM Sans',sans-serif",
-                    }}
-                  />
-                  <button type="button" onClick={() => setShowPass((p) => !p)} aria-label={showPass ? 'Hide password' : 'Show password'}
-                    style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', opacity: 0.55, padding: 4 }}>
-                    {showPass ? (
-                      <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={PALETTE.ink} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24" />
-                        <line x1="1" y1="1" x2="23" y2="23" />
-                      </svg>
-                    ) : (
-                      <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={PALETTE.ink} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                        <circle cx="12" cy="12" r="3" />
-                      </svg>
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              {error && (
-                <div style={{ background: PALETTE.redSoft, border: `1px solid rgba(208,30,44,0.22)`, borderRadius: 10, padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke={PALETTE.red} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
-                  </svg>
-                  <span style={{ fontSize: 12, color: PALETTE.red, fontWeight: 600 }}>{error}</span>
-                </div>
-              )}
-
-              <button
-                type="submit" disabled={loading || !email || !password}
-                className="login-submit"
-                style={{
-                  width: '100%',
-                  background: loading || !email || !password ? 'rgba(208,30,44,0.55)' : PALETTE.red,
-                  color: '#fff', border: 'none', borderRadius: 12,
-                  padding: '13px', fontSize: 14, fontWeight: 700,
-                  fontFamily: "'Syne',sans-serif",
-                  cursor: loading || !email || !password ? 'not-allowed' : 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
-                  transition: 'transform 0.18s, box-shadow 0.18s, background 0.18s',
-                  marginTop: 6,
-                  boxShadow: loading || !email || !password ? 'none' : '0 8px 22px rgba(208,30,44,0.26)',
-                }}
-              >
-                {loading
-                  ? <><div style={{ width: 16, height: 16, border: '2px solid rgba(255,255,255,0.35)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} /> Signing in…</>
-                  : 'Sign In →'
-                }
-              </button>
-
-              <p style={{ textAlign: 'center', fontSize: 12, color: PALETTE.inkDim, margin: '6px 0 0' }}>
-                Forgot password?{' '}
-                <span style={{ color: PALETTE.red, cursor: 'pointer', fontWeight: 700 }}>Contact your administrator</span>
-              </p>
-            </form>
-
-            <div style={{ marginTop: 22, paddingTop: 18, borderTop: `1px solid ${PALETTE.borderSoft}`, textAlign: 'center', fontSize: 11, color: PALETTE.inkDim }}>
-              Role-based access controlled by your admin · v1.0
+            <div style={{
+              width: 32, height: 32, borderRadius: 8, flexShrink: 0,
+              background: `${f.accent}14`, color: f.accent,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 17,
+            }}>{f.icon}</div>
+            <div style={{ fontWeight: 800, fontSize: 13, color: PALETTE.ink }}>
+              {f.title}
             </div>
           </div>
-        </section>
+        ))}
       </div>
     </main>
   );
