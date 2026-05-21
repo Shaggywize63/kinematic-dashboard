@@ -141,7 +141,6 @@ export default function LoginPage() {
       fontFamily: "'DM Sans', system-ui, sans-serif",
       color: PALETTE.ink,
       position: 'relative', overflow: 'hidden',
-      display: 'flex', alignItems: 'stretch',
     }}>
       {/* Soft brand-tinted bloom in the background — keeps the surface
           interesting without competing with the cards. */}
@@ -180,32 +179,54 @@ export default function LoginPage() {
           transform: translateY(-1px);
           box-shadow: 0 14px 30px rgba(208,30,44,0.30);
         }
+        /*
+         * Page is a 2×2 grid:
+         *   [ header  | form ]
+         *   [ features | form ]
+         * Form spans both rows on the right rail; align-self:start pins
+         * the card to the TOP so it sits at the same height as the
+         * "Motion Made Measurable" headline on the left. On mobile the
+         * grid collapses to a single column with the explicit order
+         * header → form → features.
+         */
+        .login-grid {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) 440px;
+          grid-template-areas:
+            "header  form"
+            "features form";
+          gap: 32px;
+          width: 100%;
+          padding: 48px 48px 56px;
+          align-items: start;
+        }
+        .login-header   { grid-area: header; }
+        .login-features { grid-area: features; }
+        .login-form-pane {
+          grid-area: form;
+          display: flex;
+          justify-content: center;
+          align-self: start;   /* match the headline's top edge */
+        }
         @media (max-width: 960px) {
-          /* On mobile the form leads — easier to sign in without
-             scrolling past 20 marketing cards. The feature grid sits
-             below as a "why this product" recap. column-reverse keeps
-             the desktop JSX order (features → form) intact. */
-          .login-split { flex-direction: column-reverse !important; }
-          .login-feature-pane {
-            min-height: auto !important;
-            padding: 24px 20px 40px !important;
+          .login-grid {
+            grid-template-columns: 1fr;
+            grid-template-areas:
+              "header"
+              "form"
+              "features";
+            gap: 24px;
+            padding: 28px 20px 40px;
           }
-          .login-form-pane {
-            min-height: auto !important;
-            padding: 28px 20px 12px !important;
-            flex: 0 0 auto !important;
-          }
+          .login-form-pane { justify-content: stretch; }
         }
       `}</style>
 
-      <div className="login-split" style={{ display: 'flex', width: '100%', position: 'relative', zIndex: 1 }}>
-        {/* LEFT — feature grid covering the page */}
-        <section className="login-feature-pane" style={{
-          flex: '1 1 60%', minHeight: '100vh',
-          padding: '56px 56px 40px',
-          display: 'flex', flexDirection: 'column', justifyContent: 'flex-start',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 32, flexWrap: 'wrap' }}>
+      <div className="login-grid" style={{ position: 'relative', zIndex: 1 }}>
+        {/* HEADER — logo + wordmark + KINI pill + hero headline. Sits on
+            top of the left column on desktop; first block on mobile. */}
+        <header className="login-header" style={{ display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 28, flexWrap: 'wrap' }}>
             <img src="/logo-mark.png" alt="Kinematic" style={{ width: 44, height: 44, objectFit: 'contain' }} />
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
@@ -245,8 +266,12 @@ export default function LoginPage() {
           }}>
             One platform for field tracking, lead management, and supply chain — purpose-built for India&apos;s field-first businesses.
           </p>
+        </header>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 28, maxWidth: 920 }}>
+        {/* FEATURES — three-pillar marketing grid. Below the header on
+            desktop (left column); below the form on mobile so reps don't
+            scroll past it to sign in. */}
+        <section className="login-features" style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
             {FEATURE_GROUPS.map((group, gi) => (
               <div key={group.label}>
                 {/* Pillar header — gives the grid a clear story (Field
@@ -315,15 +340,12 @@ export default function LoginPage() {
                 </div>
               </div>
             ))}
-          </div>
         </section>
 
-        {/* RIGHT — sign-in card */}
-        <section className="login-form-pane" style={{
-          flex: '0 0 440px', minHeight: '100vh',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          padding: '40px 36px',
-        }}>
+        {/* FORM — pinned to the right column on desktop (align-self:start
+            so it sits at the headline's top edge); appears between the
+            header and the feature grid on mobile. */}
+        <section className="login-form-pane">
           <div className="login-card" style={{
             width: '100%', maxWidth: 380,
             background: PALETTE.surface,
