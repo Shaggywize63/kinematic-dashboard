@@ -418,7 +418,7 @@ export default function CustomFieldsPage() {
           <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
             Fields ({builtinVisible.length + visible.length} total — {builtinVisible.length} system, {visible.length} custom)
           </div>
-          {visible.length > 1 && (
+          {visible.length > 1 ? (
             <div style={{
               display: 'inline-flex', alignItems: 'center', gap: 6,
               fontSize: 11, color: 'var(--primary)',
@@ -427,6 +427,18 @@ export default function CustomFieldsPage() {
             }}>
               <GripIcon size={12} />
               Drag the blue grip on any custom row to reorder
+            </div>
+          ) : (
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              fontSize: 11, color: 'var(--text-dim)',
+              background: 'var(--s3)', padding: '4px 10px', borderRadius: 999,
+              border: '1px dashed var(--border)', fontWeight: 600,
+            }}>
+              <GripIcon size={12} />
+              {visible.length === 0
+                ? 'Add 2+ custom fields above to enable drag-reorder (system fields are locked)'
+                : 'Add one more custom field to enable drag-reorder'}
             </div>
           )}
           <div style={{ display: 'flex', gap: 4, marginLeft: 'auto', flexWrap: 'wrap', alignItems: 'center' }}>
@@ -511,8 +523,22 @@ export default function CustomFieldsPage() {
               })}
 
               {/* Custom fields */}
-              {visible.length === 0 && !showBuiltin && (
-                <tr><td colSpan={8} style={{ ...td, color: 'var(--text-dim)', textAlign: 'center', padding: 20 }}>No custom fields yet.</td></tr>
+              {visible.length === 0 && (
+                <tr>
+                  <td colSpan={8} style={{ ...td, color: 'var(--text-dim)', textAlign: 'center', padding: 24, background: 'rgba(0,102,255,0.04)', borderTop: '2px dashed var(--primary)' }}>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, flexDirection: 'column' }}>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, borderRadius: 8, background: 'var(--primary)', color: '#fff' }}>
+                        <GripIcon size={16} />
+                      </div>
+                      <div style={{ fontWeight: 700, color: 'var(--text)', fontSize: 13 }}>
+                        No custom fields yet
+                      </div>
+                      <div style={{ fontSize: 12, maxWidth: 420 }}>
+                        Custom fields you add appear here with a <strong style={{ color: 'var(--primary)' }}>blue drag handle</strong> in the SORT column so you can reorder them. System fields stay locked because their position is built into the form.
+                      </div>
+                    </div>
+                  </td>
+                </tr>
               )}
               {visible.map((c) => {
                 const isDragging = dragId === c.id;
