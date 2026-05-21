@@ -26,15 +26,58 @@ interface Feature {
   accent: string;
 }
 
-const FEATURES: Feature[] = [
-  { icon: '✦', title: 'KINI AI Copilot', description: 'Plain-English commands across leads, deals, and reports. Ask, act, automate.', accent: '#E01E2C' },
-  { icon: '🎯', title: 'Lead-to-Deal Pipeline', description: 'AI-scored leads convert into deals in a single tap. Pre-filled context, zero retyping.', accent: '#3E9EFF' },
-  { icon: '🏢', title: 'Multi-Tenant CRM', description: 'One platform, multiple clients. Strict tenant isolation; admins switch with a picker.', accent: '#8B5CF6' },
-  { icon: '📊', title: 'Live Analytics', description: 'Customisable widget grid. Pin any chart to your overview; export everything to CSV.', accent: '#10B981' },
-  { icon: '💬', title: 'WhatsApp + Email', description: 'Native WhatsApp Business templates. Email tracking with open + click receipts.', accent: '#25D366' },
-  { icon: '📍', title: 'Live Field Tracking', description: 'GPS breadcrumbs every 10 min during work hours. Battery, attendance, beats — one map.', accent: '#F59E0B' },
-  { icon: '📑', title: 'Reports That Travel', description: '10+ built-in reports plus a drag-drop custom builder. Forecasts driven by AI win-prob.', accent: '#EC4899' },
-  { icon: '📱', title: 'iOS + Android Apps', description: 'Native field apps with offline mode, photo capture, route plans, and KINI on the go.', accent: '#6366F1' },
+interface FeatureGroup {
+  label: string;
+  caption: string;
+  tone: string;
+  items: Feature[];
+}
+
+// Three pillars. Each card is one capability the platform ships today.
+// Keep titles short (≤24 chars) and descriptions to one tight line so the
+// grid stays scannable.
+const FEATURE_GROUPS: FeatureGroup[] = [
+  {
+    label: 'Field Tracking',
+    caption: 'Real-time visibility into every rep on the ground.',
+    tone: '#F59E0B',
+    items: [
+      { icon: '📍', title: 'Live GPS Trail',         description: '10-minute breadcrumb pings + day-long polyline on the supervisor map.', accent: '#F59E0B' },
+      { icon: '🤳', title: 'Selfie + Geo Attendance', description: 'Geo-fenced check-in with face capture. Auto-flags out-of-zone marks.',   accent: '#EAB308' },
+      { icon: '🗺',  title: 'Smart Route Plans',     description: 'AI-ordered daily beats. Nearest-neighbour optimisation + carbon scoring.', accent: '#22C55E' },
+      { icon: '🆘', title: 'SOS + Low-Battery Alerts',description: 'One-tap distress + automatic battery + offline alerts to supervisors.', accent: '#EF4444' },
+      { icon: '📸', title: 'Geo-Tagged CC / ECC',     description: 'Consumer-contact forms with GPS, photo, GST-grade audit trail.',        accent: '#06B6D4' },
+      { icon: '⏱',  title: 'Hours + Idle Time',     description: 'Work-hour totals, idle minutes, location dwell — per FE, per day.',     accent: '#8B5CF6' },
+    ],
+  },
+  {
+    label: 'Lead Management',
+    caption: 'CRM that closes deals, not just records them.',
+    tone: '#3E9EFF',
+    items: [
+      { icon: '✦', title: 'KINI AI Copilot',     description: 'Plain-English commands across leads, deals, and reports. Ask, act, automate.', accent: '#E01E2C' },
+      { icon: '🎯', title: 'AI Lead Scoring',     description: 'ICP weights + behaviour signals. Focus on the 70+ scores first.',         accent: '#3E9EFF' },
+      { icon: '🔀', title: 'Lead → Deal in One Tap',description: 'Convert spawns Contact + Account + Deal with the name pre-filled.',         accent: '#10B981' },
+      { icon: '🪜', title: 'Pipeline + Kanban',   description: 'Drag-drop deal stages. Multiple pipelines per business motion.',             accent: '#6366F1' },
+      { icon: '💬', title: 'WhatsApp + Email',    description: 'Native WhatsApp Business templates. Email tracking with open + click receipts.', accent: '#25D366' },
+      { icon: '🔮', title: 'Win-Probability + NBA',description: 'Model-backed forecasts + a Next-Best-Action card on every open deal.',     accent: '#8B5CF6' },
+      { icon: '📑', title: '10+ Reports + Builder',description: 'Funnel, stuck deals, lead aging, source ROI — plus a drag-drop custom builder.', accent: '#EC4899' },
+      { icon: '🌐', title: 'Multi-language',      description: 'KINI replies in हिन्दी, বাংলা, ଓଡ଼ିଆ, অসমীয়া + English.',                  accent: '#0EA5E9' },
+    ],
+  },
+  {
+    label: 'Supply Chain',
+    caption: 'Distributor onboarding to invoice reconciliation.',
+    tone: '#10B981',
+    items: [
+      { icon: '🏬', title: 'Distributor Network',    description: 'Onboard distributors, retailers, sub-stockists with KYC + credit limits.', accent: '#10B981' },
+      { icon: '🧾', title: 'GST-Grade Invoicing',    description: 'CGST/SGST/IGST splits, e-invoice IRN, immutable double-entry ledger.',     accent: '#F59E0B' },
+      { icon: '💳', title: 'Payments + Returns',     description: 'UPI / cheque / bank tracking. Credit notes on returns auto-post to the ledger.', accent: '#3E9EFF' },
+      { icon: '📦', title: 'SKU Catalogue',          description: 'Weight-based pricing, multi-pack, batch + expiry, channel-specific MRPs.',  accent: '#8B5CF6' },
+      { icon: '📊', title: 'Stock Movement',         description: 'Real-time inventory across warehouses, vans, and retailer outlets.',          accent: '#EC4899' },
+      { icon: '🔌', title: 'Tally Bridge (v1)',      description: 'Direct sync to Tally Prime / ERP 9. Eliminate manual re-keying entirely.',     accent: '#06B6D4' },
+    ],
+  },
 ];
 
 const PALETTE = {
@@ -138,13 +181,19 @@ export default function LoginPage() {
           box-shadow: 0 14px 30px rgba(208,30,44,0.30);
         }
         @media (max-width: 960px) {
-          .login-split { flex-direction: column !important; }
+          /* On mobile the form leads — easier to sign in without
+             scrolling past 20 marketing cards. The feature grid sits
+             below as a "why this product" recap. column-reverse keeps
+             the desktop JSX order (features → form) intact. */
+          .login-split { flex-direction: column-reverse !important; }
           .login-feature-pane {
             min-height: auto !important;
-            padding: 32px 24px 16px !important;
+            padding: 24px 20px 40px !important;
           }
           .login-form-pane {
-            padding: 24px !important;
+            min-height: auto !important;
+            padding: 28px 20px 12px !important;
+            flex: 0 0 auto !important;
           }
         }
       `}</style>
@@ -156,67 +205,113 @@ export default function LoginPage() {
           padding: '56px 56px 40px',
           display: 'flex', flexDirection: 'column', justifyContent: 'flex-start',
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 36 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 32, flexWrap: 'wrap' }}>
             <img src="/logo-mark.png" alt="Kinematic" style={{ width: 44, height: 44, objectFit: 'contain' }} />
             <div>
-              <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 22, fontWeight: 900, letterSpacing: '-0.3px' }}>Kinematic</div>
-              <div style={{ fontSize: 11, color: PALETTE.inkDim, fontWeight: 600, letterSpacing: 0.4, textTransform: 'uppercase' }}>Field Force + CRM Platform</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <span style={{ fontFamily: "'Syne',sans-serif", fontSize: 22, fontWeight: 900, letterSpacing: '-0.3px' }}>
+                  Kinematic
+                </span>
+                {/* "Powered with KINI AI" pill — sits right next to the
+                    wordmark and uses the brand red the rest of the app
+                    reserves for KINI surfaces. */}
+                <span style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 5,
+                  fontSize: 10, fontWeight: 800, letterSpacing: 0.6,
+                  textTransform: 'uppercase', color: PALETTE.red,
+                  background: PALETTE.redSoft, padding: '4px 9px',
+                  border: '1px solid rgba(208,30,44,0.22)', borderRadius: 999,
+                }}>
+                  <span style={{ fontSize: 11, lineHeight: 1 }}>✦</span>
+                  Powered with KINI AI
+                </span>
+              </div>
+              <div style={{ fontSize: 11, color: PALETTE.inkDim, fontWeight: 600, letterSpacing: 0.4, textTransform: 'uppercase', marginTop: 2 }}>
+                Field Force · CRM · Supply Chain
+              </div>
             </div>
           </div>
 
           <h2 style={{
-            fontFamily: "'Syne',sans-serif", fontSize: 34, fontWeight: 800,
-            margin: '0 0 12px', letterSpacing: '-0.6px', maxWidth: 620, lineHeight: 1.15,
+            fontFamily: "'Syne',sans-serif", fontSize: 40, fontWeight: 900,
+            margin: '0 0 12px', letterSpacing: '-0.8px', maxWidth: 720, lineHeight: 1.1,
             animation: 'loginFadeUp 0.5s cubic-bezier(0.16,1,0.3,1) both',
           }}>
-            Run sales + service teams from one screen.
+            Motion Made <span style={{ color: PALETTE.red }}>Measurable</span>.
           </h2>
           <p style={{
-            fontSize: 15, color: PALETTE.inkDim, margin: '0 0 36px', maxWidth: 600, lineHeight: 1.55,
+            fontSize: 15, color: PALETTE.inkDim, margin: '0 0 32px', maxWidth: 620, lineHeight: 1.55,
             animation: 'loginFadeUp 0.55s cubic-bezier(0.16,1,0.3,1) 0.08s both',
           }}>
-            CRM, distribution, live tracking, attendance, and a real AI copilot — purpose-built for India&apos;s field-first businesses.
+            One platform for field tracking, lead management, and supply chain — purpose-built for India&apos;s field-first businesses.
           </p>
 
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-            gap: 14, maxWidth: 880, alignContent: 'start',
-          }}>
-            {FEATURES.map((f, i) => (
-              <div
-                key={f.title}
-                className="feature-card"
-                style={{
-                  background: PALETTE.surface,
-                  border: `1px solid ${PALETTE.border}`,
-                  borderRadius: 14,
-                  padding: '16px 16px 14px',
-                  // Stagger each card's animation start so the grid fills
-                  // in from top-left, not all at once.
-                  animationDelay: `${0.15 + i * 0.05}s`,
-                  cursor: 'default',
-                  boxShadow: '0 1px 2px rgba(15, 30, 60, 0.04)',
-                }}
-              >
-                <div
-                  className="feature-icon"
-                  style={{
-                    width: 36, height: 36, borderRadius: 10,
-                    background: `${f.accent}14`,
-                    color: f.accent,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 18, marginBottom: 10,
-                    animationDelay: `${i * 0.12}s`,
-                  }}
-                >
-                  {f.icon}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 28, maxWidth: 920 }}>
+            {FEATURE_GROUPS.map((group, gi) => (
+              <div key={group.label}>
+                {/* Pillar header — gives the grid a clear story (Field
+                    Tracking / Lead Management / Supply Chain) rather
+                    than a flat 18-card wall. */}
+                <div style={{
+                  display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 12,
+                  animation: `loginFadeUp 0.55s cubic-bezier(0.16,1,0.3,1) ${0.15 + gi * 0.15}s both`,
+                }}>
+                  <span style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                    fontFamily: "'Syne',sans-serif", fontSize: 16, fontWeight: 900,
+                    color: PALETTE.ink, letterSpacing: '-0.2px',
+                  }}>
+                    <span style={{
+                      width: 8, height: 8, borderRadius: 2, background: group.tone,
+                      display: 'inline-block',
+                    }} />
+                    {group.label}
+                  </span>
+                  <span style={{ fontSize: 12, color: PALETTE.inkDim }}>
+                    {group.caption}
+                  </span>
                 </div>
-                <div style={{ fontWeight: 800, fontSize: 13, color: PALETTE.ink, marginBottom: 4, letterSpacing: '-0.1px' }}>
-                  {f.title}
-                </div>
-                <div style={{ fontSize: 12, color: PALETTE.inkDim, lineHeight: 1.5 }}>
-                  {f.description}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))',
+                  gap: 12,
+                }}>
+                  {group.items.map((f, i) => (
+                    <div
+                      key={f.title}
+                      className="feature-card"
+                      style={{
+                        background: PALETTE.surface,
+                        border: `1px solid ${PALETTE.border}`,
+                        borderRadius: 14,
+                        padding: '14px 14px 12px',
+                        // Stagger inside each group so pillars fill in
+                        // sequentially top-to-bottom, left-to-right.
+                        animationDelay: `${0.22 + gi * 0.15 + i * 0.045}s`,
+                        boxShadow: '0 1px 2px rgba(15, 30, 60, 0.04)',
+                      }}
+                    >
+                      <div
+                        className="feature-icon"
+                        style={{
+                          width: 34, height: 34, borderRadius: 10,
+                          background: `${f.accent}14`,
+                          color: f.accent,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: 17, marginBottom: 9,
+                          animationDelay: `${i * 0.12}s`,
+                        }}
+                      >
+                        {f.icon}
+                      </div>
+                      <div style={{ fontWeight: 800, fontSize: 12.5, color: PALETTE.ink, marginBottom: 3, letterSpacing: '-0.1px' }}>
+                        {f.title}
+                      </div>
+                      <div style={{ fontSize: 11.5, color: PALETTE.inkDim, lineHeight: 1.5 }}>
+                        {f.description}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             ))}
