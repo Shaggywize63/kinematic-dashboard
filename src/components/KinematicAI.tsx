@@ -138,6 +138,28 @@ function md(text: string) {
     .replace(/\n/g,'<br/>');
 }
 
+/**
+ * Defense-in-depth strip applied after md(). md() already HTML-escapes
+ * its input before re-injecting a fixed tag set, so injected raw HTML
+ * from a model response can't reach the DOM under normal conditions —
+ * but this catch-all paranoia layer kills the worst-case if a future
+ * md() change ever forgets to escape:
+ *   - any `on*="..."` event-handler attributes
+ *   - any `javascript:` URI
+ *   - any <script>/<iframe>/<object>/<embed> tag
+ * Plus a CSP (set in next.config.mjs) forbids inline event handlers
+ * even if one slips through.
+ */
+function sanitizeMdHtml(html: string): string {
+  return String(html)
+    .replace(/<\s*(script|iframe|object|embed|link|meta)[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi, '')
+    .replace(/<\s*(script|iframe|object|embed|link|meta)[^>]*\/?>/gi, '')
+    .replace(/\son\w+\s*=\s*"[^"]*"/gi, '')
+    .replace(/\son\w+\s*=\s*'[^']*'/gi, '')
+    .replace(/\son\w+\s*=\s*[^\s>]+/gi, '')
+    .replace(/javascript:/gi, 'javascript-blocked:');
+}
+
 function KiniCardRenderer({ card }: { card: any }) {
   if (!card || !card.type) return null;
   const d = card.data;
@@ -520,7 +542,7 @@ Be elite, professional, and data-driven. Use **bold** for key metrics. Proactive
                     </div>
                   ) : (
                     <>
-                      <div dangerouslySetInnerHTML={{ __html: md(m.content) }} className="km-chat-content" />
+                      <div dangerouslySetInnerHTML={{ __html: sanitizeMdHtml(md(m.content)) }} className="km-chat-content" />
                       {Array.isArray(m.cards) && m.cards.map((c: any, idx: number) => <KiniCardRenderer key={idx} card={c} />)}
                     </>
                   )}

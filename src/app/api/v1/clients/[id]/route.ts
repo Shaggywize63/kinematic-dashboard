@@ -1,14 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { corsHeaders } from '@/lib/cors';
 
 const EDGE_BASE = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/api-proxy`;
 const ANON_KEY  = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
-
-const CORS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'PATCH, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Org-Id',
-};
 
 const ALL_MODULES = [
   { id: 'analytics',       name: 'Analytics & Tracking' },
@@ -47,8 +42,8 @@ async function seedModules() {
   }
 }
 
-export async function OPTIONS() {
-  return new NextResponse(null, { status: 204, headers: CORS });
+export async function OPTIONS(req: NextRequest) {
+  return new NextResponse(null, { status: 204, headers: corsHeaders(req.headers.get('Origin'), 'PATCH, OPTIONS') });
 }
 
 export async function PATCH(
@@ -75,8 +70,10 @@ export async function PATCH(
     });
 
     const data = await res.json();
-    return NextResponse.json(data, { status: res.status, headers: CORS });
+    const cors = corsHeaders(req.headers.get('Origin'), 'PATCH, OPTIONS');
+    return NextResponse.json(data, { status: res.status, headers: cors });
   } catch (e) {
-    return NextResponse.json({ success: false, error: String(e) }, { status: 500, headers: CORS });
+    const cors = corsHeaders(req.headers.get('Origin'), 'PATCH, OPTIONS');
+    return NextResponse.json({ success: false, error: String(e) }, { status: 500, headers: cors });
   }
 }

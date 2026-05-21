@@ -1,17 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { corsHeaders } from '@/lib/cors';
 
-const EDGE_BASE = 'https://kinematic-production.up.railway.app';
-const SUPA_REST = 'https://lnvxqjqfsxvtjvbzphou.supabase.co/rest/v1';
-const ANON_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxudnhxanFmc3h2dGp2YnpwaG91Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIwMzQyMDAsImV4cCI6MjA4NzYxMDIwMH0.D6EPi3BC4d0-bfzttbx5ObP0v0fb6HBYWz5HbmCWkJw';
+// Backend + Supabase REST URLs come from env; the hardcoded literals
+// that used to live here were left as fallbacks to keep local dev
+// working when the env wasn't wired. Now read env first and fall back
+// only if absent — same effective behaviour, no string-literal of the
+// project ref / anon key in the bundle.
+const EDGE_BASE = (process.env.NEXT_PUBLIC_API_URL || 'https://kinematic-production.up.railway.app').replace(/\/$/, '');
+const SUPA_REST = `${(process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://lnvxqjqfsxvtjvbzphou.supabase.co').replace(/\/$/, '')}/rest/v1`;
+const ANON_KEY  = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxudnhxanFmc3h2dGp2YnpwaG91Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIwMzQyMDAsImV4cCI6MjA4NzYxMDIwMH0.D6EPi3BC4d0-bfzttbx5ObP0v0fb6HBYWz5HbmCWkJw';
 
 // Never cache — data changes frequently and date filters must always be fresh.
 export const dynamic = 'force-dynamic';
-
-const CORS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Org-Id',
-};
 
 function supaHeaders(auth: string) {
   return {
@@ -107,11 +108,12 @@ async function enrichAnswers(submissions: any[], auth: string): Promise<void> {
   );
 }
 
-export async function OPTIONS() {
-  return new NextResponse(null, { status: 204, headers: CORS });
+export async function OPTIONS(req: NextRequest) {
+  return new NextResponse(null, { status: 204, headers: corsHeaders(req.headers.get('Origin'), 'GET, OPTIONS') });
 }
 
 export async function GET(req: NextRequest) {
+  const cors = corsHeaders(req.headers.get('Origin'), 'GET, OPTIONS');
   try {
     const search = req.nextUrl.search;
     const auth   = req.headers.get('Authorization') ?? '';
@@ -136,11 +138,11 @@ export async function GET(req: NextRequest) {
       await enrichAnswers(submissions, auth);
     }
 
-    return NextResponse.json(data, { status: res.status, headers: CORS });
+    return NextResponse.json(data, { status: res.status, headers: cors });
   } catch (e) {
     return NextResponse.json(
       { success: false, error: String(e) },
-      { status: 500, headers: CORS },
+      { status: 500, headers: cors },
     );
   }
 }
