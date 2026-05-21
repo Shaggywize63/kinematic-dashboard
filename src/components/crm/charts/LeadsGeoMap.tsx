@@ -6,47 +6,160 @@ import { MapContainer, TileLayer, CircleMarker, Marker, Popup, Tooltip, useMap }
 import L from 'leaflet';
 import { INDIA_STATES, INDIA_CENTRE } from '../../../lib/indiaStates';
 
-// City lat/lng catalog — extends incrementally as new cities show up. Anything
-// not in this map gets placed at the state centroid as a fallback so it still
-// surfaces in counts; the search panel can also refer to these.
-const CITY_COORDS: Record<string, [number, number]> = {
-  'Ahmedabad':      [23.03, 72.58],
-  'Bengaluru':      [12.97, 77.59],
-  'Bhopal':         [23.26, 77.41],
-  'Bhubaneswar':    [20.30, 85.82],
-  'Chandigarh':     [30.73, 76.78],
-  'Chennai':        [13.08, 80.27],
-  'Coimbatore':     [11.02, 76.96],
-  'Delhi':          [28.61, 77.21],
-  'New Delhi':      [28.61, 77.21],
-  'Gurugram':       [28.46, 77.03],
-  'Gurgaon':        [28.46, 77.03],
-  'Guwahati':       [26.14, 91.74],
-  'Hyderabad':      [17.39, 78.49],
-  'Indore':         [22.72, 75.86],
-  'Jaipur':         [26.92, 75.79],
-  'Kanpur':         [26.45, 80.33],
-  'Kolkata':        [22.57, 88.36],
-  'Kochi':          [9.93, 76.27],
-  'Lucknow':        [26.85, 80.95],
-  'Ludhiana':       [30.90, 75.85],
-  'Mumbai':         [19.08, 72.88],
-  'Mysuru':         [12.30, 76.64],
-  'Nagpur':         [21.15, 79.09],
-  'Noida':          [28.54, 77.39],
-  'Panaji':         [15.49, 73.83],
-  'Patna':          [25.59, 85.14],
-  'Pune':           [18.52, 73.86],
-  'Raipur':         [21.25, 81.63],
-  'Ranchi':         [23.34, 85.32],
-  'Surat':          [21.17, 72.83],
-  'Thiruvananthapuram': [8.52, 76.94],
-  'Trivandrum':     [8.52, 76.94],
-  'Vadodara':       [22.31, 73.18],
-  'Varanasi':       [25.32, 82.97],
-  'Visakhapatnam':  [17.69, 83.22],
-  'Vizag':          [17.69, 83.22],
-};
+// City catalog — coords + state for ~120 Indian cities. Each entry is
+// `[lat, lng, state]`. The state is used to derive a sensible
+// state-level fallback when the lead row has no `state` set (which
+// happens via integrations + the bulk import path) so the lead still
+// appears in the state aggregation at low zooms.
+//
+// Keep adding cities here as new beat geographies show up. The list is
+// roughly: every state capital + major commercial city + all the
+// district HQs we've already seeded in crm_cities for active clients.
+const CITY_TABLE: Array<readonly [string, number, number, string]> = [
+  // Metros + state capitals
+  ['Ahmedabad', 23.03, 72.58, 'Gujarat'],
+  ['Bengaluru', 12.97, 77.59, 'Karnataka'],
+  ['Bhopal',    23.26, 77.41, 'Madhya Pradesh'],
+  ['Bhubaneswar', 20.30, 85.82, 'Odisha'],
+  ['Chandigarh', 30.73, 76.78, 'Chandigarh'],
+  ['Chennai',   13.08, 80.27, 'Tamil Nadu'],
+  ['Coimbatore', 11.02, 76.96, 'Tamil Nadu'],
+  ['Delhi',     28.61, 77.21, 'Delhi'],
+  ['New Delhi', 28.61, 77.21, 'Delhi'],
+  ['Gurugram',  28.46, 77.03, 'Haryana'],
+  ['Gurgaon',   28.46, 77.03, 'Haryana'],
+  ['Guwahati',  26.14, 91.74, 'Assam'],
+  ['Hyderabad', 17.39, 78.49, 'Telangana'],
+  ['Indore',    22.72, 75.86, 'Madhya Pradesh'],
+  ['Jaipur',    26.92, 75.79, 'Rajasthan'],
+  ['Kanpur',    26.45, 80.33, 'Uttar Pradesh'],
+  ['Kolkata',   22.57, 88.36, 'West Bengal'],
+  ['Kochi',      9.93, 76.27, 'Kerala'],
+  ['Lucknow',   26.85, 80.95, 'Uttar Pradesh'],
+  ['Ludhiana',  30.90, 75.85, 'Punjab'],
+  ['Mumbai',    19.08, 72.88, 'Maharashtra'],
+  ['Mysuru',    12.30, 76.64, 'Karnataka'],
+  ['Nagpur',    21.15, 79.09, 'Maharashtra'],
+  ['Noida',     28.54, 77.39, 'Uttar Pradesh'],
+  ['Panaji',    15.49, 73.83, 'Goa'],
+  ['Patna',     25.59, 85.14, 'Bihar'],
+  ['Pune',      18.52, 73.86, 'Maharashtra'],
+  ['Raipur',    21.25, 81.63, 'Chhattisgarh'],
+  ['Ranchi',    23.34, 85.32, 'Jharkhand'],
+  ['Surat',     21.17, 72.83, 'Gujarat'],
+  ['Thiruvananthapuram', 8.52, 76.94, 'Kerala'],
+  ['Trivandrum', 8.52, 76.94, 'Kerala'],
+  ['Vadodara',  22.31, 73.18, 'Gujarat'],
+  ['Varanasi',  25.32, 82.97, 'Uttar Pradesh'],
+  ['Visakhapatnam', 17.69, 83.22, 'Andhra Pradesh'],
+  ['Vizag',     17.69, 83.22, 'Andhra Pradesh'],
+  // Jharkhand district HQs — Tata Tiscon's full beat. Without these
+  // the Deoghar / Dhanbad / etc. leads showed up as "unmapped" and
+  // never landed on the map.
+  ['Bokaro',    23.67, 86.15, 'Jharkhand'],
+  ['Bokaro Steel City', 23.67, 86.15, 'Jharkhand'],
+  ['Deoghar',   24.48, 86.69, 'Jharkhand'],
+  ['Dhanbad',   23.79, 86.43, 'Jharkhand'],
+  ['Dumka',     24.27, 87.25, 'Jharkhand'],
+  ['Giridih',   24.18, 86.30, 'Jharkhand'],
+  ['Godda',     24.83, 87.21, 'Jharkhand'],
+  ['Hazaribagh', 23.99, 85.36, 'Jharkhand'],
+  ['Jamshedpur', 22.80, 86.20, 'Jharkhand'],
+  ['Jamtara',   23.96, 86.80, 'Jharkhand'],
+  ['Pakur',     24.63, 87.85, 'Jharkhand'],
+  ['Sahibganj', 25.24, 87.64, 'Jharkhand'],
+  // Misc commercial centres we see most often
+  ['Faridabad', 28.41, 77.31, 'Haryana'],
+  ['Ghaziabad', 28.67, 77.45, 'Uttar Pradesh'],
+  ['Greater Noida', 28.47, 77.50, 'Uttar Pradesh'],
+  ['Agra',      27.18, 78.01, 'Uttar Pradesh'],
+  ['Allahabad', 25.44, 81.85, 'Uttar Pradesh'],
+  ['Prayagraj', 25.44, 81.85, 'Uttar Pradesh'],
+  ['Meerut',    28.98, 77.71, 'Uttar Pradesh'],
+  ['Aligarh',   27.88, 78.08, 'Uttar Pradesh'],
+  ['Bareilly',  28.37, 79.43, 'Uttar Pradesh'],
+  ['Gorakhpur', 26.76, 83.37, 'Uttar Pradesh'],
+  ['Jodhpur',   26.24, 73.02, 'Rajasthan'],
+  ['Udaipur',   24.58, 73.71, 'Rajasthan'],
+  ['Ajmer',     26.45, 74.64, 'Rajasthan'],
+  ['Kota',      25.21, 75.86, 'Rajasthan'],
+  ['Bikaner',   28.02, 73.31, 'Rajasthan'],
+  ['Amritsar',  31.63, 74.87, 'Punjab'],
+  ['Jalandhar', 31.33, 75.58, 'Punjab'],
+  ['Mohali',    30.71, 76.72, 'Punjab'],
+  ['Patiala',   30.34, 76.39, 'Punjab'],
+  ['Karnal',    29.69, 76.99, 'Haryana'],
+  ['Panipat',   29.39, 76.96, 'Haryana'],
+  ['Hisar',     29.16, 75.72, 'Haryana'],
+  ['Ambala',    30.38, 76.78, 'Haryana'],
+  ['Sonipat',   28.99, 77.02, 'Haryana'],
+  ['Rohtak',    28.90, 76.61, 'Haryana'],
+  ['Thane',     19.22, 72.97, 'Maharashtra'],
+  ['Navi Mumbai', 19.03, 73.03, 'Maharashtra'],
+  ['Nashik',    20.00, 73.78, 'Maharashtra'],
+  ['Aurangabad', 19.88, 75.34, 'Maharashtra'],
+  ['Solapur',   17.66, 75.91, 'Maharashtra'],
+  ['Kolhapur',  16.71, 74.24, 'Maharashtra'],
+  ['Ahmednagar', 19.10, 74.75, 'Maharashtra'],
+  ['Mangaluru', 12.91, 74.86, 'Karnataka'],
+  ['Mangalore', 12.91, 74.86, 'Karnataka'],
+  ['Hubballi',  15.36, 75.12, 'Karnataka'],
+  ['Belagavi',  15.85, 74.50, 'Karnataka'],
+  ['Madurai',    9.93, 78.12, 'Tamil Nadu'],
+  ['Tiruchirappalli', 10.79, 78.70, 'Tamil Nadu'],
+  ['Salem',     11.66, 78.15, 'Tamil Nadu'],
+  ['Tirunelveli', 8.71, 77.76, 'Tamil Nadu'],
+  ['Vellore',   12.92, 79.13, 'Tamil Nadu'],
+  ['Erode',     11.34, 77.72, 'Tamil Nadu'],
+  ['Tiruppur',  11.11, 77.34, 'Tamil Nadu'],
+  ['Vijayawada', 16.51, 80.65, 'Andhra Pradesh'],
+  ['Guntur',    16.31, 80.43, 'Andhra Pradesh'],
+  ['Tirupati',  13.63, 79.42, 'Andhra Pradesh'],
+  ['Warangal',  17.97, 79.59, 'Telangana'],
+  ['Bhilai',    21.21, 81.43, 'Chhattisgarh'],
+  ['Bilaspur',  22.08, 82.16, 'Chhattisgarh'],
+  ['Jabalpur',  23.18, 79.95, 'Madhya Pradesh'],
+  ['Gwalior',   26.22, 78.18, 'Madhya Pradesh'],
+  ['Ujjain',    23.18, 75.78, 'Madhya Pradesh'],
+  ['Ratlam',    23.33, 75.04, 'Madhya Pradesh'],
+  ['Cuttack',   20.46, 85.88, 'Odisha'],
+  ['Rourkela',  22.26, 84.85, 'Odisha'],
+  ['Sambalpur', 21.46, 83.97, 'Odisha'],
+  ['Berhampur', 19.32, 84.79, 'Odisha'],
+  ['Dehradun',  30.32, 78.03, 'Uttarakhand'],
+  ['Haridwar',  29.95, 78.16, 'Uttarakhand'],
+  ['Roorkee',   29.86, 77.89, 'Uttarakhand'],
+  ['Shimla',    31.10, 77.17, 'Himachal Pradesh'],
+  ['Dharamshala', 32.22, 76.32, 'Himachal Pradesh'],
+  ['Jammu',     32.73, 74.86, 'Jammu and Kashmir'],
+  ['Srinagar',  34.08, 74.79, 'Jammu and Kashmir'],
+  ['Leh',       34.16, 77.58, 'Ladakh'],
+  ['Imphal',    24.81, 93.94, 'Manipur'],
+  ['Shillong',  25.58, 91.89, 'Meghalaya'],
+  ['Aizawl',    23.73, 92.72, 'Mizoram'],
+  ['Kohima',    25.67, 94.11, 'Nagaland'],
+  ['Itanagar',  27.10, 93.62, 'Arunachal Pradesh'],
+  ['Agartala',  23.83, 91.28, 'Tripura'],
+  ['Gangtok',   27.33, 88.61, 'Sikkim'],
+  ['Dibrugarh', 27.48, 94.91, 'Assam'],
+  ['Silchar',   24.83, 92.78, 'Assam'],
+  ['Siliguri',  26.71, 88.43, 'West Bengal'],
+  ['Durgapur',  23.55, 87.32, 'West Bengal'],
+  ['Asansol',   23.68, 86.99, 'West Bengal'],
+  ['Howrah',    22.59, 88.31, 'West Bengal'],
+  ['Bhagalpur', 25.24, 86.97, 'Bihar'],
+  ['Gaya',      24.79, 84.99, 'Bihar'],
+  ['Muzaffarpur', 26.12, 85.39, 'Bihar'],
+  ['Darbhanga', 26.15, 85.90, 'Bihar'],
+  ['Puducherry', 11.94, 79.83, 'Puducherry'],
+  ['Port Blair', 11.62, 92.73, 'Andaman and Nicobar Islands'],
+];
+
+const CITY_COORDS: Record<string, [number, number]> =
+  Object.fromEntries(CITY_TABLE.map(([n, lat, lng]) => [n, [lat, lng] as [number, number]]));
+
+const CITY_TO_STATE: Record<string, string> =
+  Object.fromEntries(CITY_TABLE.map(([n, , , state]) => [n, state]));
 
 const STATE_BY_NAME = new Map(INDIA_STATES.map((s) => [s.name.toLowerCase(), s]));
 
@@ -157,7 +270,13 @@ export default function LeadsGeoMap({ leads, height = 620 }: { leads: LeadGeoPoi
     for (const l of leads) {
       const stateKey = (l.state ?? '').trim();
       const cityKey = (l.city ?? '').trim();
-      const stateRow = stateKey ? STATE_BY_NAME.get(stateKey.toLowerCase()) : undefined;
+      // If the lead row has no `state`, fall back to the city catalog
+      // — most leads created via integrations or bulk import only carry
+      // a `city`, but the state name is implicit (Deoghar ⇒ Jharkhand).
+      const inferredState = !stateKey && cityKey
+        ? (CITY_TO_STATE[cityKey] ?? '')
+        : stateKey;
+      const stateRow = inferredState ? STATE_BY_NAME.get(inferredState.toLowerCase()) : undefined;
       const cityCoord = cityKey ? CITY_COORDS[cityKey] : undefined;
       const status = (l.status ?? 'unknown').toLowerCase();
 
