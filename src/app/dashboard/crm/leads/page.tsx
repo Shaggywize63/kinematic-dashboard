@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { crmLeads, crmLeadSources, crmSettings } from '../../../../lib/crmApi';
+import { crmLeads, crmLeadSources, crmSettings, type Pagination } from '../../../../lib/crmApi';
 import api, { API_BASE_URL } from '../../../../lib/api';
 import { getStoredToken } from '../../../../lib/auth';
 import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
@@ -11,6 +11,11 @@ import LeadsTable from '../../../../components/crm/LeadsTable';
 import LeadFilters, { type LeadFiltersValue } from '../../../../components/crm/LeadFilters';
 
 type UserOption = { id: string; name: string };
+
+// Page-size options shown in the per-page selector. 200 is the
+// server's `listLeadsWithCount` cap so larger values silently clamp.
+const PAGE_SIZE_OPTIONS = [25, 50, 100, 200] as const;
+const DEFAULT_PAGE_SIZE = 50;
 
 export default function LeadsListPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -23,6 +28,13 @@ export default function LeadsListPage() {
   const [usersLoading, setUsersLoading] = useState(false);
   const [isB2C, setIsB2C] = useState(false);
   const [exporting, setExporting] = useState(false);
+  // Server-side pagination. `page` is 1-indexed. `pagination` is the
+  // metadata returned by the backend (total/totalPages/hasNext/hasPrev)
+  // — null while loading and on the very first render before the first
+  // response lands.
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
+  const [pagination, setPagination] = useState<Pagination | null>(null);
 
   // CSV download — calls the backend export endpoint with the same
   // server-side filters the list is already using (state/city/district/
@@ -111,18 +123,37 @@ export default function LeadsListPage() {
   const reload = async () => {
     setLoading(true);
     try {
-      const params: Record<string, string> = {};
+      const params: Record<string, string | number> = { page, limit: pageSize };
       if (range.from)      params.from     = range.from;
       if (range.to)        params.to       = range.to;
-      // Location hierarchy goes server-side so the server bounds the
-      // result set. Status/source/owner/grade/q stay client-side in
-      // `filtered` for responsive typing.
-      if (filters.state)    params.state    = filters.state;
-      if (filters.city)     params.city     = filters.city;
-      if (filters.district) params.district = filters.district;
-      if (filters.block)    params.block    = filters.block;
+      // All known filters are now server-side so the row count and
+      // page math match the *filtered* result, not the org-wide one.
+      // Only `q` (free-text search) stays client-side as "find within
+      // page" — it's responsive while typing and the backend's q-OR
+      // search would force a page reload on every keystroke.
+      if (filters.state)    params.state     = filters.state;
+      if (filters.city)     params.city      = filters.city;
+      if (filters.district) params.district  = filters.district;
+      if (filters.block)    params.block     = filters.block;
+      if (filters.status)   params.status    = filters.status;
+      if (filters.source)   params.source_id = filters.source;
+      if (filters.owner)    params.owner_id  = filters.owner;
+      if (filters.grade)    params.score_grade = filters.grade;
       const [l, s] = await Promise.allSettled([crmLeads.list(params), crmLeadSources.list()]);
-      if (l.status === 'fulfilled') setLeads(l.value.data || []);
+      if (l.status === 'fulfilled') {
+        setLeads(l.value.data || []);
+        // `pagination` may be undefined when the backend hasn't been
+        // updated yet — keep the existing UI working by inferring a
+        // single page from the row count in that case.
+        setPagination(l.value.pagination ?? {
+          total: (l.value.data || []).length,
+          page: 1,
+          limit: pageSize,
+          totalPages: 1,
+          hasNext: false,
+          hasPrev: false,
+        });
+      }
       if (s.status === 'fulfilled') setSources(s.value.data || []);
     } catch (e: any) {
       toast.error(e.message || 'Failed to load leads');
@@ -131,7 +162,26 @@ export default function LeadsListPage() {
     }
   };
 
-  useEffect(() => { reload(); /* eslint-disable-next-line */ }, [range.from, range.to, filters.state, filters.city, filters.district, filters.block]);
+  // Reload on filter / range / page / page-size change. Server-side
+  // pagination means changing the row-count'd filter set must also
+  // reset to page 1, or we'd request page 5 of a 3-page result and
+  // get nothing.
+  useEffect(() => { reload(); /* eslint-disable-next-line */ }, [
+    range.from, range.to,
+    filters.state, filters.city, filters.district, filters.block,
+    filters.status, filters.source, filters.owner, filters.grade,
+    page, pageSize,
+  ]);
+
+  // Reset to page 1 whenever any server-side filter changes. Without
+  // this, picking a stricter filter while on page 5 would render an
+  // empty page until the user manually clicks "first".
+  useEffect(() => { setPage(1); /* eslint-disable-next-line */ }, [
+    range.from, range.to,
+    filters.state, filters.city, filters.district, filters.block,
+    filters.status, filters.source, filters.owner, filters.grade,
+    pageSize,
+  ]);
 
   useEffect(() => {
     crmSettings.get().then((r) => {
@@ -148,17 +198,17 @@ export default function LeadsListPage() {
     return () => document.removeEventListener('mousedown', handleClick);
   }, [showAssignMenu]);
 
+  // Status/source/owner/grade are applied server-side (see params in
+  // reload()) so they're already absent from `leads`. Only `q` stays
+  // client-side as "find within the current page" — keeps typing snappy
+  // and means we don't page-reset on every keystroke.
   const filtered = useMemo(() => {
     const q = (filters.q || '').toLowerCase();
-    return leads.filter((l) => {
-      if (q && !`${l.full_name || ''} ${l.first_name || ''} ${l.last_name || ''} ${l.email || ''} ${l.company || ''}`.toLowerCase().includes(q)) return false;
-      if (filters.status && l.status !== filters.status) return false;
-      if (filters.grade && l.score_grade !== filters.grade) return false;
-      if (filters.source && l.source_id !== filters.source) return false;
-      if (filters.owner && l.owner_id !== filters.owner) return false;
-      return true;
-    });
-  }, [leads, filters]);
+    if (!q) return leads;
+    return leads.filter((l) =>
+      `${l.full_name || ''} ${l.first_name || ''} ${l.last_name || ''} ${l.email || ''} ${l.company || ''}`.toLowerCase().includes(q)
+    );
+  }, [leads, filters.q]);
 
   const toggle = (id: string) => {
     setSelected((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -212,7 +262,18 @@ export default function LeadsListPage() {
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 8, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 13, color: 'var(--text-dim)' }}>{filtered.length} leads</span>
+          {/* Row count: server's total matches all current filters
+              (state/city/district/block/status/source/owner/grade).
+              `filtered.length` is the subset visible on this page after
+              the client-side q (text-search) filter. */}
+          <span style={{ fontSize: 13, color: 'var(--text-dim)' }}>
+            {pagination ? `${pagination.total.toLocaleString()} leads` : `${filtered.length} leads`}
+            {filters.q && pagination && filtered.length !== leads.length && (
+              <span style={{ marginLeft: 6, color: 'var(--text)' }}>
+                · {filtered.length} match “{filters.q}” on this page
+              </span>
+            )}
+          </span>
           {(filters.state || filters.city || filters.district || filters.block) && (
             <span style={{ fontSize: 11, color: 'var(--primary)', background: 'var(--s3)', padding: '3px 8px', borderRadius: 6 }}>
               📍 {[filters.block, filters.district, filters.city, filters.state].filter(Boolean).join(' › ')}
@@ -281,6 +342,79 @@ export default function LeadsListPage() {
           reload();
         }}
       />
+      <PaginationBar
+        pagination={pagination}
+        pageSize={pageSize}
+        onPageChange={setPage}
+        onPageSizeChange={setPageSize}
+        loading={loading}
+      />
+    </div>
+  );
+}
+
+/**
+ * Pagination footer: page-size picker on the left, current-page
+ * indicator + first/prev/next/last + jump-to-page on the right.
+ * Renders even when pagination is null so the layout doesn't jump on
+ * the very first render — controls are just disabled.
+ */
+function PaginationBar({
+  pagination, pageSize, onPageChange, onPageSizeChange, loading,
+}: {
+  pagination: Pagination | null;
+  pageSize: number;
+  onPageChange: (n: number) => void;
+  onPageSizeChange: (n: number) => void;
+  loading: boolean;
+}) {
+  const p = pagination;
+  const totalPages = p?.totalPages ?? 1;
+  const currentPage = p?.page ?? 1;
+  const total = p?.total ?? 0;
+  const start = total === 0 ? 0 : (currentPage - 1) * (p?.limit ?? pageSize) + 1;
+  const end = Math.min(currentPage * (p?.limit ?? pageSize), total);
+
+  const disabled = loading || !p;
+  const canPrev = !!p?.hasPrev && !disabled;
+  const canNext = !!p?.hasNext && !disabled;
+
+  const btn = (active: boolean): React.CSSProperties => ({
+    background: 'var(--s3)', border: '1px solid var(--border)', color: active ? 'var(--text)' : 'var(--text-dim)',
+    padding: '6px 10px', borderRadius: 6, fontSize: 12, fontWeight: 600,
+    cursor: active ? 'pointer' : 'not-allowed', opacity: active ? 1 : 0.5, minWidth: 32,
+  });
+
+  return (
+    <div style={{
+      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+      marginTop: 14, padding: '10px 14px', background: 'var(--s2)',
+      border: '1px solid var(--border)', borderRadius: 10,
+      flexWrap: 'wrap', gap: 10,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, color: 'var(--text-dim)' }}>
+        <span>Rows per page:</span>
+        <select
+          value={pageSize}
+          onChange={(e) => onPageSizeChange(Number(e.target.value))}
+          disabled={disabled}
+          style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '4px 8px', borderRadius: 6, fontSize: 12 }}
+        >
+          {PAGE_SIZE_OPTIONS.map((n) => <option key={n} value={n}>{n}</option>)}
+        </select>
+        <span>
+          {total === 0 ? 'No results' : `${start.toLocaleString()}–${end.toLocaleString()} of ${total.toLocaleString()}`}
+        </span>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <button type="button" onClick={() => onPageChange(1)} disabled={!canPrev} style={btn(canPrev)} title="First page">«</button>
+        <button type="button" onClick={() => onPageChange(currentPage - 1)} disabled={!canPrev} style={btn(canPrev)} title="Previous page">‹</button>
+        <span style={{ fontSize: 12, color: 'var(--text)', padding: '0 8px' }}>
+          Page <strong>{currentPage}</strong> of {totalPages}
+        </span>
+        <button type="button" onClick={() => onPageChange(currentPage + 1)} disabled={!canNext} style={btn(canNext)} title="Next page">›</button>
+        <button type="button" onClick={() => onPageChange(totalPages)} disabled={!canNext} style={btn(canNext)} title="Last page">»</button>
+      </div>
     </div>
   );
 }

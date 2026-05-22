@@ -4,11 +4,14 @@ import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { crmDeals, crmPipelines } from '../../../../lib/crmApi';
+import { crmDeals, crmPipelines, type Pagination } from '../../../../lib/crmApi';
 import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
 import type { Deal, Pipeline } from '../../../../types/crm';
 import DealsTable from '../../../../components/crm/DealsTable';
 import { getStoredUser, canAccess } from '../../../../lib/auth';
+
+const DEAL_PAGE_SIZE_OPTIONS = [25, 50, 100, 200] as const;
+const DEAL_DEFAULT_PAGE_SIZE = 50;
 
 // Lazy-load the kanban: dnd-kit + canvas-confetti are heavy and unused in
 // the default list view.
@@ -44,6 +47,11 @@ function DealsListPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [bulkBusy, setBulkBusy] = useState(false);
   const range = useCrmDateRange((s) => ({ from: s.from, to: s.to }));
+  // Pagination only applies to the list view — kanban needs every open
+  // deal in scope, so it stays on the existing limit=500 single-shot fetch.
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(DEAL_DEFAULT_PAGE_SIZE);
+  const [pagination, setPagination] = useState<Pagination | null>(null);
 
   // Sync URL when the user toggles view / picks pipeline so the link is
   // shareable and a browser refresh keeps the mode.
@@ -70,16 +78,50 @@ function DealsListPage() {
   const reload = async () => {
     setLoading(true);
     try {
-      const r = view === 'kanban' && pipelineId
-        ? await crmDeals.list({ ...range, pipeline_id: pipelineId, status: 'open', limit: 500 })
-        : await crmDeals.list(range);
+      // Kanban: still single-shot, all open deals in the pipeline (the
+      // board only renders open deals across stages). List: paginate.
+      // `status` is server-side so swapping Open/Won/Lost re-counts
+      // the total correctly, not just filters the current page.
+      const params: Record<string, string | number | undefined> = { ...range };
+      if (view === 'kanban' && pipelineId) {
+        params.pipeline_id = pipelineId;
+        params.status = 'open';
+        params.limit = 500;
+      } else {
+        params.page = page;
+        params.limit = pageSize;
+        if (status) params.status = status;
+      }
+      const r = await crmDeals.list(params);
       setDeals(r.data || []);
+      // Kanban ignores pagination metadata.
+      if (view === 'list') {
+        setPagination(r.pagination ?? {
+          total: (r.data || []).length,
+          page: 1,
+          limit: pageSize,
+          totalPages: 1,
+          hasNext: false,
+          hasPrev: false,
+        });
+      } else {
+        setPagination(null);
+      }
     } catch (e: any) { toast.error(e.message || 'Failed to load'); }
     finally { setLoading(false); }
   };
 
   useEffect(() => { loadPipelines(); /* eslint-disable-next-line */ }, []);
-  useEffect(() => { reload(); /* eslint-disable-next-line */ }, [range.from, range.to, view, pipelineId]);
+  useEffect(() => { reload(); /* eslint-disable-next-line */ }, [
+    range.from, range.to, view, pipelineId,
+    page, pageSize, status,
+  ]);
+
+  // Reset to page 1 whenever the server-side filter set changes,
+  // otherwise a stricter filter while on page 5 lands on an empty page.
+  useEffect(() => { setPage(1); /* eslint-disable-next-line */ }, [
+    range.from, range.to, status, pageSize, view,
+  ]);
 
   useEffect(() => {
     const user = getStoredUser();
@@ -89,9 +131,11 @@ function DealsListPage() {
   const activePipeline = useMemo(() => pipelines.find((p) => p.id === pipelineId) || null, [pipelines, pipelineId]);
   const stages = useMemo(() => (activePipeline?.stages || []).slice().sort((a, b) => a.position - b.position), [activePipeline]);
 
+  // `status` is now server-side so the page+count are correct. `q`
+  // (text search) stays client-side as "find within this page" — the
+  // dashboard doesn't reload on every keystroke.
   const filtered = deals.filter((d) => {
     if (q && !`${d.name} ${d.account_name || ''}`.toLowerCase().includes(q.toLowerCase())) return false;
-    if (status && d.status !== status) return false;
     return true;
   });
 
@@ -207,19 +251,88 @@ function DealsListPage() {
           <DealKanban stages={stages} initialDeals={filtered} />
         )
       ) : (
-        <DealsTable
-          deals={filtered}
-          loading={loading}
-          onAssign={async (dealId, userId) => {
-            await crmDeals.update(dealId, { owner_id: userId } as any);
-            toast.success(userId ? 'Deal reassigned' : 'Deal unassigned');
-            reload();
-          }}
-          selected={isAdmin ? selected : undefined}
-          onToggle={isAdmin ? toggle : undefined}
-          onToggleAll={isAdmin ? toggleAll : undefined}
-        />
+        <>
+          <DealsTable
+            deals={filtered}
+            loading={loading}
+            onAssign={async (dealId, userId) => {
+              await crmDeals.update(dealId, { owner_id: userId } as any);
+              toast.success(userId ? 'Deal reassigned' : 'Deal unassigned');
+              reload();
+            }}
+            selected={isAdmin ? selected : undefined}
+            onToggle={isAdmin ? toggle : undefined}
+            onToggleAll={isAdmin ? toggleAll : undefined}
+          />
+          <DealsPaginationBar
+            pagination={pagination}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+            loading={loading}
+          />
+        </>
       )}
+    </div>
+  );
+}
+
+function DealsPaginationBar({
+  pagination, pageSize, onPageChange, onPageSizeChange, loading,
+}: {
+  pagination: Pagination | null;
+  pageSize: number;
+  onPageChange: (n: number) => void;
+  onPageSizeChange: (n: number) => void;
+  loading: boolean;
+}) {
+  const p = pagination;
+  const totalPages = p?.totalPages ?? 1;
+  const currentPage = p?.page ?? 1;
+  const total = p?.total ?? 0;
+  const start = total === 0 ? 0 : (currentPage - 1) * (p?.limit ?? pageSize) + 1;
+  const end = Math.min(currentPage * (p?.limit ?? pageSize), total);
+
+  const disabled = loading || !p;
+  const canPrev = !!p?.hasPrev && !disabled;
+  const canNext = !!p?.hasNext && !disabled;
+
+  const btn = (active: boolean): React.CSSProperties => ({
+    background: 'var(--s3)', border: '1px solid var(--border)', color: active ? 'var(--text)' : 'var(--text-dim)',
+    padding: '6px 10px', borderRadius: 6, fontSize: 12, fontWeight: 600,
+    cursor: active ? 'pointer' : 'not-allowed', opacity: active ? 1 : 0.5, minWidth: 32,
+  });
+
+  return (
+    <div style={{
+      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+      marginTop: 14, padding: '10px 14px', background: 'var(--s2)',
+      border: '1px solid var(--border)', borderRadius: 10,
+      flexWrap: 'wrap', gap: 10,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, color: 'var(--text-dim)' }}>
+        <span>Rows per page:</span>
+        <select
+          value={pageSize}
+          onChange={(e) => onPageSizeChange(Number(e.target.value))}
+          disabled={disabled}
+          style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '4px 8px', borderRadius: 6, fontSize: 12 }}
+        >
+          {DEAL_PAGE_SIZE_OPTIONS.map((n) => <option key={n} value={n}>{n}</option>)}
+        </select>
+        <span>
+          {total === 0 ? 'No results' : `${start.toLocaleString()}–${end.toLocaleString()} of ${total.toLocaleString()}`}
+        </span>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <button type="button" onClick={() => onPageChange(1)} disabled={!canPrev} style={btn(canPrev)} title="First page">«</button>
+        <button type="button" onClick={() => onPageChange(currentPage - 1)} disabled={!canPrev} style={btn(canPrev)} title="Previous page">‹</button>
+        <span style={{ fontSize: 12, color: 'var(--text)', padding: '0 8px' }}>
+          Page <strong>{currentPage}</strong> of {totalPages}
+        </span>
+        <button type="button" onClick={() => onPageChange(currentPage + 1)} disabled={!canNext} style={btn(canNext)} title="Next page">›</button>
+        <button type="button" onClick={() => onPageChange(totalPages)} disabled={!canNext} style={btn(canNext)} title="Last page">»</button>
+      </div>
     </div>
   );
 }

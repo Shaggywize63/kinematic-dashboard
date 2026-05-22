@@ -15,8 +15,21 @@ import type {
 } from '../types/crm';
 import type { Integration, InboundEvent, IntegrationProvider } from '../types/integrations';
 
-type Wrapped<T> = { success: boolean; data: T };
+type Wrapped<T> = { success: boolean; data: T; pagination?: Pagination };
 export interface DateRangeParams { from?: string; to?: string }
+
+// Server pagination shape — returned alongside `data` on list endpoints
+// that opt into pagination (currently /crm/leads + /crm/deals). Callers
+// that ignore it continue to work — only the explicit `pagination`
+// readers need to know it exists.
+export interface Pagination {
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrev: boolean;
+}
 
 function qs(params?: Record<string, string | number | boolean | undefined | null>): string {
   if (!params) return '';

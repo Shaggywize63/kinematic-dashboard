@@ -431,8 +431,33 @@ const ROUTE_PLAN_ESG = (() => {
 const list = <T,>(rows: T[]) => ({ success: true, data: rows });
 const wrap = <T,>(body: T)  => ({ success: true, data: body });
 
+// Demo equivalent of the backend's sendPaginated() — slices the
+// in-memory dataset by ?page=X&limit=Y from the original URL and
+// stamps the same {data, pagination} envelope the real backend now
+// returns. Keeps the demo UI rendering page controls instead of
+// pretending everything is one page.
+const paginate = <T,>(rows: T[], query: URLSearchParams) => {
+  const page = Math.max(1, parseInt(query.get('page') || '1', 10) || 1);
+  const limit = Math.min(500, Math.max(1, parseInt(query.get('limit') || '50', 10) || 50));
+  const total = rows.length;
+  const start = (page - 1) * limit;
+  const slice = rows.slice(start, start + limit);
+  return {
+    success: true,
+    data: slice,
+    pagination: {
+      total, page, limit,
+      totalPages: Math.max(1, Math.ceil(total / limit)),
+      hasNext: page * limit < total,
+      hasPrev: page > 1,
+    },
+  };
+};
+
 export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown): T | undefined {
-  const noQuery = rawPath.split('?')[0];
+  const queryStart = rawPath.indexOf('?');
+  const noQuery = queryStart === -1 ? rawPath : rawPath.slice(0, queryStart);
+  const query = new URLSearchParams(queryStart === -1 ? '' : rawPath.slice(queryStart + 1));
   const path = noQuery.startsWith('/api/v1') ? noQuery.slice('/api/v1'.length) : noQuery;
   const m = method.toUpperCase();
   const bodyObj: Record<string, unknown> = (body && typeof body === 'object' && !Array.isArray(body))
@@ -590,8 +615,30 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
       if (schById) return wrap(DIST_SCHEMES.find(s => s.id === schById[1]) || DIST_SCHEMES[0]) as unknown as T;
     }
 
-    if (path === '/crm/leads')      return list(CRM_LEADS) as unknown as T;
-    if (path === '/crm/deals')      return list(CRM_DEALS) as unknown as T;
+    if (path === '/crm/leads') {
+      // Apply the demo-side equivalent of the server filters so the
+      // total + page slice line up with what the UI actually shows.
+      const filtered = CRM_LEADS.filter((l: any) => {
+        if (query.get('status') && l.status !== query.get('status')) return false;
+        if (query.get('source_id') && l.source_id !== query.get('source_id')) return false;
+        if (query.get('owner_id') && l.owner_id !== query.get('owner_id')) return false;
+        if (query.get('score_grade') && l.score_grade !== query.get('score_grade')) return false;
+        if (query.get('state') && l.state !== query.get('state')) return false;
+        if (query.get('city') && l.city !== query.get('city')) return false;
+        if (query.get('district') && l.district !== query.get('district')) return false;
+        if (query.get('block') && l.block !== query.get('block')) return false;
+        return true;
+      });
+      return paginate(filtered, query) as unknown as T;
+    }
+    if (path === '/crm/deals') {
+      const filtered = CRM_DEALS.filter((d: any) => {
+        if (query.get('status') && d.status !== query.get('status')) return false;
+        if (query.get('pipeline_id') && d.pipeline_id !== query.get('pipeline_id')) return false;
+        return true;
+      });
+      return paginate(filtered, query) as unknown as T;
+    }
     if (path === '/crm/accounts')   return list(CRM_ACCOUNTS) as unknown as T;
     if (path === '/crm/contacts')   return list(CRM_CONTACTS) as unknown as T;
     if (path === '/crm/activities') return list(CRM_ACTIVITIES) as unknown as T;
