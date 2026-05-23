@@ -85,6 +85,12 @@ export default function NewLeadPage() {
     if (form.phone && form.phone.length !== 10) {
       return toast.error('Primary mobile must be a 10-digit number');
     }
+    // Last name is mandatory on the backend (leadCreateSchema). Block
+    // submit early with a clear message instead of relying on the
+    // generic "Validation failed" toast from the server.
+    if (!form.last_name || !form.last_name.trim()) {
+      return toast.error('Last name is required.');
+    }
     // City is required on EVERY lead — without it the per-user city
     // scope filter has nothing to match against and the lead would
     // leak to other reps. Block submit early with a clear message
@@ -194,7 +200,7 @@ export default function NewLeadPage() {
       <Section title="Personal">
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
           {text('first_name', 'First Name', { required: true })}
-          {text('last_name', 'Last Name')}
+          {text('last_name', 'Last Name', { required: true })}
           {text('email', 'Email', { type: 'email', required: !form.is_b2c })}
           {text('phone', 'Primary Mobile', { required: form.is_b2c, phone: true })}
         </div>

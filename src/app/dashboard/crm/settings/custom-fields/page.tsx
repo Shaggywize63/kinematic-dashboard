@@ -128,7 +128,7 @@ export default function CustomFieldsPage() {
   const [savingOverride, setSavingOverride] = useState<string | null>(null);
   const [busy, setBusy] = useState<Record<string, boolean>>({});
   const [accessDenied, setAccessDenied] = useState(false);
-  const [editing, setEditing] = useState<{ entity: string; key: string; label: string; required: boolean } | null>(null);
+  const [editing, setEditing] = useState<{ entity: string; key: string; label: string; required: boolean; hidden: boolean } | null>(null);
   // Edit dialog for true custom fields (id-keyed in the table, separate
   // from the built-in override editor above which keys off entity+key).
   const [editingCustom, setEditingCustom] = useState<{
@@ -325,10 +325,17 @@ export default function CustomFieldsPage() {
     setSavingOverride(k);
     try {
       const next: FieldOverrides = { ...overrides };
-      // Remove keys that match the original to keep config tidy
+      // Remove keys that match the original to keep config tidy.
+      // Three things admins can override per built-in field now:
+      //  - label   (rename without changing the API contract)
+      //  - required (force / un-force entry in the form)
+      //  - hidden  (drop the field from the form entirely — useful
+      //             when a brand doesn't collect e.g. "industry" or
+      //             "marketing consent" by their own design)
       const cleaned: FieldOverride = {};
       if (override.label !== undefined) cleaned.label = override.label;
       if (override.required !== undefined) cleaned.required = override.required;
+      if (override.hidden !== undefined) cleaned.hidden = override.hidden;
       if (Object.keys(cleaned).length === 0) {
         delete next[k];
       } else {
@@ -477,20 +484,23 @@ export default function CustomFieldsPage() {
                 const ov = overrides[k] || {};
                 const effLabel = ov.label ?? f.label;
                 const effRequired = ov.required ?? !!f.required;
-                const overridden = ov.label !== undefined || ov.required !== undefined;
+                const effHidden = ov.hidden ?? false;
+                const overridden = ov.label !== undefined || ov.required !== undefined || ov.hidden !== undefined;
                 const saving = savingOverride === k;
                 return (
-                  <tr key={`builtin-${f.entity}-${f.key}`}>
-                    {/* Locked cell — built-in fields aren't draggable;
-                        their position is intrinsic to the form. The
-                        🔒 glyph signals "you can't move me" to balance
-                        with the ⠿ grip on custom rows. */}
-                    <td style={{ ...td, width: 44, textAlign: 'center', color: 'var(--text-dim)', opacity: 0.4, fontSize: 12 }} title="Built-in fields can't be reordered">🔒</td>
+                  <tr key={`builtin-${f.entity}-${f.key}`} style={effHidden ? { opacity: 0.55 } : undefined}>
+                    {/* Built-in fields are draggable-locked (position is
+                        intrinsic to the form schema) but everything
+                        else about them — label / required / visibility
+                        — is now editable via the Edit modal. The 🔒
+                        only signals "can't drag", not "can't edit". */}
+                    <td style={{ ...td, width: 44, textAlign: 'center', color: 'var(--text-dim)', opacity: 0.4, fontSize: 12 }} title="Built-in fields can't be reordered (position is part of the form schema)">🔒</td>
                     <td style={td}><span style={{ background: 'var(--s3)', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 700, textTransform: 'uppercase' }}>{f.entity}</span></td>
                     <td style={td}><code style={{ background: 'var(--s3)', padding: '1px 5px', borderRadius: 3, fontSize: 11 }}>{f.key}</code></td>
                     <td style={td}>
                       {effLabel}
                       {overridden && <span style={{ marginLeft: 6, fontSize: 9, padding: '1px 5px', background: '#f59e0b15', color: '#f59e0b', borderRadius: 4, fontWeight: 700, textTransform: 'uppercase' }}>edited</span>}
+                      {effHidden && <span style={{ marginLeft: 6, fontSize: 9, padding: '1px 5px', background: 'var(--s3)', color: 'var(--text-dim)', borderRadius: 4, fontWeight: 700, textTransform: 'uppercase' }}>hidden</span>}
                     </td>
                     <td style={td}>{f.type}</td>
                     <td style={td}>{effRequired ? '✓' : ''}</td>
@@ -500,7 +510,7 @@ export default function CustomFieldsPage() {
                     <td style={td}>
                       <div style={{ display: 'flex', gap: 6 }}>
                         <button
-                          onClick={() => setEditing({ entity: f.entity, key: f.key, label: effLabel, required: effRequired })}
+                          onClick={() => setEditing({ entity: f.entity, key: f.key, label: effLabel, required: effRequired, hidden: effHidden })}
                           disabled={saving}
                           style={btnSmall}
                         >
@@ -656,7 +666,7 @@ export default function CustomFieldsPage() {
             </div>
 
             <div style={{ background: 'var(--s3)', borderRadius: 8, padding: 10, fontSize: 12, color: 'var(--text-dim)', marginBottom: 14 }}>
-              You can override how this system field is displayed (label) and whether it's required in forms. The underlying database column and behaviour remain unchanged.
+              Three things about this system field are configurable here: the <strong style={{ color: 'var(--text)' }}>display label</strong> (rename without changing the API contract), whether it's <strong style={{ color: 'var(--text)' }}>required</strong> in forms, and whether the field is <strong style={{ color: 'var(--text)' }}>visible at all</strong>. The underlying database column, field key, and type stay unchanged — existing data is preserved either way.
             </div>
 
             <div style={{ marginBottom: 12 }}>
@@ -668,16 +678,27 @@ export default function CustomFieldsPage() {
               />
             </div>
 
-            <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, color: 'var(--text)', marginBottom: 16 }}>
+            <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, color: 'var(--text)', marginBottom: 10 }}>
               <input type="checkbox" checked={editing.required} onChange={(e) => setEditing({ ...editing, required: e.target.checked })} />
               Required field
+            </label>
+            <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, color: 'var(--text)', marginBottom: 16 }}>
+              <input
+                type="checkbox"
+                checked={editing.hidden}
+                onChange={(e) => setEditing({ ...editing, hidden: e.target.checked })}
+              />
+              Hide this field from forms
+              <span style={{ fontSize: 11, color: 'var(--text-dim)', marginLeft: 6 }}>
+                (data isn&rsquo;t deleted; the input just won&rsquo;t appear on the create/edit screens)
+              </span>
             </label>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
               <button onClick={() => setEditing(null)} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontSize: 13 }}>Cancel</button>
               <button
                 onClick={async () => {
-                  await saveOverride(editing.entity, editing.key, { label: editing.label, required: editing.required });
+                  await saveOverride(editing.entity, editing.key, { label: editing.label, required: editing.required, hidden: editing.hidden });
                   setEditing(null);
                 }}
                 style={btnPrimary}
