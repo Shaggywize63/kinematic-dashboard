@@ -2,11 +2,34 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { crmLeads, crmContacts, crmAccounts, crmDeals, crmActivities } from '../../../../../lib/crmApi';
+import { crmLeads, crmContacts, crmAccounts, crmDeals, crmActivities, crmCustomFields } from '../../../../../lib/crmApi';
+import type { CustomField } from '../../../../../types/crm';
 
 type Entity = 'leads' | 'contacts' | 'accounts' | 'deals' | 'activities';
 
-type FieldDef = { key: string; label: string; type: 'text' | 'number' | 'date' | 'enum' | 'boolean'; enumOptions?: string[] };
+type FieldDef = { key: string; label: string; type: 'text' | 'number' | 'date' | 'enum' | 'boolean'; enumOptions?: string[]; isCustom?: boolean; customKey?: string };
+
+// Map the four entities that support custom fields to the singular form
+// used by crm_custom_field_defs.entity_type. Activities don't have custom
+// fields today, so they're omitted from the map entirely.
+const CUSTOM_FIELD_ENTITY: Partial<Record<Entity, CustomField['entity_type']>> = {
+  leads: 'lead',
+  contacts: 'contact',
+  accounts: 'account',
+  deals: 'deal',
+};
+
+// Translate the admin-side custom-field type vocabulary into the builder's
+// narrower 5-type set. Anything we don't have a first-class operator for
+// (longtext, url, email, phone, file, image, datetime) falls back to text
+// — still selectable, still filterable, just with text-style operators.
+const customTypeToBuilder = (t: CustomField['field_type']): FieldDef['type'] => {
+  if (t === 'number' || t === 'currency') return 'number';
+  if (t === 'date' || t === 'datetime') return 'date';
+  if (t === 'boolean') return 'boolean';
+  if (t === 'select' || t === 'multiselect' || t === 'radio') return 'enum';
+  return 'text';
+};
 
 const ENTITY_FIELDS: Record<Entity, FieldDef[]> = {
   leads: [
@@ -121,8 +144,49 @@ export default function ReportBuilderPage() {
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [hasRun, setHasRun] = useState(false);
+  // Admin-defined custom fields per entity. Cached client-side so
+  // flipping between entities doesn't refetch unless the cache misses.
+  // Falsy entry means "not yet loaded"; empty array means "loaded, none
+  // configured" — distinct cases so the merge below doesn't keep
+  // appending an empty list on every render.
+  const [customDefsByEntity, setCustomDefsByEntity] = useState<Partial<Record<Entity, FieldDef[]>>>({});
 
-  const fields = ENTITY_FIELDS[entity];
+  const fields = useMemo(
+    () => [...ENTITY_FIELDS[entity], ...(customDefsByEntity[entity] ?? [])],
+    [entity, customDefsByEntity],
+  );
+
+  // Fetch the entity's custom field definitions (lazy, cached). Maps each
+  // def to a FieldDef tagged with isCustom + the original field_key so the
+  // row-value lookup below knows to dip into row.custom_fields rather than
+  // the top-level row.
+  useEffect(() => {
+    const singular = CUSTOM_FIELD_ENTITY[entity];
+    if (!singular) return; // activities have no custom fields
+    if (customDefsByEntity[entity] !== undefined) return; // cached
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await crmCustomFields.list({ entity_type: singular } as any);
+        if (cancelled) return;
+        const defs = (r.data || [])
+          .filter((d: CustomField) => d.entity_type === singular)
+          .map((d: CustomField): FieldDef => ({
+            key:       `custom__${d.field_key}`,
+            label:     d.label || d.field_key,
+            type:      customTypeToBuilder(d.field_type),
+            enumOptions: Array.isArray(d.options) ? (d.options as string[]) : undefined,
+            isCustom:  true,
+            customKey: d.field_key,
+          }));
+        setCustomDefsByEntity((m) => ({ ...m, [entity]: defs }));
+      } catch {
+        // Non-fatal — just no custom fields available in the picker.
+        if (!cancelled) setCustomDefsByEntity((m) => ({ ...m, [entity]: [] }));
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [entity, customDefsByEntity]);
 
   // Default fields when entity changes
   useEffect(() => {
@@ -140,6 +204,17 @@ export default function ReportBuilderPage() {
     setRows([]);
     setHasRun(false);
   }, [entity]);
+
+  // Resolve a field's value off a row. Built-in fields live at top level;
+  // custom fields live under row.custom_fields[field_key]. Centralised so
+  // filters, sort, group, results table, and CSV all read the same way.
+  const valueOf = (row: any, f: FieldDef): unknown => {
+    if (f.isCustom && f.customKey) {
+      const cf = row?.custom_fields ?? {};
+      return cf[f.customKey];
+    }
+    return row?.[f.key];
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -160,11 +235,13 @@ export default function ReportBuilderPage() {
   };
 
   const passesFilter = (row: any, f: Filter): boolean => {
-    const v = row[f.field];
+    const fdef = fields.find((x) => x.key === f.field);
+    const v = fdef ? valueOf(row, fdef) : row[f.field];
     if (f.op === 'is_empty') return v === null || v === undefined || v === '';
     if (f.op === 'is_not_empty') return v !== null && v !== undefined && v !== '';
-    if (f.value === '' && f.op !== 'is_empty' && f.op !== 'is_not_empty') return true;
-    const fdef = fields.find((x) => x.key === f.field);
+    // Early returns above already handled the empty-check ops; treat
+    // a blank value field as "no filter" for the remaining operators.
+    if (f.value === '') return true;
     const isDate = fdef?.type === 'date';
     const isNum = fdef?.type === 'number';
     const norm = (x: any) => {
@@ -199,12 +276,14 @@ export default function ReportBuilderPage() {
     const data = await fetchData();
     let filtered = data.filter((row: any) => filters.every((f) => passesFilter(row, f)));
     if (sortBy) {
+      const sortDef = fields.find((x) => x.key === sortBy);
       filtered = [...filtered].sort((a: any, b: any) => {
-        const av = a[sortBy], bv = b[sortBy];
+        const av = sortDef ? valueOf(a, sortDef) : a[sortBy];
+        const bv = sortDef ? valueOf(b, sortDef) : b[sortBy];
         if (av === bv) return 0;
         if (av === null || av === undefined) return 1;
         if (bv === null || bv === undefined) return -1;
-        return (av < bv ? -1 : 1) * (sortDir === 'asc' ? 1 : -1);
+        return ((av as any) < (bv as any) ? -1 : 1) * (sortDir === 'asc' ? 1 : -1);
       });
     }
     setRows(filtered);
@@ -214,14 +293,16 @@ export default function ReportBuilderPage() {
 
   const grouped = useMemo(() => {
     if (!groupBy) return null;
+    const groupDef = fields.find((x) => x.key === groupBy);
     const groups: Record<string, any[]> = {};
     rows.forEach((r) => {
-      const key = String(r[groupBy] ?? '— (empty)');
+      const raw = groupDef ? valueOf(r, groupDef) : r[groupBy];
+      const key = raw === null || raw === undefined || raw === '' ? '— (empty)' : String(raw);
       if (!groups[key]) groups[key] = [];
       groups[key].push(r);
     });
     return groups;
-  }, [rows, groupBy]);
+  }, [rows, groupBy, fields]);
 
   const downloadCSV = () => {
     if (rows.length === 0) return toast.error('Run the report first');
@@ -233,7 +314,16 @@ export default function ReportBuilderPage() {
     };
     const lines = [headers.join(',')];
     rows.forEach((r) => {
-      lines.push(selectedFields.map((k) => escape(r[k])).join(','));
+      lines.push(selectedFields.map((k) => {
+        const fdef = fields.find((x) => x.key === k);
+        const raw  = fdef ? valueOf(r, fdef) : r[k];
+        // Multi-select / object values would otherwise stringify as
+        // [object Object]; keep them human-readable for the spreadsheet.
+        const norm = Array.isArray(raw) ? raw.join('; ')
+                   : raw && typeof raw === 'object' ? JSON.stringify(raw)
+                   : raw;
+        return escape(norm);
+      }).join(','));
     });
     const csv = lines.join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -318,6 +408,11 @@ export default function ReportBuilderPage() {
                     style={{ accentColor: '#fff' }}
                   />
                   {f.label}
+                  {/* Custom field tag — small "✦" so admins can quickly
+                      tell built-in vs. tenant-defined fields apart in a
+                      long list (especially relevant for Tata Tiscon's
+                      half-dozen weight-related custom fields). */}
+                  {f.isCustom && <span title="Custom field" style={{ marginLeft: 4, opacity: 0.7, fontSize: 10 }}>✦</span>}
                 </label>
               );
             })}
@@ -427,12 +522,12 @@ export default function ReportBuilderPage() {
                   <div style={{ padding: '8px 16px', background: 'var(--s3)', fontSize: 12, fontWeight: 700, color: 'var(--text)', borderTop: '1px solid var(--border)' }}>
                     {fields.find((f) => f.key === groupBy)?.label || groupBy}: <strong>{groupKey}</strong> ({groupRows.length})
                   </div>
-                  <ResultTable fields={fields} selectedFields={selectedFields} rows={groupRows} />
+                  <ResultTable fields={fields} selectedFields={selectedFields} rows={groupRows} valueOf={valueOf} />
                 </div>
               ))}
             </div>
           ) : (
-            <ResultTable fields={fields} selectedFields={selectedFields} rows={rows} />
+            <ResultTable fields={fields} selectedFields={selectedFields} rows={rows} valueOf={valueOf} />
           )}
         </div>
       )}
@@ -440,7 +535,7 @@ export default function ReportBuilderPage() {
   );
 }
 
-function ResultTable({ fields, selectedFields, rows }: { fields: FieldDef[]; selectedFields: string[]; rows: any[] }) {
+function ResultTable({ fields, selectedFields, rows, valueOf }: { fields: FieldDef[]; selectedFields: string[]; rows: any[]; valueOf: (row: any, f: FieldDef) => unknown }) {
   return (
     <div style={{ overflowX: 'auto' }}>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
@@ -457,10 +552,12 @@ function ResultTable({ fields, selectedFields, rows }: { fields: FieldDef[]; sel
             <tr key={r.id || i}>
               {selectedFields.map((k) => {
                 const f = fields.find((x) => x.key === k);
-                let v = r[k];
-                if (f?.type === 'date' && v) v = new Date(v).toLocaleDateString();
+                let v: any = f ? valueOf(r, f) : r[k];
+                if (f?.type === 'date' && v) v = new Date(v as string | number).toLocaleDateString();
                 if (f?.type === 'boolean') v = v ? '✓' : '';
-                if (v === null || v === undefined) v = '—';
+                if (Array.isArray(v)) v = v.join('; ');
+                if (v && typeof v === 'object') v = JSON.stringify(v);
+                if (v === null || v === undefined || v === '') v = '—';
                 return <td key={k} style={{ padding: '8px 12px', color: 'var(--text)', borderBottom: '1px solid var(--border)' }}>{String(v)}</td>;
               })}
             </tr>
