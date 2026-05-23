@@ -67,6 +67,10 @@ const BUILTIN_FIELDS: Record<string, BuiltinField[]> = {
     { key: 'whatsapp_consent', label: 'WhatsApp Consent', type: 'boolean' },
     { key: 'date_of_birth', label: 'Date of Birth', type: 'date' },
     { key: 'gender', label: 'Gender', type: 'select' },
+    { key: 'preferred_contact_method', label: 'Preferred Channel', type: 'select' },
+    { key: 'address_line1', label: 'Address Line 1', type: 'text' },
+    { key: 'address_line2', label: 'Address Line 2', type: 'text' },
+    { key: 'postal_code', label: 'Postal Code', type: 'text' },
   ],
   contact: [
     { key: 'first_name', label: 'First Name', type: 'text', required: true },
