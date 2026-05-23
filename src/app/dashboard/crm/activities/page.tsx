@@ -383,6 +383,15 @@ function ActivitiesPageInner() {
             const isOverdue = a.due_at && !a.completed_at && new Date(a.due_at) < new Date();
             const linkedEntity = a.lead_id ? `Lead` : a.contact_id ? `Contact` : a.deal_id ? `Deal` : a.account_id ? `Account` : null;
             const linkedId = a.lead_id || a.contact_id || a.deal_id || a.account_id;
+            // Prefer the actual parent record's name over the generic
+            // "Lead" / "Deal" tag — the API now stamps lead_name /
+            // contact_name / account_name / deal_name onto each row.
+            const linkedName =
+              (a.lead_id    && (a as any).lead_name)    ||
+              (a.contact_id && (a as any).contact_name) ||
+              (a.deal_id    && (a as any).deal_name)    ||
+              (a.account_id && (a as any).account_name) ||
+              null;
             const status = ((a as any).status as string) || (a.completed_at ? 'completed' : 'open');
             const statusColor =
               status === 'completed' || status === 'done' ? '#10b981'
@@ -468,10 +477,14 @@ function ActivitiesPageInner() {
                           padding: '2px 7px', borderRadius: 4,
                           border: '1px solid var(--primary)',
                           fontWeight: 600,
+                          maxWidth: 240,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
                         }}
-                        title={`Open this ${linkedEntity}`}
+                        title={linkedName ? `${linkedEntity}: ${linkedName} — click to open` : `Open this ${linkedEntity}`}
                       >
-                        🔗 {linkedEntity} →
+                        🔗 {linkedName || linkedEntity} →
                       </Link>
                     )}
                     <span>{new Date(a.created_at).toLocaleDateString()}</span>
