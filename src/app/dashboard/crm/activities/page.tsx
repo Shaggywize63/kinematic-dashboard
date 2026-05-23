@@ -391,7 +391,26 @@ function ActivitiesPageInner() {
                       <span>👤 {(a as any).assigned_to_name || a.owner_name}</span>
                     ) : null}
                     {linkedEntity && linkedId && (
-                      <span>🔗 {linkedEntity}</span>
+                      // Was a plain <span> — every linked-entity badge
+                      // is now a real link to the parent record. Big
+                      // navigation win: from any activity, one click
+                      // to the lead/contact/deal/account it belongs
+                      // to. Stops propagation so it doesn't fight
+                      // with the surrounding card click handlers.
+                      <Link
+                        href={`/dashboard/crm/${linkedEntity.toLowerCase() + 's'}/${linkedId}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="km-clickable"
+                        style={{
+                          color: 'var(--primary)', textDecoration: 'none',
+                          padding: '2px 7px', borderRadius: 4,
+                          border: '1px solid var(--primary)',
+                          fontWeight: 600,
+                        }}
+                        title={`Open this ${linkedEntity}`}
+                      >
+                        🔗 {linkedEntity} →
+                      </Link>
                     )}
                     <span>{new Date(a.created_at).toLocaleDateString()}</span>
                   </div>

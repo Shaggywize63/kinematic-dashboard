@@ -9,6 +9,7 @@ import type { Lead, Activity, Deal, LeadScore, NextBestAction } from '../../../.
 import LeadScoreBreakdown from '../../../../../components/crm/LeadScoreBreakdown';
 import NextBestActionCard from '../../../../../components/crm/NextBestActionCard';
 import ActivityTimeline from '../../../../../components/crm/ActivityTimeline';
+import Breadcrumbs from '../../../../../components/crm/shared/Breadcrumbs';
 import LeadConvertModal from '../../../../../components/crm/LeadConvertModal';
 import LeadDisqualifyModal, { type LeadDisqualifyOutcome } from '../../../../../components/crm/LeadDisqualifyModal';
 import AiDraftReplyPanel from '../../../../../components/crm/AiDraftReplyPanel';
@@ -172,7 +173,13 @@ export default function LeadDetailPage() {
   // `flex 2 1 380px`, right `flex 1 1 280px`. Both wrap onto a single
   // column on mobile.
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 18, alignItems: 'flex-start' }}>
+    <div>
+      <Breadcrumbs items={[
+        { label: 'CRM', href: '/dashboard/crm/dashboard' },
+        { label: 'Leads', href: '/dashboard/crm/leads' },
+        { label: fullName || 'Lead' },
+      ]} />
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 18, alignItems: 'flex-start' }}>
       <div style={{ flex: '2 1 380px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 18 }}>
         <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 22 }}>
           {/* Header — avatar + name on the left, action buttons on the
@@ -341,6 +348,7 @@ export default function LeadDetailPage() {
         onClose={() => setEditOpen(false)}
         onSaved={(updated) => { setLead(updated as LifecycleLead); reload(); }}
       />
+      </div>
     </div>
   );
 }

@@ -9,6 +9,7 @@ import OwnerAvatar from '../../../../../components/crm/shared/OwnerAvatar';
 import WhatsAppButton from '../../../../../components/crm/shared/WhatsAppButton';
 import CallButton from '../../../../../components/crm/shared/CallButton';
 import ActivityTimeline from '../../../../../components/crm/ActivityTimeline';
+import Breadcrumbs from '../../../../../components/crm/shared/Breadcrumbs';
 import ContactEditModal from '../../../../../components/crm/ContactEditModal';
 import { formatINR } from '../../../../../lib/formatCurrency';
 
@@ -55,7 +56,13 @@ export default function ContactDetailPage() {
   const wonDeals = deals.filter((d) => d.status === 'won');
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(280px, 1fr)', gap: 18 }}>
+    <div>
+      <Breadcrumbs items={[
+        { label: 'CRM', href: '/dashboard/crm/dashboard' },
+        { label: 'Contacts', href: '/dashboard/crm/contacts' },
+        { label: fullName || 'Contact' },
+      ]} />
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(280px, 1fr)', gap: 18 }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
         <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 22 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 14 }}>
@@ -188,6 +195,7 @@ export default function ContactDetailPage() {
         onClose={() => setEditOpen(false)}
         onSaved={(updated) => { setC(updated); reload(); }}
       />
+      </div>
     </div>
   );
 }

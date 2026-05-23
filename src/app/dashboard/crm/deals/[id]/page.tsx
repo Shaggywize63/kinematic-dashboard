@@ -7,6 +7,7 @@ import { crmDeals, crmPipelines, crmAi } from '../../../../../lib/crmApi';
 import type { Deal, Pipeline, DealHistoryEntry, DealContact, Activity, NextBestAction, WinProbability } from '../../../../../types/crm';
 import DealStageProgress from '../../../../../components/crm/DealStageProgress';
 import WinProbabilityGauge from '../../../../../components/crm/WinProbabilityGauge';
+import Breadcrumbs from '../../../../../components/crm/shared/Breadcrumbs';
 import NextBestActionCard from '../../../../../components/crm/NextBestActionCard';
 import AiDraftReplyPanel from '../../../../../components/crm/AiDraftReplyPanel';
 import CallButton from '../../../../../components/crm/shared/CallButton';
@@ -310,6 +311,11 @@ export default function DealDetailPage() {
 
   return (
     <div>
+      <Breadcrumbs items={[
+        { label: 'CRM', href: '/dashboard/crm/dashboard' },
+        { label: 'Deals', href: '/dashboard/crm/deals' },
+        { label: deal.name || 'Deal' },
+      ]} />
       {hasPipeline && (
         <SafeRender label="stage breadcrumb">
           <div style={{ position: 'relative', background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, padding: 12, marginBottom: 14 }}>

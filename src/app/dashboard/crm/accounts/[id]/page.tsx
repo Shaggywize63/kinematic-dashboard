@@ -10,6 +10,7 @@ import ActivityTimeline from '../../../../../components/crm/ActivityTimeline';
 import AccountEditModal from '../../../../../components/crm/AccountEditModal';
 import CallButton from '../../../../../components/crm/shared/CallButton';
 import { formatINR } from '../../../../../lib/formatCurrency';
+import Breadcrumbs from '../../../../../components/crm/shared/Breadcrumbs';
 
 export default function AccountDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -82,7 +83,13 @@ export default function AccountDetailPage() {
   const openDealValue = deals.filter((d) => d.status === 'open').reduce((s, d) => s + Number(d.amount || 0), 0);
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(280px, 1fr)', gap: 18 }}>
+    <div>
+      <Breadcrumbs items={[
+        { label: 'CRM', href: '/dashboard/crm/dashboard' },
+        { label: 'Accounts', href: '/dashboard/crm/accounts' },
+        { label: a.name || 'Account' },
+      ]} />
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(280px, 1fr)', gap: 18 }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
         <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 22 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
@@ -182,6 +189,7 @@ export default function AccountDetailPage() {
         onClose={() => setEditOpen(false)}
         onSaved={(updated) => { setA(updated); reload(); }}
       />
+      </div>
     </div>
   );
 }

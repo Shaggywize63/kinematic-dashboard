@@ -405,3 +405,86 @@ main a[style*="padding: 8px 18"] {
 .crm-area a[style*="border-radius: 14"]:hover {
   text-decoration: none;
 }
+
+/* ─────────────────────────────────────────────────────────────────────
+ * Clickable affordances — site-wide.
+ *
+ * Three goals:
+ *   1. Every truly clickable element shows the pointer cursor.
+ *   2. Cards / rows / chips that fire on click get a hover lift +
+ *      background change so users can see "this is interactive"
+ *      without trial and error.
+ *   3. Anchor tags in content areas underline on hover so they're
+ *      distinguishable from regular text.
+ * ──────────────────────────────────────────────────────────────────── */
+
+/* 1 — Cursor on anything that should respond to click. */
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]),
+a[href],
+select:not(:disabled),
+input[type="checkbox"]:not(:disabled),
+input[type="radio"]:not(:disabled),
+label[for],
+summary {
+  cursor: pointer;
+}
+
+/* 2 — Opt-in "interactive surface" class for cards, rows, list items,
+ * tiles. Applied via className="km-clickable" on the wrapper. Adds a
+ * subtle hover background + 1px lift + soft shadow so the user gets
+ * an unambiguous "yes you can click this" cue. */
+.km-clickable {
+  transition: background 120ms ease, transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
+  cursor: pointer;
+}
+.km-clickable:hover {
+  background: var(--s3);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+  border-color: var(--primary, #0066ff);
+}
+.km-clickable:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
+}
+
+/* 3 — Table rows that are clickable (set via data-clickable="true"). */
+tr[data-clickable="true"] {
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+tr[data-clickable="true"]:hover {
+  background: var(--s3);
+}
+
+/* 4 — Any anchor styled as a "pill" / chip / badge gets a primary-
+ * coloured border on hover so it's clear it's a link. */
+.crm-area a[style*="border:1px solid"]:not([style*="border-radius:12"]):not([style*="border-radius:14"]) {
+  text-decoration: none;
+  transition: border-color 120ms ease, background 120ms ease, color 120ms ease;
+}
+.crm-area a[style*="border:1px solid"]:hover {
+  border-color: var(--primary) !important;
+}
+
+/* 5 — Disabled state should be unambiguous. */
+button:disabled,
+[aria-disabled="true"],
+input:disabled,
+select:disabled,
+textarea:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+/* 6 — Tabular list items in CRM detail pages — give them a row-hover
+ * effect so users can tell they're entries (not just rendered text). */
+.crm-area [data-list-item="true"] {
+  transition: background 120ms ease, border-color 120ms ease;
+  cursor: pointer;
+}
+.crm-area [data-list-item="true"]:hover {
+  background: var(--s3);
+  border-color: var(--primary);
+}
