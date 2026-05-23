@@ -204,6 +204,39 @@ export const crmImport = {
   listJobs: () => api.get<Wrapped<ImportJob[]>>(`${BASE}/import/jobs`),
 };
 
+// Activity bulk import — same three-stage shape as crmImport above,
+// but pointed at the /import/activities/* endpoints so the backend
+// can use the activity-specific resolver (lead/contact/deal/account
+// by id, email, or phone) instead of the lead dedup orchestrator.
+export const crmActivityImport = {
+  upload: (formData: FormData) => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('kinematic_token') : null;
+    const orgRaw = typeof window !== 'undefined' ? localStorage.getItem('kinematic_user') : null;
+    const orgId = orgRaw ? (JSON.parse(orgRaw)?.org_id ?? null) : null;
+    const headers: Record<string, string> = {};
+    if (token) headers.Authorization = `Bearer ${token}`;
+    if (orgId) headers['X-Org-Id'] = orgId;
+    return fetch(`${resolveApiUrl()}${BASE}/import/activities/upload`, {
+      method: 'POST',
+      body: formData,
+      headers,
+    }).then(async (r) => {
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || d.message || 'Upload failed');
+      return d as Wrapped<ImportJob>;
+    });
+  },
+  preview: (body: { job_id: string; mapping: Record<string, string> }) =>
+    api.post<Wrapped<{ mapped_sample: Array<Record<string, unknown>>; warnings: Array<{ row: number; reason: string }> }>>(
+      `${BASE}/import/activities/preview`,
+      body,
+    ),
+  commit: (body: { job_id: string }) =>
+    api.post<Wrapped<ImportJob>>(`${BASE}/import/activities/commit`, body),
+  getJob: (id: string) => api.get<Wrapped<ImportJob>>(`${BASE}/import/activities/jobs/${id}`),
+  listJobs: () => api.get<Wrapped<ImportJob[]>>(`${BASE}/import/activities/jobs`),
+};
+
 export const crmAnalytics = {
   // `unit` swaps every monetary aggregation in the response from rupees to
   // kg derived from line items × product weight. Counts, win rate, and lead

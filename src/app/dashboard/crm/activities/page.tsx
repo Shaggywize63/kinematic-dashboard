@@ -312,6 +312,7 @@ function ActivitiesPageInner() {
           >
             {exporting ? 'Exporting…' : '⬇ Export CSV'}
           </button>
+          <Link href="/dashboard/crm/activities/import" style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>⬆ Import</Link>
           <Link href="/dashboard/crm/activities/new" style={{ background: 'var(--primary)', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>+ Log Activity</Link>
         </div>
       </div>
