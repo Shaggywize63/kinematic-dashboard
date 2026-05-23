@@ -254,7 +254,7 @@ function WidgetBody({ widget, data, accent }: { widget: WidgetInstance; data: un
     }
     case 'time_to_first_touch': {
       const d = data as { avg_minutes: number; sla_breach_pct: number; total: number; distribution: Array<{ bucket: string; count: number }> };
-      if (chart === 'number') return <NumberTile main={`${d.avg_minutes}m`} sub={`SLA breach ${d.sla_breach_pct}% (${d.total} leads)`} accent={accent} />;
+      if (chart === 'number') return <NumberTile main={formatMinutesAsHM(d.avg_minutes)} sub={`SLA breach ${d.sla_breach_pct}% (${d.total} leads)`} accent={accent} />;
       return chart === 'horizontal-bar'
         ? <HBarSeries data={d.distribution.map(b => ({ name: b.bucket, value: b.count }))} accent={accent} />
         : <BarSeries data={d.distribution.map(b => ({ name: b.bucket, count: b.count }))} keys={['count']} accent={accent} />;
@@ -346,6 +346,21 @@ function WidgetBody({ widget, data, accent }: { widget: WidgetInstance; data: un
 }
 
 function ds(id: string) { return datasetById(id); }
+
+// Format a minute count into a compact "Xh Ym" or "Y min" string.
+// Used by the Time-to-First-Touch tile so big values aren't shown as
+// raw three-digit minutes (e.g. 155 → "2h 35m" instead of "155m").
+// Sub-minute values render as "<1m" so we never show "0m" for a
+// genuine touch that was faster than 60 seconds.
+function formatMinutesAsHM(mins: number | null | undefined): string {
+  if (mins == null || Number.isNaN(mins)) return '—';
+  if (mins < 1) return '<1m';
+  if (mins < 60) return `${Math.round(mins)}m`;
+  const h = Math.floor(mins / 60);
+  const m = Math.round(mins - h * 60);
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}m`;
+}
 
 const tooltipStyle: React.CSSProperties = {
   background: 'var(--s2)',

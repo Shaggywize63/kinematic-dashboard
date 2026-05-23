@@ -232,14 +232,30 @@ export default function FfmAnalyticsSection() {
           {config.widgets.map((w) => (
             <div key={w.id} style={{ position: 'relative' }}>
               {editing && (
-                <div className="widget-drag-handle" style={{
-                  position: 'absolute', top: 0, left: 0, right: 0, height: 24, zIndex: 10,
-                  cursor: 'move', background: 'rgba(224,40,44,0.12)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 9, color: 'var(--primary)', fontWeight: 700, letterSpacing: 1,
-                }}>
-                  DRAG TO MOVE • DRAG CORNER TO RESIZE
-                </div>
+                <>
+                  <div className="widget-drag-handle" style={{
+                    position: 'absolute', top: 0, left: 0, right: 80, height: 24, zIndex: 10,
+                    cursor: 'move', background: 'rgba(224,40,44,0.12)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 9, color: 'var(--primary)', fontWeight: 700, letterSpacing: 1,
+                  }}>
+                    DRAG TO MOVE • DRAG CORNER TO RESIZE
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeWidget(w.id)}
+                    title="Remove this widget"
+                    aria-label="Remove widget"
+                    style={{
+                      position: 'absolute', top: 2, right: 4, zIndex: 11,
+                      height: 20, padding: '0 8px', borderRadius: 4,
+                      background: '#ef4444', color: '#fff', border: 'none',
+                      fontSize: 10, fontWeight: 700, letterSpacing: 0.4, cursor: 'pointer',
+                    }}
+                  >
+                    ✕ REMOVE
+                  </button>
+                </>
               )}
               <FfmWidget
                 widget={w}

@@ -267,14 +267,38 @@ export default function LeadAnalyticsSection() {
             // clipped). The inner widget body still hides its own overflow.
             <div key={w.id} style={{ position: 'relative', overflow: 'visible' }}>
               {editing && (
-                <div className="widget-drag-handle" style={{
-                  position: 'absolute', top: 0, left: 0, right: 0, height: 24, zIndex: 10,
-                  cursor: 'move', background: 'rgba(224,40,44,0.12)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 9, color: 'var(--primary)', fontWeight: 700, letterSpacing: 1,
-                }}>
-                  DRAG TO MOVE • DRAG CORNER TO RESIZE
-                </div>
+                // The drag handle previously covered the full top 24px,
+                // which buried the widget's "⋮" options button beneath
+                // it — making "Remove widget" inaccessible while
+                // editing. Now we (a) leave 80px on the right so the
+                // kebab stays clickable, and (b) render an inline
+                // "✕ Remove" button right in the drag bar so users
+                // have a direct one-tap path that doesn't require
+                // opening the menu at all.
+                <>
+                  <div className="widget-drag-handle" style={{
+                    position: 'absolute', top: 0, left: 0, right: 80, height: 24, zIndex: 10,
+                    cursor: 'move', background: 'rgba(224,40,44,0.12)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 9, color: 'var(--primary)', fontWeight: 700, letterSpacing: 1,
+                  }}>
+                    DRAG TO MOVE • DRAG CORNER TO RESIZE
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeWidget(w.id)}
+                    title="Remove this widget"
+                    aria-label="Remove widget"
+                    style={{
+                      position: 'absolute', top: 2, right: 4, zIndex: 11,
+                      height: 20, padding: '0 8px', borderRadius: 4,
+                      background: '#ef4444', color: '#fff', border: 'none',
+                      fontSize: 10, fontWeight: 700, letterSpacing: 0.4, cursor: 'pointer',
+                    }}
+                  >
+                    ✕ REMOVE
+                  </button>
+                </>
               )}
               <AnalyticsWidget
                 widget={w}
