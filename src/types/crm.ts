@@ -54,6 +54,7 @@ export interface Lead extends B2CFields {
   notes?: string | null;
   tags?: string[] | null;
   custom?: Record<string, unknown> | null;
+  photo_url?: string | null;
   created_at: string;
   updated_at: string;
 }
