@@ -641,7 +641,20 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
     }
     if (path === '/crm/accounts')   return list(CRM_ACCOUNTS) as unknown as T;
     if (path === '/crm/contacts')   return list(CRM_CONTACTS) as unknown as T;
-    if (path === '/crm/activities') return list(CRM_ACTIVITIES) as unknown as T;
+    if (path === '/crm/activities') {
+      // Mirror the server filter set so demo pagination math matches
+      // the visible result.
+      const filtered = CRM_ACTIVITIES.filter((a: any) => {
+        if (query.get('type') && a.type !== query.get('type')) return false;
+        if (query.get('status')) {
+          const aStatus = (a.status as string) || (a.completed_at ? 'completed' : 'open');
+          if (aStatus !== query.get('status')) return false;
+        }
+        if (query.get('owner_id') && a.owner_id !== query.get('owner_id') && a.assigned_to !== query.get('owner_id')) return false;
+        return true;
+      });
+      return paginate(filtered, query) as unknown as T;
+    }
     if (path === '/crm/tasks')      return list(CRM_ACTIVITIES.filter(a => a.type === 'task')) as unknown as T;
     if (path === '/crm/pipelines')  return wrap(CRM_PIPELINES) as unknown as T;
     if (path === '/crm/lead-sources')        return list(CRM_SOURCES)      as unknown as T;

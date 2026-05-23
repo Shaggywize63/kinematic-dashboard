@@ -3,7 +3,7 @@ import { Suspense, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { crmActivities } from '../../../../lib/crmApi';
+import { crmActivities, type Pagination } from '../../../../lib/crmApi';
 import api, { API_BASE_URL } from '../../../../lib/api';
 import type { Activity } from '../../../../types/crm';
 import { getStoredUser, canAccess, getStoredToken } from '../../../../lib/auth';
@@ -14,6 +14,8 @@ const TYPE_OPTIONS = ['', 'call', 'email', 'meeting', 'task', 'note', 'sms', 'wh
 // Activity statuses surfaced on the filter — the same values the row actions
 // can flip activities into (open / completed / in_progress / cancelled).
 const STATUS_OPTIONS = ['', 'open', 'in_progress', 'completed', 'cancelled'];
+const PAGE_SIZE_OPTIONS = [25, 50, 100, 200] as const;
+const DEFAULT_PAGE_SIZE = 50;
 
 // Next.js 14 bails out of static rendering for any page that calls
 // useSearchParams() unless the call site is wrapped in <Suspense>. Keep
@@ -40,6 +42,12 @@ function ActivitiesPageInner() {
   const [users, setUsers] = useState<UserOption[]>([]);
   const [feFilter, setFeFilter] = useState('');
   const [exporting, setExporting] = useState(false);
+  // Server-side pagination state. `page` is 1-indexed. `pagination`
+  // metadata (total / hasNext / etc) is what the backend returns
+  // alongside the page of rows. Null until the first response lands.
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
+  const [pagination, setPagination] = useState<Pagination | null>(null);
 
   // CSV download — hits the backend export endpoint with the current
   // filters and streams the file to the browser via a blob URL. Mirrors
@@ -119,8 +127,27 @@ function ActivitiesPageInner() {
   const reload = async () => {
     setLoading(true);
     try {
-      const r = await crmActivities.list();
+      // All filters (type / status / owner_id) are now server-side so
+      // the row count and the page math reflect the *filtered* result,
+      // not a page of the org-wide set. Status maps to the backend's
+      // `status` column directly; the legacy "open from completed_at"
+      // fallback still runs in the row renderer.
+      const params: Record<string, string | number> = { page, limit: pageSize };
+      if (type) params.type = type;
+      if (statusFilter) params.status = statusFilter;
+      if (isAdmin && feFilter) params.owner_id = feFilter;
+      const r = await crmActivities.list(params);
       setActivities(r.data || []);
+      // `pagination` may be undefined if the backend hasn't shipped the
+      // new shape yet — keep the UI working by inferring a single page.
+      setPagination(r.pagination ?? {
+        total: (r.data || []).length,
+        page: 1,
+        limit: pageSize,
+        totalPages: 1,
+        hasNext: false,
+        hasPrev: false,
+      });
     } catch (e: any) { toast.error(e.message || 'Failed'); } finally { setLoading(false); }
   };
 
@@ -128,7 +155,6 @@ function ActivitiesPageInner() {
     const user = getStoredUser();
     const admin = !!(user && canAccess(user.role, ['sub_admin']));
     if (admin) setIsAdmin(true);
-    reload();
     if (admin) {
       (api.getUsers({ limit: '500' }) as Promise<any>)
         .then((u) => {
@@ -140,6 +166,19 @@ function ActivitiesPageInner() {
         .catch(() => {});
     }
   }, []);
+
+  // Reload on any filter / page / page-size change. Server-side filtering
+  // means we don't need the client-side `filtered` array to re-filter on
+  // the same dimensions.
+  useEffect(() => { reload(); /* eslint-disable-next-line */ }, [
+    type, statusFilter, feFilter, page, pageSize, isAdmin,
+  ]);
+
+  // Reset to page 1 whenever any server-side filter changes — otherwise
+  // a stricter filter while on page 5 would land on an empty page.
+  useEffect(() => { setPage(1); /* eslint-disable-next-line */ }, [
+    type, statusFilter, feFilter, pageSize,
+  ]);
 
   const updateStatus = async (a: Activity, status: string) => {
     setBusyId(a.id);
@@ -177,20 +216,11 @@ function ActivitiesPageInner() {
     }
   };
 
-  const filtered = useMemo(() => {
-    return activities.filter((a) => {
-      if (type && a.type !== type) return false;
-      if (statusFilter) {
-        const aStatus = ((a as any).status as string) || (a.completed_at ? 'completed' : 'open');
-        if (aStatus !== statusFilter) return false;
-      }
-      if (isAdmin && feFilter) {
-        const aid = (a as any).assigned_to || a.owner_id;
-        if (aid !== feFilter) return false;
-      }
-      return true;
-    });
-  }, [activities, type, isAdmin, feFilter]);
+  // Server filters (type / status / owner_id) are already applied in
+  // the reload() params, so `activities` is the already-filtered page.
+  // Keeping `filtered` as an alias to minimise churn in the renderers
+  // below.
+  const filtered = activities;
 
   const overdue = filtered.filter((a) => a.due_at && !a.completed_at && new Date(a.due_at) < new Date());
   const upcoming = filtered.filter((a) => a.due_at && !a.completed_at && new Date(a.due_at) >= new Date());
@@ -199,18 +229,24 @@ function ActivitiesPageInner() {
 
   return (
     <div>
-      {/* Admin summary */}
-      {isAdmin && activities.length > 0 && (
+      {/* Admin summary. "Total" reflects the server's full filter
+          match. Overdue / Upcoming / Completed are derived from the
+          current page only — labelled accordingly so the number isn't
+          misread as a network-wide stat. Per-status totals across the
+          full result need a separate count query, which we can add if
+          this turns out to matter at scale. */}
+      {isAdmin && pagination && pagination.total > 0 && (
         <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
           {[
-            { label: 'Total', value: filtered.length, color: 'var(--primary)' },
-            { label: 'Overdue', value: overdue.length, color: '#ef4444' },
-            { label: 'Upcoming', value: upcoming.length, color: '#f59e0b' },
-            { label: 'Completed', value: completed.length, color: '#10b981' },
-          ].map(({ label, value, color }) => (
-            <div key={label} style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 10, padding: '8px 16px', minWidth: 80, textAlign: 'center' }}>
+            { label: 'Total', value: pagination.total.toLocaleString(), color: 'var(--primary)', scope: 'all matching filter' },
+            { label: 'Overdue', value: overdue.length.toLocaleString(), color: '#ef4444', scope: 'this page' },
+            { label: 'Upcoming', value: upcoming.length.toLocaleString(), color: '#f59e0b', scope: 'this page' },
+            { label: 'Completed', value: completed.length.toLocaleString(), color: '#10b981', scope: 'this page' },
+          ].map(({ label, value, color, scope }) => (
+            <div key={label} style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 10, padding: '8px 16px', minWidth: 100, textAlign: 'center' }}>
               <div style={{ fontSize: 20, fontWeight: 800, color }}>{value}</div>
               <div style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 700, textTransform: 'uppercase' }}>{label}</div>
+              <div style={{ fontSize: 9, color: 'var(--text-dim)', marginTop: 2 }}>{scope}</div>
             </div>
           ))}
         </div>
@@ -237,7 +273,9 @@ function ActivitiesPageInner() {
             >Clear FE</button>
           )}
           <span style={{ fontSize: 11, color: 'var(--text-dim)', marginLeft: 'auto' }}>
-            Showing {filtered.length} of {activities.length}
+            {pagination
+              ? `Showing ${activities.length.toLocaleString()} of ${pagination.total.toLocaleString()} (page ${pagination.page} of ${pagination.totalPages})`
+              : `Showing ${activities.length}`}
           </span>
         </div>
       )}
@@ -282,7 +320,9 @@ function ActivitiesPageInner() {
         <div style={{ color: 'var(--text-dim)' }}>Loading...</div>
       ) : filtered.length === 0 ? (
         <div style={{ color: 'var(--text-dim)', fontSize: 13, padding: 20, textAlign: 'center' }}>
-          No activities found. <Link href="/dashboard/crm/activities/new" style={{ color: 'var(--primary)' }}>Log one now →</Link>
+          {pagination && pagination.total > 0
+            ? <>No activities on this page. <button onClick={() => setPage(1)} style={{ color: 'var(--primary)', background: 'transparent', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>Go to page 1</button></>
+            : <>No activities found. <Link href="/dashboard/crm/activities/new" style={{ color: 'var(--primary)' }}>Log one now →</Link></>}
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -398,6 +438,83 @@ function ActivitiesPageInner() {
           })}
         </div>
       )}
+      <PaginationBar
+        pagination={pagination}
+        pageSize={pageSize}
+        onPageChange={setPage}
+        onPageSizeChange={setPageSize}
+        loading={loading}
+      />
+    </div>
+  );
+}
+
+/**
+ * Pagination footer: page-size picker on the left, current-page +
+ * first/prev/next/last on the right. Renders even when pagination is
+ * null so the layout doesn't jump on the very first render — controls
+ * are just disabled. Same shape as the leads/deals pagination bars.
+ */
+function PaginationBar({
+  pagination, pageSize, onPageChange, onPageSizeChange, loading,
+}: {
+  pagination: Pagination | null;
+  pageSize: number;
+  onPageChange: (n: number) => void;
+  onPageSizeChange: (n: number) => void;
+  loading: boolean;
+}) {
+  const p = pagination;
+  const totalPages = p?.totalPages ?? 1;
+  const currentPage = p?.page ?? 1;
+  const total = p?.total ?? 0;
+  const start = total === 0 ? 0 : (currentPage - 1) * (p?.limit ?? pageSize) + 1;
+  const end = Math.min(currentPage * (p?.limit ?? pageSize), total);
+
+  const disabled = loading || !p;
+  const canPrev = !!p?.hasPrev && !disabled;
+  const canNext = !!p?.hasNext && !disabled;
+
+  const btn = (active: boolean): React.CSSProperties => ({
+    background: 'var(--s3)', border: '1px solid var(--border)', color: active ? 'var(--text)' : 'var(--text-dim)',
+    padding: '6px 10px', borderRadius: 6, fontSize: 12, fontWeight: 600,
+    cursor: active ? 'pointer' : 'not-allowed', opacity: active ? 1 : 0.5, minWidth: 32,
+  });
+
+  // Don't render the bar at all when there are zero results — the
+  // empty-state banner above already says "no activities."
+  if (!loading && total === 0) return null;
+
+  return (
+    <div style={{
+      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+      marginTop: 14, padding: '10px 14px', background: 'var(--s2)',
+      border: '1px solid var(--border)', borderRadius: 10,
+      flexWrap: 'wrap', gap: 10,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, color: 'var(--text-dim)' }}>
+        <span>Rows per page:</span>
+        <select
+          value={pageSize}
+          onChange={(e) => onPageSizeChange(Number(e.target.value))}
+          disabled={disabled}
+          style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '4px 8px', borderRadius: 6, fontSize: 12 }}
+        >
+          {PAGE_SIZE_OPTIONS.map((n) => <option key={n} value={n}>{n}</option>)}
+        </select>
+        <span>
+          {total === 0 ? 'No results' : `${start.toLocaleString()}–${end.toLocaleString()} of ${total.toLocaleString()}`}
+        </span>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <button type="button" onClick={() => onPageChange(1)} disabled={!canPrev} style={btn(canPrev)} title="First page">«</button>
+        <button type="button" onClick={() => onPageChange(currentPage - 1)} disabled={!canPrev} style={btn(canPrev)} title="Previous page">‹</button>
+        <span style={{ fontSize: 12, color: 'var(--text)', padding: '0 8px' }}>
+          Page <strong>{currentPage}</strong> of {totalPages}
+        </span>
+        <button type="button" onClick={() => onPageChange(currentPage + 1)} disabled={!canNext} style={btn(canNext)} title="Next page">›</button>
+        <button type="button" onClick={() => onPageChange(totalPages)} disabled={!canNext} style={btn(canNext)} title="Last page">»</button>
+      </div>
     </div>
   );
 }
