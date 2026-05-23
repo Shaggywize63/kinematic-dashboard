@@ -114,10 +114,15 @@ const BUILTIN_FIELDS: Record<string, BuiltinField[]> = {
   ],
 };
 
-type FieldOverride = { label?: string; required?: boolean; hidden?: boolean };
+type FieldOverride = { label?: string; required?: boolean; hidden?: boolean; position?: number };
 type FieldOverrides = Record<string, FieldOverride>; // key: `${entity}.${field_key}`
 
 const overrideKey = (entity: string, key: string) => `${entity}.${key}`;
+// System rows share the same DnD state as custom rows, so we tag their
+// drag identifier with a prefix to avoid collisions with custom-field
+// UUIDs and to let the drop handler route to the right reorder function.
+const BUILTIN_DRAG_PREFIX = 'builtin:';
+const builtinDragId = (entity: string, key: string) => `${BUILTIN_DRAG_PREFIX}${entity}.${key}`;
 
 export default function CustomFieldsPage() {
   const [items, setItems] = useState<CustomField[]>([]);
@@ -332,10 +337,17 @@ export default function CustomFieldsPage() {
       //  - hidden  (drop the field from the form entirely — useful
       //             when a brand doesn't collect e.g. "industry" or
       //             "marketing consent" by their own design)
-      const cleaned: FieldOverride = {};
-      if (override.label !== undefined) cleaned.label = override.label;
-      if (override.required !== undefined) cleaned.required = override.required;
-      if (override.hidden !== undefined) cleaned.hidden = override.hidden;
+      const existing = next[k] || {};
+      const cleaned: FieldOverride = {
+        // Carry over any keys the caller didn't touch — saving label
+        // shouldn't drop a position override and vice versa.
+        ...existing,
+        ...override,
+      };
+      // Strip undefined / null entries so the JSON stays compact.
+      (Object.keys(cleaned) as (keyof FieldOverride)[]).forEach((kk) => {
+        if (cleaned[kk] === undefined || cleaned[kk] === null) delete cleaned[kk];
+      });
       if (Object.keys(cleaned).length === 0) {
         delete next[k];
       } else {
@@ -370,11 +382,72 @@ export default function CustomFieldsPage() {
     }
   };
 
+  // Apply per-entity sort using override.position. Fields without an
+  // override fall back to their original BUILTIN_FIELDS index so the
+  // default order still wins until someone explicitly drags a row.
+  const sortBuiltinGroup = (ent: string, fields: BuiltinField[]) =>
+    fields
+      .map((f, i) => {
+        const ov = overrides[overrideKey(ent, f.key)] || {};
+        const pos = typeof ov.position === 'number' ? ov.position : i + 1000; // fallback bucket sits after explicit positions
+        return { f, pos, i };
+      })
+      .sort((a, b) => a.pos - b.pos || a.i - b.i)
+      .map(({ f }) => ({ ...f, entity: ent }));
+
   const builtinVisible = useMemo(() => {
     return filter === 'all'
-      ? Object.entries(BUILTIN_FIELDS).flatMap(([ent, fields]) => fields.map((f) => ({ ...f, entity: ent })))
-      : (BUILTIN_FIELDS[filter] || []).map((f) => ({ ...f, entity: filter }));
-  }, [filter]);
+      ? Object.entries(BUILTIN_FIELDS).flatMap(([ent, fields]) => sortBuiltinGroup(ent, fields))
+      : sortBuiltinGroup(filter, BUILTIN_FIELDS[filter] || []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filter, overrides]);
+
+  // Reorder a built-in row within its entity group. Writes a single
+  // crm_settings update with new position numbers for every field in
+  // the group, so the JSON column stays consistent and other entities
+  // are untouched.
+  const reorderBuiltinTo = async (dragKey: string, targetKey: string) => {
+    if (!dragKey || dragKey === targetKey) return;
+    const [dragEnt, dragField] = dragKey.split('.');
+    const [tgtEnt, tgtField]   = targetKey.split('.');
+    if (dragEnt !== tgtEnt) return; // never cross entity groups
+
+    const group = sortBuiltinGroup(dragEnt, BUILTIN_FIELDS[dragEnt] || []);
+    const without = group.filter((f) => f.key !== dragField);
+    const tgtIdx = without.findIndex((f) => f.key === tgtField);
+    if (tgtIdx < 0) return;
+    const dragged = group.find((f) => f.key === dragField);
+    if (!dragged) return;
+    const reordered = [
+      ...without.slice(0, tgtIdx),
+      dragged,
+      ...without.slice(tgtIdx),
+    ];
+
+    // Build the next overrides map: for every field in the group,
+    // upsert the new position while preserving label/required/hidden.
+    const nextOverrides: FieldOverrides = { ...overrides };
+    reordered.forEach((f, idx) => {
+      const k = overrideKey(dragEnt, f.key);
+      const existing = nextOverrides[k] || {};
+      nextOverrides[k] = { ...existing, position: idx };
+    });
+
+    // Optimistic UI: reflect new positions immediately so the row snaps
+    // into place. Roll back on error.
+    const prevOverrides = overrides;
+    setOverrides(nextOverrides);
+    setReordering(true);
+    try {
+      await crmSettings.update({ config: { ...config, field_overrides: nextOverrides } });
+      setConfig({ ...config, field_overrides: nextOverrides });
+    } catch (e: any) {
+      toast.error(e?.message || 'Reorder failed');
+      setOverrides(prevOverrides);
+    } finally {
+      setReordering(false);
+    }
+  };
 
   if (accessDenied) {
     return (
@@ -425,29 +498,15 @@ export default function CustomFieldsPage() {
           <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
             Fields ({builtinVisible.length + visible.length} total — {builtinVisible.length} system, {visible.length} custom)
           </div>
-          {visible.length > 1 ? (
-            <div style={{
-              display: 'inline-flex', alignItems: 'center', gap: 6,
-              fontSize: 11, color: 'var(--primary)',
-              background: 'rgba(0,102,255,0.08)', padding: '4px 10px', borderRadius: 999,
-              border: '1px solid var(--primary)', fontWeight: 600,
-            }}>
-              <GripIcon size={12} />
-              Drag the blue grip on any custom row to reorder
-            </div>
-          ) : (
-            <div style={{
-              display: 'inline-flex', alignItems: 'center', gap: 6,
-              fontSize: 11, color: 'var(--text-dim)',
-              background: 'var(--s3)', padding: '4px 10px', borderRadius: 999,
-              border: '1px dashed var(--border)', fontWeight: 600,
-            }}>
-              <GripIcon size={12} />
-              {visible.length === 0
-                ? 'Add 2+ custom fields above to enable drag-reorder (system fields are locked)'
-                : 'Add one more custom field to enable drag-reorder'}
-            </div>
-          )}
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            fontSize: 11, color: 'var(--primary)',
+            background: 'rgba(0,102,255,0.08)', padding: '4px 10px', borderRadius: 999,
+            border: '1px solid var(--primary)', fontWeight: 600,
+          }}>
+            <GripIcon size={12} />
+            Drag the blue grip to reorder any field (system or custom — within its entity group)
+          </div>
           <div style={{ display: 'flex', gap: 4, marginLeft: 'auto', flexWrap: 'wrap', alignItems: 'center' }}>
             <button
               onClick={() => setShowBuiltin((v) => !v)}
@@ -485,16 +544,66 @@ export default function CustomFieldsPage() {
                 const effLabel = ov.label ?? f.label;
                 const effRequired = ov.required ?? !!f.required;
                 const effHidden = ov.hidden ?? false;
-                const overridden = ov.label !== undefined || ov.required !== undefined || ov.hidden !== undefined;
+                const overridden = ov.label !== undefined || ov.required !== undefined || ov.hidden !== undefined || ov.position !== undefined;
                 const saving = savingOverride === k;
+                const dragKey = builtinDragId(f.entity, f.key);
+                const isDragging = dragId === dragKey;
+                const isOver     = overId === dragKey && dragId && dragId !== dragKey && dragId.startsWith(BUILTIN_DRAG_PREFIX);
                 return (
-                  <tr key={`builtin-${f.entity}-${f.key}`} style={effHidden ? { opacity: 0.55 } : undefined}>
-                    {/* Built-in fields are draggable-locked (position is
-                        intrinsic to the form schema) but everything
-                        else about them — label / required / visibility
-                        — is now editable via the Edit modal. The 🔒
-                        only signals "can't drag", not "can't edit". */}
-                    <td style={{ ...td, width: 44, textAlign: 'center', color: 'var(--text-dim)', opacity: 0.4, fontSize: 12 }} title="Built-in fields can't be reordered (position is part of the form schema)">🔒</td>
+                  <tr
+                    key={`builtin-${f.entity}-${f.key}`}
+                    draggable
+                    onDragStart={(e) => {
+                      e.dataTransfer.effectAllowed = 'move';
+                      e.dataTransfer.setData('text/plain', dragKey);
+                      setDragId(dragKey);
+                    }}
+                    onDragOver={(e) => {
+                      // Only accept other system rows in the same entity group
+                      // as drop targets — block custom-row drops onto system rows.
+                      if (!dragId || !dragId.startsWith(BUILTIN_DRAG_PREFIX)) return;
+                      const draggedEnt = dragId.slice(BUILTIN_DRAG_PREFIX.length).split('.')[0];
+                      if (draggedEnt !== f.entity) return;
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = 'move';
+                      if (overId !== dragKey) setOverId(dragKey);
+                    }}
+                    onDragLeave={() => { if (overId === dragKey) setOverId(null); }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      const id = e.dataTransfer.getData('text/plain') || dragId || '';
+                      setDragId(null); setOverId(null);
+                      if (id.startsWith(BUILTIN_DRAG_PREFIX)) {
+                        reorderBuiltinTo(id.slice(BUILTIN_DRAG_PREFIX.length), `${f.entity}.${f.key}`);
+                      }
+                    }}
+                    onDragEnd={() => { setDragId(null); setOverId(null); }}
+                    style={{
+                      opacity: isDragging ? 0.4 : (effHidden ? 0.55 : 1),
+                      borderTop: isOver ? '2px solid var(--primary)' : undefined,
+                      background: isOver ? 'rgba(0,102,255,0.05)' : undefined,
+                      cursor: reordering ? 'wait' : 'grab',
+                    }}
+                  >
+                    <td
+                      style={{
+                        ...td, width: 44, textAlign: 'center', verticalAlign: 'middle',
+                        userSelect: 'none',
+                        cursor: reordering ? 'wait' : 'grab',
+                        background: isOver ? 'rgba(0,102,255,0.28)' : 'rgba(99,102,241,0.12)',
+                        borderRight: '1px solid var(--border)',
+                        padding: 0,
+                      }}
+                      title="Drag to reorder this system field within its entity group"
+                    >
+                      <div style={{
+                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                        width: 28, height: 28, borderRadius: 6,
+                        background: '#6366f1', color: '#fff',
+                      }}>
+                        <GripIcon size={14} />
+                      </div>
+                    </td>
                     <td style={td}><span style={{ background: 'var(--s3)', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 700, textTransform: 'uppercase' }}>{f.entity}</span></td>
                     <td style={td}><code style={{ background: 'var(--s3)', padding: '1px 5px', borderRadius: 3, fontSize: 11 }}>{f.key}</code></td>
                     <td style={td}>
@@ -544,7 +653,7 @@ export default function CustomFieldsPage() {
                         No custom fields yet
                       </div>
                       <div style={{ fontSize: 12, maxWidth: 420 }}>
-                        Custom fields you add appear here with a <strong style={{ color: 'var(--primary)' }}>blue drag handle</strong> in the SORT column so you can reorder them. System fields stay locked because their position is built into the form.
+                        Custom fields you add appear here with a <strong style={{ color: 'var(--primary)' }}>blue drag handle</strong> in the SORT column. System fields can also be reordered using the indigo grip on each system row.
                       </div>
                     </div>
                   </td>
@@ -563,6 +672,9 @@ export default function CustomFieldsPage() {
                     setDragId(c.id);
                   }}
                   onDragOver={(e) => {
+                    // Refuse drops coming from system rows — they live
+                    // in a different group with a different reorder path.
+                    if (dragId && dragId.startsWith(BUILTIN_DRAG_PREFIX)) return;
                     e.preventDefault();
                     e.dataTransfer.dropEffect = 'move';
                     if (overId !== c.id) setOverId(c.id);
@@ -572,7 +684,7 @@ export default function CustomFieldsPage() {
                     e.preventDefault();
                     const id = e.dataTransfer.getData('text/plain') || dragId || '';
                     setDragId(null); setOverId(null);
-                    if (id) reorderTo(id, c.id);
+                    if (id && !id.startsWith(BUILTIN_DRAG_PREFIX)) reorderTo(id, c.id);
                   }}
                   onDragEnd={() => { setDragId(null); setOverId(null); }}
                   style={{
