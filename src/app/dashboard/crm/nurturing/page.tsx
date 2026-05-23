@@ -19,13 +19,15 @@
  * "Sync now" actions show a toast so reviewers can see the affordances
  * exist; persistence is deferred until the real backend lands.
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import {
   DEMO_SEGMENTS, DEMO_SEQUENCES, DEMO_FUNNEL, DEMO_COSTS_LAST_30D,
   DEMO_TOP_CONVERSIONS, DEMO_CONSENT_FUNNEL,
   type DemoSegment, type DemoSequence,
 } from '../../../../lib/demo/nurturingSeed';
+import { getStoredUser } from '../../../../lib/auth';
 
 type Tab = 'overview' | 'segments' | 'sequences' | 'audiences' | 'attribution' | 'consent';
 
@@ -39,9 +41,29 @@ const TABS: Array<{ id: Tab; label: string; icon: string }> = [
 ];
 
 export default function NurturingPage() {
+  const router = useRouter();
   const [tab, setTab] = useState<Tab>('overview');
   const [activeSegment, setActiveSegment] = useState<DemoSegment | null>(null);
   const [activeSequence, setActiveSequence] = useState<DemoSequence | null>(null);
+  const [allowed, setAllowed] = useState<boolean | null>(null);
+
+  // Demo-only gate. Even if a non-demo user types the URL directly,
+  // they get redirected to the CRM dashboard. Mirrors the sidebar
+  // `demoOnly: true` filter so the preview never leaks to real
+  // customers.
+  useEffect(() => {
+    const u = getStoredUser();
+    const isDemo = u?.email === 'demo@kinematic.com';
+    if (!isDemo) {
+      router.replace('/dashboard/crm/dashboard');
+    } else {
+      setAllowed(true);
+    }
+  }, [router]);
+
+  if (allowed !== true) {
+    return <div style={{ padding: 24, color: 'var(--text-dim)', fontSize: 13 }}>Loading…</div>;
+  }
 
   return (
     <div>
