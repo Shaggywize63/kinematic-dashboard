@@ -10,6 +10,7 @@ import CustomFieldsSection from '../../../../../components/crm/CustomFieldsSecti
 import UserSearchSelect, { type UserOption } from '../../../../../components/crm/shared/UserSearchSelect';
 import AlternateMobiles from '../../../../../components/crm/AlternateMobiles';
 import ClientScopeField from '../../../../../components/ClientScopeField';
+import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '../../../../../lib/crmFieldOverrides';
 
 type UserOpt = UserOption;
 
@@ -45,6 +46,12 @@ export default function NewLeadPage() {
   const [form, setForm] = useState<Form>(empty);
   const [busy, setBusy] = useState(false);
   const [businessType, setBusinessType] = useState<BusinessType>('both');
+  // Per-tenant field overrides (label / required / hidden) for built-in
+  // lead fields. Edited from Admin → CRM Settings → Custom Fields, stored
+  // in crm_settings.config.field_overrides. Empty until first fetch — every
+  // field renders with its hardcoded default in the interim.
+  const [fieldOverrides, setFieldOverrides] = useState<FieldOverrides>({});
+  const fields = buildFieldHelpers(fieldOverrides, 'lead');
   const [sources, setSources] = useState<LeadSource[]>([]);
   const [users, setUsers] = useState<UserOpt[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -96,6 +103,7 @@ export default function NewLeadPage() {
         const t: BusinessType = s.value.data?.business_type ?? 'both';
         setBusinessType(t);
         if (t !== 'both') setForm((f) => ({ ...f, is_b2c: t === 'b2c' }));
+        setFieldOverrides(extractFieldOverrides(s.value.data));
       }
       if (src.status === 'fulfilled') setSources((src.value.data || []).filter((x: LeadSource) => x.is_active));
       if (u.status === 'fulfilled') {
@@ -122,15 +130,17 @@ export default function NewLeadPage() {
     }
     // Last name is mandatory on the backend (leadCreateSchema). Block
     // submit early with a clear message instead of relying on the
-    // generic "Validation failed" toast from the server.
-    if (!form.last_name || !form.last_name.trim()) {
+    // generic "Validation failed" toast from the server. Skip the
+    // check if the admin hid the field from this tenant's form.
+    if (!fields.isHidden('last_name') && (!form.last_name || !form.last_name.trim())) {
       return toast.error('Last name is required.');
     }
     // City is required on EVERY lead — without it the per-user city
     // scope filter has nothing to match against and the lead would
     // leak to other reps. Block submit early with a clear message
-    // instead of letting the backend 400.
-    if (!form.city || !form.city.trim()) {
+    // instead of letting the backend 400. Same hidden-field escape
+    // hatch as last_name above.
+    if (!fields.isHidden('city') && (!form.city || !form.city.trim())) {
       return toast.error('City is required — pick from the city dropdown.');
     }
     setBusy(true);
@@ -175,37 +185,49 @@ export default function NewLeadPage() {
   // `text()` builds a labelled <input>. When `opts.phone` is true the
   // input is numeric-only (no letters), capped at 10 digits, and pulls
   // up the phone keypad on mobile.
-  const text = (k: keyof Form, label: string, opts: { type?: string; required?: boolean; phone?: boolean } = {}) => (
-    <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>
-        {label}{opts.required && <span style={{ color: '#ef4444', marginLeft: 3 }}>*</span>}
-      </span>
-      <input
-        type={opts.phone ? 'tel' : (opts.type || 'text')}
-        inputMode={opts.phone ? 'numeric' : undefined}
-        pattern={opts.phone ? '[0-9]{10}' : undefined}
-        maxLength={opts.phone ? 10 : undefined}
-        autoComplete={opts.phone ? 'tel-national' : undefined}
-        placeholder={opts.phone ? '10-digit mobile' : undefined}
-        value={form[k] as string}
-        onChange={(e) => {
-          const v = opts.phone ? e.target.value.replace(/\D/g, '').slice(0, 10) : e.target.value;
-          setForm({ ...form, [k]: v });
-        }}
-        required={opts.required}
-        style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 }}
-      />
-    </label>
-  );
-  const select = (k: keyof Form, label: string, options: Array<{ value: string; label: string }>) => (
-    <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>{label}</span>
-      <select value={form[k] as string} onChange={(e) => setForm({ ...form, [k]: e.target.value })} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 }}>
-        <option value="">—</option>
-        {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-      </select>
-    </label>
-  );
+  // text() / select() consult the admin's field-override map: hidden ⇒
+  // omit the field entirely, label override ⇒ render the new label,
+  // required override ⇒ flip the asterisk + browser-level required attr.
+  const text = (k: keyof Form, label: string, opts: { type?: string; required?: boolean; phone?: boolean } = {}) => {
+    if (fields.isHidden(k as string)) return null;
+    const effLabel    = fields.labelFor(k as string, label);
+    const effRequired = fields.requiredFor(k as string, !!opts.required);
+    return (
+      <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>
+          {effLabel}{effRequired && <span style={{ color: '#ef4444', marginLeft: 3 }}>*</span>}
+        </span>
+        <input
+          type={opts.phone ? 'tel' : (opts.type || 'text')}
+          inputMode={opts.phone ? 'numeric' : undefined}
+          pattern={opts.phone ? '[0-9]{10}' : undefined}
+          maxLength={opts.phone ? 10 : undefined}
+          autoComplete={opts.phone ? 'tel-national' : undefined}
+          placeholder={opts.phone ? '10-digit mobile' : undefined}
+          value={form[k] as string}
+          onChange={(e) => {
+            const v = opts.phone ? e.target.value.replace(/\D/g, '').slice(0, 10) : e.target.value;
+            setForm({ ...form, [k]: v });
+          }}
+          required={effRequired}
+          style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 }}
+        />
+      </label>
+    );
+  };
+  const select = (k: keyof Form, label: string, options: Array<{ value: string; label: string }>) => {
+    if (fields.isHidden(k as string)) return null;
+    const effLabel = fields.labelFor(k as string, label);
+    return (
+      <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>{effLabel}</span>
+        <select value={form[k] as string} onChange={(e) => setForm({ ...form, [k]: e.target.value })} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 }}>
+          <option value="">—</option>
+          {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+      </label>
+    );
+  };
 
   const showToggle = businessType === 'both';
   const leadTypeLabel = businessType === 'b2c'
@@ -247,36 +269,44 @@ export default function NewLeadPage() {
         />
       </Section>
 
-      <Section title="Lifecycle & Assignment">
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>Status</span>
-            <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 }}>
-              <option value="new">New</option>
-              <option value="working">Working</option>
-              <option value="qualified">Qualified</option>
-              <option value="unqualified">Unqualified</option>
-            </select>
-          </label>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>Source</span>
-            <select value={form.source_id} onChange={(e) => setForm({ ...form, source_id: e.target.value })} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 }}>
-              <option value="">— Unspecified —</option>
-              {sources.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
-          </label>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>Assign To</span>
-            <UserSearchSelect
-              options={users}
-              value={form.owner_id}
-              onChange={(id) => setForm({ ...form, owner_id: id })}
-              placeholder="Search team member…"
-              emptyLabel="Unassigned (auto-route by rules)"
-            />
-          </label>
-        </div>
-      </Section>
+      {(!fields.isHidden('status') || !fields.isHidden('source_id') || !fields.isHidden('owner_id')) && (
+        <Section title="Lifecycle & Assignment">
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
+            {!fields.isHidden('status') && (
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>{fields.labelFor('status', 'Status')}</span>
+                <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 }}>
+                  <option value="new">New</option>
+                  <option value="working">Working</option>
+                  <option value="qualified">Qualified</option>
+                  <option value="unqualified">Unqualified</option>
+                </select>
+              </label>
+            )}
+            {!fields.isHidden('source_id') && (
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>{fields.labelFor('source_id', 'Source')}</span>
+                <select value={form.source_id} onChange={(e) => setForm({ ...form, source_id: e.target.value })} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 }}>
+                  <option value="">— Unspecified —</option>
+                  {sources.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </label>
+            )}
+            {!fields.isHidden('owner_id') && (
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>{fields.labelFor('owner_id', 'Assign To')}</span>
+                <UserSearchSelect
+                  options={users}
+                  value={form.owner_id}
+                  onChange={(id) => setForm({ ...form, owner_id: id })}
+                  placeholder="Search team member…"
+                  emptyLabel="Unassigned (auto-route by rules)"
+                />
+              </label>
+            )}
+          </div>
+        </Section>
+      )}
 
       {!form.is_b2c ? (
         <>
@@ -298,11 +328,13 @@ export default function NewLeadPage() {
           </Section>
           {/* City is required on B2B leads too — the per-user city-scope
               filter applies to every lead row regardless of B2B/B2C. */}
-          <Section title="Location">
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
-              <LocationPicker stateValue={form.state} cityValue={form.city} onChange={({ state, city }) => setForm({ ...form, state, city })} />
-            </div>
-          </Section>
+          {!fields.isHidden('city') && (
+            <Section title="Location">
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
+                <LocationPicker stateValue={form.state} cityValue={form.city} onChange={({ state, city }) => setForm({ ...form, state, city })} />
+              </div>
+            </Section>
+          )}
         </>
       ) : (
         <>
@@ -319,7 +351,11 @@ export default function NewLeadPage() {
                 read as part of the form, not a footnote. */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
               {text('address_line1', 'Address Line 1')}{text('address_line2', 'Address Line 2')}
-              <LocationPicker stateValue={form.state} cityValue={form.city} onChange={({ state, city }) => setForm({ ...form, state, city })} />
+              {/* LocationPicker covers state + city. Hide it when the admin
+                  has hidden the city built-in (state alone has no value). */}
+              {!fields.isHidden('city') && (
+                <LocationPicker stateValue={form.state} cityValue={form.city} onChange={({ state, city }) => setForm({ ...form, state, city })} />
+              )}
               {text('postal_code', 'Postal Code')}{text('country', 'Country')}
               <CustomFieldsSection
                 entity="lead"
@@ -328,12 +364,18 @@ export default function NewLeadPage() {
               />
             </div>
           </Section>
-          <Section title="Consent">
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13, color: 'var(--text)' }}>
-              <label style={{ display: 'flex', gap: 8, alignItems: 'center', cursor: 'pointer' }}><input type="checkbox" checked={form.marketing_consent} onChange={(e) => setForm({ ...form, marketing_consent: e.target.checked })} />Customer agreed to receive marketing communications</label>
-              <label style={{ display: 'flex', gap: 8, alignItems: 'center', cursor: 'pointer' }}><input type="checkbox" checked={form.whatsapp_consent} onChange={(e) => setForm({ ...form, whatsapp_consent: e.target.checked })} />Customer agreed to be contacted via WhatsApp</label>
-            </div>
-          </Section>
+          {(!fields.isHidden('marketing_consent') || !fields.isHidden('whatsapp_consent')) && (
+            <Section title="Consent">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13, color: 'var(--text)' }}>
+                {!fields.isHidden('marketing_consent') && (
+                  <label style={{ display: 'flex', gap: 8, alignItems: 'center', cursor: 'pointer' }}><input type="checkbox" checked={form.marketing_consent} onChange={(e) => setForm({ ...form, marketing_consent: e.target.checked })} />{fields.labelFor('marketing_consent', 'Customer agreed to receive marketing communications')}</label>
+                )}
+                {!fields.isHidden('whatsapp_consent') && (
+                  <label style={{ display: 'flex', gap: 8, alignItems: 'center', cursor: 'pointer' }}><input type="checkbox" checked={form.whatsapp_consent} onChange={(e) => setForm({ ...form, whatsapp_consent: e.target.checked })} />{fields.labelFor('whatsapp_consent', 'Customer agreed to be contacted via WhatsApp')}</label>
+                )}
+              </div>
+            </Section>
+          )}
         </>
       )}
 

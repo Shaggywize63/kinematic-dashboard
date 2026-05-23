@@ -5,6 +5,7 @@ import { crmLeads, crmSettings, crmLeadSources } from '../../lib/crmApi';
 import type { BusinessType, Lead, LeadStatus, LeadSource } from '../../types/crm';
 import Modal from './shared/Modal';
 import LocationPicker from './LocationPicker';
+import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '../../lib/crmFieldOverrides';
 
 interface Props { lead: Lead; open: boolean; onClose: () => void; onSaved: (updated: Lead) => void; }
 
@@ -13,6 +14,11 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
   const [busy, setBusy] = useState(false);
   const [businessType, setBusinessType] = useState<BusinessType>('both');
   const [sources, setSources] = useState<LeadSource[]>([]);
+  // Field-level admin overrides (hide / relabel / toggle-required) for
+  // built-in lead fields. Loaded from crm_settings alongside business_type
+  // so a single round-trip drives both. Empty until first fetch.
+  const [fieldOverrides, setFieldOverrides] = useState<FieldOverrides>({});
+  const fields = buildFieldHelpers(fieldOverrides, 'lead');
 
   useEffect(() => { if (open) setForm(seed(lead)); }, [open, lead]);
   // Fetch org's B2B/B2C mode AND the active lead sources on first open. The
@@ -30,6 +36,7 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
           setBusinessType(t);
           if (t === 'b2b') setForm((f) => ({ ...f, is_b2c: false }));
           if (t === 'b2c') setForm((f) => ({ ...f, is_b2c: true }));
+          setFieldOverrides(extractFieldOverrides(s.value.data));
         }
         if (src.status === 'fulfilled') {
           setSources((src.value.data || []).filter((x: LeadSource) => x.is_active !== false));
@@ -78,38 +85,69 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
           <TB active={!form.is_b2c} onClick={() => setForm({ ...form, is_b2c: false })}>B2B (Business)</TB>
         </div>
       )}
-      <SL>Personal</SL><Grid>
-        <F label="First Name" required value={form.first_name} onChange={(v) => setForm({ ...form, first_name: v })} />
-        <F label="Last Name" value={form.last_name} onChange={(v) => setForm({ ...form, last_name: v })} />
-        <F label="Email" type="email" required={!form.is_b2c} value={form.email} onChange={(v) => setForm({ ...form, email: v })} />
-        <F label="Phone" phone required={form.is_b2c} value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />
-      </Grid>
-
-      <SL>Lifecycle & Source</SL><Grid>
-        <SF label="Status" value={form.status} options={[{ value: 'new', label: 'New' }, { value: 'working', label: 'Working' }, { value: 'qualified', label: 'Qualified' }, { value: 'unqualified', label: 'Unqualified' }, { value: 'converted', label: 'Converted' }]} onChange={(v) => setForm({ ...form, status: v as LeadStatus })} />
-        {/* Source — list comes from the active lead-sources catalogue. Empty
-            value clears the FK back to NULL; reps can manage the list under
-            CRM Settings → Lead Sources. */}
-        <SF label="Source" value={form.source_id} options={[{ value: '', label: '— Unspecified —' }, ...sources.map((s) => ({ value: s.id, label: s.name }))]} onChange={(v) => setForm({ ...form, source_id: v })} />
-      </Grid>
-
-      {!form.is_b2c ? (<><SL>Business Details</SL><Grid><F label="Company" required value={form.company} onChange={(v) => setForm({ ...form, company: v })} /><F label="Job Title" value={form.title} onChange={(v) => setForm({ ...form, title: v })} /><F label="Industry" value={form.industry} onChange={(v) => setForm({ ...form, industry: v })} /></Grid></>) : (
-        <><SL>Customer Details</SL><Grid>
-          <F label="Date of Birth" type="date" value={form.date_of_birth} onChange={(v) => setForm({ ...form, date_of_birth: v })} />
-          <SF label="Gender" value={form.gender} options={[{ value: '', label: '—' }, { value: 'male', label: 'Male' }, { value: 'female', label: 'Female' }, { value: 'other', label: 'Other' }, { value: 'prefer_not_to_say', label: 'Prefer not to say' }]} onChange={(v) => setForm({ ...form, gender: v })} />
-          <SF label="Preferred Channel" value={form.preferred_contact_method} options={[{ value: '', label: '—' }, { value: 'email', label: 'Email' }, { value: 'phone', label: 'Phone' }, { value: 'whatsapp', label: 'WhatsApp' }, { value: 'sms', label: 'SMS' }]} onChange={(v) => setForm({ ...form, preferred_contact_method: v })} />
+      {/* show() returns the inner node when the field isn't hidden by
+          the admin overrides, otherwise null. labelFor / requiredFor
+          let the override map relabel + flip-required on the fly. */}
+      {(() => { const show = (k: string, node: React.ReactNode) => fields.isHidden(k) ? null : node;
+                const lbl  = (k: string, d: string) => fields.labelFor(k, d);
+                const req  = (k: string, d: boolean) => fields.requiredFor(k, d);
+      return (
+        <>
+        <SL>Personal</SL><Grid>
+          {show('first_name', <F label={lbl('first_name', 'First Name')} required={req('first_name', true)} value={form.first_name} onChange={(v) => setForm({ ...form, first_name: v })} />)}
+          {show('last_name',  <F label={lbl('last_name',  'Last Name')}  required={req('last_name',  false)} value={form.last_name}  onChange={(v) => setForm({ ...form, last_name:  v })} />)}
+          {show('email',      <F label={lbl('email',      'Email')}      type="email" required={req('email', !form.is_b2c)} value={form.email} onChange={(v) => setForm({ ...form, email: v })} />)}
+          {show('phone',      <F label={lbl('phone',      'Phone')}      phone required={req('phone', form.is_b2c)} value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />)}
         </Grid>
-        <SL>Address</SL><Grid>
-          <F label="Address Line 1" value={form.address_line1} onChange={(v) => setForm({ ...form, address_line1: v })} />
-          <LocationPicker stateValue={form.state} cityValue={form.city} onChange={({ state, city }) => setForm({ ...form, state, city })} />
-          <F label="Postal Code" value={form.postal_code} onChange={(v) => setForm({ ...form, postal_code: v })} />
-          <F label="Country" value={form.country} onChange={(v) => setForm({ ...form, country: v })} />
-        </Grid>
-        <SL>Consent</SL>
-        <CB checked={form.marketing_consent} onChange={(v) => setForm({ ...form, marketing_consent: v })}>Customer agreed to marketing communications</CB>
-        <CB checked={form.whatsapp_consent} onChange={(v) => setForm({ ...form, whatsapp_consent: v })}>Customer agreed to WhatsApp contact</CB>
+
+        {(!fields.isHidden('status') || !fields.isHidden('source_id')) && (
+          <><SL>Lifecycle & Source</SL><Grid>
+            {show('status', <SF label={lbl('status', 'Status')} value={form.status} options={[{ value: 'new', label: 'New' }, { value: 'working', label: 'Working' }, { value: 'qualified', label: 'Qualified' }, { value: 'unqualified', label: 'Unqualified' }, { value: 'converted', label: 'Converted' }]} onChange={(v) => setForm({ ...form, status: v as LeadStatus })} />)}
+            {/* Source — list comes from the active lead-sources catalogue. Empty
+                value clears the FK back to NULL; reps can manage the list under
+                CRM Settings → Lead Sources. */}
+            {show('source_id', <SF label={lbl('source_id', 'Source')} value={form.source_id} options={[{ value: '', label: '— Unspecified —' }, ...sources.map((s) => ({ value: s.id, label: s.name }))]} onChange={(v) => setForm({ ...form, source_id: v })} />)}
+          </Grid></>
+        )}
+
+        {!form.is_b2c ? (
+          (!fields.isHidden('company') || !fields.isHidden('title') || !fields.isHidden('industry')) && (
+            <><SL>Business Details</SL><Grid>
+              {show('company',  <F label={lbl('company',  'Company')}   required={req('company', true)} value={form.company}  onChange={(v) => setForm({ ...form, company:  v })} />)}
+              {show('title',    <F label={lbl('title',    'Job Title')} value={form.title}    onChange={(v) => setForm({ ...form, title:    v })} />)}
+              {show('industry', <F label={lbl('industry', 'Industry')}  value={form.industry} onChange={(v) => setForm({ ...form, industry: v })} />)}
+            </Grid></>
+          )
+        ) : (
+          <><SL>Customer Details</SL><Grid>
+            {show('date_of_birth', <F label={lbl('date_of_birth', 'Date of Birth')} type="date" value={form.date_of_birth} onChange={(v) => setForm({ ...form, date_of_birth: v })} />)}
+            {show('gender', <SF label={lbl('gender', 'Gender')} value={form.gender} options={[{ value: '', label: '—' }, { value: 'male', label: 'Male' }, { value: 'female', label: 'Female' }, { value: 'other', label: 'Other' }, { value: 'prefer_not_to_say', label: 'Prefer not to say' }]} onChange={(v) => setForm({ ...form, gender: v })} />)}
+            {show('preferred_contact_method', <SF label={lbl('preferred_contact_method', 'Preferred Channel')} value={form.preferred_contact_method} options={[{ value: '', label: '—' }, { value: 'email', label: 'Email' }, { value: 'phone', label: 'Phone' }, { value: 'whatsapp', label: 'WhatsApp' }, { value: 'sms', label: 'SMS' }]} onChange={(v) => setForm({ ...form, preferred_contact_method: v })} />)}
+          </Grid>
+          <SL>Address</SL><Grid>
+            {show('address_line1', <F label={lbl('address_line1', 'Address Line 1')} value={form.address_line1} onChange={(v) => setForm({ ...form, address_line1: v })} />)}
+            {/* LocationPicker bundles state + city — gated on city since
+                state alone has no meaningful UI without a city picker. */}
+            {!fields.isHidden('city') && (
+              <LocationPicker stateValue={form.state} cityValue={form.city} onChange={({ state, city }) => setForm({ ...form, state, city })} />
+            )}
+            {show('postal_code', <F label={lbl('postal_code', 'Postal Code')} value={form.postal_code} onChange={(v) => setForm({ ...form, postal_code: v })} />)}
+            {show('country', <F label={lbl('country', 'Country')} value={form.country} onChange={(v) => setForm({ ...form, country: v })} />)}
+          </Grid>
+          {(!fields.isHidden('marketing_consent') || !fields.isHidden('whatsapp_consent')) && (
+            <><SL>Consent</SL>
+              {!fields.isHidden('marketing_consent') && (
+                <CB checked={form.marketing_consent} onChange={(v) => setForm({ ...form, marketing_consent: v })}>{lbl('marketing_consent', 'Customer agreed to marketing communications')}</CB>
+              )}
+              {!fields.isHidden('whatsapp_consent') && (
+                <CB checked={form.whatsapp_consent} onChange={(v) => setForm({ ...form, whatsapp_consent: v })}>{lbl('whatsapp_consent', 'Customer agreed to WhatsApp contact')}</CB>
+              )}
+            </>
+          )}
+          </>
+        )}
         </>
-      )}
+      ); })()}
     </Modal>
   );
 }
