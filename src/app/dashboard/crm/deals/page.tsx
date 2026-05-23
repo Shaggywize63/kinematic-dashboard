@@ -8,7 +8,8 @@ import { crmDeals, crmPipelines, type Pagination } from '../../../../lib/crmApi'
 import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
 import type { Deal, Pipeline } from '../../../../types/crm';
 import DealsTable from '../../../../components/crm/DealsTable';
-import { getStoredUser, canAccess } from '../../../../lib/auth';
+import { getStoredUser, canAccess, getStoredToken } from '../../../../lib/auth';
+import { API_BASE_URL } from '../../../../lib/api';
 
 const DEAL_PAGE_SIZE_OPTIONS = [25, 50, 100, 200] as const;
 const DEAL_DEFAULT_PAGE_SIZE = 50;
@@ -46,6 +47,47 @@ function DealsListPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [isAdmin, setIsAdmin] = useState(false);
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [exporting, setExporting] = useState(false);
+
+  // CSV download — mirrors the activities + leads export flows: raw
+  // fetch() to the backend, blob the response, click a synthesised
+  // anchor. Forward the auth bearer and the X-Client-Id picker so
+  // super_admin's tenant scope is honoured during the export.
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const qs = new URLSearchParams();
+      if (q) qs.set('q', q);
+      if (status) qs.set('status', status);
+      if (view === 'kanban' && pipelineId) qs.set('pipeline_id', pipelineId);
+      const url = `${API_BASE_URL}/api/v1/crm/deals/export${qs.toString() ? `?${qs.toString()}` : ''}`;
+      const token = getStoredToken();
+      const headers: Record<string, string> = {};
+      if (token) headers.Authorization = `Bearer ${token}`;
+      try {
+        const sel = window.localStorage.getItem('kinematic_selected_client');
+        if (sel && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sel)) {
+          headers['X-Client-Id'] = sel;
+        }
+      } catch { /* ignore */ }
+      const res = await fetch(url, { headers });
+      if (!res.ok) throw new Error(`Export failed (HTTP ${res.status})`);
+      const blob = await res.blob();
+      const objUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = objUrl;
+      a.download = `deals-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(objUrl);
+      toast.success('Deals exported');
+    } catch (e: any) {
+      toast.error(e.message || 'Export failed');
+    } finally {
+      setExporting(false);
+    }
+  };
   const range = useCrmDateRange((s) => ({ from: s.from, to: s.to }));
   // Pagination only applies to the list view — kanban needs every open
   // deal in scope, so it stays on the existing limit=500 single-shot fetch.
@@ -226,9 +268,21 @@ function DealsListPage() {
             </>
           )}
         </div>
-        {/* New Deal button removed by design — deals are created exclusively
-            via the lead-conversion flow (Lead detail → Convert) so the deal
-            inherits the lead's qualification, source, and history. */}
+        {/* Right-hand toolbar — Export CSV is always visible (admin or
+            not). New Deal button removed by design — deals are created
+            exclusively via the lead-conversion flow (Lead detail →
+            Convert) so the deal inherits the lead's qualification,
+            source, and history. */}
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <button
+            type="button"
+            onClick={handleExport}
+            disabled={exporting}
+            title="Download deals as CSV (respects current search / status filter)"
+            style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: exporting ? 'wait' : 'pointer', opacity: exporting ? 0.6 : 1 }}>
+            {exporting ? 'Exporting…' : '⬇ Export CSV'}
+          </button>
+        </div>
       </div>
 
       {view === 'kanban' ? (
