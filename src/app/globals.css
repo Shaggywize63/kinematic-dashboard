@@ -488,3 +488,29 @@ textarea:disabled {
   background: var(--s3);
   border-color: var(--primary);
 }
+
+/* 7 — Entity-name links in tables (Leads / Deals / Contacts / Accounts).
+ * Previously rendered as bold plain text — looked inert even though
+ * they were anchors. Now they read as clickable: primary colour, no
+ * underline at rest (clean look), underline + lighter shade on hover.
+ * Apply via className="km-entity-link" on the <Link>. */
+.km-entity-link,
+.crm-area .km-entity-link {
+  color: var(--primary) !important;
+  font-weight: 700;
+  text-decoration: none !important;
+  border-bottom: 1px dotted transparent;
+  padding-bottom: 1px;
+  transition: color 120ms ease, border-color 120ms ease;
+  cursor: pointer;
+}
+.km-entity-link:hover,
+.crm-area .km-entity-link:hover {
+  color: var(--primary) !important;
+  text-decoration: underline !important;
+  border-bottom-color: var(--primary);
+  filter: brightness(1.15);
+}
+.km-entity-link:visited {
+  color: var(--primary) !important;
+}

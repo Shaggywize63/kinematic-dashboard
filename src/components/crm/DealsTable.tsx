@@ -50,8 +50,10 @@ export default function DealsTable({ deals, loading, onAssign, selected, onToggl
                     <input type="checkbox" checked={selected!.has(d.id)} onChange={() => onToggle!(d.id)} />
                   </td>
                 )}
-                <td style={td} data-label="Name"><Link href={`/dashboard/crm/deals/${d.id}`} style={{ color: 'var(--text)', fontWeight: 600 }}>{d.name}</Link></td>
-                <td style={td} data-label="Account">{d.account_name || '—'}</td>
+                <td style={td} data-label="Name"><Link href={`/dashboard/crm/deals/${d.id}`} className="km-entity-link" title="Open deal detail">{d.name}</Link></td>
+                <td style={td} data-label="Account">{d.account_id && d.account_name
+                  ? <Link href={`/dashboard/crm/accounts/${d.account_id}`} className="km-entity-link" title="Open account detail">{d.account_name}</Link>
+                  : (d.account_name || '—')}</td>
                 <td style={td} data-label="Amount">{formatINR(d.amount)}</td>
                 <td style={td} data-label="Stage"><StageBadge name={d.stage_name} won={d.status === 'won'} lost={d.status === 'lost'} /></td>
                 <td style={td} data-label="Status"><span style={{ textTransform: 'capitalize' }}>{d.status}</span></td>

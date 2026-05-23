@@ -16,7 +16,7 @@ export default function AccountsTable({ accounts, loading }: { accounts: Account
             {!loading && accounts.length === 0 && <tr><td colSpan={5} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)' }} data-label="">No accounts found.</td></tr>}
             {accounts.map((a) => (
               <tr key={a.id}>
-                <td style={td} data-label="Name"><Link href={`/dashboard/crm/accounts/${a.id}`} style={{ color: 'var(--text)', fontWeight: 600 }}>{a.name}</Link>{a.website && <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{a.website}</div>}</td>
+                <td style={td} data-label="Name"><Link href={`/dashboard/crm/accounts/${a.id}`} className="km-entity-link" title="Open account detail">{a.name}</Link>{a.website && <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{a.website}</div>}</td>
                 <td style={td} data-label="Industry">{a.industry || '—'}</td>
                 <td style={td} data-label="Revenue">{a.annual_revenue ? `$${Number(a.annual_revenue).toLocaleString()}` : '—'}</td>
                 <td style={td} data-label="Employees">{a.employees || '—'}</td>

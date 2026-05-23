@@ -93,7 +93,7 @@ const LeadRow = memo(function LeadRow({ lead: l, isSelected, onToggle, onScoreCl
     <tr>
       <td style={tdStyle} data-label=""><input type="checkbox" checked={isSelected} onChange={handleToggle} /></td>
       <td style={tdStyle} data-label="Name">
-        <Link href={`/dashboard/crm/leads/${l.id}`} style={{ color: 'var(--text)', fontWeight: 600 }}>{fullName}</Link>
+        <Link href={`/dashboard/crm/leads/${l.id}`} className="km-entity-link" title="Open lead detail">{fullName}</Link>
         {l.title && <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{l.title}</div>}
       </td>
       {!isB2C && <td style={tdStyle} data-label="Company">{l.company || '—'}</td>}

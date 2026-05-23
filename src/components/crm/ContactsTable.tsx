@@ -43,12 +43,18 @@ export default function ContactsTable({ contacts, loading, isB2C = false, onAssi
             {contacts.map((c) => (
               <tr key={c.id}>
                 <td style={td} data-label="Name">
-                  <Link href={`/dashboard/crm/contacts/${c.id}`} style={{ color: 'var(--text)', fontWeight: 600 }}>
+                  <Link href={`/dashboard/crm/contacts/${c.id}`} className="km-entity-link" title="Open contact detail">
                     {c.full_name || `${c.first_name || ''} ${c.last_name || ''}`.trim() || c.email}
                   </Link>
                   {c.title && <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{c.title}</div>}
                 </td>
-                {!isB2C && <td style={td} data-label="Account">{c.account_name || '—'}</td>}
+                {!isB2C && (
+                  <td style={td} data-label="Account">
+                    {c.account_id && c.account_name
+                      ? <Link href={`/dashboard/crm/accounts/${c.account_id}`} className="km-entity-link" title="Open account detail">{c.account_name}</Link>
+                      : (c.account_name || '—')}
+                  </td>
+                )}
                 <td style={td} data-label="Email">{c.email || '—'}</td>
                 <td style={td} data-label="Phone">{c.phone || '—'}</td>
                 <td style={td} data-label="Owner">

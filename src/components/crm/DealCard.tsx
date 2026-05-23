@@ -17,7 +17,7 @@ export default function DealCard({ deal, dragHandleProps }: { deal: Deal; dragHa
         cursor: dragHandleProps ? 'grab' : 'default',
       }}
     >
-      <Link href={`/dashboard/crm/deals/${deal.id}`} style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{deal.name}</Link>
+      <Link href={`/dashboard/crm/deals/${deal.id}`} className="km-entity-link" style={{ fontSize: 13 }} title="Open deal detail">{deal.name}</Link>
       <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2 }}>{deal.account_name || '—'}</div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
         <span style={{ color: '#28B463', fontWeight: 700, fontSize: 12 }}>{formatINR(deal.amount)}</span>
