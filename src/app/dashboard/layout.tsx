@@ -208,6 +208,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       { href: '/dashboard/crm/products',         label: 'Products',       icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4', module: 'crm_products' },
       { href: '/dashboard/crm/activities',       label: 'Activities',     icon: 'M22 11.08V12a10 10 0 11-5.93-9.14 M22 4L12 14.01l-3-3', module: 'crm_activities' },
       { href: '/dashboard/crm/whatsapp',         label: 'WhatsApp',       icon: ICON_WHATSAPP, module: 'crm_whatsapp' },
+      { href: '/dashboard/crm/nurturing',        label: 'Nurturing',      icon: 'M13 2L3 14h9l-1 8 10-12h-9l1-8z', module: 'crm_dashboard' },
       { href: '/dashboard/crm/reports',          label: 'Reports',        icon: 'M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6 M16 13H8 M16 17H8', module: 'crm_reports' },
       { href: '/dashboard/crm/settings',         label: 'Settings',       icon: ICON_SETTINGS, module: 'crm_settings' },
       { href: '/dashboard/crm/help',             label: 'Help',           icon: 'M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3 M12 17h.01 M22 12a10 10 0 11-20 0 10 10 0 0120 0z', module: 'crm_dashboard' },
