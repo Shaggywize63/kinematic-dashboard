@@ -386,9 +386,19 @@ function ActivitiesPageInner() {
                       </div>
                     </div>
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, fontSize: 11, color: 'var(--text-dim)' }}>
+                  <div style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'flex-end',
+                    gap: 4, fontSize: 11, color: 'var(--text-dim)',
+                    // Reserve room for the absolutely-positioned ✕
+                    // delete button (top:8, right:8, width:22). Without
+                    // this the owner name on the first line bled into
+                    // the button area and clipped the last few letters.
+                    paddingRight: 28,
+                  }}>
                     {(a as any).assigned_to_name || a.owner_name ? (
-                      <span>👤 {(a as any).assigned_to_name || a.owner_name}</span>
+                      <span style={{ maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        👤 {(a as any).assigned_to_name || a.owner_name}
+                      </span>
                     ) : null}
                     {linkedEntity && linkedId && (
                       // Was a plain <span> — every linked-entity badge
