@@ -3,7 +3,7 @@ import { Suspense, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { crmActivities, type Pagination } from '../../../../lib/crmApi';
+import { crmActivities, type Pagination, type ActivityView } from '../../../../lib/crmApi';
 import api, { API_BASE_URL } from '../../../../lib/api';
 import type { Activity } from '../../../../types/crm';
 import { getStoredUser, canAccess, getStoredToken } from '../../../../lib/auth';
@@ -33,10 +33,15 @@ function ActivitiesPageInner() {
   const searchParams = useSearchParams();
   const initialType = searchParams.get('type') ?? '';
   const initialStatus = searchParams.get('status') ?? '';
+  const initialView = (searchParams.get('view') as ActivityView | null) ?? 'all';
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
   const [type, setType] = useState(initialType);
   const [statusFilter, setStatusFilter] = useState(initialStatus);
+  // KPI-tile filter: clicking a tile (Overdue / Upcoming / Completed)
+  // sets this; the server applies the right date predicates.
+  // 'all' = no extra constraint = the default state.
+  const [view, setView] = useState<ActivityView>(initialView);
   const [isAdmin, setIsAdmin] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [users, setUsers] = useState<UserOption[]>([]);
@@ -136,6 +141,9 @@ function ActivitiesPageInner() {
       if (type) params.type = type;
       if (statusFilter) params.status = statusFilter;
       if (isAdmin && feFilter) params.owner_id = feFilter;
+      // KPI-tile filter — only send when not 'all'. Backend ignores
+      // unknown values; sending 'all' as a no-op keeps the URL clean.
+      if (view !== 'all') params.view = view;
       const r = await crmActivities.list(params);
       setActivities(r.data || []);
       // `pagination` may be undefined if the backend hasn't shipped the
@@ -171,13 +179,13 @@ function ActivitiesPageInner() {
   // means we don't need the client-side `filtered` array to re-filter on
   // the same dimensions.
   useEffect(() => { reload(); /* eslint-disable-next-line */ }, [
-    type, statusFilter, feFilter, page, pageSize, isAdmin,
+    type, statusFilter, feFilter, view, page, pageSize, isAdmin,
   ]);
 
   // Reset to page 1 whenever any server-side filter changes — otherwise
   // a stricter filter while on page 5 would land on an empty page.
   useEffect(() => { setPage(1); /* eslint-disable-next-line */ }, [
-    type, statusFilter, feFilter, pageSize,
+    type, statusFilter, feFilter, view, pageSize,
   ]);
 
   const updateStatus = async (a: Activity, status: string) => {
@@ -229,26 +237,70 @@ function ActivitiesPageInner() {
 
   return (
     <div>
-      {/* Admin summary. "Total" reflects the server's full filter
-          match. Overdue / Upcoming / Completed are derived from the
-          current page only — labelled accordingly so the number isn't
-          misread as a network-wide stat. Per-status totals across the
-          full result need a separate count query, which we can add if
-          this turns out to matter at scale. */}
+      {/* Admin summary — every tile is a one-click filter. Selecting
+          a tile sends ?view=<x> to the API and the server applies the
+          right date predicates (overdue = past-due + uncompleted,
+          upcoming = future-due + uncompleted, completed = has
+          completed_at). Active tile is highlighted; clicking it again
+          (or "Total") clears the view filter back to all activities. */}
       {isAdmin && pagination && pagination.total > 0 && (
         <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
-          {[
-            { label: 'Total', value: pagination.total.toLocaleString(), color: 'var(--primary)', scope: 'all matching filter' },
-            { label: 'Overdue', value: overdue.length.toLocaleString(), color: '#ef4444', scope: 'this page' },
-            { label: 'Upcoming', value: upcoming.length.toLocaleString(), color: '#f59e0b', scope: 'this page' },
-            { label: 'Completed', value: completed.length.toLocaleString(), color: '#10b981', scope: 'this page' },
-          ].map(({ label, value, color, scope }) => (
-            <div key={label} style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 10, padding: '8px 16px', minWidth: 100, textAlign: 'center' }}>
-              <div style={{ fontSize: 20, fontWeight: 800, color }}>{value}</div>
-              <div style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 700, textTransform: 'uppercase' }}>{label}</div>
-              <div style={{ fontSize: 9, color: 'var(--text-dim)', marginTop: 2 }}>{scope}</div>
-            </div>
-          ))}
+          {([
+            { key: 'all',       label: 'Total',     value: pagination.total, color: 'var(--primary)' },
+            { key: 'overdue',   label: 'Overdue',   value: overdue.length,   color: '#ef4444' },
+            { key: 'upcoming',  label: 'Upcoming',  value: upcoming.length,  color: '#f59e0b' },
+            { key: 'completed', label: 'Completed', value: completed.length, color: '#10b981' },
+          ] as Array<{ key: ActivityView; label: string; value: number; color: string }>).map(({ key, label, value, color }) => {
+            const active = view === key;
+            // "Total" tile shows server-wide count; the rest count the
+            // current page only. Sub-label reflects that so users don't
+            // misread Overdue/Upcoming/Completed as network totals.
+            const sub = key === 'all'
+              ? 'all matching filter'
+              : (active ? 'filtering by this' : 'on this page · tap to filter');
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setView(key)}
+                aria-pressed={active}
+                title={key === 'all' ? 'Show all activities' : `Filter list to ${label.toLowerCase()} activities`}
+                className="km-clickable"
+                style={{
+                  background: active ? color : 'var(--s2)',
+                  border: `2px solid ${active ? color : 'var(--border)'}`,
+                  borderRadius: 10, padding: '8px 16px', minWidth: 110, textAlign: 'center',
+                  cursor: 'pointer', color: 'inherit',
+                  boxShadow: active ? `0 4px 14px ${color}40` : 'none',
+                }}
+              >
+                <div style={{ fontSize: 20, fontWeight: 800, color: active ? '#fff' : color }}>
+                  {value.toLocaleString()}
+                </div>
+                <div style={{ fontSize: 11, color: active ? '#fff' : 'var(--text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                  {label}
+                </div>
+                <div style={{ fontSize: 9, color: active ? 'rgba(255,255,255,0.85)' : 'var(--text-dim)', marginTop: 2 }}>
+                  {sub}
+                </div>
+              </button>
+            );
+          })}
+          {view !== 'all' && (
+            <button
+              type="button"
+              onClick={() => setView('all')}
+              style={{
+                background: 'transparent', border: '1px dashed var(--border)',
+                color: 'var(--text-dim)', padding: '6px 12px',
+                borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                alignSelf: 'center',
+              }}
+              title="Clear the tile filter — show all activities again"
+            >
+              ✕ Clear filter
+            </button>
+          )}
         </div>
       )}
 

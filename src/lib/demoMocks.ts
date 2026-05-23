@@ -644,6 +644,8 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
     if (path === '/crm/activities') {
       // Mirror the server filter set so demo pagination math matches
       // the visible result.
+      const view = query.get('view') ?? 'all';
+      const nowMs = Date.now();
       const filtered = CRM_ACTIVITIES.filter((a: any) => {
         if (query.get('type') && a.type !== query.get('type')) return false;
         if (query.get('status')) {
@@ -651,6 +653,16 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
           if (aStatus !== query.get('status')) return false;
         }
         if (query.get('owner_id') && a.owner_id !== query.get('owner_id') && a.assigned_to !== query.get('owner_id')) return false;
+        // KPI-tile view filter — same predicates as the backend.
+        if (view === 'overdue') {
+          if (!a.due_at || a.completed_at) return false;
+          if (new Date(a.due_at).getTime() >= nowMs) return false;
+        } else if (view === 'upcoming') {
+          if (!a.due_at || a.completed_at) return false;
+          if (new Date(a.due_at).getTime() < nowMs) return false;
+        } else if (view === 'completed') {
+          if (!a.completed_at) return false;
+        }
         return true;
       });
       return paginate(filtered, query) as unknown as T;

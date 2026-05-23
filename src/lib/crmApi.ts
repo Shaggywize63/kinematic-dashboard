@@ -18,6 +18,12 @@ import type { Integration, InboundEvent, IntegrationProvider } from '../types/in
 type Wrapped<T> = { success: boolean; data: T; pagination?: Pagination };
 export interface DateRangeParams { from?: string; to?: string }
 
+// Activity list filter views — match the backend `view` param on
+// GET /crm/activities. 'overdue' / 'upcoming' / 'completed' apply
+// date-based predicates on top of the existing type/status/owner
+// filters. 'all' (or undefined) is the default = no extra constraint.
+export type ActivityView = 'all' | 'overdue' | 'upcoming' | 'completed';
+
 // Server pagination shape — returned alongside `data` on list endpoints
 // that opt into pagination (currently /crm/leads + /crm/deals). Callers
 // that ignore it continue to work — only the explicit `pagination`
