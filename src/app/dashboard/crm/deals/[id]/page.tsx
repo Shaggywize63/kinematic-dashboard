@@ -428,6 +428,10 @@ export default function DealDetailPage() {
             </Card>
           </SafeRender>
 
+          <SafeRender label="line items">
+            <DealLineItemsCard customFields={(deal as any).custom_fields} />
+          </SafeRender>
+
           <SafeRender label="activities">
             <Card title={`Activities (${activities.length})`}><ActivityTimeline activities={activities} /></Card>
           </SafeRender>
@@ -570,6 +574,96 @@ export default function DealDetailPage() {
     </div>
   );
 }
+
+// Render the multi-product breakdown stamped onto a deal at conversion
+// time. The convert service writes each row as:
+//   { product_id, product_name, unit_price, unit_weight_kg, pieces,
+//     volume_kg, subtotal }
+// into deal.custom_fields.line_items, plus a rolled-up
+// custom_fields.volume_kg total. Returns null when neither shape is
+// present so deals from clients that don't use the multi-product flow
+// (anyone other than Tata Tiscon today) get no empty card on screen.
+function DealLineItemsCard({ customFields }: { customFields?: Record<string, unknown> | null }) {
+  const cf = customFields || {};
+  const rawLines = (cf as { line_items?: unknown }).line_items;
+  const totalKg  = Number((cf as { volume_kg?: unknown }).volume_kg ?? 0);
+
+  type Line = {
+    product_id?: string;
+    product_name?: string | null;
+    unit_price?: number;
+    unit_weight_kg?: number;
+    pieces?: number;
+    volume_kg?: number;
+    subtotal?: number;
+  };
+  const lines: Line[] = Array.isArray(rawLines) ? (rawLines as Line[]) : [];
+
+  if (lines.length === 0 && !totalKg) return null;
+
+  const sumKg     = lines.reduce((s, l) => s + (Number(l.volume_kg) || 0), 0);
+  const sumAmount = lines.reduce((s, l) => s + (Number(l.subtotal)  || 0), 0);
+  const sumPieces = lines.reduce((s, l) => s + (Number(l.pieces)    || 0), 0);
+
+  return (
+    <Card title={`Products${lines.length > 0 ? ` (${lines.length})` : ''}`}>
+      {lines.length === 0 ? (
+        // Legacy single-product convert flow only stamped the rolled-up
+        // total_kg. Show it as a single read-only row so reps still see
+        // the figure they entered.
+        <div style={{ fontSize: 13, color: 'var(--text)' }}>
+          <strong>Total weight:</strong> {totalKg.toLocaleString()} kg
+        </div>
+      ) : (
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, color: 'var(--text)' }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid var(--border)', color: 'var(--text-dim)', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                <th style={th}>Product</th>
+                <th style={thRight}>Unit Price</th>
+                <th style={thRight}>Weight / pc</th>
+                <th style={thRight}>Pieces</th>
+                <th style={thRight}>Volume (kg)</th>
+                <th style={thRight}>Subtotal</th>
+              </tr>
+            </thead>
+            <tbody>
+              {lines.map((l, idx) => (
+                <tr key={`${l.product_id ?? 'line'}-${idx}`} style={{ borderBottom: '1px solid var(--border)' }}>
+                  <td style={td}>
+                    {/* product_name is captured at convert time so the row
+                        still reads sensibly even if the product is later
+                        renamed or archived. Falls back to the bare id
+                        when name wasn't stamped (very early line items). */}
+                    {l.product_name || l.product_id || '—'}
+                  </td>
+                  <td style={tdRight}>{l.unit_price != null ? formatINR(Number(l.unit_price)) : '—'}</td>
+                  <td style={tdRight}>{l.unit_weight_kg != null ? `${Number(l.unit_weight_kg).toLocaleString()} kg` : '—'}</td>
+                  <td style={tdRight}>{l.pieces != null ? Number(l.pieces).toLocaleString() : '—'}</td>
+                  <td style={tdRight}>{l.volume_kg != null ? `${Number(l.volume_kg).toLocaleString()} kg` : '—'}</td>
+                  <td style={tdRight}><strong>{l.subtotal != null ? formatINR(Number(l.subtotal)) : '—'}</strong></td>
+                </tr>
+              ))}
+              <tr style={{ background: 'var(--s3)', fontWeight: 700 }}>
+                <td style={td}>Total</td>
+                <td style={tdRight}>—</td>
+                <td style={tdRight}>—</td>
+                <td style={tdRight}>{sumPieces > 0 ? sumPieces.toLocaleString() : '—'}</td>
+                <td style={tdRight}>{(totalKg || sumKg).toLocaleString()} kg</td>
+                <td style={tdRight}>{formatINR(sumAmount)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+const th: React.CSSProperties      = { textAlign: 'left',  padding: '8px 10px', fontWeight: 700 };
+const thRight: React.CSSProperties = { textAlign: 'right', padding: '8px 10px', fontWeight: 700 };
+const td: React.CSSProperties      = { textAlign: 'left',  padding: '10px',     verticalAlign: 'top' };
+const tdRight: React.CSSProperties = { textAlign: 'right', padding: '10px',     verticalAlign: 'top', whiteSpace: 'nowrap' };
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
