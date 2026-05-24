@@ -4,7 +4,6 @@ import { toast } from 'sonner';
 import { crmAccounts } from '../../lib/crmApi';
 import type { Account } from '../../types/crm';
 import Modal from './shared/Modal';
-import { CRMPhotoSection } from './CRMPhotoSection';
 
 interface Props {
   account: Account;
@@ -28,7 +27,6 @@ export default function AccountEditModal({ account, open, onClose, onSaved }: Pr
         annual_revenue: form.annual_revenue ? Number(form.annual_revenue) : null,
         employees: form.employees ? Number(form.employees) : null,
         description: form.description || null,
-        photo_url: form.photo_url || null,
       });
       toast.success('Account updated'); onSaved(r.data); onClose();
     } catch (e: any) { toast.error(e.message || 'Update failed'); } finally { setBusy(false); }
@@ -49,16 +47,11 @@ export default function AccountEditModal({ account, open, onClose, onSaved }: Pr
         <span style={lbl}>Description</span>
         <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={4} style={{ ...input, width: '100%', marginTop: 4, resize: 'vertical', fontFamily: 'inherit' }} />
       </div>
-      <CRMPhotoSection
-        value={form.photo_url}
-        onChange={(url) => setForm({ ...form, photo_url: url })}
-        title="Account Logo / Photo"
-      />
     </Modal>
   );
 }
 
-function seed(a: Account) { return { name: a.name || '', industry: a.industry || '', website: a.website || '', phone: a.phone || '', annual_revenue: a.annual_revenue ? String(a.annual_revenue) : '', employees: a.employees ? String(a.employees) : '', description: a.description || '', photo_url: a.photo_url || '' }; }
+function seed(a: Account) { return { name: a.name || '', industry: a.industry || '', website: a.website || '', phone: a.phone || '', annual_revenue: a.annual_revenue ? String(a.annual_revenue) : '', employees: a.employees ? String(a.employees) : '', description: a.description || '' }; }
 function Grid({ children }: { children: React.ReactNode }) { return <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>{children}</div>; }
 function Field(p: { label: string; value: string; onChange: (v: string) => void; type?: string }) { return <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}><span style={lbl}>{p.label}</span><input type={p.type || 'text'} value={p.value} onChange={(e) => p.onChange(e.target.value)} style={input} /></label>; }
 const lbl: React.CSSProperties = { fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 };
