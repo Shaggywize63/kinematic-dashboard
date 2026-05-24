@@ -383,19 +383,34 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               {/* User identity badge — name + hierarchy role label. The
                   hierarchy name comes from /api/v1/roles/:id (cached); falls
                   back to the legacy preset role label so we never render an
-                  empty descriptor. */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-                {/* Avatar uses a neutral surface — red is reserved for
-                    KINI AI. Initial sits over a subtle outlined chip so
-                    the identity reads as identity, not brand. */}
-                <div style={{
-                  width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
-                  background: C.s4, color: C.white, display: 'flex',
-                  alignItems: 'center', justifyContent: 'center',
-                  fontWeight: 800, fontSize: 13, border: `1px solid ${C.border}`,
-                }}>
-                  {(user?.name || 'U').slice(0, 1).toUpperCase()}
-                </div>
+                  empty descriptor. Tappable: routes to the new /profile
+                  page so the rep can change their avatar. */}
+              <Link
+                href="/dashboard/profile"
+                style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, textDecoration: 'none', color: 'inherit', cursor: 'pointer' }}
+                title="My profile"
+              >
+                {/* Avatar uses the user's uploaded image when available,
+                    falling back to a neutral initial chip so the layout
+                    never reserves an empty hole. Red is reserved for
+                    KINI AI elsewhere — initial chip stays neutral. */}
+                {user?.avatar_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={user.avatar_url}
+                    alt={user?.name || 'Profile'}
+                    style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: `1px solid ${C.border}` }}
+                  />
+                ) : (
+                  <div style={{
+                    width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
+                    background: C.s4, color: C.white, display: 'flex',
+                    alignItems: 'center', justifyContent: 'center',
+                    fontWeight: 800, fontSize: 13, border: `1px solid ${C.border}`,
+                  }}>
+                    {(user?.name || 'U').slice(0, 1).toUpperCase()}
+                  </div>
+                )}
                 <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, lineHeight: 1.15 }}>
                   <span style={{ fontWeight: 700, fontSize: isMobile ? 13 : 14, color: C.white, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
                     {user?.name || 'Signed in'}
@@ -408,7 +423,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   {hierarchyRoleName || 'Team Member'}
                   </span>
                 </div>
-              </div>
+              </Link>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, zIndex: 1 }}>
               <NotificationBell />
