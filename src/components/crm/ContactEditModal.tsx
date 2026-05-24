@@ -5,6 +5,7 @@ import { crmContacts, crmSettings } from '../../lib/crmApi';
 import type { BusinessType, Contact } from '../../types/crm';
 import Modal from './shared/Modal';
 import LocationPicker from './LocationPicker';
+import { CRMPhotoSection } from './CRMPhotoSection';
 
 interface Props { contact: Contact; open: boolean; onClose: () => void; onSaved: (updated: Contact) => void; }
 
@@ -36,7 +37,7 @@ export default function ContactEditModal({ contact, open, onClose, onSaved }: Pr
   const submit = async () => {
     setBusy(true);
     try {
-      const body: Record<string, unknown> = { first_name: form.first_name || null, last_name: form.last_name || null, email: form.email || null, phone: form.phone || null, mobile: form.mobile || null, is_b2c: form.is_b2c };
+      const body: Record<string, unknown> = { first_name: form.first_name || null, last_name: form.last_name || null, email: form.email || null, phone: form.phone || null, mobile: form.mobile || null, is_b2c: form.is_b2c, photo_url: form.photo_url || null };
       if (!form.is_b2c) { body.title = form.title || null; body.department = form.department || null; }
       else { Object.assign(body, { date_of_birth: form.date_of_birth || null, gender: form.gender || null, address_line1: form.address_line1 || null, city: form.city || null, state: form.state || null, postal_code: form.postal_code || null, country: form.country || null, preferred_contact_method: form.preferred_contact_method || null, loyalty_tier: form.loyalty_tier || null, referral_source: form.referral_source || null, marketing_consent: form.marketing_consent, whatsapp_consent: form.whatsapp_consent }); }
       const r = await crmContacts.update(contact.id, body);
@@ -63,6 +64,12 @@ export default function ContactEditModal({ contact, open, onClose, onSaved }: Pr
         <F label="Phone" required={form.is_b2c} value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />
         <F label="Mobile" value={form.mobile} onChange={(v) => setForm({ ...form, mobile: v })} />
       </Grid>
+      <SL>Contact Photo</SL>
+      <CRMPhotoSection
+        value={form.photo_url}
+        onChange={(url) => setForm({ ...form, photo_url: url })}
+        unwrapped
+      />
       {!form.is_b2c ? (<><SL>Work</SL><Grid><F label="Job Title" value={form.title} onChange={(v) => setForm({ ...form, title: v })} /><F label="Department" value={form.department} onChange={(v) => setForm({ ...form, department: v })} /></Grid></>) : (
         <><SL>Customer Details</SL><Grid>
           <F label="Date of Birth" type="date" value={form.date_of_birth} onChange={(v) => setForm({ ...form, date_of_birth: v })} />
@@ -86,7 +93,7 @@ export default function ContactEditModal({ contact, open, onClose, onSaved }: Pr
   );
 }
 
-function seed(c: Contact) { return { first_name: c.first_name || '', last_name: c.last_name || '', email: c.email || '', phone: c.phone || '', mobile: c.mobile || '', title: c.title || '', department: c.department || '', is_b2c: !!c.is_b2c, date_of_birth: c.date_of_birth || '', gender: c.gender || '', address_line1: c.address_line1 || '', city: c.city || '', state: c.state || '', postal_code: c.postal_code || '', country: c.country || 'India', preferred_contact_method: c.preferred_contact_method || '', loyalty_tier: c.loyalty_tier || '', referral_source: c.referral_source || '', marketing_consent: !!c.marketing_consent, whatsapp_consent: !!c.whatsapp_consent }; }
+function seed(c: Contact) { return { first_name: c.first_name || '', last_name: c.last_name || '', email: c.email || '', phone: c.phone || '', mobile: c.mobile || '', title: c.title || '', department: c.department || '', is_b2c: !!c.is_b2c, date_of_birth: c.date_of_birth || '', gender: c.gender || '', address_line1: c.address_line1 || '', city: c.city || '', state: c.state || '', postal_code: c.postal_code || '', country: c.country || 'India', preferred_contact_method: c.preferred_contact_method || '', loyalty_tier: c.loyalty_tier || '', referral_source: c.referral_source || '', marketing_consent: !!c.marketing_consent, whatsapp_consent: !!c.whatsapp_consent, photo_url: c.photo_url || '' }; }
 function SL({ children }: { children: React.ReactNode }) { return <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, margin: '14px 0 8px' }}>{children}</div>; }
 function Grid({ children }: { children: React.ReactNode }) { return <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>{children}</div>; }
 function F(p: { label: string; value: string; onChange: (v: string) => void; type?: string; required?: boolean }) { return <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}><span style={lbl}>{p.label}{p.required && <span style={{ color: '#ef4444', marginLeft: 3 }}>*</span>}</span><input type={p.type || 'text'} value={p.value} onChange={(e) => p.onChange(e.target.value)} required={p.required} style={inp} /></label>; }

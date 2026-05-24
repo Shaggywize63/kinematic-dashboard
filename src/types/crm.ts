@@ -84,6 +84,7 @@ export interface Contact extends B2CFields {
   last_purchase_at?: string | null;
   referral_source?: string | null;
   tags?: string[] | null;
+  photo_url?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -104,6 +105,7 @@ export interface Account {
   description?: string | null;
   tags?: string[] | null;
   ai_summary?: string | null;
+  photo_url?: string | null;
   created_at: string;
   updated_at: string;
 }

@@ -6,6 +6,7 @@ import { crmContacts, crmSettings } from '../../../../../lib/crmApi';
 import type { BusinessType } from '../../../../../types/crm';
 import LocationPicker from '../../../../../components/crm/LocationPicker';
 import AlternateMobiles from '../../../../../components/crm/AlternateMobiles';
+import { CRMPhotoSection } from '../../../../../components/crm/CRMPhotoSection';
 
 type Form = {
   first_name: string; last_name: string; email: string; phone: string; title: string;
@@ -16,6 +17,7 @@ type Form = {
   preferred_contact_method: '' | 'email' | 'phone' | 'whatsapp' | 'sms';
   referral_source: string; marketing_consent: boolean; whatsapp_consent: boolean;
   alternate_mobiles: string[];
+  photo_url: string;
 };
 
 const empty: Form = {
@@ -24,6 +26,7 @@ const empty: Form = {
   postal_code: '', country: 'India', preferred_contact_method: '',
   referral_source: '', marketing_consent: false, whatsapp_consent: false,
   alternate_mobiles: [],
+  photo_url: '',
 };
 
 export default function NewContactPage() {
@@ -54,6 +57,7 @@ export default function NewContactPage() {
         first_name: form.first_name || undefined, last_name: form.last_name || undefined,
         email: form.email || undefined, phone: form.phone || undefined, is_b2c: form.is_b2c,
         alternate_mobiles: form.alternate_mobiles.length ? form.alternate_mobiles : undefined,
+        photo_url: form.photo_url || undefined,
       };
       if (!form.is_b2c) {
         payload.title = form.title || undefined;
@@ -137,6 +141,15 @@ export default function NewContactPage() {
           values={form.alternate_mobiles}
           primary={form.phone}
           onChange={(next) => setForm({ ...form, alternate_mobiles: next })}
+        />
+      </Section>
+
+      <Section title="Contact Photo (optional)">
+        <CRMPhotoSection
+          value={form.photo_url}
+          onChange={(url) => setForm({ ...form, photo_url: url })}
+          unwrapped
+          helperText="Snap a photo of the visiting card or the contact in person — helps your team recognise them later."
         />
       </Section>
 
