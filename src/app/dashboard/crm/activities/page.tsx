@@ -47,6 +47,15 @@ function ActivitiesPageInner() {
   const [users, setUsers] = useState<UserOption[]>([]);
   const [feFilter, setFeFilter] = useState('');
   const [exporting, setExporting] = useState(false);
+  // Layout toggle between the existing list and the month-grid
+  // calendar view. Independent of the server-side `view` filter
+  // (Overdue / Upcoming / Completed) which both layouts honour.
+  const [layout, setLayout] = useState<'list' | 'calendar'>('list');
+  // Calendar grid pivots around a current month. Defaults to today.
+  const [calendarMonth, setCalendarMonth] = useState(() => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), 1);
+  });
   // Server-side pagination state. `page` is 1-indexed. `pagination`
   // metadata (total / hasNext / etc) is what the backend returns
   // alongside the page of rows. Null until the first response lands.
@@ -354,7 +363,33 @@ function ActivitiesPageInner() {
             </span>
           )}
         </div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          {/* Layout toggle — flips between the existing list and a
+              month grid. Doesn't change the API call; filters + page
+              are applied either way and the grid groups whatever is on
+              the current page by due_at / completed_at. */}
+          <div style={{ display: 'inline-flex', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 8, padding: 2 }}>
+            {(['list', 'calendar'] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setLayout(m)}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: 6,
+                  border: 'none',
+                  background: layout === m ? 'var(--primary)' : 'transparent',
+                  color: layout === m ? '#fff' : 'var(--text-dim)',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  textTransform: 'capitalize',
+                }}
+              >
+                {m}
+              </button>
+            ))}
+          </div>
           <button
             type="button"
             onClick={handleExport}
@@ -371,6 +406,12 @@ function ActivitiesPageInner() {
 
       {loading ? (
         <div style={{ color: 'var(--text-dim)' }}>Loading...</div>
+      ) : layout === 'calendar' ? (
+        <ActivityCalendar
+          month={calendarMonth}
+          onMonthChange={setCalendarMonth}
+          activities={filtered}
+        />
       ) : filtered.length === 0 ? (
         <div style={{ color: 'var(--text-dim)', fontSize: 13, padding: 20, textAlign: 'center' }}>
           {pagination && pagination.total > 0
@@ -410,7 +451,7 @@ function ActivitiesPageInner() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, flexWrap: 'wrap' }}>
                   <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', flex: 1 }}>
                     <span style={{ fontSize: 18, lineHeight: 1, display: 'inline-flex', alignItems: 'center' }}>
-                      <ActivityTypeIcon type={a.type} size={18} />
+                      <ActivityTypeIcon type={a.type} size={22} date={a.due_at || a.completed_at} completed={!!a.completed_at} />
                     </span>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 2 }}>
@@ -626,4 +667,161 @@ const btnDelete: React.CSSProperties = {
   background: 'transparent', color: 'var(--text-dim)',
   fontSize: 12, lineHeight: 1, cursor: 'pointer',
   display: 'flex', alignItems: 'center', justifyContent: 'center',
+};
+
+/**
+ * Month-grid calendar view of activities. Pivots around `month` (always
+ * the 1st of the month). Each day cell shows up to 3 activities; extra
+ * are summarised as "+N more". Activities are bucketed by completed_at
+ * when present (those become a green tick chip), else due_at (red /
+ * amber chip). Clicking an activity opens its parent record.
+ */
+function ActivityCalendar({
+  month, onMonthChange, activities,
+}: {
+  month: Date;
+  onMonthChange: (next: Date) => void;
+  activities: Activity[];
+}) {
+  // Build a 6-row × 7-col grid starting on the Sunday that contains
+  // (or precedes) the 1st of the month. Some months only need 5 rows
+  // but rendering 6 keeps the layout stable as the user pages through.
+  const monthStart = new Date(month.getFullYear(), month.getMonth(), 1);
+  const gridStart = new Date(monthStart);
+  gridStart.setDate(monthStart.getDate() - monthStart.getDay());
+  const days: Date[] = [];
+  for (let i = 0; i < 42; i++) {
+    const d = new Date(gridStart);
+    d.setDate(gridStart.getDate() + i);
+    days.push(d);
+  }
+
+  // Group activities by YYYY-MM-DD using completed_at if present, else
+  // due_at. Activities with neither date are skipped (they don't fit
+  // on a calendar).
+  const byDay = new Map<string, Activity[]>();
+  for (const a of activities) {
+    const iso = a.completed_at || a.due_at;
+    if (!iso) continue;
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) continue;
+    const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+    const arr = byDay.get(key) ?? [];
+    arr.push(a);
+    byDay.set(key, arr);
+  }
+
+  const monthLabel = monthStart.toLocaleString('en-IN', { month: 'long', year: 'numeric' });
+  const goPrev = () => onMonthChange(new Date(monthStart.getFullYear(), monthStart.getMonth() - 1, 1));
+  const goNext = () => onMonthChange(new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 1));
+  const goToday = () => {
+    const t = new Date();
+    onMonthChange(new Date(t.getFullYear(), t.getMonth(), 1));
+  };
+
+  const todayKey = (() => {
+    const t = new Date();
+    return `${t.getFullYear()}-${t.getMonth()}-${t.getDate()}`;
+  })();
+
+  return (
+    <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, padding: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <button type="button" onClick={goPrev} style={calNavBtn} title="Previous month">‹</button>
+          <strong style={{ fontSize: 14, color: 'var(--text)', minWidth: 160, textAlign: 'center' }}>{monthLabel}</strong>
+          <button type="button" onClick={goNext} style={calNavBtn} title="Next month">›</button>
+          <button type="button" onClick={goToday} style={{ ...calNavBtn, padding: '4px 12px', fontSize: 11 }}>Today</button>
+        </div>
+        <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>
+          {activities.length} activit{activities.length === 1 ? 'y' : 'ies'} on this page · only those with a date are placed on the grid
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 1, background: 'var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+        {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((d) => (
+          <div key={d} style={{ background: 'var(--s3)', padding: '6px 8px', fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.4 }}>{d}</div>
+        ))}
+        {days.map((d) => {
+          const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+          const inMonth = d.getMonth() === monthStart.getMonth();
+          const isToday = key === todayKey;
+          const list = byDay.get(key) ?? [];
+          return (
+            <div key={key} style={{
+              background: 'var(--s2)',
+              minHeight: 90,
+              padding: '6px 6px 4px',
+              borderTop: isToday ? '2px solid var(--primary)' : 'none',
+              opacity: inMonth ? 1 : 0.5,
+              display: 'flex', flexDirection: 'column', gap: 3,
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 11, fontWeight: isToday ? 800 : 600, color: isToday ? 'var(--primary)' : 'var(--text-dim)' }}>
+                  {d.getDate()}
+                </span>
+                {list.length > 0 && (
+                  <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--text-dim)' }}>{list.length}</span>
+                )}
+              </div>
+              {list.slice(0, 3).map((a) => {
+                const overdue = a.due_at && !a.completed_at && new Date(a.due_at) < new Date();
+                const done = !!a.completed_at;
+                const chipBg = done ? 'rgba(16,185,129,0.16)' : overdue ? 'rgba(239,68,68,0.16)' : 'rgba(62,158,255,0.16)';
+                const chipFg = done ? '#10b981' : overdue ? '#ef4444' : '#3E9EFF';
+                const href = a.lead_id
+                  ? `/dashboard/crm/leads/${a.lead_id}`
+                  : a.contact_id
+                  ? `/dashboard/crm/contacts/${a.contact_id}`
+                  : a.deal_id
+                  ? `/dashboard/crm/deals/${a.deal_id}`
+                  : a.account_id
+                  ? `/dashboard/crm/accounts/${a.account_id}`
+                  : '/dashboard/crm/activities';
+                return (
+                  <Link
+                    key={a.id}
+                    href={href}
+                    title={`${a.subject || a.type}${a.body ? ` — ${a.body}` : ''}`}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 4,
+                      fontSize: 10, fontWeight: 700,
+                      padding: '2px 6px',
+                      borderRadius: 4,
+                      background: chipBg,
+                      color: chipFg,
+                      textDecoration: 'none',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    <ActivityTypeIcon type={a.type} size={11} />
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {a.subject || a.type}
+                    </span>
+                  </Link>
+                );
+              })}
+              {list.length > 3 && (
+                <div style={{ fontSize: 9, color: 'var(--text-dim)', padding: '0 6px' }}>
+                  +{list.length - 3} more
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+const calNavBtn: React.CSSProperties = {
+  background: 'var(--s3)',
+  border: '1px solid var(--border)',
+  color: 'var(--text)',
+  padding: '4px 10px',
+  borderRadius: 6,
+  fontSize: 13,
+  cursor: 'pointer',
 };
