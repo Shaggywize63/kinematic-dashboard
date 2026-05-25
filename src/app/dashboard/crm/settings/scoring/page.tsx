@@ -412,13 +412,13 @@ export default function ScoringSettingsPage() {
             {customKeys.map((k) => {
               const v = active.weights[k] ?? 0;
               return (
-                <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', background: 'var(--s3)', borderRadius: 8, border: `1px solid ${v < 0 ? 'rgba(239,68,68,0.3)' : v > 10 ? 'rgba(16,185,129,0.3)' : 'transparent'}` }}>
-                  <span style={{ flex: 1, minWidth: 0 }}>
-                    <input
+                <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', background: 'var(--s3)', borderRadius: 8, border: `1px solid ${v < 0 ? 'rgba(239,68,68,0.3)' : v > 10 ? 'rgba(16,185,129,0.3)' : 'transparent'}` }}>
+                  <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <EditableLabel
                       value={labelFor(k)}
-                      onChange={(e) => setLabel(k, e.target.value)}
-                      title="Click to rename this criterion."
-                      style={{ width: '100%', background: 'transparent', border: 'none', color: 'var(--text)', fontSize: 13, padding: 0, outline: 'none', borderBottom: '1px dashed transparent' }}
+                      onChange={(next) => setLabel(k, next)}
+                      overridden
+                      title="Edit custom criterion label"
                     />
                     <div style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'monospace' }}>{k}</div>
                   </span>
@@ -446,12 +446,12 @@ export default function ScoringSettingsPage() {
               const v = active.weights[k] ?? 0;
               const overridden = active.custom_labels[k] !== undefined && active.custom_labels[k] !== (FIELD_LABELS[k] || k);
               return (
-                <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', background: 'var(--s3)', borderRadius: 8, border: `1px solid ${v < 0 ? 'rgba(239,68,68,0.3)' : v > 10 ? 'rgba(16,185,129,0.3)' : 'transparent'}` }}>
-                  <input
+                <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', background: 'var(--s3)', borderRadius: 8, border: `1px solid ${v < 0 ? 'rgba(239,68,68,0.3)' : v > 10 ? 'rgba(16,185,129,0.3)' : 'transparent'}` }}>
+                  <EditableLabel
                     value={labelFor(k)}
-                    onChange={(e) => setLabel(k, e.target.value)}
-                    title={overridden ? `Default label: ${FIELD_LABELS[k] || k}` : 'Click to rename this criterion for this profile.'}
-                    style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', color: 'var(--text)', fontSize: 13, padding: 0, outline: 'none', borderBottom: overridden ? '1px dashed var(--primary)' : '1px dashed transparent' }}
+                    onChange={(next) => setLabel(k, next)}
+                    overridden={overridden}
+                    title={overridden ? `Default: ${FIELD_LABELS[k] || k} — clear to restore` : `Edit label for this profile`}
                   />
                   <input
                     type="number"
@@ -473,3 +473,48 @@ export default function ScoringSettingsPage() {
 const input: React.CSSProperties = { background: 'var(--s2)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px 10px', borderRadius: 6, fontSize: 13 };
 const btnPrimary: React.CSSProperties = { background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 16px', borderRadius: 8, fontWeight: 700, cursor: 'pointer', fontSize: 13 };
 const btnGhost: React.CSSProperties = { background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontSize: 13 };
+
+// Inline label editor — looks like a label until you hover or focus.
+// The previous styling was completely invisible (transparent border, no
+// outline) so users didn't realise the criterion label was editable.
+// This version shows a pencil cue on hover, a soft background, and a
+// proper focus ring so the affordance is obvious.
+function EditableLabel(p: { value: string; onChange: (v: string) => void; overridden: boolean; title?: string }) {
+  const [hover, setHover] = useState(false);
+  const [focus, setFocus] = useState(false);
+  const showBox = hover || focus;
+  return (
+    <span
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{ flex: 1, minWidth: 0, display: 'inline-flex', alignItems: 'center', gap: 6, position: 'relative' }}
+    >
+      <span
+        aria-hidden
+        style={{ fontSize: 10, color: p.overridden ? 'var(--primary)' : (showBox ? 'var(--text-dim)' : 'transparent'), transition: 'color .12s ease' }}
+      >
+        ✏️
+      </span>
+      <input
+        value={p.value}
+        onChange={(e) => p.onChange(e.target.value)}
+        onFocus={() => setFocus(true)}
+        onBlur={() => setFocus(false)}
+        title={p.title}
+        style={{
+          flex: 1,
+          minWidth: 0,
+          background: showBox ? 'var(--s2)' : 'transparent',
+          border: `1px solid ${focus ? 'var(--primary)' : showBox ? 'var(--border)' : 'transparent'}`,
+          color: 'var(--text)',
+          fontSize: 13,
+          padding: '4px 8px',
+          borderRadius: 6,
+          outline: 'none',
+          transition: 'background .12s ease, border-color .12s ease',
+          ...(p.overridden && !focus ? { borderBottom: '1px dashed var(--primary)' } : {}),
+        }}
+      />
+    </span>
+  );
+}
