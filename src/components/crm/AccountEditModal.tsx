@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { crmAccounts } from '../../lib/crmApi';
+import { CRM_INDUSTRIES } from '../../lib/crmIndustries';
 import type { Account } from '../../types/crm';
 import Modal from './shared/Modal';
 
@@ -37,7 +38,7 @@ export default function AccountEditModal({ account, open, onClose, onSaved }: Pr
       footer={<><button type="button" onClick={onClose} style={btn.secondary}>Cancel</button><button type="button" disabled={busy} onClick={submit} style={btn.primary(busy)}>{busy ? 'Saving…' : 'Save changes'}</button></>}>
       <Grid>
         <Field label="Name *" value={form.name} onChange={(v) => setForm({ ...form, name: v })} />
-        <Field label="Industry" value={form.industry} onChange={(v) => setForm({ ...form, industry: v })} />
+        <IndustryField value={form.industry} onChange={(v) => setForm({ ...form, industry: v })} />
         <Field label="Website" value={form.website} onChange={(v) => setForm({ ...form, website: v })} />
         <Field label="Phone" value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />
         <Field label="Annual Revenue (₹)" type="number" value={form.annual_revenue} onChange={(v) => setForm({ ...form, annual_revenue: v })} />
@@ -54,6 +55,19 @@ export default function AccountEditModal({ account, open, onClose, onSaved }: Pr
 function seed(a: Account) { return { name: a.name || '', industry: a.industry || '', website: a.website || '', phone: a.phone || '', annual_revenue: a.annual_revenue ? String(a.annual_revenue) : '', employees: a.employees ? String(a.employees) : '', description: a.description || '' }; }
 function Grid({ children }: { children: React.ReactNode }) { return <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>{children}</div>; }
 function Field(p: { label: string; value: string; onChange: (v: string) => void; type?: string }) { return <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}><span style={lbl}>{p.label}</span><input type={p.type || 'text'} value={p.value} onChange={(e) => p.onChange(e.target.value)} style={input} /></label>; }
+function IndustryField(p: { value: string; onChange: (v: string) => void }) {
+  const hasLegacy = p.value && !CRM_INDUSTRIES.includes(p.value);
+  return (
+    <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <span style={lbl}>Industry</span>
+      <select value={p.value} onChange={(e) => p.onChange(e.target.value)} style={input}>
+        <option value="">Select industry…</option>
+        {hasLegacy && <option value={p.value}>{p.value}</option>}
+        {CRM_INDUSTRIES.map((i) => <option key={i} value={i}>{i}</option>)}
+      </select>
+    </label>
+  );
+}
 const lbl: React.CSSProperties = { fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 };
 const input: React.CSSProperties = { background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 };
 const btn = {
