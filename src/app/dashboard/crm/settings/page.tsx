@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { crmSettings } from '../../../../lib/crmApi';
+import api from '../../../../lib/api';
 import { rolesApi, type OrgRole } from '../../../../lib/rolesApi';
 import type { BusinessType } from '../../../../types/crm';
 
@@ -78,6 +79,18 @@ export default function SettingsIndex() {
   const [defaultRoleId, setDefaultRoleId] = useState<string>('');
   const [roles, setRoles] = useState<OrgRole[]>([]);
   const [savingRole, setSavingRole] = useState(false);
+  // The Hierarchy card is gated by a client-level feature flag — fetch
+  // it once and only render the card when the active client has opted
+  // in (Tata Tiscon won't, so they never see it).
+  const [hierarchyEnabled, setHierarchyEnabled] = useState(false);
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await api.get<any>('/api/v1/crm/hierarchy/enabled');
+        setHierarchyEnabled((r?.data?.enabled ?? r?.enabled) === true);
+      } catch { /* probe failure → leave hidden */ }
+    })();
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -248,6 +261,17 @@ export default function SettingsIndex() {
             <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>{s.desc}</div>
           </Link>
         ))}
+        {hierarchyEnabled && (
+          <Link
+            href="/dashboard/crm/settings/hierarchy"
+            style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, padding: 16, textDecoration: 'none' }}
+          >
+            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>Org Hierarchy</div>
+            <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>
+              Define management levels and assign users + supervisors. Replaces role-based scoping for opted-in clients.
+            </div>
+          </Link>
+        )}
       </div>
     </div>
   );
