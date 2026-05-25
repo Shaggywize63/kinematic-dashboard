@@ -5,66 +5,100 @@ import { crmSettings } from '../../../../../lib/crmApi';
 import api from '../../../../../lib/api';
 
 // Defaults differ by business type. B2B leans firmographic + intent;
-// B2C leans demographic + engagement / recency. The shapes are
-// identical so the UI can flip between profiles without resetting.
+// B2C leans demographic + engagement / recency. Both profiles drop the
+// email-open / email-click / pricing-page signals — Kinematic doesn't
+// integrate inbound email yet, and there's no website tracking, so
+// those weights would never fire. Instead WhatsApp, calls and physical
+// site visits dominate, matching how field-force reps actually engage.
+// The shapes are identical so the UI can flip between profiles without
+// resetting.
 const DEFAULTS_B2B: Record<string, number> = {
-  has_company: 8,
-  has_title: 5,
+  // Firmographic completeness
+  has_company: 6,
+  has_title: 4,
   has_industry: 4,
-  has_phone: 4,
-  has_email: 4,
-  email_opens: 6,
-  email_clicks: 10,
-  whatsapp_replied: 12,
-  meeting_booked: 15,
-  pricing_page_visit: 8,
-  demo_requested: 18,
+  has_phone: 6,
+  has_email: 2,
+  has_address: 4,
+  // WhatsApp engagement — primary inbound channel
+  whatsapp_sent: 3,
+  whatsapp_replied: 14,
+  // Call engagement
+  call_completed: 8,
+  meeting_booked: 12,
+  // Physical site / outlet visits — strongest B2B intent for FF reps
+  site_visit_completed: 16,
+  repeat_site_visit: 10,
+  // Explicit intent signals
+  demo_requested: 12,
+  quote_requested: 12,
+  sample_requested: 10,
+  // Source mix
   source_referral: 10,
-  source_website: 6,
-  source_event: 8,
+  source_walk_in: 8,
+  source_event: 7,
+  source_whatsapp_inbound: 8,
   source_cold_outbound: 2,
-  recent_activity_7d: 8,
+  // Recency / decay
+  recent_activity_7d: 6,
   no_activity_30d: -10,
-  unsubscribed: -25,
+  opted_out: -25,
 };
 
 const DEFAULTS_B2C: Record<string, number> = {
-  // Profile completeness — phone + DOB + city dominate for B2C.
+  // Demographic completeness — phone + city + DOB drive B2C fit.
   has_company: 0,
   has_title: 0,
   has_industry: 0,
-  has_phone: 8,
-  has_email: 4,
-  // Engagement — WhatsApp + meeting (store visit / call) matter more
-  // than email for consumer flows.
-  email_opens: 3,
-  email_clicks: 6,
-  whatsapp_replied: 14,
-  meeting_booked: 12,
-  // Intent — pricing page + demo requested are still strong signals.
-  pricing_page_visit: 10,
-  demo_requested: 14,
-  // Source mix — referral and walk-in (event) dominate B2C; cold
-  // outbound is much weaker.
-  source_referral: 14,
-  source_website: 8,
-  source_event: 10,
+  has_phone: 10,
+  has_email: 2,
+  has_address: 5,
+  // WhatsApp engagement — even more dominant than B2B
+  whatsapp_sent: 3,
+  whatsapp_replied: 16,
+  // Call engagement
+  call_completed: 8,
+  meeting_booked: 8,
+  // Physical store visits — strongest B2C buy signal
+  site_visit_completed: 18,
+  repeat_site_visit: 12,
+  // Explicit intent
+  demo_requested: 8,
+  quote_requested: 10,
+  sample_requested: 8,
+  // Source mix — walk-in and referral dominate
+  source_referral: 12,
+  source_walk_in: 12,
+  source_event: 8,
+  source_whatsapp_inbound: 10,
   source_cold_outbound: 1,
-  // Recency — B2C buyers decay faster, so the 30-day silence
-  // penalty is steeper.
-  recent_activity_7d: 10,
+  // Recency / decay — B2C buyers cool off faster
+  recent_activity_7d: 8,
   no_activity_30d: -15,
-  unsubscribed: -25,
+  opted_out: -25,
 };
+
+// Legacy keys that older saved configs may carry. We strip them on load
+// so they don't inflate the total/100 banner with weights that have
+// no UI representation anymore.
+const LEGACY_KEYS = new Set([
+  'email_opens',
+  'email_clicks',
+  'pricing_page_visit',
+  'unsubscribed', // renamed to opted_out
+  'source_website', // no website tracking — covered by source_whatsapp_inbound / source_walk_in
+]);
 
 const GRADE_THRESHOLDS = { A: 75, B: 55, C: 35 };
 
 const FIELD_GROUPS: Array<{ title: string; desc: string; keys: string[] }> = [
-  { title: 'Demographic / Firmographic', desc: 'Profile completeness signals fit with your ICP.', keys: ['has_company', 'has_title', 'has_industry', 'has_phone', 'has_email'] },
-  { title: 'Engagement', desc: 'How actively the lead has interacted.', keys: ['email_opens', 'email_clicks', 'whatsapp_replied', 'meeting_booked'] },
-  { title: 'Intent', desc: 'Explicit buying signals.', keys: ['pricing_page_visit', 'demo_requested'] },
-  { title: 'Source Quality', desc: 'Higher-intent channels score better.', keys: ['source_referral', 'source_website', 'source_event', 'source_cold_outbound'] },
-  { title: 'Recency / Decay', desc: 'Recent activity boosts; long silence penalises. Negative values reduce score.', keys: ['recent_activity_7d', 'no_activity_30d', 'unsubscribed'] },
+  { title: 'Profile Completeness', desc: 'Demographic / firmographic fields filled in. Tunes ICP match.', keys: ['has_company', 'has_title', 'has_industry', 'has_phone', 'has_email', 'has_address'] },
+  { title: 'WhatsApp Engagement', desc: 'WhatsApp is the primary engagement channel. Two-way replies score higher than outbound-only.', keys: ['whatsapp_sent', 'whatsapp_replied'] },
+  { title: 'Calls & Meetings', desc: 'Connected phone calls and booked meetings — confirmed verbal contact.', keys: ['call_completed', 'meeting_booked'] },
+  { title: 'Site Visits', desc: 'Physical visits to the outlet / customer site. Repeat visits are a strong intent signal.', keys: ['site_visit_completed', 'repeat_site_visit'] },
+  { title: 'Explicit Intent', desc: 'Demos, quotes, and samples requested — the lead is comparing.', keys: ['demo_requested', 'quote_requested', 'sample_requested'] },
+  { title: 'Source Quality', desc: 'Higher-intent acquisition channels score better.', keys: ['source_referral', 'source_walk_in', 'source_event', 'source_whatsapp_inbound', 'source_cold_outbound'] },
+  { title: 'Recency / Decay', desc: 'Recent activity boosts; long silence and opt-outs penalise. Negative values reduce the score.', keys: ['recent_activity_7d', 'no_activity_30d', 'opted_out'] },
 ];
 
 const FIELD_LABELS: Record<string, string> = {
@@ -73,19 +107,24 @@ const FIELD_LABELS: Record<string, string> = {
   has_industry: 'Industry filled',
   has_phone: 'Phone provided',
   has_email: 'Email provided',
-  email_opens: 'Per email opened',
-  email_clicks: 'Per email link clicked',
+  has_address: 'Address filled (for visits)',
+  whatsapp_sent: 'WhatsApp sent to lead',
   whatsapp_replied: 'Replied on WhatsApp',
+  call_completed: 'Call answered / completed',
   meeting_booked: 'Meeting booked',
-  pricing_page_visit: 'Visited pricing page',
-  demo_requested: 'Requested a demo',
+  site_visit_completed: 'Site / outlet visit completed',
+  repeat_site_visit: 'Repeat site visit (2nd+)',
+  demo_requested: 'Demo requested',
+  quote_requested: 'Quote / pricing requested',
+  sample_requested: 'Sample requested',
   source_referral: 'Source: referral',
-  source_website: 'Source: website',
-  source_event: 'Source: event/conference',
+  source_walk_in: 'Source: walk-in',
+  source_event: 'Source: event / trade show',
+  source_whatsapp_inbound: 'Source: inbound WhatsApp',
   source_cold_outbound: 'Source: cold outbound',
   recent_activity_7d: 'Activity in last 7 days',
   no_activity_30d: 'No activity in 30+ days',
-  unsubscribed: 'Unsubscribed from emails',
+  opted_out: 'Opted out of contact',
 };
 
 type Profile = {
@@ -148,29 +187,49 @@ export default function ScoringSettingsPage() {
       setRawConfig(allConfig);
       const cfg = ((allConfig.scoring || {}) as any);
 
+      // Strip retired keys so the new defaults aren't shadowed by stale
+      // saved weights (e.g. email_opens carrying a 6 from the old model
+      // would inflate the total banner with no UI representation).
+      const sanitise = (w: Record<string, number>) => {
+        const out: Record<string, number> = {};
+        for (const [k, v] of Object.entries(w || {})) {
+          if (LEGACY_KEYS.has(k)) continue;
+          out[k] = v;
+        }
+        return out;
+      };
+      const sanitiseLabels = (m: Record<string, string>) => {
+        const out: Record<string, string> = {};
+        for (const [k, v] of Object.entries(m || {})) {
+          if (LEGACY_KEYS.has(k)) continue;
+          out[k] = v;
+        }
+        return out;
+      };
+
       // New shape — config.scoring.b2b / b2c profiles.
       if (cfg.b2b && typeof cfg.b2b === 'object') {
         setB2b({
-          weights: { ...DEFAULTS_B2B, ...(cfg.b2b.weights || {}) },
+          weights: { ...DEFAULTS_B2B, ...sanitise(cfg.b2b.weights || {}) },
           grade_thresholds: { ...GRADE_THRESHOLDS, ...(cfg.b2b.grade_thresholds || {}) },
-          custom_labels: cfg.b2b.custom_labels || {},
+          custom_labels: sanitiseLabels(cfg.b2b.custom_labels || {}),
         });
       } else if (cfg.weights && Object.keys(cfg.weights).length > 0) {
         // Legacy single-profile config — promote to the b2b slot so the
         // existing scoring engine keeps reading the flat keys, and so the
         // user doesn't lose the weights they previously tuned.
         setB2b({
-          weights: { ...DEFAULTS_B2B, ...cfg.weights },
+          weights: { ...DEFAULTS_B2B, ...sanitise(cfg.weights) },
           grade_thresholds: { ...GRADE_THRESHOLDS, ...(cfg.grade_thresholds || {}) },
-          custom_labels: cfg.custom_labels || {},
+          custom_labels: sanitiseLabels(cfg.custom_labels || {}),
         });
       }
 
       if (cfg.b2c && typeof cfg.b2c === 'object') {
         setB2c({
-          weights: { ...DEFAULTS_B2C, ...(cfg.b2c.weights || {}) },
+          weights: { ...DEFAULTS_B2C, ...sanitise(cfg.b2c.weights || {}) },
           grade_thresholds: { ...GRADE_THRESHOLDS, ...(cfg.b2c.grade_thresholds || {}) },
-          custom_labels: cfg.b2c.custom_labels || {},
+          custom_labels: sanitiseLabels(cfg.b2c.custom_labels || {}),
         });
       }
     } catch (e: any) {
