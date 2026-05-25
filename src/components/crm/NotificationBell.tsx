@@ -34,6 +34,7 @@ export default function NotificationBell() {
   const [open, setOpen] = useState(false);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(false);
+  const [clearing, setClearing] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   // Click-outside to close.
@@ -91,6 +92,31 @@ export default function NotificationBell() {
 
   const overdueCount = sorted.filter((a: any) => new Date(a.due_at).getTime() < Date.now()).length;
 
+  // "Clearing" a reminder means marking its activity completed — the bell
+  // filters out anything with completed_at, so it disappears from the list
+  // without destroying the underlying CRM activity.
+  const dismissOne = async (id: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setActivities((prev) => prev.filter((a) => a.id !== id));
+    try { await crmActivities.update(id, { completed_at: new Date().toISOString() } as any); }
+    catch { load(); }
+  };
+
+  const clearAll = async () => {
+    if (sorted.length === 0 || clearing) return;
+    setClearing(true);
+    const ids = sorted.map((a: any) => a.id);
+    setActivities([]);
+    const now = new Date().toISOString();
+    try {
+      await Promise.allSettled(ids.map((id) => crmActivities.update(id, { completed_at: now } as any)));
+    } finally {
+      setClearing(false);
+      load();
+    }
+  };
+
   return (
     <div ref={ref} style={{ position: 'relative' }}>
       <button
@@ -123,11 +149,23 @@ export default function NotificationBell() {
           boxShadow: '0 12px 36px rgba(0,0,0,0.45)', zIndex: 1000,
           maxHeight: 480, overflowY: 'auto',
         }}>
-          <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
             <strong style={{ fontSize: 13, color: 'var(--text)' }}>Activity reminders</strong>
-            <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>
-              {overdueCount > 0 ? `${overdueCount} overdue · ` : ''}{sorted.length} total
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>
+                {overdueCount > 0 ? `${overdueCount} overdue · ` : ''}{sorted.length} total
+              </span>
+              {sorted.length > 0 && (
+                <button
+                  onClick={clearAll}
+                  disabled={clearing}
+                  title="Mark all reminders as done"
+                  style={{ background: 'transparent', border: '1px solid var(--border)', color: '#E01E2C', fontSize: 10, fontWeight: 800, padding: '3px 8px', borderRadius: 6, cursor: clearing ? 'wait' : 'pointer', textTransform: 'uppercase', letterSpacing: 0.3 }}
+                >
+                  {clearing ? 'Clearing…' : 'Clear all'}
+                </button>
+              )}
+            </div>
           </div>
           {loading && sorted.length === 0 && (
             <div style={{ padding: 18, fontSize: 12, color: 'var(--text-dim)', textAlign: 'center' }}>Loading…</div>
@@ -139,22 +177,32 @@ export default function NotificationBell() {
             const r = fmtRelative(a.due_at);
             const href = a.lead_id ? `/dashboard/crm/leads/${a.lead_id}` : a.deal_id ? `/dashboard/crm/deals/${a.deal_id}` : '/dashboard/crm/activities';
             return (
-              <Link key={a.id} href={href} onClick={() => setOpen(false)} style={{ display: 'block', padding: '10px 14px', borderBottom: '1px solid var(--border)', textDecoration: 'none' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                  <span style={{ fontSize: 13, color: 'var(--text)', fontWeight: 700 }}>
-                    <span style={{ marginRight: 6, display: 'inline-flex', verticalAlign: 'middle' }}>
-                      {a.type === 'whatsapp' ? <ActivityTypeIcon type="whatsapp" size={14} /> : (TYPE_ICONS[a.type] || '•')}
+              <div key={a.id} style={{ position: 'relative', borderBottom: '1px solid var(--border)' }}>
+                <Link href={href} onClick={() => setOpen(false)} style={{ display: 'block', padding: '10px 32px 10px 14px', textDecoration: 'none' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                    <span style={{ fontSize: 13, color: 'var(--text)', fontWeight: 700 }}>
+                      <span style={{ marginRight: 6, display: 'inline-flex', verticalAlign: 'middle' }}>
+                        {a.type === 'whatsapp' ? <ActivityTypeIcon type="whatsapp" size={14} /> : (TYPE_ICONS[a.type] || '•')}
+                      </span>
+                      {a.subject || a.type}
                     </span>
-                    {a.subject || a.type}
-                  </span>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: r.overdue ? '#E01E2C' : 'var(--text-dim)', whiteSpace: 'nowrap' }}>
-                    {r.label}
-                  </span>
-                </div>
-                {a.body && (
-                  <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 3, display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{a.body}</div>
-                )}
-              </Link>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: r.overdue ? '#E01E2C' : 'var(--text-dim)', whiteSpace: 'nowrap' }}>
+                      {r.label}
+                    </span>
+                  </div>
+                  {a.body && (
+                    <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 3, display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{a.body}</div>
+                  )}
+                </Link>
+                <button
+                  onClick={(e) => dismissOne(a.id, e)}
+                  title="Dismiss"
+                  aria-label="Dismiss reminder"
+                  style={{ position: 'absolute', top: 8, right: 8, background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 14, lineHeight: 1, padding: 4, borderRadius: 4 }}
+                >
+                  ×
+                </button>
+              </div>
             );
           })}
           <Link href="/dashboard/crm/activities?status=open" onClick={() => setOpen(false)} style={{ display: 'block', padding: '10px 14px', textAlign: 'center', fontSize: 12, color: 'var(--primary)', fontWeight: 700, textDecoration: 'none' }}>
