@@ -48,12 +48,20 @@ export default function NewContactPage() {
     if (form.phone && form.phone.length !== 10) {
       return toast.error('Primary mobile must be a 10-digit number');
     }
+    // City is required on EVERY contact (B2C and B2B alike) — the CRM
+    // enforces per-user city scope on reads, so a contact with no city
+    // would leak across territories. Mirrors the lead create rule.
+    if (!form.city || !form.city.trim()) {
+      return toast.error('City is required — pick one from the city dropdown.');
+    }
     setBusy(true);
     try {
       const payload: Record<string, unknown> = {
         first_name: form.first_name || undefined, last_name: form.last_name || undefined,
         email: form.email || undefined, phone: form.phone || undefined, is_b2c: form.is_b2c,
         alternate_mobiles: form.alternate_mobiles.length ? form.alternate_mobiles : undefined,
+        city: form.city.trim(),
+        state: form.state || undefined,
       };
       if (!form.is_b2c) {
         payload.title = form.title || undefined;
@@ -61,7 +69,6 @@ export default function NewContactPage() {
         Object.assign(payload, {
           date_of_birth: form.date_of_birth || undefined, gender: form.gender || undefined,
           address_line1: form.address_line1 || undefined, address_line2: form.address_line2 || undefined,
-          city: form.city || undefined, state: form.state || undefined,
           postal_code: form.postal_code || undefined, country: form.country || undefined,
           preferred_contact_method: form.preferred_contact_method || undefined,
           referral_source: form.referral_source || undefined,
@@ -139,6 +146,25 @@ export default function NewContactPage() {
           onChange={(next) => setForm({ ...form, alternate_mobiles: next })}
         />
       </Section>
+
+      {/* City is required on B2B contacts too — the per-user city-scope
+          filter on reads needs every contact to have one. The B2C branch
+          below renders the full address section with the same picker, so
+          this lighter version only shows for B2B. */}
+      {!form.is_b2c && (
+        <Section title="Location">
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
+            <div>
+              <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>
+                City <span style={{ color: '#ef4444' }}>*</span>
+              </span>
+              <div style={{ marginTop: 4 }}>
+                <LocationPicker stateValue={form.state} cityValue={form.city} onChange={({ state, city }) => setForm({ ...form, state, city })} />
+              </div>
+            </div>
+          </div>
+        </Section>
+      )}
 
       {!form.is_b2c ? (
         <Section title="Work">
