@@ -2,9 +2,11 @@
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { crmDeals, crmPipelines, crmProducts } from '../../../../../lib/crmApi';
-import type { Pipeline, Product } from '../../../../../types/crm';
+import { crmDeals, crmPipelines, crmProducts, crmAccounts, crmContacts } from '../../../../../lib/crmApi';
+import type { Account, Contact, Pipeline, Product } from '../../../../../types/crm';
 import ClientScopeField from '../../../../../components/ClientScopeField';
+import { useAuth } from '../../../../../hooks/useAuth';
+import { isHorizonOrg } from '../../../../../lib/crmFeatureGates';
 
 // useSearchParams() forces a Suspense boundary on Next 14. The inner
 // component reads ?pipeline_id= so the Pipeline page's "+ New Deal" CTA
@@ -21,13 +23,21 @@ export default function NewDealPage() {
 function NewDealPageInner() {
   const router = useRouter();
   const sp = useSearchParams();
+  const { user } = useAuth();
+  const showLinks = isHorizonOrg(user?.org_id);
   const initialPipelineId = sp.get('pipeline_id') ?? '';
+  const initialAccountId = sp.get('account_id') ?? '';
+  const initialContactId = sp.get('contact_id') ?? '';
+  const initialLeadId = sp.get('lead_id') ?? '';
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [contacts, setContacts] = useState<Contact[]>([]);
   const [form, setForm] = useState({
     name: '', amount: '', volume_kg: '', product_id: '',
     pipeline_id: initialPipelineId, stage_id: '', expected_close_date: '',
     client_id: '',
+    account_id: initialAccountId, primary_contact_id: initialContactId, lead_id: initialLeadId,
   });
   const [busy, setBusy] = useState(false);
 
@@ -48,6 +58,23 @@ function NewDealPageInner() {
       } catch (e: any) { toast.error(e.message || 'Failed to load pipelines'); }
     })();
   }, [initialPipelineId]);
+
+  // Horizon-only: pull accounts + contacts so reps can attach the deal to
+  // a company + primary contact at create-time. Tata Tiscon keeps the
+  // legacy unlinked flow.
+  useEffect(() => {
+    if (!showLinks) return;
+    crmAccounts.list({ limit: 500 } as any).then((r) => setAccounts(r.data || [])).catch(() => setAccounts([]));
+  }, [showLinks]);
+
+  // Refresh the contact list whenever the picked account changes. Filters
+  // server-side by account_id; falls back to "no contacts" silently.
+  useEffect(() => {
+    if (!showLinks || !form.account_id) { setContacts([]); return; }
+    crmContacts.list({ account_id: form.account_id, limit: 500 } as any)
+      .then((r) => setContacts(r.data || []))
+      .catch(() => setContacts([]));
+  }, [showLinks, form.account_id]);
 
   const pricePerKg = useMemo(() => {
     const p = products.find((x) => x.id === form.product_id);
@@ -102,6 +129,11 @@ function NewDealPageInner() {
         stage_id: form.stage_id || undefined,
         expected_close_date: form.expected_close_date || null,
         client_id: form.client_id || undefined,
+        // Standard CRM relationships — only sent for Horizon users.
+        // Tata Tiscon's form doesn't expose the pickers so these stay null.
+        account_id: showLinks && form.account_id ? form.account_id : undefined,
+        primary_contact_id: showLinks && form.primary_contact_id ? form.primary_contact_id : undefined,
+        lead_id: showLinks && form.lead_id ? form.lead_id : undefined,
       } as any);
       toast.success('Deal created');
       router.push(`/dashboard/crm/deals/${r.data.id}`);
@@ -147,6 +179,22 @@ function NewDealPageInner() {
         </Field>
         <Field label="Stage"><select value={form.stage_id} onChange={(e) => setForm({ ...form, stage_id: e.target.value })} style={input}>{stages.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>
         <Field label="Close Date"><input type="date" value={form.expected_close_date} onChange={(e) => setForm({ ...form, expected_close_date: e.target.value })} style={input} /></Field>
+        {showLinks && (
+          <>
+            <Field label="Account">
+              <select value={form.account_id} onChange={(e) => setForm({ ...form, account_id: e.target.value, primary_contact_id: '' })} style={input}>
+                <option value="">— No account —</option>
+                {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
+            </Field>
+            <Field label="Primary Contact">
+              <select value={form.primary_contact_id} onChange={(e) => setForm({ ...form, primary_contact_id: e.target.value })} style={input} disabled={!form.account_id}>
+                <option value="">{form.account_id ? '— No primary contact —' : 'Pick account first'}</option>
+                {contacts.map((c) => <option key={c.id} value={c.id}>{[c.first_name, c.last_name].filter(Boolean).join(' ') || c.email || 'Unnamed'}</option>)}
+              </select>
+            </Field>
+          </>
+        )}
       </div>
 
       {selectedProduct && pricePerKg > 0 && (
