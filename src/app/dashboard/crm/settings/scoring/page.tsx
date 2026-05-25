@@ -217,6 +217,23 @@ export default function ScoringSettingsPage() {
 
   const setW = (k: string, v: number) => setActive((p) => ({ ...p, weights: { ...p.weights, [k]: v } }));
   const setT = (k: keyof typeof GRADE_THRESHOLDS, v: number) => setActive((p) => ({ ...p, grade_thresholds: { ...p.grade_thresholds, [k]: v } }));
+  // Built-in fields ship with a default label in FIELD_LABELS. Users can
+  // override that label per-profile by writing into custom_labels[key]
+  // (same map the user-added criteria live in). Empty / unchanged values
+  // are stripped so the saved JSON only carries actual overrides.
+  const setLabel = (k: string, v: string) => setActive((p) => {
+    const next = { ...p.custom_labels };
+    const isCustomKey = defaults[k] === undefined;
+    const defaultLabel = isCustomKey ? '' : (FIELD_LABELS[k] || k);
+    const trimmed = v;
+    if (!isCustomKey && (trimmed === '' || trimmed === defaultLabel)) {
+      delete next[k];
+    } else {
+      next[k] = trimmed;
+    }
+    return { ...p, custom_labels: next };
+  });
+  const labelFor = (k: string) => active.custom_labels[k] ?? (FIELD_LABELS[k] || k);
 
   const slugify = (s: string) => s.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
 
@@ -258,30 +275,56 @@ export default function ScoringSettingsPage() {
     [active.weights],
   );
 
+  // Visual cue for the total/100 banner. Green when the weights distribute
+  // cleanly across 100; amber when above so the rep notices the model
+  // produces scores that will saturate at the engine's 100-cap.
+  const totalColor = maxScore > 100 ? '#ef4444' : maxScore >= 80 ? '#10b981' : '#3E9EFF';
+  const totalPct = Math.min(100, Math.max(0, (maxScore / 100) * 100));
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
-        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>Lead Scoring Model</div>
-        <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 6, lineHeight: 1.5 }}>
-          Each signal contributes weight toward a 0–100 lead score. Defaults follow HubSpot / Salesforce / Marketo conventions
-          with separate baselines for B2B (firmographic + intent) and B2C (demographic + engagement).
-          Negative weights penalise. Max with current weights: <strong>{maxScore}</strong>.
+      <div style={{ background: 'var(--s2)', border: `2px solid ${totalColor}55`, borderRadius: 14, padding: 18 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 14, flexWrap: 'wrap' }}>
+          <div>
+            <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 800, letterSpacing: 0.6 }}>
+              Total achievable score · {businessType.toUpperCase()}
+            </div>
+            <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 36, fontWeight: 800, color: totalColor, lineHeight: 1.1, marginTop: 4 }}>
+              {maxScore}<span style={{ fontSize: 20, color: 'var(--text-dim)', fontWeight: 700, marginLeft: 4 }}>/ 100</span>
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 4 }}>
+              {maxScore > 100
+                ? `Weights overshoot 100 — the scoring engine caps every lead at 100, so the excess (${maxScore - 100}) is unreachable.`
+                : maxScore < 60
+                ? 'Weights sum to less than 60 — most leads will land in the C / D grade. Increase weights or add criteria.'
+                : 'Weights look balanced. Negative criteria still apply on top.'}
+            </div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end' }}>
+            {lastSaved && (
+              <div style={{ fontSize: 11, color: '#10b981' }}>Last saved at {lastSaved}</div>
+            )}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={save} disabled={saving || !loaded} style={btnPrimary}>
+                {saving ? 'Saving…' : 'Save Model'}
+              </button>
+              <button onClick={reset} disabled={!loaded} style={btnGhost}>Reset {businessType.toUpperCase()}</button>
+              <button onClick={load} disabled={!loaded} style={btnGhost}>Reload</button>
+            </div>
+          </div>
         </div>
-        <div style={{ fontSize: 12, color: 'var(--text)', marginBottom: 8, padding: '8px 10px', background: 'var(--s3)', borderRadius: 8, border: '1px solid var(--border)' }}>
+        <div style={{ marginTop: 12, height: 8, background: 'var(--s3)', borderRadius: 999, overflow: 'hidden' }}>
+          <div style={{ width: `${totalPct}%`, height: '100%', background: totalColor, transition: 'width .15s ease' }} />
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 14, lineHeight: 1.5 }}>
+          Each signal below adds toward a 0–100 lead score. Defaults follow HubSpot / Salesforce / Marketo conventions
+          with separate baselines for B2B (firmographic + intent) and B2C (demographic + engagement). Negative weights penalise. Labels are editable inline.
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--text)', marginTop: 12, padding: '8px 10px', background: 'var(--s3)', borderRadius: 8, border: '1px solid var(--border)' }}>
           Editing scoring for <strong>{scope.name}</strong>.{' '}
           {scope.id
             ? <span style={{ color: 'var(--text-dim)' }}>Switch clients via the global client picker in the header to tune another tenant.</span>
             : <span style={{ color: 'var(--text-dim)' }}>Pick a client in the global header to set per-client overrides.</span>}
-        </div>
-        {lastSaved && (
-          <div style={{ fontSize: 11, color: '#10b981', marginBottom: 8 }}>Last saved at {lastSaved}</div>
-        )}
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={save} disabled={saving || !loaded} style={btnPrimary}>
-            {saving ? 'Saving…' : 'Save Model'}
-          </button>
-          <button onClick={reset} disabled={!loaded} style={btnGhost}>Reset {businessType.toUpperCase()} to Defaults</button>
-          <button onClick={load} disabled={!loaded} style={btnGhost}>Reload</button>
         </div>
         {!loaded && <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-dim)' }}>Loading settings…</div>}
       </div>
@@ -368,11 +411,15 @@ export default function ScoringSettingsPage() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 10 }}>
             {customKeys.map((k) => {
               const v = active.weights[k] ?? 0;
-              const label = active.custom_labels[k] || k;
               return (
                 <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', background: 'var(--s3)', borderRadius: 8, border: `1px solid ${v < 0 ? 'rgba(239,68,68,0.3)' : v > 10 ? 'rgba(16,185,129,0.3)' : 'transparent'}` }}>
                   <span style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</div>
+                    <input
+                      value={labelFor(k)}
+                      onChange={(e) => setLabel(k, e.target.value)}
+                      title="Click to rename this criterion."
+                      style={{ width: '100%', background: 'transparent', border: 'none', color: 'var(--text)', fontSize: 13, padding: 0, outline: 'none', borderBottom: '1px dashed transparent' }}
+                    />
                     <div style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'monospace' }}>{k}</div>
                   </span>
                   <input
@@ -397,9 +444,15 @@ export default function ScoringSettingsPage() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
             {grp.keys.map((k) => {
               const v = active.weights[k] ?? 0;
+              const overridden = active.custom_labels[k] !== undefined && active.custom_labels[k] !== (FIELD_LABELS[k] || k);
               return (
                 <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', background: 'var(--s3)', borderRadius: 8, border: `1px solid ${v < 0 ? 'rgba(239,68,68,0.3)' : v > 10 ? 'rgba(16,185,129,0.3)' : 'transparent'}` }}>
-                  <span style={{ flex: 1, fontSize: 13, color: 'var(--text)' }}>{FIELD_LABELS[k] || k}</span>
+                  <input
+                    value={labelFor(k)}
+                    onChange={(e) => setLabel(k, e.target.value)}
+                    title={overridden ? `Default label: ${FIELD_LABELS[k] || k}` : 'Click to rename this criterion for this profile.'}
+                    style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', color: 'var(--text)', fontSize: 13, padding: 0, outline: 'none', borderBottom: overridden ? '1px dashed var(--primary)' : '1px dashed transparent' }}
+                  />
                   <input
                     type="number"
                     step={1}
