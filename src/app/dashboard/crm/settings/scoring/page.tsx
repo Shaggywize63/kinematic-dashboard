@@ -1,9 +1,13 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { crmSettings } from '../../../../../lib/crmApi';
+import api from '../../../../../lib/api';
 
-const DEFAULTS = {
+// Defaults differ by business type. B2B leans firmographic + intent;
+// B2C leans demographic + engagement / recency. The shapes are
+// identical so the UI can flip between profiles without resetting.
+const DEFAULTS_B2B: Record<string, number> = {
   has_company: 8,
   has_title: 5,
   has_industry: 4,
@@ -21,6 +25,35 @@ const DEFAULTS = {
   source_cold_outbound: 2,
   recent_activity_7d: 8,
   no_activity_30d: -10,
+  unsubscribed: -25,
+};
+
+const DEFAULTS_B2C: Record<string, number> = {
+  // Profile completeness — phone + DOB + city dominate for B2C.
+  has_company: 0,
+  has_title: 0,
+  has_industry: 0,
+  has_phone: 8,
+  has_email: 4,
+  // Engagement — WhatsApp + meeting (store visit / call) matter more
+  // than email for consumer flows.
+  email_opens: 3,
+  email_clicks: 6,
+  whatsapp_replied: 14,
+  meeting_booked: 12,
+  // Intent — pricing page + demo requested are still strong signals.
+  pricing_page_visit: 10,
+  demo_requested: 14,
+  // Source mix — referral and walk-in (event) dominate B2C; cold
+  // outbound is much weaker.
+  source_referral: 14,
+  source_website: 8,
+  source_event: 10,
+  source_cold_outbound: 1,
+  // Recency — B2C buyers decay faster, so the 30-day silence
+  // penalty is steeper.
+  recent_activity_7d: 10,
+  no_activity_30d: -15,
   unsubscribed: -25,
 };
 
@@ -55,20 +88,58 @@ const FIELD_LABELS: Record<string, string> = {
   unsubscribed: 'Unsubscribed from emails',
 };
 
+type Profile = {
+  weights: Record<string, number>;
+  grade_thresholds: typeof GRADE_THRESHOLDS;
+  custom_labels: Record<string, string>;
+};
+
+const emptyProfile = (defaults: Record<string, number>): Profile => ({
+  weights: { ...defaults },
+  grade_thresholds: { ...GRADE_THRESHOLDS },
+  custom_labels: {},
+});
+
 export default function ScoringSettingsPage() {
-  const [weights, setWeights] = useState<Record<string, number>>(DEFAULTS);
-  const [thresholds, setThresholds] = useState(GRADE_THRESHOLDS);
-  // Display labels for any criteria the user adds at runtime, stored
-  // alongside weights inside crm_settings.config.scoring.
-  const [customLabels, setCustomLabels] = useState<Record<string, string>>({});
+  const [businessType, setBusinessType] = useState<'b2b' | 'b2c'>('b2b');
+  const [b2b, setB2b] = useState<Profile>(emptyProfile(DEFAULTS_B2B));
+  const [b2c, setB2c] = useState<Profile>(emptyProfile(DEFAULTS_B2C));
   const [saving, setSaving] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [rawConfig, setRawConfig] = useState<Record<string, unknown>>({});
   const [lastSaved, setLastSaved] = useState<string | null>(null);
-  // Inline "Add Custom Criterion" form state.
+  // Active client scope — read from localStorage so we can label "you're
+  // editing scoring for <client>" instead of having a duplicate picker.
+  const [scope, setScope] = useState<{ id: string | null; name: string }>({ id: null, name: 'Organisation default' });
+  // Inline "Add Custom Criterion" form state (per active tab).
   const [newKey, setNewKey] = useState('');
   const [newLabel, setNewLabel] = useState('');
   const [newWeight, setNewWeight] = useState<string>('5');
+
+  const active = businessType === 'b2b' ? b2b : b2c;
+  const setActive = businessType === 'b2b' ? setB2b : setB2c;
+  const defaults = businessType === 'b2b' ? DEFAULTS_B2B : DEFAULTS_B2C;
+
+  // Read the global client scope from localStorage and label it. Backend
+  // already keys crm_settings by (org_id, client_id) and the dashboard
+  // auto-attaches the X-Client-Id header from the same source, so we
+  // don't need a second picker here — we just surface which client the
+  // saved profile belongs to.
+  useEffect(() => {
+    (async () => {
+      if (typeof window === 'undefined') return;
+      const sel = window.localStorage.getItem('kinematic_selected_client');
+      if (!sel) { setScope({ id: null, name: 'Organisation default (all clients)' }); return; }
+      try {
+        const r = await api.get<any>('/api/v1/clients');
+        const list = Array.isArray(r?.data) ? r.data : (Array.isArray(r) ? r : []);
+        const match = list.find((c: any) => c.id === sel);
+        setScope({ id: sel, name: match?.name || 'Selected client' });
+      } catch {
+        setScope({ id: sel, name: 'Selected client' });
+      }
+    })();
+  }, []);
 
   const load = async () => {
     try {
@@ -76,14 +147,31 @@ export default function ScoringSettingsPage() {
       const allConfig = ((r.data?.config || {}) as Record<string, unknown>);
       setRawConfig(allConfig);
       const cfg = ((allConfig.scoring || {}) as any);
-      if (cfg.weights && Object.keys(cfg.weights).length > 0) {
-        setWeights({ ...DEFAULTS, ...cfg.weights });
+
+      // New shape — config.scoring.b2b / b2c profiles.
+      if (cfg.b2b && typeof cfg.b2b === 'object') {
+        setB2b({
+          weights: { ...DEFAULTS_B2B, ...(cfg.b2b.weights || {}) },
+          grade_thresholds: { ...GRADE_THRESHOLDS, ...(cfg.b2b.grade_thresholds || {}) },
+          custom_labels: cfg.b2b.custom_labels || {},
+        });
+      } else if (cfg.weights && Object.keys(cfg.weights).length > 0) {
+        // Legacy single-profile config — promote to the b2b slot so the
+        // existing scoring engine keeps reading the flat keys, and so the
+        // user doesn't lose the weights they previously tuned.
+        setB2b({
+          weights: { ...DEFAULTS_B2B, ...cfg.weights },
+          grade_thresholds: { ...GRADE_THRESHOLDS, ...(cfg.grade_thresholds || {}) },
+          custom_labels: cfg.custom_labels || {},
+        });
       }
-      if (cfg.grade_thresholds) {
-        setThresholds({ ...GRADE_THRESHOLDS, ...cfg.grade_thresholds });
-      }
-      if (cfg.custom_labels && typeof cfg.custom_labels === 'object') {
-        setCustomLabels(cfg.custom_labels as Record<string, string>);
+
+      if (cfg.b2c && typeof cfg.b2c === 'object') {
+        setB2c({
+          weights: { ...DEFAULTS_B2C, ...(cfg.b2c.weights || {}) },
+          grade_thresholds: { ...GRADE_THRESHOLDS, ...(cfg.b2c.grade_thresholds || {}) },
+          custom_labels: cfg.b2c.custom_labels || {},
+        });
       }
     } catch (e: any) {
       toast.error(e.message || 'Failed to load scoring settings');
@@ -97,15 +185,23 @@ export default function ScoringSettingsPage() {
   const save = async () => {
     setSaving(true);
     try {
+      // Persist both profiles. We also mirror b2b's weights into the
+      // legacy flat keys so the existing leadScoring service (which
+      // reads scoring.weights / scoring.grade_thresholds) keeps working
+      // until it learns about the b2c profile.
+      const nextScoring: Record<string, unknown> = {
+        b2b: { weights: b2b.weights, grade_thresholds: b2b.grade_thresholds, custom_labels: b2b.custom_labels },
+        b2c: { weights: b2c.weights, grade_thresholds: b2c.grade_thresholds, custom_labels: b2c.custom_labels },
+        weights: b2b.weights,
+        grade_thresholds: b2b.grade_thresholds,
+        custom_labels: b2b.custom_labels,
+      };
       await crmSettings.update({
-        config: {
-          ...rawConfig,
-          scoring: { weights, grade_thresholds: thresholds, custom_labels: customLabels },
-        },
+        config: { ...rawConfig, scoring: nextScoring },
       });
-      setRawConfig((prev) => ({ ...prev, scoring: { weights, grade_thresholds: thresholds, custom_labels: customLabels } }));
+      setRawConfig((prev) => ({ ...prev, scoring: nextScoring }));
       setLastSaved(new Date().toLocaleTimeString());
-      toast.success('Scoring model saved successfully');
+      toast.success(`Scoring saved for ${scope.name}`);
     } catch (e: any) {
       toast.error(e.message || 'Save failed — check API connection');
     } finally {
@@ -114,17 +210,14 @@ export default function ScoringSettingsPage() {
   };
 
   const reset = () => {
-    if (!window.confirm('Reset scoring to default weights? Unsaved changes will be lost.')) return;
-    setWeights({ ...DEFAULTS });
-    setThresholds({ ...GRADE_THRESHOLDS });
+    if (!window.confirm(`Reset ${businessType.toUpperCase()} scoring to defaults? Unsaved changes for this profile will be lost.`)) return;
+    setActive(emptyProfile(defaults));
     toast.success('Reset to defaults — click Save to apply');
   };
 
-  const setW = (k: string, v: number) => setWeights((w) => ({ ...w, [k]: v }));
-  const setT = (k: keyof typeof GRADE_THRESHOLDS, v: number) => setThresholds((t) => ({ ...t, [k]: v }));
+  const setW = (k: string, v: number) => setActive((p) => ({ ...p, weights: { ...p.weights, [k]: v } }));
+  const setT = (k: keyof typeof GRADE_THRESHOLDS, v: number) => setActive((p) => ({ ...p, grade_thresholds: { ...p.grade_thresholds, [k]: v } }));
 
-  // Slug a label into a stable, snake_case weight key. Falls back to the
-  // explicit `newKey` if the user typed one.
   const slugify = (s: string) => s.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
 
   const addCustom = () => {
@@ -133,34 +226,52 @@ export default function ScoringSettingsPage() {
     const k = explicit ? slugify(explicit) : slugify(label);
     if (!label) { toast.error('Label is required'); return; }
     if (!k) { toast.error('Provide a slug or label that contains letters'); return; }
-    if (weights[k] !== undefined || (DEFAULTS as Record<string, number>)[k] !== undefined) {
-      toast.error(`Key "${k}" already exists — pick another`); return;
+    if (active.weights[k] !== undefined || defaults[k] !== undefined) {
+      toast.error(`Key "${k}" already exists in this profile — pick another`); return;
     }
     const w = Number(newWeight);
     if (Number.isNaN(w)) { toast.error('Weight must be numeric'); return; }
-    setWeights((cur) => ({ ...cur, [k]: w }));
-    setCustomLabels((m) => ({ ...m, [k]: label }));
+    setActive((p) => ({
+      ...p,
+      weights: { ...p.weights, [k]: w },
+      custom_labels: { ...p.custom_labels, [k]: label },
+    }));
     setNewKey(''); setNewLabel(''); setNewWeight('5');
     toast.success('Criterion added — click Save Model to persist');
   };
 
   const removeCustom = (k: string) => {
-    setWeights((cur) => { const next = { ...cur }; delete next[k]; return next; });
-    setCustomLabels((m) => { const next = { ...m }; delete next[k]; return next; });
+    setActive((p) => {
+      const w = { ...p.weights }; delete w[k];
+      const l = { ...p.custom_labels }; delete l[k];
+      return { ...p, weights: w, custom_labels: l };
+    });
   };
 
-  // Anything in `weights` that isn't in DEFAULTS is treated as user-added.
-  const customKeys = Object.keys(weights).filter((k) => (DEFAULTS as Record<string, number>)[k] === undefined);
+  const customKeys = useMemo(
+    () => Object.keys(active.weights).filter((k) => defaults[k] === undefined),
+    [active.weights, defaults],
+  );
 
-  const maxScore = Object.values(weights).filter((v) => v > 0).reduce((a, b) => a + b, 0);
+  const maxScore = useMemo(
+    () => Object.values(active.weights).filter((v) => v > 0).reduce((a, b) => a + b, 0),
+    [active.weights],
+  );
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
         <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>Lead Scoring Model</div>
         <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 6, lineHeight: 1.5 }}>
-          Each signal contributes weight toward a 0–100 lead score. Defaults follow HubSpot/Salesforce/Marketo conventions.
-          Negative weights penalise. Max achievable score with current weights: <strong>{maxScore}</strong>.
+          Each signal contributes weight toward a 0–100 lead score. Defaults follow HubSpot / Salesforce / Marketo conventions
+          with separate baselines for B2B (firmographic + intent) and B2C (demographic + engagement).
+          Negative weights penalise. Max with current weights: <strong>{maxScore}</strong>.
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--text)', marginBottom: 8, padding: '8px 10px', background: 'var(--s3)', borderRadius: 8, border: '1px solid var(--border)' }}>
+          Editing scoring for <strong>{scope.name}</strong>.{' '}
+          {scope.id
+            ? <span style={{ color: 'var(--text-dim)' }}>Switch clients via the global client picker in the header to tune another tenant.</span>
+            : <span style={{ color: 'var(--text-dim)' }}>Pick a client in the global header to set per-client overrides.</span>}
         </div>
         {lastSaved && (
           <div style={{ fontSize: 11, color: '#10b981', marginBottom: 8 }}>Last saved at {lastSaved}</div>
@@ -169,16 +280,48 @@ export default function ScoringSettingsPage() {
           <button onClick={save} disabled={saving || !loaded} style={btnPrimary}>
             {saving ? 'Saving…' : 'Save Model'}
           </button>
-          <button onClick={reset} disabled={!loaded} style={btnGhost}>Reset to Defaults</button>
+          <button onClick={reset} disabled={!loaded} style={btnGhost}>Reset {businessType.toUpperCase()} to Defaults</button>
           <button onClick={load} disabled={!loaded} style={btnGhost}>Reload</button>
         </div>
         {!loaded && <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-dim)' }}>Loading settings…</div>}
       </div>
 
+      <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 14, display: 'flex', gap: 8 }}>
+        {(['b2b', 'b2c'] as const).map((bt) => {
+          const isActive = businessType === bt;
+          return (
+            <button
+              key={bt}
+              type="button"
+              onClick={() => setBusinessType(bt)}
+              style={{
+                flex: 1,
+                padding: '12px 14px',
+                borderRadius: 10,
+                fontWeight: 800,
+                fontSize: 13,
+                cursor: 'pointer',
+                border: isActive ? '2px solid var(--primary)' : '1px solid var(--border)',
+                background: isActive ? 'rgba(224,30,44,0.10)' : 'var(--s3)',
+                color: isActive ? 'var(--primary)' : 'var(--text)',
+                textAlign: 'left',
+              }}
+            >
+              <div>{bt === 'b2b' ? 'B2B Model' : 'B2C Model'}</div>
+              <div style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-dim)', marginTop: 2 }}>
+                {bt === 'b2b'
+                  ? 'Firmographic + intent signals dominate. Used for company-attached leads.'
+                  : 'Demographic + engagement + WhatsApp dominate. Used for consumer leads.'}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
       <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>Grade Thresholds</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>Grade Thresholds — {businessType.toUpperCase()}</div>
         <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 12 }}>
-          Score buckets: A (hot) ≥ <strong>{thresholds.A}</strong> · B (warm) ≥ <strong>{thresholds.B}</strong> · C (lukewarm) ≥ <strong>{thresholds.C}</strong> · D (cold) below.
+          Score buckets: A (hot) ≥ <strong>{active.grade_thresholds.A}</strong> · B (warm) ≥ <strong>{active.grade_thresholds.B}</strong> · C (lukewarm) ≥ <strong>{active.grade_thresholds.C}</strong> · D (cold) below.
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
           {(['A', 'B', 'C'] as const).map((g) => (
@@ -188,7 +331,7 @@ export default function ScoringSettingsPage() {
                 type="number"
                 min={0}
                 max={100}
-                value={thresholds[g]}
+                value={active.grade_thresholds[g]}
                 onChange={(e) => setT(g, Number(e.target.value) || 0)}
                 style={input}
               />
@@ -197,11 +340,9 @@ export default function ScoringSettingsPage() {
         </div>
       </div>
 
-      {/* Custom criteria — user-added rows live here. The "+ Add" form is
-          inline so adding a criterion is a single interaction. */}
       <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>Custom Criteria</div>
-        <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 12 }}>Add your own scoring signals (e.g. industry-specific or campaign-specific). Negative weights penalise.</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>Custom Criteria — {businessType.toUpperCase()}</div>
+        <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 12 }}>Add your own scoring signals (e.g. industry-specific or campaign-specific). Negative weights penalise. Custom criteria live inside the active profile.</div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 90px auto', gap: 8, alignItems: 'end', marginBottom: 14, padding: 10, background: 'var(--s3)', borderRadius: 8 }}>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -221,13 +362,13 @@ export default function ScoringSettingsPage() {
 
         {customKeys.length === 0 ? (
           <div style={{ fontSize: 12, color: 'var(--text-dim)', textAlign: 'center', padding: 12, background: 'var(--s3)', borderRadius: 8 }}>
-            No custom criteria yet. Add one above to extend the scoring model.
+            No custom criteria yet for this profile. Add one above to extend the {businessType.toUpperCase()} model.
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 10 }}>
             {customKeys.map((k) => {
-              const v = weights[k] ?? 0;
-              const label = customLabels[k] || k;
+              const v = active.weights[k] ?? 0;
+              const label = active.custom_labels[k] || k;
               return (
                 <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', background: 'var(--s3)', borderRadius: 8, border: `1px solid ${v < 0 ? 'rgba(239,68,68,0.3)' : v > 10 ? 'rgba(16,185,129,0.3)' : 'transparent'}` }}>
                   <span style={{ flex: 1, minWidth: 0 }}>
@@ -251,11 +392,11 @@ export default function ScoringSettingsPage() {
 
       {FIELD_GROUPS.map((grp) => (
         <div key={grp.title} style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{grp.title}</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{grp.title} — {businessType.toUpperCase()}</div>
           <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 12 }}>{grp.desc}</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
             {grp.keys.map((k) => {
-              const v = weights[k] ?? 0;
+              const v = active.weights[k] ?? 0;
               return (
                 <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', background: 'var(--s3)', borderRadius: 8, border: `1px solid ${v < 0 ? 'rgba(239,68,68,0.3)' : v > 10 ? 'rgba(16,185,129,0.3)' : 'transparent'}` }}>
                   <span style={{ flex: 1, fontSize: 13, color: 'var(--text)' }}>{FIELD_LABELS[k] || k}</span>
