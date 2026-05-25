@@ -103,6 +103,16 @@ export default function NotificationsPage() {
     } catch (e: any) { alert(e.message || 'Failed to delete'); }
   };
 
+  const handleClearAll = async () => {
+    if (!confirm('Clear ALL broadcast history? This cannot be undone — every row below will be removed from your org.')) return;
+    try {
+      await api.delete('/api/v1/notifications/history/clear');
+      setHistory([]);
+      setTotal(0);
+      setPage(1);
+    } catch (e: any) { alert(e.message || 'Failed to clear history'); }
+  };
+
   const inp:React.CSSProperties={width:'100%',background:C.s3,border:`1px solid ${C.border}`,borderRadius:10,padding:'12px 14px',color:C.white,outline:'none',fontSize:14,fontFamily:'inherit'};
 
   return (
@@ -203,7 +213,14 @@ export default function NotificationsPage() {
       </div>
 
       <div style={{background:C.s2,border:`1px solid ${C.red}33`,borderRadius:16,padding:24}}>
-        <h2 style={{fontSize:18,fontWeight:700,marginBottom:20,color:C.red}}>Live History (LATEST 10)</h2>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
+          <h2 style={{fontSize:18,fontWeight:700,color:C.red,margin:0}}>Live History (LATEST 10)</h2>
+          {isPlatformAdmin && history.length > 0 && (
+            <button onClick={handleClearAll} style={{background:'rgba(224,30,44,0.1)',border:`1px solid ${C.red}44`,color:C.red,cursor:'pointer',fontSize:12,padding:'8px 14px',borderRadius:8,display:'inline-flex',alignItems:'center',gap:6,fontWeight:700}} title="Clear all broadcast history for this organisation">
+              <span>🗑️</span> Clear all
+            </button>
+          )}
+        </div>
         <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
           <thead>
             <tr style={{borderBottom:`1px solid ${C.border}`,textAlign:'left',color:C.gray}}>
