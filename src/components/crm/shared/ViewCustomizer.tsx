@@ -24,6 +24,10 @@ interface Props {
  * appear on the list and switch between a dense table view and a card
  * stack. Per-entity, per-client; persisted to localStorage via the
  * `useViewPrefs` hook.
+ *
+ * Responsive: on phones (≤640px, via a media query in globals.css) the
+ * popover snaps to a full-width bottom sheet so it never clips off the
+ * edge of the viewport.
  */
 export default function ViewCustomizer({ entityLabel, columns, hidden, mode, onToggle, onSetMode, onReset }: Props) {
   const [open, setOpen] = useState(false);
@@ -36,6 +40,7 @@ export default function ViewCustomizer({ entityLabel, columns, hidden, mode, onT
         type="button"
         onClick={() => setOpen((v) => !v)}
         title={`Customize columns and layout for ${entityLabel}`}
+        className="crm-view-customizer-trigger"
         style={{
           background: 'var(--s3)',
           border: '1px solid var(--border)',
@@ -45,17 +50,20 @@ export default function ViewCustomizer({ entityLabel, columns, hidden, mode, onT
           fontSize: 13,
           fontWeight: 600,
           cursor: 'pointer',
+          whiteSpace: 'nowrap',
         }}
       >
-        ⚙ Customize ({visibleCount}/{columns.length})
+        ⚙ <span className="crm-view-customizer-trigger-label">Customize</span> ({visibleCount}/{columns.length})
       </button>
       {open && (
         <>
           <div
             onClick={() => setOpen(false)}
+            className="crm-view-customizer-scrim"
             style={{ position: 'fixed', inset: 0, zIndex: 990 }}
           />
           <div
+            className="crm-view-customizer-popover"
             style={{
               position: 'absolute',
               top: 'calc(100% + 6px)',
@@ -96,7 +104,7 @@ export default function ViewCustomizer({ entityLabel, columns, hidden, mode, onT
             </div>
 
             <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.6, marginBottom: 6 }}>Columns</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 280, overflowY: 'auto' }}>
+            <div className="crm-view-customizer-list" style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 280, overflowY: 'auto' }}>
               {columns.map((col) => {
                 const visible = !hiddenSet.has(col.key);
                 const disabled = !!col.locked;
@@ -107,11 +115,12 @@ export default function ViewCustomizer({ entityLabel, columns, hidden, mode, onT
                       display: 'flex',
                       alignItems: 'center',
                       gap: 10,
-                      padding: '6px 8px',
+                      padding: '8px 10px',
                       borderRadius: 6,
                       cursor: disabled ? 'not-allowed' : 'pointer',
                       opacity: disabled ? 0.55 : 1,
                       background: visible ? 'var(--s3)' : 'transparent',
+                      minHeight: 36,
                     }}
                     title={disabled ? 'This column cannot be hidden' : ''}
                   >
@@ -120,8 +129,9 @@ export default function ViewCustomizer({ entityLabel, columns, hidden, mode, onT
                       checked={visible}
                       disabled={disabled}
                       onChange={() => !disabled && onToggle(col.key)}
+                      style={{ width: 18, height: 18 }}
                     />
-                    <span style={{ fontSize: 13, color: 'var(--text)' }}>{col.label}</span>
+                    <span style={{ fontSize: 14, color: 'var(--text)' }}>{col.label}</span>
                     {disabled && <span style={{ fontSize: 10, color: 'var(--text-dim)', marginLeft: 'auto' }}>required</span>}
                   </label>
                 );
@@ -139,7 +149,7 @@ export default function ViewCustomizer({ entityLabel, columns, hidden, mode, onT
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '6px 14px', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 18px', borderRadius: 6, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
               >
                 Done
               </button>
