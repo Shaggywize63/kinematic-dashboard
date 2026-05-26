@@ -310,16 +310,30 @@ function ConnectModal({
         };
       }
       const r = await crmIntegrations.create(body);
-      // Embed verify_token in the integration's config-derived view so the
-      // success modal can show it back to the admin (we generated it on
-      // the client; backend stored it in config; sending it back here
-      // avoids a second fetch).
+      const integration = (r as any)?.data ?? r;
+      if (!integration || !integration.id) {
+        // Unexpected response shape — surface explicitly so the user
+        // isn't left wondering whether the click did anything.
+        console.error('[integrations.create] unexpected response', r);
+        toast.error('Connection failed — the server returned an unexpected response. Check the browser network tab.');
+        setSubmitting(false);
+        return;
+      }
+      // Carry the verify_token forward so the success modal can show it
+      // back to the admin (we generated it client-side; backend stored
+      // it inside config, but echoing here avoids a second fetch).
       onCreated({
-        ...r.data,
-        config: { ...(r.data.config ?? {}), ...(provider === 'meta_lead_ads' ? { verify_token: verifyToken } : {}) },
+        ...integration,
+        config: { ...(integration.config ?? {}), ...(provider === 'meta_lead_ads' ? { verify_token: verifyToken } : {}) },
       });
     } catch (e: any) {
-      toast.error(e.message || 'Connection failed');
+      // Long-lived toast + console log so the actual error message is
+      // visible. The integrations flow used to fail silently when the
+      // backend returned a 4xx; users saw the modal hang and assumed
+      // "nothing happens".
+      const msg = e?.message || 'Connection failed';
+      console.error('[integrations.create] failed', e);
+      toast.error(msg, { duration: 8000 });
       setSubmitting(false);
     }
   };
