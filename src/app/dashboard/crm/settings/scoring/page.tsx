@@ -4,76 +4,83 @@ import { toast } from 'sonner';
 import { crmSettings } from '../../../../../lib/crmApi';
 import api from '../../../../../lib/api';
 
-// Defaults differ by business type. B2B leans firmographic + intent;
-// B2C leans demographic + engagement / recency. Both profiles drop the
-// email-open / email-click / pricing-page signals — Kinematic doesn't
-// integrate inbound email yet, and there's no website tracking, so
-// those weights would never fire. Instead WhatsApp, calls and physical
-// site visits dominate, matching how field-force reps actually engage.
-// The shapes are identical so the UI can flip between profiles without
-// resetting.
+// Score budgets target a strict 100 max. Source weights are treated as
+// mutually exclusive in maxScore (a lead has exactly one source), so
+// only the highest source value counts toward the cap — every other
+// criterion is additive. Numbers are tuned so a "complete + engaged +
+// visited + comparing" lead can hit 100 without going over, and so the
+// rep can see in the banner whether their weights still fit.
+//
+// B2B = 100 budget: profile(15) + whatsapp(10) + calls/meet(15) +
+//                   site visits(25) + intent(20) + source(10 max) +
+//                   recency(5)
 const DEFAULTS_B2B: Record<string, number> = {
-  // Firmographic completeness
-  has_company: 6,
-  has_title: 4,
-  has_industry: 4,
-  has_phone: 6,
-  has_email: 2,
-  has_address: 4,
-  // WhatsApp engagement — primary inbound channel
-  whatsapp_sent: 3,
-  whatsapp_replied: 14,
-  // Call engagement
-  call_completed: 8,
-  meeting_booked: 12,
-  // Physical site / outlet visits — strongest B2B intent for FF reps
-  site_visit_completed: 16,
+  // Firmographic completeness (15)
+  has_company: 4,
+  has_title: 2,
+  has_industry: 2,
+  has_phone: 3,
+  has_email: 1,
+  has_address: 3,
+  // WhatsApp engagement (10) — two-way reply is the real signal
+  whatsapp_sent: 2,
+  whatsapp_replied: 8,
+  // Call engagement (15)
+  call_completed: 5,
+  meeting_booked: 10,
+  // Physical site visits (25) — strongest B2B intent for FF reps
+  site_visit_completed: 15,
   repeat_site_visit: 10,
-  // Explicit intent signals
-  demo_requested: 12,
-  quote_requested: 12,
-  sample_requested: 10,
-  // Source mix
+  // Explicit intent (20)
+  demo_requested: 7,
+  quote_requested: 8,
+  sample_requested: 5,
+  // Source mix — only the highest one counts (a lead has ONE source).
+  // Cap budget = 10 = source_referral (the highest entry).
   source_referral: 10,
-  source_walk_in: 8,
-  source_event: 7,
   source_whatsapp_inbound: 8,
+  source_walk_in: 7,
+  source_event: 6,
   source_cold_outbound: 2,
-  // Recency / decay
-  recent_activity_7d: 6,
+  // Recency / decay (5 positive)
+  recent_activity_7d: 5,
   no_activity_30d: -10,
   opted_out: -25,
 };
 
+// B2C = 100 budget: profile(15) + whatsapp(15) + calls/meet(10) +
+//                   site visits(25) + intent(15) + source(15 max) +
+//                   recency(5)
 const DEFAULTS_B2C: Record<string, number> = {
-  // Demographic completeness — phone + city + DOB drive B2C fit.
+  // Demographic completeness (15) — phone + address dominate
   has_company: 0,
   has_title: 0,
   has_industry: 0,
-  has_phone: 10,
+  has_phone: 8,
   has_email: 2,
   has_address: 5,
-  // WhatsApp engagement — even more dominant than B2B
+  // WhatsApp engagement (15) — primary B2C channel
   whatsapp_sent: 3,
-  whatsapp_replied: 16,
-  // Call engagement
-  call_completed: 8,
-  meeting_booked: 8,
-  // Physical store visits — strongest B2C buy signal
-  site_visit_completed: 18,
-  repeat_site_visit: 12,
-  // Explicit intent
-  demo_requested: 8,
-  quote_requested: 10,
-  sample_requested: 8,
-  // Source mix — walk-in and referral dominate
-  source_referral: 12,
-  source_walk_in: 12,
+  whatsapp_replied: 12,
+  // Call engagement (10)
+  call_completed: 4,
+  meeting_booked: 6,
+  // Physical store visits (25) — strongest B2C buy signal
+  site_visit_completed: 15,
+  repeat_site_visit: 10,
+  // Explicit intent (15)
+  demo_requested: 5,
+  quote_requested: 6,
+  sample_requested: 4,
+  // Source mix — mutually exclusive. Cap budget = 15 = source_walk_in
+  // (B2C buyers convert hardest through retail walk-in / referral).
+  source_walk_in: 15,
+  source_referral: 13,
+  source_whatsapp_inbound: 12,
   source_event: 8,
-  source_whatsapp_inbound: 10,
   source_cold_outbound: 1,
-  // Recency / decay — B2C buyers cool off faster
-  recent_activity_7d: 8,
+  // Recency / decay (5 positive) — B2C cools faster, steeper decay
+  recent_activity_7d: 5,
   no_activity_30d: -15,
   opted_out: -25,
 };
@@ -92,7 +99,7 @@ const LEGACY_KEYS = new Set([
 const GRADE_THRESHOLDS = { A: 75, B: 55, C: 35 };
 
 const FIELD_GROUPS: Array<{ title: string; desc: string; keys: string[] }> = [
-  { title: 'Profile Completeness', desc: 'Demographic / firmographic fields filled in. Tunes ICP match.', keys: ['has_company', 'has_title', 'has_industry', 'has_phone', 'has_email', 'has_address'] },
+  { title: 'Profile Completeness', desc: 'Demographic / firmographic fields the rep needs before visiting or pitching.', keys: ['has_company', 'has_title', 'has_industry', 'has_phone', 'has_email', 'has_address'] },
   { title: 'WhatsApp Engagement', desc: 'WhatsApp is the primary engagement channel. Two-way replies score higher than outbound-only.', keys: ['whatsapp_sent', 'whatsapp_replied'] },
   { title: 'Calls & Meetings', desc: 'Connected phone calls and booked meetings — confirmed verbal contact.', keys: ['call_completed', 'meeting_booked'] },
   { title: 'Site Visits', desc: 'Physical visits to the outlet / customer site. Repeat visits are a strong intent signal.', keys: ['site_visit_completed', 'repeat_site_visit'] },
@@ -126,6 +133,29 @@ const FIELD_LABELS: Record<string, string> = {
   no_activity_30d: 'No activity in 30+ days',
   opted_out: 'Opted out of contact',
 };
+
+// Prefix(es) whose keys are mutually exclusive on a given lead. A lead
+// has exactly one source — so the realistic max contribution from the
+// source group is just the largest weight in it, not the sum.
+const EXCLUSIVE_PREFIXES = ['source_'] as const;
+
+function computeMaxScore(weights: Record<string, number>): number {
+  // Group exclusive prefixes so each one contributes its maximum, then
+  // add every other positive weight in full. Negatives never count.
+  const exclusiveMax: Record<string, number> = {};
+  let additive = 0;
+  for (const [key, raw] of Object.entries(weights)) {
+    const v = Number(raw) || 0;
+    if (v <= 0) continue;
+    const prefix = EXCLUSIVE_PREFIXES.find((p) => key.startsWith(p));
+    if (prefix) {
+      exclusiveMax[prefix] = Math.max(exclusiveMax[prefix] ?? 0, v);
+    } else {
+      additive += v;
+    }
+  }
+  return additive + Object.values(exclusiveMax).reduce((a, b) => a + b, 0);
+}
 
 type Profile = {
   weights: Record<string, number>;
@@ -242,6 +272,20 @@ export default function ScoringSettingsPage() {
   useEffect(() => { load(); }, []);
 
   const save = async () => {
+    // The scoring engine caps every lead at 100; allowing a profile to
+    // exceed the cap just means the rep is wasting weight budget on
+    // unreachable buckets. Reject the save up front with a clear
+    // message so the asker can rebalance instead of silently producing
+    // a model where extra weight goes nowhere.
+    const b2bMax = computeMaxScore(b2b.weights);
+    const b2cMax = computeMaxScore(b2c.weights);
+    if (b2bMax > 100 || b2cMax > 100) {
+      const offenders: string[] = [];
+      if (b2bMax > 100) offenders.push(`B2B is ${b2bMax}`);
+      if (b2cMax > 100) offenders.push(`B2C is ${b2cMax}`);
+      toast.error(`Max achievable score must be 100 or less. ${offenders.join(' · ')}. Lower a weight to save.`);
+      return;
+    }
     setSaving(true);
     try {
       // Persist both profiles. We also mirror b2b's weights into the
@@ -329,10 +373,14 @@ export default function ScoringSettingsPage() {
     [active.weights, defaults],
   );
 
-  const maxScore = useMemo(
-    () => Object.values(active.weights).filter((v) => v > 0).reduce((a, b) => a + b, 0),
-    [active.weights],
-  );
+  /**
+   * Realistic max achievable score for the active profile. Source_*
+   * weights are mutually exclusive (a lead has exactly one source), so
+   * only the highest of those counts toward the cap. Every other
+   * positive weight is additive. Mirrors how the backend scoring
+   * service applies the criteria at compute time.
+   */
+  const maxScore = useMemo(() => computeMaxScore(active.weights), [active.weights]);
 
   // Visual cue for the total/100 banner. Green when the weights distribute
   // cleanly across 100; amber when above so the rep notices the model
@@ -376,8 +424,8 @@ export default function ScoringSettingsPage() {
           <div style={{ width: `${totalPct}%`, height: '100%', background: totalColor, transition: 'width .15s ease' }} />
         </div>
         <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 14, lineHeight: 1.5 }}>
-          Each signal below adds toward a 0–100 lead score. Defaults follow HubSpot / Salesforce / Marketo conventions
-          with separate baselines for B2B (firmographic + intent) and B2C (demographic + engagement). Negative weights penalise. Labels are editable inline.
+          Each signal below adds toward a 0–100 lead score. Defaults are tuned separately for B2B (firmographic + intent)
+          and B2C (demographic + engagement). Negative weights penalise. Labels are editable inline.
         </div>
         <div style={{ fontSize: 12, color: 'var(--text)', marginTop: 12, padding: '8px 10px', background: 'var(--s3)', borderRadius: 8, border: '1px solid var(--border)' }}>
           Editing scoring for <strong>{scope.name}</strong>.{' '}
