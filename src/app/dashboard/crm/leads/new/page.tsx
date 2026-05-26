@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { crmLeads, crmSettings, crmLeadSources, crmProducts } from '../../../../../lib/crmApi';
@@ -51,7 +51,13 @@ export default function NewLeadPage() {
   // in crm_settings.config.field_overrides. Empty until first fetch — every
   // field renders with its hardcoded default in the interim.
   const [fieldOverrides, setFieldOverrides] = useState<FieldOverrides>({});
-  const fields = buildFieldHelpers(fieldOverrides, 'lead');
+  // Pass the active B2C/B2B scope so overrides like "email required for
+  // B2B only" or "last_name optional for B2C" take precedence over the
+  // universal entry for the same field.
+  const fields = useMemo(
+    () => buildFieldHelpers(fieldOverrides, 'lead', form.is_b2c ? 'b2c' : 'b2b'),
+    [fieldOverrides, form.is_b2c],
+  );
   const [sources, setSources] = useState<LeadSource[]>([]);
   const [users, setUsers] = useState<UserOpt[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -128,12 +134,32 @@ export default function NewLeadPage() {
     if (form.phone && form.phone.length !== 10) {
       return toast.error('Primary mobile must be a 10-digit number');
     }
-    // Last name is mandatory on the backend (leadCreateSchema). Block
-    // submit early with a clear message instead of relying on the
-    // generic "Validation failed" toast from the server. Skip the
-    // check if the admin hid the field from this tenant's form.
-    if (!fields.isHidden('last_name') && (!form.last_name || !form.last_name.trim())) {
+    // Skip the field if the admin hid it, OR if they explicitly made it
+    // optional for the active business-type scope. The backend's
+    // leadCreateSchema has last_name as a hard min(1) on the universal
+    // path; clients that switch it to optional via field overrides also
+    // need a matching backend rule (handled elsewhere) — this block
+    // just makes the dashboard stop forcing the field on its own.
+    if (
+      !fields.isHidden('last_name') &&
+      fields.requiredFor('last_name', true) &&
+      (!form.last_name || !form.last_name.trim())
+    ) {
       return toast.error('Last name is required.');
+    }
+    if (
+      !fields.isHidden('email') &&
+      fields.requiredFor('email', !form.is_b2c) &&
+      (!form.email || !form.email.trim())
+    ) {
+      return toast.error('Email is required.');
+    }
+    if (
+      !fields.isHidden('phone') &&
+      fields.requiredFor('phone', form.is_b2c) &&
+      (!form.phone || !form.phone.trim())
+    ) {
+      return toast.error('Primary mobile is required.');
     }
     // City is required on EVERY lead — without it the per-user city
     // scope filter has nothing to match against and the lead would
@@ -257,10 +283,10 @@ export default function NewLeadPage() {
 
       <Section title="Personal">
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
-          {text('first_name', 'First Name', { required: true })}
-          {text('last_name', 'Last Name', { required: true })}
-          {text('email', 'Email', { type: 'email', required: !form.is_b2c })}
-          {text('phone', 'Primary Mobile', { required: form.is_b2c, phone: true })}
+          {text('first_name', 'First Name', { required: fields.requiredFor('first_name', true) })}
+          {text('last_name',  'Last Name',  { required: fields.requiredFor('last_name',  true) })}
+          {text('email',      'Email', { type: 'email', required: fields.requiredFor('email', !form.is_b2c) })}
+          {text('phone',      'Primary Mobile', { required: fields.requiredFor('phone', form.is_b2c), phone: true })}
         </div>
         <AlternateMobiles
           values={form.alternate_mobiles}
