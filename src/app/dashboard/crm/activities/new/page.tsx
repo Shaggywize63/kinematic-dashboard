@@ -7,6 +7,7 @@ import api from '../../../../../lib/api';
 import { getStoredUser } from '../../../../../lib/auth';
 import type { Lead } from '../../../../../types/crm';
 import UserSearchSelect, { type UserOption } from '../../../../../components/crm/shared/UserSearchSelect';
+import ActivityTypePicker from '../../../../../components/crm/shared/ActivityTypePicker';
 
 // Built-ins are kept for the initial render before the API responds. The
 // real list (including any client-specific custom types) loads from
@@ -310,9 +311,14 @@ function NewActivityPageInner() {
       <Section title="Activity Details">
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
           <Field label="Type *">
-            <select value={type} onChange={(e) => setType(e.target.value)} style={input}>
-              {activityTypes.map((t) => <option key={t.value} value={t.value}>{t.icon ? `${t.icon} ` : ''}{t.label}</option>)}
-            </select>
+            {/* Custom dropdown — needed because the WhatsApp row uses an
+                SVG brand mark, which can't live inside a native <option>.
+                Other rows render their backend emoji as before. */}
+            <ActivityTypePicker
+              value={type}
+              options={activityTypes}
+              onChange={setType}
+            />
           </Field>
           <Field label="Subject *">
             <input value={subject} onChange={(e) => setSubject(e.target.value)} required placeholder="e.g. Discovery call with Acme" style={input} />
