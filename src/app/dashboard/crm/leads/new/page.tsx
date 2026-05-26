@@ -161,12 +161,17 @@ export default function NewLeadPage() {
     ) {
       return toast.error('Primary mobile is required.');
     }
-    // City is required on EVERY lead — without it the per-user city
+    // City is required on most leads — without it the per-user city
     // scope filter has nothing to match against and the lead would
     // leak to other reps. Block submit early with a clear message
-    // instead of letting the backend 400. Same hidden-field escape
-    // hatch as last_name above.
-    if (!fields.isHidden('city') && (!form.city || !form.city.trim())) {
+    // instead of letting the backend 400. Skip the guard when the
+    // admin has hidden the field OR explicitly toggled it optional
+    // for the active business-type scope.
+    if (
+      !fields.isHidden('city') &&
+      fields.requiredFor('city', true) &&
+      (!form.city || !form.city.trim())
+    ) {
       return toast.error('City is required — pick from the city dropdown.');
     }
     setBusy(true);
@@ -357,7 +362,7 @@ export default function NewLeadPage() {
           {!fields.isHidden('city') && (
             <Section title="Location">
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
-                <LocationPicker stateValue={form.state} cityValue={form.city} onChange={({ state, city }) => setForm({ ...form, state, city })} />
+                <LocationPicker stateValue={form.state} cityValue={form.city} onChange={({ state, city }) => setForm({ ...form, state, city })} required={fields.requiredFor('city', true)} />
               </div>
             </Section>
           )}
@@ -380,7 +385,7 @@ export default function NewLeadPage() {
               {/* LocationPicker covers state + city. Hide it when the admin
                   has hidden the city built-in (state alone has no value). */}
               {!fields.isHidden('city') && (
-                <LocationPicker stateValue={form.state} cityValue={form.city} onChange={({ state, city }) => setForm({ ...form, state, city })} />
+                <LocationPicker stateValue={form.state} cityValue={form.city} onChange={({ state, city }) => setForm({ ...form, state, city })} required={fields.requiredFor('city', true)} />
               )}
               {text('postal_code', 'Postal Code')}{text('country', 'Country')}
               <CustomFieldsSection

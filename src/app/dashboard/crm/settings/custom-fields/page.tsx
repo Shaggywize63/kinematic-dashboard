@@ -46,10 +46,16 @@ const TYPES_REQUIRING_OPTIONS = new Set<CustomField['field_type']>(['select', 'm
 // Built-in standard fields for each entity
 type BuiltinField = { key: string; label: string; type: string; required?: boolean };
 
+// Defaults below mirror the actual built-in form defaults — i.e. what
+// the create / edit form asterisks before any admin override. Required
+// values that depend on the B2B/B2C toggle (email is mandatory for
+// B2B leads but not B2C; phone is the inverse) are shown as Universal
+// "off" here — admins can pin them on for one scope only via the
+// B2B / B2C tabs above the table.
 const BUILTIN_FIELDS: Record<string, BuiltinField[]> = {
   lead: [
     { key: 'first_name', label: 'First Name', type: 'text', required: true },
-    { key: 'last_name', label: 'Last Name', type: 'text' },
+    { key: 'last_name', label: 'Last Name', type: 'text', required: true },
     { key: 'email', label: 'Email', type: 'text' },
     { key: 'phone', label: 'Phone', type: 'text' },
     { key: 'company', label: 'Company', type: 'text' },
@@ -60,7 +66,7 @@ const BUILTIN_FIELDS: Record<string, BuiltinField[]> = {
     { key: 'owner_id', label: 'Assigned To', type: 'select' },
     { key: 'score', label: 'Lead Score', type: 'number' },
     { key: 'is_b2c', label: 'B2C Lead', type: 'boolean' },
-    { key: 'city', label: 'City', type: 'text' },
+    { key: 'city', label: 'City', type: 'text', required: true },
     { key: 'state', label: 'State', type: 'text' },
     { key: 'country', label: 'Country', type: 'text' },
     { key: 'marketing_consent', label: 'Marketing Consent', type: 'boolean' },
@@ -75,13 +81,13 @@ const BUILTIN_FIELDS: Record<string, BuiltinField[]> = {
   contact: [
     { key: 'first_name', label: 'First Name', type: 'text', required: true },
     { key: 'last_name', label: 'Last Name', type: 'text' },
-    { key: 'email', label: 'Email', type: 'text', required: true },
+    { key: 'email', label: 'Email', type: 'text' },
     { key: 'phone', label: 'Phone', type: 'text' },
+    { key: 'city', label: 'City', type: 'text', required: true },
     { key: 'title', label: 'Job Title', type: 'text' },
     { key: 'department', label: 'Department', type: 'text' },
     { key: 'account_id', label: 'Account / Company', type: 'select' },
     { key: 'owner_id', label: 'Assigned To', type: 'select' },
-    { key: 'city', label: 'City', type: 'text' },
     { key: 'state', label: 'State', type: 'text' },
     { key: 'country', label: 'Country', type: 'text' },
     { key: 'marketing_consent', label: 'Marketing Consent', type: 'boolean' },
