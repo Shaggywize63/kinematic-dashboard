@@ -156,6 +156,11 @@ export default function CustomFieldsPage() {
   const [optionsRaw, setOptionsRaw] = useState('');
   const [required, setRequired] = useState(false);
   const [filter, setFilter] = useState<'all' | CustomField['entity_type']>('lead');
+  // Active business-type scope for built-in field overrides. 'universal'
+  // edits the legacy unscoped key; 'b2b' / 'b2c' edits the
+  // entity.key@scope key. At render time scoped overrides are merged on
+  // top of the universal value, mirroring the runtime helper.
+  const [scope, setScope] = useState<'universal' | 'b2b' | 'b2c'>('universal');
   const [showBuiltin, setShowBuiltin] = useState(true);
   // Ref onto the field_key input so the "+ Add another field" button
   // at the bottom can scroll the form into view AND focus the first
@@ -329,8 +334,25 @@ export default function CustomFieldsPage() {
     }
   };
 
+  // Resolve the override the page should DISPLAY for a built-in field
+  // given the active scope. Scoped overrides merge on top of the
+  // universal one so reps see "label = X (from universal) + required = Y
+  // (B2B-specific)" at a glance.
+  const effectiveOverride = (entityName: string, key: string): FieldOverride => {
+    const uni = overrides[overrideKey(entityName, key)] || {};
+    if (scope === 'universal') return uni;
+    const scoped = overrides[`${entityName}.${key}@${scope}`] || {};
+    return { ...uni, ...scoped };
+  };
+  // Key the save writes to. The position field always stays on the
+  // universal record (reordering isn't scope-specific in practice).
+  const writeKey = (entityName: string, key: string) =>
+    scope === 'universal'
+      ? overrideKey(entityName, key)
+      : `${entityName}.${key}@${scope}`;
+
   const saveOverride = async (entityName: string, key: string, override: FieldOverride) => {
-    const k = overrideKey(entityName, key);
+    const k = writeKey(entityName, key);
     setSavingOverride(k);
     try {
       const next: FieldOverrides = { ...overrides };
@@ -369,8 +391,8 @@ export default function CustomFieldsPage() {
   };
 
   const resetOverride = async (entityName: string, key: string) => {
-    if (!window.confirm('Reset this field to its system default?')) return;
-    const k = overrideKey(entityName, key);
+    if (!window.confirm(`Reset this field to its ${scope === 'universal' ? 'system default' : `universal value (clears the ${scope.toUpperCase()} override only)`}?`)) return;
+    const k = writeKey(entityName, key);
     const next = { ...overrides };
     delete next[k];
     setSavingOverride(k);
@@ -526,6 +548,41 @@ export default function CustomFieldsPage() {
           </div>
         </div>
 
+        {/* Scope selector — controls which override variant we're editing.
+            Universal = the legacy unscoped key, applies regardless of
+            the lead's is_b2c. B2B / B2C scope writes to
+            entity.field@b2b or @b2c, and the runtime helper consults
+            the scoped key first, falling back to universal. */}
+        <div style={{ display: 'flex', gap: 6, marginBottom: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.4, marginRight: 4 }}>
+            Editing for
+          </span>
+          {(['universal', 'b2b', 'b2c'] as const).map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => setScope(s)}
+              style={{
+                padding: '6px 14px',
+                borderRadius: 8,
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: 'pointer',
+                border: scope === s ? '2px solid var(--primary)' : '1px solid var(--border)',
+                background: scope === s ? 'rgba(224,30,44,0.10)' : 'var(--s3)',
+                color: scope === s ? 'var(--primary)' : 'var(--text)',
+              }}
+            >
+              {s === 'universal' ? 'Universal (both)' : s.toUpperCase()}
+            </button>
+          ))}
+          <span style={{ fontSize: 11, color: 'var(--text-dim)', marginLeft: 8 }}>
+            {scope === 'universal'
+              ? 'These overrides apply to every lead. B2B/B2C tabs let you fine-tune per business type.'
+              : `Overrides saved here apply only to ${scope.toUpperCase()} leads and win over the Universal value.`}
+          </span>
+        </div>
+
         {loading ? <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>Loading...</div> : (
           <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
             <thead>
@@ -543,8 +600,8 @@ export default function CustomFieldsPage() {
             <tbody>
               {/* Built-in standard fields */}
               {showBuiltin && builtinVisible.map((f) => {
-                const k = overrideKey(f.entity, f.key);
-                const ov = overrides[k] || {};
+                const k = writeKey(f.entity, f.key);
+                const ov = effectiveOverride(f.entity, f.key);
                 const effLabel = ov.label ?? f.label;
                 const effRequired = ov.required ?? !!f.required;
                 const effHidden = ov.hidden ?? false;

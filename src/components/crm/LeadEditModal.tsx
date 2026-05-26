@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { crmLeads, crmSettings, crmLeadSources } from '../../lib/crmApi';
 import type { BusinessType, Lead, LeadStatus, LeadSource } from '../../types/crm';
@@ -18,7 +18,12 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
   // built-in lead fields. Loaded from crm_settings alongside business_type
   // so a single round-trip drives both. Empty until first fetch.
   const [fieldOverrides, setFieldOverrides] = useState<FieldOverrides>({});
-  const fields = buildFieldHelpers(fieldOverrides, 'lead');
+  // Pass the active business-type scope so a B2B-only / B2C-only
+  // override on the same key wins over the universal entry.
+  const fields = useMemo(
+    () => buildFieldHelpers(fieldOverrides, 'lead', form.is_b2c ? 'b2c' : 'b2b'),
+    [fieldOverrides, form.is_b2c],
+  );
 
   useEffect(() => { if (open) setForm(seed(lead)); }, [open, lead]);
   // Fetch org's B2B/B2C mode AND the active lead sources on first open. The
