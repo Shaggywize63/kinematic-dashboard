@@ -8,10 +8,16 @@
 // Every form that renders those fields must consult the helpers below —
 // otherwise the admin's toggle is silently ignored at render time.
 //
-// Scope precedence (highest wins):
-//   1. `${entity}.${field_key}@${scope}`   — scope-specific override
-//   2. `${entity}.${field_key}`            — universal override
-//   3. caller-supplied default             — built-in default
+// Resolution: scoped + universal overrides are MERGED per-key, with the
+// scoped value winning when both define the same property. This matches
+// the settings page's effective-override preview (settings/custom-fields/
+// page.tsx, effectiveOverride()) so what the admin sees in the settings
+// table is what the form actually renders.
+//
+//   universal { required: false }              + scoped { label: 'X' }
+//   = effective { required: false, label: 'X' }
+//
+// A scoped {label} override no longer hides the universal {required:false}.
 
 export type FieldScope = 'b2b' | 'b2c';
 
@@ -56,11 +62,14 @@ export function buildFieldHelpers(
 ): FieldHelpers {
   const map = overrides ?? {};
   const lookup = (key: string): FieldOverride | undefined => {
-    if (scope) {
-      const scoped = map[fieldOverrideKey(entity, key, scope)];
-      if (scoped) return scoped;
-    }
-    return map[fieldOverrideKey(entity, key)];
+    const uni = map[fieldOverrideKey(entity, key)];
+    if (!scope) return uni;
+    const scoped = map[fieldOverrideKey(entity, key, scope)];
+    if (!uni && !scoped) return undefined;
+    // Merge per-key: scoped wins when both define the same property,
+    // but a scoped {label} override no longer shadows the universal
+    // {required:false} (or vice versa).
+    return { ...(uni ?? {}), ...(scoped ?? {}) };
   };
   return {
     isHidden: (key) => !!lookup(key)?.hidden,
