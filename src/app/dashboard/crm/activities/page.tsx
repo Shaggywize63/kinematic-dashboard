@@ -9,6 +9,7 @@ import type { Activity } from '../../../../types/crm';
 import { getStoredUser, canAccess, getStoredToken } from '../../../../lib/auth';
 import UserSearchSelect, { type UserOption } from '../../../../components/crm/shared/UserSearchSelect';
 import { ActivityTypeIcon, activityTypeEmoji } from '../../../../components/crm/shared/ActivityTypeIcon';
+import GoogleCalendarBanner from '../../../../components/crm/GoogleCalendarBanner';
 import ViewCustomizer from '../../../../components/crm/shared/ViewCustomizer';
 import { useViewPrefs } from '../../../../lib/crmViewPrefs';
 
@@ -65,8 +66,12 @@ function ActivitiesPageInner() {
   const [exporting, setExporting] = useState(false);
   // Layout toggle between the existing list and the month-grid
   // calendar view. Independent of the server-side `view` filter
-  // (Overdue / Upcoming / Completed) which both layouts honour.
-  const [layout, setLayout] = useState<'list' | 'calendar'>('list');
+  // (Overdue / Upcoming / Completed) which both layouts honour. The
+  // Google OAuth callback bounces back with ?layout=calendar so the
+  // user lands on the calendar view (where the connect banner lives).
+  const initialLayout: 'list' | 'calendar' =
+    searchParams.get('layout') === 'calendar' ? 'calendar' : 'list';
+  const [layout, setLayout] = useState<'list' | 'calendar'>(initialLayout);
   // Calendar grid pivots around a current month. Defaults to today.
   const [calendarMonth, setCalendarMonth] = useState(() => {
     const d = new Date();
@@ -435,11 +440,16 @@ function ActivitiesPageInner() {
       {loading ? (
         <div style={{ color: 'var(--text-dim)' }}>Loading...</div>
       ) : layout === 'calendar' ? (
-        <ActivityCalendar
-          month={calendarMonth}
-          onMonthChange={setCalendarMonth}
-          activities={filtered}
-        />
+        <>
+          {/* Google Calendar connect / status strip — only surfaced in
+              the calendar layout where it's directly relevant. */}
+          <GoogleCalendarBanner />
+          <ActivityCalendar
+            month={calendarMonth}
+            onMonthChange={setCalendarMonth}
+            activities={filtered}
+          />
+        </>
       ) : filtered.length === 0 ? (
         <div style={{ color: 'var(--text-dim)', fontSize: 13, padding: 20, textAlign: 'center' }}>
           {pagination && pagination.total > 0
