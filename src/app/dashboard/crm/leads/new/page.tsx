@@ -480,7 +480,7 @@ export default function NewLeadPage() {
                   }}
                 >
                   {p.name}
-                  {p.price > 0 && <span style={{ opacity: 0.7, marginLeft: 6, fontSize: 11 }}>₹{p.price.toLocaleString()}</span>}
+                  {p.price > 0 && <span style={{ opacity: 0.7, marginLeft: 6, fontSize: 11 }}>₹{p.price.toLocaleString('en-IN')}</span>}
                 </button>
               );
             })}
