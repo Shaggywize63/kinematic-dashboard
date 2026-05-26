@@ -9,6 +9,11 @@ interface Props {
   stateValue: string;
   cityValue: string;
   onChange: (next: { state: string; city: string }) => void;
+  /** Show the red asterisk on the City label and forward `required` to
+   *  the underlying input. Defaults to true to preserve every existing
+   *  call site (form behaviour stays unchanged for callers that don't
+   *  opt in to a different value). */
+  required?: boolean;
 }
 
 /**
@@ -28,7 +33,7 @@ interface Props {
  * the leadCreateSchema (city.min(1)). Without it the lead would slip
  * past the per-user city scope filter and become visible to everyone.
  */
-export default function LocationPicker({ stateValue, cityValue, onChange }: Props) {
+export default function LocationPicker({ stateValue, cityValue, onChange, required = true }: Props) {
   // Stored user → assigned_city_names. /auth/me populates this on
   // login + every dashboard mount.
   const userCities = useMemo<string[]>(() => {
@@ -53,7 +58,7 @@ export default function LocationPicker({ stateValue, cityValue, onChange }: Prop
     const c = userCities[0];
     const inferred = stateForCity(c);
     return (
-      <FieldWrap label="City">
+      <FieldWrap label="City" required={required}>
         <div style={{
           display: 'inline-flex', alignItems: 'center', gap: 8,
           background: 'var(--s3)', border: '1px solid var(--border)',
@@ -73,7 +78,7 @@ export default function LocationPicker({ stateValue, cityValue, onChange }: Prop
   // === Multi-city user → constrained dropdown. =======================
   if (userCities.length > 1) {
     return (
-      <FieldWrap label="City" required>
+      <FieldWrap label="City" required={required}>
         <select
           value={cityValue}
           onChange={(e) => {
@@ -95,10 +100,10 @@ export default function LocationPicker({ stateValue, cityValue, onChange }: Prop
   }
 
   // === Unrestricted user (admin / super_admin) → full picker. ========
-  return <FullLocationPicker stateValue={stateValue} cityValue={cityValue} onChange={onChange} />;
+  return <FullLocationPicker stateValue={stateValue} cityValue={cityValue} onChange={onChange} required={required} />;
 }
 
-function FullLocationPicker({ stateValue, cityValue, onChange }: Props) {
+function FullLocationPicker({ stateValue, cityValue, onChange, required = true }: Props) {
   const [states, setStates] = useState<CrmState[]>([]);
   const [cities, setCities] = useState<CrmCity[]>([]);
   const [loadingStates, setLoadingStates] = useState(true);
@@ -128,7 +133,7 @@ function FullLocationPicker({ stateValue, cityValue, onChange }: Props) {
     return (
       <>
         <FieldWrap label="State"><input value={stateValue} onChange={(e) => onChange({ state: e.target.value, city: cityValue })} placeholder="e.g. Maharashtra" style={inputStyle} /></FieldWrap>
-        <FieldWrap label="City" required><input value={cityValue} onChange={(e) => onChange({ state: stateValue, city: e.target.value })} placeholder="e.g. Mumbai" style={inputStyle} /></FieldWrap>
+        <FieldWrap label="City" required={required}><input value={cityValue} onChange={(e) => onChange({ state: stateValue, city: e.target.value })} placeholder="e.g. Mumbai" style={inputStyle} /></FieldWrap>
       </>
     );
   }
@@ -141,7 +146,7 @@ function FullLocationPicker({ stateValue, cityValue, onChange }: Props) {
           {states.map((s) => <option key={s.id} value={s.name}>{s.name}</option>)}
         </select>
       </FieldWrap>
-      <FieldWrap label="City" required>
+      <FieldWrap label="City" required={required}>
         <select value={cityValue} onChange={(e) => onChange({ state: stateValue, city: e.target.value })} disabled={!stateValue || loadingCities} style={{ ...inputStyle, opacity: !stateValue ? 0.6 : 1 }}>
           <option value="">{stateValue ? '— Select city —' : 'Pick a state first'}</option>
           {cities.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
