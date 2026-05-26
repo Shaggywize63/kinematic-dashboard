@@ -12,10 +12,16 @@
 import React from 'react';
 
 export default function WhatsAppLogo({ size = 28, color = '#25D366' }: { size?: number; color?: string }) {
+  // Floor at 14px — below that the handset cutout disappears visually
+  // and the mark reads as a vaguely heart-shaped green blob, which is
+  // exactly the "WhatsApp icon shows heart" bug callers keep reporting.
+  // The container can still be smaller via flex sizing, but the SVG
+  // itself stays at a legibly-rendered minimum.
+  const rendered = Math.max(14, size);
   return (
     <svg
-      width={size}
-      height={size}
+      width={rendered}
+      height={rendered}
       viewBox="0 0 24 24"
       role="img"
       aria-label="WhatsApp"

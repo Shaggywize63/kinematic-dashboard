@@ -182,7 +182,12 @@ export default function NotificationBell() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
                     <span style={{ fontSize: 13, color: 'var(--text)', fontWeight: 700 }}>
                       <span style={{ marginRight: 6, display: 'inline-flex', verticalAlign: 'middle' }}>
-                        {a.type === 'whatsapp' ? <ActivityTypeIcon type="whatsapp" size={14} /> : (TYPE_ICONS[a.type] || '•')}
+                        <ActivityTypeIcon
+                          type={a.type}
+                          size={16}
+                          date={a.due_at || a.completed_at}
+                          completed={!!a.completed_at}
+                        />
                       </span>
                       {a.subject || a.type}
                     </span>
