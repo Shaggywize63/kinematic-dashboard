@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { toast } from 'sonner';
 import { crmAnalytics, crmSettings, crmLeads } from '../../../../lib/crmApi';
-import { fmtValue, type DashboardUnit } from '../../../../lib/formatCurrency';
+import { fmtValue, fmtValueCompact, type DashboardUnit } from '../../../../lib/formatCurrency';
 import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
 import { useClient } from '../../../../context/ClientContext';
 import StatCard from '../../../../components/crm/shared/StatCard';
@@ -184,7 +184,11 @@ export default function CrmDashboardPage() {
   }, [range.from, range.to, unit]);
 
   const fmtPct = (n?: number) => `${(Number(n || 0) * 100).toFixed(1)}%`;
-  const fmtMoney = (n?: number) => fmtValue(n ?? 0, unit);
+  // KPI cards render the compact form (₹2.4L / ₹2.4Cr) so big numbers
+  // never overflow the box, with the full Indian-grouped form on the
+  // hover tooltip.
+  const fmtMoney = (n?: number) => fmtValueCompact(n ?? 0, unit);
+  const fmtMoneyFull = (n?: number) => fmtValue(n ?? 0, unit);
   const revenueTrend = forecast.map((f) => ({ period: f.period, revenue: f.closed }));
 
   const isVisible = (id: WidgetId) => visibleWidgets.has(id);
@@ -255,10 +259,10 @@ export default function CrmDashboardPage() {
 
       {visibleStatCount > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
-          {isVisible('stat_open_pipeline') && <StatCard label="Open Pipeline" value={fmtMoney(summary?.open_deal_value)} hint={`${summary?.open_deals || 0} deals`} loading={loading} />}
-          {isVisible('stat_won') && <StatCard label="Won (window)" value={fmtMoney(summary?.won_revenue_30d)} hint={`${summary?.won_deals_30d || 0} deals`} deltaTone="up" loading={loading} />}
+          {isVisible('stat_open_pipeline') && <StatCard label="Open Pipeline" value={fmtMoney(summary?.open_deal_value)} valueTitle={fmtMoneyFull(summary?.open_deal_value)} hint={`${summary?.open_deals || 0} deals`} loading={loading} />}
+          {isVisible('stat_won') && <StatCard label="Won (window)" value={fmtMoney(summary?.won_revenue_30d)} valueTitle={fmtMoneyFull(summary?.won_revenue_30d)} hint={`${summary?.won_deals_30d || 0} deals`} deltaTone="up" loading={loading} />}
           {isVisible('stat_win_rate') && <StatCard label="Win Rate" value={fmtPct(summary?.win_rate_30d)} loading={loading} />}
-          {isVisible('stat_avg_deal') && <StatCard label="Avg Deal Size" value={fmtMoney(summary?.avg_deal_size)} loading={loading} />}
+          {isVisible('stat_avg_deal') && <StatCard label="Avg Deal Size" value={fmtMoney(summary?.avg_deal_size)} valueTitle={fmtMoneyFull(summary?.avg_deal_size)} loading={loading} />}
           {isVisible('stat_sales_cycle') && <StatCard label="Sales Cycle" value={`${Math.round(summary?.avg_sales_cycle_days || 0)}d`} loading={loading} />}
           {isVisible('stat_new_leads') && <StatCard label="New Leads" value={summary?.new_leads_30d || 0} hint={`${summary?.total_leads || 0} total`} loading={loading} />}
           {isVisible('stat_activities') && <StatCard label="Activities (7d)" value={summary?.activities_7d || 0} loading={loading} />}
