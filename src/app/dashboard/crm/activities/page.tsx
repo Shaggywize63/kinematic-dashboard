@@ -724,19 +724,93 @@ function ActivityCalendar({
     return `${t.getFullYear()}-${t.getMonth()}-${t.getDate()}`;
   })();
 
-  return (
-    <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, padding: 12 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, gap: 8, flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-          <button type="button" onClick={goPrev} style={calNavBtn} title="Previous month">‹</button>
-          <strong style={{ fontSize: 14, color: 'var(--text)', minWidth: 160, textAlign: 'center' }}>{monthLabel}</strong>
-          <button type="button" onClick={goNext} style={calNavBtn} title="Next month">›</button>
-          <button type="button" onClick={goToday} style={{ ...calNavBtn, padding: '4px 12px', fontSize: 11 }}>Today</button>
+  // Phone-optimised fallback: a 7-column grid with 6 rows of 90px cells
+  // turns into a ~640px-tall scrunched mess on a 360px-wide screen. At
+  // narrow viewports we render an agenda-style list instead — every day
+  // in the month with at least one activity gets a stacked card. Today
+  // bubbles to the top so it's visible without scrolling.
+  const [isNarrow, setIsNarrow] = useState(false);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia('(max-width: 640px)');
+    const update = () => setIsNarrow(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
+
+  const monthDayKeys: string[] = [];
+  for (let i = 0; i < days.length; i++) {
+    if (days[i].getMonth() !== monthStart.getMonth()) continue;
+    monthDayKeys.push(`${days[i].getFullYear()}-${days[i].getMonth()}-${days[i].getDate()}`);
+  }
+  const monthDaysWithActivity = monthDayKeys
+    .map((k) => ({ key: k, activities: byDay.get(k) ?? [] }))
+    .filter((g) => g.activities.length > 0);
+
+  const calendarHeader = (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, gap: 8, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+        <button type="button" onClick={goPrev} style={calNavBtn} title="Previous month">‹</button>
+        <strong style={{ fontSize: 14, color: 'var(--text)', minWidth: 160, textAlign: 'center' }}>{monthLabel}</strong>
+        <button type="button" onClick={goNext} style={calNavBtn} title="Next month">›</button>
+        <button type="button" onClick={goToday} style={{ ...calNavBtn, padding: '4px 12px', fontSize: 11 }}>Today</button>
+      </div>
+      <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>
+        {activities.length} activit{activities.length === 1 ? 'y' : 'ies'} on this page · only those with a date are placed on the grid
+      </div>
+    </div>
+  );
+
+  if (isNarrow) {
+    if (monthDaysWithActivity.length === 0) {
+      return (
+        <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, padding: 12 }}>
+          {calendarHeader}
+          <div style={{ fontSize: 12, color: 'var(--text-dim)', textAlign: 'center', padding: 20 }}>
+            No activities in this month. Use ‹ / › to browse other months.
+          </div>
         </div>
-        <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>
-          {activities.length} activit{activities.length === 1 ? 'y' : 'ies'} on this page · only those with a date are placed on the grid
+      );
+    }
+    return (
+      <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, padding: 12 }}>
+        {calendarHeader}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {monthDaysWithActivity.map(({ key, activities: list }) => {
+            const [yy, mm, dd] = key.split('-').map(Number);
+            const cellDate = new Date(yy, mm, dd);
+            const isToday = key === todayKey;
+            return (
+              <div key={key} style={{
+                background: 'var(--s3)',
+                borderRadius: 8,
+                padding: 10,
+                borderLeft: isToday ? '4px solid var(--primary)' : '4px solid transparent',
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: isToday ? 'var(--primary)' : 'var(--text)' }}>
+                    {cellDate.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}
+                    {isToday && <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, color: 'var(--primary)' }}>· TODAY</span>}
+                  </div>
+                  <span style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 700 }}>{list.length}</span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {list.map((a) => (
+                    <AgendaRow key={a.id} a={a} />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
+    );
+  }
+
+  return (
+    <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, padding: 12 }}>
+      {calendarHeader}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 1, background: 'var(--border)', borderRadius: 8, overflow: 'hidden' }}>
         {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((d) => (
@@ -796,7 +870,12 @@ function ActivityCalendar({
                       whiteSpace: 'nowrap',
                     }}
                   >
-                    <ActivityTypeIcon type={a.type} size={11} />
+                    <ActivityTypeIcon
+                      type={a.type}
+                      size={14}
+                      date={a.due_at || a.completed_at}
+                      completed={!!a.completed_at}
+                    />
                     <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {a.subject || a.type}
                     </span>
@@ -813,6 +892,64 @@ function ActivityCalendar({
         })}
       </div>
     </div>
+  );
+}
+
+/**
+ * Compact agenda row used in the phone-optimised calendar layout.
+ * Renders the type icon (date-aware where applicable), the subject /
+ * type, and a status chip in one tappable line. Click → parent record.
+ */
+function AgendaRow({ a }: { a: Activity }) {
+  const overdue = a.due_at && !a.completed_at && new Date(a.due_at) < new Date();
+  const done = !!a.completed_at;
+  const chipBg = done ? 'rgba(16,185,129,0.16)' : overdue ? 'rgba(239,68,68,0.16)' : 'rgba(62,158,255,0.16)';
+  const chipFg = done ? '#10b981' : overdue ? '#ef4444' : '#3E9EFF';
+  const href = a.lead_id
+    ? `/dashboard/crm/leads/${a.lead_id}`
+    : a.contact_id
+    ? `/dashboard/crm/contacts/${a.contact_id}`
+    : a.deal_id
+    ? `/dashboard/crm/deals/${a.deal_id}`
+    : a.account_id
+    ? `/dashboard/crm/accounts/${a.account_id}`
+    : '/dashboard/crm/activities';
+  return (
+    <Link
+      href={href}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        padding: '8px 10px',
+        borderRadius: 6,
+        background: 'var(--s2)',
+        textDecoration: 'none',
+      }}
+    >
+      <ActivityTypeIcon
+        type={a.type}
+        size={20}
+        date={a.due_at || a.completed_at}
+        completed={done}
+      />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {a.subject || a.type}
+        </div>
+        {(a.body || a.description) && (
+          <div style={{ fontSize: 11, color: 'var(--text-dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {a.body || a.description}
+          </div>
+        )}
+      </div>
+      <span style={{
+        fontSize: 9, fontWeight: 800, padding: '2px 6px', borderRadius: 4,
+        background: chipBg, color: chipFg, textTransform: 'uppercase', letterSpacing: 0.4,
+      }}>
+        {done ? 'Done' : overdue ? 'Overdue' : 'Open'}
+      </span>
+    </Link>
   );
 }
 
