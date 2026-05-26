@@ -147,16 +147,24 @@ export default function NewLeadPage() {
     ) {
       return toast.error('Last name is required.');
     }
+    // Phone / email defaults are NOT scope-aware anymore. The form
+    // honours whatever the admin sets in Settings → Custom Fields
+    // (`lead.phone` / `lead.email` overrides, optionally scoped via
+    // @b2b / @b2c). With no override saved, both fields are optional —
+    // matching the BUILTIN_FIELDS row in settings, so the lead form
+    // and the settings page never disagree. Tenants that need email
+    // mandatory on B2B leads (or phone mandatory on B2C) can flip the
+    // toggle in settings once and the form picks it up immediately.
     if (
       !fields.isHidden('email') &&
-      fields.requiredFor('email', !form.is_b2c) &&
+      fields.requiredFor('email', false) &&
       (!form.email || !form.email.trim())
     ) {
       return toast.error('Email is required.');
     }
     if (
       !fields.isHidden('phone') &&
-      fields.requiredFor('phone', form.is_b2c) &&
+      fields.requiredFor('phone', false) &&
       (!form.phone || !form.phone.trim())
     ) {
       return toast.error('Primary mobile is required.');
@@ -290,8 +298,8 @@ export default function NewLeadPage() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
           {text('first_name', 'First Name', { required: fields.requiredFor('first_name', true) })}
           {text('last_name',  'Last Name',  { required: fields.requiredFor('last_name',  true) })}
-          {text('email',      'Email', { type: 'email', required: fields.requiredFor('email', !form.is_b2c) })}
-          {text('phone',      'Primary Mobile', { required: fields.requiredFor('phone', form.is_b2c), phone: true })}
+          {text('email',      'Email', { type: 'email', required: fields.requiredFor('email', false) })}
+          {text('phone',      'Primary Mobile', { required: fields.requiredFor('phone', false), phone: true })}
         </div>
         <AlternateMobiles
           values={form.alternate_mobiles}
