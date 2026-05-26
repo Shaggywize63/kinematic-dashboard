@@ -514,3 +514,42 @@ textarea:disabled {
 .km-entity-link:visited {
   color: var(--primary) !important;
 }
+
+/* Forced card-stack layout — same visual as the responsive-cards
+   breakpoint, but engaged by the user via the View Customizer at any
+   viewport. Pair with `.responsive-cards` on the <table> tag and let
+   the existing data-label attributes drive the field labels. */
+table.cards-view { display: block; }
+table.cards-view thead { display: none; }
+table.cards-view tbody {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 10px;
+}
+table.cards-view tr {
+  display: block;
+  background: var(--s3);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+table.cards-view td {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  border: none !important;
+  padding: 5px 0 !important;
+  font-size: 13px;
+}
+table.cards-view td::before {
+  content: attr(data-label);
+  color: var(--text-dim);
+  font-size: 10px;
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+  min-width: 80px;
+}
+table.cards-view td[data-label=""] { display: none; }

@@ -9,6 +9,22 @@ import type { Activity } from '../../../../types/crm';
 import { getStoredUser, canAccess, getStoredToken } from '../../../../lib/auth';
 import UserSearchSelect, { type UserOption } from '../../../../components/crm/shared/UserSearchSelect';
 import { ActivityTypeIcon, activityTypeEmoji } from '../../../../components/crm/shared/ActivityTypeIcon';
+import ViewCustomizer from '../../../../components/crm/shared/ViewCustomizer';
+import { useViewPrefs } from '../../../../lib/crmViewPrefs';
+
+// Activity cards are not a table, so the customizer toggles which
+// optional sections appear in each card. Subject + status are locked.
+const ACTIVITY_CARD_FIELDS = [
+  { key: 'subject', label: 'Subject + status', locked: true },
+  { key: 'description', label: 'Description / notes' },
+  { key: 'photo', label: 'Photo attachment' },
+  { key: 'type_tag', label: 'Type tag' },
+  { key: 'due_date', label: 'Due date' },
+  { key: 'completed', label: 'Completed at' },
+  { key: 'owner', label: 'Owner' },
+  { key: 'linked', label: 'Linked record' },
+  { key: 'created', label: 'Created date' },
+] as const;
 
 const TYPE_OPTIONS = ['', 'call', 'email', 'meeting', 'task', 'note', 'sms', 'whatsapp'];
 // Activity statuses surfaced on the filter — the same values the row actions
@@ -62,6 +78,9 @@ function ActivitiesPageInner() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
   const [pagination, setPagination] = useState<Pagination | null>(null);
+  const cardView = useViewPrefs('activities');
+  const cardHidden = useMemo(() => new Set(cardView.prefs.hidden), [cardView.prefs.hidden]);
+  const cardsMode = cardView.prefs.mode === 'cards';
 
   // CSV download — hits the backend export endpoint with the current
   // filters and streams the file to the browser via a blob URL. Mirrors
@@ -390,6 +409,15 @@ function ActivitiesPageInner() {
               </button>
             ))}
           </div>
+          <ViewCustomizer
+            entityLabel="Activities"
+            columns={ACTIVITY_CARD_FIELDS as unknown as { key: string; label: string; locked?: boolean }[]}
+            hidden={cardView.prefs.hidden}
+            mode={cardView.prefs.mode}
+            onToggle={cardView.toggleHidden}
+            onSetMode={cardView.setMode}
+            onReset={cardView.reset}
+          />
           <button
             type="button"
             onClick={handleExport}
@@ -419,7 +447,10 @@ function ActivitiesPageInner() {
             : <>No activities found. <Link href="/dashboard/crm/activities/new" style={{ color: 'var(--primary)' }}>Log one now →</Link></>}
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={cardsMode
+          ? { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 10 }
+          : { display: 'flex', flexDirection: 'column', gap: 8 }
+        }>
           {filtered.map((a) => {
             const isOverdue = a.due_at && !a.completed_at && new Date(a.due_at) < new Date();
             const linkedEntity = a.lead_id ? `Lead` : a.contact_id ? `Contact` : a.deal_id ? `Deal` : a.account_id ? `Account` : null;
@@ -460,12 +491,12 @@ function ActivitiesPageInner() {
                           {status.replace('_', ' ')}
                         </span>
                       </div>
-                      {(a.body || a.description) && (
+                      {!cardHidden.has('description') && (a.body || a.description) && (
                         <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 4, maxWidth: 560, whiteSpace: 'pre-wrap' }}>
                           {a.body || a.description}
                         </div>
                       )}
-                      {a.image_url && (
+                      {!cardHidden.has('photo') && a.image_url && (
                         /* Photo attached to this activity. Click → full-size in a new tab. */
                         /* eslint-disable-next-line @next/next/no-img-element */
                         <a href={a.image_url} target="_blank" rel="noreferrer" style={{ display: 'inline-block', marginTop: 6, marginBottom: 6 }}>
@@ -473,14 +504,16 @@ function ActivitiesPageInner() {
                         </a>
                       )}
                       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-                        <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', padding: '1px 6px', borderRadius: 4, background: 'var(--s3)', color: 'var(--text-dim)' }}>{a.type}</span>
-                        {a.due_at && (
+                        {!cardHidden.has('type_tag') && (
+                          <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', padding: '1px 6px', borderRadius: 4, background: 'var(--s3)', color: 'var(--text-dim)' }}>{a.type}</span>
+                        )}
+                        {!cardHidden.has('due_date') && a.due_at && (
                           <span style={{ fontSize: 11, color: isOverdue ? '#ef4444' : 'var(--text-dim)' }}>
                             {isOverdue ? '⚠ Overdue · ' : ''}
                             {a.completed_at ? 'Scheduled' : 'Due'}: {fmtFull(a.due_at)}
                           </span>
                         )}
-                        {a.completed_at && (
+                        {!cardHidden.has('completed') && a.completed_at && (
                           <span style={{ fontSize: 11, color: '#10b981', fontWeight: 600 }}>
                             ✓ Completed: {fmtFull(a.completed_at)}
                           </span>
@@ -497,12 +530,12 @@ function ActivitiesPageInner() {
                     // the button area and clipped the last few letters.
                     paddingRight: 28,
                   }}>
-                    {(a as any).assigned_to_name || a.owner_name ? (
+                    {!cardHidden.has('owner') && ((a as any).assigned_to_name || a.owner_name) ? (
                       <span style={{ maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         👤 {(a as any).assigned_to_name || a.owner_name}
                       </span>
                     ) : null}
-                    {linkedEntity && linkedId && (
+                    {!cardHidden.has('linked') && linkedEntity && linkedId && (
                       // Was a plain <span> — every linked-entity badge
                       // is now a real link to the parent record. Big
                       // navigation win: from any activity, one click
@@ -528,7 +561,7 @@ function ActivitiesPageInner() {
                         🔗 {linkedName || linkedEntity} →
                       </Link>
                     )}
-                    <span>{new Date(a.created_at).toLocaleDateString()}</span>
+                    {!cardHidden.has('created') && <span>{new Date(a.created_at).toLocaleDateString()}</span>}
                   </div>
                 </div>
 

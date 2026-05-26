@@ -8,7 +8,17 @@ interface Props {
   loading?: boolean;
   isB2C?: boolean;
   onAssign?: (contactId: string, userId: string | null) => Promise<void>;
+  hiddenColumns?: Set<string>;
+  viewMode?: 'table' | 'cards';
 }
+
+export const CONTACT_COLUMNS = [
+  { key: 'name', label: 'Name', locked: true },
+  { key: 'account', label: 'Account' },
+  { key: 'email', label: 'Email' },
+  { key: 'phone', label: 'Phone' },
+  { key: 'owner', label: 'Owner' },
+] as const;
 
 /**
  * ContactsTable
@@ -20,21 +30,28 @@ interface Props {
  * every table that opts in (just add `responsive-cards` + data-label)
  * gets the same treatment.
  */
-export default function ContactsTable({ contacts, loading, isB2C = false, onAssign }: Props) {
+export default function ContactsTable({ contacts, loading, isB2C = false, onAssign, hiddenColumns, viewMode = 'table' }: Props) {
   const td: React.CSSProperties = { padding: '12px 14px', fontSize: 13, color: 'var(--text)', borderBottom: '1px solid var(--border)' };
   const th: React.CSSProperties = { padding: '10px 14px', fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', textAlign: 'left', borderBottom: '1px solid var(--border)', background: 'var(--s2)', fontWeight: 700, letterSpacing: 0.6 };
-  const colCount = isB2C ? 4 : 5;
+  const hidden = hiddenColumns ?? new Set<string>();
+  const showAccount = !isB2C && !hidden.has('account');
+  const tableClass = `responsive-cards${viewMode === 'cards' ? ' cards-view' : ''}`;
+  let colCount = 1; // name
+  if (showAccount)           colCount += 1;
+  if (!hidden.has('email'))  colCount += 1;
+  if (!hidden.has('phone'))  colCount += 1;
+  if (!hidden.has('owner'))  colCount += 1;
   return (
     <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, overflow: 'hidden' }}>
       <div style={{ overflowX: 'auto' }}>
-        <table className="responsive-cards" style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <table className={tableClass} style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
               <th style={th}>Name</th>
-              {!isB2C && <th style={th}>Account</th>}
-              <th style={th}>Email</th>
-              <th style={th}>Phone</th>
-              <th style={th}>Owner</th>
+              {showAccount         && <th style={th}>Account</th>}
+              {!hidden.has('email') && <th style={th}>Email</th>}
+              {!hidden.has('phone') && <th style={th}>Phone</th>}
+              {!hidden.has('owner') && <th style={th}>Owner</th>}
             </tr>
           </thead>
           <tbody>
@@ -48,26 +65,28 @@ export default function ContactsTable({ contacts, loading, isB2C = false, onAssi
                   </Link>
                   {c.title && <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{c.title}</div>}
                 </td>
-                {!isB2C && (
+                {showAccount && (
                   <td style={td} data-label="Account">
                     {c.account_id && c.account_name
                       ? <Link href={`/dashboard/crm/accounts/${c.account_id}`} className="km-entity-link" title="Open account detail">{c.account_name}</Link>
                       : (c.account_name || '—')}
                   </td>
                 )}
-                <td style={td} data-label="Email">{c.email || '—'}</td>
-                <td style={td} data-label="Phone">{c.phone || '—'}</td>
-                <td style={td} data-label="Owner">
-                  {onAssign ? (
-                    <InlineOwnerAssign
-                      currentOwnerId={c.owner_id}
-                      currentOwnerName={c.owner_name}
-                      onAssign={(uid) => onAssign(c.id, uid)}
-                    />
-                  ) : (
-                    <span style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12 }}>{c.owner_name || 'Unassigned'}</span>
-                  )}
-                </td>
+                {!hidden.has('email') && <td style={td} data-label="Email">{c.email || '—'}</td>}
+                {!hidden.has('phone') && <td style={td} data-label="Phone">{c.phone || '—'}</td>}
+                {!hidden.has('owner') && (
+                  <td style={td} data-label="Owner">
+                    {onAssign ? (
+                      <InlineOwnerAssign
+                        currentOwnerId={c.owner_id}
+                        currentOwnerName={c.owner_name}
+                        onAssign={(uid) => onAssign(c.id, uid)}
+                      />
+                    ) : (
+                      <span style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12 }}>{c.owner_name || 'Unassigned'}</span>
+                    )}
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
