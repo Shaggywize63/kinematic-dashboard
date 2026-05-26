@@ -101,8 +101,12 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
         <SL>Personal</SL><Grid>
           {show('first_name', <F label={lbl('first_name', 'First Name')} required={req('first_name', true)} value={form.first_name} onChange={(v) => setForm({ ...form, first_name: v })} />)}
           {show('last_name',  <F label={lbl('last_name',  'Last Name')}  required={req('last_name',  false)} value={form.last_name}  onChange={(v) => setForm({ ...form, last_name:  v })} />)}
-          {show('email',      <F label={lbl('email',      'Email')}      type="email" required={req('email', !form.is_b2c)} value={form.email} onChange={(v) => setForm({ ...form, email: v })} />)}
-          {show('phone',      <F label={lbl('phone',      'Phone')}      phone required={req('phone', form.is_b2c)} value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />)}
+          {/* Phone / email default to optional — the form honours the
+              admin's Settings → Custom Fields override (lead.email /
+              lead.phone) instead of guessing based on is_b2c, so the
+              asterisk matches what the settings page actually shows. */}
+          {show('email',      <F label={lbl('email',      'Email')}      type="email" required={req('email', false)} value={form.email} onChange={(v) => setForm({ ...form, email: v })} />)}
+          {show('phone',      <F label={lbl('phone',      'Phone')}      phone required={req('phone', false)} value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />)}
         </Grid>
 
         {(!fields.isHidden('status') || !fields.isHidden('source_id')) && (

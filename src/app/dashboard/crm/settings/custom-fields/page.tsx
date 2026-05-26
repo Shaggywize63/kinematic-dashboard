@@ -57,11 +57,11 @@ const BUILTIN_FIELDS: Record<string, BuiltinField[]> = {
     { key: 'first_name', label: 'First Name', type: 'text', required: true },
     { key: 'last_name', label: 'Last Name', type: 'text', required: true },
     { key: 'email', label: 'Email', type: 'text' },
-    // Required by default — the lead form treats phone as mandatory on
-    // B2C leads (the primary channel for consumer outreach). Admins
-    // who don't collect phone on B2C can uncheck "Required field" here
-    // and the form's asterisk + submit guard will drop.
-    { key: 'phone', label: 'Primary Mobile', type: 'text', required: true },
+    // Phone is optional by default — the lead form mirrors this. To
+    // make Primary Mobile mandatory on a specific scope (B2C only,
+    // say), use the B2C scope tab above the table and toggle Required
+    // on; the lead form will pick it up on the next page load.
+    { key: 'phone', label: 'Primary Mobile', type: 'text' },
     { key: 'company', label: 'Company', type: 'text' },
     { key: 'title', label: 'Job Title', type: 'text' },
     { key: 'industry', label: 'Industry', type: 'text' },
