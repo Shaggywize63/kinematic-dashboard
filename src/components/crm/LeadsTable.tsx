@@ -14,34 +14,66 @@ interface Props {
   loading?: boolean;
   isB2C?: boolean;
   onAssign?: (leadId: string, userId: string | null) => Promise<void>;
+  hiddenColumns?: Set<string>;
+  viewMode?: 'table' | 'cards';
 }
 
-export default function LeadsTable({ leads, selected, onToggle, onToggleAll, loading, isB2C = false, onAssign }: Props) {
+// Column keys are stable identifiers used by the View Customizer to
+// persist column visibility per-user. Renaming a key here would orphan
+// any saved preference, so treat the strings below as a public API.
+export const LEAD_COLUMNS = [
+  { key: 'name', label: 'Name', locked: true },
+  { key: 'company', label: 'Company' },
+  { key: 'phone', label: 'Phone' },
+  { key: 'status', label: 'Status' },
+  { key: 'score', label: 'Score' },
+  { key: 'source', label: 'Source' },
+  { key: 'owner', label: 'Owner' },
+  { key: 'action', label: 'Action' },
+] as const;
+
+export default function LeadsTable({ leads, selected, onToggle, onToggleAll, loading, isB2C = false, onAssign, hiddenColumns, viewMode = 'table' }: Props) {
   const [scorePopup, setScorePopup] = useState<Lead | null>(null);
   const allSelected = leads.length > 0 && leads.every((l) => selected.has(l.id));
   const tdStyle: React.CSSProperties = { padding: '12px 14px', fontSize: 13, color: 'var(--text)', borderBottom: '1px solid var(--border)' };
   const thStyle: React.CSSProperties = { padding: '10px 14px', fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, textAlign: 'left', borderBottom: '1px solid var(--border)', background: 'var(--s2)', fontWeight: 700 };
 
-  const colCount = isB2C ? 8 : 9;
+  const hidden = hiddenColumns ?? new Set<string>();
+  const isVisible = (key: string) => !hidden.has(key);
+  // B2C deals don't use Company; treat it as implicitly hidden so the
+  // user can't accidentally un-hide an empty column.
+  const showCompany = !isB2C && isVisible('company');
+  const tableClass = `responsive-cards${viewMode === 'cards' ? ' cards-view' : ''}`;
+
+  // Count visible cells for the empty/loading row colSpan.
+  let colCount = 1; // checkbox
+  if (true)                   colCount += 1; // name (locked)
+  if (showCompany)            colCount += 1;
+  if (isVisible('phone'))     colCount += 1;
+  if (isVisible('status'))    colCount += 1;
+  if (isVisible('score'))     colCount += 1;
+  if (isVisible('source'))    colCount += 1;
+  if (isVisible('owner'))     colCount += 1;
+  if (isVisible('action'))    colCount += 1;
 
   return (
     <>
       <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, overflow: 'hidden' }}>
         <div style={{ overflowX: 'auto' }}>
-          <table className="responsive-cards" style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <table className={tableClass} style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr>
                 <th style={{ ...thStyle, width: 40 }}>
                   <input type="checkbox" checked={allSelected} onChange={onToggleAll} />
                 </th>
                 <th style={thStyle}>Name</th>
-                {!isB2C && <th style={thStyle}>Company</th>}
-                <th style={thStyle}>Phone</th>
-                <th style={thStyle}>Status</th>
-                <th style={thStyle}>Score</th>
-                <th style={thStyle}>Source</th>
-                <th style={thStyle}>Owner</th>
-                <th style={{ ...thStyle, textAlign: 'right' }}>Action</th>
+                {showCompany && <th style={thStyle}>Company</th>}
+                {isVisible('phone') && <th style={thStyle}>Phone</th>}
+                {isVisible('status') && <th style={thStyle}>Status</th>}
+                {isVisible('score') && <th style={thStyle}>Score</th>}
+                {isVisible('source') && <th style={thStyle}>Source</th>}
+                {isVisible('owner') && <th style={thStyle}>Owner</th>}
+                {isVisible('action') && <th style={{ ...thStyle, textAlign: 'right' }}>Action</th>}
               </tr>
             </thead>
             <tbody>
@@ -61,6 +93,7 @@ export default function LeadsTable({ leads, selected, onToggle, onToggleAll, loa
                   onAssign={onAssign}
                   isB2C={isB2C}
                   tdStyle={tdStyle}
+                  hidden={hidden}
                 />
               ))}
             </tbody>
@@ -81,13 +114,15 @@ interface LeadRowProps {
   onAssign?: (leadId: string, userId: string | null) => Promise<void>;
   isB2C: boolean;
   tdStyle: React.CSSProperties;
+  hidden: Set<string>;
 }
 
-const LeadRow = memo(function LeadRow({ lead: l, isSelected, onToggle, onScoreClick, onAssign, isB2C, tdStyle }: LeadRowProps) {
+const LeadRow = memo(function LeadRow({ lead: l, isSelected, onToggle, onScoreClick, onAssign, isB2C, tdStyle, hidden }: LeadRowProps) {
   const fullName = l.full_name || `${l.first_name || ''} ${l.last_name || ''}`.trim() || '—';
   const handleToggle = useCallback(() => onToggle(l.id), [onToggle, l.id]);
   const handleScore  = useCallback(() => onScoreClick(l), [onScoreClick, l]);
   const handleAssign = useCallback((uid: string | null) => onAssign?.(l.id, uid) ?? Promise.resolve(), [onAssign, l.id]);
+  const showCompany = !isB2C && !hidden.has('company');
 
   return (
     <tr>
@@ -96,29 +131,35 @@ const LeadRow = memo(function LeadRow({ lead: l, isSelected, onToggle, onScoreCl
         <Link href={`/dashboard/crm/leads/${l.id}`} className="km-entity-link" title="Open lead detail">{fullName}</Link>
         {l.title && <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{l.title}</div>}
       </td>
-      {!isB2C && <td style={tdStyle} data-label="Company">{l.company || '—'}</td>}
-      <td style={tdStyle} data-label="Phone">{l.phone || '—'}</td>
-      <td style={tdStyle} data-label="Status"><span style={{ textTransform: 'capitalize' }}>{l.status}</span></td>
-      <td style={tdStyle} data-label="Score">
-        <button type="button" onClick={handleScore} title="Click to see score breakdown" style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer' }}>
-          <LeadScoreBadge score={l.score} grade={l.score_grade} />
-        </button>
-      </td>
-      <td style={tdStyle} data-label="Source">{l.source_name || '—'}</td>
-      <td style={tdStyle} data-label="Owner">
-        {onAssign ? (
-          <InlineOwnerAssign currentOwnerId={l.owner_id} currentOwnerName={l.owner_name} onAssign={handleAssign} />
-        ) : (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><OwnerAvatar name={l.owner_name} size={24} /> <span style={{ fontSize: 12 }}>{l.owner_name || 'Unassigned'}</span></div>
-        )}
-      </td>
-      <td style={{ ...tdStyle, textAlign: 'right', whiteSpace: 'nowrap' }} data-label="Action">
-        {l.status === 'converted' ? (
-          <span style={{ fontSize: 11, color: '#10b981', fontWeight: 700 }}>✓ Converted</span>
-        ) : (
-          <Link href={`/dashboard/crm/leads/${l.id}?convert=1`} style={{ background: 'var(--primary)', color: '#fff', padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, textDecoration: 'none' }} title="Convert this lead to a deal">→ Deal</Link>
-        )}
-      </td>
+      {showCompany && <td style={tdStyle} data-label="Company">{l.company || '—'}</td>}
+      {!hidden.has('phone') && <td style={tdStyle} data-label="Phone">{l.phone || '—'}</td>}
+      {!hidden.has('status') && <td style={tdStyle} data-label="Status"><span style={{ textTransform: 'capitalize' }}>{l.status}</span></td>}
+      {!hidden.has('score') && (
+        <td style={tdStyle} data-label="Score">
+          <button type="button" onClick={handleScore} title="Click to see score breakdown" style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer' }}>
+            <LeadScoreBadge score={l.score} grade={l.score_grade} />
+          </button>
+        </td>
+      )}
+      {!hidden.has('source') && <td style={tdStyle} data-label="Source">{l.source_name || '—'}</td>}
+      {!hidden.has('owner') && (
+        <td style={tdStyle} data-label="Owner">
+          {onAssign ? (
+            <InlineOwnerAssign currentOwnerId={l.owner_id} currentOwnerName={l.owner_name} onAssign={handleAssign} />
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><OwnerAvatar name={l.owner_name} size={24} /> <span style={{ fontSize: 12 }}>{l.owner_name || 'Unassigned'}</span></div>
+          )}
+        </td>
+      )}
+      {!hidden.has('action') && (
+        <td style={{ ...tdStyle, textAlign: 'right', whiteSpace: 'nowrap' }} data-label="Action">
+          {l.status === 'converted' ? (
+            <span style={{ fontSize: 11, color: '#10b981', fontWeight: 700 }}>✓ Converted</span>
+          ) : (
+            <Link href={`/dashboard/crm/leads/${l.id}?convert=1`} style={{ background: 'var(--primary)', color: '#fff', padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, textDecoration: 'none' }} title="Convert this lead to a deal">→ Deal</Link>
+          )}
+        </td>
+      )}
     </tr>
   );
 });

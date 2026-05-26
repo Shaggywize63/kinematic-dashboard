@@ -7,7 +7,9 @@ import { toast } from 'sonner';
 import { crmDeals, crmPipelines, type Pagination } from '../../../../lib/crmApi';
 import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
 import type { Deal, Pipeline } from '../../../../types/crm';
-import DealsTable from '../../../../components/crm/DealsTable';
+import DealsTable, { DEAL_COLUMNS } from '../../../../components/crm/DealsTable';
+import ViewCustomizer from '../../../../components/crm/shared/ViewCustomizer';
+import { useViewPrefs } from '../../../../lib/crmViewPrefs';
 import { getStoredUser, canAccess, getStoredToken } from '../../../../lib/auth';
 import { API_BASE_URL } from '../../../../lib/api';
 
@@ -94,6 +96,8 @@ function DealsListPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<number>(DEAL_DEFAULT_PAGE_SIZE);
   const [pagination, setPagination] = useState<Pagination | null>(null);
+  const dealView = useViewPrefs('deals');
+  const dealHidden = useMemo(() => new Set(dealView.prefs.hidden), [dealView.prefs.hidden]);
 
   // Sync URL when the user toggles view / picks pipeline so the link is
   // shareable and a browser refresh keeps the mode.
@@ -274,6 +278,17 @@ function DealsListPage() {
             Convert) so the deal inherits the lead's qualification,
             source, and history. */}
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {view === 'list' && (
+            <ViewCustomizer
+              entityLabel="Deals"
+              columns={DEAL_COLUMNS as unknown as { key: string; label: string; locked?: boolean }[]}
+              hidden={dealView.prefs.hidden}
+              mode={dealView.prefs.mode}
+              onToggle={dealView.toggleHidden}
+              onSetMode={dealView.setMode}
+              onReset={dealView.reset}
+            />
+          )}
           <button
             type="button"
             onClick={handleExport}
@@ -309,6 +324,8 @@ function DealsListPage() {
           <DealsTable
             deals={filtered}
             loading={loading}
+            hiddenColumns={dealHidden}
+            viewMode={dealView.prefs.mode}
             onAssign={async (dealId, userId) => {
               await crmDeals.update(dealId, { owner_id: userId } as any);
               toast.success(userId ? 'Deal reassigned' : 'Deal unassigned');

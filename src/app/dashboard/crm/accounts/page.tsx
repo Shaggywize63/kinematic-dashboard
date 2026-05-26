@@ -1,15 +1,19 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { crmAccounts } from '../../../../lib/crmApi';
 import type { Account } from '../../../../types/crm';
-import AccountsTable from '../../../../components/crm/AccountsTable';
+import AccountsTable, { ACCOUNT_COLUMNS } from '../../../../components/crm/AccountsTable';
+import ViewCustomizer from '../../../../components/crm/shared/ViewCustomizer';
+import { useViewPrefs } from '../../../../lib/crmViewPrefs';
 
 export default function AccountsListPage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState('');
+  const view = useViewPrefs('accounts');
+  const hiddenSet = useMemo(() => new Set(view.prefs.hidden), [view.prefs.hidden]);
 
   useEffect(() => {
     (async () => {
@@ -27,11 +31,22 @@ export default function AccountsListPage() {
           Company-level records that group contacts, deals, and activity history. Each account tracks industry, annual revenue, and territory, giving your team a 360° view of every business relationship. Use AI summaries to get a quick brief before a meeting.
         </div>
       </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 8 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 8, flexWrap: 'wrap' }}>
         <input placeholder="Search accounts..." value={q} onChange={(e) => setQ(e.target.value)} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13, minWidth: 240 }} />
-        <Link href="/dashboard/crm/accounts/new" style={{ background: 'var(--primary)', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700 }}>+ New Account</Link>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <ViewCustomizer
+            entityLabel="Accounts"
+            columns={ACCOUNT_COLUMNS as unknown as { key: string; label: string; locked?: boolean }[]}
+            hidden={view.prefs.hidden}
+            mode={view.prefs.mode}
+            onToggle={view.toggleHidden}
+            onSetMode={view.setMode}
+            onReset={view.reset}
+          />
+          <Link href="/dashboard/crm/accounts/new" style={{ background: 'var(--primary)', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700 }}>+ New Account</Link>
+        </div>
       </div>
-      <AccountsTable accounts={filtered} loading={loading} />
+      <AccountsTable accounts={filtered} loading={loading} hiddenColumns={hiddenSet} viewMode={view.prefs.mode} />
     </div>
   );
 }

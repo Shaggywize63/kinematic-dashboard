@@ -7,8 +7,10 @@ import api, { API_BASE_URL } from '../../../../lib/api';
 import { getStoredToken } from '../../../../lib/auth';
 import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
 import type { Lead, LeadSource } from '../../../../types/crm';
-import LeadsTable from '../../../../components/crm/LeadsTable';
+import LeadsTable, { LEAD_COLUMNS } from '../../../../components/crm/LeadsTable';
 import LeadFilters, { type LeadFiltersValue } from '../../../../components/crm/LeadFilters';
+import ViewCustomizer from '../../../../components/crm/shared/ViewCustomizer';
+import { useViewPrefs } from '../../../../lib/crmViewPrefs';
 
 type UserOption = { id: string; name: string };
 
@@ -35,6 +37,8 @@ export default function LeadsListPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
   const [pagination, setPagination] = useState<Pagination | null>(null);
+  const view = useViewPrefs('leads');
+  const hiddenSet = useMemo(() => new Set(view.prefs.hidden), [view.prefs.hidden]);
 
   // CSV download — calls the backend export endpoint with the same
   // server-side filters the list is already using (state/city/district/
@@ -315,6 +319,15 @@ export default function LeadsListPage() {
           )}
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <ViewCustomizer
+            entityLabel="Leads"
+            columns={LEAD_COLUMNS as unknown as { key: string; label: string; locked?: boolean }[]}
+            hidden={view.prefs.hidden}
+            mode={view.prefs.mode}
+            onToggle={view.toggleHidden}
+            onSetMode={view.setMode}
+            onReset={view.reset}
+          />
           <button
             type="button"
             onClick={handleExport}
@@ -336,6 +349,8 @@ export default function LeadsListPage() {
         onToggleAll={toggleAll}
         loading={loading}
         isB2C={isB2C}
+        hiddenColumns={hiddenSet}
+        viewMode={view.prefs.mode}
         onAssign={async (leadId, userId) => {
           await crmLeads.update(leadId, { owner_id: userId } as any);
           toast.success(userId ? 'Lead reassigned' : 'Lead unassigned');
