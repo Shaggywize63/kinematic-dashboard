@@ -430,6 +430,47 @@ function SuccessModal({ integration, onClose }: { integration: Integration; onCl
   const provider = integration.provider;
   const verifyToken = (integration.config as Record<string, unknown> | undefined)?.verify_token as string | undefined;
 
+  // Test-lead state for the inline preview / live-check step. We POST
+  // a known-good payload to the webhook URL the user just got — same
+  // URL they're about to paste into their site — so they confirm the
+  // round-trip works before embedding anywhere.
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; msg: string; leadId?: string } | null>(null);
+  const sendTestLead = async () => {
+    if (!url) return;
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const payload = {
+        name: 'Test Lead',
+        email: `test+${Date.now()}@kinematic.test`,
+        phone: '9999999999',
+        city: 'Online',
+        notes: 'Test submission from the Kinematic integration wizard',
+        referrer_url: typeof window !== 'undefined' ? window.location.href : '',
+      };
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const j: any = await r.json().catch(() => ({}));
+      if (r.ok && j?.ok !== false) {
+        const leadId = j?.lead_id || j?.data?.lead_id;
+        setTestResult({ ok: true, msg: 'Lead created — check the Leads page in a moment.', leadId });
+        toast.success('Test lead landed in your CRM');
+      } else {
+        setTestResult({ ok: false, msg: j?.error || j?.message || `HTTP ${r.status}` });
+        toast.error('Test failed — see details below');
+      }
+    } catch (e: any) {
+      setTestResult({ ok: false, msg: e?.message || 'Network error' });
+      toast.error('Test failed — see details below');
+    } finally {
+      setTesting(false);
+    }
+  };
+
   const jsSnippet =
     provider === 'web_form'
       ? `<form id="kinematic-lead-form">
@@ -551,6 +592,59 @@ function SuccessModal({ integration, onClose }: { integration: Integration; onCl
             />
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
               <button onClick={() => copy(jsSnippet, 'HTML snippet')} style={ghostBtn}>Copy snippet</button>
+            </div>
+          </div>
+        )}
+
+        {provider !== 'meta_lead_ads' && provider !== 'google_ads' && (
+          <div style={{ background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 10, padding: 12 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <label style={{ ...fieldLabel, marginBottom: 0 }}>Send a test lead</label>
+              <button
+                type="button"
+                onClick={sendTestLead}
+                disabled={testing || !url}
+                style={{ ...primaryBtn, padding: '6px 12px', fontSize: 12, opacity: testing ? 0.6 : 1, cursor: testing ? 'wait' : 'pointer' }}
+              >
+                {testing ? 'Sending…' : '▶ Run test'}
+              </button>
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-dim)', lineHeight: 1.5, marginBottom: testResult ? 10 : 0 }}>
+              Posts a sample lead to the URL above so you can verify the round-trip before pasting the snippet on your site.
+            </div>
+            {testResult && (
+              <div style={{
+                background: testResult.ok ? 'rgba(34, 197, 94, 0.10)' : 'rgba(239, 68, 68, 0.10)',
+                border: `1px solid ${testResult.ok ? 'rgba(34, 197, 94, 0.35)' : 'rgba(239, 68, 68, 0.35)'}`,
+                color: testResult.ok ? 'rgb(34, 197, 94)' : 'rgb(239, 68, 68)',
+                borderRadius: 6, padding: '8px 10px', fontSize: 12, fontWeight: 600,
+              }}>
+                {testResult.ok ? '✓ ' : '✗ '}{testResult.msg}
+                {testResult.ok && (
+                  <Link href="/dashboard/crm/leads" onClick={onClose} style={{ marginLeft: 8, color: 'inherit', textDecoration: 'underline' }}>
+                    Open Leads →
+                  </Link>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {jsSnippet && (
+          <div>
+            <label style={fieldLabel}>Live preview</label>
+            <div style={{
+              background: '#ffffff', color: '#111827', border: '1px solid var(--border)',
+              borderRadius: 8, padding: 14, marginBottom: 8,
+            }}>
+              {/* Render the same snippet inline so admins see exactly what
+                  embedding will look like on their site. The form's submit
+                  posts to the same webhook URL as the production embed —
+                  identical behaviour, no extra wiring. */}
+              <div dangerouslySetInnerHTML={{ __html: jsSnippet }} />
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>
+              This is the same form your visitors will see. Filling it submits to your CRM exactly like the live embed.
             </div>
           </div>
         )}
