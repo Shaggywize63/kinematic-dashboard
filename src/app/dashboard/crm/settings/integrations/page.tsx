@@ -497,6 +497,27 @@ function SuccessModal({ integration, onClose }: { integration: Integration; onCl
 </script>`
       : null;
 
+  // One-line embed — the recommended path. Loads Kinematic's hosted
+  // embed.js which renders a branded, validated, CORS-safe form right
+  // where the host <div> is placed. Customisable via data-attributes.
+  const embedUrl = (() => {
+    try {
+      // Derive the embed.js host from the webhook URL we just got so
+      // multi-tenant deploys (eu.kinematic.com, etc) pick up the right
+      // CDN automatically without any extra config.
+      const u = new URL(url);
+      return `${u.protocol}//${u.host}/embed.js`;
+    } catch { return ''; }
+  })();
+  const embedSnippet =
+    provider === 'web_form' && embedUrl
+      ? `<div data-kinematic-form="${url}"
+     data-title="Get a callback"
+     data-primary-color="#E01E2C"
+     data-fields="name,email,phone,city,message"></div>
+<script src="${embedUrl}" async></script>`
+      : null;
+
   // Includes `city` because city-scoped reps (the default for non-admin
   // users) won't see leads with a null city — backend filters them out
   // before the row reaches the leads list.
@@ -581,19 +602,55 @@ function SuccessModal({ integration, onClose }: { integration: Integration; onCl
           </div>
         )}
 
-        {jsSnippet && (
-          <div>
-            <label style={fieldLabel}>Paste-and-go HTML snippet</label>
+        {embedSnippet && (
+          <div style={{
+            background: 'rgba(34, 197, 94, 0.06)', border: '1px solid rgba(34, 197, 94, 0.30)',
+            borderRadius: 10, padding: 12,
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <label style={{ ...fieldLabel, marginBottom: 0, color: 'rgb(34, 197, 94)' }}>
+                ✓ Recommended — one-line embed
+              </label>
+              <button onClick={() => copy(embedSnippet, 'Embed snippet')} style={ghostBtn}>Copy</button>
+            </div>
             <textarea
-              value={jsSnippet}
+              value={embedSnippet}
               readOnly
-              rows={14}
+              rows={5}
               style={{ ...input, fontFamily: 'monospace', fontSize: 11, resize: 'vertical' }}
             />
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
-              <button onClick={() => copy(jsSnippet, 'HTML snippet')} style={ghostBtn}>Copy snippet</button>
+            <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 6, lineHeight: 1.5 }}>
+              Drops a branded, validated form on any site. Theme it with{' '}
+              <code style={{ background: 'var(--s3)', padding: '1px 4px', borderRadius: 3 }}>data-primary-color</code>,{' '}
+              <code style={{ background: 'var(--s3)', padding: '1px 4px', borderRadius: 3 }}>data-radius</code>,{' '}
+              <code style={{ background: 'var(--s3)', padding: '1px 4px', borderRadius: 3 }}>data-theme="dark"</code>,{' '}
+              <code style={{ background: 'var(--s3)', padding: '1px 4px', borderRadius: 3 }}>data-fields="name,phone,city"</code>.
+              Phone is auto-validated (10 digits) and email format-checked. Success replaces the form
+              with your custom message; failures show inline.
             </div>
           </div>
+        )}
+
+        {jsSnippet && (
+          <details>
+            <summary style={{ ...fieldLabel, cursor: 'pointer', listStyle: 'revert' }}>
+              Advanced — raw HTML snippet
+            </summary>
+            <div style={{ marginTop: 8 }}>
+              <textarea
+                value={jsSnippet}
+                readOnly
+                rows={14}
+                style={{ ...input, fontFamily: 'monospace', fontSize: 11, resize: 'vertical' }}
+              />
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+                <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>
+                  Use this if you can&rsquo;t load a remote script (CSP, air-gapped, etc.). You lose the auto-validation, branded styling, and dynamic success state.
+                </div>
+                <button onClick={() => copy(jsSnippet, 'HTML snippet')} style={ghostBtn}>Copy</button>
+              </div>
+            </div>
+          </details>
         )}
 
         {provider !== 'meta_lead_ads' && provider !== 'google_ads' && (
