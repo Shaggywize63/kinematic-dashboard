@@ -433,9 +433,10 @@ function SuccessModal({ integration, onClose }: { integration: Integration; onCl
   const jsSnippet =
     provider === 'web_form'
       ? `<form id="kinematic-lead-form">
-  <input name="name"    placeholder="Name"  required />
-  <input name="email"   placeholder="Email" type="email" />
-  <input name="phone"   placeholder="Phone" type="tel"   required />
+  <input name="name"    placeholder="Name"   required />
+  <input name="email"   placeholder="Email"  type="email" />
+  <input name="phone"   placeholder="Mobile" type="tel" required />
+  <input name="city"    placeholder="City"   required />
   <input name="company" placeholder="Company" />
   <button type="submit">Get a callback</button>
 </form>
@@ -455,10 +456,13 @@ function SuccessModal({ integration, onClose }: { integration: Integration; onCl
 </script>`
       : null;
 
+  // Includes `city` because city-scoped reps (the default for non-admin
+  // users) won't see leads with a null city — backend filters them out
+  // before the row reaches the leads list.
   const curlSnippet =
     `curl -X POST "${url}" \\
   -H "Content-Type: application/json" \\
-  -d '{"name":"Test Lead","email":"test@example.com","phone":"+919876543210"}'`;
+  -d '{"name":"Test Lead","email":"test@example.com","phone":"+919876543210","city":"Mumbai"}'`;
 
   const copy = (text: string, what: string) => {
     navigator.clipboard.writeText(text).then(
