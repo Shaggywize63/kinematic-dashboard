@@ -518,6 +518,25 @@ function SuccessModal({ integration, onClose }: { integration: Integration; onCl
 <script src="${embedUrl}" async></script>`
       : null;
 
+  // Zero-code option: a hosted form on Kinematic's own domain. Derived
+  // from the webhook URL — same id + key, just under /f/<id>. Share by
+  // link, QR code, WhatsApp, email — no website needed. Behind the
+  // scenes the page just embeds the same embed.js loader.
+  const hostedFormUrl = (() => {
+    if (provider !== 'web_form') return '';
+    try {
+      const u = new URL(url);
+      const m = u.pathname.match(/\/webhook\/[^/]+\/([0-9a-f-]+)/i);
+      const integrationId = m ? m[1] : '';
+      const key = u.searchParams.get('key') || '';
+      if (!integrationId || !key) return '';
+      return `${u.protocol}//${u.host}/f/${integrationId}?key=${encodeURIComponent(key)}`;
+    } catch { return ''; }
+  })();
+  const qrUrl = hostedFormUrl
+    ? `https://api.qrserver.com/v1/create-qr-code/?size=180x180&margin=10&data=${encodeURIComponent(hostedFormUrl)}`
+    : '';
+
   // Includes `city` because city-scoped reps (the default for non-admin
   // users) won't see leads with a null city — backend filters them out
   // before the row reaches the leads list.
@@ -602,6 +621,59 @@ function SuccessModal({ integration, onClose }: { integration: Integration; onCl
           </div>
         )}
 
+        {hostedFormUrl && (
+          <div style={{
+            background: 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.35)',
+            borderRadius: 10, padding: 14,
+          }}>
+            <label style={{ ...fieldLabel, color: 'rgb(59, 130, 246)' }}>
+              ✨ Easiest — share a link, no website needed
+            </label>
+            <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 10, lineHeight: 1.5 }}>
+              Kinematic hosts the form for you. Share the link in WhatsApp, email, or your bio. Or print the QR for a poster / business card.
+              Every submission lands in your CRM with the right tenant scope.
+            </div>
+            <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+              <div style={{ flex: '1 1 220px', minWidth: 0 }}>
+                <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.5, marginBottom: 4 }}>Share link</div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <input value={hostedFormUrl} readOnly style={{ ...input, fontFamily: 'monospace', fontSize: 11 }} />
+                  <button onClick={() => copy(hostedFormUrl, 'Form link')} style={ghostBtn}>Copy</button>
+                </div>
+                <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                  <a
+                    href={hostedFormUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ ...ghostBtn, textDecoration: 'none', textAlign: 'center', flex: 1 }}
+                  >
+                    Open form ↗
+                  </a>
+                  <a
+                    href={`https://wa.me/?text=${encodeURIComponent(hostedFormUrl)}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ ...ghostBtn, textDecoration: 'none', textAlign: 'center', flex: 1 }}
+                  >
+                    Share on WhatsApp
+                  </a>
+                </div>
+              </div>
+              {qrUrl && (
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.5, marginBottom: 4 }}>QR code</div>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={qrUrl} alt="Form QR code" width={140} height={140}
+                       style={{ borderRadius: 8, background: '#fff', padding: 6, border: '1px solid var(--border)' }} />
+                  <div style={{ marginTop: 4 }}>
+                    <a href={qrUrl} download="kinematic-form-qr.png" style={{ fontSize: 11, color: 'var(--text-dim)' }}>Download PNG</a>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {embedSnippet && (
           <div style={{
             background: 'rgba(34, 197, 94, 0.06)', border: '1px solid rgba(34, 197, 94, 0.30)',
@@ -609,7 +681,7 @@ function SuccessModal({ integration, onClose }: { integration: Integration; onCl
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
               <label style={{ ...fieldLabel, marginBottom: 0, color: 'rgb(34, 197, 94)' }}>
-                ✓ Recommended — one-line embed
+                ✓ Have a website — one-line embed
               </label>
               <button onClick={() => copy(embedSnippet, 'Embed snippet')} style={ghostBtn}>Copy</button>
             </div>
