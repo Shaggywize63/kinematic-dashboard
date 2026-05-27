@@ -260,7 +260,7 @@ function DealsListPage() {
             </>
           )}
 
-          {isAdmin && view === 'list' && selected.size > 0 && (
+          {view === 'list' && selected.size > 0 && (
             <>
               <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>· {selected.size} selected</span>
               <button
@@ -331,9 +331,20 @@ function DealsListPage() {
               toast.success(userId ? 'Deal reassigned' : 'Deal unassigned');
               reload();
             }}
-            selected={isAdmin ? selected : undefined}
-            onToggle={isAdmin ? toggle : undefined}
-            onToggleAll={isAdmin ? toggleAll : undefined}
+            selected={selected}
+            onToggle={toggle}
+            onToggleAll={toggleAll}
+            onDelete={async (id) => {
+              if (!window.confirm('Delete this deal? It will be soft-deleted and can be restored from the database if needed.')) return;
+              try {
+                await crmDeals.remove(id);
+                toast.success('Deal deleted');
+                setSelected((s) => { const n = new Set(s); n.delete(id); return n; });
+                reload();
+              } catch (e: any) {
+                toast.error(e?.message || 'Delete failed');
+              }
+            }}
           />
           <DealsPaginationBar
             pagination={pagination}
