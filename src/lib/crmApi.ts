@@ -84,7 +84,28 @@ export const crmLeads = {
   // canonical event — reports can WHERE field='reopened' to attribute reactivations.
   reopen: (id: string, body?: { reason?: string }) =>
     api.post<Wrapped<Lead>>(`${BASE}/leads/${id}/reopen`, body || {}),
+  // Append-only Updates timeline. The denormalised `latest_update` columns
+  // on `crm_leads` keep the list-view column fast; this endpoint is for the
+  // full per-lead history rendered on the detail page.
+  updates: (id: string, params?: { limit?: number }) =>
+    api.get<Wrapped<LeadUpdate[]>>(`${BASE}/leads/${id}/updates${qs(params)}`),
+  addUpdate: (id: string, body: { body: string }) =>
+    api.post<Wrapped<LeadUpdate>>(`${BASE}/leads/${id}/updates`, body),
 };
+
+// Inline type for the lead Updates timeline — kept local since it's only
+// consumed by this API surface + the LeadUpdatesTimeline component. If the
+// shape gets shared with mobile clients we'll promote it to types/crm.ts.
+export interface LeadUpdate {
+  id: string;
+  lead_id: string;
+  org_id: string;
+  client_id: string | null;
+  author_id: string;
+  author_name?: string | null;
+  body: string;
+  created_at: string;
+}
 
 export const crmContacts = {
   ...crud<Contact>(`${BASE}/contacts`),
@@ -287,6 +308,10 @@ export const crmAi = {
     ),
   nextBestAction: (dealId: string) =>
     api.post<Wrapped<NextBestAction>>(`${BASE}/ai/next-best-action/${dealId}`, {}),
+  // Lead variant — mounted at a more-specific path so the deal route
+  // (/:dealId) and the lead route (/lead/:leadId) don't collide.
+  nextBestActionLead: (leadId: string) =>
+    api.post<Wrapped<NextBestAction>>(`${BASE}/ai/next-best-action/lead/${leadId}`, {}),
   winProbability: (dealId: string) =>
     api.post<Wrapped<WinProbability>>(`${BASE}/ai/win-probability/${dealId}`, {}),
   summarizeAccount: (id: string) =>

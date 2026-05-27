@@ -27,6 +27,10 @@ export const LEAD_COLUMNS = [
   { key: 'phone', label: 'Phone' },
   { key: 'status', label: 'Status' },
   { key: 'score', label: 'Score' },
+  // Latest free-form update from crm_leads.latest_update (denormalised
+  // server-side from crm_lead_updates on every insert). Empty for leads
+  // that haven't had an update written yet.
+  { key: 'latest_update', label: 'Latest Update' },
   { key: 'source', label: 'Source' },
   { key: 'owner', label: 'Owner' },
   { key: 'action', label: 'Action' },
@@ -52,6 +56,7 @@ export default function LeadsTable({ leads, selected, onToggle, onToggleAll, loa
   if (isVisible('phone'))     colCount += 1;
   if (isVisible('status'))    colCount += 1;
   if (isVisible('score'))     colCount += 1;
+  if (isVisible('latest_update')) colCount += 1;
   if (isVisible('source'))    colCount += 1;
   if (isVisible('owner'))     colCount += 1;
   if (isVisible('action'))    colCount += 1;
@@ -71,6 +76,7 @@ export default function LeadsTable({ leads, selected, onToggle, onToggleAll, loa
                 {isVisible('phone') && <th style={thStyle}>Phone</th>}
                 {isVisible('status') && <th style={thStyle}>Status</th>}
                 {isVisible('score') && <th style={thStyle}>Score</th>}
+                {isVisible('latest_update') && <th style={thStyle}>Latest Update</th>}
                 {isVisible('source') && <th style={thStyle}>Source</th>}
                 {isVisible('owner') && <th style={thStyle}>Owner</th>}
                 {isVisible('action') && <th style={{ ...thStyle, textAlign: 'right' }}>Action</th>}
@@ -141,6 +147,7 @@ const LeadRow = memo(function LeadRow({ lead: l, isSelected, onToggle, onScoreCl
           </button>
         </td>
       )}
+      {!hidden.has('latest_update') && <LatestUpdateCell lead={l} tdStyle={tdStyle} />}
       {!hidden.has('source') && <td style={tdStyle} data-label="Source">{l.source_name || '—'}</td>}
       {!hidden.has('owner') && (
         <td style={tdStyle} data-label="Owner">
@@ -163,6 +170,49 @@ const LeadRow = memo(function LeadRow({ lead: l, isSelected, onToggle, onScoreCl
     </tr>
   );
 });
+
+/**
+ * Latest-update column cell. Reads from `crm_leads.latest_update*` which is
+ * denormalised server-side every time someone adds an update to the lead.
+ * Truncates to a single line with tooltip showing the full text + relative
+ * timestamp; falls back to em-dash when there's no update yet.
+ *
+ * `latest_update*` aren't on the shared Lead type yet (added by the
+ * lead-NBA-and-Updates backend PR) so we read defensively.
+ */
+function LatestUpdateCell({ lead, tdStyle }: { lead: Lead; tdStyle: React.CSSProperties }) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const l = lead as any;
+  const text = (l.latest_update ?? '') as string;
+  const at = (l.latest_update_at ?? null) as string | null;
+  if (!text) {
+    return <td style={tdStyle} data-label="Latest Update"><span style={{ color: 'var(--text-dim)' }}>—</span></td>;
+  }
+  const rel = at ? formatRelativeTime(at) : '';
+  const tooltip = at ? `${text}\n\n${new Date(at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}` : text;
+  return (
+    <td style={tdStyle} data-label="Latest Update" title={tooltip}>
+      <div style={{ maxWidth: 260, minWidth: 0 }}>
+        <div style={{ fontSize: 12, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{text}</div>
+        {rel && <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 2 }}>{rel}</div>}
+      </div>
+    </td>
+  );
+}
+
+function formatRelativeTime(iso: string): string {
+  const then = new Date(iso).getTime();
+  const sec = Math.max(0, Math.floor((Date.now() - then) / 1000));
+  if (sec < 45) return 'just now';
+  if (sec < 90) return '1m ago';
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  const day = Math.floor(hr / 24);
+  if (day < 3) return `${day}d ago`;
+  return new Date(iso).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short' });
+}
 
 function ScoreBreakdownModal({ lead, onClose }: { lead: Lead; onClose: () => void }) {
   const breakdown = (lead as any).score_breakdown as Record<string, number> | null | undefined;
