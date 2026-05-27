@@ -30,6 +30,10 @@ export default function LeadsListPage() {
   const [usersLoading, setUsersLoading] = useState(false);
   const [isB2C, setIsB2C] = useState(false);
   const [exporting, setExporting] = useState(false);
+  // Disables the bulk-delete button + selection while the soft-delete
+  // loop is running so a user can't double-click or change selection
+  // mid-flight. Mirrors the same flag on the deals list page.
+  const [bulkBusy, setBulkBusy] = useState(false);
   // Server-side pagination. `page` is 1-indexed. `pagination` is the
   // metadata returned by the backend (total/totalPages/hasNext/hasPrev)
   // — null while loading and on the very first render before the first
@@ -257,6 +261,29 @@ export default function LeadsListPage() {
     } catch (e: any) { toast.error(e.message || 'Bulk assign failed'); }
   };
 
+  // Soft-delete the selected leads. There's no backend bulk endpoint
+  // yet (the deals list page uses the same client-side loop) so we
+  // sequence single DELETEs through crmLeads.remove. Each call sets
+  // deleted_at server-side; rows can be restored from the DB if
+  // needed. Errors are counted, not aborted on, so partial successes
+  // are surfaced honestly in the toast.
+  const bulkDelete = async () => {
+    if (selected.size === 0) return;
+    if (!window.confirm(
+      `Delete ${selected.size} lead${selected.size > 1 ? 's' : ''}? This soft-deletes them — rows can be restored from the database if needed.`,
+    )) return;
+    setBulkBusy(true);
+    let ok = 0, failed = 0;
+    for (const id of Array.from(selected)) {
+      try { await crmLeads.remove(id); ok++; } catch { failed++; }
+    }
+    setBulkBusy(false);
+    setSelected(new Set());
+    if (failed === 0) toast.success(`Deleted ${ok} lead${ok > 1 ? 's' : ''}`);
+    else toast.error(`Deleted ${ok}, ${failed} failed`);
+    reload();
+  };
+
   return (
     <div>
       <div style={{ marginBottom: 14, padding: '12px 16px', background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 10 }}>
@@ -288,14 +315,16 @@ export default function LeadsListPage() {
               <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>• {selected.size} selected</span>
               <button
                 onClick={bulkAssignToMe}
-                style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px 12px', borderRadius: 8, fontSize: 12, cursor: 'pointer' }}
+                disabled={bulkBusy}
+                style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px 12px', borderRadius: 8, fontSize: 12, cursor: bulkBusy ? 'not-allowed' : 'pointer', opacity: bulkBusy ? 0.6 : 1 }}
               >
                 Assign to me
               </button>
               <div ref={assignMenuRef} style={{ position: 'relative' }}>
                 <button
                   onClick={() => { setShowAssignMenu((m) => !m); loadUsers(); }}
-                  style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px 12px', borderRadius: 8, fontSize: 12, cursor: 'pointer' }}
+                  disabled={bulkBusy}
+                  style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px 12px', borderRadius: 8, fontSize: 12, cursor: bulkBusy ? 'not-allowed' : 'pointer', opacity: bulkBusy ? 0.6 : 1 }}
                 >
                   Assign to...
                 </button>
@@ -315,6 +344,14 @@ export default function LeadsListPage() {
                   </div>
                 )}
               </div>
+              <button
+                onClick={bulkDelete}
+                disabled={bulkBusy}
+                title="Soft-delete the selected leads"
+                style={{ background: 'transparent', border: '1px solid #dc2626', color: '#dc2626', padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: bulkBusy ? 'not-allowed' : 'pointer', opacity: bulkBusy ? 0.6 : 1 }}
+              >
+                {bulkBusy ? 'Deleting…' : `🗑 Delete ${selected.size}`}
+              </button>
             </>
           )}
         </div>
