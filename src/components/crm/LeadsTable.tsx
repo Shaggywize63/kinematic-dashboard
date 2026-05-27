@@ -190,11 +190,14 @@ function LatestUpdateCell({ lead, tdStyle }: { lead: Lead; tdStyle: React.CSSPro
   }
   const rel = at ? formatRelativeTime(at) : '';
   const tooltip = at ? `${text}\n\n${new Date(at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}` : text;
+  // The `.latest-update-cell` class lets the responsive-cards CSS allow
+  // the body to wrap on small screens instead of single-line ellipsing
+  // (cards mode has room for multi-line; desktop table rows don't).
   return (
     <td style={tdStyle} data-label="Latest Update" title={tooltip}>
-      <div style={{ maxWidth: 260, minWidth: 0 }}>
-        <div style={{ fontSize: 12, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{text}</div>
-        {rel && <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 2 }}>{rel}</div>}
+      <div className="latest-update-cell">
+        <div className="latest-update-body">{text}</div>
+        {rel && <div className="latest-update-time">{rel}</div>}
       </div>
     </td>
   );
@@ -224,6 +227,8 @@ function ScoreBreakdownModal({ lead, onClose }: { lead: Lead; onClose: () => voi
     : [];
 
   const labels: Record<string, string> = {
+    // v1 keys (kept for back-compat with score history written under the
+    // legacy heuristic_b2b_v1 / heuristic_b2c_v1 models)
     title_seniority: 'Job Title Seniority',
     title: 'Job Title Seniority',
     company_size: 'Company Size',
@@ -238,6 +243,23 @@ function ScoreBreakdownModal({ lead, onClose }: { lead: Lead; onClose: () => voi
     geo: 'Geography',
     email_quality: 'Email Quality',
     phone_present: 'Phone Number Present',
+    // v2 keys (heuristic_b2b_v2 / heuristic_b2c_v2 — emitted by the
+    // unified scoring path in leadScoring.service.ts)
+    email_present: 'Email Present',
+    marketing_consent: 'Marketing Consent',
+    whatsapp_consent: 'WhatsApp Consent',
+    source_quality: 'Source Quality',
+    whatsapp_30d: 'WhatsApp Activity (30d)',
+    calls_30d: 'Calls (30d)',
+    meetings_30d: 'Meetings (30d)',
+    updates_30d: 'Updates (30d)',
+    updates_present: 'Recent Updates',
+    bant_signals_in_updates: 'BANT Signals in Updates',
+    company_present: 'Company Present',
+    industry_match: 'Industry Match (ICP)',
+    contact_complete: 'Contact Completeness',
+    recent_touch: 'Recent Touch',
+    recent_touch_med: 'Recent Touch',
   };
 
   return (
