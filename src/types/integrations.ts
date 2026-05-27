@@ -11,7 +11,8 @@ export type IntegrationProvider =
   | 'generic_webhook'
   | 'meta_lead_ads'
   | 'google_ads'
-  | 'zoho';
+  | 'zoho'
+  | 'salesforce';
 
 export type IntegrationStatus = 'pending' | 'active' | 'error' | 'disabled';
 

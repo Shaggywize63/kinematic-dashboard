@@ -44,9 +44,16 @@ const PROVIDERS: Array<{
   {
     id: 'zoho',
     label: 'Zoho CRM',
-    desc: 'OAuth + 15-min polling. Pulls existing pipeline into Kinematic.',
-    available: false,
-    icon: '🔄',
+    desc: 'Push from Zoho via Workflow → Webhook. Mirrors new / updated Leads into Kinematic.',
+    available: true,
+    icon: '🟠',
+  },
+  {
+    id: 'salesforce',
+    label: 'Salesforce',
+    desc: 'Push from Salesforce via Flow → HTTP Callout (or Outbound Message). One Flow per object.',
+    available: true,
+    icon: '☁️',
   },
 ];
 
@@ -582,6 +589,35 @@ function SuccessModal({ integration, onClose }: { integration: Integration; onCl
           <li>The <em>Key</em> is already embedded in the URL — Google Ads will read it
             from the <code style={{ background: 'var(--s3)', padding: '1px 4px', borderRadius: 3 }}>?key=…</code> parameter.</li>
           <li>Click <strong>Send test data</strong> in Google Ads to verify the connection.</li>
+        </ol>
+      </div>
+    ) : provider === 'zoho' ? (
+      <div style={{
+        background: 'rgba(59, 130, 246, 0.06)', border: '1px solid rgba(59, 130, 246, 0.25)',
+        borderRadius: 8, padding: 12, fontSize: 12, color: 'var(--text)',
+      }}>
+        <div style={{ fontWeight: 700, marginBottom: 8 }}>Wire it up in Zoho CRM:</div>
+        <ol style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7 }}>
+          <li>In Zoho CRM, open <strong>Setup → Automation → Workflow Rules</strong>.</li>
+          <li>Create a new rule on the <strong>Leads</strong> module, triggering on <em>Create</em> (and optionally <em>Edit</em>).</li>
+          <li>In the rule&rsquo;s actions, choose <strong>Webhook</strong> → New.</li>
+          <li>Set Method = <code style={{ background: 'var(--s3)', padding: '1px 4px', borderRadius: 3 }}>POST</code>, paste the <em>Webhook URL</em> below as the URL to Notify.</li>
+          <li>Pick the parameters to send — at minimum <code>First_Name</code>, <code>Last_Name</code>, <code>Email</code>, <code>Phone</code>, <code>Company</code>, <code>City</code>. We map Zoho&rsquo;s standard field names automatically.</li>
+          <li>Save → trigger a test by creating a Lead in Zoho.</li>
+        </ol>
+      </div>
+    ) : provider === 'salesforce' ? (
+      <div style={{
+        background: 'rgba(59, 130, 246, 0.06)', border: '1px solid rgba(59, 130, 246, 0.25)',
+        borderRadius: 8, padding: 12, fontSize: 12, color: 'var(--text)',
+      }}>
+        <div style={{ fontWeight: 700, marginBottom: 8 }}>Wire it up in Salesforce:</div>
+        <ol style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7 }}>
+          <li>Open <strong>Setup → Process Automation → Flows</strong>, create a Record-Triggered Flow on the <strong>Lead</strong> object (Triggered when: A record is created).</li>
+          <li>Add an <strong>HTTP Callout</strong> action (or use the legacy <em>Outbound Message</em> if your edition lacks Callouts).</li>
+          <li>Method = <code style={{ background: 'var(--s3)', padding: '1px 4px', borderRadius: 3 }}>POST</code>, Endpoint = the <em>Webhook URL</em> below, Body = JSON.</li>
+          <li>Include the standard fields: <code>FirstName</code>, <code>LastName</code>, <code>Email</code>, <code>Phone</code>, <code>Company</code>, <code>City</code>, <code>State</code>, <code>LeadSource</code>. Salesforce&rsquo;s native column names map automatically.</li>
+          <li>Save + Activate the flow → trigger by creating a Lead in Salesforce.</li>
         </ol>
       </div>
     ) : null;
