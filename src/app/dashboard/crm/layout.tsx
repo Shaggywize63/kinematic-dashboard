@@ -1,6 +1,5 @@
 'use client';
 import { useClient } from '@/context/ClientContext';
-import CrmSubNav from '../../../components/crm/layout/CrmSubNav';
 import CrmScopeBadge from '../../../components/crm/layout/CrmScopeBadge';
 import DateRangePicker from '../../../components/crm/DateRangePicker';
 import CityScopePicker from '../../../components/crm/CityScopePicker';
@@ -18,9 +17,10 @@ export default function CrmLayout({ children }: { children: React.ReactNode }) {
           color: var(--text) !important;
         }
       `}</style>
-      {/* CRM heading moved to the dashboard top header (centred). This row
+      {/* The duplicate top tab nav was removed — every CRM destination
+          lives in the left sidebar, which is now collapsible. This row
           keeps only the per-tenant scope chip + the date-range picker. */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
         <CrmScopeBadge />
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           {/* CityScopePicker self-hides when the user has <2 cities, so
@@ -32,7 +32,6 @@ export default function CrmLayout({ children }: { children: React.ReactNode }) {
           <DateRangePicker />
         </div>
       </div>
-      <CrmSubNav />
       {/*
        * Force the entire CRM subtree to remount when the active client changes.
        * Cheap, reliable, and avoids having to thread selectedClientId into every

@@ -67,7 +67,23 @@ function useIsMobile(breakpoint = 1024) {
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<any>(null);
+  // Persist the desktop collapse preference so the rep gets the same
+  // sidebar width on every reload. Mobile uses a hamburger drawer and
+  // ignores this flag.
   const [collapsed, setCollapsed] = useState(false);
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem('kin_sidebar_collapsed');
+      if (v === '1') setCollapsed(true);
+    } catch { /* ignore */ }
+  }, []);
+  const toggleCollapsed = useCallback(() => {
+    setCollapsed(prev => {
+      const next = !prev;
+      try { localStorage.setItem('kin_sidebar_collapsed', next ? '1' : '0'); } catch { /* ignore */ }
+      return next;
+    });
+  }, []);
   const [otherOpen, setOtherOpen] = useState(false);
   const [token, setToken] = useState('');
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -282,33 +298,146 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           borderRight:`1px solid ${C.border}`,
           position:'fixed', top:0, left:0, bottom:0,
           display:'flex', flexDirection:'column',
-          transition:'transform .25s ease, width .2s',
+          transition:'transform .25s ease, width .2s ease',
           transform: sidebarVisible ? 'translateX(0)' : `translateX(-${drawerW}px)`,
           zIndex: isMobile ? 999 : 10,
           boxShadow: isMobile && drawerOpen ? '4px 0 24px rgba(0,0,0,0.4)' : 'none',
         }}>
-          <div style={{ height:65, display:'flex', alignItems:'center', padding:'0 20px', borderBottom:`1px solid ${C.border}`, gap:12 }}>
-            <img src="/logo-mark.png" alt="K" style={{ width:28, height:28, objectFit:'contain' }} />
-            {(isMobile || !collapsed) && <span style={{ fontWeight:800, fontSize:18, letterSpacing:'-0.5px' }}>Kinematic</span>}
+          {/* Brand row + collapse toggle. The toggle is hidden on mobile
+              (the drawer has its own open/close via the header hamburger). */}
+          <div style={{
+            height:65,
+            display:'flex',
+            alignItems:'center',
+            justifyContent: collapsed && !isMobile ? 'center' : 'space-between',
+            padding: collapsed && !isMobile ? '0' : '0 16px 0 20px',
+            borderBottom:`1px solid ${C.border}`,
+            gap:12,
+          }}>
+            <div style={{ display:'flex', alignItems:'center', gap:12, minWidth:0 }}>
+              <img src="/logo-mark.png" alt="K" style={{ width:28, height:28, objectFit:'contain', flexShrink:0 }} />
+              {(isMobile || !collapsed) && (
+                <span style={{ fontWeight:800, fontSize:18, letterSpacing:'-0.5px', whiteSpace:'nowrap' }}>Kinematic</span>
+              )}
+            </div>
+            {!isMobile && !collapsed && (
+              <button
+                onClick={toggleCollapsed}
+                aria-label="Collapse sidebar"
+                title="Collapse sidebar"
+                style={{
+                  width:28, height:28, padding:0, borderRadius:8,
+                  background:'transparent', border:`1px solid ${C.border}`,
+                  color:C.gray, cursor:'pointer',
+                  display:'flex', alignItems:'center', justifyContent:'center',
+                  flexShrink:0,
+                  transition:'color .15s, background .15s, border-color .15s',
+                }}
+                onMouseEnter={(e) => { const t = e.currentTarget; t.style.color = C.white; t.style.background = C.s2; }}
+                onMouseLeave={(e) => { const t = e.currentTarget; t.style.color = C.gray; t.style.background = 'transparent'; }}
+              >
+                <Icon d="M15 18l-6-6 6-6" size={14} />
+              </button>
+            )}
           </div>
 
-          <nav style={{ flex:1, padding:'15px 0', overflowY:'auto' }}>
+          {/* Collapsed-mode expand button sits just under the logo so the
+              rep can re-open the sidebar without hunting for a control. */}
+          {!isMobile && collapsed && (
+            <button
+              onClick={toggleCollapsed}
+              aria-label="Expand sidebar"
+              title="Expand sidebar"
+              style={{
+                margin:'10px auto 0', width:32, height:32, padding:0, borderRadius:8,
+                background:'transparent', border:`1px solid ${C.border}`,
+                color:C.gray, cursor:'pointer',
+                display:'flex', alignItems:'center', justifyContent:'center',
+                transition:'color .15s, background .15s',
+              }}
+              onMouseEnter={(e) => { const t = e.currentTarget; t.style.color = C.white; t.style.background = C.s2; }}
+              onMouseLeave={(e) => { const t = e.currentTarget; t.style.color = C.gray; t.style.background = 'transparent'; }}
+            >
+              <Icon d="M9 18l6-6-6-6" size={14} />
+            </button>
+          )}
+
+          <nav style={{ flex:1, padding: collapsed && !isMobile ? '10px 0' : '15px 0', overflowY:'auto' }}>
             {navGroups.map((g, gi) => (
-              <div key={gi} style={{ marginBottom:20 }}>
-                {(isMobile || !collapsed) && <div style={{ padding:'0 20px', fontSize:10, color:C.grayd, textTransform:'uppercase', letterSpacing:1, marginBottom:10 }}>{g.label}</div>}
-                {g.items.map((i:any) => (
-                  <Link key={i.href} href={i.href}>
-                    <div style={{ display:'flex', alignItems:'center', padding:'10px 20px', gap:12, color:isActive(i.href)?C.red:C.gray, background:isActive(i.href)?C.redD:'transparent', cursor:'pointer' }}>
-                      <Icon d={i.icon} size={18} />
-                      {(isMobile || !collapsed) && <span style={{ fontSize:14 }}>{i.label}</span>}
-                    </div>
-                  </Link>
-                ))}
+              <div key={gi} style={{ marginBottom: collapsed && !isMobile ? 10 : 18 }}>
+                {(isMobile || !collapsed) ? (
+                  <div style={{
+                    padding:'0 20px',
+                    fontSize:10,
+                    color:C.grayd,
+                    textTransform:'uppercase',
+                    letterSpacing:1.2,
+                    fontWeight:700,
+                    marginBottom:6,
+                  }}>{g.label}</div>
+                ) : (
+                  // In collapsed mode, replace the text group label with a
+                  // thin horizontal divider so groups stay visually distinct
+                  // without overflowing the 64px rail.
+                  gi > 0 && (
+                    <div style={{
+                      height:1,
+                      background:C.border,
+                      margin:'0 16px 8px',
+                    }} />
+                  )
+                )}
+                {g.items.map((i:any) => {
+                  const active = isActive(i.href);
+                  return (
+                    <Link key={i.href} href={i.href} style={{ textDecoration:'none' }}>
+                      <div
+                        title={collapsed && !isMobile ? i.label : undefined}
+                        style={{
+                          position:'relative',
+                          display:'flex',
+                          alignItems:'center',
+                          padding: collapsed && !isMobile ? '10px 0' : '8px 16px 8px 20px',
+                          margin: collapsed && !isMobile ? '2px 8px' : '1px 10px',
+                          borderRadius:8,
+                          gap:12,
+                          color: active ? C.white : C.gray,
+                          background: active ? C.redD : 'transparent',
+                          cursor:'pointer',
+                          justifyContent: collapsed && !isMobile ? 'center' : 'flex-start',
+                          transition:'background .15s, color .15s',
+                        }}
+                        onMouseEnter={(e) => { if (!active) { e.currentTarget.style.background = C.s2; e.currentTarget.style.color = C.white; } }}
+                        onMouseLeave={(e) => { if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = C.gray; } }}
+                      >
+                        {/* Left-rail accent on active items — replaces the
+                            full-row red wash so the sidebar reads calmer and
+                            the active item still pops. */}
+                        {active && (
+                          <span style={{
+                            position:'absolute',
+                            left: collapsed && !isMobile ? 4 : 0,
+                            top:6, bottom:6,
+                            width:3,
+                            borderRadius:3,
+                            background:C.red,
+                          }} />
+                        )}
+                        <span style={{ color: active ? C.red : 'inherit', display:'flex', alignItems:'center' }}>
+                          <Icon d={i.icon} size={18} />
+                        </span>
+                        {(isMobile || !collapsed) && (
+                          <span style={{ fontSize:13.5, fontWeight: active ? 600 : 500, whiteSpace:'nowrap' }}>{i.label}</span>
+                        )}
+                      </div>
+                    </Link>
+                  );
+                })}
               </div>
             ))}
           </nav>
 
-          <div style={{ padding:20, borderTop:`1px solid ${C.border}` }}>
+          <div style={{ padding: collapsed && !isMobile ? '12px 8px' : 16, borderTop:`1px solid ${C.border}` }}>
             {(isMobile || !collapsed) && (
               <div style={{ marginBottom:10 }}>
                 <div style={{ fontSize:13, fontWeight:700, color:C.white, lineHeight:1.2 }}>{user?.name || 'Admin'}</div>
@@ -324,11 +453,34 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 </div>
               </div>
             )}
-            <button onClick={handleLogout} style={{ width:'100%', padding:'10px', background:'transparent', border:`1px solid ${C.border}`, color:C.gray, borderRadius:8, cursor:'pointer' }}>Sign Out</button>
+            <button
+              onClick={handleLogout}
+              title={collapsed && !isMobile ? 'Sign Out' : undefined}
+              style={{
+                width:'100%',
+                padding: collapsed && !isMobile ? '10px 0' : '10px',
+                background:'transparent',
+                border:`1px solid ${C.border}`,
+                color:C.gray,
+                borderRadius:8,
+                cursor:'pointer',
+                display:'flex',
+                alignItems:'center',
+                justifyContent:'center',
+                gap:8,
+                fontSize:13,
+                transition:'color .15s, border-color .15s, background .15s',
+              }}
+              onMouseEnter={(e) => { const t = e.currentTarget; t.style.color = C.red; t.style.borderColor = 'rgba(224,30,44,0.3)'; t.style.background = C.redD; }}
+              onMouseLeave={(e) => { const t = e.currentTarget; t.style.color = C.gray; t.style.borderColor = C.border; t.style.background = 'transparent'; }}
+            >
+              <Icon d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4 M16 17l5-5-5-5 M21 12H9" size={15} />
+              {(isMobile || !collapsed) && <span>Sign Out</span>}
+            </button>
 
-            {user?.email === 'demo@kinematic.com' && (
-              <div style={{ marginTop:15, padding:10, background:'rgba(255,59,48,0.1)', border:'1px solid rgba(255,59,48,0.2)', borderRadius:8, textAlign:'center' }}>
-                <div style={{ color:C.red, fontSize:9, fontWeight:900 }}>DEMO ACTIVE</div>
+            {user?.email === 'demo@kinematic.com' && (isMobile || !collapsed) && (
+              <div style={{ marginTop:12, padding:'8px 10px', background:'rgba(255,59,48,0.08)', border:'1px solid rgba(255,59,48,0.2)', borderRadius:8, textAlign:'center' }}>
+                <div style={{ color:C.red, fontSize:9, fontWeight:900, letterSpacing:1 }}>DEMO ACTIVE</div>
                 <div style={{ fontSize:8, color:C.grayd }}>Stable Mock Intercept</div>
               </div>
             )}
