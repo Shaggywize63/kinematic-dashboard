@@ -13,6 +13,9 @@ import NotificationBell from '../../components/crm/NotificationBell';
 // KINI chat is ~250 lines + 4 card components + markdown helpers; load it on
 // demand so the main dashboard JS stays lean. ssr:false avoids hydration cost.
 const KinematicAI = dynamic(() => import('../../components/KinematicAI'), { ssr: false });
+// Floating chat launcher (Messenger-style FAB + popup panel) — replaces the
+// sidebar Inbox entry. Lazy-loaded to keep TTI snappy.
+const ChatLauncher = dynamic(() => import('../../components/messaging/ChatLauncher'), { ssr: false });
 
 function GlobalClientFilter({ isPlatformAdmin }: { isPlatformAdmin: boolean }) {
   const { selectedClientId, setSelectedClientId } = useClient();
@@ -275,14 +278,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       { href: '/dashboard/security-alerts',          label: 'Security Alerts', icon: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z', module: 'security_alerts' },
       { href: '/dashboard/settings',                 label: 'Settings',        icon: ICON_SETTINGS, module: 'settings' },
     ]},
-    { label: 'Communication', package: 'people', items: [
-      // Inbox is the messaging hub — DMs, team chats, mentions. Lives
-      // under People & Support since it pairs with hierarchy + city scope.
-      // Inbox has no module gate — every authenticated user can message
-      // their hierarchy + city scope. The scope helper already restricts
-      // who they can reach, so no extra entitlement is needed.
-      { href: '/dashboard/inbox', label: 'Inbox', icon: 'M22 12h-6l-2 3h-4l-2-3H2 M5.45 5.11L2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6l-3.45-6.89A2 2 0 0016.76 4H7.24a2 2 0 00-1.79 1.11z' },
-    ]},
+    // Messaging is surfaced as a floating chat box at the bottom-right of
+    // every dashboard page (see ChatLauncher) — there is intentionally no
+    // sidebar entry. The full-page /dashboard/inbox route still works for
+    // direct links from notifications but isn't promoted in the nav.
     { label: 'Audit', package: 'audit', items: [
       { href: '/dashboard/audit-log', label: 'Activity Log', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2 M9 5a2 2 0 002 2h2a2 2 0 002-2 M12 11h4 M12 15h4 M8 11h.01 M8 15h.01', module: 'audit_log', superAdminOnly: true },
       { href: '/dashboard/audit-log/messages', label: 'Message Log', icon: 'M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z', module: 'audit_log', superAdminOnly: true },
@@ -601,6 +600,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </footer>
         </main>
         {token && <KinematicAI token={token} />}
+        {token && <ChatLauncher />}
       </div>
       </CityScopeProvider>
     </ClientProvider>
