@@ -199,7 +199,11 @@ export default function ChatLauncher() {
           top: 70,
           right: 24,
           width: 'min(380px, calc(100vw - 30px))',
-          height: 'min(560px, calc(100vh - 100px))',
+          // Cap the bottom edge above the KINI FAB so the Send button
+          // doesn't sit underneath it. KINI is at right:30 bottom:30,
+          // size 56 → its top edge is at viewport bottom-86. We add
+          // a 24px breathing strip = 110px reserved at the bottom.
+          height: 'min(560px, calc(100vh - 180px))',
           background: 'var(--s1)',
           border: '1px solid var(--border)',
           borderRadius: 14,
@@ -251,7 +255,7 @@ function PanelBody(props: {
           )}
           <div style={{ minWidth: 0 }}>
             <div style={{ fontWeight: 800, fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {view === 'threads' ? 'Messages' : view === 'compose' ? 'New conversation' : (selectedThread?.kind === 'team' ? (selectedThread?.name || 'Team Chat') : 'Direct Message')}
+              {view === 'threads' ? 'Messages' : view === 'compose' ? 'New conversation' : (selectedThread?.display_name || (selectedThread?.kind === 'team' ? (selectedThread?.name || 'Team Chat') : 'Direct Message'))}
             </div>
             {view === 'thread' && selectedThread && (
               <div style={{ fontSize: 10, color: 'var(--text-dim)' }}>
@@ -312,7 +316,7 @@ function ThreadsView({ loading, threads, onOpen, onCompose }: {
             <div style={{ minWidth: 0, flex: 1 }}>
               <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 6 }}>
                 <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {t.kind === 'team' ? (t.name || 'Team Chat') : 'Direct Message'}
+                  {t.display_name || (t.kind === 'team' ? (t.name || 'Team Chat') : 'Direct Message')}
                 </div>
                 {t.unread_count > 0 && (
                   <span style={{ background: 'var(--primary)', color: '#fff', borderRadius: 999, padding: '1px 7px', fontSize: 10, fontWeight: 800 }}>{t.unread_count}</span>

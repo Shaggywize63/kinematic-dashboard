@@ -12,14 +12,24 @@ export interface ScopedUser {
   city_names: string[];
 }
 
+export interface ThreadMember {
+  id: string;
+  name: string;
+}
+
 export interface ThreadRow {
   id: string;
   kind: 'dm' | 'team';
   name: string | null;
+  // "John Doe" for DMs, the team title (or member-name fallback) for
+  // team chats. Server-side hydrated so the FE doesn't have to resolve
+  // member uuids to names.
+  display_name: string;
   last_message_at: string | null;
   last_message_preview: string | null;
   unread_count: number;
   member_ids: string[];
+  members: ThreadMember[];
   created_at: string;
 }
 

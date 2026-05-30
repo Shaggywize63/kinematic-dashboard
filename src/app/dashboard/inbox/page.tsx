@@ -174,7 +174,7 @@ export default function InboxPage() {
               <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontWeight: 700, fontSize: 14 }}>
-                    {selectedThread?.kind === 'team' ? (selectedThread?.name || 'Team Chat') : 'Direct Message'}
+                    {selectedThread?.display_name || (selectedThread?.kind === 'team' ? (selectedThread?.name || 'Team Chat') : 'Direct Message')}
                   </div>
                   <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>
                     {selectedThread?.member_ids?.length ?? 0} members
@@ -245,7 +245,7 @@ function ThreadRowItem({ t, active, onClick }: { t: ThreadRow; active: boolean; 
       <div style={{ minWidth: 0, flex: 1 }}>
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 6 }}>
           <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {t.kind === 'team' ? (t.name || 'Team Chat') : `Direct Message · ${t.member_ids.length} member${t.member_ids.length === 1 ? '' : 's'}`}
+            {t.display_name || (t.kind === 'team' ? (t.name || 'Team Chat') : `Direct Message · ${t.member_ids.length} member${t.member_ids.length === 1 ? '' : 's'}`)}
           </div>
           {t.unread_count > 0 && (
             <span style={{ background: 'var(--primary)', color: '#fff', borderRadius: 999, padding: '1px 7px', fontSize: 10, fontWeight: 800 }}>
