@@ -589,7 +589,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 </div>
               </Link>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, zIndex: 1 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, zIndex: 1 }}>
+              {/* Chat trigger lives next to the notification bell — the
+                  previous floating FAB cramped on phones. ChatLauncher
+                  renders an icon button here and pops the panel inline. */}
+              {token && <ChatLauncher />}
               <NotificationBell />
               <GlobalClientFilter isPlatformAdmin={isPlatformAdmin} />
             </div>
@@ -600,7 +604,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </footer>
         </main>
         {token && <KinematicAI token={token} />}
-        {token && <ChatLauncher />}
       </div>
       </CityScopeProvider>
     </ClientProvider>
