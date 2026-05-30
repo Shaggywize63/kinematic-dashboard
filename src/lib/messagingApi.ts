@@ -77,8 +77,60 @@ export const messagingApi = {
     api.delete<void>(`${base}/push/subscribe?endpoint=${encodeURIComponent(endpoint)}`),
 
   auditMessages: (since?: string) =>
-    api.get<{ data: any[] }>(`${base}/audit/messages${since ? `?since=${encodeURIComponent(since)}` : ''}`),
+    api.get<{ data: AuditMessageRow[] }>(`${base}/audit/messages${since ? `?since=${encodeURIComponent(since)}` : ''}`),
 
   auditMentions: () =>
-    api.get<{ data: any[] }>(`${base}/audit/mentions`),
+    api.get<{ data: AuditMentionRow[] }>(`${base}/audit/mentions`),
+
+  // Full conversation drill-down — super-admin only. Returns the thread
+  // metadata + every message hydrated with sender names.
+  auditThread: (id: string) =>
+    api.get<{ data: AuditThreadDetail }>(`${base}/audit/threads/${id}`),
 };
+
+export interface AuditMessageRow {
+  id: string;
+  org_id: string;
+  org_name: string | null;
+  thread_id: string;
+  thread_title: string | null;
+  thread_kind: 'dm' | 'team' | null;
+  sender_id: string;
+  sender_name: string | null;
+  body: string;
+  language: string | null;
+  created_at: string;
+}
+
+export interface AuditMentionRow {
+  id: string;
+  org_id: string;
+  org_name: string | null;
+  source_kind: 'lead_update' | 'activity' | 'message';
+  source_id: string;
+  mentioner_id: string;
+  mentioner_name: string | null;
+  mentioned_user_id: string;
+  mentioned_name: string | null;
+  created_at: string;
+}
+
+export interface AuditThreadDetail {
+  id: string;
+  org_id: string;
+  org_name: string | null;
+  kind: 'dm' | 'team';
+  title: string;
+  name: string | null;
+  members: ThreadMember[];
+  created_at: string | null;
+  last_message_at: string | null;
+  messages: Array<{
+    id: string;
+    sender_id: string;
+    sender_name: string;
+    body: string;
+    language: string | null;
+    created_at: string;
+  }>;
+}
