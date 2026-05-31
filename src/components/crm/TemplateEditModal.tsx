@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import Modal from './shared/Modal';
 import api from '../../lib/api';
 import { crmEmailTemplates, crmWhatsappTemplates } from '../../lib/crmApi';
+import HtmlEmailEditor from './email/HtmlEmailEditor';
 
 export type TemplateDraft = {
   channel: 'email' | 'whatsapp';
@@ -138,7 +139,17 @@ export default function TemplateEditModal({ open, onClose, draft, onSaved }: Pro
           <Field label="Subject" required value={form.subject || ''} onChange={(v) => setForm({ ...form, subject: v })} />
           <Select label="Category" value={form.category || ''} onChange={(v) => setForm({ ...form, category: v || null })}
             options={[{ value: '', label: '—' }, { value: 'sales', label: 'Sales' }, { value: 'follow_up', label: 'Follow-up' }, { value: 'onboarding', label: 'Onboarding' }, { value: 'support', label: 'Support' }, { value: 'marketing', label: 'Marketing' }]} />
-          <Area label="HTML Body" required rows={10} value={form.body_html || ''} onChange={(v) => setForm({ ...form, body_html: v })} />
+          <div>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
+              HTML Body <span style={{ color: 'var(--primary)' }}>*</span>
+            </label>
+            <HtmlEmailEditor
+              value={form.body_html || ''}
+              onChange={(v) => setForm({ ...form, body_html: v })}
+              variables={form.variables || []}
+              minHeight={320}
+            />
+          </div>
           <Area label="Plain Text (optional)" rows={5} value={form.body_text || ''} onChange={(v) => setForm({ ...form, body_text: v })} />
         </div>
       ) : (

@@ -237,6 +237,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       { href: '/dashboard/crm/products',         label: 'Products',       icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4', module: 'crm_products' },
       { href: '/dashboard/crm/activities',       label: 'Activities',     icon: 'M22 11.08V12a10 10 0 11-5.93-9.14 M22 4L12 14.01l-3-3', module: 'crm_activities' },
       { href: '/dashboard/crm/whatsapp',         label: 'WhatsApp',       icon: ICON_WHATSAPP, module: 'crm_whatsapp' },
+      // Email alerts + verified senders — the marketing-side email surface.
+      // Templates live at the existing /crm/email-templates page; alerts
+      // composes them with a verified From + scheduler.
+      { href: '/dashboard/crm/email-alerts',     label: 'Email Alerts',   icon: 'M4 4h16a2 2 0 012 2v12a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2z M22 6l-10 7L2 6 M12 13v7' },
+      { href: '/dashboard/crm/email-senders',    label: 'Email Senders',  icon: 'M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 7a4 4 0 100-8 4 4 0 000 8z M20 8l2 2-4 4 M22 10l-4 4' },
       { href: '/dashboard/crm/nurturing',        label: 'Nurturing',      icon: 'M13 2L3 14h9l-1 8 10-12h-9l1-8z', module: 'crm_dashboard', demoOnly: true },
       { href: '/dashboard/crm/reports',          label: 'Reports',        icon: 'M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6 M16 13H8 M16 17H8', module: 'crm_reports' },
       { href: '/dashboard/crm/settings',         label: 'Settings',       icon: ICON_SETTINGS, module: 'crm_settings' },
