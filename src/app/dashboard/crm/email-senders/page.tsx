@@ -49,12 +49,29 @@ export default function EmailSendersPage() {
     let cancelled = false;
     (async () => {
       try {
-        await fetch(`${API_BASE_URL}/api/v1/crm/verified-senders/verify/${encodeURIComponent(token)}`, { method: 'GET' });
+        const res = await fetch(
+          `${API_BASE_URL}/api/v1/crm/verified-senders/verify/${encodeURIComponent(token)}`,
+          { method: 'GET' },
+        );
         if (cancelled) return;
-        toast.success('Sender verified.');
-        load();
-      } catch {
-        if (!cancelled) toast.error('Verification link could not be processed. Try resending the verification email.');
+        // Backend returns 200 with success HTML when the token was found
+        // and the row was flipped. 400 means the token didn't match any
+        // row — usually because the user clicked an OLD verification
+        // link after a Resend regenerated a fresh token, invalidating
+        // the earlier one. Show distinct messaging so the rep knows to
+        // open the most recent email instead of just retrying.
+        if (res.ok) {
+          toast.success('Sender verified.');
+        } else if (res.status === 400) {
+          toast.error('This verification link has expired. Click "Resend" below and open the most recent email.');
+        } else {
+          toast.error(`Verification failed (HTTP ${res.status}). Try again or contact support.`);
+        }
+        // Always refresh so the row state is in sync with whatever the
+        // backend actually did.
+        await load();
+      } catch (err: any) {
+        if (!cancelled) toast.error(`Verification link could not be processed: ${err?.message || 'network error'}`);
       }
     })();
     return () => { cancelled = true; };

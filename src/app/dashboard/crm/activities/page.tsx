@@ -984,6 +984,7 @@ function EditActivityModal({ activity, onClose, onSaved }: { activity: Activity;
   const [dueAt, setDueAt] = useState(activity.due_at ? toLocalDateTime(activity.due_at) : '');
   const [type, setType] = useState<string>(activity.type);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const submit = async () => {
     setSaving(true);
@@ -1000,6 +1001,17 @@ function EditActivityModal({ activity, onClose, onSaved }: { activity: Activity;
       onSaved();
     } catch (e: any) { toast.error(e.message || 'Failed to update'); }
     finally { setSaving(false); }
+  };
+
+  const remove = async () => {
+    if (!confirm(`Delete this ${activity.type}? It will be soft-deleted on the backend and can be recovered by support, but won't appear in lists or analytics.`)) return;
+    setDeleting(true);
+    try {
+      await crmActivities.remove(activity.id);
+      toast.success('Activity deleted');
+      onSaved();
+    } catch (e: any) { toast.error(e.message || 'Failed to delete'); }
+    finally { setDeleting(false); }
   };
 
   return (
@@ -1022,9 +1034,23 @@ function EditActivityModal({ activity, onClose, onSaved }: { activity: Activity;
         </Field>
         <Field label="Outcome (optional)"><input value={outcome} onChange={(e) => setOutcome(e.target.value)} style={editInput} /></Field>
         <Field label="Due / scheduled for"><input type="datetime-local" value={dueAt} onChange={(e) => setDueAt(e.target.value)} style={editInput} /></Field>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 6 }}>
-          <button onClick={onClose} style={{ padding: '9px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', cursor: 'pointer' }}>Cancel</button>
-          <button onClick={submit} disabled={saving} style={{ padding: '9px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, background: 'var(--primary)', border: 'none', color: '#fff', cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.5 : 1 }}>{saving ? 'Saving…' : 'Save changes'}</button>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginTop: 6 }}>
+          {/* Delete is destructive and sits on the opposite side from
+              the primary Save action so a slip-of-the-thumb doesn't
+              nuke the row. The double-confirm in remove() catches the
+              rest. */}
+          <button onClick={remove} disabled={deleting || saving} style={{
+            padding: '9px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700,
+            background: 'transparent', border: '1px solid rgba(224,30,44,0.4)',
+            color: 'var(--primary)', cursor: deleting ? 'not-allowed' : 'pointer',
+            opacity: deleting ? 0.5 : 1,
+          }}>
+            {deleting ? 'Deleting…' : '🗑 Delete'}
+          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={onClose} disabled={deleting || saving} style={{ padding: '9px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', cursor: 'pointer' }}>Cancel</button>
+            <button onClick={submit} disabled={saving || deleting} style={{ padding: '9px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, background: 'var(--primary)', border: 'none', color: '#fff', cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.5 : 1 }}>{saving ? 'Saving…' : 'Save changes'}</button>
+          </div>
         </div>
       </div>
     </div>
