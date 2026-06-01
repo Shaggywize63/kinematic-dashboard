@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { verifiedSendersApi, type VerifiedSender } from '../../../../lib/emailAlertsApi';
+import { API_BASE_URL } from '../../../../lib/api';
 
 /**
  * Verified sender addresses for outbound email.
@@ -37,14 +38,26 @@ export default function EmailSendersPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  // The verification link points back to this page with ?verify=<token>;
-  // the GET /verify/:token endpoint already updates the DB and renders
-  // its own confirmation page. We just refresh the list + toast here.
+  // The verification link in the email points back to this page with
+  // ?verify=<token>. The token is the only thing identifying the sender
+  // row, so we POST it to the backend's /verify endpoint here — without
+  // this call the dashboard used to show a "verified" toast while the
+  // backend row stayed pending.
   useEffect(() => {
-    if (params.get('verify')) {
-      toast.success('Verification link processed — refresh status below if not visible.');
-      load();
-    }
+    const token = params.get('verify');
+    if (!token) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        await fetch(`${API_BASE_URL}/api/v1/crm/verified-senders/verify/${encodeURIComponent(token)}`, { method: 'GET' });
+        if (cancelled) return;
+        toast.success('Sender verified.');
+        load();
+      } catch {
+        if (!cancelled) toast.error('Verification link could not be processed. Try resending the verification email.');
+      }
+    })();
+    return () => { cancelled = true; };
   }, [params, load]);
 
   const add = async () => {
