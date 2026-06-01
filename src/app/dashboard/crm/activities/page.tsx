@@ -83,6 +83,13 @@ function ActivitiesPageInner() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
   const [pagination, setPagination] = useState<Pagination | null>(null);
+  // Sort dropdown — "latest activity" maps to updated_at desc so any
+  // touch (status flip, notes edit, reopen) bubbles a row to the top.
+  // created_at variants give a static newest/oldest-first; due_at lets
+  // reps focus on what's coming up next.
+  type SortOption = 'updated_desc' | 'created_desc' | 'created_asc' | 'due_asc' | 'due_desc';
+  const [sort, setSort] = useState<SortOption>('updated_desc');
+  const [editing, setEditing] = useState<Activity | null>(null);
   const cardView = useViewPrefs('activities');
   const cardHidden = useMemo(() => new Set(cardView.prefs.hidden), [cardView.prefs.hidden]);
   const cardsMode = cardView.prefs.mode === 'cards';
@@ -177,6 +184,18 @@ function ActivitiesPageInner() {
       // KPI-tile filter — only send when not 'all'. Backend ignores
       // unknown values; sending 'all' as a no-op keeps the URL clean.
       if (view !== 'all') params.view = view;
+      // Sort — backend's crud.list passes `sort` + `order` straight into
+      // supabase .order(). due_at/created_at/updated_at are all valid
+      // columns on crm_activities.
+      const sortMap: Record<SortOption, { sort: string; order: 'asc' | 'desc' }> = {
+        updated_desc: { sort: 'updated_at', order: 'desc' },
+        created_desc: { sort: 'created_at', order: 'desc' },
+        created_asc:  { sort: 'created_at', order: 'asc'  },
+        due_asc:      { sort: 'due_at',     order: 'asc'  },
+        due_desc:     { sort: 'due_at',     order: 'desc' },
+      };
+      params.sort  = sortMap[sort].sort;
+      params.order = sortMap[sort].order;
       const r = await crmActivities.list(params);
       setActivities(r.data || []);
       // `pagination` may be undefined if the backend hasn't shipped the
@@ -212,7 +231,7 @@ function ActivitiesPageInner() {
   // means we don't need the client-side `filtered` array to re-filter on
   // the same dimensions.
   useEffect(() => { reload(); /* eslint-disable-next-line */ }, [
-    type, statusFilter, feFilter, view, page, pageSize, isAdmin,
+    type, statusFilter, feFilter, view, page, pageSize, isAdmin, sort,
   ]);
 
   // Reset to page 1 whenever any server-side filter changes — otherwise
@@ -380,6 +399,13 @@ function ActivitiesPageInner() {
             {STATUS_OPTIONS.map((s) => (
               <option key={s} value={s}>{s ? s.replace('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : 'All Statuses'}</option>
             ))}
+          </select>
+          <select value={sort} onChange={(e) => setSort(e.target.value as SortOption)} title="Sort order" style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 }}>
+            <option value="updated_desc">Latest activity</option>
+            <option value="created_desc">Newest first</option>
+            <option value="created_asc">Oldest first</option>
+            <option value="due_asc">Due soonest</option>
+            <option value="due_desc">Due latest</option>
           </select>
           {isAdmin && (
             <span style={{ fontSize: 11, color: 'var(--primary)', background: 'var(--s3)', padding: '3px 8px', borderRadius: 6, fontWeight: 700 }}>
@@ -592,6 +618,12 @@ function ActivitiesPageInner() {
                       ↺ Reopen
                     </button>
                   )}
+                  {/* Edit is available regardless of status — reps need to fix
+                      typos, update notes, push out the due_at, etc., on both
+                      planned and completed/reopened rows. */}
+                  <button onClick={() => setEditing(a)} disabled={busyId === a.id} style={btnGhost}>
+                    ✎ Edit
+                  </button>
                   {(a as any).status !== 'cancelled' && !a.completed_at && (
                     <button onClick={() => updateStatus(a, 'cancelled')} disabled={busyId === a.id} style={btnGray}>
                       ✕ Cancel
@@ -624,6 +656,13 @@ function ActivitiesPageInner() {
         onPageSizeChange={setPageSize}
         loading={loading}
       />
+      {editing && (
+        <EditActivityModal
+          activity={editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => { setEditing(null); reload(); }}
+        />
+      )}
     </div>
   );
 }
@@ -936,6 +975,82 @@ function ActivityCalendar({
       </div>
     </div>
   );
+}
+
+function EditActivityModal({ activity, onClose, onSaved }: { activity: Activity; onClose: () => void; onSaved: () => void }) {
+  const [subject, setSubject] = useState(activity.subject || '');
+  const [description, setDescription] = useState(activity.description || activity.body || '');
+  const [outcome, setOutcome] = useState(activity.outcome || '');
+  const [dueAt, setDueAt] = useState(activity.due_at ? toLocalDateTime(activity.due_at) : '');
+  const [type, setType] = useState<string>(activity.type);
+  const [saving, setSaving] = useState(false);
+
+  const submit = async () => {
+    setSaving(true);
+    try {
+      const payload: Record<string, unknown> = {
+        type,
+        subject: subject.trim() || null,
+        description: description.trim() || null,
+        outcome: outcome.trim() || null,
+        due_at: dueAt ? new Date(dueAt).toISOString() : null,
+      };
+      await crmActivities.update(activity.id, payload as any);
+      toast.success('Activity updated');
+      onSaved();
+    } catch (e: any) { toast.error(e.message || 'Failed to update'); }
+    finally { setSaving(false); }
+  };
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, zIndex: 100 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 520, background: 'var(--s1)', border: '1px solid var(--border)', borderRadius: 12, padding: 18, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ fontSize: 16, fontWeight: 800 }}>Edit activity</div>
+          <button onClick={onClose} aria-label="Close" style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 22 }}>×</button>
+        </div>
+        <Field label="Type">
+          <select value={type} onChange={(e) => setType(e.target.value)} style={editInput}>
+            {['call', 'email', 'meeting', 'task', 'note', 'whatsapp', 'sms', 'other'].map((t) => (
+              <option key={t} value={t}>{t[0].toUpperCase() + t.slice(1)}</option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Subject"><input value={subject} onChange={(e) => setSubject(e.target.value)} style={editInput} /></Field>
+        <Field label="Description / notes">
+          <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4} style={{ ...editInput, fontFamily: 'inherit', resize: 'vertical' }} />
+        </Field>
+        <Field label="Outcome (optional)"><input value={outcome} onChange={(e) => setOutcome(e.target.value)} style={editInput} /></Field>
+        <Field label="Due / scheduled for"><input type="datetime-local" value={dueAt} onChange={(e) => setDueAt(e.target.value)} style={editInput} /></Field>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 6 }}>
+          <button onClick={onClose} style={{ padding: '9px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', cursor: 'pointer' }}>Cancel</button>
+          <button onClick={submit} disabled={saving} style={{ padding: '9px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, background: 'var(--primary)', border: 'none', color: '#fff', cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.5 : 1 }}>{saving ? 'Saving…' : 'Save changes'}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>{label}</label>
+      {children}
+    </div>
+  );
+}
+const editInput: React.CSSProperties = {
+  width: '100%', boxSizing: 'border-box', padding: 9, fontSize: 13,
+  borderRadius: 8, border: '1px solid var(--border)',
+  background: 'var(--s3)', color: 'var(--text)',
+};
+
+function toLocalDateTime(iso: string): string {
+  // <input type="datetime-local"> expects "YYYY-MM-DDTHH:mm" in *local* time;
+  // ISO strings are UTC, so we offset before slicing.
+  const d = new Date(iso);
+  const off = d.getTimezoneOffset() * 60_000;
+  return new Date(d.getTime() - off).toISOString().slice(0, 16);
 }
 
 /**
