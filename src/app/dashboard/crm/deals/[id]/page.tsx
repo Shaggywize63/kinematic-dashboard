@@ -535,7 +535,7 @@ export default function DealDetailPage() {
           </button>
           <SafeRender label="next best action">
             <div style={{ position: 'relative' }}>
-              <NextBestActionCard action={nba} onLoad={loadNba} loading={nbaBusy} />
+              <NextBestActionCard action={nba} onLoad={loadNba} loading={nbaBusy} dealId={id} />
               {nbaBusy && !nba && (
                 <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <LogoSpinner size={40} label="Computing…" />

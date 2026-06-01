@@ -352,7 +352,7 @@ export default function LeadDetailPage() {
           onRefresh={reScore}
           loading={scoring}
         />
-        <NextBestActionCard action={nba} onLoad={loadNba} loading={nbaLoading} />
+        <NextBestActionCard action={nba} onLoad={loadNba} loading={nbaLoading} leadId={id} />
       </div>
 
       <LeadConvertModal
