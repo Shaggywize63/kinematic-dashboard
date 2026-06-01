@@ -1,7 +1,7 @@
 'use client';
 import { useState, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import api from '../../lib/api';
+import api, { API_BASE_URL } from '../../lib/api';
 import { saveSession, landingRouteFor } from '../../lib/auth';
 
 /**
@@ -133,7 +133,17 @@ export default function LoginPage() {
         router.push(landingRouteFor(user));
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Login failed. Check your credentials.');
+      // "Failed to fetch" is a browser-level error meaning the request never
+      // reached our backend. Surface the API URL the dashboard is trying to
+      // reach so users + support can diagnose (wrong env on build, network
+      // block, stale cache pointing at a dead URL, etc.) instead of staring
+      // at a generic message.
+      const raw = e instanceof Error ? e.message : '';
+      if (/Failed to fetch|NetworkError|Load failed/i.test(raw)) {
+        setError(`Could not reach ${API_BASE_URL}. Check your internet, try incognito mode, or contact your administrator if the problem persists.`);
+      } else {
+        setError(raw || 'Login failed. Check your credentials.');
+      }
     } finally {
       setLoading(false);
     }
