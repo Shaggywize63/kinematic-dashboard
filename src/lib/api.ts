@@ -286,7 +286,20 @@ class ApiClient {
     // Include selected client in cache keys for any client-scoped path so
     // switching clients via the picker invalidates per-tenant data.
     const clientPart = `|c:${this.getSelectedClient() || 'org'}`;
-    const key = `${this.getToken() || 'anon'}|${path}${clientPart}`;
+    // Include the CRM city-scope picker in the key. request() appends the
+    // picked city as `?city=` to CRM GETs AFTER this key is computed, so
+    // without this the key would be identical across cities and changing
+    // the picker would return the previous city's cached rows (the list
+    // would only update on a hard reload that clears the cache). Mirror the
+    // exact append condition in request() so non-CRM paths are unaffected.
+    let cityPart = '';
+    try {
+      const selCity = typeof window !== 'undefined' ? window.localStorage.getItem('kinematic_selected_city') : null;
+      if (selCity && path.startsWith('/api/v1/crm/') && !/[?&]city=/i.test(path)) {
+        cityPart = `|city:${selCity}`;
+      }
+    } catch { /* ignore */ }
+    const key = `${this.getToken() || 'anon'}|${path}${clientPart}${cityPart}`;
     const now = Date.now();
 
     // 1) In-memory hot cache (fresh): return immediately, no network.
