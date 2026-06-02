@@ -68,7 +68,7 @@ export default function BulkCoordinatesModal({ open, onClose, onDone }: {
     if (grid.length < 2) return [];
     const header = grid[0].map((h) => h.trim().toLowerCase());
     const idx = (names: string[]) => header.findIndex((h) => names.includes(h));
-    const iId = idx(['id', 'lead_id']);
+    const iId = idx(['id', 'lead_id', 'lead id']);
     const iEmail = idx(['email']);
     const iPhone = idx(['phone', 'mobile']);
     const iLat = idx(['latitude', 'lat']);
