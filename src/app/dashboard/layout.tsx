@@ -175,8 +175,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const hasModule = (m: string) => {
     if (!m) return true;
-    if (enabledModules.length > 0) return enabledModules.includes(m);
-    return userPerms.includes(m);
+    // Two independent gates must BOTH pass:
+    //   1. Entitlement — the client must own the module SKU.
+    //   2. Role grant — the user's designation must include the module.
+    // Previously an entitlement alone was sufficient, so every user in an
+    // entitled client saw modules (e.g. Settings) their role omitted. We now
+    // intersect: when the user has an explicit permission set, the module must
+    // be in it; legacy accounts with no granular permissions fall back to the
+    // entitlement so they aren't locked out.
+    const entitled = enabledModules.length === 0 || enabledModules.includes(m);
+    if (!entitled) return false;
+    if (userPerms.length > 0) return userPerms.includes(m);
+    return true;
   };
 
   const filterNav = (items: any[]) => {
