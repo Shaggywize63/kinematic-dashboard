@@ -91,7 +91,7 @@ export default function LeadImportPage() {
     }
   };
 
-  // Poll the import job until status flips to 'done' or 'failed'. Updates
+  // Poll the import job until status flips to 'completed' or 'failed'. Updates
   // the job state on every tick so the progress bar advances. Stops after
   // 30 minutes of polling as a hard safety cap.
   const pollJobUntilDone = (jobId: string) => {
@@ -103,7 +103,7 @@ export default function LeadImportPage() {
           ?? ((r as unknown) as ImportJob & { summary?: CommitSummary }));
         setJob(updated);
         const s = (updated as { status?: string }).status;
-        if (s === 'done') {
+        if (s === 'completed') {
           const sum = (updated as { summary?: CommitSummary }).summary;
           if (sum) setSummary(sum);
           setStep(4);
