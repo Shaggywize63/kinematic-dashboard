@@ -26,6 +26,9 @@ export interface B2CFields {
   interests?: string[] | null;
   /** Secondary phone numbers — the primary stays in `phone` (lead) / `mobile` (contact). */
   alternate_mobiles?: string[] | null;
+  /** Geo coordinates — captured on add (device GPS / manual) or backfilled in bulk. Plotted on the map. */
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 export interface Lead extends B2CFields {

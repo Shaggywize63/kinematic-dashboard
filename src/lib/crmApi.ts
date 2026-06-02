@@ -75,6 +75,11 @@ export const crmLeads = {
     ),
   bulkAssign: (body: { lead_ids: string[]; owner_id?: string; territory_id?: string }) =>
     api.post<Wrapped<{ updated: number }>>(`${BASE}/leads/bulk-assign`, body),
+  // Bulk lat/long backfill for existing leads. Each row matches one lead by
+  // id -> email -> phone (server-side, org-scoped).
+  bulkCoordinates: (body: { rows: Array<{ id?: string; email?: string; phone?: string; latitude: number; longitude: number }> }) =>
+    api.post<Wrapped<{ updated: number; skipped: number; errors: Array<{ row: number; reason: string }> }>>(
+      `${BASE}/leads/bulk-coordinates`, body),
   // Lifecycle: disqualify with a reason and reopen.
   // Disqualify routes through the existing PATCH so the server's status-transition
   // audit + disqualified_at stamping (lead lifecycle Step 1) fires uniformly.

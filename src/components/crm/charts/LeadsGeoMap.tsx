@@ -178,6 +178,19 @@ export interface LeadGeoPoint {
   city?: string | null;
   state?: string | null;
   status?: string | null;
+  // Exact captured position. When present the lead is plotted here instead
+  // of being jittered around its city centroid.
+  latitude?: number | null;
+  longitude?: number | null;
+}
+
+// True when a lead carries a usable real position. Rejects null-island
+// (0,0) which is almost always a missing-coordinate artefact, not a lead.
+function hasRealCoords(l: LeadGeoPoint): l is LeadGeoPoint & { latitude: number; longitude: number } {
+  return typeof l.latitude === 'number' && typeof l.longitude === 'number'
+    && Number.isFinite(l.latitude) && Number.isFinite(l.longitude)
+    && Math.abs(l.latitude) <= 90 && Math.abs(l.longitude) <= 180
+    && !(l.latitude === 0 && l.longitude === 0);
 }
 
 // Zoom thresholds drive the level-of-detail switch.
@@ -263,7 +276,7 @@ export default function LeadsGeoMap({ leads, height = 620 }: { leads: LeadGeoPoi
   }, []);
 
   // Bucket leads by state + by city so both layers can read counts O(1).
-  const { byState, byCity, unmapped } = useMemo(() => {
+  const { byState, byCity, unmapped, pinnedLeads } = useMemo(() => {
     const stateMap = new Map<string, { name: string; lat: number; lng: number; zoom: number; count: number; statuses: Record<string, number> }>();
     const cityMap = new Map<string, { city: string; state?: string; lat: number; lng: number; count: number; statuses: Record<string, number>; leads: LeadGeoPoint[] }>();
     let unmappedCount = 0;
@@ -292,7 +305,8 @@ export default function LeadsGeoMap({ leads, height = 620 }: { leads: LeadGeoPoi
         cur.statuses[status] = (cur.statuses[status] ?? 0) + 1;
         cur.leads.push(l);
         cityMap.set(cityKey, cur);
-      } else {
+      } else if (!hasRealCoords(l)) {
+        // No city centroid AND no exact coordinates → can't place it.
         unmappedCount += 1;
       }
     }
@@ -300,6 +314,9 @@ export default function LeadsGeoMap({ leads, height = 620 }: { leads: LeadGeoPoi
       byState: Array.from(stateMap.values()).sort((a, b) => b.count - a.count),
       byCity: Array.from(cityMap.values()).sort((a, b) => b.count - a.count),
       unmapped: unmappedCount,
+      // Leads with an exact captured position — plotted precisely (not
+      // jittered) at high zoom. Includes leads whose city has no centroid.
+      pinnedLeads: leads.filter(hasRealCoords),
     };
   }, [leads]);
 
@@ -421,45 +438,66 @@ export default function LeadsGeoMap({ leads, height = 620 }: { leads: LeadGeoPoi
             );
           })}
 
-          {/* Individual lead markers — one circle per lead, jittered so they
-              don't overlap when many leads share a city centroid. Click navigates. */}
-          {showLeads && byCity.flatMap((c) => c.leads.map((lead, i) => {
-            const angle = (i / Math.max(c.leads.length, 1)) * 2 * Math.PI;
-            const r = 0.04;
-            const lat = c.lat + Math.sin(angle) * r;
-            const lng = c.lng + Math.cos(angle) * r;
-            const status = (lead.status ?? 'new').toLowerCase();
-            const color = STATUS_COLOR[status] ?? '#3E9EFF';
-            return (
-              <CircleMarker
-                key={`lead-${lead.id}`}
-                center={[lat, lng]}
-                radius={6}
-                pathOptions={{ color: '#fff', fillColor: color, fillOpacity: 0.9, weight: 1.5 }}
-                eventHandlers={{ click: () => router.push(`/dashboard/crm/leads/${lead.id}`) }}
-              >
-                <Tooltip direction="top" offset={[0, -6]}>
-                  <span style={{ font: '600 11px system-ui' }}>
-                    {[lead.first_name, lead.last_name].filter(Boolean).join(' ') || 'Lead'}
-                  </span>
-                </Tooltip>
-                <Popup>
-                  <div style={{ font: '12px/1.4 system-ui' }}>
-                    <strong>{[lead.first_name, lead.last_name].filter(Boolean).join(' ') || 'Lead'}</strong>
-                    <br />
-                    <span style={{ color: '#666' }}>{c.city}{c.state ? `, ${c.state}` : ''}</span>
-                    <br />
-                    <span style={{ display: 'inline-block', marginTop: 4, padding: '1px 6px', borderRadius: 4, background: `${color}33`, color, fontSize: 10, fontWeight: 700 }}>
-                      {status}
+          {/* Individual lead markers. Leads with an exact captured position
+              are plotted there; the rest are jittered around their city
+              centroid so they don't overlap. Click navigates. */}
+          {showLeads && (() => {
+            const markers: Array<{ lead: LeadGeoPoint; lat: number; lng: number; place: string }> = [];
+            for (const c of byCity) {
+              const jittered = c.leads.filter((l) => !hasRealCoords(l));
+              jittered.forEach((lead, i) => {
+                const angle = (i / Math.max(jittered.length, 1)) * 2 * Math.PI;
+                const r = 0.04;
+                markers.push({
+                  lead,
+                  lat: c.lat + Math.sin(angle) * r,
+                  lng: c.lng + Math.cos(angle) * r,
+                  place: `${c.city}${c.state ? `, ${c.state}` : ''}`,
+                });
+              });
+            }
+            for (const lead of pinnedLeads) {
+              markers.push({
+                lead,
+                lat: lead.latitude,
+                lng: lead.longitude,
+                place: [lead.city, lead.state].filter(Boolean).join(', ') || 'Pinned location',
+              });
+            }
+            return markers.map(({ lead, lat, lng, place }) => {
+              const status = (lead.status ?? 'new').toLowerCase();
+              const color = STATUS_COLOR[status] ?? '#3E9EFF';
+              return (
+                <CircleMarker
+                  key={`lead-${lead.id}`}
+                  center={[lat, lng]}
+                  radius={6}
+                  pathOptions={{ color: '#fff', fillColor: color, fillOpacity: 0.9, weight: 1.5 }}
+                  eventHandlers={{ click: () => router.push(`/dashboard/crm/leads/${lead.id}`) }}
+                >
+                  <Tooltip direction="top" offset={[0, -6]}>
+                    <span style={{ font: '600 11px system-ui' }}>
+                      {[lead.first_name, lead.last_name].filter(Boolean).join(' ') || 'Lead'}
                     </span>
-                    <div style={{ marginTop: 8 }}>
-                      <a href={`/dashboard/crm/leads/${lead.id}`} style={{ color: '#E01E2C', fontWeight: 700, fontSize: 11 }}>Open lead →</a>
+                  </Tooltip>
+                  <Popup>
+                    <div style={{ font: '12px/1.4 system-ui' }}>
+                      <strong>{[lead.first_name, lead.last_name].filter(Boolean).join(' ') || 'Lead'}</strong>
+                      <br />
+                      <span style={{ color: '#666' }}>{place}</span>
+                      <br />
+                      <span style={{ display: 'inline-block', marginTop: 4, padding: '1px 6px', borderRadius: 4, background: `${color}33`, color, fontSize: 10, fontWeight: 700 }}>
+                        {status}
+                      </span>
+                      <div style={{ marginTop: 8 }}>
+                        <a href={`/dashboard/crm/leads/${lead.id}`} style={{ color: '#E01E2C', fontWeight: 700, fontSize: 11 }}>Open lead →</a>
+                      </div>
                     </div>
-                  </div>
-                </Popup>
-              </CircleMarker>
-            );
-          }))}
+                  </Popup>
+                </CircleMarker>
+              );
+            });
+          })()}
         </MapContainer>
 
         {/* Bottom-left zoom hint + reset */}
