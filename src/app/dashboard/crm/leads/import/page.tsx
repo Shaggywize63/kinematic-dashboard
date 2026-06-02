@@ -54,11 +54,34 @@ export default function LeadImportPage() {
       const firstLine = text.split('\n')[0] || '';
       const cols = firstLine.split(',').map((c) => c.trim().replace(/^"|"$/g, ''));
       setHeaders(cols);
+      // Auto-map header → CRM field. Strict equality first; only fall back
+      // to a synonym match if no exact hit. The previous "substring
+      // includes" check wrongly mapped `owner_email` → `email` (because
+      // "owner_email".includes("email") is true), which then overwrote
+      // every imported lead's email with the rep's address and made
+      // re-imports all dedup into the same lead. The fix: require an
+      // exact normalised match OR an explicit synonym, never a loose
+      // substring overlap.
+      const SYNONYMS: Record<string, string> = {
+        firstname: 'first_name', fname: 'first_name', given_name: 'first_name',
+        lastname: 'last_name', lname: 'last_name', surname: 'last_name', family_name: 'last_name',
+        mobile: 'phone', mobile_number: 'phone', phone_number: 'phone', contact: 'phone', contact_number: 'phone',
+        email_id: 'email', email_address: 'email', mail: 'email',
+        organization: 'company', organisation: 'company', firm: 'company',
+        designation: 'title', position: 'title', role: 'title',
+        lead_source: 'source', channel: 'source',
+        // owner_email is intentionally NOT mapped to email — it identifies
+        // the rep, not the lead. Same for owner_phone / assigned_to_*.
+      };
       const auto: Record<string, string> = {};
       cols.forEach((c) => {
         const norm = c.toLowerCase().replace(/[\s-]/g, '_');
-        const match = LEAD_FIELDS.find((f) => f === norm || f.includes(norm) || norm.includes(f));
-        if (match) auto[c] = match;
+        if (LEAD_FIELDS.includes(norm)) {
+          auto[c] = norm;
+        } else if (SYNONYMS[norm]) {
+          auto[c] = SYNONYMS[norm];
+        }
+        // Anything else stays unmapped — the rep can choose on the Map step.
       });
       setMapping(auto);
       setStep(2);
