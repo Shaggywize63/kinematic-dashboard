@@ -259,7 +259,15 @@ export default function CrmDashboardPage() {
 
       {visibleStatCount > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
-          {isVisible('stat_open_pipeline') && <StatCard label="Open Pipeline" value={fmtMoney(summary?.open_deal_value)} valueTitle={fmtMoneyFull(summary?.open_deal_value)} hint={`${summary?.open_deals || 0} deals`} loading={loading} />}
+          {isVisible('stat_open_pipeline') && (
+            // In weight mode the pipeline aggregates kg from deal line items.
+            // When the open deals carry no weighted products the total is a
+            // legitimate 0 — surface a hint so it doesn't read as a broken
+            // metric, and point the user at the fix (add products to deals).
+            unit === 'weight' && !(summary?.open_deal_value)
+              ? <StatCard label="Open Pipeline" value="—" hint={`No weight on ${summary?.open_deals || 0} open deals — add products`} loading={loading} />
+              : <StatCard label="Open Pipeline" value={fmtMoney(summary?.open_deal_value)} valueTitle={fmtMoneyFull(summary?.open_deal_value)} hint={`${summary?.open_deals || 0} deals`} loading={loading} />
+          )}
           {isVisible('stat_won') && <StatCard label="Won (window)" value={fmtMoney(summary?.won_revenue_30d)} valueTitle={fmtMoneyFull(summary?.won_revenue_30d)} hint={`${summary?.won_deals_30d || 0} deals`} deltaTone="up" loading={loading} />}
           {isVisible('stat_win_rate') && <StatCard label="Win Rate" value={fmtPct(summary?.win_rate_30d)} loading={loading} />}
           {isVisible('stat_avg_deal') && <StatCard label="Avg Deal Size" value={fmtMoney(summary?.avg_deal_size)} valueTitle={fmtMoneyFull(summary?.avg_deal_size)} loading={loading} />}
