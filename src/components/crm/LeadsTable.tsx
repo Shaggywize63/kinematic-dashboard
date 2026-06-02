@@ -33,6 +33,10 @@ export const LEAD_COLUMNS = [
   { key: 'latest_update', label: 'Latest Update' },
   { key: 'source', label: 'Source' },
   { key: 'owner', label: 'Owner' },
+  // "Uploaded by" — set on lead create, hydrated server-side via
+  // stampCreatedByNames so we get the user's display name not a UUID.
+  { key: 'created_by', label: 'Uploaded By' },
+  { key: 'created_at', label: 'Uploaded On' },
   { key: 'action', label: 'Action' },
 ] as const;
 
@@ -59,6 +63,8 @@ export default function LeadsTable({ leads, selected, onToggle, onToggleAll, loa
   if (isVisible('latest_update')) colCount += 1;
   if (isVisible('source'))    colCount += 1;
   if (isVisible('owner'))     colCount += 1;
+  if (isVisible('created_by')) colCount += 1;
+  if (isVisible('created_at')) colCount += 1;
   if (isVisible('action'))    colCount += 1;
 
   return (
@@ -79,6 +85,8 @@ export default function LeadsTable({ leads, selected, onToggle, onToggleAll, loa
                 {isVisible('latest_update') && <th style={thStyle}>Latest Update</th>}
                 {isVisible('source') && <th style={thStyle}>Source</th>}
                 {isVisible('owner') && <th style={thStyle}>Owner</th>}
+                {isVisible('created_by') && <th style={thStyle}>Uploaded By</th>}
+                {isVisible('created_at') && <th style={thStyle}>Uploaded On</th>}
                 {isVisible('action') && <th style={{ ...thStyle, textAlign: 'right' }}>Action</th>}
               </tr>
             </thead>
@@ -156,6 +164,20 @@ const LeadRow = memo(function LeadRow({ lead: l, isSelected, onToggle, onScoreCl
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><OwnerAvatar name={l.owner_name} size={24} /> <span style={{ fontSize: 12 }}>{l.owner_name || 'Unassigned'}</span></div>
           )}
+        </td>
+      )}
+      {!hidden.has('created_by') && (
+        <td style={tdStyle} data-label="Uploaded By">
+          {(l as { created_by_name?: string | null }).created_by_name || <span style={{ color: 'var(--text-dim)' }}>—</span>}
+        </td>
+      )}
+      {!hidden.has('created_at') && (
+        <td style={tdStyle} data-label="Uploaded On">
+          {l.created_at ? (
+            <span title={new Date(l.created_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}>
+              {new Date(l.created_at).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', year: 'numeric' })}
+            </span>
+          ) : <span style={{ color: 'var(--text-dim)' }}>—</span>}
         </td>
       )}
       {!hidden.has('action') && (
