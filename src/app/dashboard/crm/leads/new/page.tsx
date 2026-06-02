@@ -26,6 +26,8 @@ type Form = {
   product_ids: string[];
   alternate_mobiles: string[];
   client_id: string;
+  // Geo coordinates as strings for controlled inputs; parsed to numbers on submit.
+  latitude: string; longitude: string;
   // Free-form jsonb for admin-defined custom fields. Keys match
   // crm_custom_field_defs.field_key for the current entity.
   custom_fields: Record<string, unknown>;
@@ -38,6 +40,7 @@ const empty: Form = {
   preferred_contact_method: '', marketing_consent: false, whatsapp_consent: false,
   source_id: '', owner_id: '', status: 'new', product_ids: [], alternate_mobiles: [],
   client_id: '',
+  latitude: '', longitude: '',
   custom_fields: {},
 };
 
@@ -45,6 +48,36 @@ export default function NewLeadPage() {
   const router = useRouter();
   const [form, setForm] = useState<Form>(empty);
   const [busy, setBusy] = useState(false);
+  const [geoBusy, setGeoBusy] = useState(false);
+
+  // Capture the device's current position (browser geolocation prompt) and
+  // fill lat/long. Field reps adding a lead on-site get an exact pin; anyone
+  // can still type/adjust the values by hand below.
+  const captureLocation = () => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      toast.error('Location is not available on this device/browser.');
+      return;
+    }
+    setGeoBusy(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setForm((f) => ({
+          ...f,
+          latitude: pos.coords.latitude.toFixed(6),
+          longitude: pos.coords.longitude.toFixed(6),
+        }));
+        setGeoBusy(false);
+        toast.success('Location captured');
+      },
+      (err) => {
+        setGeoBusy(false);
+        toast.error(err.code === err.PERMISSION_DENIED
+          ? 'Location permission denied — enter coordinates manually.'
+          : 'Could not get your location — enter coordinates manually.');
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
+    );
+  };
   const [businessType, setBusinessType] = useState<BusinessType>('both');
   // Per-tenant field overrides (label / required / hidden) for built-in
   // lead fields. Edited from Admin → CRM Settings → Custom Fields, stored
@@ -198,6 +231,9 @@ export default function NewLeadPage() {
         // from the city catalog when the user picks an assigned city.
         city: form.city.trim(),
         state: form.state || undefined,
+        // Geo coordinates — sent only when both are present and numeric.
+        latitude:  form.latitude.trim()  !== '' && !Number.isNaN(Number(form.latitude))  ? Number(form.latitude)  : undefined,
+        longitude: form.longitude.trim() !== '' && !Number.isNaN(Number(form.longitude)) ? Number(form.longitude) : undefined,
         // Admin-defined custom fields (jsonb). Empty object means
         // there were either no custom fields configured for this
         // entity or the rep didn't fill any. Backend keeps the column.
@@ -417,6 +453,43 @@ export default function NewLeadPage() {
           )}
         </>
       )}
+
+      <Section title="Pin Location (optional)">
+        <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 10 }}>
+          Capture the lead&apos;s exact location to plot it on the map. Use your current GPS position, or enter coordinates manually.
+        </div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={captureLocation}
+            disabled={geoBusy}
+            style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '9px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: geoBusy ? 'wait' : 'pointer', opacity: geoBusy ? 0.6 : 1 }}
+          >📍 {geoBusy ? 'Locating…' : 'Use my current location'}</button>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 11, color: 'var(--text-dim)' }}>
+            Latitude
+            <input
+              inputMode="decimal"
+              placeholder="e.g. 23.795700"
+              value={form.latitude}
+              onChange={(e) => setForm({ ...form, latitude: e.target.value })}
+              style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13, minWidth: 150 }}
+            />
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 11, color: 'var(--text-dim)' }}>
+            Longitude
+            <input
+              inputMode="decimal"
+              placeholder="e.g. 86.430400"
+              value={form.longitude}
+              onChange={(e) => setForm({ ...form, longitude: e.target.value })}
+              style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13, minWidth: 150 }}
+            />
+          </label>
+          {(form.latitude || form.longitude) && (
+            <button type="button" onClick={() => setForm({ ...form, latitude: '', longitude: '' })} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '9px 12px', borderRadius: 8, fontSize: 12, cursor: 'pointer' }}>Clear</button>
+          )}
+        </div>
+      </Section>
 
       <Section title="Lead Photo (optional)">
         <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 10 }}>

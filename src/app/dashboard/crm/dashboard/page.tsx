@@ -173,6 +173,7 @@ export default function CrmDashboardPage() {
         setGeoLeads(((leadsRes as any)?.data ?? []).map((l: any) => ({
           id: l.id, first_name: l.first_name, last_name: l.last_name,
           city: l.city, state: l.state, status: l.status,
+          latitude: l.latitude, longitude: l.longitude,
         })));
       } catch (e: any) {
         toast.error(e.message || 'Failed to load CRM analytics');

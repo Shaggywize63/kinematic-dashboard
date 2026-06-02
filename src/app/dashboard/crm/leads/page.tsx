@@ -10,6 +10,7 @@ import type { Lead, LeadSource } from '../../../../types/crm';
 import LeadsTable, { LEAD_COLUMNS } from '../../../../components/crm/LeadsTable';
 import LeadFilters, { type LeadFiltersValue } from '../../../../components/crm/LeadFilters';
 import ViewCustomizer from '../../../../components/crm/shared/ViewCustomizer';
+import BulkCoordinatesModal from '../../../../components/crm/BulkCoordinatesModal';
 import { useViewPrefs } from '../../../../lib/crmViewPrefs';
 
 type UserOption = { id: string; name: string };
@@ -30,6 +31,7 @@ export default function LeadsListPage() {
   const [usersLoading, setUsersLoading] = useState(false);
   const [isB2C, setIsB2C] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [showCoordsModal, setShowCoordsModal] = useState(false);
   // Disables the bulk-delete button + selection while the soft-delete
   // loop is running so a user can't double-click or change selection
   // mid-flight. Mirrors the same flag on the deals list page.
@@ -375,10 +377,17 @@ export default function LeadsListPage() {
             {exporting ? 'Exporting…' : '⬇ Export CSV'}
           </button>
           <Link href="/dashboard/crm/leads/import" style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600 }}>Import</Link>
+          <button
+            type="button"
+            onClick={() => setShowCoordsModal(true)}
+            title="Bulk-upload latitude/longitude for existing leads"
+            style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+          >📍 Coordinates</button>
           <Link href="/dashboard/crm/leads/new" style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700 }}>+ New Lead</Link>
         </div>
       </div>
       <LeadFilters value={filters} onChange={setFilters} sources={sources.map((s) => ({ id: s.id, name: s.name }))} />
+      <BulkCoordinatesModal open={showCoordsModal} onClose={() => setShowCoordsModal(false)} onDone={() => reload()} />
       <LeadsTable
         leads={filtered}
         selected={selected}

@@ -12,6 +12,24 @@ interface Props { lead: Lead; open: boolean; onClose: () => void; onSaved: (upda
 export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
   const [form, setForm] = useState(() => seed(lead));
   const [busy, setBusy] = useState(false);
+  const [geoBusy, setGeoBusy] = useState(false);
+
+  const captureLocation = () => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      toast.error('Location is not available on this device/browser.');
+      return;
+    }
+    setGeoBusy(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setForm((f) => ({ ...f, latitude: pos.coords.latitude.toFixed(6), longitude: pos.coords.longitude.toFixed(6) }));
+        setGeoBusy(false);
+        toast.success('Location captured');
+      },
+      () => { setGeoBusy(false); toast.error('Could not get your location — enter coordinates manually.'); },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
+    );
+  };
   const [businessType, setBusinessType] = useState<BusinessType>('both');
   const [sources, setSources] = useState<LeadSource[]>([]);
   // Field-level admin overrides (hide / relabel / toggle-required) for
@@ -58,6 +76,15 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
     if (form.phone && form.phone.length !== 10) {
       return toast.error('Phone must be a 10-digit mobile number');
     }
+    // Coordinates: blank clears them; otherwise must be valid + in range.
+    const latStr = form.latitude.trim();
+    const lngStr = form.longitude.trim();
+    const latNum = latStr === '' ? null : Number(latStr);
+    const lngNum = lngStr === '' ? null : Number(lngStr);
+    if ((latNum !== null && (!Number.isFinite(latNum) || Math.abs(latNum) > 90))
+      || (lngNum !== null && (!Number.isFinite(lngNum) || Math.abs(lngNum) > 180))) {
+      return toast.error('Latitude must be −90..90 and longitude −180..180');
+    }
     setBusy(true);
     try {
       const body: Record<string, unknown> = {
@@ -70,6 +97,9 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
         // clears (sending undefined would leave the existing value untouched).
         source_id: form.source_id || null,
         is_b2c: form.is_b2c,
+        // Geo coordinates — null clears, a valid number sets/updates.
+        latitude: latNum,
+        longitude: lngNum,
       };
       if (!form.is_b2c) { Object.assign(body, { company: form.company || null, title: form.title || null, industry: form.industry || null }); }
       else { Object.assign(body, { date_of_birth: form.date_of_birth || null, gender: form.gender || null, address_line1: form.address_line1 || null, city: form.city || null, state: form.state || null, postal_code: form.postal_code || null, country: form.country || null, preferred_contact_method: form.preferred_contact_method || null, marketing_consent: form.marketing_consent, whatsapp_consent: form.whatsapp_consent }); }
@@ -155,13 +185,25 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
           )}
           </>
         )}
+
+        <SL>Pin Location (map)</SL>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+          <button type="button" onClick={captureLocation} disabled={geoBusy} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 12.5, fontWeight: 600, cursor: geoBusy ? 'wait' : 'pointer', opacity: geoBusy ? 0.6 : 1, whiteSpace: 'nowrap' }}>📍 {geoBusy ? 'Locating…' : 'Use current location'}</button>
+          {(form.latitude || form.longitude) && (
+            <button type="button" onClick={() => setForm({ ...form, latitude: '', longitude: '' })} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '8px 10px', borderRadius: 8, fontSize: 12, cursor: 'pointer' }}>Clear</button>
+          )}
+        </div>
+        <Grid>
+          <F label="Latitude" value={form.latitude} onChange={(v) => setForm({ ...form, latitude: v })} />
+          <F label="Longitude" value={form.longitude} onChange={(v) => setForm({ ...form, longitude: v })} />
+        </Grid>
         </>
       ); })()}
     </Modal>
   );
 }
 
-function seed(l: Lead) { return { first_name: l.first_name || '', last_name: l.last_name || '', email: l.email || '', phone: l.phone || '', status: l.status, source_id: (l as any).source_id || '', company: l.company || '', title: l.title || '', industry: l.industry || '', is_b2c: !!l.is_b2c, date_of_birth: l.date_of_birth || '', gender: l.gender || '', address_line1: l.address_line1 || '', city: l.city || '', state: l.state || '', postal_code: l.postal_code || '', country: l.country || 'India', preferred_contact_method: l.preferred_contact_method || '', marketing_consent: !!l.marketing_consent, whatsapp_consent: !!l.whatsapp_consent }; }
+function seed(l: Lead) { return { first_name: l.first_name || '', last_name: l.last_name || '', email: l.email || '', phone: l.phone || '', status: l.status, source_id: (l as any).source_id || '', company: l.company || '', title: l.title || '', industry: l.industry || '', is_b2c: !!l.is_b2c, date_of_birth: l.date_of_birth || '', gender: l.gender || '', address_line1: l.address_line1 || '', city: l.city || '', state: l.state || '', postal_code: l.postal_code || '', country: l.country || 'India', preferred_contact_method: l.preferred_contact_method || '', marketing_consent: !!l.marketing_consent, whatsapp_consent: !!l.whatsapp_consent, latitude: l.latitude != null ? String(l.latitude) : '', longitude: l.longitude != null ? String(l.longitude) : '' }; }
 function SL({ children }: { children: React.ReactNode }) { return <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, margin: '14px 0 8px' }}>{children}</div>; }
 function Grid({ children }: { children: React.ReactNode }) { return <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>{children}</div>; }
 function F(p: { label: string; value: string; onChange: (v: string) => void; type?: string; required?: boolean; phone?: boolean }) {
