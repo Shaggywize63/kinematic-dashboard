@@ -24,6 +24,7 @@ export default function EmailSendersPage() {
   const [rows, setRows] = useState<VerifiedSender[]>([]);
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
+  const [resendingId, setResendingId] = useState<string | null>(null);
   const [email, setEmail] = useState('');
   const [displayName, setDisplayName] = useState('');
 
@@ -102,10 +103,25 @@ export default function EmailSendersPage() {
   };
 
   const resendVerification = async (s: VerifiedSender) => {
+    // Each Resend regenerates the token and invalidates the previous
+    // email. Resend's free tier also rate-limits to 2 req/s, so multiple
+    // clicks within a couple of seconds will hit 429. Disabling per-row
+    // for 6 seconds covers both — long enough to be well clear of the
+    // rate limit and short enough not to feel sluggish.
+    setResendingId(s.id);
     try {
       await verifiedSendersApi.add(s.email, s.display_name || undefined);
-      toast.success(`Verification email re-sent to ${s.email}`);
-    } catch (e: any) { toast.error(e?.message || 'Failed to resend'); }
+      toast.success(`New verification email sent to ${s.email}. Open the LATEST email and click the link — older links are now invalid.`);
+    } catch (e: any) {
+      const msg = e?.message || '';
+      if (/429|rate limit|too many requests/i.test(msg)) {
+        toast.error('Resend hit its rate limit — wait 5 seconds and try again.');
+      } else {
+        toast.error(msg || 'Failed to resend');
+      }
+    } finally {
+      setTimeout(() => setResendingId(null), 6000);
+    }
   };
 
   return (
@@ -169,7 +185,9 @@ export default function EmailSendersPage() {
                   <Td style={{ color: 'var(--text-dim)', fontSize: 12 }}>{new Date(r.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</Td>
                   <Td style={{ textAlign: 'right' }}>
                     {!r.verified_at && (
-                      <button onClick={() => resendVerification(r)} style={btnGhost}>Resend</button>
+                      <button onClick={() => resendVerification(r)} disabled={resendingId === r.id} style={{ ...btnGhost, opacity: resendingId === r.id ? 0.5 : 1, cursor: resendingId === r.id ? 'wait' : 'pointer' }}>
+                        {resendingId === r.id ? 'Sending…' : 'Resend'}
+                      </button>
                     )}
                     {r.verified_at && !r.is_default && (
                       <button onClick={() => setDefault(r.id)} style={btnGhost}>Set default</button>
