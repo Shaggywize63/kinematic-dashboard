@@ -360,7 +360,7 @@ export interface WinProbability {
 
 export interface AnalyticsSummary {
   total_leads: number; new_leads_30d: number;
-  open_deals: number; open_deal_value: number;
+  open_deals: number; open_deal_value: number; open_deal_volume?: number;
   won_deals_30d: number; won_revenue_30d: number;
   win_rate_30d: number; avg_deal_size: number;
   avg_sales_cycle_days: number; pipeline_velocity: number;

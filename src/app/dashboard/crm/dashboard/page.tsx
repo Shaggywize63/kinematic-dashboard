@@ -190,6 +190,14 @@ export default function CrmDashboardPage() {
   // hover tooltip.
   const fmtMoney = (n?: number) => fmtValueCompact(n ?? 0, unit);
   const fmtMoneyFull = (n?: number) => fmtValue(n ?? 0, unit);
+  // Deal volume (kg) → readable string. Tonnes once it's big enough.
+  const fmtVol = (kg?: number) => {
+    const v = kg ?? 0;
+    if (v <= 0) return '';
+    return v >= 1000
+      ? `${(v / 1000).toLocaleString('en-IN', { maximumFractionDigits: 1 })} MT`
+      : `${Math.round(v).toLocaleString('en-IN')} kg`;
+  };
   const revenueTrend = forecast.map((f) => ({ period: f.period, revenue: f.closed }));
 
   const isVisible = (id: WidgetId) => visibleWidgets.has(id);
@@ -267,7 +275,15 @@ export default function CrmDashboardPage() {
             // metric, and point the user at the fix (add products to deals).
             unit === 'weight' && !(summary?.open_deal_value)
               ? <StatCard label="Open Pipeline" value="—" hint={`No weight on ${summary?.open_deals || 0} open deals — add products`} loading={loading} />
-              : <StatCard label="Open Pipeline" value={fmtMoney(summary?.open_deal_value)} valueTitle={fmtMoneyFull(summary?.open_deal_value)} hint={`${summary?.open_deals || 0} deals`} loading={loading} />
+              : <StatCard
+                  label="Open Pipeline"
+                  value={fmtMoney(summary?.open_deal_value)}
+                  valueTitle={fmtMoneyFull(summary?.open_deal_value)}
+                  // Show the total deal volume alongside value (the two are
+                  // the same number in weight mode, so only append in INR mode).
+                  hint={`${summary?.open_deals || 0} deals${unit === 'inr' && fmtVol(summary?.open_deal_volume) ? ` · ${fmtVol(summary?.open_deal_volume)}` : ''}`}
+                  loading={loading}
+                />
           )}
           {isVisible('stat_won') && <StatCard label="Won (window)" value={fmtMoney(summary?.won_revenue_30d)} valueTitle={fmtMoneyFull(summary?.won_revenue_30d)} hint={`${summary?.won_deals_30d || 0} deals`} deltaTone="up" loading={loading} />}
           {isVisible('stat_win_rate') && <StatCard label="Win Rate" value={fmtPct(summary?.win_rate_30d)} loading={loading} />}

@@ -299,10 +299,13 @@ export default function LeadsListPage() {
               (state/city/district/block/status/source/owner/grade).
               `filtered.length` is the subset visible on this page after
               the client-side q (text-search) filter. */}
-          <span style={{ fontSize: 13, color: 'var(--text-dim)' }}>
-            {pagination ? `${pagination.total.toLocaleString()} leads` : `${filtered.length} leads`}
+          <span style={{ fontSize: 13, color: 'var(--text-dim)', display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            {/* Highlighted total — the headline number for the leads page. */}
+            <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--primary)', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 999, padding: '3px 12px', whiteSpace: 'nowrap' }}>
+              {(pagination ? pagination.total : filtered.length).toLocaleString()} leads
+            </span>
             {filters.q && pagination && filtered.length !== leads.length && (
-              <span style={{ marginLeft: 6, color: 'var(--text)' }}>
+              <span style={{ color: 'var(--text)' }}>
                 · {filtered.length} match “{filters.q}” on this page
               </span>
             )}

@@ -49,16 +49,18 @@ export default function NewLeadPage() {
   const [form, setForm] = useState<Form>(empty);
   const [busy, setBusy] = useState(false);
   const [geoBusy, setGeoBusy] = useState(false);
+  const [geoError, setGeoError] = useState('');
 
-  // Capture the device's current position (browser geolocation prompt) and
-  // fill lat/long. Field reps adding a lead on-site get an exact pin; anyone
-  // can still type/adjust the values by hand below.
+  // Capture the device's current position. Coordinates are mandatory and
+  // non-editable: the lead is geo-tagged with the rep's actual location at
+  // capture time, so we auto-request on load and offer a retry on failure.
   const captureLocation = () => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
-      toast.error('Location is not available on this device/browser.');
+      setGeoError('Location is not available on this device/browser.');
       return;
     }
     setGeoBusy(true);
+    setGeoError('');
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setForm((f) => ({
@@ -67,17 +69,20 @@ export default function NewLeadPage() {
           longitude: pos.coords.longitude.toFixed(6),
         }));
         setGeoBusy(false);
-        toast.success('Location captured');
+        setGeoError('');
       },
       (err) => {
         setGeoBusy(false);
-        toast.error(err.code === err.PERMISSION_DENIED
-          ? 'Location permission denied — enter coordinates manually.'
-          : 'Could not get your location — enter coordinates manually.');
+        setGeoError(err.code === err.PERMISSION_DENIED
+          ? 'Location permission denied. Enable location access in your browser and retry — it’s required to add a lead.'
+          : 'Could not get your location. Move to an open area and retry — it’s required to add a lead.');
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
     );
   };
+  // Auto-request location on first load — coordinates are mandatory.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { captureLocation(); }, []);
   const [businessType, setBusinessType] = useState<BusinessType>('both');
   // Per-tenant field overrides (label / required / hidden) for built-in
   // lead fields. Edited from Admin → CRM Settings → Custom Fields, stored
@@ -214,6 +219,11 @@ export default function NewLeadPage() {
       (!form.city || !form.city.trim())
     ) {
       return toast.error('City is required — pick from the city dropdown.');
+    }
+    // Location is mandatory and auto-captured — block submit until we have it.
+    if (!form.latitude || !form.longitude) {
+      captureLocation();
+      return toast.error('Location is required. Allow location access, then tap “Use my current location”.');
     }
     setBusy(true);
     try {
@@ -454,41 +464,41 @@ export default function NewLeadPage() {
         </>
       )}
 
-      <Section title="Pin Location (optional)">
+      <Section title="Pin Location (required)">
         <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 10 }}>
-          Capture the lead&apos;s exact location to plot it on the map. Use your current GPS position, or enter coordinates manually.
+          The lead is geo-tagged with your current location. This is captured automatically and is required to add a lead.
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-          <button
-            type="button"
-            onClick={captureLocation}
-            disabled={geoBusy}
-            style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '9px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: geoBusy ? 'wait' : 'pointer', opacity: geoBusy ? 0.6 : 1 }}
-          >📍 {geoBusy ? 'Locating…' : 'Use my current location'}</button>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 11, color: 'var(--text-dim)' }}>
-            Latitude
-            <input
-              inputMode="decimal"
-              placeholder="e.g. 23.795700"
-              value={form.latitude}
-              onChange={(e) => setForm({ ...form, latitude: e.target.value })}
-              style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13, minWidth: 150 }}
-            />
-          </label>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 11, color: 'var(--text-dim)' }}>
-            Longitude
-            <input
-              inputMode="decimal"
-              placeholder="e.g. 86.430400"
-              value={form.longitude}
-              onChange={(e) => setForm({ ...form, longitude: e.target.value })}
-              style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13, minWidth: 150 }}
-            />
-          </label>
-          {(form.latitude || form.longitude) && (
-            <button type="button" onClick={() => setForm({ ...form, latitude: '', longitude: '' })} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '9px 12px', borderRadius: 8, fontSize: 12, cursor: 'pointer' }}>Clear</button>
-          )}
-        </div>
+        {form.latitude && form.longitude ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 12, background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 10 }}>
+            <span style={{ fontSize: 18 }}>📍</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>Location captured</div>
+              {/* Read-only — coordinates can't be edited by hand. */}
+              <div style={{ fontSize: 12, color: 'var(--text-dim)', fontFamily: 'ui-monospace, monospace', marginTop: 2 }}>
+                {form.latitude}, {form.longitude}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={captureLocation}
+              disabled={geoBusy}
+              style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '8px 12px', borderRadius: 8, fontSize: 12, cursor: geoBusy ? 'wait' : 'pointer' }}
+            >{geoBusy ? 'Updating…' : 'Update'}</button>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 12, background: 'var(--s3)', border: `1px solid ${geoError ? '#ef4444' : 'var(--border)'}`, borderRadius: 10 }}>
+            <span style={{ fontSize: 18 }}>📍</span>
+            <div style={{ flex: 1, fontSize: 12, color: geoError ? '#ef4444' : 'var(--text-dim)' }}>
+              {geoBusy ? 'Getting your location…' : (geoError || 'Waiting for location…')}
+            </div>
+            <button
+              type="button"
+              onClick={captureLocation}
+              disabled={geoBusy}
+              style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '9px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: geoBusy ? 'wait' : 'pointer', opacity: geoBusy ? 0.6 : 1 }}
+            >📍 {geoBusy ? 'Locating…' : 'Use my current location'}</button>
+          </div>
+        )}
       </Section>
 
       <Section title="Lead Photo (optional)">
@@ -571,7 +581,7 @@ export default function NewLeadPage() {
 
       <div style={{ display: 'flex', gap: 8, marginTop: 18, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
         <button type="button" onClick={() => router.back()} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 16px', borderRadius: 8, cursor: 'pointer' }}>Cancel</button>
-        <button type="submit" disabled={busy} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 18px', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>{busy ? 'Saving...' : 'Create Lead'}</button>
+        <button type="submit" disabled={busy || !form.latitude || !form.longitude} title={!form.latitude || !form.longitude ? 'Capture your location to enable' : undefined} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 18px', borderRadius: 8, fontWeight: 700, cursor: (busy || !form.latitude || !form.longitude) ? 'not-allowed' : 'pointer', opacity: (busy || !form.latitude || !form.longitude) ? 0.6 : 1 }}>{busy ? 'Saving...' : 'Create Lead'}</button>
       </div>
     </form>
   );
