@@ -1,18 +1,30 @@
 'use client';
+import { useEffect, useState } from 'react';
 import type { Lead } from '../../types/crm';
+import { crmSettings } from '../../lib/crmApi';
 
 // "Ways to raise this lead's score" — derived from the v3 scoring signals the
 // lead is currently missing, each with the points it would add and an
 // actionable button. Keeps reps focused on the highest-leverage gaps.
+//
+// Client-specific items: most suggestions are generic CRM gaps (name, email,
+// city, GPS, qualify) and show for every client. A few are vertical-specific
+// — e.g. "monthly volume (MT)" only makes sense for a steel/commodity client
+// like Tata Tiscon, not for a SaaS client like Kinematic. Those are gated
+// behind the per-client CRM setting `config.score_boost_signals` (an array of
+// enabled signal keys), so they're hidden by default and each client (current
+// or future) opts in explicitly.
 
 interface Suggestion {
   key: string;
   label: string;
   points: number;
   action: 'edit' | 'qualify';
+  /** When set, only show this item if the key is in the client's enabled signals. */
+  verticalSignal?: string;
 }
 
-function computeSuggestions(lead: Lead): Suggestion[] {
+function computeSuggestions(lead: Lead, enabledSignals: string[]): Suggestion[] {
   const L = lead as unknown as Record<string, any>;
   const out: Suggestion[] = [];
 
@@ -25,16 +37,24 @@ function computeSuggestions(lead: Lead): Suggestion[] {
   const hasGps = Number.isFinite(lat) && Number.isFinite(lng) && !(lat === 0 && lng === 0);
   if (!hasGps) out.push({ key: 'gps', label: 'Capture GPS location on a visit', points: 8, action: 'edit' });
 
+  // Vertical-specific: monthly volume in MT. Only surfaced for clients that
+  // enable the 'volume' signal (e.g. Tata Tiscon). Hidden for Kinematic and
+  // any future client that hasn't opted in.
   const cf = (L.custom_fields ?? {}) as Record<string, unknown>;
   const vol = Number(cf.monthly_volume ?? cf.volume_mt);
-  if (!(Number.isFinite(vol) && vol > 0)) out.push({ key: 'volume', label: 'Record monthly volume (MT)', points: 8, action: 'edit' });
+  if (!(Number.isFinite(vol) && vol > 0)) {
+    out.push({ key: 'volume', label: 'Record monthly volume (MT)', points: 8, action: 'edit', verticalSignal: 'volume' });
+  }
 
   if (!L.photo_url) out.push({ key: 'photo', label: 'Add a photo of the lead / storefront', points: 5, action: 'edit' });
   if (!lead.email) out.push({ key: 'email', label: 'Add an email address', points: 5, action: 'edit' });
   if (!lead.city) out.push({ key: 'city', label: 'Set the city / location', points: 5, action: 'edit' });
   if (!(lead.first_name && lead.last_name)) out.push({ key: 'name', label: 'Add the full name', points: 4, action: 'edit' });
 
-  return out.sort((a, b) => b.points - a.points).slice(0, 6);
+  return out
+    .filter((s) => !s.verticalSignal || enabledSignals.includes(s.verticalSignal))
+    .sort((a, b) => b.points - a.points)
+    .slice(0, 6);
 }
 
 export default function ScoreBoostSuggestions({
@@ -45,7 +65,23 @@ export default function ScoreBoostSuggestions({
   onQualify: () => void;
   busy?: boolean;
 }) {
-  const suggestions = computeSuggestions(lead);
+  // Enabled vertical signals for this client. `null` = still loading; we treat
+  // gated items as hidden until settings resolve, so a generic client never
+  // flashes a vertical-specific suggestion.
+  const [enabledSignals, setEnabledSignals] = useState<string[] | null>(null);
+  useEffect(() => {
+    let alive = true;
+    crmSettings.get()
+      .then((r) => {
+        const cfg = (r.data?.config ?? {}) as Record<string, unknown>;
+        const sig = Array.isArray(cfg.score_boost_signals) ? (cfg.score_boost_signals as string[]).map(String) : [];
+        if (alive) setEnabledSignals(sig);
+      })
+      .catch(() => { if (alive) setEnabledSignals([]); });
+    return () => { alive = false; };
+  }, []);
+
+  const suggestions = computeSuggestions(lead, enabledSignals ?? []);
   if (suggestions.length === 0) return null;
 
   return (
