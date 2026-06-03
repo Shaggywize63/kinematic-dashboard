@@ -42,7 +42,7 @@ export default function EmailTemplatesPage() {
     <div>
       <div style={{ marginBottom: 14, padding: '12px 16px', background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 10 }}>
         <div style={{ fontSize: 13, color: 'var(--text-dim)', lineHeight: 1.6 }}>
-          Reusable email templates (subject + HTML body) for the alert composer. Use <strong style={{ color: 'var(--text)' }}>✦ AI Generate</strong> to draft one from a goal and tone — Claude returns a structured draft you review and edit before saving.
+          Reusable email templates (subject + HTML body) for the alert composer. Use <strong style={{ color: 'var(--text)' }}>✦ AI Generate</strong> to draft one from a goal and tone — KINI AI returns a structured draft you review and edit before saving.
         </div>
       </div>
 

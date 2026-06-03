@@ -93,6 +93,19 @@ function lsClear() {
   } catch {}
 }
 
+// Backend errors come back as `{ success:false, error:{ code, message } }` but
+// some older handlers use a flat `{ error: "msg" }` or `{ message }`. Pull a
+// human string out of any of these shapes (a naive `data.error` would render
+// "[object Object]" for the nested form).
+function extractApiError(data: any): string {
+  if (!data || typeof data !== 'object') return 'Request failed';
+  const e = data.error;
+  if (typeof e === 'string') return e;
+  if (e && typeof e === 'object' && typeof e.message === 'string') return e.message;
+  if (typeof data.message === 'string') return data.message;
+  return 'Request failed';
+}
+
 class ApiClient {
   private baseUrl: string;
 
@@ -266,7 +279,7 @@ class ApiClient {
     let data: any;
     try { data = JSON.parse(text); }
     catch { throw new Error(text.slice(0, 200)); }
-    if (!res.ok) throw new Error(data.error || data.message || 'Request failed');
+    if (!res.ok) throw new Error(extractApiError(data));
     return data;
   }
 
@@ -398,7 +411,7 @@ class ApiClient {
       .then(async res => {
         if (res.status === 401) throw new Error('Unauthorized');
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || data.message || 'Request failed');
+        if (!res.ok) throw new Error(extractApiError(data));
         return data;
       });
   }
@@ -434,7 +447,7 @@ class ApiClient {
       .then(async res => {
         if (res.status === 401) throw new Error('Unauthorized');
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || data.message || 'Request failed');
+        if (!res.ok) throw new Error(extractApiError(data));
         return data;
       });
   }

@@ -311,6 +311,13 @@ export const crmAi = {
       `${BASE}/ai/draft-reply`,
       body
     ),
+  // Purpose-built email TEMPLATE generator (KINI AI Generate). Returns a
+  // ready-to-edit template with {{placeholders}} and detected variables.
+  draftEmailTemplate: (body: { goal: string; tone?: string; audience?: string; language?: string }) =>
+    api.post<Wrapped<{ name: string; subject: string; body_html: string; body_text: string; variables: string[]; category: string }>>(
+      `${BASE}/ai/draft-email-template`,
+      body
+    ),
   nextBestAction: (dealId: string) =>
     api.post<Wrapped<NextBestAction>>(`${BASE}/ai/next-best-action/${dealId}`, {}),
   // Lead variant — mounted at a more-specific path so the deal route
