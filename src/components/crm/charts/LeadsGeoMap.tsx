@@ -366,8 +366,10 @@ export default function LeadsGeoMap({ leads, height = 620 }: { leads: LeadGeoPoi
               here automatically. */}
 
           {/* Individual lead markers — only leads with an exact captured
-              position are plotted (no city-centroid approximation). */}
-          {showLeads && (() => {
+              position are plotted (no city-centroid approximation). Shown from
+              zoom level 5 (roughly the India-wide default) upward, so the pins
+              are visible without having to zoom right in. */}
+          {zoom >= 5 && (() => {
             const markers: Array<{ lead: LeadGeoPoint; lat: number; lng: number; place: string }> = [];
             for (const lead of pinnedLeads) {
               markers.push({
