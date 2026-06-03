@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { MapContainer, TileLayer, CircleMarker, Popup, Tooltip, useMap } from 'react-leaflet';
 import { INDIA_STATES, INDIA_CENTRE } from '../../../lib/indiaStates';
+import { breakdownFactors } from '../../../lib/crm/scoreFactors';
 
 // City catalog — coords + state for ~120 Indian cities. Each entry is
 // `[lat, lng, state]`. The state is used to derive a sensible
@@ -181,6 +182,10 @@ export interface LeadGeoPoint {
   // of being jittered around its city centroid.
   latitude?: number | null;
   longitude?: number | null;
+  // Score + breakdown so the map popup can explain the lead's score inline.
+  score?: number | null;
+  score_grade?: 'A' | 'B' | 'C' | 'D' | null;
+  score_breakdown?: Record<string, unknown> | null;
 }
 
 // True when a lead carries a usable real position. Rejects null-island
@@ -404,6 +409,29 @@ export default function LeadsGeoMap({ leads, height = 620 }: { leads: LeadGeoPoi
                       <span style={{ display: 'inline-block', marginTop: 4, padding: '1px 6px', borderRadius: 4, background: `${color}33`, color, fontSize: 10, fontWeight: 700 }}>
                         {status}
                       </span>
+                      {lead.score != null && (() => {
+                        const sc = Math.round(lead.score as number);
+                        const gr = lead.score_grade ?? (sc >= 75 ? 'A' : sc >= 50 ? 'B' : sc >= 25 ? 'C' : 'D');
+                        const gc = sc >= 70 ? '#10b981' : sc >= 40 ? '#f59e0b' : '#ef4444';
+                        const top = breakdownFactors(lead.score_breakdown).slice(0, 4);
+                        return (
+                          <div style={{ marginTop: 8, paddingTop: 6, borderTop: '1px solid #e5e5e5' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <span style={{ fontWeight: 800, fontSize: 10, padding: '1px 6px', borderRadius: 999, background: `${gc}22`, color: gc, border: `1px solid ${gc}55` }}>{gr} · {sc}</span>
+                              <span style={{ color: '#888', fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.4 }}>Lead score</span>
+                            </div>
+                            {top.length > 0 && (
+                              <ul style={{ margin: '4px 0 0', padding: 0, listStyle: 'none' }}>
+                                {top.map((f) => (
+                                  <li key={f.key} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 10, color: '#444' }}>
+                                    <span>{f.label}</span><span style={{ color: '#10b981', fontWeight: 700 }}>+{f.value}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                        );
+                      })()}
                       <div style={{ marginTop: 8 }}>
                         <a href={`/dashboard/crm/leads/${lead.id}`} style={{ color: '#E01E2C', fontWeight: 700, fontSize: 11 }}>Open lead →</a>
                       </div>

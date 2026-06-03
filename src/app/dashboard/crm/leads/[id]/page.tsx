@@ -18,6 +18,7 @@ import OwnerAvatar from '../../../../../components/crm/shared/OwnerAvatar';
 import WhatsAppButton from '../../../../../components/crm/shared/WhatsAppButton';
 import CallButton from '../../../../../components/crm/shared/CallButton';
 import LeadEditModal from '../../../../../components/crm/LeadEditModal';
+import ScoreBoostSuggestions from '../../../../../components/crm/ScoreBoostSuggestions';
 import { formatINR } from '../../../../../lib/formatCurrency';
 
 type UserOption = { id: string; name: string };
@@ -99,6 +100,20 @@ export default function LeadDetailPage() {
       setLead((l) => l ? { ...l, score: r.data.score, score_grade: r.data.grade } : l);
       toast.success(`Lead scored: ${r.data.score} (${r.data.grade})`);
     } catch (e: any) { toast.error(e.message || 'Scoring failed'); } finally { setScoring(false); }
+  };
+
+  // "Boost score" action: mark the lead Qualified, then re-score so the bump
+  // shows immediately.
+  const [qualifying, setQualifying] = useState(false);
+  const markQualified = async () => {
+    if (!id) return;
+    setQualifying(true);
+    try {
+      const r = await crmLeads.update(id, { status: 'qualified' } as any);
+      setLead(r.data as any);
+      toast.success('Lead marked Qualified');
+      await reScore();
+    } catch (e: any) { toast.error(e.message || 'Update failed'); } finally { setQualifying(false); }
   };
 
   const loadNba = async () => {
@@ -352,6 +367,12 @@ export default function LeadDetailPage() {
           onRefresh={reScore}
           loading={scoring}
         />
+        <ScoreBoostSuggestions
+          lead={lead as any}
+          onEdit={() => setEditOpen(true)}
+          onQualify={markQualified}
+          busy={qualifying || scoring}
+        />
         <NextBestActionCard action={nba} onLoad={loadNba} loading={nbaLoading} leadId={id} />
       </div>
 
@@ -375,7 +396,7 @@ export default function LeadDetailPage() {
         lead={lead}
         open={editOpen}
         onClose={() => setEditOpen(false)}
-        onSaved={(updated) => { setLead(updated as LifecycleLead); reload(); }}
+        onSaved={(updated) => { setLead(updated as LifecycleLead); reload(); reScore(); }}
       />
       </div>
     </div>
