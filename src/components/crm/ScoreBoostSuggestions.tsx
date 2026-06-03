@@ -32,7 +32,6 @@ function computeSuggestions(lead: Lead): Suggestion[] {
   if (!L.photo_url) out.push({ key: 'photo', label: 'Add a photo of the lead / storefront', points: 5, action: 'edit' });
   if (!lead.email) out.push({ key: 'email', label: 'Add an email address', points: 5, action: 'edit' });
   if (!lead.city) out.push({ key: 'city', label: 'Set the city / location', points: 5, action: 'edit' });
-  if (!L.whatsapp_consent) out.push({ key: 'wa', label: 'Capture WhatsApp consent', points: 5, action: 'edit' });
   if (!(lead.first_name && lead.last_name)) out.push({ key: 'name', label: 'Add the full name', points: 4, action: 'edit' });
 
   return out.sort((a, b) => b.points - a.points).slice(0, 6);
