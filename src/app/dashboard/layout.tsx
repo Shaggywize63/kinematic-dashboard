@@ -307,6 +307,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     .map(g => ({ ...g, items: filterNav(g.items) }))
     .filter(g => sectionVisible(g.package, g.items));
 
+  // Collapsible nav sections (Field Force, Lead Management, …). Per-section
+  // open/closed state persisted to localStorage so it survives reloads.
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+  useEffect(() => {
+    try { const s = localStorage.getItem('nav.collapsedSections'); if (s) setCollapsedSections(JSON.parse(s)); } catch { /* ignore */ }
+  }, []);
+  const toggleSection = (label: string) => setCollapsedSections((prev) => {
+    const next = { ...prev, [label]: !prev[label] };
+    try { localStorage.setItem('nav.collapsedSections', JSON.stringify(next)); } catch { /* ignore */ }
+    return next;
+  });
+
 
 
   return (
@@ -393,15 +405,35 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             {navGroups.map((g, gi) => (
               <div key={gi} style={{ marginBottom: collapsed && !isMobile ? 10 : 18 }}>
                 {(isMobile || !collapsed) ? (
-                  <div style={{
-                    padding:'0 20px',
-                    fontSize:10,
-                    color:C.grayd,
-                    textTransform:'uppercase',
-                    letterSpacing:1.2,
-                    fontWeight:700,
-                    marginBottom:6,
-                  }}>{g.label}</div>
+                  <button
+                    type="button"
+                    onClick={() => toggleSection(g.label)}
+                    aria-expanded={!collapsedSections[g.label]}
+                    style={{
+                      width:'calc(100% - 8px)',
+                      margin:'0 4px',
+                      display:'flex',
+                      alignItems:'center',
+                      justifyContent:'space-between',
+                      padding:'4px 16px',
+                      background:'transparent',
+                      border:'none',
+                      fontSize:10,
+                      color:C.grayd,
+                      textTransform:'uppercase',
+                      letterSpacing:1.2,
+                      fontWeight:700,
+                      marginBottom:6,
+                      cursor:'pointer',
+                    }}
+                  >
+                    <span>{g.label}</span>
+                    <span style={{
+                      fontSize:9,
+                      transition:'transform .15s ease',
+                      transform: collapsedSections[g.label] ? 'rotate(-90deg)' : 'none',
+                    }}>▾</span>
+                  </button>
                 ) : (
                   // In collapsed mode, replace the text group label with a
                   // thin horizontal divider so groups stay visually distinct
@@ -414,7 +446,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     }} />
                   )
                 )}
-                {g.items.map((i:any) => {
+                {/* In the rail-collapsed sidebar we always show the icons;
+                    in the expanded sidebar, hide a section's items when the
+                    user has collapsed that section. */}
+                {((collapsed && !isMobile) || !collapsedSections[g.label]) && g.items.map((i:any) => {
                   const active = isActive(i.href);
                   return (
                     <Link key={i.href} href={i.href} style={{ textDecoration:'none' }}>
