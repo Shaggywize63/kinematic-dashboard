@@ -66,6 +66,7 @@ export const ALL_MODULES: ModuleEntry[] = [
   { id: 'crm_activities',     l: 'CRM Activities',   group: 'CRM', package: 'crm' },
   { id: 'crm_tasks',          l: 'CRM Tasks',        group: 'CRM', package: 'crm' },
   { id: 'crm_whatsapp',       l: 'CRM WhatsApp',     group: 'CRM', package: 'crm' },
+  { id: 'crm_email',          l: 'CRM Email',        group: 'CRM', package: 'crm' },
   { id: 'crm_reports',        l: 'CRM Reports',      group: 'CRM', package: 'crm' },
   { id: 'crm_settings',       l: 'CRM Settings',     group: 'CRM', package: 'crm' },
 
