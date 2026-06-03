@@ -366,8 +366,10 @@ export default function LeadsGeoMap({ leads, height = 620 }: { leads: LeadGeoPoi
               here automatically. */}
 
           {/* Individual lead markers — only leads with an exact captured
-              position are plotted (no city-centroid approximation). */}
-          {showLeads && (() => {
+              position are plotted (no city-centroid approximation). Shown at
+              every zoom level: now that the aggregate layers are gone, gating
+              these behind a high zoom left the map looking empty. */}
+          {(() => {
             const markers: Array<{ lead: LeadGeoPoint; lat: number; lng: number; place: string }> = [];
             for (const lead of pinnedLeads) {
               markers.push({
