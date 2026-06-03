@@ -2,8 +2,7 @@
 import 'leaflet/dist/leaflet.css';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { MapContainer, TileLayer, CircleMarker, Marker, Popup, Tooltip, useMap } from 'react-leaflet';
-import L from 'leaflet';
+import { MapContainer, TileLayer, CircleMarker, Popup, Tooltip, useMap } from 'react-leaflet';
 import { INDIA_STATES, INDIA_CENTRE } from '../../../lib/indiaStates';
 
 // City catalog — coords + state for ~120 Indian cities. Each entry is
@@ -197,31 +196,6 @@ function hasRealCoords(l: LeadGeoPoint): l is LeadGeoPoint & { latitude: number;
 const ZOOM_STATE_MAX = 6;     // ≤ this zoom: show state-level chips
 const ZOOM_CITY_MAX  = 9;     // ≤ this zoom: show city-level circles. ≥ 10: individual lead markers.
 
-// Builds a DivIcon-rendered "chip" that puts a count + label on the map at
-// state centroids without needing a polygon layer.
-function chipIcon(label: string, count: number, accent: string) {
-  const html = `
-    <div style="
-      display: inline-flex; align-items: center; gap: 6px;
-      background: rgba(20, 22, 28, 0.92); color: #fff;
-      padding: 4px 10px; border-radius: 999px;
-      border: 1px solid ${accent}; box-shadow: 0 2px 12px rgba(0,0,0,0.4);
-      font: 700 11px 'DM Sans', sans-serif; white-space: nowrap;
-    ">
-      <span style="background:${accent}; color:#fff; min-width:18px; padding:0 6px;
-                   border-radius: 999px; text-align: center; font-size:10px; line-height:14px;">
-        ${count}
-      </span>
-      ${label}
-    </div>`;
-  return L.divIcon({
-    html,
-    className: 'kinematic-map-chip',
-    iconSize: [0, 0],
-    iconAnchor: [0, 0],
-  });
-}
-
 // Helper child component — exposes the live zoom level to the parent so it
 // can switch aggregation modes without the parent owning a map ref.
 function ZoomTracker({ onZoom }: { onZoom: (z: number) => void }) {
@@ -320,7 +294,6 @@ export default function LeadsGeoMap({ leads, height = 620 }: { leads: LeadGeoPoi
     };
   }, [leads]);
 
-  const cityMax = byCity.reduce((m, c) => Math.max(m, c.count), 1);
   const totalMapped = byCity.reduce((s, c) => s + c.count, 0);
 
   // Search hits — dynamic over states + cities (and a synthetic "All India"
@@ -387,75 +360,15 @@ export default function LeadsGeoMap({ leads, height = 620 }: { leads: LeadGeoPoi
           <ZoomTracker onZoom={setZoom} />
           <FlyTo target={target} />
 
-          {/* State-level aggregation chips */}
-          {showStates && byState.map((s) => (
-            <Marker
-              key={`st-${s.name}`}
-              position={[s.lat, s.lng]}
-              icon={chipIcon(s.name, s.count, '#E01E2C')}
-              eventHandlers={{ click: () => setTarget({ lat: s.lat, lng: s.lng, zoom: s.zoom, key: `st-${s.name}-${Date.now()}` }) }}
-            >
-              <Popup>
-                <div style={{ font: '12px/1.4 system-ui' }}>
-                  <strong>{s.name}</strong><br />
-                  {s.count} lead{s.count === 1 ? '' : 's'}
-                </div>
-              </Popup>
-            </Marker>
-          ))}
+          {/* Static city/state aggregate markers are intentionally removed:
+              the map now only plots leads that carry real captured
+              coordinates. Once more leads have coordinates they'll appear
+              here automatically. */}
 
-          {/* City-level circles */}
-          {showCities && byCity.map((c) => {
-            const dominant = Object.entries(c.statuses).sort(([, a], [, b]) => b - a)[0]?.[0] ?? 'new';
-            const color = STATUS_COLOR[dominant] ?? '#3E9EFF';
-            const radius = 8 + (c.count / cityMax) * 18;
-            return (
-              <CircleMarker
-                key={`city-${c.city}`}
-                center={[c.lat, c.lng]}
-                radius={radius}
-                pathOptions={{ color: '#fff', fillColor: color, fillOpacity: 0.85, weight: 2 }}
-                eventHandlers={{ click: () => setTarget({ lat: c.lat, lng: c.lng, zoom: 11, key: `city-${c.city}-${Date.now()}` }) }}
-              >
-                <Tooltip direction="top" offset={[0, -8]} opacity={1} permanent>
-                  <span style={{ font: '700 11px system-ui', color }}>{c.count}</span>
-                </Tooltip>
-                <Popup>
-                  <div style={{ font: '12px/1.4 system-ui' }}>
-                    <strong>{c.city}</strong>{c.state ? <span style={{ color: '#666' }}> · {c.state}</span> : null}
-                    <br />
-                    {c.count} lead{c.count === 1 ? '' : 's'}
-                    <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                      {Object.entries(c.statuses).map(([st, n]) => (
-                        <span key={st} style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 4, background: `${STATUS_COLOR[st] ?? '#888'}33`, color: STATUS_COLOR[st] ?? '#888' }}>
-                          {st}: {n}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </Popup>
-              </CircleMarker>
-            );
-          })}
-
-          {/* Individual lead markers. Leads with an exact captured position
-              are plotted there; the rest are jittered around their city
-              centroid so they don't overlap. Click navigates. */}
+          {/* Individual lead markers — only leads with an exact captured
+              position are plotted (no city-centroid approximation). */}
           {showLeads && (() => {
             const markers: Array<{ lead: LeadGeoPoint; lat: number; lng: number; place: string }> = [];
-            for (const c of byCity) {
-              const jittered = c.leads.filter((l) => !hasRealCoords(l));
-              jittered.forEach((lead, i) => {
-                const angle = (i / Math.max(jittered.length, 1)) * 2 * Math.PI;
-                const r = 0.04;
-                markers.push({
-                  lead,
-                  lat: c.lat + Math.sin(angle) * r,
-                  lng: c.lng + Math.cos(angle) * r,
-                  place: `${c.city}${c.state ? `, ${c.state}` : ''}`,
-                });
-              });
-            }
             for (const lead of pinnedLeads) {
               markers.push({
                 lead,
