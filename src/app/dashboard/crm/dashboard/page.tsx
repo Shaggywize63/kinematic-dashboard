@@ -83,7 +83,7 @@ export default function CrmDashboardPage() {
   const [winRate, setWinRate] = useState<WinRatePoint[]>([]);
   const [forecast, setForecast] = useState<ForecastPoint[]>([]);
   const [scoreDist, setScoreDist] = useState<ScoreDistributionPoint[]>([]);
-  const [geoLeads, setGeoLeads] = useState<Array<{ id: string; first_name?: string|null; last_name?: string|null; city?: string|null; state?: string|null; status?: string|null }>>([]);
+  const [geoLeads, setGeoLeads] = useState<Array<{ id: string; first_name?: string|null; last_name?: string|null; city?: string|null; state?: string|null; status?: string|null; latitude?: number|null; longitude?: number|null; score?: number|null; score_grade?: 'A'|'B'|'C'|'D'|null; score_breakdown?: Record<string, unknown>|null }>>([]);
   const [loading, setLoading] = useState(true);
   const range = useCrmDateRange((s) => ({ from: s.from, to: s.to }));
 
@@ -174,6 +174,7 @@ export default function CrmDashboardPage() {
           id: l.id, first_name: l.first_name, last_name: l.last_name,
           city: l.city, state: l.state, status: l.status,
           latitude: l.latitude, longitude: l.longitude,
+          score: l.score, score_grade: l.score_grade, score_breakdown: l.score_breakdown,
         })));
       } catch (e: any) {
         toast.error(e.message || 'Failed to load CRM analytics');

@@ -3,6 +3,7 @@ import { memo, useCallback, useState } from 'react';
 import Link from 'next/link';
 import type { Lead } from '../../types/crm';
 import LeadScoreBadge from './LeadScoreBadge';
+import { breakdownFactors, llmAdjustmentOf } from '../../lib/crm/scoreFactors';
 import OwnerAvatar from './shared/OwnerAvatar';
 import InlineOwnerAssign from './shared/InlineOwnerAssign';
 
@@ -241,26 +242,8 @@ function ScoreBreakdownModal({ lead, onClose }: { lead: Lead; onClose: () => voi
   const score = lead.score ?? 0;
   const grade = lead.score_grade;
 
-  const entries: Array<[string, number]> = breakdown && typeof breakdown === 'object'
-    ? Object.entries(breakdown).filter(([_, v]) => typeof v === 'number')
-    : [];
-
-  const labels: Record<string, string> = {
-    title_seniority: 'Job Title Seniority',
-    title: 'Job Title Seniority',
-    company_size: 'Company Size',
-    company: 'Company Match',
-    source_weight: 'Lead Source',
-    source: 'Lead Source',
-    engagement: 'Engagement Activity',
-    recency: 'Recency',
-    icp_match: 'ICP (Ideal Customer Profile) Match',
-    icp: 'ICP Match',
-    industry: 'Industry Match',
-    geo: 'Geography',
-    email_quality: 'Email Quality',
-    phone_present: 'Phone Number Present',
-  };
+  const factors = breakdownFactors(breakdown);
+  const llmAdjustment = llmAdjustmentOf(breakdown);
 
   return (
     <div
@@ -291,15 +274,14 @@ function ScoreBreakdownModal({ lead, onClose }: { lead: Lead; onClose: () => voi
           Score is computed from a heuristic model that weighs key lead attributes. Higher scores indicate hotter leads worth prioritizing first.
         </div>
 
-        {entries.length === 0 ? (
+        {factors.length === 0 ? (
           <div style={{ padding: 16, background: 'var(--s3)', borderRadius: 8, fontSize: 13, color: 'var(--text-dim)', textAlign: 'center' }}>
             No detailed breakdown available yet. Click <em>Rescore</em> on the lead detail page to compute one.
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {entries.map(([key, value]) => {
-              const label = labels[key] || key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-              const max = Math.max(20, ...entries.map(([, v]) => v));
+            {factors.map(({ key, label, value }) => {
+              const max = Math.max(20, ...factors.map((f) => f.value));
               const pct = Math.max(0, Math.min(100, (value / max) * 100));
               const color = value >= 15 ? '#10b981' : value >= 8 ? '#f59e0b' : '#6366f1';
               return (
@@ -314,6 +296,13 @@ function ScoreBreakdownModal({ lead, onClose }: { lead: Lead; onClose: () => voi
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {llmAdjustment != null && llmAdjustment !== 0 && (
+          <div style={{ marginTop: 10, fontSize: 12, color: 'var(--text-dim)', display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--s3)', borderRadius: 8 }}>
+            <span>AI rerank adjustment</span>
+            <span style={{ fontWeight: 700, color: llmAdjustment > 0 ? '#10b981' : '#ef4444' }}>{llmAdjustment > 0 ? '+' : ''}{llmAdjustment}</span>
           </div>
         )}
 
