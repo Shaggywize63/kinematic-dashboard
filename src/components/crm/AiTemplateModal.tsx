@@ -39,6 +39,19 @@ function toSnake(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 60) || 'template';
 }
 
+// Hard client-side deadline so the generate flow can never hang on a stuck
+// backend (the "stuck at 92%" symptom). If the request doesn't resolve in
+// time we reject with a clear, retryable message and free the UI.
+const GEN_TIMEOUT_MS = 75_000;
+function withTimeout<T>(p: Promise<T>, ms = GEN_TIMEOUT_MS): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error('Generation timed out — the AI service is slow or unavailable. Please try again.')), ms)
+    ),
+  ]);
+}
+
 // Same list as TemplateEditModal.SUPPORTED_LANGS — keep in sync.
 const LANG_OPTIONS: Array<{ code: string; label: string }> = [
   { code: 'en', label: 'English' },
@@ -92,7 +105,7 @@ export default function AiTemplateModal({ open, channel, onClose, onApply }: Pro
       if (channel === 'email') {
         // Dedicated email-template generator: returns a reusable template with
         // {{placeholders}} + detected variables, not a one-off reply.
-        const r = await crmAi.draftEmailTemplate({ goal, tone, audience: audience || undefined, language });
+        const r = await withTimeout(crmAi.draftEmailTemplate({ goal, tone, audience: audience || undefined, language }));
         const html = r.data.body_html || r.data.body_text || '';
         setProgress(100);
         onApply({
@@ -112,7 +125,7 @@ Goal: ${goal}
 Audience: ${audience || 'general'}
 ${langPreamble}
 Return JSON only — no prose, no code fences.`;
-        const r = await crmAi.chat({ messages: [{ role: 'user', content: userMsg }], system: WA_SYSTEM });
+        const r = await withTimeout(crmAi.chat({ messages: [{ role: 'user', content: userMsg }], system: WA_SYSTEM }));
         const json = extractJson(r.data.text || '');
         const bodyText = (json?.body_text as string) || '';
         if (!bodyText) throw new Error('AI did not return a usable body. Try a different goal phrasing.');
