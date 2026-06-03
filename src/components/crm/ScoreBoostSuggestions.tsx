@@ -7,13 +7,14 @@ import { crmSettings } from '../../lib/crmApi';
 // lead is currently missing, each with the points it would add and an
 // actionable button. Keeps reps focused on the highest-leverage gaps.
 //
-// Client-specific items: most suggestions are generic CRM gaps (name, email,
-// city, GPS, qualify) and show for every client. A few are vertical-specific
-// — e.g. "monthly volume (MT)" only makes sense for a steel/commodity client
-// like Tata Tiscon, not for a SaaS client like Kinematic. Those are gated
+// Client-specific items: the generic CRM gaps (name, email, city, qualify)
+// show for every client. Field-sales / retail items — capturing GPS "on a
+// visit", a storefront "photo", or "monthly volume (MT)" — only make sense
+// for a client whose reps physically visit leads (e.g. Tata Tiscon), not for
+// a SaaS client like Kinematic. Those carry a `verticalSignal` and are gated
 // behind the per-client CRM setting `config.score_boost_signals` (an array of
-// enabled signal keys), so they're hidden by default and each client (current
-// or future) opts in explicitly.
+// enabled signal keys: e.g. 'gps', 'photo', 'volume'), so they're hidden by
+// default and each client (current or future) opts in explicitly.
 
 interface Suggestion {
   key: string;
@@ -35,7 +36,10 @@ function computeSuggestions(lead: Lead, enabledSignals: string[]): Suggestion[] 
 
   const lat = Number(L.latitude), lng = Number(L.longitude);
   const hasGps = Number.isFinite(lat) && Number.isFinite(lng) && !(lat === 0 && lng === 0);
-  if (!hasGps) out.push({ key: 'gps', label: 'Capture GPS location on a visit', points: 8, action: 'edit' });
+  // Field-sales signal: capturing GPS "on a visit" only makes sense for a
+  // client whose reps physically visit leads (e.g. Tata Tiscon dealers), not
+  // for a SaaS client like Kinematic. Gated behind the 'gps' signal.
+  if (!hasGps) out.push({ key: 'gps', label: 'Capture GPS location on a visit', points: 8, action: 'edit', verticalSignal: 'gps' });
 
   // Vertical-specific: monthly volume in MT. Only surfaced for clients that
   // enable the 'volume' signal (e.g. Tata Tiscon). Hidden for Kinematic and
@@ -46,7 +50,9 @@ function computeSuggestions(lead: Lead, enabledSignals: string[]): Suggestion[] 
     out.push({ key: 'volume', label: 'Record monthly volume (MT)', points: 8, action: 'edit', verticalSignal: 'volume' });
   }
 
-  if (!L.photo_url) out.push({ key: 'photo', label: 'Add a photo of the lead / storefront', points: 5, action: 'edit' });
+  // Field-sales signal: a storefront/lead photo is a retail-visit artefact —
+  // gated behind 'photo' for the same reason as GPS above.
+  if (!L.photo_url) out.push({ key: 'photo', label: 'Add a photo of the lead / storefront', points: 5, action: 'edit', verticalSignal: 'photo' });
   if (!lead.email) out.push({ key: 'email', label: 'Add an email address', points: 5, action: 'edit' });
   if (!lead.city) out.push({ key: 'city', label: 'Set the city / location', points: 5, action: 'edit' });
   if (!(lead.first_name && lead.last_name)) out.push({ key: 'name', label: 'Add the full name', points: 4, action: 'edit' });
