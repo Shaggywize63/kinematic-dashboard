@@ -203,7 +203,7 @@ export default function NotificationBell() {
   const totalItems = sortedNotifs.length + sortedActivities.length;
 
   return (
-    <div ref={ref} style={{ position: 'relative' }}>
+    <div ref={ref} style={{ position: 'relative', zIndex: open ? 4000 : undefined }}>
       <button
         onClick={() => setOpen((o) => !o)}
         title="Notifications"
@@ -231,7 +231,9 @@ export default function NotificationBell() {
           position: 'absolute', right: 0, top: 'calc(100% + 8px)',
           width: 360, maxWidth: 'calc(100vw - 32px)',
           background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12,
-          boxShadow: '0 12px 36px rgba(0,0,0,0.45)', zIndex: 1000,
+          // Above Leaflet/OSM map panes (which sit up to z-index ~700–1000) so
+          // the dropdown is never painted under the dashboard map.
+          boxShadow: '0 12px 36px rgba(0,0,0,0.45)', zIndex: 4000,
           maxHeight: 480, overflowY: 'auto',
         }}>
           <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
