@@ -43,6 +43,9 @@ export default function LeadsListPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
   const [pagination, setPagination] = useState<Pagination | null>(null);
+  // Server-side sort. `recent` (default) keeps the latest-update-first order;
+  // every other key maps to a backend column via ?sort=&order=.
+  const [sort, setSort] = useState<{ key: string; order: 'asc' | 'desc' }>({ key: 'recent', order: 'desc' });
   const view = useViewPrefs('leads');
   const hiddenSet = useMemo(() => new Set(view.prefs.hidden), [view.prefs.hidden]);
 
@@ -149,6 +152,7 @@ export default function LeadsListPage() {
       if (filters.source)   params.source_id = filters.source;
       if (filters.owner)    params.owner_id  = filters.owner;
       if (filters.grade)    params.score_grade = filters.grade;
+      if (sort.key !== 'recent') { params.sort = sort.key; params.order = sort.order; }
       const [l, s] = await Promise.allSettled([crmLeads.list(params), crmLeadSources.list()]);
       if (l.status === 'fulfilled') {
         setLeads(l.value.data || []);
@@ -180,7 +184,7 @@ export default function LeadsListPage() {
     range.from, range.to,
     filters.state, filters.city, filters.district, filters.block,
     filters.status, filters.source, filters.owner, filters.grade,
-    page, pageSize,
+    page, pageSize, sort.key, sort.order,
   ]);
 
   // Reset to page 1 whenever any server-side filter changes. Without
@@ -190,7 +194,7 @@ export default function LeadsListPage() {
     range.from, range.to,
     filters.state, filters.city, filters.district, filters.block,
     filters.status, filters.source, filters.owner, filters.grade,
-    pageSize,
+    pageSize, sort.key, sort.order,
   ]);
 
   useEffect(() => {
@@ -390,6 +394,25 @@ export default function LeadsListPage() {
         </div>
       </div>
       <LeadFilters value={filters} onChange={setFilters} sources={sources.map((s) => ({ id: s.id, name: s.name }))} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0 2px' }}>
+        <span style={{ fontSize: 12, color: 'var(--textSec)', fontWeight: 600 }}>Sort by</span>
+        <select
+          value={`${sort.key}:${sort.order}`}
+          onChange={(e) => { const [key, order] = e.target.value.split(':'); setSort({ key, order: order as 'asc' | 'desc' }); }}
+          style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '7px 10px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+        >
+          <option value="recent:desc">Most recent activity</option>
+          <option value="created:desc">Date added (newest)</option>
+          <option value="created:asc">Date added (oldest)</option>
+          <option value="name:asc">Name (A–Z)</option>
+          <option value="name:desc">Name (Z–A)</option>
+          <option value="company:asc">Company (A–Z)</option>
+          <option value="score:desc">Score (high–low)</option>
+          <option value="score:asc">Score (low–high)</option>
+          <option value="updated:desc">Last updated</option>
+          <option value="status:asc">Status</option>
+        </select>
+      </div>
       <BulkCoordinatesModal open={showCoordsModal} onClose={() => setShowCoordsModal(false)} onDone={() => reload()} />
       <LeadsTable
         leads={filtered}
