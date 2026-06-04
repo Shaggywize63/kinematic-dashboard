@@ -388,17 +388,20 @@ Be elite, professional, and data-driven. Use **bold** for key metrics. Proactive
 
   const panelStyle: React.CSSProperties = isMobile
     ? {
-        position: 'fixed', left: 0, right: 0, top: 0,
-        width: '100%', height: mobileHeight,
+        // Inset card rather than a full-bleed sheet — leave a margin on every
+        // side (and a gap at the top) so the panel "fits" the screen with
+        // breathing space instead of covering it edge-to-edge. Height tracks
+        // the visual viewport (minus the top gap) so it still rides above the
+        // keyboard when it opens.
+        position: 'fixed', left: 10, right: 10, bottom: 'calc(10px + env(safe-area-inset-bottom))',
+        height: `calc(${mobileHeight} - 64px - env(safe-area-inset-bottom))`,
         background: C.s2,
-        borderTop: `1px solid ${C.border}`,
+        border: `1px solid ${C.border}`,
+        borderRadius: 22,
+        overflow: 'hidden',
         display: 'flex', flexDirection: 'column', zIndex: 999,
-        boxShadow: '0 -20px 60px rgba(0,0,0,0.35)',
+        boxShadow: '0 24px 70px rgba(0,0,0,0.45)',
         animation: 'km-ai-slide-up .25s ease-out',
-        // Honor iOS notch + home indicator so the header isn't under the
-        // status bar and the input bar isn't under the home indicator.
-        paddingTop: 'env(safe-area-inset-top)',
-        paddingBottom: 'env(safe-area-inset-bottom)',
       }
     : {
         position: 'fixed', bottom: 105, right: 30, zIndex: 999,
