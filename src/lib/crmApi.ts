@@ -167,6 +167,16 @@ export const crmActivities = {
     api.get<Wrapped<Activity[]>>(`${BASE}/activities/calendar${qs(params)}`),
 };
 
+// Per-FE daily lead targets. Managers read/set; FEs read their own via /me.
+export interface TargetsState { default_target: number; per_user: Array<{ user_id: string; target_value: number }>; }
+export interface MyTarget { metric: string; period: string; target: number; achieved: number; }
+export const crmTargets = {
+  get: () => api.get<Wrapped<TargetsState>>(`${BASE}/targets`),
+  mine: () => api.get<Wrapped<MyTarget>>(`${BASE}/targets/me`),
+  set: (body: { user_id?: string | null; target_value: number; all?: boolean }) =>
+    api.put<Wrapped<unknown>>(`${BASE}/targets`, body),
+};
+
 export const crmNotes = crud<Note>(`${BASE}/notes`);
 export const crmTasks = crud<Task>(`${BASE}/tasks`);
 export const crmEmailTemplates = crud<EmailTemplate>(`${BASE}/email-templates`);
