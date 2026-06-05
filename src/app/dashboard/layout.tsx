@@ -90,6 +90,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [otherOpen, setOtherOpen] = useState(false);
   const [token, setToken] = useState('');
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // True once /auth/me has resolved. Until then, if the cached profile has no
+  // explicit permissions, we hold the role-gated nav back to avoid a flash of
+  // modules (e.g. Settings) the user shouldn't see.
+  const [hydrated, setHydrated] = useState(false);
   const isMobile = useIsMobile(1024);
   const router = useRouter();
   const pathname = usePathname();
@@ -116,6 +120,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           setUser(next);
         }
       } catch { /* keep cached user */ }
+      finally { setHydrated(true); }
     })();
   }, [router]);
 
@@ -172,6 +177,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   })();
 
   const isSuperAdmin = (userRole || '').toLowerCase().replace(/-/g, '_') === 'super_admin';
+
+  // Only build the nav once we can trust the permission set. Platform admins
+  // and cached profiles that already carry permissions render immediately;
+  // everyone else waits for the fresh /auth/me so role-gated items don't flash.
+  const cachedHasPerms = Array.isArray(user?.permissions) && (user!.permissions as string[]).length > 0;
+  const navReady = hydrated || isPlatformAdmin || cachedHasPerms;
 
   const hasModule = (m: string) => {
     if (!m) return true;
@@ -304,7 +315,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     ]},
   ];
 
-  const navGroups = rawNavGroups
+  const navGroups = !navReady ? [] : rawNavGroups
     .map(g => ({ ...g, items: filterNav(g.items) }))
     .filter(g => sectionVisible(g.package, g.items));
 
@@ -403,6 +414,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           )}
 
           <nav style={{ flex:1, padding: collapsed && !isMobile ? '10px 0' : '15px 0', overflowY:'auto' }}>
+            {!navReady && (
+              <div style={{ padding: '8px 16px', display:'flex', flexDirection:'column', gap:12 }}>
+                {[0,1,2,3,4,5].map(i => (
+                  <div key={i} style={{ height:12, borderRadius:6, background:C.border, opacity:0.45 }} />
+                ))}
+              </div>
+            )}
             {navGroups.map((g, gi) => (
               <div key={gi} style={{ marginBottom: collapsed && !isMobile ? 10 : 18 }}>
                 {(isMobile || !collapsed) ? (
