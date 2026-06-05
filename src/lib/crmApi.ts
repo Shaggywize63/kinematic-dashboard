@@ -174,11 +174,33 @@ export interface TargetsState {
   per_user: Array<{ user_id: string; target_value: number }>;
 }
 export interface MyTarget { metric: string; period: string; target: number; achieved: number; }
+export type LeaderboardPeriod = 'today' | 'week' | 'month';
+export interface LeaderboardEntry {
+  user_id: string; name: string; city: string | null;
+  leads: number; target: number; pct: number | null;
+}
+export interface Leaderboard {
+  period: LeaderboardPeriod;
+  days: number;
+  generated_at: string;
+  stats: {
+    participants: number;
+    total_leads: number;
+    average_leads: number;
+    meeting_target: number;
+    target_participants: number;
+    top_performer: { name: string; leads: number } | null;
+    lowest_performer: { name: string; leads: number } | null;
+  };
+  entries: LeaderboardEntry[];
+}
 export const crmTargets = {
   get: () => api.get<Wrapped<TargetsState>>(`${BASE}/targets`),
   mine: () => api.get<Wrapped<MyTarget>>(`${BASE}/targets/me`),
   set: (body: { user_id?: string | null; hierarchy_level_id?: string | null; target_value: number; all?: boolean }) =>
     api.put<Wrapped<unknown>>(`${BASE}/targets`, body),
+  leaderboard: (period: LeaderboardPeriod = 'today') =>
+    api.get<Wrapped<Leaderboard>>(`${BASE}/targets/leaderboard${qs({ period })}`),
 };
 
 export const crmNotes = crud<Note>(`${BASE}/notes`);
