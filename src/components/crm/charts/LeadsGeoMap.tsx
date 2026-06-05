@@ -66,6 +66,8 @@ const CITY_TABLE: Array<readonly [string, number, number, string]> = [
   ['Hazaribagh', 23.99, 85.36, 'Jharkhand'],
   ['Jamshedpur', 22.80, 86.20, 'Jharkhand'],
   ['Jamtara',   23.96, 86.80, 'Jharkhand'],
+  ['Madhupur',  24.27, 86.65, 'Jharkhand'],
+  ['Mihijam',   23.92, 86.91, 'Jharkhand'],
   ['Pakur',     24.63, 87.85, 'Jharkhand'],
   ['Sahibganj', 25.24, 87.64, 'Jharkhand'],
   // Misc commercial centres we see most often
@@ -257,7 +259,10 @@ export default function LeadsGeoMap({ leads, height = 620 }: { leads: LeadGeoPoi
   // Bucket leads by state + by city so both layers can read counts O(1).
   const { byState, byCity, unmapped, pinnedLeads } = useMemo(() => {
     const stateMap = new Map<string, { name: string; lat: number; lng: number; zoom: number; count: number; statuses: Record<string, number> }>();
-    const cityMap = new Map<string, { city: string; state?: string; lat: number; lng: number; count: number; statuses: Record<string, number>; leads: LeadGeoPoint[] }>();
+    // `lat`/`lng` start at the catalog centroid; sumLat/sumLng/nCoords let us
+    // refine them to the actual centroid of this city's geocoded leads, so
+    // clicking a city flies to where its leads really are.
+    const cityMap = new Map<string, { city: string; state?: string; lat: number; lng: number; sumLat: number; sumLng: number; nCoords: number; count: number; statuses: Record<string, number>; leads: LeadGeoPoint[] }>();
     let unmappedCount = 0;
     for (const l of leads) {
       const stateKey = (l.state ?? '').trim();
@@ -279,10 +284,11 @@ export default function LeadsGeoMap({ leads, height = 620 }: { leads: LeadGeoPoi
         stateMap.set(stateRow.name, cur);
       }
       if (cityCoord) {
-        const cur = cityMap.get(cityKey) ?? { city: cityKey, state: stateRow?.name, lat: cityCoord[0], lng: cityCoord[1], count: 0, statuses: {}, leads: [] };
+        const cur = cityMap.get(cityKey) ?? { city: cityKey, state: stateRow?.name, lat: cityCoord[0], lng: cityCoord[1], sumLat: 0, sumLng: 0, nCoords: 0, count: 0, statuses: {}, leads: [] };
         cur.count += 1;
         cur.statuses[status] = (cur.statuses[status] ?? 0) + 1;
         cur.leads.push(l);
+        if (hasRealCoords(l)) { cur.sumLat += l.latitude; cur.sumLng += l.longitude; cur.nCoords += 1; }
         cityMap.set(cityKey, cur);
       } else if (!hasRealCoords(l)) {
         // No city centroid AND no exact coordinates → can't place it.
@@ -291,7 +297,11 @@ export default function LeadsGeoMap({ leads, height = 620 }: { leads: LeadGeoPoi
     }
     return {
       byState: Array.from(stateMap.values()).sort((a, b) => b.count - a.count),
-      byCity: Array.from(cityMap.values()).sort((a, b) => b.count - a.count),
+      // Snap each city's marker/fly-to target to the real centroid of its
+      // geocoded leads when we have coordinates; else keep the catalog point.
+      byCity: Array.from(cityMap.values())
+        .map((c) => c.nCoords > 0 ? { ...c, lat: c.sumLat / c.nCoords, lng: c.sumLng / c.nCoords } : c)
+        .sort((a, b) => b.count - a.count),
       unmapped: unmappedCount,
       // Leads with an exact captured position — plotted precisely (not
       // jittered) at high zoom. Includes leads whose city has no centroid.
@@ -497,7 +507,7 @@ export default function LeadsGeoMap({ leads, height = 620 }: { leads: LeadGeoPoi
             return (
               <button
                 key={c.city}
-                onClick={() => flyTo({ type: 'city', name: c.city, lat: c.lat, lng: c.lng, zoom: 11, count: c.count, state: c.state })}
+                onClick={() => flyTo({ type: 'city', name: c.city, lat: c.lat, lng: c.lng, zoom: 10, count: c.count, state: c.state })}
                 style={{
                   width: '100%', textAlign: 'left', background: 'transparent',
                   border: 'none', borderBottom: '1px solid var(--border)',
