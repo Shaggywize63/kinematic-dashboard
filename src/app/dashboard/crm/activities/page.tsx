@@ -13,6 +13,7 @@ import GoogleCalendarBanner from '../../../../components/crm/GoogleCalendarBanne
 import ViewCustomizer from '../../../../components/crm/shared/ViewCustomizer';
 import { useViewPrefs } from '../../../../lib/crmViewPrefs';
 import { useCityScope } from '../../../../context/CityScopeContext';
+import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
 
 // Activity cards are not a table, so the customizer toggles which
 // optional sections appear in each card. Subject + status are locked.
@@ -69,6 +70,8 @@ function ActivitiesPageInner() {
   // the backend filters them via the linked lead — but the page must refetch
   // when the picked city changes and send it on the request.
   const { selectedCity } = useCityScope();
+  // Global CRM date range (header) — applied to the activities' completed_at.
+  const dateRange = useCrmDateRange((s) => ({ from: s.from, to: s.to }));
   // Layout toggle between the existing list and the month-grid
   // calendar view. Independent of the server-side `view` filter
   // (Overdue / Upcoming / Completed) which both layouts honour. The
@@ -188,6 +191,8 @@ function ActivitiesPageInner() {
       if (statusFilter) params.status = statusFilter;
       if (isAdmin && feFilter) params.owner_id = feFilter;
       if (selectedCity) params.city = selectedCity;
+      if (dateRange.from) params.from = dateRange.from;
+      if (dateRange.to) params.to = dateRange.to;
       // KPI-tile filter — only send when not 'all'. Backend ignores
       // unknown values; sending 'all' as a no-op keeps the URL clean.
       if (view !== 'all') params.view = view;
@@ -238,7 +243,7 @@ function ActivitiesPageInner() {
   // means we don't need the client-side `filtered` array to re-filter on
   // the same dimensions.
   useEffect(() => { reload(); /* eslint-disable-next-line */ }, [
-    type, statusFilter, feFilter, view, page, pageSize, isAdmin, sort, selectedCity,
+    type, statusFilter, feFilter, view, page, pageSize, isAdmin, sort, selectedCity, dateRange.from, dateRange.to,
   ]);
 
   // Reset to page 1 whenever any server-side filter changes — otherwise
