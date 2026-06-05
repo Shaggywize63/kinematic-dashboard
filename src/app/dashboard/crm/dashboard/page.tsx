@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { crmAnalytics, crmSettings, crmLeads } from '../../../../lib/crmApi';
 import { fmtValue, fmtValueCompact, type DashboardUnit } from '../../../../lib/formatCurrency';
 import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
+import { useCityScope } from '../../../../context/CityScopeContext';
 import { useClient } from '../../../../context/ClientContext';
 import StatCard from '../../../../components/crm/shared/StatCard';
 import PinnedOverviewSection from '../../../../components/crm/analytics/PinnedOverviewSection';
@@ -86,6 +87,7 @@ export default function CrmDashboardPage() {
   const [geoLeads, setGeoLeads] = useState<Array<{ id: string; first_name?: string|null; last_name?: string|null; city?: string|null; state?: string|null; status?: string|null; latitude?: number|null; longitude?: number|null; score?: number|null; score_grade?: 'A'|'B'|'C'|'D'|null; score_breakdown?: Record<string, unknown>|null }>>([]);
   const [loading, setLoading] = useState(true);
   const range = useCrmDateRange((s) => ({ from: s.from, to: s.to }));
+  const { selectedCity } = useCityScope();
 
   // Customization state
   const [canCustomize, setCanCustomize] = useState(false);
@@ -160,7 +162,7 @@ export default function CrmDashboardPage() {
       try {
         const [r, leadsRes] = await Promise.all([
           crmAnalytics.dashboardComplete(range, unit),
-          crmLeads.list({ limit: 500 }),
+          crmLeads.geo(),
         ]);
         if (cancel) return;
         const d = r.data;
@@ -174,7 +176,7 @@ export default function CrmDashboardPage() {
           id: l.id, first_name: l.first_name, last_name: l.last_name,
           city: l.city, state: l.state, status: l.status,
           latitude: l.latitude, longitude: l.longitude,
-          score: l.score, score_grade: l.score_grade, score_breakdown: l.score_breakdown,
+          score: l.score, score_grade: l.score_grade, score_breakdown: (l as any).score_breakdown ?? null,
         })));
       } catch (e: any) {
         toast.error(e.message || 'Failed to load CRM analytics');
@@ -183,7 +185,7 @@ export default function CrmDashboardPage() {
       }
     })();
     return () => { cancel = true; };
-  }, [range.from, range.to, unit]);
+  }, [range.from, range.to, unit, selectedCity]);
 
   const fmtPct = (n?: number) => `${(Number(n || 0) * 100).toFixed(1)}%`;
   // KPI cards render the compact form (₹2.4L / ₹2.4Cr) so big numbers

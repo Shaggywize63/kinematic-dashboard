@@ -65,6 +65,9 @@ export const crmLeads = {
   scoreHistory: (id: string) => api.get<Wrapped<LeadScore[]>>(`${BASE}/leads/${id}/score-history`),
   activities: (id: string) => api.get<Wrapped<Activity[]>>(`${BASE}/leads/${id}/activities`),
   deals: (id: string) => api.get<Wrapped<Deal[]>>(`${BASE}/leads/${id}/deals`),
+  // All geo-tagged leads (up to 5000) for the dashboard map — bypasses the
+  // 200-row list cap. City is auto-attached by the api client.
+  geo: () => api.get<Wrapped<Array<{ id: string; first_name?: string | null; last_name?: string | null; city?: string | null; state?: string | null; status?: string | null; latitude?: number | null; longitude?: number | null; score?: number | null; score_grade?: 'A' | 'B' | 'C' | 'D' | null }>>>(`${BASE}/leads/geo`),
   convert: (
     id: string,
     body: { create_account?: boolean; create_deal?: boolean; deal_name?: string; deal_amount?: number; account_id?: string }
