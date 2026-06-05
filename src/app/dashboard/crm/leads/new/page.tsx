@@ -7,6 +7,7 @@ import api from '../../../../../lib/api';
 import type { BusinessType, LeadSource, Product } from '../../../../../types/crm';
 import LocationPicker from '../../../../../components/crm/LocationPicker';
 import CustomFieldsSection from '../../../../../components/crm/CustomFieldsSection';
+import GoogleAddressAutocomplete from '../../../../../components/crm/GoogleAddressAutocomplete';
 import UserSearchSelect, { type UserOption } from '../../../../../components/crm/shared/UserSearchSelect';
 import AlternateMobiles from '../../../../../components/crm/AlternateMobiles';
 import ClientScopeField from '../../../../../components/ClientScopeField';
@@ -435,6 +436,15 @@ export default function NewLeadPage() {
                 the same reason they're in the B2B grid above — they
                 read as part of the form, not a footnote. */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
+              <GoogleAddressAutocomplete onSelect={(p) => setForm((f) => ({
+                ...f,
+                address_line1: p.address_line1 || f.address_line1,
+                city: p.city || f.city,
+                state: p.state || f.state,
+                postal_code: p.postal_code || f.postal_code,
+                latitude: p.latitude || f.latitude,
+                longitude: p.longitude || f.longitude,
+              }))} />
               {text('address_line1', 'Address Line 1')}{text('address_line2', 'Address Line 2')}
               {/* LocationPicker covers state + city. Hide it when the admin
                   has hidden the city built-in (state alone has no value). */}
