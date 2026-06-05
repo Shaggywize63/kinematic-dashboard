@@ -2,8 +2,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { crmLeads, crmSettings, crmLeadSources, crmProducts } from '../../../../../lib/crmApi';
+import { crmLeads, crmSettings, crmLeadSources, crmProducts, crmTargets, type MyTarget } from '../../../../../lib/crmApi';
 import api from '../../../../../lib/api';
+import { useClient } from '../../../../../context/ClientContext';
 import type { BusinessType, LeadSource, Product } from '../../../../../types/crm';
 import LocationPicker from '../../../../../components/crm/LocationPicker';
 import CustomFieldsSection from '../../../../../components/crm/CustomFieldsSection';
@@ -14,6 +15,9 @@ import ClientScopeField from '../../../../../components/ClientScopeField';
 import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '../../../../../lib/crmFieldOverrides';
 
 type UserOpt = UserOption;
+
+// Tata Tiscon is consumer-only — never offer the B2B lead option.
+const TATA_TISCON_CLIENT_ID = 'a1f67468-526e-4734-be3a-2cb132cc2804';
 
 type Form = {
   first_name: string; last_name: string; email: string; phone: string;
@@ -88,6 +92,25 @@ export default function NewLeadPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { captureLocation(); }, []);
   const [businessType, setBusinessType] = useState<BusinessType>('both');
+  // Today's lead target for the signed-in rep — shown as a ticker while
+  // entering leads (null = no target / not loaded → ticker hidden).
+  const [myTarget, setMyTarget] = useState<MyTarget | null>(null);
+  // Tata Tiscon is consumer-only: never show the B2B option for that client,
+  // regardless of the org-wide business_type. Detect the effective client
+  // (the one chosen on the form, the user's pinned client, or the global
+  // scope picker) so it works for both Tata-pinned staff and admins.
+  const { selectedClientId } = useClient();
+  const userClientId = useMemo<string | null>(() => {
+    try {
+      const raw = typeof window !== 'undefined' ? localStorage.getItem('kinematic_user') : null;
+      return raw ? (JSON.parse(raw)?.client_id ?? null) : null;
+    } catch { return null; }
+  }, []);
+  const isTata = (form.client_id || userClientId || selectedClientId) === TATA_TISCON_CLIENT_ID;
+  // Force B2C for Tata (the toggle is hidden, so the default must not stay B2B).
+  useEffect(() => {
+    if (isTata) setForm((f) => (f.is_b2c ? f : { ...f, is_b2c: true }));
+  }, [isTata]);
   // Per-tenant field overrides (label / required / hidden) for built-in
   // lead fields. Edited from Admin → CRM Settings → Custom Fields, stored
   // in crm_settings.config.field_overrides. Empty until first fetch — every
@@ -169,6 +192,8 @@ export default function NewLeadPage() {
       }
       if (p.status === 'fulfilled') setProducts((p.value.data || []).filter((x: Product) => x.is_active));
     })();
+    // Today's lead target for the ticker (best-effort; hidden if none set).
+    crmTargets.mine().then((r) => setMyTarget(r?.data ?? null)).catch(() => setMyTarget(null));
   }, []);
 
   const toggleProduct = (id: string) => {
@@ -242,7 +267,7 @@ export default function NewLeadPage() {
     try {
       const payload: Record<string, unknown> = {
         first_name: form.first_name || undefined, last_name: form.last_name || undefined,
-        email: form.email || undefined, phone: form.phone || undefined, is_b2c: form.is_b2c,
+        email: form.email || undefined, phone: form.phone || undefined, is_b2c: isTata || form.is_b2c,
         source_id: form.source_id || undefined,
         owner_id: form.owner_id || undefined,
         status: form.status || 'new',
@@ -327,7 +352,8 @@ export default function NewLeadPage() {
     );
   };
 
-  const showToggle = businessType === 'both';
+  // Tata is consumer-only: hide the B2B/B2C toggle and force B2C (above).
+  const showToggle = businessType === 'both' && !isTata;
   const leadTypeLabel = businessType === 'b2c'
     ? 'Individual consumer lead — capture contact details and preferences.'
     : businessType === 'b2b'
@@ -342,6 +368,22 @@ export default function NewLeadPage() {
       <p style={{ margin: '-4px 0 18px', fontSize: 13, color: 'var(--text-dim)' }}>
         {leadTypeLabel}{' '}Fields marked <span style={{ color: '#ef4444' }}>*</span> are required.
       </p>
+
+      {myTarget && myTarget.target > 0 && (() => {
+        const done = myTarget.achieved >= myTarget.target;
+        const accent = done ? '#0A8A4E' : '#E01E2C';
+        const pct = Math.min(100, Math.round((myTarget.achieved / myTarget.target) * 100));
+        return (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderRadius: 10, background: 'var(--s3)', border: `1px solid ${accent}55`, marginBottom: 18 }}>
+            <span style={{ fontSize: 16 }}>{done ? '✅' : '🎯'}</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>Today&apos;s lead target</span>
+            <div style={{ flex: 1, height: 6, borderRadius: 99, background: 'var(--border)', overflow: 'hidden', minWidth: 60 }}>
+              <div style={{ width: `${pct}%`, height: '100%', background: accent, borderRadius: 99, transition: 'width .3s' }} />
+            </div>
+            <span style={{ fontSize: 15, fontWeight: 800, color: accent }}>{myTarget.achieved}/{myTarget.target}</span>
+          </div>
+        );
+      })()}
 
       <ClientScopeField value={form.client_id} onChange={(id) => setForm({ ...form, client_id: id })} />
 
