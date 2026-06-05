@@ -25,6 +25,16 @@ export default function TargetsSettingsPage() {
   const [pickLevel, setPickLevel] = useState<string>('');
   const [cityFilter, setCityFilter] = useState<string>('');
 
+  // Narrow-viewport flag so the rows/filters reflow on phones (inline styles
+  // can't use CSS media queries).
+  const [narrow, setNarrow] = useState(false);
+  useEffect(() => {
+    const f = () => setNarrow(window.innerWidth < 640);
+    f();
+    window.addEventListener('resize', f);
+    return () => window.removeEventListener('resize', f);
+  }, []);
+
   const load = async () => {
     setLoading(true);
     try {
@@ -104,12 +114,15 @@ export default function TargetsSettingsPage() {
     finally { setSavingId(null); }
   };
 
-  const inputStyle: React.CSSProperties = { width: 84, background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '8px 10px', fontSize: 13, textAlign: 'center' };
-  const selStyle: React.CSSProperties = { background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '8px 10px', fontSize: 13, minWidth: 160 };
-  const btnStyle: React.CSSProperties = { background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' };
+  const inputStyle: React.CSSProperties = { width: 72, background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '8px 10px', fontSize: 13, textAlign: 'center' };
+  const selStyle: React.CSSProperties = { background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '8px 10px', fontSize: 13, width: '100%' };
+  const btnStyle: React.CSSProperties = { background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' };
+  // A row that wraps its controls below the name on narrow screens.
+  const rowStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--border)', flexWrap: 'wrap' };
+  const controlsStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginLeft: narrow ? 0 : 'auto' };
 
   return (
-    <div style={{ maxWidth: 760 }}>
+    <div style={{ maxWidth: 760, width: '100%' }}>
       <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', margin: '0 0 4px' }}>Targets</h1>
       <p style={{ fontSize: 13, color: 'var(--text-dim)', margin: '0 0 18px' }}>
         Set the daily lead target for each hierarchy level (e.g. Consumer Champion, Area Sales Officer). Everyone at that level inherits it. You can override individuals below. FEs see their target as a dashboard ticker and a 1/5 badge when adding a lead.
@@ -128,20 +141,22 @@ export default function TargetsSettingsPage() {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {levels.map((l) => (
-              <div key={l.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
+              <div key={l.id} style={rowStyle}>
+                <div style={{ flex: '1 1 160px', minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{l.name}</div>
                   <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{countAtLevel(l.id)} {countAtLevel(l.id) === 1 ? 'person' : 'people'}</div>
                 </div>
-                <input type="number" min={0}
-                  value={levelTargets[l.id] ?? ''}
-                  placeholder="0"
-                  onChange={(e) => setLevelTargets((m) => ({ ...m, [l.id]: parseInt(e.target.value || '0', 10) || 0 }))}
-                  style={inputStyle} />
-                <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>/day</span>
-                <button onClick={() => saveLevel(l.id)} disabled={savingLevel === l.id} style={{ ...btnStyle, opacity: savingLevel === l.id ? 0.6 : 1 }}>
-                  {savingLevel === l.id ? 'Saving…' : 'Save'}
-                </button>
+                <div style={controlsStyle}>
+                  <input type="number" min={0}
+                    value={levelTargets[l.id] ?? ''}
+                    placeholder="0"
+                    onChange={(e) => setLevelTargets((m) => ({ ...m, [l.id]: parseInt(e.target.value || '0', 10) || 0 }))}
+                    style={inputStyle} />
+                  <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>/day</span>
+                  <button onClick={() => saveLevel(l.id)} disabled={savingLevel === l.id} style={{ ...btnStyle, opacity: savingLevel === l.id ? 0.6 : 1 }}>
+                    {savingLevel === l.id ? 'Saving…' : 'Save'}
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -153,11 +168,11 @@ export default function TargetsSettingsPage() {
         <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)', marginBottom: 4 }}>Individual overrides <span style={{ fontWeight: 500, color: 'var(--text-dim)' }}>(optional)</span></div>
         <p style={{ fontSize: 12, color: 'var(--text-dim)', margin: '0 0 12px' }}>Pick a level (and optional city) to list its people and override specific individuals. Blank uses their level target.</p>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
-          <select value={pickLevel} onChange={(e) => setPickLevel(e.target.value)} style={selStyle}>
+          <select value={pickLevel} onChange={(e) => setPickLevel(e.target.value)} style={{ ...selStyle, flex: '1 1 200px', minWidth: 0 }}>
             <option value="">{levels.length ? 'Choose a level…' : 'All users'}</option>
             {levels.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
           </select>
-          <select value={cityFilter} onChange={(e) => setCityFilter(e.target.value)} style={selStyle}>
+          <select value={cityFilter} onChange={(e) => setCityFilter(e.target.value)} style={{ ...selStyle, flex: '1 1 200px', minWidth: 0 }}>
             <option value="">All cities</option>
             {cities.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
@@ -170,19 +185,21 @@ export default function TargetsSettingsPage() {
               {usersInPicked.map((u) => {
                 const lvlVal = u.org_role_id ? levelTargets[u.org_role_id] : undefined;
                 return (
-                  <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
+                  <div key={u.id} style={rowStyle}>
+                    <div style={{ flex: '1 1 160px', minWidth: 0 }}>
                       <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.name}</div>
                       <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{u.city || '—'}</div>
                     </div>
-                    <input type="number" min={0}
-                      value={overrides[u.id] ?? ''}
-                      placeholder={lvlVal != null ? String(lvlVal) : '—'}
-                      onChange={(e) => setOverrides((m) => ({ ...m, [u.id]: parseInt(e.target.value || '0', 10) || 0 }))}
-                      style={inputStyle} />
-                    <button onClick={() => saveOne(u)} disabled={savingId === u.id} style={{ ...btnStyle, background: 'var(--s3)', color: 'var(--text)', border: '1px solid var(--border)', opacity: savingId === u.id ? 0.6 : 1 }}>
-                      {savingId === u.id ? 'Saving…' : 'Save'}
-                    </button>
+                    <div style={controlsStyle}>
+                      <input type="number" min={0}
+                        value={overrides[u.id] ?? ''}
+                        placeholder={lvlVal != null ? String(lvlVal) : '—'}
+                        onChange={(e) => setOverrides((m) => ({ ...m, [u.id]: parseInt(e.target.value || '0', 10) || 0 }))}
+                        style={inputStyle} />
+                      <button onClick={() => saveOne(u)} disabled={savingId === u.id} style={{ ...btnStyle, background: 'var(--s3)', color: 'var(--text)', border: '1px solid var(--border)', opacity: savingId === u.id ? 0.6 : 1 }}>
+                        {savingId === u.id ? 'Saving…' : 'Save'}
+                      </button>
+                    </div>
                   </div>
                 );
               })}
@@ -197,7 +214,7 @@ export default function TargetsSettingsPage() {
       <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
         <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)', marginBottom: 4 }}>Fallback default</div>
         <p style={{ fontSize: 12, color: 'var(--text-dim)', margin: '0 0 12px' }}>Used only for people with no hierarchy level and no individual target.</p>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <input type="number" min={0} value={defaultTarget} onChange={(e) => setDefaultTarget(parseInt(e.target.value || '0', 10) || 0)} style={inputStyle} />
           <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>leads / day</span>
           <button onClick={saveDefault} disabled={savingLevel === '__default__'} style={{ ...btnStyle, opacity: savingLevel === '__default__' ? 0.6 : 1 }}>{savingLevel === '__default__' ? 'Saving…' : 'Save fallback'}</button>
