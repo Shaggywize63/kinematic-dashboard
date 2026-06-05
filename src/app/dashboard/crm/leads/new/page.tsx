@@ -51,6 +51,9 @@ export default function NewLeadPage() {
   const [busy, setBusy] = useState(false);
   const [geoBusy, setGeoBusy] = useState(false);
   const [geoError, setGeoError] = useState('');
+  // Self-only roles (org_role.data_scope === 'own', e.g. Consumer Champion)
+  // can't assign leads to others — they own what they create.
+  const [selfOnly, setSelfOnly] = useState(false);
 
   // Capture the device's current position. Coordinates are mandatory and
   // non-editable: the lead is geo-tagged with the rep's actual location at
@@ -138,12 +141,21 @@ export default function NewLeadPage() {
 
   useEffect(() => {
     (async () => {
-      const [s, src, u, p] = await Promise.allSettled([
+      const [s, src, u, p, meRes] = await Promise.allSettled([
         crmSettings.get(),
         crmLeadSources.list(),
         api.getUsers({ limit: '500' }) as Promise<any>,
         crmProducts.list(),
+        api.get<any>('/api/v1/auth/me'),
       ]);
+      if (meRes.status === 'fulfilled') {
+        const me = (meRes.value as any)?.data ?? meRes.value;
+        if (me?.org_role?.data_scope === 'own') {
+          setSelfOnly(true);
+          // Default the owner to the current user so the lead is theirs.
+          if (me.id) setForm((f) => ({ ...f, owner_id: f.owner_id || me.id }));
+        }
+      }
       if (s.status === 'fulfilled') {
         const t: BusinessType = s.value.data?.business_type ?? 'both';
         setBusinessType(t);
@@ -378,7 +390,10 @@ export default function NewLeadPage() {
                 </select>
               </label>
             )}
-            {!fields.isHidden('owner_id') && (
+            {/* Self-only roles (e.g. Consumer Champion, data_scope='own') always
+                own the leads they create — hide the assign control and default
+                the owner to themselves. */}
+            {!fields.isHidden('owner_id') && !selfOnly && (
               <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>{fields.labelFor('owner_id', 'Assign To')}</span>
                 <UserSearchSelect
