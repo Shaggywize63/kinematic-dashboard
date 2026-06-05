@@ -8,9 +8,15 @@
  * performers and how many are meeting target. Manager-only data; the endpoint
  * is role-gated server-side and tenant-scoped via the active client.
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Trophy, TrendingDown, Users, Target, RefreshCw } from 'lucide-react';
 import { crmTargets, type Leaderboard, type LeaderboardPeriod } from '../../../lib/crmApi';
+import { useClient } from '../../../context/ClientContext';
+
+// Tata Tiscon's leaderboard is fixed to the Consumer Champion role — reps
+// shouldn't (and managers needn't) re-scope it to other hierarchy tiers, so
+// the role switcher is hidden for this client.
+const TATA_TISCON_CLIENT_ID = 'a1f67468-526e-4734-be3a-2cb132cc2804';
 
 const PERIODS: { key: LeaderboardPeriod; label: string }[] = [
   { key: 'today', label: 'Today' },
@@ -29,6 +35,17 @@ export default function TargetsLeaderboard({ embedded = false }: { embedded?: bo
   // configurable per client. Managers can change it; saving refetches.
   const [roles, setRoles] = useState<Array<{ id: string; name: string }>>([]);
   const [roleId, setRoleId] = useState<string>('');
+
+  // Hide the role switcher for Tata Tiscon — their board is locked to the
+  // Consumer Champion role and must not expose the other hierarchy tiers.
+  const { selectedClientId } = useClient();
+  const userClientId = useMemo<string | null>(() => {
+    try {
+      const raw = typeof window !== 'undefined' ? localStorage.getItem('kinematic_user') : null;
+      return raw ? (JSON.parse(raw)?.client_id ?? null) : null;
+    } catch { return null; }
+  }, []);
+  const isTata = userClientId === TATA_TISCON_CLIENT_ID || selectedClientId === TATA_TISCON_CLIENT_ID;
 
   // Narrow-viewport flag so the ranked rows reflow on phones (inline styles
   // can't use CSS media queries). On narrow we drop the Target column and
@@ -86,7 +103,7 @@ export default function TargetsLeaderboard({ embedded = false }: { embedded?: bo
             Who entered the most leads, who&apos;s behind, and how the team tracks against target.
           </div>
         </div>
-        {roles.length > 0 && (
+        {roles.length > 0 && !isTata && (
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--text-dim)' }} title="Which hierarchy role this leaderboard ranks">
             Role
             <select
