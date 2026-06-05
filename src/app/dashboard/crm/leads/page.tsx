@@ -187,6 +187,10 @@ export default function LeadsListPage() {
     page, pageSize, sort.key, sort.order,
   ]);
 
+  // Load the user list up front so the Owner filter dropdown is populated
+  // (loadUsers also backs the bulk-assign menu; it's a no-op once loaded).
+  useEffect(() => { loadUsers(); /* eslint-disable-next-line */ }, []);
+
   // Reset to page 1 whenever any server-side filter changes. Without
   // this, picking a stricter filter while on page 5 would render an
   // empty page until the user manually clicks "first".
@@ -393,7 +397,7 @@ export default function LeadsListPage() {
           <Link href="/dashboard/crm/leads/new" style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700 }}>+ New Lead</Link>
         </div>
       </div>
-      <LeadFilters value={filters} onChange={setFilters} sources={sources.map((s) => ({ id: s.id, name: s.name }))} />
+      <LeadFilters value={filters} onChange={setFilters} sources={sources.map((s) => ({ id: s.id, name: s.name }))} owners={users} />
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0 2px' }}>
         <span style={{ fontSize: 12, color: 'var(--textSec)', fontWeight: 600 }}>Sort by</span>
         <select
