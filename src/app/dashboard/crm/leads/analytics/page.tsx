@@ -7,10 +7,12 @@
  * drag/resize, chart-type switcher, per-user persisted layout) is here.
  */
 import LeadAnalyticsSection from '../../../../../components/crm/analytics/LeadAnalyticsSection';
+import TargetsLeaderboard from '../../../../../components/crm/analytics/TargetsLeaderboard';
 
 export default function LeadAnalyticsPage() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+      <TargetsLeaderboard />
       <LeadAnalyticsSection />
     </div>
   );
