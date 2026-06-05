@@ -25,6 +25,10 @@ export default function TargetsLeaderboard() {
   const [data, setData] = useState<Leaderboard | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Which hierarchy role the board is scoped to (e.g. Consumer Champion),
+  // configurable per client. Managers can change it; saving refetches.
+  const [roles, setRoles] = useState<Array<{ id: string; name: string }>>([]);
+  const [roleId, setRoleId] = useState<string>('');
 
   // Narrow-viewport flag so the ranked rows reflow on phones (inline styles
   // can't use CSS media queries). On narrow we drop the Target column and
@@ -43,6 +47,7 @@ export default function TargetsLeaderboard() {
     try {
       const r = await crmTargets.leaderboard(p);
       setData(r?.data ?? null);
+      setRoleId(r?.data?.role_id ?? '');
     } catch (e: unknown) {
       setError((e as Error)?.message || 'Failed to load leaderboard');
     } finally {
@@ -51,6 +56,21 @@ export default function TargetsLeaderboard() {
   }, []);
 
   useEffect(() => { load(period); }, [period, load]);
+
+  // Load the hierarchy roles once for the scope picker (manager-only surface).
+  useEffect(() => {
+    crmTargets.levels().then((r) => setRoles(r?.data ?? [])).catch(() => setRoles([]));
+  }, []);
+
+  const changeRole = async (id: string) => {
+    setRoleId(id);
+    try {
+      await crmTargets.setLeaderboardRole(id || null);
+      await load(period);
+    } catch (e: unknown) {
+      setError((e as Error)?.message || 'Failed to set role');
+    }
+  };
 
   const s = data?.stats;
 
@@ -64,6 +84,19 @@ export default function TargetsLeaderboard() {
             Who entered the most leads, who&apos;s behind, and how the team tracks against target.
           </div>
         </div>
+        {roles.length > 0 && (
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--text-dim)' }} title="Which hierarchy role this leaderboard ranks">
+            Role
+            <select
+              value={roleId}
+              onChange={(e) => changeRole(e.target.value)}
+              style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '6px 10px', fontSize: 12, fontWeight: 700 }}
+            >
+              <option value="">All field force</option>
+              {roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+            </select>
+          </label>
+        )}
         <div style={{ display: 'flex', gap: 6, background: 'var(--s3)', padding: 4, borderRadius: 9 }}>
           {PERIODS.map((p) => (
             <button
