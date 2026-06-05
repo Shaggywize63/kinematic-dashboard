@@ -24,9 +24,9 @@ export default function TargetsSettingsPage() {
   const [bulkBusy, setBulkBusy] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
 
-  // Filters
+  // Filters — choose a hierarchy level (primary) + optional city; the user
+  // list populates from the selection.
   const [levelFilter, setLevelFilter] = useState<string>('');     // hierarchy level id
-  const [managerFilter, setManagerFilter] = useState<string>(''); // supervisor user id
   const [cityFilter, setCityFilter] = useState<string>('');
 
   const load = async () => {
@@ -65,25 +65,14 @@ export default function TargetsSettingsPage() {
   };
   useEffect(() => { load(); }, []);
 
-  // Managers = anyone who supervises someone, or holds a managerial role.
-  const managers = useMemo(() => {
-    const supIds = new Set(users.map((u) => u.supervisor_id).filter(Boolean) as string[]);
-    const byId = new Map(users.map((u) => [u.id, u] as const));
-    const set = new Map<string, string>();
-    supIds.forEach((id) => { const u = byId.get(id); if (u) set.set(id, u.name); });
-    users.filter((u) => ['supervisor', 'city_manager', 'sub_admin', 'admin'].includes(u.role)).forEach((u) => set.set(u.id, u.name));
-    return Array.from(set, ([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
-  }, [users]);
-
   const cities = useMemo(() =>
     Array.from(new Set(users.map((u) => u.city).filter((c): c is string => !!c))).sort(),
   [users]);
 
   const filtered = useMemo(() => users.filter((u) =>
     (!levelFilter || u.hierarchy_level_id === levelFilter) &&
-    (!managerFilter || u.supervisor_id === managerFilter) &&
     (!cityFilter || u.city === cityFilter)
-  ), [users, levelFilter, managerFilter, cityFilter]);
+  ), [users, levelFilter, cityFilter]);
 
   const saveAll = async () => {
     const v = Math.max(0, parseInt(allInput || '0', 10) || 0);
@@ -150,20 +139,11 @@ export default function TargetsSettingsPage() {
 
         {/* Filters */}
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
-          {levels.length > 0 && (
-            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 11, color: 'var(--text-dim)', fontWeight: 600 }}>
-              HIERARCHY LEVEL
-              <select value={levelFilter} onChange={(e) => setLevelFilter(e.target.value)} style={selStyle}>
-                <option value="">All levels</option>
-                {levels.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
-              </select>
-            </label>
-          )}
           <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 11, color: 'var(--text-dim)', fontWeight: 600 }}>
-            REPORTS TO (MANAGER)
-            <select value={managerFilter} onChange={(e) => setManagerFilter(e.target.value)} style={selStyle}>
-              <option value="">All managers</option>
-              {managers.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+            HIERARCHY LEVEL
+            <select value={levelFilter} onChange={(e) => setLevelFilter(e.target.value)} style={selStyle}>
+              <option value="">{levels.length > 0 ? 'All levels' : 'All users'}</option>
+              {levels.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
             </select>
           </label>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 11, color: 'var(--text-dim)', fontWeight: 600 }}>
@@ -173,8 +153,8 @@ export default function TargetsSettingsPage() {
               {cities.map((c) => <option key={c} value={c}>{c}</option>)}
             </select>
           </label>
-          {(levelFilter || managerFilter || cityFilter) && (
-            <button onClick={() => { setLevelFilter(''); setManagerFilter(''); setCityFilter(''); }}
+          {(levelFilter || cityFilter) && (
+            <button onClick={() => { setLevelFilter(''); setCityFilter(''); }}
               style={{ alignSelf: 'flex-end', background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 12, cursor: 'pointer' }}>
               Clear filters
             </button>
