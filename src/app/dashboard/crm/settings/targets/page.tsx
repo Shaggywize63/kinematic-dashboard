@@ -7,7 +7,7 @@ import { crmTargets } from '../../../../../lib/crmApi';
 interface U {
   id: string; name: string; role: string;
   city: string | null;
-  hierarchy_level_id: string | null;
+  org_role_id: string | null;
 }
 interface Level { id: string; name: string; order: number; }
 
@@ -30,7 +30,7 @@ export default function TargetsSettingsPage() {
     try {
       const [uRes, lRes, tRes] = await Promise.allSettled([
         api.get<any>('/api/v1/users?limit=500'),
-        api.get<any>('/api/v1/crm/hierarchy/levels'),
+        api.get<any>('/api/v1/crm/targets/levels'),
         crmTargets.get(),
       ]);
       if (uRes.status === 'fulfilled') {
@@ -40,7 +40,7 @@ export default function TargetsSettingsPage() {
           name: u.name || u.full_name || u.email || 'User',
           role: u.role || 'user',
           city: u.city ?? null,
-          hierarchy_level_id: u.hierarchy_level_id ?? null,
+          org_role_id: u.org_role_id ?? null,
         })));
       }
       if (lRes.status === 'fulfilled') {
@@ -67,11 +67,11 @@ export default function TargetsSettingsPage() {
   [users]);
 
   const usersInPicked = useMemo(() => users.filter((u) =>
-    (!pickLevel || u.hierarchy_level_id === pickLevel) &&
+    (!pickLevel || u.org_role_id === pickLevel) &&
     (!cityFilter || u.city === cityFilter)
   ), [users, pickLevel, cityFilter]);
 
-  const countAtLevel = (id: string) => users.filter((u) => u.hierarchy_level_id === id).length;
+  const countAtLevel = (id: string) => users.filter((u) => u.org_role_id === id).length;
 
   const saveLevel = async (levelId: string) => {
     const v = Math.max(0, Math.floor(levelTargets[levelId] ?? 0));
@@ -168,7 +168,7 @@ export default function TargetsSettingsPage() {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {usersInPicked.map((u) => {
-                const lvlVal = u.hierarchy_level_id ? levelTargets[u.hierarchy_level_id] : undefined;
+                const lvlVal = u.org_role_id ? levelTargets[u.org_role_id] : undefined;
                 return (
                   <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
