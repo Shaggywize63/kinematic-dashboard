@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { crmCustomFields, crmSettings } from '../../../../../lib/crmApi';
+import { crmCustomFields, crmSettings, crmTargets } from '../../../../../lib/crmApi';
 import api from '../../../../../lib/api';
 import type { CustomField } from '../../../../../types/crm';
 import { getStoredUser, canAccess } from '../../../../../lib/auth';
@@ -156,6 +156,7 @@ export default function CustomFieldsPage() {
     required: boolean;
     field_type: CustomField['field_type'];
     optionsRaw: string;
+    org_role_ids: string[];
   } | null>(null);
   const [savingCustom, setSavingCustom] = useState(false);
 
@@ -166,6 +167,10 @@ export default function CustomFieldsPage() {
   const [optionsRaw, setOptionsRaw] = useState('');
   const [required, setRequired] = useState(false);
   const [filter, setFilter] = useState<'all' | CustomField['entity_type']>('lead');
+  // Hierarchy roles a new field is shown to (empty = all roles). Loaded from
+  // the org's roles so each role can have its own custom fields.
+  const [roles, setRoles] = useState<Array<{ id: string; name: string }>>([]);
+  const [pickedRoles, setPickedRoles] = useState<string[]>([]);
   // Active business-type scope for built-in field overrides. 'universal'
   // edits the legacy unscoped key; 'b2b' / 'b2c' edits the
   // entity.key@scope key. At render time scoped overrides are merged on
@@ -187,10 +192,12 @@ export default function CustomFieldsPage() {
   const reload = async () => {
     setLoading(true);
     try {
-      const [cfRes, settingsRes] = await Promise.allSettled([
+      const [cfRes, settingsRes, rolesRes] = await Promise.allSettled([
         crmCustomFields.list(),
         crmSettings.get(),
+        crmTargets.levels(),
       ]);
+      if (rolesRes.status === 'fulfilled') setRoles(rolesRes.value.data || []);
       if (cfRes.status === 'fulfilled') setItems(cfRes.value.data || []);
       if (settingsRes.status === 'fulfilled') {
         const cfg = (settingsRes.value.data?.config as Record<string, unknown>) || {};
@@ -231,10 +238,11 @@ export default function CustomFieldsPage() {
       position: items.filter((i) => i.entity_type === entity).length,
     };
     if (parsedOptions !== undefined) payload.options = parsedOptions;
+    if (pickedRoles.length > 0) payload.org_role_ids = pickedRoles;
     try {
       await crmCustomFields.create(payload as any);
       toast.success(`Custom field "${label.trim()}" added to ${entity}`);
-      setFieldKey(''); setLabel(''); setOptionsRaw(''); setRequired(false);
+      setFieldKey(''); setLabel(''); setOptionsRaw(''); setRequired(false); setPickedRoles([]);
       reload();
     } catch (e: any) { toast.error(e.message || 'Create failed — check API connection'); }
     finally { setCreating(false); }
@@ -306,6 +314,7 @@ export default function CustomFieldsPage() {
       required: !!cf.required,
       field_type: cf.field_type,
       optionsRaw: Array.isArray(cf.options) ? cf.options.join(', ') : '',
+      org_role_ids: Array.isArray(cf.org_role_ids) ? cf.org_role_ids : [],
     });
   };
 
@@ -333,6 +342,7 @@ export default function CustomFieldsPage() {
       };
       if (parsed !== undefined) body.options = parsed;
       else if (!needsOptions) body.options = null; // wipe when no longer needed
+      body.org_role_ids = editingCustom.org_role_ids.length ? editingCustom.org_role_ids : null;
       await crmCustomFields.update(editingCustom.id, body as any);
       toast.success('Field updated');
       setEditingCustom(null);
@@ -532,6 +542,30 @@ export default function CustomFieldsPage() {
             <input type="checkbox" checked={required} onChange={(e) => setRequired(e.target.checked)} /> Required
           </label>
         </div>
+        {roles.length > 0 && (
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 12, color: 'var(--text-dim)', fontWeight: 600, marginBottom: 6 }}>
+              Show to roles <span style={{ fontWeight: 400 }}>(none selected = everyone)</span>
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {roles.map((r) => {
+                const on = pickedRoles.includes(r.id);
+                return (
+                  <button
+                    key={r.id}
+                    type="button"
+                    onClick={() => setPickedRoles((prev) => on ? prev.filter((x) => x !== r.id) : [...prev, r.id])}
+                    style={{ padding: '5px 10px', borderRadius: 999, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                      border: `1px solid ${on ? 'var(--primary)' : 'var(--border)'}`,
+                      background: on ? 'var(--primary)' : 'var(--s3)', color: on ? '#fff' : 'var(--text)' }}
+                  >
+                    {on ? '✓ ' : ''}{r.name}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
         <button onClick={create} disabled={creating} style={btnPrimary}>{creating ? 'Adding…' : '+ Add Field'}</button>
       </div>
 
@@ -960,6 +994,31 @@ export default function CustomFieldsPage() {
               <input type="checkbox" checked={editingCustom.required} onChange={(e) => setEditingCustom({ ...editingCustom, required: e.target.checked })} />
               Required field
             </label>
+
+            {roles.length > 0 && (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 12, color: 'var(--text-dim)', fontWeight: 600, marginBottom: 6 }}>
+                  Show to roles <span style={{ fontWeight: 400 }}>(none = everyone)</span>
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {roles.map((r) => {
+                    const on = editingCustom.org_role_ids.includes(r.id);
+                    return (
+                      <button
+                        key={r.id}
+                        type="button"
+                        onClick={() => setEditingCustom({ ...editingCustom, org_role_ids: on ? editingCustom.org_role_ids.filter((x) => x !== r.id) : [...editingCustom.org_role_ids, r.id] })}
+                        style={{ padding: '5px 10px', borderRadius: 999, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                          border: `1px solid ${on ? 'var(--primary)' : 'var(--border)'}`,
+                          background: on ? 'var(--primary)' : 'var(--s3)', color: on ? '#fff' : 'var(--text)' }}
+                      >
+                        {on ? '✓ ' : ''}{r.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
               <button onClick={() => setEditingCustom(null)} disabled={savingCustom} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontSize: 13 }}>Cancel</button>

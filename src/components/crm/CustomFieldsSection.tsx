@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { crmCustomFields } from '../../lib/crmApi';
+import api from '../../lib/api';
 import { getStoredToken } from '../../lib/auth';
 import { API_BASE_URL } from '../../lib/api';
 import type { CustomField } from '../../types/crm';
@@ -45,11 +46,27 @@ export default function CustomFieldsSection({ entity, values, onChange }: Props)
     let cancel = false;
     (async () => {
       try {
-        const r = await crmCustomFields.list();
+        // Resolve the current user's org role so we can show only the custom
+        // fields targeted at their role (plus universal/untagged fields).
+        const [r, meRes] = await Promise.allSettled([
+          crmCustomFields.list(),
+          api.get<{ data?: { org_role_id?: string | null } }>('/api/v1/auth/me'),
+        ]);
         if (cancel) return;
-        const all = (r.data || []) as CustomField[];
+        const myRoleId = meRes.status === 'fulfilled'
+          ? (((meRes.value as { data?: { org_role_id?: string | null } })?.data?.org_role_id) ?? null)
+          : null;
+        const all = (r.status === 'fulfilled' ? (r.value.data || []) : []) as CustomField[];
         const visible = all
           .filter((f) => f.entity_type === entity)
+          // A field with no org_role_ids is universal; otherwise it must list
+          // the user's role. Admins/users with no resolved role see universal
+          // fields only (role-scoped fields stay with their roles).
+          .filter((f) => {
+            const roles = f.org_role_ids;
+            if (!roles || roles.length === 0) return true;
+            return !!myRoleId && roles.includes(myRoleId);
+          })
           .sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
         setFields(visible);
       } catch {

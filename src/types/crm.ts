@@ -248,6 +248,8 @@ export interface CustomField {
     | 'url' | 'email' | 'phone'
     | 'image' | 'file';
   options?: string[] | null; required?: boolean; position?: number;
+  // Org roles this field is shown to. Empty/null = all roles (universal).
+  org_role_ids?: string[] | null;
   created_at: string;
 }
 
