@@ -12,6 +12,7 @@ import { ActivityTypeIcon, activityTypeEmoji } from '../../../../components/crm/
 import GoogleCalendarBanner from '../../../../components/crm/GoogleCalendarBanner';
 import ViewCustomizer from '../../../../components/crm/shared/ViewCustomizer';
 import { useViewPrefs } from '../../../../lib/crmViewPrefs';
+import { useCityScope } from '../../../../context/CityScopeContext';
 
 // Activity cards are not a table, so the customizer toggles which
 // optional sections appear in each card. Subject + status are locked.
@@ -64,6 +65,10 @@ function ActivitiesPageInner() {
   const [users, setUsers] = useState<UserOption[]>([]);
   const [feFilter, setFeFilter] = useState('');
   const [exporting, setExporting] = useState(false);
+  // Global header city scope. Activities have no city column of their own —
+  // the backend filters them via the linked lead — but the page must refetch
+  // when the picked city changes and send it on the request.
+  const { selectedCity } = useCityScope();
   // Layout toggle between the existing list and the month-grid
   // calendar view. Independent of the server-side `view` filter
   // (Overdue / Upcoming / Completed) which both layouts honour. The
@@ -104,6 +109,7 @@ function ActivitiesPageInner() {
       if (type) qs.set('type', type);
       if (statusFilter) qs.set('status', statusFilter);
       if (feFilter) qs.set('owner_id', feFilter);
+      if (selectedCity) qs.set('city', selectedCity);
       // Demo-account short-circuit — raw fetch() bypasses api.ts's demo
       // intercept, so we'd otherwise hit the real backend with a demo
       // token and 401. Build the CSV from the in-memory rows so the demo
@@ -181,6 +187,7 @@ function ActivitiesPageInner() {
       if (type) params.type = type;
       if (statusFilter) params.status = statusFilter;
       if (isAdmin && feFilter) params.owner_id = feFilter;
+      if (selectedCity) params.city = selectedCity;
       // KPI-tile filter — only send when not 'all'. Backend ignores
       // unknown values; sending 'all' as a no-op keeps the URL clean.
       if (view !== 'all') params.view = view;
@@ -231,13 +238,13 @@ function ActivitiesPageInner() {
   // means we don't need the client-side `filtered` array to re-filter on
   // the same dimensions.
   useEffect(() => { reload(); /* eslint-disable-next-line */ }, [
-    type, statusFilter, feFilter, view, page, pageSize, isAdmin, sort,
+    type, statusFilter, feFilter, view, page, pageSize, isAdmin, sort, selectedCity,
   ]);
 
   // Reset to page 1 whenever any server-side filter changes — otherwise
   // a stricter filter while on page 5 would land on an empty page.
   useEffect(() => { setPage(1); /* eslint-disable-next-line */ }, [
-    type, statusFilter, feFilter, view, pageSize,
+    type, statusFilter, feFilter, view, pageSize, selectedCity,
   ]);
 
   const updateStatus = async (a: Activity, status: string) => {
