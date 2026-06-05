@@ -6,14 +6,29 @@ import { crmTargets } from '../../../../../lib/crmApi';
 
 interface FE { id: string; name: string; role: string; }
 
+// Role groups the manager can populate the list with. Targets are usually for
+// field executives, but supervisors/managers can have them too.
+const ROLE_GROUPS: Array<{ label: string; roles: string[] }> = [
+  { label: 'Field Executives', roles: ['executive', 'field_executive'] },
+  { label: 'Supervisors', roles: ['supervisor'] },
+  { label: 'City Managers', roles: ['city_manager'] },
+  { label: 'All field roles', roles: ['executive', 'field_executive', 'supervisor', 'city_manager'] },
+  { label: 'Everyone', roles: [] }, // empty = no role filter
+];
+
 export default function TargetsSettingsPage() {
-  const [fes, setFes] = useState<FE[]>([]);
+  const [allUsers, setAllUsers] = useState<FE[]>([]);
+  const [roleGroup, setRoleGroup] = useState<string>('Field Executives');
   const [defaultTarget, setDefaultTarget] = useState<number>(0);
   const [overrides, setOverrides] = useState<Record<string, number>>({});
   const [allInput, setAllInput] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [savingAll, setSavingAll] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
+
+  // Users filtered to the selected role group (empty roles = everyone).
+  const group = ROLE_GROUPS.find((g) => g.label === roleGroup) ?? ROLE_GROUPS[0];
+  const fes = group.roles.length === 0 ? allUsers : allUsers.filter((u) => group.roles.includes(u.role));
 
   const load = async () => {
     setLoading(true);
@@ -24,9 +39,7 @@ export default function TargetsSettingsPage() {
       ]);
       if (uRes.status === 'fulfilled') {
         const list: any[] = uRes.value?.data || uRes.value || [];
-        setFes(list
-          .filter((u) => u.role === 'executive' || u.role === 'field_executive')
-          .map((u) => ({ id: u.id, name: u.name || u.full_name || u.email || 'Field Executive', role: u.role })));
+        setAllUsers(list.map((u) => ({ id: u.id, name: u.name || u.full_name || u.email || 'User', role: u.role || 'user' })));
       }
       if (tRes.status === 'fulfilled') {
         const d = tRes.value?.data;
@@ -87,12 +100,22 @@ export default function TargetsSettingsPage() {
 
       {/* Per-FE overrides */}
       <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
-        <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)', marginBottom: 4 }}>Per field executive</div>
-        <p style={{ fontSize: 12, color: 'var(--text-dim)', margin: '0 0 12px' }}>Override the default for individuals. Blank uses the all-FE default ({defaultTarget}/day).</p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 4 }}>
+          <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>Per individual</div>
+          {/* Populate the user list by role. */}
+          <select
+            value={roleGroup}
+            onChange={(e) => setRoleGroup(e.target.value)}
+            style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '7px 10px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+          >
+            {ROLE_GROUPS.map((g) => <option key={g.label} value={g.label}>{g.label}</option>)}
+          </select>
+        </div>
+        <p style={{ fontSize: 12, color: 'var(--text-dim)', margin: '0 0 12px' }}>Override the default for individuals. Blank uses the default ({defaultTarget}/day). Use the dropdown to populate the list by role.</p>
         {loading ? (
           <div style={{ fontSize: 12, color: 'var(--text-dim)', padding: 12 }}>Loading…</div>
         ) : fes.length === 0 ? (
-          <div style={{ fontSize: 12, color: 'var(--text-dim)', padding: 12 }}>No field executives found for the active scope.</div>
+          <div style={{ fontSize: 12, color: 'var(--text-dim)', padding: 12 }}>No {roleGroup.toLowerCase()} found for the active scope.</div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {fes.map((fe) => (
