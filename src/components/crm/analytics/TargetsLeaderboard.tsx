@@ -26,6 +26,17 @@ export default function TargetsLeaderboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Narrow-viewport flag so the ranked rows reflow on phones (inline styles
+  // can't use CSS media queries). On narrow we drop the Target column and
+  // shrink the progress block to keep rows from overflowing.
+  const [narrow, setNarrow] = useState(false);
+  useEffect(() => {
+    const f = () => setNarrow(window.innerWidth < 640);
+    f();
+    window.addEventListener('resize', f);
+    return () => window.removeEventListener('resize', f);
+  }, []);
+
   const load = useCallback(async (p: LeaderboardPeriod) => {
     setLoading(true);
     setError(null);
@@ -106,13 +117,13 @@ export default function TargetsLeaderboard() {
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column' }}>
-          {/* Header row (hidden on very narrow via wrap) */}
+          {/* Header row — Target column + progress bar collapse on narrow. */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 4px', fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700, borderBottom: '1px solid var(--border)' }}>
             <div style={{ width: 28, textAlign: 'center' }}>#</div>
-            <div style={{ flex: 1, minWidth: 0 }}>Field executive</div>
-            <div style={{ width: 56, textAlign: 'right' }}>Leads</div>
-            <div style={{ width: 56, textAlign: 'right' }}>Target</div>
-            <div style={{ flex: '0 0 120px', textAlign: 'right' }}>Progress</div>
+            <div style={{ flex: 1, minWidth: 0 }}>{narrow ? 'FE' : 'Field executive'}</div>
+            <div style={{ width: narrow ? 44 : 56, textAlign: 'right' }}>Leads</div>
+            {!narrow && <div style={{ width: 56, textAlign: 'right' }}>Target</div>}
+            <div style={{ flex: narrow ? '0 0 48px' : '0 0 120px', textAlign: 'right' }}>{narrow ? '%' : 'Progress'}</div>
           </div>
           {data.entries.map((e, i) => {
             const pct = e.pct;
@@ -128,13 +139,15 @@ export default function TargetsLeaderboard() {
                   <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.name}</div>
                   <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{e.city || '—'}</div>
                 </div>
-                <div style={{ width: 56, textAlign: 'right', fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>{e.leads}</div>
-                <div style={{ width: 56, textAlign: 'right', fontSize: 13, color: 'var(--text-dim)' }}>{e.target > 0 ? e.target : '—'}</div>
-                <div style={{ flex: '0 0 120px', display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end' }}>
-                  <div style={{ flex: 1, height: 6, borderRadius: 99, background: 'var(--s4, var(--s3))', overflow: 'hidden' }}>
-                    <div style={{ width: `${barPct}%`, height: '100%', background: barColor, borderRadius: 99, transition: 'width .3s' }} />
-                  </div>
-                  <div style={{ width: 36, textAlign: 'right', fontSize: 11, fontWeight: 700, color: barColor }}>
+                <div style={{ width: narrow ? 44 : 56, textAlign: 'right', fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>{e.leads}</div>
+                {!narrow && <div style={{ width: 56, textAlign: 'right', fontSize: 13, color: 'var(--text-dim)' }}>{e.target > 0 ? e.target : '—'}</div>}
+                <div style={{ flex: narrow ? '0 0 48px' : '0 0 120px', display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end' }}>
+                  {!narrow && (
+                    <div style={{ flex: 1, height: 6, borderRadius: 99, background: 'var(--s4, var(--s3))', overflow: 'hidden' }}>
+                      <div style={{ width: `${barPct}%`, height: '100%', background: barColor, borderRadius: 99, transition: 'width .3s' }} />
+                    </div>
+                  )}
+                  <div style={{ width: narrow ? 48 : 36, textAlign: 'right', fontSize: 11, fontWeight: 700, color: barColor }}>
                     {pct == null ? '—' : `${pct}%`}
                   </div>
                 </div>
