@@ -20,7 +20,7 @@ const PERIODS: { key: LeaderboardPeriod; label: string }[] = [
 
 const MEDALS = ['🥇', '🥈', '🥉'];
 
-export default function TargetsLeaderboard() {
+export default function TargetsLeaderboard({ embedded = false }: { embedded?: boolean }) {
   const [period, setPeriod] = useState<LeaderboardPeriod>('today');
   const [data, setData] = useState<Leaderboard | null>(null);
   const [loading, setLoading] = useState(true);
@@ -75,7 +75,9 @@ export default function TargetsLeaderboard() {
   const s = data?.stats;
 
   return (
-    <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
+    <div style={embedded
+      ? { background: 'transparent', padding: 4, height: '100%', overflowY: 'auto' }
+      : { background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
         <div style={{ flex: 1, minWidth: 200 }}>
           <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700 }}>Targets</div>

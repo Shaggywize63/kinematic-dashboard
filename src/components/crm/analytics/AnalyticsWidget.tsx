@@ -17,6 +17,7 @@ import {
 import { X, Pin, MoreVertical, AlertTriangle, Inbox, Edit3 } from 'lucide-react';
 import { crmAnalyticsExt, type WidgetInstance } from '../../../lib/crmAnalyticsExtApi';
 import { widgetByType, datasetById, type ChartType, type WidgetMeta } from '../../../lib/crm/widgetCatalog';
+import TargetsLeaderboard from './TargetsLeaderboard';
 
 const COLORS = ['#3B82F6', '#10B981', '#8B5CF6', '#F59E0B', '#EC4899', '#14B8A6', '#F97316', '#84CC16', '#06B6D4', '#E0282C'];
 
@@ -187,6 +188,9 @@ async function fetchWidgetData(widget: WidgetInstance): Promise<unknown> {
     case 'territory_conversion':     return (await crmAnalyticsExt.territoryConversion()).data;
     case 'touchpoints_to_response':  return (await crmAnalyticsExt.touchpointsToResponse()).data;
     case 'leads_at_risk':            return (await crmAnalyticsExt.leadsAtRisk()).data;
+    // The leaderboard widget renders its own self-contained component
+    // (it fetches its own data), so there's nothing to fetch here.
+    case 'targets_leaderboard':      return null;
     default: throw new Error(`Unknown widget: ${widget.widget_type}`);
   }
 }
@@ -214,6 +218,12 @@ async function fetchCustomDataset(id: string): Promise<unknown> {
 
 function WidgetBody({ widget, data, accent }: { widget: WidgetInstance; data: unknown; accent: string }) {
   const chart = widget.chart_type as ChartType;
+
+  // The Targets leaderboard is a self-contained widget (own period + role
+  // pickers and data fetch); render it flat inside the tile.
+  if (widget.widget_type === 'targets_leaderboard') {
+    return <TargetsLeaderboard embedded />;
+  }
 
   if (widget.widget_type === 'custom') {
     const cfg = (widget.config as CustomConfig | undefined) ?? {};

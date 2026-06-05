@@ -38,6 +38,7 @@ export type WidgetType =
   | 'territory_conversion'
   | 'touchpoints_to_response'
   | 'leads_at_risk'
+  | 'targets_leaderboard'
   | 'custom';
 
 export interface WidgetMeta {
@@ -67,6 +68,7 @@ export const WIDGET_CATALOG: WidgetMeta[] = [
   { type: 'territory_conversion', title: 'Territory Conversion', description: 'Conversion rate by state / city. Top 20 territories by lead volume.', category: 'Pipeline', endpoint: '/analytics/territory-conversion', supportedCharts: ['table', 'horizontal-bar'], defaultChart: 'table', defaultSize: { w: 8, h: 5 } },
   { type: 'touchpoints_to_response', title: 'Touchpoints to Response', description: 'Number of outbound touches it takes before a lead responds.', category: 'Engagement', endpoint: '/analytics/touchpoints-to-response', supportedCharts: ['bar', 'horizontal-bar'], defaultChart: 'bar', defaultSize: { w: 6, h: 4 } },
   { type: 'leads_at_risk', title: 'Leads at Risk', description: 'High-score leads with no activity in 14d+ — flagged for pipeline leakage.', category: 'Risk', endpoint: '/analytics/leads-at-risk', supportedCharts: ['table'], defaultChart: 'table', defaultSize: { w: 8, h: 5 } },
+  { type: 'targets_leaderboard', title: 'Targets Leaderboard', description: 'Top performer, who needs a nudge, average leads & target attainment — ranked by the chosen hierarchy role (e.g. Consumer Champion).', category: 'Engagement', endpoint: '', supportedCharts: ['table'], defaultChart: 'table', defaultSize: { w: 8, h: 7 } },
 ];
 
 export const widgetByType = (type: string): WidgetMeta | undefined =>
