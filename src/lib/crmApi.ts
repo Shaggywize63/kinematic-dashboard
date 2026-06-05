@@ -196,6 +196,7 @@ export interface Leaderboard {
     lowest_performer: { name: string; leads: number } | null;
   };
   entries: LeaderboardEntry[];
+  role_id?: string | null;
 }
 export const crmTargets = {
   get: () => api.get<Wrapped<TargetsState>>(`${BASE}/targets`),
@@ -204,6 +205,11 @@ export const crmTargets = {
     api.put<Wrapped<unknown>>(`${BASE}/targets`, body),
   leaderboard: (period: LeaderboardPeriod = 'today') =>
     api.get<Wrapped<Leaderboard>>(`${BASE}/targets/leaderboard${qs({ period })}`),
+  // Hierarchy roles to choose from (org_roles), used by the leaderboard role picker.
+  levels: () => api.get<Wrapped<Array<{ id: string; name: string }>>>(`${BASE}/targets/levels`),
+  getLeaderboardRole: () => api.get<Wrapped<{ role_id: string | null }>>(`${BASE}/targets/leaderboard-role`),
+  setLeaderboardRole: (role_id: string | null) =>
+    api.put<Wrapped<{ role_id: string | null }>>(`${BASE}/targets/leaderboard-role`, { role_id }),
 };
 
 export const crmNotes = crud<Note>(`${BASE}/notes`);
