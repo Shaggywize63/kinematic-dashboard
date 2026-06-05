@@ -497,7 +497,14 @@ export default function CustomFieldsPage() {
     );
   }
 
-  const visible = filter === 'all' ? items : items.filter((i) => i.entity_type === filter);
+  // Render in saved order: group by entity, then by position. Without this
+  // sort, drag-to-reorder updated the position values but the list kept its
+  // original (API/insertion) order, so shuffling appeared to do nothing.
+  const visible = (filter === 'all' ? items : items.filter((i) => i.entity_type === filter))
+    .slice()
+    .sort((a, b) =>
+      (a.entity_type || '').localeCompare(b.entity_type || '')
+      || (a.position ?? 0) - (b.position ?? 0));
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
