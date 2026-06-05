@@ -7,26 +7,22 @@ import { crmTargets } from '../../../../../lib/crmApi';
 interface U {
   id: string; name: string; role: string;
   city: string | null;
-  supervisor_id: string | null;
   hierarchy_level_id: string | null;
 }
-interface Level { id: string; name: string; }
+interface Level { id: string; name: string; order: number; }
 
 export default function TargetsSettingsPage() {
   const [users, setUsers] = useState<U[]>([]);
   const [levels, setLevels] = useState<Level[]>([]);
   const [defaultTarget, setDefaultTarget] = useState<number>(0);
-  const [overrides, setOverrides] = useState<Record<string, number>>({});
-  const [allInput, setAllInput] = useState<string>('');
-  const [bulkInput, setBulkInput] = useState<string>('');
+  const [levelTargets, setLevelTargets] = useState<Record<string, number>>({}); // level_id -> value
+  const [overrides, setOverrides] = useState<Record<string, number>>({});       // user_id -> value
   const [loading, setLoading] = useState(true);
-  const [savingAll, setSavingAll] = useState(false);
-  const [bulkBusy, setBulkBusy] = useState(false);
+  const [savingLevel, setSavingLevel] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
 
-  // Filters — choose a hierarchy level (primary) + optional city; the user
-  // list populates from the selection.
-  const [levelFilter, setLevelFilter] = useState<string>('');     // hierarchy level id
+  // Per-user override panel: which level + optional city to populate.
+  const [pickLevel, setPickLevel] = useState<string>('');
   const [cityFilter, setCityFilter] = useState<string>('');
 
   const load = async () => {
@@ -44,21 +40,22 @@ export default function TargetsSettingsPage() {
           name: u.name || u.full_name || u.email || 'User',
           role: u.role || 'user',
           city: u.city ?? null,
-          supervisor_id: u.supervisor_id ?? null,
           hierarchy_level_id: u.hierarchy_level_id ?? null,
         })));
       }
       if (lRes.status === 'fulfilled') {
         const list: any[] = lRes.value?.data || lRes.value || [];
-        setLevels(list.map((l) => ({ id: l.id, name: l.name || l.title || 'Level' })));
+        setLevels(list.map((l, i) => ({ id: l.id, name: l.name || l.title || 'Level', order: l.level_order ?? i })));
       }
       if (tRes.status === 'fulfilled') {
         const d = tRes.value?.data;
         setDefaultTarget(d?.default_target ?? 0);
-        setAllInput(String(d?.default_target ?? ''));
-        const map: Record<string, number> = {};
-        (d?.per_user || []).forEach((r: any) => { map[r.user_id] = r.target_value; });
-        setOverrides(map);
+        const lvl: Record<string, number> = {};
+        (d?.per_level || []).forEach((r: any) => { lvl[r.hierarchy_level_id] = r.target_value; });
+        setLevelTargets(lvl);
+        const usr: Record<string, number> = {};
+        (d?.per_user || []).forEach((r: any) => { usr[r.user_id] = r.target_value; });
+        setOverrides(usr);
       }
     } catch (e: any) { toast.error(e.message || 'Failed to load targets'); }
     finally { setLoading(false); }
@@ -69,25 +66,35 @@ export default function TargetsSettingsPage() {
     Array.from(new Set(users.map((u) => u.city).filter((c): c is string => !!c))).sort(),
   [users]);
 
-  const filtered = useMemo(() => users.filter((u) =>
-    (!levelFilter || u.hierarchy_level_id === levelFilter) &&
+  const usersInPicked = useMemo(() => users.filter((u) =>
+    (!pickLevel || u.hierarchy_level_id === pickLevel) &&
     (!cityFilter || u.city === cityFilter)
-  ), [users, levelFilter, cityFilter]);
+  ), [users, pickLevel, cityFilter]);
 
-  const saveAll = async () => {
-    const v = Math.max(0, parseInt(allInput || '0', 10) || 0);
-    setSavingAll(true);
+  const countAtLevel = (id: string) => users.filter((u) => u.hierarchy_level_id === id).length;
+
+  const saveLevel = async (levelId: string) => {
+    const v = Math.max(0, Math.floor(levelTargets[levelId] ?? 0));
+    setSavingLevel(levelId);
     try {
-      await crmTargets.set({ all: true, target_value: v });
-      setDefaultTarget(v);
-      toast.success(`Org-wide default set to ${v} leads/day`);
+      await crmTargets.set({ hierarchy_level_id: levelId, target_value: v });
+      setLevelTargets((m) => ({ ...m, [levelId]: v }));
+      toast.success(`Target set: ${v}/day for this level`);
     } catch (e: any) { toast.error(e.message || 'Failed'); }
-    finally { setSavingAll(false); }
+    finally { setSavingLevel(null); }
+  };
+
+  const saveDefault = async () => {
+    const v = Math.max(0, Math.floor(defaultTarget ?? 0));
+    setSavingLevel('__default__');
+    try { await crmTargets.set({ all: true, target_value: v }); toast.success(`Fallback set to ${v}/day`); }
+    catch (e: any) { toast.error(e.message || 'Failed'); }
+    finally { setSavingLevel(null); }
   };
 
   const saveOne = async (u: U) => {
     const raw = overrides[u.id];
-    const v = Math.max(0, Number.isFinite(raw) ? raw : defaultTarget);
+    const v = Math.max(0, Number.isFinite(raw) ? raw : 0);
     setSavingId(u.id);
     try {
       await crmTargets.set({ user_id: u.id, target_value: v });
@@ -97,103 +104,104 @@ export default function TargetsSettingsPage() {
     finally { setSavingId(null); }
   };
 
-  // Apply the same target to every user in the current filtered view.
-  const applyToListed = async () => {
-    const v = Math.max(0, parseInt(bulkInput || '0', 10) || 0);
-    if (filtered.length === 0) { toast.error('No users in the current view'); return; }
-    setBulkBusy(true);
-    let ok = 0;
-    for (const u of filtered) {
-      try { await crmTargets.set({ user_id: u.id, target_value: v }); ok++; setOverrides((m) => ({ ...m, [u.id]: v })); }
-      catch { /* count failures below */ }
-    }
-    setBulkBusy(false);
-    toast[ok === filtered.length ? 'success' : 'warning'](`Set ${v}/day for ${ok}/${filtered.length} listed`);
-  };
-
   const inputStyle: React.CSSProperties = { width: 84, background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '8px 10px', fontSize: 13, textAlign: 'center' };
-  const selStyle: React.CSSProperties = { background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '8px 10px', fontSize: 13, minWidth: 150 };
+  const selStyle: React.CSSProperties = { background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '8px 10px', fontSize: 13, minWidth: 160 };
   const btnStyle: React.CSSProperties = { background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' };
 
   return (
-    <div style={{ maxWidth: 820 }}>
+    <div style={{ maxWidth: 760 }}>
       <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', margin: '0 0 4px' }}>Targets</h1>
       <p style={{ fontSize: 13, color: 'var(--text-dim)', margin: '0 0 18px' }}>
-        Set how many leads each person should add per day. Filter the team by hierarchy and city, then set targets individually or for the whole filtered list. FEs see their target as a ticker on the dashboard and a 1/5 badge while adding a lead.
+        Set the daily lead target for each hierarchy level (e.g. Consumer Champion, Area Sales Officer). Everyone at that level inherits it. You can override individuals below. FEs see their target as a dashboard ticker and a 1/5 badge when adding a lead.
       </p>
 
-      {/* Org-wide default */}
+      {/* Per-hierarchy-level targets — the primary control */}
       <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 16 }}>
-        <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)', marginBottom: 4 }}>Org-wide default</div>
-        <p style={{ fontSize: 12, color: 'var(--text-dim)', margin: '0 0 12px' }}>The fallback daily target for anyone without a specific one set below.</p>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <input type="number" min={0} value={allInput} onChange={(e) => setAllInput(e.target.value)} style={inputStyle} placeholder="0" />
-          <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>leads / day</span>
-          <button onClick={saveAll} disabled={savingAll} style={{ ...btnStyle, opacity: savingAll ? 0.6 : 1 }}>{savingAll ? 'Saving…' : 'Save default'}</button>
-        </div>
-      </div>
-
-      {/* Team — hierarchy + city filters */}
-      <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
-        <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)', marginBottom: 10 }}>Team targets</div>
-
-        {/* Filters */}
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 11, color: 'var(--text-dim)', fontWeight: 600 }}>
-            HIERARCHY LEVEL
-            <select value={levelFilter} onChange={(e) => setLevelFilter(e.target.value)} style={selStyle}>
-              <option value="">{levels.length > 0 ? 'All levels' : 'All users'}</option>
-              {levels.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
-            </select>
-          </label>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 11, color: 'var(--text-dim)', fontWeight: 600 }}>
-            CITY
-            <select value={cityFilter} onChange={(e) => setCityFilter(e.target.value)} style={selStyle}>
-              <option value="">All cities</option>
-              {cities.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </label>
-          {(levelFilter || cityFilter) && (
-            <button onClick={() => { setLevelFilter(''); setCityFilter(''); }}
-              style={{ alignSelf: 'flex-end', background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 12, cursor: 'pointer' }}>
-              Clear filters
-            </button>
-          )}
-        </div>
-
-        {/* Bulk apply to the filtered list */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'var(--s3)', borderRadius: 10, marginBottom: 12, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>Set the same target for all <b style={{ color: 'var(--text)' }}>{filtered.length}</b> listed:</span>
-          <input type="number" min={0} value={bulkInput} onChange={(e) => setBulkInput(e.target.value)} style={inputStyle} placeholder="0" />
-          <button onClick={applyToListed} disabled={bulkBusy || filtered.length === 0} style={{ ...btnStyle, opacity: bulkBusy ? 0.6 : 1 }}>{bulkBusy ? 'Applying…' : 'Apply to listed'}</button>
-        </div>
-
+        <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)', marginBottom: 4 }}>Targets by hierarchy level</div>
+        <p style={{ fontSize: 12, color: 'var(--text-dim)', margin: '0 0 12px' }}>The daily lead target for every user at each level.</p>
         {loading ? (
           <div style={{ fontSize: 12, color: 'var(--text-dim)', padding: 12 }}>Loading…</div>
-        ) : filtered.length === 0 ? (
-          <div style={{ fontSize: 12, color: 'var(--text-dim)', padding: 12 }}>No users match the current filters.</div>
+        ) : levels.length === 0 ? (
+          <div style={{ fontSize: 12, color: 'var(--text-dim)', padding: 12 }}>
+            No hierarchy levels defined for this client yet. Set them up in <a href="/dashboard/crm/settings/hierarchy" style={{ color: 'var(--primary)' }}>Org Hierarchy</a>, then set per-level targets here. You can still set individual targets below.
+          </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {filtered.map((u) => (
-              <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
+            {levels.map((l) => (
+              <div key={l.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.name}</div>
-                  <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{u.role.replace('_', ' ')}{u.city ? ` · ${u.city}` : ''}</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{l.name}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{countAtLevel(l.id)} {countAtLevel(l.id) === 1 ? 'person' : 'people'}</div>
                 </div>
-                <input
-                  type="number" min={0}
-                  value={overrides[u.id] ?? ''}
-                  placeholder={String(defaultTarget)}
-                  onChange={(e) => setOverrides((m) => ({ ...m, [u.id]: parseInt(e.target.value || '0', 10) || 0 }))}
-                  style={inputStyle}
-                />
-                <button onClick={() => saveOne(u)} disabled={savingId === u.id} style={{ ...btnStyle, background: 'var(--s3)', color: 'var(--text)', border: '1px solid var(--border)', opacity: savingId === u.id ? 0.6 : 1 }}>
-                  {savingId === u.id ? 'Saving…' : 'Save'}
+                <input type="number" min={0}
+                  value={levelTargets[l.id] ?? ''}
+                  placeholder="0"
+                  onChange={(e) => setLevelTargets((m) => ({ ...m, [l.id]: parseInt(e.target.value || '0', 10) || 0 }))}
+                  style={inputStyle} />
+                <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>/day</span>
+                <button onClick={() => saveLevel(l.id)} disabled={savingLevel === l.id} style={{ ...btnStyle, opacity: savingLevel === l.id ? 0.6 : 1 }}>
+                  {savingLevel === l.id ? 'Saving…' : 'Save'}
                 </button>
               </div>
             ))}
           </div>
         )}
+      </div>
+
+      {/* Individual overrides — optional fine-tuning */}
+      <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 16 }}>
+        <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)', marginBottom: 4 }}>Individual overrides <span style={{ fontWeight: 500, color: 'var(--text-dim)' }}>(optional)</span></div>
+        <p style={{ fontSize: 12, color: 'var(--text-dim)', margin: '0 0 12px' }}>Pick a level (and optional city) to list its people and override specific individuals. Blank uses their level target.</p>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
+          <select value={pickLevel} onChange={(e) => setPickLevel(e.target.value)} style={selStyle}>
+            <option value="">{levels.length ? 'Choose a level…' : 'All users'}</option>
+            {levels.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+          </select>
+          <select value={cityFilter} onChange={(e) => setCityFilter(e.target.value)} style={selStyle}>
+            <option value="">All cities</option>
+            {cities.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+        {(pickLevel || cityFilter) ? (
+          usersInPicked.length === 0 ? (
+            <div style={{ fontSize: 12, color: 'var(--text-dim)', padding: 8 }}>No users match.</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {usersInPicked.map((u) => {
+                const lvlVal = u.hierarchy_level_id ? levelTargets[u.hierarchy_level_id] : undefined;
+                return (
+                  <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.name}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{u.city || '—'}</div>
+                    </div>
+                    <input type="number" min={0}
+                      value={overrides[u.id] ?? ''}
+                      placeholder={lvlVal != null ? String(lvlVal) : '—'}
+                      onChange={(e) => setOverrides((m) => ({ ...m, [u.id]: parseInt(e.target.value || '0', 10) || 0 }))}
+                      style={inputStyle} />
+                    <button onClick={() => saveOne(u)} disabled={savingId === u.id} style={{ ...btnStyle, background: 'var(--s3)', color: 'var(--text)', border: '1px solid var(--border)', opacity: savingId === u.id ? 0.6 : 1 }}>
+                      {savingId === u.id ? 'Saving…' : 'Save'}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )
+        ) : (
+          <div style={{ fontSize: 12, color: 'var(--text-dim)', padding: 8 }}>Choose a level above to list its people.</div>
+        )}
+      </div>
+
+      {/* Fallback default — for anyone with no level + no individual target */}
+      <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
+        <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)', marginBottom: 4 }}>Fallback default</div>
+        <p style={{ fontSize: 12, color: 'var(--text-dim)', margin: '0 0 12px' }}>Used only for people with no hierarchy level and no individual target.</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <input type="number" min={0} value={defaultTarget} onChange={(e) => setDefaultTarget(parseInt(e.target.value || '0', 10) || 0)} style={inputStyle} />
+          <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>leads / day</span>
+          <button onClick={saveDefault} disabled={savingLevel === '__default__'} style={{ ...btnStyle, opacity: savingLevel === '__default__' ? 0.6 : 1 }}>{savingLevel === '__default__' ? 'Saving…' : 'Save fallback'}</button>
+        </div>
       </div>
     </div>
   );
