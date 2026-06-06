@@ -24,6 +24,9 @@ export default function LeadsListPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [sources, setSources] = useState<LeadSource[]>([]);
   const [filters, setFilters] = useState<LeadFiltersValue>({});
+  // Debounced copy of the free-text search, sent to the backend so a search
+  // (incl. phone number) finds matches on ANY page — not just the loaded one.
+  const [debouncedQ, setDebouncedQ] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState<UserOption[]>([]);
@@ -152,6 +155,9 @@ export default function LeadsListPage() {
       if (filters.source)   params.source_id = filters.source;
       if (filters.owner)    params.owner_id  = filters.owner;
       if (filters.grade)    params.score_grade = filters.grade;
+      // Free-text search (name / email / phone / company) — server-side so it
+      // matches across all pages. Debounced to avoid a refetch per keystroke.
+      if (debouncedQ)       params.q          = debouncedQ;
       if (sort.key !== 'recent') { params.sort = sort.key; params.order = sort.order; }
       const [l, s] = await Promise.allSettled([crmLeads.list(params), crmLeadSources.list()]);
       if (l.status === 'fulfilled') {
@@ -180,10 +186,18 @@ export default function LeadsListPage() {
   // pagination means changing the row-count'd filter set must also
   // reset to page 1, or we'd request page 5 of a 3-page result and
   // get nothing.
+  // Debounce the free-text search into debouncedQ (350ms) so the server
+  // refetch fires once the user pauses typing, not on every keystroke.
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQ((filters.q || '').trim()), 350);
+    return () => clearTimeout(t);
+  }, [filters.q]);
+
   useEffect(() => { reload(); /* eslint-disable-next-line */ }, [
     range.from, range.to,
     filters.state, filters.city, filters.district, filters.block,
     filters.status, filters.source, filters.owner, filters.grade,
+    debouncedQ,
     page, pageSize, sort.key, sort.order,
   ]);
 
@@ -198,6 +212,7 @@ export default function LeadsListPage() {
     range.from, range.to,
     filters.state, filters.city, filters.district, filters.block,
     filters.status, filters.source, filters.owner, filters.grade,
+    debouncedQ,
     pageSize, sort.key, sort.order,
   ]);
 
@@ -224,7 +239,7 @@ export default function LeadsListPage() {
     const q = (filters.q || '').toLowerCase();
     if (!q) return leads;
     return leads.filter((l) =>
-      `${l.full_name || ''} ${l.first_name || ''} ${l.last_name || ''} ${l.email || ''} ${l.company || ''}`.toLowerCase().includes(q)
+      `${l.full_name || ''} ${l.first_name || ''} ${l.last_name || ''} ${l.email || ''} ${l.phone || ''} ${l.company || ''}`.toLowerCase().includes(q)
     );
   }, [leads, filters.q]);
 
