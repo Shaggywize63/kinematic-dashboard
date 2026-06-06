@@ -6,10 +6,14 @@
  * custom fields.
  *
  * The Maps JS key is read from NEXT_PUBLIC_GOOGLE_MAPS_API_KEY (set it in the
- * Vercel project env). With no key the component renders nothing, so the form
- * degrades gracefully to the plain address fields.
+ * Vercel project env, then REDEPLOY — NEXT_PUBLIC_* vars are inlined at build
+ * time). With no key the component renders nothing, so the form degrades
+ * gracefully to the plain address fields. When a key IS present but Google
+ * rejects it (invalid key, referrer not allowed, billing off, or the
+ * Maps JavaScript / Places API not enabled) we surface the reason inline
+ * instead of failing silently.
  */
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 const KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
@@ -21,7 +25,9 @@ function loadMaps(): Promise<void> {
   if (loaderPromise) return loaderPromise;
   loaderPromise = new Promise<void>((resolve, reject) => {
     const s = document.createElement('script');
-    s.src = `https://maps.googleapis.com/maps/api/js?key=${KEY}&libraries=places`;
+    // loading=async is required by the current Maps JS loader; without it
+    // Google logs a performance warning and newer builds can misbehave.
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${KEY}&libraries=places&loading=async`;
     s.async = true;
     s.onload = () => resolve();
     s.onerror = () => reject(new Error('maps-load-failed'));
@@ -44,15 +50,27 @@ export default function GoogleAddressAutocomplete({ onSelect }: { onSelect: (p: 
   // Keep the latest callback in a ref so the loader effect runs exactly once.
   const cb = useRef(onSelect);
   cb.current = onSelect;
+  const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
     if (!KEY) return;
+    // Google invokes this global on auth failures (invalid key, referrer not
+    // allowed, billing disabled). It does NOT throw, so without this hook the
+    // widget just silently shows no suggestions.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (window as any).gm_authFailure = () => {
+      setErr('Google rejected this API key. Check that the key is correct, that Maps JavaScript API + Places API are enabled, billing is on, and this site’s domain is in the key’s allowed referrers.');
+    };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let ac: any;
     loadMaps().then(() => {
       if (!inputRef.current) return;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const g = (window as any).google;
+      if (!g?.maps?.places?.Autocomplete) {
+        setErr('Google Maps loaded but the Places library is unavailable — enable the “Places API” for this key in Google Cloud.');
+        return;
+      }
       ac = new g.maps.places.Autocomplete(inputRef.current, {
         componentRestrictions: { country: 'in' },
         fields: ['address_components', 'geometry', 'formatted_address', 'name'],
@@ -75,7 +93,11 @@ export default function GoogleAddressAutocomplete({ onSelect }: { onSelect: (p: 
           longitude: loc ? loc.lng().toFixed(6) : undefined,
         });
       });
-    }).catch(() => { /* key invalid / blocked — fall back to manual fields */ });
+    }).catch((e) => {
+      setErr(e?.message === 'maps-load-failed'
+        ? 'Could not load Google Maps. The key may be invalid/restricted, or the network blocked maps.googleapis.com.'
+        : 'Google address search is unavailable.');
+    });
     return () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       if (ac && (window as any).google) (window as any).google.maps.event.clearInstanceListeners(ac);
@@ -91,9 +113,11 @@ export default function GoogleAddressAutocomplete({ onSelect }: { onSelect: (p: 
         ref={inputRef}
         placeholder="Start typing an address — e.g. F 2587 4th Floor Ansal Esencia…"
         onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
-        style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '9px 12px', borderRadius: 8, fontSize: 13, width: '100%', boxSizing: 'border-box' }}
+        style={{ background: 'var(--s3)', border: `1px solid ${err ? '#ef4444' : 'var(--border)'}`, color: 'var(--text)', padding: '9px 12px', borderRadius: 8, fontSize: 13, width: '100%', boxSizing: 'border-box' }}
       />
-      <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>Pick a suggestion to fill the address & pin; you can still edit Address Line 1 below.</span>
+      {err
+        ? <span style={{ fontSize: 11, color: '#ef4444' }}>⚠️ {err}</span>
+        : <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>Pick a suggestion to fill the address &amp; pin; you can still edit Address Line 1 below.</span>}
     </div>
   );
 }
