@@ -4,35 +4,31 @@
  * pick from Google's suggestions; we fill address_line1 (still editable) plus
  * city / state / postal code / lat-long.
  *
- * Works with BOTH Google Places offerings:
- *   - "Places API (New)" → google.maps.places.PlaceAutocompleteElement (preferred)
- *   - legacy "Places API" → google.maps.places.Autocomplete (fallback)
- * so it doesn't matter which one the project has enabled.
+ * Loads Maps via Google's official "dynamic library import" bootstrap (the
+ * supported async path that reliably exposes the New Places library), then
+ * prefers the new PlaceAutocompleteElement and falls back to the legacy
+ * Autocomplete widget — so it works whether the project has "Places API (New)"
+ * or the legacy "Places API" enabled.
  *
  * The Maps JS key is read from NEXT_PUBLIC_GOOGLE_MAPS_API_KEY (set it in the
  * Vercel project env, then REDEPLOY — NEXT_PUBLIC_* vars are inlined at build
- * time). With no key the component renders nothing, so the form degrades
- * gracefully to the plain address fields.
+ * time). With no key the component renders nothing.
  */
 import { useEffect, useRef, useState } from 'react';
 
 const KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
-let loaderPromise: Promise<void> | null = null;
-function loadMaps(): Promise<void> {
-  if (typeof window === 'undefined' || !KEY) return Promise.reject(new Error('no-key'));
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  if ((window as any).google?.maps?.importLibrary) return Promise.resolve();
-  if (loaderPromise) return loaderPromise;
-  loaderPromise = new Promise<void>((resolve, reject) => {
-    const s = document.createElement('script');
-    s.src = `https://maps.googleapis.com/maps/api/js?key=${KEY}&libraries=places&loading=async`;
-    s.async = true;
-    s.onload = () => resolve();
-    s.onerror = () => reject(new Error('maps-load-failed'));
-    document.head.appendChild(s);
-  });
-  return loaderPromise;
+// Official Google Maps "Dynamic Library Import" bootstrap. Defines
+// google.maps.importLibrary (loads once); subsequent importLibrary('places')
+// calls pull in the New Places library on demand.
+// https://developers.google.com/maps/documentation/javascript/load-maps-js-api
+function bootstrapMaps(key: string) {
+  /* eslint-disable */
+  // @ts-nocheck
+  // prettier-ignore
+  // @ts-ignore
+  ((g:any)=>{let h:any,a:any,k:any,p="The Google Maps JavaScript API",c="google",l="importLibrary",q="__ib__",m=document,b:any=window;b=b[c]||(b[c]={});let d=b.maps||(b.maps={}),r=new Set<string>(),e=new URLSearchParams(),u=()=>h||(h=new Promise(async(f:any,n:any)=>{a=m.createElement("script");e.set("libraries",[...r]+"");for(k in g)e.set(k.replace(/[A-Z]/g,(t:string)=>"_"+t[0].toLowerCase()),g[k]);e.set("callback",c+".maps."+q);a.src=`https://maps.${c}apis.com/maps/api/js?`+e;d[q]=f;a.onerror=()=>h=n(Error(p+" could not load."));a.nonce=(m.querySelector("script[nonce]") as any)?.nonce||"";m.head.append(a)}));d[l]?console.warn(p+" only loads once. Ignoring:",g):d[l]=(f:any,...n:any[])=>r.add(f)&&u().then(()=>d[l](f,...n))})({key,v:"weekly"});
+  /* eslint-enable */
 }
 
 export interface PlaceResult {
@@ -45,49 +41,53 @@ export interface PlaceResult {
 }
 
 export default function GoogleAddressAutocomplete({ onSelect }: { onSelect: (p: PlaceResult) => void }) {
-  // Container for the new web-component element; input ref for the legacy path.
-  const hostRef = useRef<HTMLDivElement>(null);
-  const legacyInputRef = useRef<HTMLInputElement>(null);
+  const hostRef = useRef<HTMLDivElement>(null);       // host for the new element
+  const legacyInputRef = useRef<HTMLInputElement>(null); // input for legacy widget
   const cb = useRef(onSelect);
   cb.current = onSelect;
   const [err, setErr] = useState<string | null>(null);
-  // Which widget we ended up mounting, so we render the right host element.
   const [mode, setMode] = useState<'new' | 'legacy'>('new');
 
   useEffect(() => {
     if (!KEY) return;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (window as any).gm_authFailure = () => {
-      setErr('Google rejected this API key. Check the key, that Maps JavaScript API + Places API are enabled, billing is on, and this domain is in the key’s allowed referrers.');
-    };
+    const w = window as any;
+    if (!w.google?.maps?.importLibrary) bootstrapMaps(KEY);
+    // Google calls this on auth failures (bad key / referrer / billing).
+    w.gm_authFailure = () => setErr('Google rejected this API key. Check the key is correct, billing is on, and this domain is in the key’s allowed HTTP referrers.');
+
     let cancelled = false;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let mounted: any;
 
-    // small helper: read an address component by type from either API shape
-    // (new API: longText/types; legacy: long_name/types)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const compGetter = (comps: any[]) => (type: string) => {
       const c = comps.find((x) => (x.types || []).includes(type));
       return (c?.longText ?? c?.long_name) as string | undefined;
     };
 
-    loadMaps().then(async () => {
+    (async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const g = (window as any).google;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let places: any = g?.maps?.places;
+      let places: any;
       try {
-        if (g?.maps?.importLibrary) places = await g.maps.importLibrary('places');
-      } catch { /* fall through to the guards below */ }
+        places = await w.google.maps.importLibrary('places');
+      } catch (e) {
+        setErr('Could not load Google Places: ' + ((e as Error)?.message || 'unknown error')
+          + '. Enable “Places API (New)” for this key, ensure billing is on, and allow this domain.');
+        return;
+      }
       if (cancelled) return;
-      places = places || g?.maps?.places;
 
       // ── Preferred: Places API (New) — PlaceAutocompleteElement ──────────
       if (places?.PlaceAutocompleteElement && hostRef.current) {
         setMode('new');
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const el: any = new places.PlaceAutocompleteElement({ includedRegionCodes: ['in'] });
+        let el: any;
+        try {
+          el = new places.PlaceAutocompleteElement({ includedRegionCodes: ['in'] });
+        } catch {
+          el = new places.PlaceAutocompleteElement();
+        }
         el.style.width = '100%';
         hostRef.current.innerHTML = '';
         hostRef.current.appendChild(el);
@@ -143,12 +143,8 @@ export default function GoogleAddressAutocomplete({ onSelect }: { onSelect: (p: 
         return;
       }
 
-      setErr('Google Maps loaded but no Places autocomplete is available — enable “Places API (New)” (or the legacy “Places API”) for this key in Google Cloud.');
-    }).catch((e) => {
-      setErr(e?.message === 'maps-load-failed'
-        ? 'Could not load Google Maps. The key may be invalid/restricted, or the network blocked maps.googleapis.com.'
-        : 'Google address search is unavailable.');
-    });
+      setErr('Google Places loaded but no autocomplete widget was returned. Enable “Places API (New)” for this key in Google Cloud (and make sure the key belongs to that project).');
+    })();
 
     return () => {
       cancelled = true;
@@ -164,9 +160,7 @@ export default function GoogleAddressAutocomplete({ onSelect }: { onSelect: (p: 
   return (
     <div style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: 4 }}>
       <label style={{ fontSize: 12, color: 'var(--text-dim)', fontWeight: 600 }}>🔍 Search address (Google)</label>
-      {/* New PlaceAutocompleteElement mounts here; it renders its own input. */}
       <div ref={hostRef} style={{ width: '100%', display: mode === 'new' ? 'block' : 'none' }} />
-      {/* Legacy Autocomplete binds to this input. */}
       <input
         ref={legacyInputRef}
         placeholder="Start typing an address — e.g. F 2587 4th Floor Ansal Esencia…"
