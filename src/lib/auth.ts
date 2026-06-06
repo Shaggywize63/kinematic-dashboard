@@ -31,6 +31,32 @@ export function getStoredUser(): AuthUser | null {
   } catch { return null; }
 }
 
+/**
+ * Module-permission check for the freshest user payload we have locally.
+ * Mirrors the dashboard layout's `hasModule()` gate so per-page conditional
+ * UI (e.g. inline "Edit stages" deep-links into /crm/settings) stays in sync
+ * with the sidebar visibility instead of being hard-coded per-page.
+ *
+ * Platform admins (no client_id, admin-ish role) always return true — they
+ * are not governed by org_role permissions. For everyone else: the module
+ * must be in the client's entitlements AND in the user's role permissions
+ * (or the user has no explicit permission set at all, which means they're a
+ * legacy account that hadn't been migrated to org_roles yet).
+ */
+export function userHasModule(user: AuthUser | null | undefined, moduleId: string): boolean {
+  if (!user) return false;
+  const role = normalizeRole((user as any).role || '');
+  const isPlatformAdmin = !(user as any).client_id && (
+    ['super_admin', 'admin', 'main_admin', 'master_admin', 'sub_admin'].includes(role) || role.includes('admin')
+  );
+  if (isPlatformAdmin) return true;
+  const entitled: string[] = Array.isArray((user as any).enabled_modules) ? (user as any).enabled_modules : [];
+  if (entitled.length > 0 && !entitled.includes(moduleId)) return false;
+  const perms: string[] = Array.isArray((user as any).permissions) ? (user as any).permissions : [];
+  if (perms.length > 0) return perms.includes(moduleId);
+  return true;
+}
+
 export function getStoredToken(): string | null {
   if (typeof window === 'undefined') return null;
   return localStorage.getItem(TOKEN_KEY);

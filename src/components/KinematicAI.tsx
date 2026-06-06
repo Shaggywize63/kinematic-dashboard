@@ -359,9 +359,14 @@ Be elite, professional, and data-driven. Use **bold** for key metrics. Proactive
       if (r.status === 429) {
         const usage = d?.data?.usage;
         if (usage) setUsage(usage);
+        // Backend returns `error: { code, message }` — use .message, not the
+        // object, otherwise it renders as the literal "[object Object]".
+        const errMsg = typeof d?.error === 'string'
+          ? d.error
+          : (d?.error?.message || d?.message);
         setMsgs(p => p.map((m, i) => i === p.length - 1 ? {
           role: 'assistant',
-          content: d?.error || 'Monthly AI limit reached. Resets on the 1st.',
+          content: errMsg || 'Monthly AI limit reached. Resets on the 1st.',
         } : m));
         return;
       }

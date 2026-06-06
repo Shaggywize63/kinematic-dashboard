@@ -10,7 +10,7 @@ import type { Deal, Pipeline } from '../../../../types/crm';
 import DealsTable, { DEAL_COLUMNS } from '../../../../components/crm/DealsTable';
 import ViewCustomizer from '../../../../components/crm/shared/ViewCustomizer';
 import { useViewPrefs } from '../../../../lib/crmViewPrefs';
-import { getStoredUser, canAccess, getStoredToken } from '../../../../lib/auth';
+import { getStoredUser, canAccess, getStoredToken, userHasModule } from '../../../../lib/auth';
 import { API_BASE_URL } from '../../../../lib/api';
 
 const DEAL_PAGE_SIZE_OPTIONS = [25, 50, 100, 200] as const;
@@ -338,7 +338,10 @@ function DealsListPage() {
           </div>
         ) : stages.length === 0 ? (
           <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-dim)', background: 'var(--s2)', border: '1px dashed var(--border)', borderRadius: 14 }}>
-            Pipeline “{activePipeline.name}” has no stages yet. <Link href={`/dashboard/crm/settings/stages?pipeline_id=${activePipeline.id}`} style={{ color: 'var(--primary)' }}>Add stages →</Link>
+            Pipeline “{activePipeline.name}” has no stages yet.
+            {userHasModule(getStoredUser(), 'crm_settings') && (
+              <> <Link href={`/dashboard/crm/settings/stages?pipeline_id=${activePipeline.id}`} style={{ color: 'var(--primary)' }}>Add stages →</Link></>
+            )}
           </div>
         ) : (
           <DealKanban stages={stages} initialDeals={filtered} />
