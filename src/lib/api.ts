@@ -46,6 +46,28 @@ const TTL_OVERRIDES: Array<[RegExp, number]> = [
   [/^\/api\/v1\/live-tracking\b/,                        15_000],
 ];
 
+// CRM endpoints whose backend handler actually filters by city. Anything
+// not on this list (lead-sources, assignment-rules, products, settings,
+// stages, hierarchy, …) goes through the generic list helper, which would
+// blindly `.eq('city', …)` and 500 on tables with no city column.
+const CITY_AWARE_CRM_PREFIXES = [
+  '/api/v1/crm/leads',
+  '/api/v1/crm/contacts',
+  '/api/v1/crm/accounts',
+  '/api/v1/crm/deals',
+  '/api/v1/crm/activities',
+  '/api/v1/crm/tasks',
+  '/api/v1/crm/notes',
+  '/api/v1/crm/reports',
+  '/api/v1/crm/dashboard',
+  '/api/v1/crm/analytics',
+  '/api/v1/crm/lead-analytics',
+];
+
+function isCityAwareCrmPath(path: string): boolean {
+  return CITY_AWARE_CRM_PREFIXES.some((p) => path === p || path.startsWith(`${p}/`) || path.startsWith(`${p}?`));
+}
+
 function ttlFor(path: string): number {
   for (const [re, ttl] of TTL_OVERRIDES) if (re.test(path)) return ttl;
   return GET_CACHE_TTL_MS;
@@ -219,16 +241,22 @@ class ApiClient {
     }
 
     // CRM city scope — auto-attach the picked city to GET requests that
-    // already use a city filter (leads, contacts, reports). Picker source
-    // is the CityScopePicker (stored in localStorage as
-    // kinematic_selected_city). Only fires on CRM endpoints; skipped if
-    // the caller already specified a `city=` (their value wins) or if no
-    // city is picked. Backend still caps results via the user's
-    // assigned_city_names, so this can only narrow within scope.
+    // genuinely accept a `city` filter. Picker source is the
+    // CityScopePicker (stored in localStorage as
+    // kinematic_selected_city). Skipped if the caller already specified
+    // `city=` (their value wins) or if no city is picked. Backend still
+    // caps results via the user's assigned_city_names, so this can only
+    // narrow within scope.
+    //
+    // IMPORTANT: only the city-aware CRM endpoints below are whitelisted.
+    // Attaching `?city=` to lookup/config endpoints (lead-sources,
+    // assignment-rules, products, …) makes the backend's generic list
+    // handler run `.eq('city', …)` against a table with no `city` column,
+    // which 500s — the FE then renders an empty dropdown ("only Unspecified").
     let pathWithCity = path;
     try {
       const method = (options.method || 'GET').toUpperCase();
-      if (method === 'GET' && path.startsWith('/api/v1/crm/') && !/[?&]city=/i.test(path)) {
+      if (method === 'GET' && isCityAwareCrmPath(path) && !/[?&]city=/i.test(path)) {
         const city = typeof window !== 'undefined' ? window.localStorage.getItem('kinematic_selected_city') : null;
         if (city) {
           const sep = path.includes('?') ? '&' : '?';
@@ -308,7 +336,7 @@ class ApiClient {
     let cityPart = '';
     try {
       const selCity = typeof window !== 'undefined' ? window.localStorage.getItem('kinematic_selected_city') : null;
-      if (selCity && path.startsWith('/api/v1/crm/') && !/[?&]city=/i.test(path)) {
+      if (selCity && isCityAwareCrmPath(path) && !/[?&]city=/i.test(path)) {
         cityPart = `|city:${selCity}`;
       }
     } catch { /* ignore */ }
