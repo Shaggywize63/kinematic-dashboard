@@ -70,8 +70,12 @@ export default function LeadImportPage() {
         organization: 'company', organisation: 'company', firm: 'company',
         designation: 'title', position: 'title', role: 'title',
         lead_source: 'source', channel: 'source',
-        // owner_email is intentionally NOT mapped to email — it identifies
-        // the rep, not the lead. Same for owner_phone / assigned_to_*.
+        // Owner-identity synonyms — these all map to owner_email (the
+        // import service then resolves owner_email → owner_id at run
+        // time). NEVER fold into the lead's own email/phone columns.
+        owneremail: 'owner_email', rep_email: 'owner_email', sales_email: 'owner_email',
+        assigned_to: 'owner_email', assigned_to_email: 'owner_email',
+        owner_mail: 'owner_email',
       };
       const auto: Record<string, string> = {};
       cols.forEach((c) => {
