@@ -134,13 +134,13 @@ export default function LoginPage() {
       }
     } catch (e) {
       // "Failed to fetch" is a browser-level error meaning the request never
-      // reached our backend. Surface the API URL the dashboard is trying to
-      // reach so users + support can diagnose (wrong env on build, network
-      // block, stale cache pointing at a dead URL, etc.) instead of staring
-      // at a generic message.
+      // reached our backend. Show a generic message to the user (never expose
+      // the backend URL/infra); log the detail to the console for support.
       const raw = e instanceof Error ? e.message : '';
       if (/Failed to fetch|NetworkError|Load failed/i.test(raw)) {
-        setError(`Could not reach ${API_BASE_URL}. Check your internet, try incognito mode, or contact your administrator if the problem persists.`);
+        // eslint-disable-next-line no-console
+        console.error('[login] could not reach API', API_BASE_URL, raw);
+        setError('Could not reach the server. Check your internet connection and try again, or contact your administrator if the problem persists.');
       } else {
         setError(raw || 'Login failed. Check your credentials.');
       }
