@@ -62,6 +62,18 @@ export default function NewLeadPage() {
   // Capture the device's current position. Coordinates are mandatory and
   // non-editable: the lead is geo-tagged with the rep's actual location at
   // capture time, so we auto-request on load and offer a retry on failure.
+  //
+  // Strategy: two-stage capture, because GPS cold-starts can take 30–60s and
+  // most reps are indoors when entering leads.
+  //   Stage 1 (fast):  enableHighAccuracy=false  → WiFi/cell-tower fix that
+  //                    usually returns in 1–3s and works indoors. Lets the
+  //                    rep proceed immediately with a "good enough" position.
+  //   Stage 2 (precise): enableHighAccuracy=true → GPS fix that overrides the
+  //                      coarse one in the background. Up to 30s timeout.
+  //
+  // Either fix unblocks the form. The previous "GPS only, 10s, no cache"
+  // setup was so strict that anyone indoors got
+  // "Could not get your location" with no path forward.
   const captureLocation = () => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
       setGeoError('Location is not available on this device/browser.');
@@ -69,23 +81,40 @@ export default function NewLeadPage() {
     }
     setGeoBusy(true);
     setGeoError('');
+
+    const accept = (pos: GeolocationPosition) => {
+      setForm((f) => ({
+        ...f,
+        latitude: pos.coords.latitude.toFixed(6),
+        longitude: pos.coords.longitude.toFixed(6),
+      }));
+      setGeoBusy(false);
+      setGeoError('');
+    };
+
+    // Stage 2 — start the high-accuracy upgrade alongside Stage 1 so the GPS
+    // chipset can warm up while we already have a coarse fix to show the user.
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setForm((f) => ({
-          ...f,
-          latitude: pos.coords.latitude.toFixed(6),
-          longitude: pos.coords.longitude.toFixed(6),
-        }));
-        setGeoBusy(false);
-        setGeoError('');
-      },
+      accept,
+      () => { /* Stage 2 failure is silent — Stage 1 already populated. */ },
+      { enableHighAccuracy: true, timeout: 30_000, maximumAge: 0 },
+    );
+
+    // Stage 1 — fast coarse fix. WiFi/cell-tower is fine for a lead pin and
+    // works indoors where GPS doesn't. Accepts positions up to 60s old.
+    navigator.geolocation.getCurrentPosition(
+      accept,
       (err) => {
         setGeoBusy(false);
-        setGeoError(err.code === err.PERMISSION_DENIED
-          ? 'Location permission denied. Enable location access in your browser and retry — it’s required to add a lead.'
-          : 'Could not get your location. Move to an open area and retry — it’s required to add a lead.');
+        if (err.code === err.PERMISSION_DENIED) {
+          setGeoError('Location permission denied. Enable location access in your browser and retry — it’s required to add a lead.');
+        } else if (err.code === err.POSITION_UNAVAILABLE) {
+          setGeoError('Location is temporarily unavailable. Make sure Location Services / Wi-Fi are on, then click Retry. (Indoor signal can be weak — moving near a window or door usually fixes it.)');
+        } else {
+          setGeoError('Could not lock onto your location yet. Click Retry — it usually works on the second try, especially with Wi-Fi enabled.');
+        }
       },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
+      { enableHighAccuracy: false, timeout: 15_000, maximumAge: 60_000 },
     );
   };
   // Auto-request location on first load — coordinates are mandatory.
