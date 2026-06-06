@@ -63,10 +63,18 @@ export default function GoogleAddressAutocomplete({ onSelect }: { onSelect: (p: 
     };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let ac: any;
-    loadMaps().then(() => {
+    loadMaps().then(async () => {
       if (!inputRef.current) return;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const g = (window as any).google;
+      // With loading=async, libraries load on demand — the script's onload
+      // fires before google.maps.places exists, so pull Places in explicitly
+      // before using the (legacy) Autocomplete widget.
+      try {
+        if (!g?.maps?.places?.Autocomplete && g?.maps?.importLibrary) {
+          await g.maps.importLibrary('places');
+        }
+      } catch { /* fall through to the guard below */ }
       if (!g?.maps?.places?.Autocomplete) {
         setErr('Google Maps loaded but the Places library is unavailable — enable the “Places API” for this key in Google Cloud.');
         return;
