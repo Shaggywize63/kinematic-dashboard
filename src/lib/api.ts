@@ -482,6 +482,9 @@ class ApiClient {
 
   getNotifications() { return this.get('/api/v1/notifications'); }
   markNotificationsRead() { return this.patch('/api/v1/notifications/read', {}); }
+  // Permanently delete every notification for the signed-in user (the
+  // "Clear all" action empties the feed, not just marks it read).
+  clearNotifications() { return this.delete('/api/v1/notifications/clear'); }
 
   getLeaderboard() { return this.get('/api/v1/leaderboard'); }
 

@@ -186,13 +186,16 @@ export default function NotificationBell() {
     if (clearing) return;
     setClearing(true);
     const ids = sortedActivities.map((a: any) => a.id);
+    // Empty the feed immediately. Notifications are DELETED (not just marked
+    // read) so they don't reappear on the next poll; activity reminders are
+    // marked done.
     setActivities([]);
-    setNotifs((prev) => prev.map((n) => ({ ...n, is_read: true })));
+    setNotifs([]);
     const now = new Date().toISOString();
     try {
       await Promise.allSettled([
         ...ids.map((id) => crmActivities.update(id, { completed_at: now } as any)),
-        api.markNotificationsRead(),
+        api.clearNotifications(),
       ]);
     } finally {
       setClearing(false);
