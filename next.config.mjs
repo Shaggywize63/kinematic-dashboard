@@ -24,13 +24,18 @@ const API_HOST      = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/+$/, ''
 // blocks the <script> with a net::ERR_BLOCKED_BY_CSP ("Could not load Google
 // Maps").
 const GOOGLE_MAPS = 'https://maps.googleapis.com https://maps.gstatic.com';
+// Google Fonts: the stylesheet is fetched from fonts.googleapis.com (style-src)
+// and the font files from fonts.gstatic.com (font-src). Without these the CSP
+// refuses the <link> and the app falls back to system fonts.
+const GOOGLE_FONTS_CSS = 'https://fonts.googleapis.com';
+const GOOGLE_FONTS_FILES = 'https://fonts.gstatic.com';
 
 const csp = [
   `default-src 'self'`,
   `script-src 'self' 'unsafe-inline' 'unsafe-eval' ${GOOGLE_MAPS}`,
-  `style-src 'self' 'unsafe-inline'`,
+  `style-src 'self' 'unsafe-inline' ${GOOGLE_FONTS_CSS}`,
   `img-src 'self' data: blob: https:`,
-  `font-src 'self' data:`,
+  `font-src 'self' data: ${GOOGLE_FONTS_FILES}`,
   `connect-src 'self' ${SUPABASE_HOST} ${API_HOST} https://api.anthropic.com ${GOOGLE_MAPS} wss: https:`.replace(/\s+/g, ' ').trim(),
   `frame-ancestors 'none'`,
   `frame-src 'self'`,
