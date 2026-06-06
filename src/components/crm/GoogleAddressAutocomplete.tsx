@@ -159,6 +159,23 @@ export default function GoogleAddressAutocomplete({ onSelect }: { onSelect: (p: 
 
   return (
     <div style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: 4 }}>
+      {/* The new <gmp-place-autocomplete> renders its own input in shadow DOM;
+          theme it to the dark dashboard via ::part(input) (it defaults to a
+          light/black input otherwise). */}
+      <style>{`
+        gmp-place-autocomplete { width: 100%; }
+        gmp-place-autocomplete::part(input) {
+          background: var(--s3);
+          color: var(--text);
+          border: 1px solid var(--border);
+          border-radius: 8px;
+          padding: 9px 12px;
+          font-size: 13px;
+          width: 100%;
+          box-sizing: border-box;
+        }
+        gmp-place-autocomplete::part(input)::placeholder { color: var(--text-dim); }
+      `}</style>
       <label style={{ fontSize: 12, color: 'var(--text-dim)', fontWeight: 600 }}>🔍 Search address (Google)</label>
       <div ref={hostRef} style={{ width: '100%', display: mode === 'new' ? 'block' : 'none' }} />
       <input
