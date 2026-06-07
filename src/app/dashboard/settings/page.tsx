@@ -4,6 +4,7 @@ import api from '../../../lib/api';
 import CitySelect from '../../../components/CitySelect';
 import FieldTrackingCadencePicker from '../../../components/FieldTrackingCadencePicker';
 import { AuthUser } from '../../../types';
+import { getDesignationLabel } from '../../../lib/auth';
 import { ALL_MODULES, MODULE_GROUPS, MODULE_GROUP_LABELS } from '../../../lib/modules';
 
 const C = {
@@ -662,14 +663,14 @@ export default function SettingsPage() {
                     </div>
                     <div>
                       <div style={{ display: 'inline-flex', padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 800, background: `${roleColors[u.role] || C.gray}15`, color: roleColors[u.role] || C.gray, border: `1px solid ${roleColors[u.role] || C.gray}33`, textTransform: 'capitalize', marginBottom: 4 }}>
-                        {/* Show the hierarchy designation when one is set
-                            (Business Manager, Consumer Champion…); fall back
-                            to a neutral "Team Member" so we never expose
-                            internal preset role names like "Sub-Admin". The
-                            backend joins org_roles and stamps either
-                            org_role.name (the join) or a flat org_role_name
-                            on each row. */}
-                        {((u as any).org_role?.name) || ((u as any).org_role_name) || 'Team Member'}
+                        {/* Hierarchy designation via the shared helper —
+                            picks org_role.name (or the flat org_role_name)
+                            first, falls back to "Super Admin" / "Admin"
+                            only for genuinely platform-level system roles,
+                            else a dash. Never substitutes "Team Member"
+                            for a user whose actual role is e.g. Consumer
+                            Champion Manager. */}
+                        {getDesignationLabel(u as any)}
                       </div>
                       <div style={{ fontSize: 10, color: C.gray, fontWeight: 600 }}>
                         {u.permissions?.length || 0} modules · {u.assigned_cities?.length ? `${u.assigned_cities.length} cities` : u.client_id ? `Client: ${clients.find(c => c.id === u.client_id)?.name || 'Unknown'}` : 'Global'}

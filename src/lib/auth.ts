@@ -123,6 +123,32 @@ export function getRoleLabel(role: string): string {
   return labels[role] || role;
 }
 
+/**
+ * Resolve a user's display designation — the label admins actually want to
+ * see (e.g. "Consumer Champion", "Consumer Champion Manager", "Area Sales
+ * Officer"). Source of truth is `org_role.name` from the org_roles join
+ * (also exposed as a flat `org_role_name` on some endpoints). Falls back
+ * to the platform-admin label only for genuinely platform-level system
+ * roles (super_admin / admin / main_admin / master_admin); never falls
+ * back to the legacy preset like "Sub-Admin" — admins consider that an
+ * implementation detail. Returns a dash when no designation is set so
+ * the UI never invents a generic descriptor like "Team Member".
+ */
+export function getDesignationLabel(user: {
+  org_role?: { name?: string | null } | null;
+  org_role_name?: string | null;
+  role?: string | null;
+} | null | undefined): string {
+  const joined = user?.org_role?.name?.trim();
+  if (joined) return joined;
+  const flat = (user as { org_role_name?: string | null } | null | undefined)?.org_role_name?.trim();
+  if (flat) return flat;
+  const sys = (user?.role || '').toLowerCase().trim().replace(/-/g, '_');
+  if (sys === 'super_admin') return 'Super Admin';
+  if (sys === 'admin' || sys === 'main_admin' || sys === 'master_admin') return 'Admin';
+  return '—';
+}
+
 function normalizeRole(role: string): string {
   return (role || '').toLowerCase().trim().replace(/-/g, '_');
 }

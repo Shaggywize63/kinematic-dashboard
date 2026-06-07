@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
-import { getStoredUser, isSessionValid, clearSession } from '../../lib/auth';
+import { getStoredUser, isSessionValid, clearSession, getDesignationLabel } from '../../lib/auth';
 import api from '../../lib/api';
 import { ClientProvider, useClient } from '../../context/ClientContext';
 import { CityScopeProvider } from '../../context/CityScopeContext';
@@ -526,11 +526,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     "Consumer Champion"). Falls back to the legacy preset role
                     label so we never show an empty descriptor. */}
                 <div style={{ fontSize:11, color:C.gray, marginTop:2, lineHeight:1.2 }}>
-                  {/* Show only the hierarchy designation (Business Manager,
-                      Consumer Champion, etc.). Never expose the legacy preset
-                      role like "Sub-Admin" — admins consider that an
-                      implementation detail. */}
-                  {hierarchyRoleName || 'Team Member'}
+                  {/* Show the real hierarchy designation (Business Manager,
+                      Consumer Champion, …). For platform admins with no
+                      org_role assigned, the shared helper resolves to
+                      "Super Admin" / "Admin". Returns "—" only when there
+                      is genuinely no designation — never substitutes a
+                      generic "Team Member" placeholder. */}
+                  {hierarchyRoleName || getDesignationLabel(user)}
                 </div>
               </div>
             )}
@@ -649,11 +651,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     {user?.name || 'Signed in'}
                   </span>
                   <span style={{ fontSize: isMobile ? 10 : 11, color: C.gray, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
-                    {/* Show only the hierarchy designation (Business Manager,
-                      Consumer Champion, etc.). Never expose the legacy preset
-                      role like "Sub-Admin" — admins consider that an
-                      implementation detail. */}
-                  {hierarchyRoleName || 'Team Member'}
+                    {/* Hierarchy designation (Business Manager,
+                        Consumer Champion, …) via getDesignationLabel —
+                        falls back to "Super Admin" / "Admin" for platform
+                        roles, else a dash; never substitutes "Team Member". */}
+                  {hierarchyRoleName || getDesignationLabel(user)}
                   </span>
                 </div>
               </Link>
