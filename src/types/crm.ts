@@ -246,10 +246,17 @@ export interface CustomField {
     | 'date' | 'datetime'
     | 'select' | 'multiselect' | 'radio'
     | 'url' | 'email' | 'phone'
-    | 'image' | 'file';
+    | 'image' | 'file'
+    | 'lookup';
   options?: string[] | null; required?: boolean; position?: number;
   // Org roles this field is shown to. Empty/null = all roles (universal).
   org_role_ids?: string[] | null;
+  // Lookup-only — populated when field_type === 'lookup'. target_table
+  // is the table the picker searches; lookup_filter is the optional
+  // condition list (each clause AND-ed) the admin configured so only
+  // matching rows appear in the picker.
+  target_table?: 'crm_leads' | 'crm_contacts' | 'crm_accounts' | 'crm_deals' | 'people_directory' | null;
+  lookup_filter?: Array<{ field: string; op: string; value: string | number | boolean | null }> | null;
   created_at: string;
 }
 

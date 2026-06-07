@@ -222,6 +222,45 @@ export const crmTerritories = crud<Territory>(`${BASE}/territories`);
 export const crmAutomations = crud<Automation>(`${BASE}/automations`);
 export const crmCustomFields = crud<CustomField>(`${BASE}/custom-fields`);
 
+// People Directory — per-client address book sitting alongside contacts.
+// Same CRUD shape as the other CRM lookups, plus a /bulk-import POST
+// that mirrors the leads import: the FE maps spreadsheet columns to the
+// 5 directory fields, then sends the mapped rows here in one shot.
+export interface PeopleDirectoryEntry {
+  id?: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  mobile?: string | null;
+  email?: string | null;
+  address?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+export const crmPeopleDirectory = {
+  ...crud<PeopleDirectoryEntry>(`${BASE}/people-directory`),
+  bulkImport: (body: {
+    rows: Array<Omit<PeopleDirectoryEntry, 'id' | 'created_at' | 'updated_at'>>;
+    on_duplicate: 'skip' | 'update';
+  }) =>
+    api.post<Wrapped<{ added: number; updated: number; skipped: number; total: number }>>(
+      `${BASE}/people-directory/bulk-import`, body,
+    ),
+};
+
+// Lookup search — powers the new "linked record" custom-field picker.
+// Returns up to 50 (id, label, raw) tuples from the chosen target
+// table, optionally filtered by the admin-configured condition list.
+export interface LookupHit { id: string; label: string; raw: Record<string, unknown> }
+export const crmLookup = {
+  search: (params: { target: string; q?: string; filter?: Array<{ field: string; op: string; value: unknown }> }) => {
+    const qs = new URLSearchParams();
+    qs.set('target', params.target);
+    if (params.q) qs.set('q', params.q);
+    if (params.filter && params.filter.length) qs.set('filter', JSON.stringify(params.filter));
+    return api.get<Wrapped<LookupHit[]>>(`${BASE}/lookup/search?${qs.toString()}`);
+  },
+};
+
 // Phase 2: Products + WhatsApp
 export const crmProductCategories = crud<ProductCategory>(`${BASE}/product-categories`);
 export const crmProducts = crud<Product>(`${BASE}/products`);

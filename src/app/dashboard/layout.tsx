@@ -252,6 +252,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       { href: '/dashboard/crm/leads',            label: 'Leads',          icon: 'M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 7a4 4 0 100-8 4 4 0 000 8z', module: 'crm_leads' },
       { href: '/dashboard/crm/leads/analytics',  label: 'Lead Analytics', icon: 'M18 20V10 M12 20V4 M6 20v-6', module: 'crm_leads' },
       { href: '/dashboard/crm/contacts',         label: 'Contacts',       icon: 'M20 21v-2a4 4 0 00-3-3.87 M4 21v-2a4 4 0 014-4h4a4 4 0 014 4v2 M16 3.13a4 4 0 010 7.75 M8 11a4 4 0 100-8 4 4 0 000 8z', module: 'crm_contacts' },
+      // Address book for dealers / influencers / referrers — per-client,
+      // CRM-Admin gated (the entitlement key matches the module the
+      // backend's requireModuleAccess gate honours).
+      { href: '/dashboard/crm/people-directory', label: 'People Directory', icon: 'M17 20v-2a4 4 0 00-3-3.87 M9 7a4 4 0 100-8 4 4 0 000 8z M3 21h12 M19 3l2 2-2 2 M17 5h4', module: 'crm_people_directory' },
       { href: '/dashboard/crm/accounts',         label: 'Accounts',       icon: 'M3 21h18 M3 7v14 M21 7v14 M3 7l9-4 9 4 M9 12h6', module: 'crm_accounts' },
       { href: '/dashboard/crm/deals',            label: 'Deals',          icon: ICON_RUPEE, module: 'crm_deals' },
       { href: '/dashboard/crm/pipeline',         label: 'Pipeline',       icon: 'M3 5h6v14H3z M9 9h6v6H9z M15 5h6v14h-6z', module: 'crm_pipeline' },
