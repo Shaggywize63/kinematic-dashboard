@@ -81,6 +81,19 @@ export default function NotificationBell() {
   const [notifs, setNotifs] = useState<FeedNotif[]>([]);
   const [loading, setLoading] = useState(false);
   const [clearing, setClearing] = useState(false);
+  // Track viewport so the dropdown can switch from a 360-wide popover
+  // (desktop) to a full-width sheet pinned under the header (phones).
+  // The previous position-absolute / right:0 layout looked broken on
+  // narrow screens because any ancestor with `transform` clipped it,
+  // and the bell's tap target was barely 28 px — under the 44 px
+  // minimum the rest of the dashboard sits at.
+  const [narrow, setNarrow] = useState(false);
+  useEffect(() => {
+    const update = () => setNarrow(typeof window !== 'undefined' && window.innerWidth < 640);
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, []);
   const ref = useRef<HTMLDivElement>(null);
 
   // Click-outside to close.
@@ -211,9 +224,17 @@ export default function NotificationBell() {
         onClick={() => setOpen((o) => !o)}
         title="Notifications"
         aria-label="Notifications"
-        style={{ position: 'relative', background: 'transparent', border: '1px solid var(--border)', borderRadius: 8, padding: '6px 10px', color: 'var(--text)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+        style={{
+          // Bigger tap target — was ~28 px which fell under the 44 px iOS /
+          // Android minimum and made the bell feel unresponsive on phones.
+          position: 'relative', background: 'transparent',
+          border: '1px solid var(--border)', borderRadius: 10,
+          width: 40, height: 40, padding: 0,
+          color: 'var(--text)', cursor: 'pointer',
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        }}
       >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
           <path d="M13.73 21a2 2 0 0 1-3.46 0" />
         </svg>
@@ -231,13 +252,23 @@ export default function NotificationBell() {
 
       {open && (
         <div style={{
-          position: 'absolute', right: 0, top: 'calc(100% + 8px)',
-          width: 360, maxWidth: 'calc(100vw - 32px)',
+          // On phones, anchor the panel to the right edge of the screen
+          // and let it span the full viewport width (minus 8 px gutters)
+          // so the dropdown isn't squeezed under a 40 px bell button.
+          // The fixed positioning also dodges any ancestor `transform` /
+          // `overflow: hidden` that was clipping the previous absolute
+          // dropdown on narrow viewports.
+          // On desktop, keep the existing 360 px popover anchored to the
+          // bell so the rest of the header isn't redesigned.
+          position: narrow ? 'fixed' : 'absolute',
+          ...(narrow
+            ? { top: 70, right: 8, left: 8, width: 'auto' }
+            : { right: 0, top: 'calc(100% + 8px)', width: 360, maxWidth: 'calc(100vw - 32px)' }),
           background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12,
           // Above Leaflet/OSM map panes (which sit up to z-index ~700–1000) so
           // the dropdown is never painted under the dashboard map.
           boxShadow: '0 12px 36px rgba(0,0,0,0.45)', zIndex: 4000,
-          maxHeight: 480, overflowY: 'auto',
+          maxHeight: narrow ? 'calc(100vh - 88px)' : 480, overflowY: 'auto',
         }}>
           <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
             <strong style={{ fontSize: 13, color: 'var(--text)' }}>Notifications</strong>
