@@ -248,6 +248,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       { href: '/dashboard/work-activities',              label: 'Work Activities',     icon: 'M12 2v20 M2 12h20 M5 5l14 14 M19 5L5 14', module: 'work_activities' },
     ]},
     { label: 'Lead Management', package: 'crm', items: [
+      // Daily mission control — target + near-to-close + next actions
+      // + productivity tips. Mounted above Dashboard so reps land on
+      // their action list, not the analytics widgets.
+      { href: '/dashboard/crm/home',             label: 'Home',           icon: 'M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z M9 22V12h6v10', module: 'crm_dashboard' },
       { href: '/dashboard/crm/dashboard',        label: 'Dashboard',      icon: 'M3 3v18h18 M7 14l4-4 4 4 5-5', module: 'crm_dashboard' },
       { href: '/dashboard/crm/leads',            label: 'Leads',          icon: 'M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 7a4 4 0 100-8 4 4 0 000 8z', module: 'crm_leads' },
       { href: '/dashboard/crm/leads/analytics',  label: 'Lead Analytics', icon: 'M18 20V10 M12 20V4 M6 20v-6', module: 'crm_leads' },

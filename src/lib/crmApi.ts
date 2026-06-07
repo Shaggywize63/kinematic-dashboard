@@ -198,6 +198,54 @@ export interface Leaderboard {
   entries: LeaderboardEntry[];
   role_id?: string | null;
 }
+// ── Home aggregator ─────────────────────────────────────────────────
+// Composes today's target + near-to-close leads + top 3 next-best
+// actions (with reasoning) + today's activity stats + productivity
+// tips into one payload so the Home page is a single round-trip.
+export interface HomeNextAction {
+  lead_id: string;
+  lead_name: string;
+  action: 'call' | 'whatsapp' | 'follow_up' | 'qualify' | 'meeting' | 'create_deal' | 'nurture';
+  label: string;
+  reason: string;
+  urgency: 'high' | 'medium' | 'low';
+  deeplink_path: string;
+  score: number | null;
+  score_grade: string | null;
+}
+export interface HomeNearLead {
+  id: string;
+  name: string;
+  score: number | null;
+  score_grade: string | null;
+  lifecycle_stage: string | null;
+  status: string | null;
+  last_activity_at: string | null;
+  days_since_touch: number | null;
+  reason: string;
+}
+export interface HomePayload {
+  today_target: {
+    has_target: boolean;
+    achieved: number;
+    target: number;
+    progress_pct: number;
+    remaining: number;
+    headline: string;
+  };
+  near_to_close: HomeNearLead[];
+  next_actions: HomeNextAction[];
+  today_activity: {
+    total: number;
+    by_type: Record<string, number>;
+    last_activity_at: string | null;
+  };
+  productivity_tips: string[];
+}
+export const crmHome = {
+  get: () => api.get<Wrapped<HomePayload>>(`${BASE}/home`),
+};
+
 export const crmTargets = {
   get: () => api.get<Wrapped<TargetsState>>(`${BASE}/targets`),
   mine: () => api.get<Wrapped<MyTarget>>(`${BASE}/targets/me`),
