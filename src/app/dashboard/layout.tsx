@@ -200,6 +200,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     return true;
   };
 
+  // Detect the active Tata Tiscon scope so we can hide the Home nav
+  // entry for now. Users pinned to Tata (client_id in JWT) always count;
+  // super-admins viewing-as-Tata via the picker also count, so the
+  // experience is consistent with whichever scope the rep is in.
+  // selectedClientId lives on the ClientProvider context which is
+  // mounted further down the tree, so we read the persisted picker
+  // value off localStorage directly — same key the api client uses.
+  const TATA_TISCON_CLIENT_ID = 'a1f67468-526e-4734-be3a-2cb132cc2804';
+  const userClientId = (user as any)?.client_id as string | undefined;
+  const [pickerClientId, setPickerClientId] = useState<string | null>(null);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try { setPickerClientId(localStorage.getItem('kinematic_selected_client')); }
+    catch { /* ignore — storage disabled */ }
+  }, []);
+  const tataActive = userClientId === TATA_TISCON_CLIENT_ID || pickerClientId === TATA_TISCON_CLIENT_ID;
+
   const filterNav = (items: any[]) => {
     const visibleAfterRole = items.filter((i) => !i.superAdminOnly || isSuperAdmin);
     // Hide demo-only nav items (e.g. the Nurturing module preview) for
@@ -208,8 +225,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const visibleAfterDemo = visibleAfterRole.filter(
       (i) => !i.demoOnly || user?.email === 'demo@kinematic.com'
     );
-    if (isPlatformAdmin) return visibleAfterDemo;
-    return visibleAfterDemo.filter(i => hasModule(i.module));
+    // Tenant-specific hide list. Each item can opt-in via `hiddenForTata`.
+    const visibleAfterTata = visibleAfterDemo.filter((i) => !(i.hiddenForTata && tataActive));
+    if (isPlatformAdmin) return visibleAfterTata;
+    return visibleAfterTata.filter(i => hasModule(i.module));
   };
 
   const isCrmOnlyClient =
@@ -251,7 +270,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       // Daily mission control — target + near-to-close + next actions
       // + productivity tips. Mounted above Dashboard so reps land on
       // their action list, not the analytics widgets.
-      { href: '/dashboard/crm/home',             label: 'Home',           icon: 'M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z M9 22V12h6v10', module: 'crm_dashboard' },
+      // Hidden for Tata Tiscon (a1f67468-…) while the surface is
+      // being tuned for their consumer-only workflow; reachable on
+      // every other tenant. Toggle the `tataHideKeys` filter below.
+      { href: '/dashboard/crm/home',             label: 'Home',           icon: 'M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z M9 22V12h6v10', module: 'crm_dashboard', hiddenForTata: true },
       { href: '/dashboard/crm/dashboard',        label: 'Dashboard',      icon: 'M3 3v18h18 M7 14l4-4 4 4 5-5', module: 'crm_dashboard' },
       { href: '/dashboard/crm/leads',            label: 'Leads',          icon: 'M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 7a4 4 0 100-8 4 4 0 000 8z', module: 'crm_leads' },
       { href: '/dashboard/crm/leads/analytics',  label: 'Lead Analytics', icon: 'M18 20V10 M12 20V4 M6 20v-6', module: 'crm_leads' },

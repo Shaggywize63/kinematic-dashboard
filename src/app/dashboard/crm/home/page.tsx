@@ -13,6 +13,7 @@
  * surfaces sees the same shape everywhere.
  */
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   ArrowUpRight, Bell, CheckCircle2, ChevronRight, Clock, Flame, MessageCircle,
@@ -20,6 +21,13 @@ import {
 } from 'lucide-react';
 import { crmHome, type HomePayload, type HomeNextAction } from '../../../../lib/crmApi';
 import { getStoredUser } from '../../../../lib/auth';
+
+// Belt-and-braces gate: the sidebar already hides this entry for Tata
+// Tiscon users via the `hiddenForTata` flag in layout.tsx, but a direct
+// URL hit / bookmark would still load this page. Redirect Tata-scoped
+// users back to /dashboard/crm so the section is genuinely off for
+// them while the surface is being tuned.
+const TATA_TISCON_CLIENT_ID = 'a1f67468-526e-4734-be3a-2cb132cc2804';
 
 const URGENCY: Record<'high' | 'medium' | 'low', { color: string; bg: string; label: string }> = {
   high:   { color: '#E11D48', bg: 'rgba(225,29,72,0.12)',  label: 'High urgency' },
@@ -62,9 +70,23 @@ function greeting(): string {
 }
 
 export default function CrmHomePage() {
+  const router = useRouter();
   const [data, setData] = useState<HomePayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Redirect Tata-scoped users (pinned via JWT or active picker) back
+  // to the CRM index — matches the sidebar's hiddenForTata gate.
+  useEffect(() => {
+    const u = getStoredUser() as { client_id?: string | null } | null;
+    const userCid = u?.client_id ?? null;
+    const pickerCid = typeof window !== 'undefined'
+      ? (() => { try { return localStorage.getItem('kinematic_selected_client'); } catch { return null; } })()
+      : null;
+    if (userCid === TATA_TISCON_CLIENT_ID || pickerCid === TATA_TISCON_CLIENT_ID) {
+      router.replace('/dashboard/crm');
+    }
+  }, [router]);
 
   const load = async (silent = false) => {
     if (!silent) setLoading(true);
