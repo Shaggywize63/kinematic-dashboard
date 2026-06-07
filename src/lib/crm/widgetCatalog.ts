@@ -38,6 +38,7 @@ export type WidgetType =
   | 'territory_conversion'
   | 'touchpoints_to_response'
   | 'leads_at_risk'
+  | 'leads_geo_heatmap'
   | 'targets_leaderboard'
   | 'custom';
 
@@ -68,6 +69,11 @@ export const WIDGET_CATALOG: WidgetMeta[] = [
   { type: 'territory_conversion', title: 'Territory Conversion', description: 'Conversion rate by state / city. Top 20 territories by lead volume.', category: 'Pipeline', endpoint: '/analytics/territory-conversion', supportedCharts: ['table', 'horizontal-bar'], defaultChart: 'table', defaultSize: { w: 8, h: 5 } },
   { type: 'touchpoints_to_response', title: 'Touchpoints to Response', description: 'Number of outbound touches it takes before a lead responds.', category: 'Engagement', endpoint: '/analytics/touchpoints-to-response', supportedCharts: ['bar', 'horizontal-bar'], defaultChart: 'bar', defaultSize: { w: 6, h: 4 } },
   { type: 'leads_at_risk', title: 'Leads at Risk', description: 'High-score leads with no activity in 14d+ — flagged for pipeline leakage.', category: 'Risk', endpoint: '/analytics/leads-at-risk', supportedCharts: ['table'], defaultChart: 'table', defaultSize: { w: 8, h: 5 } },
+  // Density map over the lead-geo payload — concentrations of captured
+  // leads light up as warm spots, sparser areas read as cool. Reuses
+  // crmLeads.geo() so the data already honours the same tenant + city
+  // scope as the existing LeadsGeoMap.
+  { type: 'leads_geo_heatmap', title: 'Leads Location Heatmap', description: 'Density heatmap of captured leads by lat/lng — at-a-glance read of where the demand is concentrated.', category: 'Pipeline', endpoint: '/leads/geo', supportedCharts: ['heatmap'], defaultChart: 'heatmap', defaultSize: { w: 8, h: 6 } },
   { type: 'targets_leaderboard', title: 'Targets Leaderboard', description: 'Top performer, who needs a nudge, average leads & target attainment — ranked by the chosen hierarchy role (e.g. Consumer Champion).', category: 'Engagement', endpoint: '', supportedCharts: ['table'], defaultChart: 'table', defaultSize: { w: 8, h: 7 } },
 ];
 
