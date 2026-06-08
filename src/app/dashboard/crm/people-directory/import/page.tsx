@@ -88,6 +88,22 @@ function parseCsv(text: string): string[][] {
   return rows;
 }
 
+function downloadTemplate() {
+  const rows = [
+    'first_name,last_name,mobile,email,type,city,address',
+    'Ravi,Kumar,9988776655,ravi@example.com,Dealer,Bhagalpur,"Shop 12, Main Road"',
+    'Priya,Sharma,8877665544,priya@example.com,Architect,Patna,"Flat 3, Building B"',
+  ];
+  const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'people-directory-template.csv';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(a.href);
+}
+
 export default function PeopleDirectoryImportPage() {
   const router = useRouter();
   const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -174,9 +190,13 @@ export default function PeopleDirectoryImportPage() {
 
       {step === 1 && (
         <Card>
-          <h3 style={cardHeader}>Step 1 — Upload CSV</h3>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+            <h3 style={{ ...cardHeader, margin: 0 }}>Step 1 — Upload CSV</h3>
+            <button onClick={downloadTemplate} style={btnSecondary}>Download template</button>
+          </div>
           <div style={{ fontSize: 13, color: 'var(--text-dim)', marginBottom: 12 }}>
-            Pick a file (recommended) or paste rows below. The first row must be the header.
+            Pick a file (recommended) or paste rows below. The first row must be the header.{' '}
+            <span style={{ color: 'var(--text-dim)' }}>Don't have a file? Download the template above to get started.</span>
           </div>
           <input
             type="file"

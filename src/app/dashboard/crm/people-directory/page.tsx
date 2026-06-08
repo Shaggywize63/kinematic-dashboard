@@ -26,6 +26,22 @@ import {
 
 type Row = PeopleDirectoryEntry & { id: string };
 
+function downloadTemplate() {
+  const rows = [
+    'first_name,last_name,mobile,email,type,city,address',
+    'Ravi,Kumar,9988776655,ravi@example.com,Dealer,Bhagalpur,"Shop 12, Main Road"',
+    'Priya,Sharma,8877665544,priya@example.com,Architect,Patna,"Flat 3, Building B"',
+  ];
+  const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'people-directory-template.csv';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(a.href);
+}
+
 export default function PeopleDirectoryPage() {
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
@@ -172,6 +188,7 @@ export default function PeopleDirectoryPage() {
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <button onClick={handleExport} style={btnSecondary}>Export CSV</button>
+          <button onClick={downloadTemplate} style={btnSecondary}>Download template</button>
           <Link
             href="/dashboard/crm/people-directory/import"
             style={btnSecondary}
