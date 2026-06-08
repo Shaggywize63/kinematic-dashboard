@@ -20,12 +20,14 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { crmPeopleDirectory } from '../../../../../lib/crmApi';
 
-type DirField = 'first_name' | 'last_name' | 'mobile' | 'email' | 'address';
+type DirField = 'first_name' | 'last_name' | 'mobile' | 'email' | 'address' | 'type' | 'city';
 const DIR_FIELDS: { key: DirField; label: string; hint?: string }[] = [
   { key: 'first_name', label: 'First name' },
   { key: 'last_name',  label: 'Last name' },
   { key: 'mobile',     label: 'Mobile',  hint: 'Used for duplicate detection' },
   { key: 'email',      label: 'Email',   hint: 'Used for duplicate detection' },
+  { key: 'type',       label: 'Type',    hint: 'Dealer / Engineer / Architect / …' },
+  { key: 'city',       label: 'City' },
   { key: 'address',    label: 'Address' },
 ];
 
@@ -38,11 +40,13 @@ const SYNONYMS: Record<DirField, string[]> = {
   mobile:     ['mobile', 'mobilenumber', 'mob', 'phone', 'phonenumber', 'contact', 'contactnumber', 'whatsapp'],
   email:      ['email', 'emailaddress', 'mail', 'emailid'],
   address:    ['address', 'addressline', 'addr', 'street', 'location'],
+  type:       ['type', 'role', 'category', 'designation', 'profession'],
+  city:       ['city', 'town', 'cityname', 'locationcity'],
 };
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
 function autoMap(headers: string[]): Record<DirField, string | null> {
   const out: Record<DirField, string | null> = {
-    first_name: null, last_name: null, mobile: null, email: null, address: null,
+    first_name: null, last_name: null, mobile: null, email: null, address: null, type: null, city: null,
   };
   for (const field of Object.keys(SYNONYMS) as DirField[]) {
     const syns = new Set(SYNONYMS[field]);
@@ -90,7 +94,7 @@ export default function PeopleDirectoryImportPage() {
   const [rawText, setRawText] = useState('');
   const [parsed, setParsed] = useState<{ headers: string[]; rows: string[][] } | null>(null);
   const [mapping, setMapping] = useState<Record<DirField, string | null>>({
-    first_name: null, last_name: null, mobile: null, email: null, address: null,
+    first_name: null, last_name: null, mobile: null, email: null, address: null, type: null, city: null,
   });
   const [onDuplicate, setOnDuplicate] = useState<'skip' | 'update'>('skip');
   const [busy, setBusy] = useState(false);
@@ -123,6 +127,8 @@ export default function PeopleDirectoryImportPage() {
       mobile:     idx(mapping.mobile),
       email:      idx(mapping.email),
       address:    idx(mapping.address),
+      type:       idx(mapping.type),
+      city:       idx(mapping.city),
     };
     return parsed.rows
       .map((row) => ({
@@ -131,6 +137,8 @@ export default function PeopleDirectoryImportPage() {
         mobile:     cols.mobile     >= 0 ? row[cols.mobile]?.trim()     || null : null,
         email:      cols.email      >= 0 ? row[cols.email]?.trim()      || null : null,
         address:    cols.address    >= 0 ? row[cols.address]?.trim()    || null : null,
+        type:       cols.type       >= 0 ? row[cols.type]?.trim()       || null : null,
+        city:       cols.city       >= 0 ? row[cols.city]?.trim()       || null : null,
       }))
       .filter((r) => r.first_name || r.last_name || r.mobile || r.email);
   }, [parsed, mapping]);
@@ -321,15 +329,17 @@ function Preview({ rows }: { rows: Array<Record<string, string | null>> }) {
       <div style={{ background: 'var(--s1)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
           <thead><tr style={{ background: 'var(--s3)' }}>
-            <th style={previewTh}>First</th><th style={previewTh}>Last</th><th style={previewTh}>Mobile</th><th style={previewTh}>Email</th><th style={previewTh}>Address</th>
+            <th style={previewTh}>First</th><th style={previewTh}>Last</th><th style={previewTh}>Type</th><th style={previewTh}>Mobile</th><th style={previewTh}>Email</th><th style={previewTh}>City</th><th style={previewTh}>Address</th>
           </tr></thead>
           <tbody>
             {rows.map((r, i) => (
               <tr key={i} style={{ borderTop: '1px solid var(--border)' }}>
                 <td style={previewTd}>{r.first_name || '—'}</td>
                 <td style={previewTd}>{r.last_name || '—'}</td>
+                <td style={previewTd}>{r.type || '—'}</td>
                 <td style={previewTd}>{r.mobile || '—'}</td>
                 <td style={previewTd}>{r.email || '—'}</td>
+                <td style={previewTd}>{r.city || '—'}</td>
                 <td style={previewTd}>{r.address || '—'}</td>
               </tr>
             ))}

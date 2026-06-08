@@ -17,7 +17,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { crmPeopleDirectory, type PeopleDirectoryEntry } from '../../../../lib/crmApi';
+import { API_BASE_URL } from '../../../../lib/api';
+import { getStoredToken } from '../../../../lib/auth';
+import {
+  crmPeopleDirectory, crmPeopleDirectoryTypes,
+  type PeopleDirectoryEntry, type PeopleDirectoryType,
+} from '../../../../lib/crmApi';
 
 type Row = PeopleDirectoryEntry & { id: string };
 
@@ -25,12 +30,30 @@ export default function PeopleDirectoryPage() {
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [typeFilter, setTypeFilter] = useState<string>(''); // empty = all types
   const [editing, setEditing] = useState<Partial<Row> | null>(null);
+  // Admin-managed catalogue of role labels (Dealer / Engineer / Architect / …).
+  // Loaded once on mount + refreshed after an inline add so the dropdown in
+  // the create / edit modal always reflects the live list.
+  const [types, setTypes] = useState<PeopleDirectoryType[]>([]);
+
+  const loadTypes = async () => {
+    try {
+      const r = await crmPeopleDirectoryTypes.list({ limit: 200 });
+      setTypes(((r.data as PeopleDirectoryType[]) || []).filter((t) => t.is_active !== false));
+    } catch { setTypes([]); }
+  };
 
   const refresh = async () => {
     setLoading(true);
     try {
-      const r = await crmPeopleDirectory.list({ q: search.trim() || undefined, limit: 200 });
+      // The generic crud helper applies any non-reserved query key as
+      // `.eq(...)`, so passing `type` here narrows the server-side scan
+      // rather than us filtering in memory.
+      const params: Record<string, string | number | undefined> = { limit: 200 };
+      const s = search.trim(); if (s) params.q = s;
+      if (typeFilter) params.type = typeFilter;
+      const r = await crmPeopleDirectory.list(params);
       setRows(((r.data as Row[]) || []).filter((x) => !!x.id));
     } catch (err: any) {
       toast.error(err?.message || 'Failed to load People Directory');
@@ -39,13 +62,16 @@ export default function PeopleDirectoryPage() {
     }
   };
 
-  useEffect(() => { refresh(); /* eslint-disable-next-line */ }, []);
+  useEffect(() => { refresh(); loadTypes(); /* eslint-disable-next-line */ }, []);
   // Debounce search so each keystroke doesn't fire a new request.
+  // Refire on type-filter change too — without it the dropdown only takes
+  // effect after the next keystroke / re-render (the bug pattern flagged
+  // in CLAUDE.md).
   useEffect(() => {
     const t = setTimeout(() => { refresh(); }, 300);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search]);
+  }, [search, typeFilter]);
 
   const totalLabel = useMemo(
     () => loading ? 'Loading…' : `${rows.length} ${rows.length === 1 ? 'person' : 'people'}`,
@@ -60,6 +86,8 @@ export default function PeopleDirectoryPage() {
       mobile:     editing.mobile?.trim()     || null,
       email:      editing.email?.trim()      || null,
       address:    editing.address?.trim()    || null,
+      type:       editing.type?.trim()       || null,
+      city:       editing.city?.trim()       || null,
     };
     if (!body.first_name && !body.last_name && !body.mobile && !body.email) {
       toast.error('Provide at least a name, mobile, or email');
@@ -77,6 +105,48 @@ export default function PeopleDirectoryPage() {
       refresh();
     } catch (err: any) {
       toast.error(err?.message || 'Save failed');
+    }
+  };
+
+  // Inline "+ Add new type" handler — POSTs the new label, then refetches
+  // the catalogue and pre-selects it on the currently editing row so the
+  // admin can keep typing without losing context.
+  const addType = async (name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    try {
+      const r = await crmPeopleDirectoryTypes.create({ name: trimmed });
+      const created = (r.data as PeopleDirectoryType | undefined)?.name ?? trimmed;
+      await loadTypes();
+      setEditing((cur) => cur ? { ...cur, type: created } : cur);
+      toast.success(`Added type "${created}"`);
+    } catch (err: any) {
+      toast.error(err?.message || 'Could not add type');
+    }
+  };
+
+  // CSV export — same client + filter scope as the list endpoint. We
+  // fetch via the bearer token rather than using window.open, because
+  // /api/v1 sits behind a Bearer auth gate so opening the URL plainly
+  // returns 401. Stream the response into a blob and trigger a download.
+  const handleExport = async () => {
+    try {
+      const token = getStoredToken();
+      const qs = new URLSearchParams();
+      const s = search.trim(); if (s) qs.set('q', s);
+      if (typeFilter) qs.set('type', typeFilter);
+      const url = `${API_BASE_URL}${crmPeopleDirectory.exportUrl()}${qs.toString() ? `?${qs.toString()}` : ''}`;
+      const res = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+      if (!res.ok) throw new Error(`Export failed (${res.status})`);
+      const blob = await res.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `people-directory-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a); a.click();
+      a.remove();
+      URL.revokeObjectURL(a.href);
+    } catch (err: any) {
+      toast.error(err?.message || 'Export failed');
     }
   };
 
@@ -101,6 +171,7 @@ export default function PeopleDirectoryPage() {
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <button onClick={handleExport} style={btnSecondary}>Export CSV</button>
           <Link
             href="/dashboard/crm/people-directory/import"
             style={btnSecondary}
@@ -112,18 +183,32 @@ export default function PeopleDirectoryPage() {
         </div>
       </header>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search by name, mobile or email"
           style={{
-            flex: 1, maxWidth: 360,
+            flex: 1, minWidth: 220, maxWidth: 360,
             padding: '8px 12px', borderRadius: 8,
             background: 'var(--s2)', border: '1px solid var(--border)',
             color: 'var(--text)', fontSize: 14,
           }}
         />
+        {/* Type filter — narrows by people_directory_types.name. Default
+            "All types" keeps the historical (unfiltered) behaviour. */}
+        <select
+          value={typeFilter}
+          onChange={(e) => setTypeFilter(e.target.value)}
+          style={{
+            padding: '8px 12px', borderRadius: 8,
+            background: 'var(--s2)', border: '1px solid var(--border)',
+            color: 'var(--text)', fontSize: 13,
+          }}
+        >
+          <option value="">All types</option>
+          {types.map((t) => <option key={t.id} value={t.name}>{t.name}</option>)}
+        </select>
         <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>{totalLabel}</span>
       </div>
 
@@ -132,8 +217,10 @@ export default function PeopleDirectoryPage() {
           <thead>
             <tr style={{ background: 'var(--s3)', color: 'var(--text-dim)', textAlign: 'left' }}>
               <th style={thStyle}>Name</th>
+              <th style={thStyle}>Type</th>
               <th style={thStyle}>Mobile</th>
               <th style={thStyle}>Email</th>
+              <th style={thStyle}>City</th>
               <th style={thStyle}>Address</th>
               <th style={{ ...thStyle, width: 110, textAlign: 'right' }}></th>
             </tr>
@@ -141,8 +228,8 @@ export default function PeopleDirectoryPage() {
           <tbody>
             {!loading && rows.length === 0 && (
               <tr>
-                <td colSpan={5} style={{ padding: 36, textAlign: 'center', color: 'var(--text-dim)' }}>
-                  {search.trim()
+                <td colSpan={7} style={{ padding: 36, textAlign: 'center', color: 'var(--text-dim)' }}>
+                  {search.trim() || typeFilter
                     ? 'No matching entries.'
                     : (<>Nothing here yet. Use <strong>Bulk Import</strong> to load a roster from CSV/XLSX, or <strong>+ New Person</strong> to add one.</>)}
                 </td>
@@ -153,9 +240,15 @@ export default function PeopleDirectoryPage() {
               return (
                 <tr key={r.id} style={{ borderTop: '1px solid var(--border)' }}>
                   <td style={tdStyle}>{fullName || <span style={{ color: 'var(--text-dim)' }}>—</span>}</td>
+                  <td style={tdStyle}>
+                    {r.type
+                      ? <span style={typePill}>{r.type}</span>
+                      : <span style={{ color: 'var(--text-dim)' }}>—</span>}
+                  </td>
                   <td style={tdStyle}>{r.mobile || <span style={{ color: 'var(--text-dim)' }}>—</span>}</td>
                   <td style={tdStyle}>{r.email || <span style={{ color: 'var(--text-dim)' }}>—</span>}</td>
-                  <td style={{ ...tdStyle, maxWidth: 320, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  <td style={tdStyle}>{r.city || <span style={{ color: 'var(--text-dim)' }}>—</span>}</td>
+                  <td style={{ ...tdStyle, maxWidth: 260, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {r.address || <span style={{ color: 'var(--text-dim)' }}>—</span>}
                   </td>
                   <td style={{ ...tdStyle, textAlign: 'right' }}>
@@ -183,6 +276,17 @@ export default function PeopleDirectoryPage() {
             </Field>
             <Field label="Email">
               <input type="email" value={editing.email ?? ''} onChange={(e) => setEditing({ ...editing, email: e.target.value })} style={inputStyle} />
+            </Field>
+            <Field label="Type">
+              <TypePicker
+                value={editing.type ?? ''}
+                types={types}
+                onChange={(v) => setEditing({ ...editing, type: v })}
+                onAddNew={addType}
+              />
+            </Field>
+            <Field label="City">
+              <input value={editing.city ?? ''} onChange={(e) => setEditing({ ...editing, city: e.target.value })} style={inputStyle} />
             </Field>
             <div style={{ gridColumn: '1 / -1' }}>
               <Field label="Address">
@@ -237,6 +341,61 @@ function Modal({ children, title, onClose }: { children: React.ReactNode; title:
   );
 }
 
+/**
+ * Type picker — dropdown bound to the per-(org, client) catalog. The
+ * trailing "+ Add new…" item flips the control into a tiny inline input
+ * so the admin doesn't have to leave the create / edit modal just to
+ * seed a new label. Mirrors the inline category-add patterns on the
+ * leads + products forms.
+ */
+function TypePicker({
+  value, types, onChange, onAddNew,
+}: {
+  value: string;
+  types: PeopleDirectoryType[];
+  onChange: (v: string) => void;
+  onAddNew: (name: string) => Promise<void>;
+}) {
+  const [creating, setCreating] = useState(false);
+  const [draft, setDraft] = useState('');
+  if (creating) {
+    return (
+      <div style={{ display: 'flex', gap: 6 }}>
+        <input
+          autoFocus
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder="New type (e.g. Mason)"
+          onKeyDown={async (e) => {
+            if (e.key === 'Enter') { await onAddNew(draft); setDraft(''); setCreating(false); }
+            else if (e.key === 'Escape') { setDraft(''); setCreating(false); }
+          }}
+          style={{ ...inputStyle, flex: 1 }}
+        />
+        <button
+          onClick={async () => { await onAddNew(draft); setDraft(''); setCreating(false); }}
+          style={{ ...btnSecondary, padding: '8px 10px' }}
+        >Add</button>
+        <button onClick={() => { setDraft(''); setCreating(false); }} style={{ ...btnSecondary, padding: '8px 10px' }}>×</button>
+      </div>
+    );
+  }
+  return (
+    <select
+      value={value}
+      onChange={(e) => {
+        if (e.target.value === '__add__') setCreating(true);
+        else onChange(e.target.value);
+      }}
+      style={inputStyle}
+    >
+      <option value="">— Pick a type —</option>
+      {types.map((t) => <option key={t.id} value={t.name}>{t.name}</option>)}
+      <option value="__add__">+ Add new type…</option>
+    </select>
+  );
+}
+
 // Inline styles match the rest of the CRM surfaces — see the project's
 // CLAUDE.md: "Inline styles (no CSS modules)".
 const thStyle: React.CSSProperties = { padding: '10px 12px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.3 };
@@ -245,3 +404,7 @@ const rowBtn: React.CSSProperties = { background: 'transparent', border: 'none',
 const btnPrimary: React.CSSProperties = { padding: '8px 14px', borderRadius: 8, background: 'var(--primary)', color: '#fff', fontWeight: 700, fontSize: 13, border: 'none', cursor: 'pointer' };
 const btnSecondary: React.CSSProperties = { padding: '8px 14px', borderRadius: 8, background: 'transparent', color: 'var(--text)', fontWeight: 600, fontSize: 13, border: '1px solid var(--border)', cursor: 'pointer', textDecoration: 'none' };
 const inputStyle: React.CSSProperties = { width: '100%', padding: '8px 10px', borderRadius: 8, background: 'var(--s2)', border: '1px solid var(--border)', color: 'var(--text)', fontSize: 13 };
+const typePill: React.CSSProperties = {
+  display: 'inline-block', padding: '2px 8px', borderRadius: 50, fontSize: 11, fontWeight: 700,
+  background: 'rgba(225,29,72,0.12)', color: '#E11D48', letterSpacing: 0.3,
+};

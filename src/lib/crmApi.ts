@@ -271,9 +271,9 @@ export const crmAutomations = crud<Automation>(`${BASE}/automations`);
 export const crmCustomFields = crud<CustomField>(`${BASE}/custom-fields`);
 
 // People Directory — per-client address book sitting alongside contacts.
-// Same CRUD shape as the other CRM lookups, plus a /bulk-import POST
-// that mirrors the leads import: the FE maps spreadsheet columns to the
-// 5 directory fields, then sends the mapped rows here in one shot.
+// Same CRUD shape as the other CRM lookups, plus /bulk-import + /export
+// + an adjacent /people-directory-types catalog the admin can extend
+// (Dealer / Engineer / Architect / …) without a code change.
 export interface PeopleDirectoryEntry {
   id?: string;
   first_name?: string | null;
@@ -281,8 +281,17 @@ export interface PeopleDirectoryEntry {
   mobile?: string | null;
   email?: string | null;
   address?: string | null;
+  type?: string | null;
+  city?: string | null;
   created_at?: string;
   updated_at?: string;
+}
+export interface PeopleDirectoryType {
+  id?: string;
+  name: string;
+  is_active?: boolean;
+  position?: number;
+  created_at?: string;
 }
 export const crmPeopleDirectory = {
   ...crud<PeopleDirectoryEntry>(`${BASE}/people-directory`),
@@ -293,7 +302,17 @@ export const crmPeopleDirectory = {
     api.post<Wrapped<{ added: number; updated: number; skipped: number; total: number }>>(
       `${BASE}/people-directory/bulk-import`, body,
     ),
+  // CSV export uses the same scope + filter as the list endpoint and
+  // returns raw text. Resolves via the api client's text-bypass branch
+  // (Content-Type: text/csv), which we surface to the page via
+  // window.open(...) instead.
+  exportUrl: (q?: Record<string, string | undefined>) => {
+    const qs = new URLSearchParams();
+    for (const [k, v] of Object.entries(q || {})) if (v) qs.set(k, v);
+    return `${BASE}/people-directory/export${qs.toString() ? `?${qs.toString()}` : ''}`;
+  },
 };
+export const crmPeopleDirectoryTypes = crud<PeopleDirectoryType>(`${BASE}/people-directory-types`);
 
 // Lookup search — powers the new "linked record" custom-field picker.
 // Returns up to 50 (id, label, raw) tuples from the chosen target
