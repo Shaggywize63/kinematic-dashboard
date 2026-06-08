@@ -59,6 +59,7 @@ export const ALL_MODULES: ModuleEntry[] = [
   { id: 'crm_lead_analytics', l: 'Lead Analytics',   group: 'CRM', package: 'crm' },
   { id: 'crm_leads',          l: 'Leads',            group: 'CRM', package: 'crm' },
   { id: 'crm_contacts',       l: 'Contacts',         group: 'CRM', package: 'crm' },
+  { id: 'crm_people_directory', l: 'People Directory', group: 'CRM', package: 'crm' },
   { id: 'crm_accounts',       l: 'Accounts',         group: 'CRM', package: 'crm' },
   { id: 'crm_deals',          l: 'Deals',            group: 'CRM', package: 'crm' },
   { id: 'crm_pipeline',       l: 'Pipeline',         group: 'CRM', package: 'crm' },
@@ -98,7 +99,8 @@ export const ALL_MODULES: ModuleEntry[] = [
 
   // People (universal subset)
   { id: 'users',      l: 'Manpower',     group: 'People', package: 'people', universal: true },
-  { id: 'broadcast',  l: 'Broadcast',    group: 'People', package: 'people', universal: true },
+  { id: 'broadcast',    l: 'Broadcast',     group: 'People', package: 'people', universal: true },
+  { id: 'notifications', l: 'Notifications', group: 'People', package: 'people', universal: true },
   { id: 'hr',         l: 'HR & Payroll', group: 'People', package: 'people', universal: true },
   { id: 'grievances', l: 'Grievances',   group: 'People', package: 'people', universal: true },
   { id: 'reports',    l: 'Reports',      group: 'People', package: 'people', universal: true },
