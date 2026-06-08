@@ -67,6 +67,56 @@ const LOOKUP_OPS: Array<{ value: string; label: string }> = [
 ];
 type LookupClause = { field: string; op: string; value: string };
 
+// Filterable columns per target table — what the admin can choose as
+// the "column" side of a lookup-filter clause. Curated so internal /
+// audit columns (org_id, deleted_at, created_by, …) don't show in the
+// dropdown; we only surface fields a CRM admin would reasonably want
+// to narrow by. Keep in sync with the backend's per-target search /
+// allowlist in crm.routes.ts /lookup/search.
+const LOOKUP_FIELDS: Record<string, Array<{ value: string; label: string }>> = {
+  crm_leads: [
+    { value: 'status',          label: 'Status (new / working / …)' },
+    { value: 'lifecycle_stage', label: 'Lifecycle stage' },
+    { value: 'score',           label: 'Score (number)' },
+    { value: 'score_grade',     label: 'Score grade (A / B / C / D)' },
+    { value: 'is_b2c',          label: 'Is B2C (true / false)' },
+    { value: 'company',         label: 'Company' },
+    { value: 'industry',        label: 'Industry' },
+    { value: 'city',            label: 'City' },
+    { value: 'state',           label: 'State' },
+    { value: 'country',         label: 'Country' },
+    { value: 'source_id',       label: 'Source (UUID)' },
+    { value: 'owner_id',        label: 'Owner (UUID)' },
+    { value: 'is_converted',    label: 'Converted (true / false)' },
+  ],
+  crm_contacts: [
+    { value: 'account_id',  label: 'Account (UUID)' },
+    { value: 'owner_id',    label: 'Owner (UUID)' },
+    { value: 'city',        label: 'City' },
+    { value: 'state',       label: 'State' },
+    { value: 'country',     label: 'Country' },
+    { value: 'is_b2c',      label: 'Is B2C (true / false)' },
+    { value: 'loyalty_tier', label: 'Loyalty tier' },
+  ],
+  crm_accounts: [
+    { value: 'industry', label: 'Industry' },
+    { value: 'city',     label: 'City' },
+    { value: 'country',  label: 'Country' },
+    { value: 'owner_id', label: 'Owner (UUID)' },
+  ],
+  crm_deals: [
+    { value: 'status',     label: 'Status' },
+    { value: 'stage_id',   label: 'Stage (UUID)' },
+    { value: 'pipeline_id', label: 'Pipeline (UUID)' },
+    { value: 'amount',     label: 'Amount (number)' },
+    { value: 'owner_id',   label: 'Owner (UUID)' },
+  ],
+  people_directory: [
+    { value: 'type', label: 'Type (Dealer / Engineer / …)' },
+    { value: 'city', label: 'City' },
+  ],
+};
+
 // Built-in standard fields for each entity
 type BuiltinField = { key: string; label: string; type: string; required?: boolean };
 
@@ -1183,30 +1233,49 @@ function LookupConfig({
           <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 6 }}>
             Filter (optional) — only records matching <strong>all</strong> of these conditions appear in the picker.
           </div>
-          {filter.map((c, idx) => (
-            <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1fr 130px 1fr auto', gap: 6, marginBottom: 6 }}>
-              <input
-                value={c.field}
-                onChange={(e) => updateRow(idx, { field: e.target.value })}
-                placeholder="Column on the linked object (e.g. status)"
-                style={input}
-              />
-              <select value={c.op} onChange={(e) => updateRow(idx, { op: e.target.value })} style={input}>
-                {LOOKUP_OPS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
-              <input
-                value={c.value}
-                onChange={(e) => updateRow(idx, { value: e.target.value })}
-                placeholder="Value"
-                style={input}
-              />
-              <button
-                onClick={() => removeRow(idx)}
-                title="Remove condition"
-                style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', borderRadius: 6, cursor: 'pointer', padding: '0 10px', fontSize: 13 }}
-              >×</button>
-            </div>
-          ))}
+          {(() => {
+            // Per-target column catalog. If the admin picks a target we
+            // haven't curated yet, fall back to a free-text field so we
+            // never block the form — but keep the warning visible.
+            const cols = LOOKUP_FIELDS[target];
+            return filter.map((c, idx) => (
+              <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1fr 130px 1fr auto', gap: 6, marginBottom: 6 }}>
+                {cols ? (
+                  <select
+                    value={c.field}
+                    onChange={(e) => updateRow(idx, { field: e.target.value })}
+                    style={input}
+                  >
+                    <option value="">— Choose column —</option>
+                    {cols.map((col) => (
+                      <option key={col.value} value={col.value}>{col.label}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    value={c.field}
+                    onChange={(e) => updateRow(idx, { field: e.target.value })}
+                    placeholder="Column on the linked object (e.g. status)"
+                    style={input}
+                  />
+                )}
+                <select value={c.op} onChange={(e) => updateRow(idx, { op: e.target.value })} style={input}>
+                  {LOOKUP_OPS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+                <input
+                  value={c.value}
+                  onChange={(e) => updateRow(idx, { value: e.target.value })}
+                  placeholder="Value"
+                  style={input}
+                />
+                <button
+                  onClick={() => removeRow(idx)}
+                  title="Remove condition"
+                  style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', borderRadius: 6, cursor: 'pointer', padding: '0 10px', fontSize: 13 }}
+                >×</button>
+              </div>
+            ));
+          })()}
           <button
             onClick={addRow}
             style={{ background: 'transparent', border: '1px dashed var(--border)', color: 'var(--primary)', borderRadius: 6, padding: '6px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
