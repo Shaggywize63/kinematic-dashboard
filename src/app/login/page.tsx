@@ -1,7 +1,7 @@
 'use client';
 import { useState, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import api from '../../lib/api';
+import api, { API_BASE_URL } from '../../lib/api';
 import { saveSession, landingRouteFor } from '../../lib/auth';
 
 /**
@@ -112,31 +112,52 @@ export default function LoginPage() {
     if (password.length < 4) { setError('Password must be at least 4 characters.'); return; }
 
     setError(''); setLoading(true);
-    try {
-      const res = await api.login(email, password) as {
-        success: boolean;
-        data: {
-          user: { id: string; name: string; role: string; org_id: string; permissions: string[] };
-          access_token: string;
-          refresh_token?: string;
-          expires_at: number;
+
+    // Retry up to 3 attempts on network errors (covers backend cold starts on Railway).
+    // Credential errors (wrong password, inactive account, etc.) are not retried.
+    let lastErr: unknown;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (attempt > 0) await new Promise(r => setTimeout(r, 1500 * attempt));
+      try {
+        const res = await api.login(email, password) as {
+          success: boolean;
+          data: {
+            user: { id: string; name: string; role: string; org_id: string; permissions: string[] };
+            access_token: string;
+            refresh_token?: string;
+            expires_at: number;
+          };
         };
-      };
-      if (res.success && res.data) {
-        const user = res.data.user as Parameters<typeof saveSession>[0]['user'];
-        saveSession({
-          user,
-          access_token: res.data.access_token,
-          refresh_token: res.data.refresh_token,
-          expires_at: res.data.expires_at ?? Math.floor(Date.now() / 1000) + 86400,
-        });
-        router.push(landingRouteFor(user));
+        if (res.success && res.data) {
+          const user = res.data.user as Parameters<typeof saveSession>[0]['user'];
+          saveSession({
+            user,
+            access_token: res.data.access_token,
+            refresh_token: res.data.refresh_token,
+            expires_at: res.data.expires_at ?? Math.floor(Date.now() / 1000) + 86400,
+          });
+          router.push(landingRouteFor(user));
+        }
+        setLoading(false);
+        return;
+      } catch (err) {
+        const raw = err instanceof Error ? err.message : '';
+        const isNetwork = /Failed to fetch|NetworkError|Load failed/i.test(raw);
+        lastErr = err;
+        if (!isNetwork) break; // credential / server error — don't retry
       }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Login failed. Check your credentials.');
-    } finally {
-      setLoading(false);
     }
+
+    // All attempts exhausted — surface the error.
+    const raw = lastErr instanceof Error ? lastErr.message : '';
+    if (/Failed to fetch|NetworkError|Load failed/i.test(raw)) {
+      // eslint-disable-next-line no-console
+      console.error('[login] could not reach API after retries', API_BASE_URL, raw);
+      setError('Could not reach the server. Check your internet connection and try again, or contact your administrator if the problem persists.');
+    } else {
+      setError(raw || 'Login failed. Check your credentials.');
+    }
+    setLoading(false);
   };
 
   return (
