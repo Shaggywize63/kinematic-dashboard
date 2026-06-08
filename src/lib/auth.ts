@@ -201,7 +201,22 @@ export function landingRouteFor(user?: AuthUser | null): string {
   if (role === 'super_admin' || role === 'admin' || role === 'main_admin' || role === 'platform_admin') {
     return '/dashboard';
   }
+
+  // Package-level check takes precedence over the permissions array: if the client's
+  // enabled_packages includes crm but NOT field_force, this user is on a CRM-only
+  // client and should land on the lead management dashboard regardless of what
+  // 'analytics' appears in their permissions (some roles carry it redundantly).
+  const pkgs: string[] = Array.isArray((user as any).enabled_packages) ? (user as any).enabled_packages : [];
+  if (pkgs.length > 0 && pkgs.includes('crm') && !pkgs.includes('field_force')) {
+    return '/dashboard/crm/dashboard';
+  }
+
   const perms = (user as AuthUser & { permissions?: string[] }).permissions ?? [];
+  // User-permission-level CRM-only check: user has crm permission but not field_force
+  // or analytics. Handles reps on a mixed-module client whose personal role is CRM-only.
+  if (perms.includes('crm') && !perms.includes('field_force') && !perms.includes('analytics')) {
+    return '/dashboard/crm/dashboard';
+  }
   if (perms.includes('analytics')) return '/dashboard';
   if (perms.includes('crm')) return '/dashboard/crm/dashboard';
   if (perms.includes('distribution')) return '/dashboard/distribution';
