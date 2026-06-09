@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { crmCustomFields, crmLookup, type LookupHit } from '../../lib/crmApi';
 import api from '../../lib/api';
@@ -277,12 +277,23 @@ function FieldInput({ field, value, onChange }: { field: CustomField; value: unk
     );
   }
 
-  // ── number / date / datetime / url / email / text fallthrough ────
+  // ── date / datetime — separate path so we can open the native picker
+  //     programmatically. Without this, the bare <input type="date"> only
+  //     opens the calendar when the user taps the tiny calendar icon on
+  //     the right edge — Android Chrome and iOS Safari users tapping the
+  //     middle of the field see "nothing happen" and assume it's a text
+  //     input. Calling showPicker() on every focus/click makes the
+  //     calendar appear from any tap. The optional-chain (?.) handles
+  //     older browsers (Safari <16, Firefox <101) where showPicker isn't
+  //     implemented — the field still works as a normal date input there.
+  if (t === 'date' || t === 'datetime') {
+    return <DateField field={field} value={value} onChange={onChange} kind={t === 'date' ? 'date' : 'datetime-local'} />;
+  }
+
+  // ── number / url / email / text fallthrough ───────────────────────
   const htmlType = (() => {
     switch (t) {
       case 'number':   return 'number';
-      case 'date':     return 'date';
-      case 'datetime': return 'datetime-local';
       case 'url':      return 'url';
       case 'email':    return 'email';
       default:         return 'text';
@@ -304,6 +315,39 @@ function FieldInput({ field, value, onChange }: { field: CustomField; value: unk
           onChange(raw);
         }}
         style={inputStyle}
+      />
+    </Wrap>
+  );
+}
+
+function DateField({
+  field, value, onChange, kind,
+}: {
+  field: CustomField;
+  value: unknown;
+  onChange: (v: unknown) => void;
+  kind: 'date' | 'datetime-local';
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+  // showPicker() is a recent addition (~2022). Wrapped in try/catch
+  // because some browsers throw if you call it when the input is
+  // already focused or hidden — we never want a thrown error here to
+  // block the click.
+  const open = () => { try { ref.current?.showPicker?.(); } catch { /* noop */ } };
+  return (
+    <Wrap field={field}>
+      <input
+        ref={ref}
+        type={kind}
+        value={value == null ? '' : String(value)}
+        onChange={(e) => {
+          const raw = e.target.value;
+          if (raw === '') return onChange(undefined);
+          onChange(raw);
+        }}
+        onClick={open}
+        onFocus={open}
+        style={{ ...inputStyle, cursor: 'pointer' }}
       />
     </Wrap>
   );
