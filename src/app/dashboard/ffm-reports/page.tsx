@@ -18,9 +18,12 @@ import Link from 'next/link';
 
 const REPORTS = [
   {
-    href: '/dashboard/crm/reports/builder',
+    // FFM-scoped builder — picks across Team Roster / Attendance /
+    // Visit Logs / Form Submissions. Distinct from the CRM builder
+    // at /dashboard/crm/reports/builder which only sees CRM entities.
+    href: '/dashboard/ffm-reports/builder',
     title: '🛠 Custom Report Builder',
-    desc: 'Pick entity, fields, filters, grouping, and export to CSV. Works across field-force and CRM data.',
+    desc: 'Build a report across the team roster, attendance punches, visit logs, or submissions — then export to CSV.',
     highlight: true,
   },
   {
