@@ -46,6 +46,10 @@ export const ALL_MODULES: ModuleEntry[] = [
   { id: 'attendance',      l: 'Attendance',       group: 'FieldForce', package: 'field_force' },
   { id: 'analytics',       l: 'Analytics',        group: 'FieldForce', package: 'field_force' },
   { id: 'ffm_analytics',   l: 'FFM Analytics',    group: 'FieldForce', package: 'field_force' },
+  // FFM Reports hub — attendance, visit coverage, hours & idle, route
+  // adherence, leaderboard, etc. Mirrors `crm_reports` for the CRM side.
+  // Surfaced under Field Force in the sidebar.
+  { id: 'ffm_reports',     l: 'FFM Reports',      group: 'FieldForce', package: 'field_force' },
   { id: 'live_tracking',   l: 'Live Tracking',    group: 'FieldForce', package: 'field_force' },
   { id: 'activities',      l: 'Activity Mgmt',    group: 'FieldForce', package: 'field_force' },
   { id: 'planograms',      l: 'Planograms',       group: 'FieldForce', package: 'field_force' },

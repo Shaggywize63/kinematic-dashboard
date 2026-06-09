@@ -506,7 +506,9 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
         joined_date: '2024-01-01',
         created_at: '2024-01-01T00:00:00Z',
         permissions: [],
-        enabled_modules: ['crm','distribution','people','reports','analytics','attendance','live_tracking','wms','manpower','clients'],
+        // ffm_reports = the new Field Force Reports hub at /dashboard/ffm-reports
+        // (parity with crm_reports). Demo account always sees it.
+        enabled_modules: ['crm','distribution','people','reports','analytics','attendance','live_tracking','wms','manpower','clients','ffm_reports'],
         enabled_packages: ['crm','distribution','field_force','business','system','people','audit'],
         location_ping_interval_seconds: 600,
         business_type: 'both',
