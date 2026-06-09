@@ -1,27 +1,38 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { crmContacts, crmSettings } from '../../../../lib/crmApi';
 import type { Contact } from '../../../../types/crm';
-import ContactsTable from '../../../../components/crm/ContactsTable';
+import ContactsTable, { CONTACT_COLUMNS } from '../../../../components/crm/ContactsTable';
+import ViewCustomizer from '../../../../components/crm/shared/ViewCustomizer';
+import { useViewPrefs } from '../../../../lib/crmViewPrefs';
+import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
 
 export default function ContactsListPage() {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState('');
   const [isB2C, setIsB2C] = useState(false);
+  const view = useViewPrefs('contacts');
+  const hiddenSet = useMemo(() => new Set(view.prefs.hidden), [view.prefs.hidden]);
+  // Global CRM date range (header picker). City scope is handled by the
+  // layout remount; the date range is applied here as created_at from/to.
+  const range = useCrmDateRange((s) => ({ from: s.from, to: s.to }));
 
   const reload = async () => {
     setLoading(true);
     try {
-      const r = await crmContacts.list({});
+      const params: Record<string, string> = {};
+      if (range.from) params.from = range.from;
+      if (range.to) params.to = range.to;
+      const r = await crmContacts.list(params);
       setContacts(r.data || []);
     }
     catch (e: any) { toast.error(e.message || 'Failed to load'); } finally { setLoading(false); }
   };
 
-  useEffect(() => { reload(); }, []);
+  useEffect(() => { reload(); /* eslint-disable-next-line */ }, [range.from, range.to]);
 
   useEffect(() => {
     crmSettings.get().then((r) => {
@@ -42,13 +53,26 @@ export default function ContactsListPage() {
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <input placeholder="Search contacts..." value={q} onChange={(e) => setQ(e.target.value)} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13, minWidth: 240 }} />
         </div>
-        <Link href="/dashboard/crm/contacts/import" style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>⬆ Bulk Import</Link>
-        <Link href="/dashboard/crm/contacts/new" style={{ background: 'var(--primary)', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>+ New Contact</Link>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <ViewCustomizer
+            entityLabel="Contacts"
+            columns={CONTACT_COLUMNS as unknown as { key: string; label: string; locked?: boolean }[]}
+            hidden={view.prefs.hidden}
+            mode={view.prefs.mode}
+            onToggle={view.toggleHidden}
+            onSetMode={view.setMode}
+            onReset={view.reset}
+          />
+          <Link href="/dashboard/crm/contacts/import" style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>⬆ Bulk Import</Link>
+          <Link href="/dashboard/crm/contacts/new" style={{ background: 'var(--primary)', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>+ New Contact</Link>
+        </div>
       </div>
       <ContactsTable
         contacts={filtered}
         loading={loading}
         isB2C={isB2C}
+        hiddenColumns={hiddenSet}
+        viewMode={view.prefs.mode}
         onAssign={async (contactId, userId) => {
           await crmContacts.update(contactId, { owner_id: userId } as any);
           toast.success(userId ? 'Contact reassigned' : 'Contact unassigned');

@@ -3,8 +3,9 @@ import { useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { toast } from 'sonner';
 import { crmAnalytics, crmSettings, crmLeads } from '../../../../lib/crmApi';
-import { fmtValue, type DashboardUnit } from '../../../../lib/formatCurrency';
+import { fmtValue, fmtValueCompact, type DashboardUnit } from '../../../../lib/formatCurrency';
 import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
+import { useCityScope } from '../../../../context/CityScopeContext';
 import { useClient } from '../../../../context/ClientContext';
 import StatCard from '../../../../components/crm/shared/StatCard';
 import PinnedOverviewSection from '../../../../components/crm/analytics/PinnedOverviewSection';
@@ -83,9 +84,10 @@ export default function CrmDashboardPage() {
   const [winRate, setWinRate] = useState<WinRatePoint[]>([]);
   const [forecast, setForecast] = useState<ForecastPoint[]>([]);
   const [scoreDist, setScoreDist] = useState<ScoreDistributionPoint[]>([]);
-  const [geoLeads, setGeoLeads] = useState<Array<{ id: string; first_name?: string|null; last_name?: string|null; city?: string|null; state?: string|null; status?: string|null }>>([]);
+  const [geoLeads, setGeoLeads] = useState<Array<{ id: string; first_name?: string|null; last_name?: string|null; city?: string|null; state?: string|null; status?: string|null; latitude?: number|null; longitude?: number|null; score?: number|null; score_grade?: 'A'|'B'|'C'|'D'|null; score_breakdown?: Record<string, unknown>|null }>>([]);
   const [loading, setLoading] = useState(true);
   const range = useCrmDateRange((s) => ({ from: s.from, to: s.to }));
+  const { selectedCity } = useCityScope();
 
   // Customization state
   const [canCustomize, setCanCustomize] = useState(false);
@@ -160,7 +162,7 @@ export default function CrmDashboardPage() {
       try {
         const [r, leadsRes] = await Promise.all([
           crmAnalytics.dashboardComplete(range, unit),
-          crmLeads.list({ limit: 500 }),
+          crmLeads.geo(),
         ]);
         if (cancel) return;
         const d = r.data;
@@ -173,6 +175,8 @@ export default function CrmDashboardPage() {
         setGeoLeads(((leadsRes as any)?.data ?? []).map((l: any) => ({
           id: l.id, first_name: l.first_name, last_name: l.last_name,
           city: l.city, state: l.state, status: l.status,
+          latitude: l.latitude, longitude: l.longitude,
+          score: l.score, score_grade: l.score_grade, score_breakdown: (l as any).score_breakdown ?? null,
         })));
       } catch (e: any) {
         toast.error(e.message || 'Failed to load CRM analytics');
@@ -181,10 +185,22 @@ export default function CrmDashboardPage() {
       }
     })();
     return () => { cancel = true; };
-  }, [range.from, range.to, unit]);
+  }, [range.from, range.to, unit, selectedCity]);
 
   const fmtPct = (n?: number) => `${(Number(n || 0) * 100).toFixed(1)}%`;
-  const fmtMoney = (n?: number) => fmtValue(n ?? 0, unit);
+  // KPI cards render the compact form (₹2.4L / ₹2.4Cr) so big numbers
+  // never overflow the box, with the full Indian-grouped form on the
+  // hover tooltip.
+  const fmtMoney = (n?: number) => fmtValueCompact(n ?? 0, unit);
+  const fmtMoneyFull = (n?: number) => fmtValue(n ?? 0, unit);
+  // Deal volume (kg) → readable string. Tonnes once it's big enough.
+  const fmtVol = (kg?: number) => {
+    const v = kg ?? 0;
+    if (v <= 0) return '';
+    return v >= 1000
+      ? `${(v / 1000).toLocaleString('en-IN', { maximumFractionDigits: 1 })} MT`
+      : `${Math.round(v).toLocaleString('en-IN')} kg`;
+  };
   const revenueTrend = forecast.map((f) => ({ period: f.period, revenue: f.closed }));
 
   const isVisible = (id: WidgetId) => visibleWidgets.has(id);
@@ -255,10 +271,26 @@ export default function CrmDashboardPage() {
 
       {visibleStatCount > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
-          {isVisible('stat_open_pipeline') && <StatCard label="Open Pipeline" value={fmtMoney(summary?.open_deal_value)} hint={`${summary?.open_deals || 0} deals`} loading={loading} />}
-          {isVisible('stat_won') && <StatCard label="Won (window)" value={fmtMoney(summary?.won_revenue_30d)} hint={`${summary?.won_deals_30d || 0} deals`} deltaTone="up" loading={loading} />}
+          {isVisible('stat_open_pipeline') && (
+            // In weight mode the pipeline aggregates kg from deal line items.
+            // When the open deals carry no weighted products the total is a
+            // legitimate 0 — surface a hint so it doesn't read as a broken
+            // metric, and point the user at the fix (add products to deals).
+            unit === 'weight' && !(summary?.open_deal_value)
+              ? <StatCard label="Open Pipeline" value="—" hint={`No weight on ${summary?.open_deals || 0} open deals — add products`} loading={loading} />
+              : <StatCard
+                  label="Open Pipeline"
+                  value={fmtMoney(summary?.open_deal_value)}
+                  valueTitle={fmtMoneyFull(summary?.open_deal_value)}
+                  // Show the total deal volume alongside value (the two are
+                  // the same number in weight mode, so only append in INR mode).
+                  hint={`${summary?.open_deals || 0} deals${unit === 'inr' && fmtVol(summary?.open_deal_volume) ? ` · ${fmtVol(summary?.open_deal_volume)}` : ''}`}
+                  loading={loading}
+                />
+          )}
+          {isVisible('stat_won') && <StatCard label="Won (window)" value={fmtMoney(summary?.won_revenue_30d)} valueTitle={fmtMoneyFull(summary?.won_revenue_30d)} hint={`${summary?.won_deals_30d || 0} deals`} deltaTone="up" loading={loading} />}
           {isVisible('stat_win_rate') && <StatCard label="Win Rate" value={fmtPct(summary?.win_rate_30d)} loading={loading} />}
-          {isVisible('stat_avg_deal') && <StatCard label="Avg Deal Size" value={fmtMoney(summary?.avg_deal_size)} loading={loading} />}
+          {isVisible('stat_avg_deal') && <StatCard label="Avg Deal Size" value={fmtMoney(summary?.avg_deal_size)} valueTitle={fmtMoneyFull(summary?.avg_deal_size)} loading={loading} />}
           {isVisible('stat_sales_cycle') && <StatCard label="Sales Cycle" value={`${Math.round(summary?.avg_sales_cycle_days || 0)}d`} loading={loading} />}
           {isVisible('stat_new_leads') && <StatCard label="New Leads" value={summary?.new_leads_30d || 0} hint={`${summary?.total_leads || 0} total`} loading={loading} />}
           {isVisible('stat_activities') && <StatCard label="Activities (7d)" value={summary?.activities_7d || 0} loading={loading} />}

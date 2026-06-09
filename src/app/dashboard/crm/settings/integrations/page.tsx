@@ -44,9 +44,16 @@ const PROVIDERS: Array<{
   {
     id: 'zoho',
     label: 'Zoho CRM',
-    desc: 'OAuth + 15-min polling. Pulls existing pipeline into Kinematic.',
-    available: false,
-    icon: '🔄',
+    desc: 'Push from Zoho via Workflow → Webhook. Mirrors new / updated Leads into Kinematic.',
+    available: true,
+    icon: '🟠',
+  },
+  {
+    id: 'salesforce',
+    label: 'Salesforce',
+    desc: 'Push from Salesforce via Flow → HTTP Callout (or Outbound Message). One Flow per object.',
+    available: true,
+    icon: '☁️',
   },
 ];
 
@@ -310,16 +317,30 @@ function ConnectModal({
         };
       }
       const r = await crmIntegrations.create(body);
-      // Embed verify_token in the integration's config-derived view so the
-      // success modal can show it back to the admin (we generated it on
-      // the client; backend stored it in config; sending it back here
-      // avoids a second fetch).
+      const integration = (r as any)?.data ?? r;
+      if (!integration || !integration.id) {
+        // Unexpected response shape — surface explicitly so the user
+        // isn't left wondering whether the click did anything.
+        console.error('[integrations.create] unexpected response', r);
+        toast.error('Connection failed — the server returned an unexpected response. Check the browser network tab.');
+        setSubmitting(false);
+        return;
+      }
+      // Carry the verify_token forward so the success modal can show it
+      // back to the admin (we generated it client-side; backend stored
+      // it inside config, but echoing here avoids a second fetch).
       onCreated({
-        ...r.data,
-        config: { ...(r.data.config ?? {}), ...(provider === 'meta_lead_ads' ? { verify_token: verifyToken } : {}) },
+        ...integration,
+        config: { ...(integration.config ?? {}), ...(provider === 'meta_lead_ads' ? { verify_token: verifyToken } : {}) },
       });
     } catch (e: any) {
-      toast.error(e.message || 'Connection failed');
+      // Long-lived toast + console log so the actual error message is
+      // visible. The integrations flow used to fail silently when the
+      // backend returned a 4xx; users saw the modal hang and assumed
+      // "nothing happens".
+      const msg = e?.message || 'Connection failed';
+      console.error('[integrations.create] failed', e);
+      toast.error(msg, { duration: 8000 });
       setSubmitting(false);
     }
   };
@@ -416,12 +437,54 @@ function SuccessModal({ integration, onClose }: { integration: Integration; onCl
   const provider = integration.provider;
   const verifyToken = (integration.config as Record<string, unknown> | undefined)?.verify_token as string | undefined;
 
+  // Test-lead state for the inline preview / live-check step. We POST
+  // a known-good payload to the webhook URL the user just got — same
+  // URL they're about to paste into their site — so they confirm the
+  // round-trip works before embedding anywhere.
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; msg: string; leadId?: string } | null>(null);
+  const sendTestLead = async () => {
+    if (!url) return;
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const payload = {
+        name: 'Test Lead',
+        email: `test+${Date.now()}@kinematic.test`,
+        phone: '9999999999',
+        city: 'Online',
+        notes: 'Test submission from the Kinematic integration wizard',
+        referrer_url: typeof window !== 'undefined' ? window.location.href : '',
+      };
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const j: any = await r.json().catch(() => ({}));
+      if (r.ok && j?.ok !== false) {
+        const leadId = j?.lead_id || j?.data?.lead_id;
+        setTestResult({ ok: true, msg: 'Lead created — check the Leads page in a moment.', leadId });
+        toast.success('Test lead landed in your CRM');
+      } else {
+        setTestResult({ ok: false, msg: j?.error || j?.message || `HTTP ${r.status}` });
+        toast.error('Test failed — see details below');
+      }
+    } catch (e: any) {
+      setTestResult({ ok: false, msg: e?.message || 'Network error' });
+      toast.error('Test failed — see details below');
+    } finally {
+      setTesting(false);
+    }
+  };
+
   const jsSnippet =
     provider === 'web_form'
       ? `<form id="kinematic-lead-form">
-  <input name="name"    placeholder="Name"  required />
-  <input name="email"   placeholder="Email" type="email" />
-  <input name="phone"   placeholder="Phone" type="tel"   required />
+  <input name="name"    placeholder="Name"   required />
+  <input name="email"   placeholder="Email"  type="email" />
+  <input name="phone"   placeholder="Mobile" type="tel" required />
+  <input name="city"    placeholder="City"   required />
   <input name="company" placeholder="Company" />
   <button type="submit">Get a callback</button>
 </form>
@@ -441,10 +504,53 @@ function SuccessModal({ integration, onClose }: { integration: Integration; onCl
 </script>`
       : null;
 
+  // One-line embed — the recommended path. Loads Kinematic's hosted
+  // embed.js which renders a branded, validated, CORS-safe form right
+  // where the host <div> is placed. Customisable via data-attributes.
+  const embedUrl = (() => {
+    try {
+      // Derive the embed.js host from the webhook URL we just got so
+      // multi-tenant deploys (eu.kinematic.com, etc) pick up the right
+      // CDN automatically without any extra config.
+      const u = new URL(url);
+      return `${u.protocol}//${u.host}/embed.js`;
+    } catch { return ''; }
+  })();
+  const embedSnippet =
+    provider === 'web_form' && embedUrl
+      ? `<div data-kinematic-form="${url}"
+     data-title="Get a callback"
+     data-primary-color="#E01E2C"
+     data-fields="name,email,phone,city,message"></div>
+<script src="${embedUrl}" async></script>`
+      : null;
+
+  // Zero-code option: a hosted form on Kinematic's own domain. Derived
+  // from the webhook URL — same id + key, just under /f/<id>. Share by
+  // link, QR code, WhatsApp, email — no website needed. Behind the
+  // scenes the page just embeds the same embed.js loader.
+  const hostedFormUrl = (() => {
+    if (provider !== 'web_form') return '';
+    try {
+      const u = new URL(url);
+      const m = u.pathname.match(/\/webhook\/[^/]+\/([0-9a-f-]+)/i);
+      const integrationId = m ? m[1] : '';
+      const key = u.searchParams.get('key') || '';
+      if (!integrationId || !key) return '';
+      return `${u.protocol}//${u.host}/f/${integrationId}?key=${encodeURIComponent(key)}`;
+    } catch { return ''; }
+  })();
+  const qrUrl = hostedFormUrl
+    ? `https://api.qrserver.com/v1/create-qr-code/?size=180x180&margin=10&data=${encodeURIComponent(hostedFormUrl)}`
+    : '';
+
+  // Includes `city` because city-scoped reps (the default for non-admin
+  // users) won't see leads with a null city — backend filters them out
+  // before the row reaches the leads list.
   const curlSnippet =
     `curl -X POST "${url}" \\
   -H "Content-Type: application/json" \\
-  -d '{"name":"Test Lead","email":"test@example.com","phone":"+919876543210"}'`;
+  -d '{"name":"Test Lead","email":"test@example.com","phone":"+919876543210","city":"Mumbai"}'`;
 
   const copy = (text: string, what: string) => {
     navigator.clipboard.writeText(text).then(
@@ -485,6 +591,35 @@ function SuccessModal({ integration, onClose }: { integration: Integration; onCl
           <li>Click <strong>Send test data</strong> in Google Ads to verify the connection.</li>
         </ol>
       </div>
+    ) : provider === 'zoho' ? (
+      <div style={{
+        background: 'rgba(59, 130, 246, 0.06)', border: '1px solid rgba(59, 130, 246, 0.25)',
+        borderRadius: 8, padding: 12, fontSize: 12, color: 'var(--text)',
+      }}>
+        <div style={{ fontWeight: 700, marginBottom: 8 }}>Wire it up in Zoho CRM:</div>
+        <ol style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7 }}>
+          <li>In Zoho CRM, open <strong>Setup → Automation → Workflow Rules</strong>.</li>
+          <li>Create a new rule on the <strong>Leads</strong> module, triggering on <em>Create</em> (and optionally <em>Edit</em>).</li>
+          <li>In the rule&rsquo;s actions, choose <strong>Webhook</strong> → New.</li>
+          <li>Set Method = <code style={{ background: 'var(--s3)', padding: '1px 4px', borderRadius: 3 }}>POST</code>, paste the <em>Webhook URL</em> below as the URL to Notify.</li>
+          <li>Pick the parameters to send — at minimum <code>First_Name</code>, <code>Last_Name</code>, <code>Email</code>, <code>Phone</code>, <code>Company</code>, <code>City</code>. We map Zoho&rsquo;s standard field names automatically.</li>
+          <li>Save → trigger a test by creating a Lead in Zoho.</li>
+        </ol>
+      </div>
+    ) : provider === 'salesforce' ? (
+      <div style={{
+        background: 'rgba(59, 130, 246, 0.06)', border: '1px solid rgba(59, 130, 246, 0.25)',
+        borderRadius: 8, padding: 12, fontSize: 12, color: 'var(--text)',
+      }}>
+        <div style={{ fontWeight: 700, marginBottom: 8 }}>Wire it up in Salesforce:</div>
+        <ol style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7 }}>
+          <li>Open <strong>Setup → Process Automation → Flows</strong>, create a Record-Triggered Flow on the <strong>Lead</strong> object (Triggered when: A record is created).</li>
+          <li>Add an <strong>HTTP Callout</strong> action (or use the legacy <em>Outbound Message</em> if your edition lacks Callouts).</li>
+          <li>Method = <code style={{ background: 'var(--s3)', padding: '1px 4px', borderRadius: 3 }}>POST</code>, Endpoint = the <em>Webhook URL</em> below, Body = JSON.</li>
+          <li>Include the standard fields: <code>FirstName</code>, <code>LastName</code>, <code>Email</code>, <code>Phone</code>, <code>Company</code>, <code>City</code>, <code>State</code>, <code>LeadSource</code>. Salesforce&rsquo;s native column names map automatically.</li>
+          <li>Save + Activate the flow → trigger by creating a Lead in Salesforce.</li>
+        </ol>
+      </div>
     ) : null;
 
   return (
@@ -522,17 +657,159 @@ function SuccessModal({ integration, onClose }: { integration: Integration; onCl
           </div>
         )}
 
-        {jsSnippet && (
-          <div>
-            <label style={fieldLabel}>Paste-and-go HTML snippet</label>
+        {hostedFormUrl && (
+          <div style={{
+            background: 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.35)',
+            borderRadius: 10, padding: 14,
+          }}>
+            <label style={{ ...fieldLabel, color: 'rgb(59, 130, 246)' }}>
+              ✨ Easiest — share a link, no website needed
+            </label>
+            <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 10, lineHeight: 1.5 }}>
+              Kinematic hosts the form for you. Share the link in WhatsApp, email, or your bio. Or print the QR for a poster / business card.
+              Every submission lands in your CRM with the right tenant scope.
+            </div>
+            <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+              <div style={{ flex: '1 1 220px', minWidth: 0 }}>
+                <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.5, marginBottom: 4 }}>Share link</div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <input value={hostedFormUrl} readOnly style={{ ...input, fontFamily: 'monospace', fontSize: 11 }} />
+                  <button onClick={() => copy(hostedFormUrl, 'Form link')} style={ghostBtn}>Copy</button>
+                </div>
+                <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                  <a
+                    href={hostedFormUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ ...ghostBtn, textDecoration: 'none', textAlign: 'center', flex: 1 }}
+                  >
+                    Open form ↗
+                  </a>
+                  <a
+                    href={`https://wa.me/?text=${encodeURIComponent(hostedFormUrl)}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ ...ghostBtn, textDecoration: 'none', textAlign: 'center', flex: 1 }}
+                  >
+                    Share on WhatsApp
+                  </a>
+                </div>
+              </div>
+              {qrUrl && (
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.5, marginBottom: 4 }}>QR code</div>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={qrUrl} alt="Form QR code" width={140} height={140}
+                       style={{ borderRadius: 8, background: '#fff', padding: 6, border: '1px solid var(--border)' }} />
+                  <div style={{ marginTop: 4 }}>
+                    <a href={qrUrl} download="kinematic-form-qr.png" style={{ fontSize: 11, color: 'var(--text-dim)' }}>Download PNG</a>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {embedSnippet && (
+          <div style={{
+            background: 'rgba(34, 197, 94, 0.06)', border: '1px solid rgba(34, 197, 94, 0.30)',
+            borderRadius: 10, padding: 12,
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <label style={{ ...fieldLabel, marginBottom: 0, color: 'rgb(34, 197, 94)' }}>
+                ✓ Have a website — one-line embed
+              </label>
+              <button onClick={() => copy(embedSnippet, 'Embed snippet')} style={ghostBtn}>Copy</button>
+            </div>
             <textarea
-              value={jsSnippet}
+              value={embedSnippet}
               readOnly
-              rows={14}
+              rows={5}
               style={{ ...input, fontFamily: 'monospace', fontSize: 11, resize: 'vertical' }}
             />
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
-              <button onClick={() => copy(jsSnippet, 'HTML snippet')} style={ghostBtn}>Copy snippet</button>
+            <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 6, lineHeight: 1.5 }}>
+              Drops a branded, validated form on any site. Theme it with{' '}
+              <code style={{ background: 'var(--s3)', padding: '1px 4px', borderRadius: 3 }}>data-primary-color</code>,{' '}
+              <code style={{ background: 'var(--s3)', padding: '1px 4px', borderRadius: 3 }}>data-radius</code>,{' '}
+              <code style={{ background: 'var(--s3)', padding: '1px 4px', borderRadius: 3 }}>data-theme="dark"</code>,{' '}
+              <code style={{ background: 'var(--s3)', padding: '1px 4px', borderRadius: 3 }}>data-fields="name,phone,city"</code>.
+              Phone is auto-validated (10 digits) and email format-checked. Success replaces the form
+              with your custom message; failures show inline.
+            </div>
+          </div>
+        )}
+
+        {jsSnippet && (
+          <details>
+            <summary style={{ ...fieldLabel, cursor: 'pointer', listStyle: 'revert' }}>
+              Advanced — raw HTML snippet
+            </summary>
+            <div style={{ marginTop: 8 }}>
+              <textarea
+                value={jsSnippet}
+                readOnly
+                rows={14}
+                style={{ ...input, fontFamily: 'monospace', fontSize: 11, resize: 'vertical' }}
+              />
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+                <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>
+                  Use this if you can&rsquo;t load a remote script (CSP, air-gapped, etc.). You lose the auto-validation, branded styling, and dynamic success state.
+                </div>
+                <button onClick={() => copy(jsSnippet, 'HTML snippet')} style={ghostBtn}>Copy</button>
+              </div>
+            </div>
+          </details>
+        )}
+
+        {provider !== 'meta_lead_ads' && provider !== 'google_ads' && (
+          <div style={{ background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 10, padding: 12 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <label style={{ ...fieldLabel, marginBottom: 0 }}>Send a test lead</label>
+              <button
+                type="button"
+                onClick={sendTestLead}
+                disabled={testing || !url}
+                style={{ ...primaryBtn, padding: '6px 12px', fontSize: 12, opacity: testing ? 0.6 : 1, cursor: testing ? 'wait' : 'pointer' }}
+              >
+                {testing ? 'Sending…' : '▶ Run test'}
+              </button>
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-dim)', lineHeight: 1.5, marginBottom: testResult ? 10 : 0 }}>
+              Posts a sample lead to the URL above so you can verify the round-trip before pasting the snippet on your site.
+            </div>
+            {testResult && (
+              <div style={{
+                background: testResult.ok ? 'rgba(34, 197, 94, 0.10)' : 'rgba(239, 68, 68, 0.10)',
+                border: `1px solid ${testResult.ok ? 'rgba(34, 197, 94, 0.35)' : 'rgba(239, 68, 68, 0.35)'}`,
+                color: testResult.ok ? 'rgb(34, 197, 94)' : 'rgb(239, 68, 68)',
+                borderRadius: 6, padding: '8px 10px', fontSize: 12, fontWeight: 600,
+              }}>
+                {testResult.ok ? '✓ ' : '✗ '}{testResult.msg}
+                {testResult.ok && (
+                  <Link href="/dashboard/crm/leads" onClick={onClose} style={{ marginLeft: 8, color: 'inherit', textDecoration: 'underline' }}>
+                    Open Leads →
+                  </Link>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {jsSnippet && (
+          <div>
+            <label style={fieldLabel}>Live preview</label>
+            <div style={{
+              background: '#ffffff', color: '#111827', border: '1px solid var(--border)',
+              borderRadius: 8, padding: 14, marginBottom: 8,
+            }}>
+              {/* Render the same snippet inline so admins see exactly what
+                  embedding will look like on their site. The form's submit
+                  posts to the same webhook URL as the production embed —
+                  identical behaviour, no extra wiring. */}
+              <div dangerouslySetInnerHTML={{ __html: jsSnippet }} />
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>
+              This is the same form your visitors will see. Filling it submits to your CRM exactly like the live embed.
             </div>
           </div>
         )}

@@ -28,6 +28,29 @@ const LOST_REASONS = [
   'Stayed with current solution',
   'Missing features',
   'Project cancelled',
+  'Lost on payment terms',
+  'Lost on delivery / lead time',
+  'Lost on quality / spec mismatch',
+  'Internal champion left',
+  'Procurement / vendor not approved',
+  'Wrong contact / no authority',
+  'Duplicate / merged with another deal',
+  'Other',
+];
+
+const WON_REASONS = [
+  'Competitive pricing',
+  'Better product fit',
+  'Strong relationship / trust',
+  'Faster delivery / availability',
+  'Better quality / spec match',
+  'Better payment / credit terms',
+  'Existing vendor expansion',
+  'Referral / word of mouth',
+  'Bundled deal / cross-sell',
+  'Replaced competitor solution',
+  'Superior demo / POC result',
+  'Better support / SLA',
   'Other',
 ];
 
@@ -220,14 +243,15 @@ export default function DealDetailPage() {
 
   const closeDeal = async () => {
     if (!deal) return;
+    if (!closeReason) { toast.error('Pick a reason from the dropdown'); return; }
     setClosing(true);
     try {
+      const finalReason = closeReason === 'Other' ? (closeLostOther.trim() || 'Other') : closeReason;
       if (closeOutcome === 'won') {
-        await crmDeals.win(deal.id, { reason: closeReason || undefined });
+        await crmDeals.win(deal.id, { reason: finalReason });
         toast.success('Deal closed as Won 🎉');
       } else {
-        const lostReason = closeReason === 'Other' ? (closeLostOther || 'Other') : closeReason;
-        await crmDeals.lose(deal.id, { reason: lostReason || undefined });
+        await crmDeals.lose(deal.id, { reason: finalReason });
         toast.success('Deal closed as Lost');
       }
       setCloseOpen(false);
@@ -511,7 +535,7 @@ export default function DealDetailPage() {
           </button>
           <SafeRender label="next best action">
             <div style={{ position: 'relative' }}>
-              <NextBestActionCard action={nba} onLoad={loadNba} loading={nbaBusy} />
+              <NextBestActionCard action={nba} onLoad={loadNba} loading={nbaBusy} dealId={id} />
               {nbaBusy && !nba && (
                 <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <LogoSpinner size={40} label="Computing…" />
@@ -559,10 +583,16 @@ export default function DealDetailPage() {
                 )}
               </div>
             ) : (
-              <label style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 14 }}>
-                <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>Win Reason (optional)</span>
-                <input value={closeReason} onChange={(e) => setCloseReason(e.target.value)} placeholder="e.g. Competitive pricing, great demo, referral…" style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 }} />
-              </label>
+              <div style={{ marginBottom: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>Win Reason <span style={{ color: '#ef4444' }}>*</span></span>
+                <select value={closeReason} onChange={(e) => { setCloseReason(e.target.value); setCloseLostOther(''); }} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 }}>
+                  <option value="">— Select a reason —</option>
+                  {WON_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
+                </select>
+                {closeReason === 'Other' && (
+                  <input value={closeLostOther} onChange={(e) => setCloseLostOther(e.target.value)} placeholder="Describe the reason…" style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 }} />
+                )}
+              </div>
             )}
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button onClick={() => setCloseOpen(false)} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontSize: 13 }}>Cancel</button>

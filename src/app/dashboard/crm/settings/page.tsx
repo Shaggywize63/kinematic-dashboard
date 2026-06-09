@@ -3,22 +3,24 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { crmSettings } from '../../../../lib/crmApi';
+import api from '../../../../lib/api';
 import { rolesApi, type OrgRole } from '../../../../lib/rolesApi';
 import type { BusinessType } from '../../../../types/crm';
 
 const SECTIONS = [
-  { href: '/dashboard/crm/settings/users', title: 'Team Members', desc: 'Create CRM users scoped to the active client. Synced with global Settings → Users.' },
-  { href: '/dashboard/crm/settings/locations', title: 'States & Cities', desc: 'Centralised location list used by forms and filters.' },
-  { href: '/dashboard/crm/settings/pipelines', title: 'Pipelines', desc: 'Configure deal pipelines.' },
-  { href: '/dashboard/crm/settings/stages', title: 'Stages', desc: 'Manage stages within pipelines.' },
-  { href: '/dashboard/crm/settings/sources', title: 'Lead Sources', desc: 'Where your leads come from.' },
-  { href: '/dashboard/crm/settings/activity-types', title: 'Activity Types', desc: 'Configure the call/meeting/email/task types reps can log.' },
-  { href: '/dashboard/crm/settings/integrations', title: 'Integrations', desc: 'Connect web forms, Facebook, Google Ads, Zoho. Cross-channel dedup baked in.' },
-  { href: '/dashboard/crm/settings/automations', title: 'Automations', desc: 'Trigger-based workflows: assign, notify, create tasks on lead/deal events.' },
-  { href: '/dashboard/crm/settings/assignment-rules', title: 'Assignment Rules', desc: 'Auto-assign new leads.' },
-  { href: '/dashboard/crm/settings/territories', title: 'Territories', desc: 'Sales territory hierarchy.' },
-  { href: '/dashboard/crm/settings/scoring', title: 'Scoring Model', desc: 'Tune the AI lead scoring weights.' },
-  { href: '/dashboard/crm/settings/custom-fields', title: 'Custom Fields', desc: 'Add fields per entity + override built-in field labels and required flags.' },
+  { href: '/dashboard/crm/settings/users', title: 'Team Members', desc: 'Create CRM users scoped to the active client. Synced with global Settings → Users.', icon: '👥' },
+  { href: '/dashboard/crm/settings/locations', title: 'States & Cities', desc: 'Centralised location list used by forms and filters.', icon: '🌍' },
+  { href: '/dashboard/crm/settings/pipelines', title: 'Pipelines', desc: 'Configure deal pipelines.', icon: '🔀' },
+  { href: '/dashboard/crm/settings/stages', title: 'Stages', desc: 'Manage stages within pipelines.', icon: '📊' },
+  { href: '/dashboard/crm/settings/sources', title: 'Lead Sources', desc: 'Where your leads come from.', icon: '🎯' },
+  { href: '/dashboard/crm/settings/activity-types', title: 'Activity Types', desc: 'Configure the call/meeting/email/task types reps can log.', icon: '📞' },
+  { href: '/dashboard/crm/settings/integrations', title: 'Integrations', desc: 'Connect web forms, Facebook, Google Ads, Zoho. Cross-channel dedup baked in.', icon: '🔌' },
+  { href: '/dashboard/crm/settings/automations', title: 'Automations', desc: 'Trigger-based workflows: assign, notify, create tasks on lead/deal events.', icon: '⚡' },
+  { href: '/dashboard/crm/settings/assignment-rules', title: 'Assignment Rules', desc: 'Auto-assign new leads.', icon: '🎲' },
+  { href: '/dashboard/crm/settings/territories', title: 'Territories', desc: 'Sales territory hierarchy.', icon: '🗺️' },
+  { href: '/dashboard/crm/settings/targets', title: 'Targets', desc: 'Set daily lead targets per field executive — or the same for everyone.', icon: '🥅' },
+  { href: '/dashboard/crm/settings/scoring', title: 'Scoring Model', desc: 'Tune the AI lead scoring weights.', icon: '⭐' },
+  { href: '/dashboard/crm/settings/custom-fields', title: 'Custom Fields', desc: 'Add fields per entity + override built-in field labels and required flags.', icon: '🧩' },
 ];
 
 const BUSINESS_OPTIONS: Array<{ value: BusinessType; label: string; desc: string }> = [
@@ -78,6 +80,18 @@ export default function SettingsIndex() {
   const [defaultRoleId, setDefaultRoleId] = useState<string>('');
   const [roles, setRoles] = useState<OrgRole[]>([]);
   const [savingRole, setSavingRole] = useState(false);
+  // The Hierarchy card is gated by a client-level feature flag — fetch
+  // it once and only render the card when the active client has opted
+  // in (Tata Tiscon won't, so they never see it).
+  const [hierarchyEnabled, setHierarchyEnabled] = useState(false);
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await api.get<any>('/api/v1/crm/hierarchy/enabled');
+        setHierarchyEnabled((r?.data?.enabled ?? r?.enabled) === true);
+      } catch { /* probe failure → leave hidden */ }
+    })();
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -243,11 +257,28 @@ export default function SettingsIndex() {
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12 }}>
         {SECTIONS.map((s) => (
-          <Link key={s.href} href={s.href} style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, padding: 16, textDecoration: 'none' }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>{s.title}</div>
-            <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>{s.desc}</div>
+          <Link key={s.href} href={s.href} style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, padding: 16, textDecoration: 'none', display: 'flex', gap: 12 }}>
+            <div style={{ fontSize: 22, lineHeight: 1, flexShrink: 0 }} aria-hidden>{s.icon}</div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>{s.title}</div>
+              <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>{s.desc}</div>
+            </div>
           </Link>
         ))}
+        {hierarchyEnabled && (
+          <Link
+            href="/dashboard/crm/settings/hierarchy"
+            style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, padding: 16, textDecoration: 'none', display: 'flex', gap: 12 }}
+          >
+            <div style={{ fontSize: 22, lineHeight: 1, flexShrink: 0 }} aria-hidden>🏢</div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>Org Hierarchy</div>
+              <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>
+                Define management levels and assign users + supervisors. Replaces role-based scoping for opted-in clients.
+              </div>
+            </div>
+          </Link>
+        )}
       </div>
     </div>
   );

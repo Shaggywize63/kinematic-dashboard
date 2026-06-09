@@ -6,6 +6,7 @@ import { crmPipelines, crmDeals } from '../../../../lib/crmApi';
 import type { Pipeline, Deal } from '../../../../types/crm';
 import PipelineCreateModal from '../../../../components/crm/PipelineCreateModal';
 import { formatINR } from '../../../../lib/formatCurrency';
+import { getStoredUser, userHasModule } from '../../../../lib/auth';
 
 /**
  * Pipeline section, records-list view.
@@ -24,6 +25,10 @@ export default function PipelinePage() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [busyDefault, setBusyDefault] = useState<string | null>(null);
+  // Only roles entitled to CRM Settings see the deep-links into the stage
+  // editor — Consumer Champions etc. should not be routed into a page they
+  // can't access (the backend would 403 anyway).
+  const canEditStages = userHasModule(getStoredUser(), 'crm_settings');
 
   const reload = async () => {
     setLoading(true);
@@ -153,7 +158,9 @@ export default function PipelinePage() {
                         {busyDefault === p.id ? 'Saving…' : 'Make default'}
                       </button>
                     )}
-                    <Link href={`/dashboard/crm/settings/stages?pipeline_id=${p.id}`} style={chip('var(--text-dim)')}>Edit stages</Link>
+                    {canEditStages && (
+                      <Link href={`/dashboard/crm/settings/stages?pipeline_id=${p.id}`} style={chip('var(--text-dim)')}>Edit stages</Link>
+                    )}
                     <button onClick={() => deletePipeline(p)} style={chip('#ef4444')}>Delete</button>
                   </div>
                 </div>
@@ -161,7 +168,10 @@ export default function PipelinePage() {
                   <div style={{ borderTop: '1px solid var(--border)', padding: 14, background: 'var(--s1)' }}>
                     {stages.length === 0 ? (
                       <div style={{ fontSize: 13, color: 'var(--text-dim)' }}>
-                        No stages in this pipeline yet. <Link href={`/dashboard/crm/settings/stages?pipeline_id=${p.id}`} style={{ color: 'var(--primary)' }}>Add stages →</Link>
+                        No stages in this pipeline yet.
+                        {canEditStages && (
+                          <> <Link href={`/dashboard/crm/settings/stages?pipeline_id=${p.id}`} style={{ color: 'var(--primary)' }}>Add stages →</Link></>
+                        )}
                       </div>
                     ) : (
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8 }}>

@@ -9,6 +9,7 @@ import type { Lead, Activity, Deal, LeadScore, NextBestAction } from '../../../.
 import LeadScoreBreakdown from '../../../../../components/crm/LeadScoreBreakdown';
 import NextBestActionCard from '../../../../../components/crm/NextBestActionCard';
 import ActivityTimeline from '../../../../../components/crm/ActivityTimeline';
+import LeadUpdatesTimeline from '../../../../../components/crm/LeadUpdatesTimeline';
 import Breadcrumbs from '../../../../../components/crm/shared/Breadcrumbs';
 import LeadConvertModal from '../../../../../components/crm/LeadConvertModal';
 import LeadDisqualifyModal, { type LeadDisqualifyOutcome } from '../../../../../components/crm/LeadDisqualifyModal';
@@ -17,6 +18,7 @@ import OwnerAvatar from '../../../../../components/crm/shared/OwnerAvatar';
 import WhatsAppButton from '../../../../../components/crm/shared/WhatsAppButton';
 import CallButton from '../../../../../components/crm/shared/CallButton';
 import LeadEditModal from '../../../../../components/crm/LeadEditModal';
+import ScoreBoostSuggestions from '../../../../../components/crm/ScoreBoostSuggestions';
 import { formatINR } from '../../../../../lib/formatCurrency';
 
 type UserOption = { id: string; name: string };
@@ -35,7 +37,11 @@ export default function LeadDetailPage() {
   const id = params?.id as string;
   const [lead, setLead] = useState<LifecycleLead | null>(null);
   const [score, setScore] = useState<LeadScore | null>(null);
-  const [nba] = useState<NextBestAction | null>(null);
+  // NBA is computed lazily — the card's "Suggest" button calls loadNba()
+  // below to POST to /crm/ai/next-best-action/lead/:id. The 6h server-side
+  // cache means repeat clicks within that window are free.
+  const [nba, setNba] = useState<NextBestAction | null>(null);
+  const [nbaLoading, setNbaLoading] = useState(false);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [deals, setDeals] = useState<Deal[]>([]);
   const [loading, setLoading] = useState(true);
@@ -94,6 +100,33 @@ export default function LeadDetailPage() {
       setLead((l) => l ? { ...l, score: r.data.score, score_grade: r.data.grade } : l);
       toast.success(`Lead scored: ${r.data.score} (${r.data.grade})`);
     } catch (e: any) { toast.error(e.message || 'Scoring failed'); } finally { setScoring(false); }
+  };
+
+  // "Boost score" action: mark the lead Qualified, then re-score so the bump
+  // shows immediately.
+  const [qualifying, setQualifying] = useState(false);
+  const markQualified = async () => {
+    if (!id) return;
+    setQualifying(true);
+    try {
+      const r = await crmLeads.update(id, { status: 'qualified' } as any);
+      setLead(r.data as any);
+      toast.success('Lead marked Qualified');
+      await reScore();
+    } catch (e: any) { toast.error(e.message || 'Update failed'); } finally { setQualifying(false); }
+  };
+
+  const loadNba = async () => {
+    if (!id) return;
+    setNbaLoading(true);
+    try {
+      const r = await crmAi.nextBestActionLead(id);
+      setNba(r.data);
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to generate next-best-action');
+    } finally {
+      setNbaLoading(false);
+    }
   };
 
   const handleDelete = async () => {
@@ -311,6 +344,17 @@ export default function LeadDetailPage() {
           </Card>
         )}
 
+        <Card title="Updates">
+          <LeadUpdatesTimeline
+            leadId={id}
+            // Each new update server-side invalidates the lead's NBA cache
+            // AND denormalises onto crm_leads.latest_update*. Re-loading the
+            // lead picks the fresh latest_update so the header field updates
+            // without a full page reload; clearing nba forces a fresh
+            // recommendation next time the user clicks Suggest.
+            onAdded={() => { reload(); setNba(null); }}
+          />
+        </Card>
         <Card title="Activity Timeline"><ActivityTimeline activities={activities} /></Card>
         <AiDraftReplyPanel leadId={id} />
       </div>
@@ -323,7 +367,13 @@ export default function LeadDetailPage() {
           onRefresh={reScore}
           loading={scoring}
         />
-        <NextBestActionCard action={nba} onLoad={async () => {}} />
+        <ScoreBoostSuggestions
+          lead={lead as any}
+          onEdit={() => setEditOpen(true)}
+          onQualify={markQualified}
+          busy={qualifying || scoring}
+        />
+        <NextBestActionCard action={nba} onLoad={loadNba} loading={nbaLoading} leadId={id} />
       </div>
 
       <LeadConvertModal
@@ -346,7 +396,7 @@ export default function LeadDetailPage() {
         lead={lead}
         open={editOpen}
         onClose={() => setEditOpen(false)}
-        onSaved={(updated) => { setLead(updated as LifecycleLead); reload(); }}
+        onSaved={(updated) => { setLead(updated as LifecycleLead); reload(); reScore(); }}
       />
       </div>
     </div>

@@ -38,8 +38,8 @@ export default function WhatsAppPage() {
     const t = setTimeout(async () => {
       try {
         const [lr, cr] = await Promise.allSettled([
-          crmLeads.list({ search: search.trim() }),
-          crmContacts.list({ search: search.trim() }),
+          crmLeads.list({ q: search.trim() }),
+          crmContacts.list({ q: search.trim() }),
         ]);
         const leadList = lr.status === 'fulfilled' ? (lr.value.data || []) : [];
         const contactList = cr.status === 'fulfilled' ? (cr.value.data || []) : [];

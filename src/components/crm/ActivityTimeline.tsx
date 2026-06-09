@@ -76,7 +76,12 @@ export default function ActivityTimeline({ activities, onChange }: Props) {
         return (
           <div key={a.id} style={{ display: 'flex', gap: 12, padding: 12, background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 10, borderLeft: `4px solid ${statusColor}`, position: 'relative' }}>
             <div style={{ fontSize: 18, display: 'flex', alignItems: 'center' }}>
-              {a.type === 'whatsapp' ? <ActivityTypeIcon type="whatsapp" size={20} /> : (ICONS[a.type] || '•')}
+              <ActivityTypeIcon
+                type={a.type}
+                size={22}
+                date={a.due_at || a.completed_at}
+                completed={isCompleted}
+              />
             </div>
             <div style={{ flex: 1 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>

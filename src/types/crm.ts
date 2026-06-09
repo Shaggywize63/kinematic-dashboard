@@ -26,6 +26,9 @@ export interface B2CFields {
   interests?: string[] | null;
   /** Secondary phone numbers — the primary stays in `phone` (lead) / `mobile` (contact). */
   alternate_mobiles?: string[] | null;
+  /** Geo coordinates — captured on add (device GPS / manual) or backfilled in bulk. Plotted on the map. */
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 export interface Lead extends B2CFields {
@@ -243,8 +246,17 @@ export interface CustomField {
     | 'date' | 'datetime'
     | 'select' | 'multiselect' | 'radio'
     | 'url' | 'email' | 'phone'
-    | 'image' | 'file';
+    | 'image' | 'file'
+    | 'lookup';
   options?: string[] | null; required?: boolean; position?: number;
+  // Org roles this field is shown to. Empty/null = all roles (universal).
+  org_role_ids?: string[] | null;
+  // Lookup-only — populated when field_type === 'lookup'. target_table
+  // is the table the picker searches; lookup_filter is the optional
+  // condition list (each clause AND-ed) the admin configured so only
+  // matching rows appear in the picker.
+  target_table?: 'crm_leads' | 'crm_contacts' | 'crm_accounts' | 'crm_deals' | 'people_directory' | null;
+  lookup_filter?: Array<{ field: string; op: string; value: string | number | boolean | null }> | null;
   created_at: string;
 }
 
@@ -357,7 +369,7 @@ export interface WinProbability {
 
 export interface AnalyticsSummary {
   total_leads: number; new_leads_30d: number;
-  open_deals: number; open_deal_value: number;
+  open_deals: number; open_deal_value: number; open_deal_volume?: number;
   won_deals_30d: number; won_revenue_30d: number;
   win_rate_30d: number; avg_deal_size: number;
   avg_sales_cycle_days: number; pipeline_velocity: number;

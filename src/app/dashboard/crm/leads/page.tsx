@@ -7,8 +7,11 @@ import api, { API_BASE_URL } from '../../../../lib/api';
 import { getStoredToken } from '../../../../lib/auth';
 import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
 import type { Lead, LeadSource } from '../../../../types/crm';
-import LeadsTable from '../../../../components/crm/LeadsTable';
+import LeadsTable, { LEAD_COLUMNS } from '../../../../components/crm/LeadsTable';
 import LeadFilters, { type LeadFiltersValue } from '../../../../components/crm/LeadFilters';
+import ViewCustomizer from '../../../../components/crm/shared/ViewCustomizer';
+import BulkCoordinatesModal from '../../../../components/crm/BulkCoordinatesModal';
+import { useViewPrefs } from '../../../../lib/crmViewPrefs';
 
 type UserOption = { id: string; name: string };
 
@@ -21,6 +24,9 @@ export default function LeadsListPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [sources, setSources] = useState<LeadSource[]>([]);
   const [filters, setFilters] = useState<LeadFiltersValue>({});
+  // Debounced copy of the free-text search, sent to the backend so a search
+  // (incl. phone number) finds matches on ANY page — not just the loaded one.
+  const [debouncedQ, setDebouncedQ] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState<UserOption[]>([]);
@@ -28,6 +34,11 @@ export default function LeadsListPage() {
   const [usersLoading, setUsersLoading] = useState(false);
   const [isB2C, setIsB2C] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [showCoordsModal, setShowCoordsModal] = useState(false);
+  // Disables the bulk-delete button + selection while the soft-delete
+  // loop is running so a user can't double-click or change selection
+  // mid-flight. Mirrors the same flag on the deals list page.
+  const [bulkBusy, setBulkBusy] = useState(false);
   // Server-side pagination. `page` is 1-indexed. `pagination` is the
   // metadata returned by the backend (total/totalPages/hasNext/hasPrev)
   // — null while loading and on the very first render before the first
@@ -35,6 +46,11 @@ export default function LeadsListPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
   const [pagination, setPagination] = useState<Pagination | null>(null);
+  // Server-side sort. `recent` (default) keeps the latest-update-first order;
+  // every other key maps to a backend column via ?sort=&order=.
+  const [sort, setSort] = useState<{ key: string; order: 'asc' | 'desc' }>({ key: 'recent', order: 'desc' });
+  const view = useViewPrefs('leads');
+  const hiddenSet = useMemo(() => new Set(view.prefs.hidden), [view.prefs.hidden]);
 
   // CSV download — calls the backend export endpoint with the same
   // server-side filters the list is already using (state/city/district/
@@ -139,6 +155,10 @@ export default function LeadsListPage() {
       if (filters.source)   params.source_id = filters.source;
       if (filters.owner)    params.owner_id  = filters.owner;
       if (filters.grade)    params.score_grade = filters.grade;
+      // Free-text search (name / email / phone / company) — server-side so it
+      // matches across all pages. Debounced to avoid a refetch per keystroke.
+      if (debouncedQ)       params.q          = debouncedQ;
+      if (sort.key !== 'recent') { params.sort = sort.key; params.order = sort.order; }
       const [l, s] = await Promise.allSettled([crmLeads.list(params), crmLeadSources.list()]);
       if (l.status === 'fulfilled') {
         setLeads(l.value.data || []);
@@ -166,12 +186,24 @@ export default function LeadsListPage() {
   // pagination means changing the row-count'd filter set must also
   // reset to page 1, or we'd request page 5 of a 3-page result and
   // get nothing.
+  // Debounce the free-text search into debouncedQ (350ms) so the server
+  // refetch fires once the user pauses typing, not on every keystroke.
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQ((filters.q || '').trim()), 350);
+    return () => clearTimeout(t);
+  }, [filters.q]);
+
   useEffect(() => { reload(); /* eslint-disable-next-line */ }, [
     range.from, range.to,
     filters.state, filters.city, filters.district, filters.block,
     filters.status, filters.source, filters.owner, filters.grade,
-    page, pageSize,
+    debouncedQ,
+    page, pageSize, sort.key, sort.order,
   ]);
+
+  // Load the user list up front so the Owner filter dropdown is populated
+  // (loadUsers also backs the bulk-assign menu; it's a no-op once loaded).
+  useEffect(() => { loadUsers(); /* eslint-disable-next-line */ }, []);
 
   // Reset to page 1 whenever any server-side filter changes. Without
   // this, picking a stricter filter while on page 5 would render an
@@ -180,7 +212,8 @@ export default function LeadsListPage() {
     range.from, range.to,
     filters.state, filters.city, filters.district, filters.block,
     filters.status, filters.source, filters.owner, filters.grade,
-    pageSize,
+    debouncedQ,
+    pageSize, sort.key, sort.order,
   ]);
 
   useEffect(() => {
@@ -206,7 +239,7 @@ export default function LeadsListPage() {
     const q = (filters.q || '').toLowerCase();
     if (!q) return leads;
     return leads.filter((l) =>
-      `${l.full_name || ''} ${l.first_name || ''} ${l.last_name || ''} ${l.email || ''} ${l.company || ''}`.toLowerCase().includes(q)
+      `${l.full_name || ''} ${l.first_name || ''} ${l.last_name || ''} ${l.email || ''} ${l.phone || ''} ${l.company || ''}`.toLowerCase().includes(q)
     );
   }, [leads, filters.q]);
 
@@ -253,6 +286,29 @@ export default function LeadsListPage() {
     } catch (e: any) { toast.error(e.message || 'Bulk assign failed'); }
   };
 
+  // Soft-delete the selected leads. There's no backend bulk endpoint
+  // yet (the deals list page uses the same client-side loop) so we
+  // sequence single DELETEs through crmLeads.remove. Each call sets
+  // deleted_at server-side; rows can be restored from the DB if
+  // needed. Errors are counted, not aborted on, so partial successes
+  // are surfaced honestly in the toast.
+  const bulkDelete = async () => {
+    if (selected.size === 0) return;
+    if (!window.confirm(
+      `Delete ${selected.size} lead${selected.size > 1 ? 's' : ''}? This soft-deletes them — rows can be restored from the database if needed.`,
+    )) return;
+    setBulkBusy(true);
+    let ok = 0, failed = 0;
+    for (const id of Array.from(selected)) {
+      try { await crmLeads.remove(id); ok++; } catch { failed++; }
+    }
+    setBulkBusy(false);
+    setSelected(new Set());
+    if (failed === 0) toast.success(`Deleted ${ok} lead${ok > 1 ? 's' : ''}`);
+    else toast.error(`Deleted ${ok}, ${failed} failed`);
+    reload();
+  };
+
   return (
     <div>
       <div style={{ marginBottom: 14, padding: '12px 16px', background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 10 }}>
@@ -266,10 +322,13 @@ export default function LeadsListPage() {
               (state/city/district/block/status/source/owner/grade).
               `filtered.length` is the subset visible on this page after
               the client-side q (text-search) filter. */}
-          <span style={{ fontSize: 13, color: 'var(--text-dim)' }}>
-            {pagination ? `${pagination.total.toLocaleString()} leads` : `${filtered.length} leads`}
+          <span style={{ fontSize: 13, color: 'var(--text-dim)', display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            {/* Highlighted total — the headline number for the leads page. */}
+            <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--primary)', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 999, padding: '3px 12px', whiteSpace: 'nowrap' }}>
+              {(pagination ? pagination.total : filtered.length).toLocaleString()} leads
+            </span>
             {filters.q && pagination && filtered.length !== leads.length && (
-              <span style={{ marginLeft: 6, color: 'var(--text)' }}>
+              <span style={{ color: 'var(--text)' }}>
                 · {filtered.length} match “{filters.q}” on this page
               </span>
             )}
@@ -284,14 +343,16 @@ export default function LeadsListPage() {
               <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>• {selected.size} selected</span>
               <button
                 onClick={bulkAssignToMe}
-                style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px 12px', borderRadius: 8, fontSize: 12, cursor: 'pointer' }}
+                disabled={bulkBusy}
+                style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px 12px', borderRadius: 8, fontSize: 12, cursor: bulkBusy ? 'not-allowed' : 'pointer', opacity: bulkBusy ? 0.6 : 1 }}
               >
                 Assign to me
               </button>
               <div ref={assignMenuRef} style={{ position: 'relative' }}>
                 <button
                   onClick={() => { setShowAssignMenu((m) => !m); loadUsers(); }}
-                  style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px 12px', borderRadius: 8, fontSize: 12, cursor: 'pointer' }}
+                  disabled={bulkBusy}
+                  style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px 12px', borderRadius: 8, fontSize: 12, cursor: bulkBusy ? 'not-allowed' : 'pointer', opacity: bulkBusy ? 0.6 : 1 }}
                 >
                   Assign to...
                 </button>
@@ -311,10 +372,27 @@ export default function LeadsListPage() {
                   </div>
                 )}
               </div>
+              <button
+                onClick={bulkDelete}
+                disabled={bulkBusy}
+                title="Soft-delete the selected leads"
+                style={{ background: 'transparent', border: '1px solid #dc2626', color: '#dc2626', padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: bulkBusy ? 'not-allowed' : 'pointer', opacity: bulkBusy ? 0.6 : 1 }}
+              >
+                {bulkBusy ? 'Deleting…' : `🗑 Delete ${selected.size}`}
+              </button>
             </>
           )}
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <ViewCustomizer
+            entityLabel="Leads"
+            columns={LEAD_COLUMNS as unknown as { key: string; label: string; locked?: boolean }[]}
+            hidden={view.prefs.hidden}
+            mode={view.prefs.mode}
+            onToggle={view.toggleHidden}
+            onSetMode={view.setMode}
+            onReset={view.reset}
+          />
           <button
             type="button"
             onClick={handleExport}
@@ -325,10 +403,36 @@ export default function LeadsListPage() {
             {exporting ? 'Exporting…' : '⬇ Export CSV'}
           </button>
           <Link href="/dashboard/crm/leads/import" style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600 }}>Import</Link>
+          <button
+            type="button"
+            onClick={() => setShowCoordsModal(true)}
+            title="Bulk-upload latitude/longitude for existing leads"
+            style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+          >📍 Coordinates</button>
           <Link href="/dashboard/crm/leads/new" style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700 }}>+ New Lead</Link>
         </div>
       </div>
-      <LeadFilters value={filters} onChange={setFilters} sources={sources.map((s) => ({ id: s.id, name: s.name }))} />
+      <LeadFilters value={filters} onChange={setFilters} sources={sources.map((s) => ({ id: s.id, name: s.name }))} owners={users} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0 2px' }}>
+        <span style={{ fontSize: 12, color: 'var(--textSec)', fontWeight: 600 }}>Sort by</span>
+        <select
+          value={`${sort.key}:${sort.order}`}
+          onChange={(e) => { const [key, order] = e.target.value.split(':'); setSort({ key, order: order as 'asc' | 'desc' }); }}
+          style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '7px 10px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+        >
+          <option value="recent:desc">Most recent activity</option>
+          <option value="created:desc">Date added (newest)</option>
+          <option value="created:asc">Date added (oldest)</option>
+          <option value="name:asc">Name (A–Z)</option>
+          <option value="name:desc">Name (Z–A)</option>
+          <option value="company:asc">Company (A–Z)</option>
+          <option value="score:desc">Score (high–low)</option>
+          <option value="score:asc">Score (low–high)</option>
+          <option value="updated:desc">Last updated</option>
+          <option value="status:asc">Status</option>
+        </select>
+      </div>
+      <BulkCoordinatesModal open={showCoordsModal} onClose={() => setShowCoordsModal(false)} onDone={() => reload()} />
       <LeadsTable
         leads={filtered}
         selected={selected}
@@ -336,6 +440,8 @@ export default function LeadsListPage() {
         onToggleAll={toggleAll}
         loading={loading}
         isB2C={isB2C}
+        hiddenColumns={hiddenSet}
+        viewMode={view.prefs.mode}
         onAssign={async (leadId, userId) => {
           await crmLeads.update(leadId, { owner_id: userId } as any);
           toast.success(userId ? 'Lead reassigned' : 'Lead unassigned');

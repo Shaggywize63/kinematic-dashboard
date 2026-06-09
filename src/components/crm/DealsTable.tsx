@@ -9,21 +9,46 @@ interface Props {
   deals: Deal[];
   loading?: boolean;
   onAssign?: (dealId: string, userId: string | null) => Promise<void>;
+  onDelete?: (dealId: string) => void | Promise<void>;
   selected?: Set<string>;
   onToggle?: (id: string) => void;
   onToggleAll?: () => void;
+  hiddenColumns?: Set<string>;
+  viewMode?: 'table' | 'cards';
 }
 
-export default function DealsTable({ deals, loading, onAssign, selected, onToggle, onToggleAll }: Props) {
+export const DEAL_COLUMNS = [
+  { key: 'name', label: 'Name', locked: true },
+  { key: 'account', label: 'Account' },
+  { key: 'amount', label: 'Amount' },
+  { key: 'stage', label: 'Stage' },
+  { key: 'status', label: 'Status' },
+  { key: 'close_date', label: 'Close Date' },
+  { key: 'owner', label: 'Owner' },
+] as const;
+
+export default function DealsTable({ deals, loading, onAssign, onDelete, selected, onToggle, onToggleAll, hiddenColumns, viewMode = 'table' }: Props) {
   const td: React.CSSProperties = { padding: '12px 14px', fontSize: 13, color: 'var(--text)', borderBottom: '1px solid var(--border)' };
   const th: React.CSSProperties = { padding: '10px 14px', fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', textAlign: 'left', borderBottom: '1px solid var(--border)', background: 'var(--s2)', fontWeight: 700, letterSpacing: 0.6 };
   const showSelection = !!onToggle && !!selected;
+  const showActions = !!onDelete;
   const allSelected = showSelection && deals.length > 0 && deals.every((d) => selected!.has(d.id));
-  const colCount = (showSelection ? 1 : 0) + 7;
+  const hidden = hiddenColumns ?? new Set<string>();
+  const tableClass = `responsive-cards${viewMode === 'cards' ? ' cards-view' : ''}`;
+
+  let colCount = (showSelection ? 1 : 0) + 1; // name always
+  if (!hidden.has('account'))    colCount += 1;
+  if (!hidden.has('amount'))     colCount += 1;
+  if (!hidden.has('stage'))      colCount += 1;
+  if (!hidden.has('status'))     colCount += 1;
+  if (!hidden.has('close_date')) colCount += 1;
+  if (!hidden.has('owner'))      colCount += 1;
+  if (showActions)               colCount += 1;
+
   return (
     <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, overflow: 'hidden' }}>
       <div style={{ overflowX: 'auto' }}>
-        <table className="responsive-cards" style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <table className={tableClass} style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
               {showSelection && (
@@ -32,12 +57,13 @@ export default function DealsTable({ deals, loading, onAssign, selected, onToggl
                 </th>
               )}
               <th style={th}>Name</th>
-              <th style={th}>Account</th>
-              <th style={th}>Amount</th>
-              <th style={th}>Stage</th>
-              <th style={th}>Status</th>
-              <th style={th}>Close Date</th>
-              <th style={th}>Owner</th>
+              {!hidden.has('account')    && <th style={th}>Account</th>}
+              {!hidden.has('amount')     && <th style={th}>Amount</th>}
+              {!hidden.has('stage')      && <th style={th}>Stage</th>}
+              {!hidden.has('status')     && <th style={th}>Status</th>}
+              {!hidden.has('close_date') && <th style={th}>Close Date</th>}
+              {!hidden.has('owner')      && <th style={th}>Owner</th>}
+              {showActions               && <th style={{ ...th, textAlign: 'right' }}>Action</th>}
             </tr>
           </thead>
           <tbody>
@@ -51,25 +77,42 @@ export default function DealsTable({ deals, loading, onAssign, selected, onToggl
                   </td>
                 )}
                 <td style={td} data-label="Name"><Link href={`/dashboard/crm/deals/${d.id}`} className="km-entity-link" title="Open deal detail">{d.name}</Link></td>
-                <td style={td} data-label="Account">{d.account_id && d.account_name
-                  ? <Link href={`/dashboard/crm/accounts/${d.account_id}`} className="km-entity-link" title="Open account detail">{d.account_name}</Link>
-                  : (d.account_name || '—')}</td>
-                <td style={td} data-label="Amount">{formatINR(d.amount)}</td>
-                <td style={td} data-label="Stage"><StageBadge name={d.stage_name} won={d.status === 'won'} lost={d.status === 'lost'} /></td>
-                <td style={td} data-label="Status"><span style={{ textTransform: 'capitalize' }}>{d.status}</span></td>
-                <td style={td} data-label="Close Date">{d.expected_close_date ? new Date(d.expected_close_date).toLocaleDateString() : '—'}</td>
-                <td style={td} data-label="Owner">
-                  {onAssign ? (
-                    <InlineOwnerAssign
-                      currentOwnerId={d.owner_id}
-                      currentOwnerName={d.owner_name}
-                      onAssign={(uid) => onAssign(d.id, uid)}
-                      recordLabel={d.name}
-                    />
-                  ) : (
-                    <span style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12 }}>{d.owner_name || 'Unassigned'}</span>
-                  )}
-                </td>
+                {!hidden.has('account') && (
+                  <td style={td} data-label="Account">{d.account_id && d.account_name
+                    ? <Link href={`/dashboard/crm/accounts/${d.account_id}`} className="km-entity-link" title="Open account detail">{d.account_name}</Link>
+                    : (d.account_name || '—')}</td>
+                )}
+                {!hidden.has('amount')     && <td style={td} data-label="Amount">{formatINR(d.amount)}</td>}
+                {!hidden.has('stage')      && <td style={td} data-label="Stage"><StageBadge name={d.stage_name} won={d.status === 'won'} lost={d.status === 'lost'} /></td>}
+                {!hidden.has('status')     && <td style={td} data-label="Status"><span style={{ textTransform: 'capitalize' }}>{d.status}</span></td>}
+                {!hidden.has('close_date') && <td style={td} data-label="Close Date">{d.expected_close_date ? new Date(d.expected_close_date).toLocaleDateString() : '—'}</td>}
+                {!hidden.has('owner') && (
+                  <td style={td} data-label="Owner">
+                    {onAssign ? (
+                      <InlineOwnerAssign
+                        currentOwnerId={d.owner_id}
+                        currentOwnerName={d.owner_name}
+                        onAssign={(uid) => onAssign(d.id, uid)}
+                        recordLabel={d.name}
+                      />
+                    ) : (
+                      <span style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12 }}>{d.owner_name || 'Unassigned'}</span>
+                    )}
+                  </td>
+                )}
+                {showActions && (
+                  <td style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap' }} data-label="Action">
+                    <button
+                      type="button"
+                      onClick={() => onDelete!(d.id)}
+                      title="Delete this deal"
+                      aria-label={`Delete ${d.name}`}
+                      style={{ background: 'transparent', border: '1px solid #ef4444', color: '#ef4444', padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+                    >
+                      🗑 Delete
+                    </button>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>

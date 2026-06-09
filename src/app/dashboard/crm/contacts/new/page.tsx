@@ -2,10 +2,12 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { crmContacts, crmSettings } from '../../../../../lib/crmApi';
-import type { BusinessType } from '../../../../../types/crm';
+import { crmContacts, crmSettings, crmAccounts } from '../../../../../lib/crmApi';
+import type { Account, BusinessType } from '../../../../../types/crm';
 import LocationPicker from '../../../../../components/crm/LocationPicker';
 import AlternateMobiles from '../../../../../components/crm/AlternateMobiles';
+import { useAuth } from '../../../../../hooks/useAuth';
+import { isHorizonOrg } from '../../../../../lib/crmFeatureGates';
 
 type Form = {
   first_name: string; last_name: string; email: string; phone: string; title: string;
@@ -16,6 +18,7 @@ type Form = {
   preferred_contact_method: '' | 'email' | 'phone' | 'whatsapp' | 'sms';
   referral_source: string; marketing_consent: boolean; whatsapp_consent: boolean;
   alternate_mobiles: string[];
+  account_id: string;
 };
 
 const empty: Form = {
@@ -24,13 +27,17 @@ const empty: Form = {
   postal_code: '', country: 'India', preferred_contact_method: '',
   referral_source: '', marketing_consent: false, whatsapp_consent: false,
   alternate_mobiles: [],
+  account_id: '',
 };
 
 export default function NewContactPage() {
   const router = useRouter();
+  const { user } = useAuth();
+  const showAccountLink = isHorizonOrg(user?.org_id);
   const [form, setForm] = useState<Form>(empty);
   const [busy, setBusy] = useState(false);
   const [businessType, setBusinessType] = useState<BusinessType>('both');
+  const [accounts, setAccounts] = useState<Account[]>([]);
 
   useEffect(() => {
     (async () => {
@@ -42,6 +49,13 @@ export default function NewContactPage() {
       } catch { /* default */ }
     })();
   }, []);
+
+  // Horizon-only: pull the org's accounts so reps can attach the contact
+  // to a company at create-time. Tata Tiscon keeps the legacy unlinked flow.
+  useEffect(() => {
+    if (!showAccountLink) return;
+    crmAccounts.list({ limit: 500 } as any).then((r) => setAccounts(r.data || [])).catch(() => setAccounts([]));
+  }, [showAccountLink]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,6 +79,10 @@ export default function NewContactPage() {
       };
       if (!form.is_b2c) {
         payload.title = form.title || undefined;
+        // Standard CRM relationship: B2B contacts hang off a company
+        // account. Only sent for Horizon users — Tata Tiscon's form
+        // doesn't expose the picker so account_id stays unset.
+        if (showAccountLink && form.account_id) payload.account_id = form.account_id;
       } else {
         Object.assign(payload, {
           date_of_birth: form.date_of_birth || undefined, gender: form.gender || undefined,
@@ -170,6 +188,19 @@ export default function NewContactPage() {
         <Section title="Work">
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
             {text('title', 'Job Title')}
+            {showAccountLink && (
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>Account</span>
+                <select
+                  value={form.account_id}
+                  onChange={(e) => setForm({ ...form, account_id: e.target.value })}
+                  style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 }}
+                >
+                  <option value="">— No account —</option>
+                  {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                </select>
+              </label>
+            )}
           </div>
         </Section>
       ) : (

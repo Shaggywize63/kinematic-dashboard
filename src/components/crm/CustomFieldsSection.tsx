@@ -1,7 +1,8 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { crmCustomFields } from '../../lib/crmApi';
+import { crmCustomFields, crmLookup, type LookupHit } from '../../lib/crmApi';
+import api from '../../lib/api';
 import { getStoredToken } from '../../lib/auth';
 import { API_BASE_URL } from '../../lib/api';
 import type { CustomField } from '../../types/crm';
@@ -45,11 +46,27 @@ export default function CustomFieldsSection({ entity, values, onChange }: Props)
     let cancel = false;
     (async () => {
       try {
-        const r = await crmCustomFields.list();
+        // Resolve the current user's org role so we can show only the custom
+        // fields targeted at their role (plus universal/untagged fields).
+        const [r, meRes] = await Promise.allSettled([
+          crmCustomFields.list(),
+          api.get<{ data?: { org_role_id?: string | null } }>('/api/v1/auth/me'),
+        ]);
         if (cancel) return;
-        const all = (r.data || []) as CustomField[];
+        const myRoleId = meRes.status === 'fulfilled'
+          ? (((meRes.value as { data?: { org_role_id?: string | null } })?.data?.org_role_id) ?? null)
+          : null;
+        const all = (r.status === 'fulfilled' ? (r.value.data || []) : []) as CustomField[];
         const visible = all
           .filter((f) => f.entity_type === entity)
+          // A field with no org_role_ids is universal; otherwise it must list
+          // the user's role. Admins/users with no resolved role see universal
+          // fields only (role-scoped fields stay with their roles).
+          .filter((f) => {
+            const roles = f.org_role_ids;
+            if (!roles || roles.length === 0) return true;
+            return !!myRoleId && roles.includes(myRoleId);
+          })
           .sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
         setFields(visible);
       } catch {
@@ -244,6 +261,22 @@ function FieldInput({ field, value, onChange }: { field: CustomField; value: unk
     return <FileUploader field={field} value={value} onChange={onChange} />;
   }
 
+  // ── Lookup (linked record) ───────────────────────────────────────
+  // Stores the picked row's UUID in custom_fields[field_key]. The
+  // picker UI calls /api/v1/crm/lookup/search with the field's
+  // configured target_table + lookup_filter so only matching rows
+  // appear. We persist (id, label) together as JSON so the lead detail
+  // page can render the label without an extra round-trip — the
+  // backend doesn't care, it stores the whole blob in the custom_fields
+  // JSONB column.
+  if (t === 'lookup') {
+    return (
+      <Wrap field={field} fullWidth>
+        <LookupField field={field} value={value} onChange={onChange} />
+      </Wrap>
+    );
+  }
+
   // ── number / date / datetime / url / email / text fallthrough ────
   const htmlType = (() => {
     switch (t) {
@@ -373,4 +406,148 @@ function Wrap({ field, children, fullWidth }: { field: CustomField; children: Re
 const inputStyle: React.CSSProperties = {
   background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)',
   padding: '8px 12px', borderRadius: 8, fontSize: 13, width: '100%', boxSizing: 'border-box',
+};
+
+/**
+ * Linked-record picker for the `lookup` custom field type. Behaves like
+ * the picker used elsewhere in the CRM (Lead → Owner, Deal → Stage):
+ * a single-line trigger that opens a searchable dropdown of matching
+ * rows from the target object the admin chose when authoring the field.
+ *
+ * Storage shape on the parent record: `{ id, label, target_table }`
+ * persisted inside the parent's `custom_fields` JSONB. We keep the
+ * label alongside the id so the row reads correctly on the detail
+ * page without a second round-trip to resolve UUIDs.
+ *
+ * Filter and target come from the CustomField definition the admin
+ * configured — see LookupConfig on the custom-fields settings page.
+ */
+function LookupField({
+  field, value, onChange,
+}: {
+  field: CustomField;
+  value: unknown;
+  onChange: (v: unknown) => void;
+}) {
+  const stored = (value && typeof value === 'object'
+    ? value as { id?: string; label?: string; target_table?: string }
+    : null);
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState('');
+  const [hits, setHits] = useState<LookupHit[]>([]);
+  const [loading, setLoading] = useState(false);
+  const target = field.target_table || '';
+
+  useEffect(() => {
+    if (!open || !target) return;
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const r = await crmLookup.search({
+          target,
+          q: q.trim() || undefined,
+          filter: Array.isArray(field.lookup_filter) ? field.lookup_filter : undefined,
+        });
+        if (!cancelled) setHits(r.data || []);
+      } catch {
+        if (!cancelled) setHits([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }, 200);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [open, q, target, field.lookup_filter]);
+
+  if (!target) {
+    return <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>This lookup hasn't been configured yet — set its linked object in CRM Settings → Custom Fields.</div>;
+  }
+
+  const pick = (h: LookupHit) => {
+    onChange({ id: h.id, label: h.label, target_table: target });
+    setOpen(false);
+    setQ('');
+  };
+  const clear = () => onChange(undefined);
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <div
+        onClick={() => setOpen((o) => !o)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          padding: '8px 12px', borderRadius: 8,
+          background: 'var(--s3)', border: '1px solid var(--border)',
+          cursor: 'pointer', fontSize: 13, color: stored?.label ? 'var(--text)' : 'var(--text-dim)',
+        }}
+      >
+        <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {stored?.label || `Pick a ${LOOKUP_TARGET_LABELS[target] || 'record'}`}
+        </span>
+        {stored?.id && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); clear(); }}
+            title="Clear"
+            style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', padding: 0, fontSize: 16, lineHeight: 1 }}
+          >×</button>
+        )}
+        <span style={{ color: 'var(--text-dim)', fontSize: 11 }}>▾</span>
+      </div>
+      {open && (
+        <div
+          style={{
+            position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0,
+            background: 'var(--s1)', border: '1px solid var(--border)', borderRadius: 8,
+            boxShadow: '0 4px 16px rgba(0,0,0,0.2)', zIndex: 50, padding: 8, maxHeight: 320, overflow: 'hidden',
+            display: 'flex', flexDirection: 'column', gap: 6,
+          }}
+        >
+          <input
+            autoFocus
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search…"
+            style={{
+              padding: '6px 10px', borderRadius: 6, background: 'var(--s2)',
+              border: '1px solid var(--border)', color: 'var(--text)', fontSize: 13,
+            }}
+          />
+          <div style={{ overflowY: 'auto', flex: 1 }}>
+            {loading && <div style={{ padding: 8, fontSize: 12, color: 'var(--text-dim)' }}>Searching…</div>}
+            {!loading && hits.length === 0 && (
+              <div style={{ padding: 8, fontSize: 12, color: 'var(--text-dim)' }}>
+                {q.trim() ? 'No matching records.' : 'No records — try typing a name.'}
+              </div>
+            )}
+            {hits.map((h) => (
+              <button
+                key={h.id}
+                type="button"
+                onClick={() => pick(h)}
+                style={{
+                  display: 'block', width: '100%', textAlign: 'left',
+                  padding: '6px 10px', borderRadius: 6, background: 'transparent',
+                  border: 'none', color: 'var(--text)', cursor: 'pointer', fontSize: 13,
+                }}
+                onMouseOver={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--s2)'; }}
+                onMouseOut={(e)  => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
+              >{h.label}</button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Mirrors the catalog on the custom-fields settings page so the
+// picker label reads "Pick a Lead" / "Pick a People Directory entry"
+// instead of a raw table name.
+const LOOKUP_TARGET_LABELS: Record<string, string> = {
+  crm_leads: 'Lead',
+  crm_contacts: 'Contact',
+  crm_accounts: 'Account',
+  crm_deals: 'Deal',
+  people_directory: 'People Directory entry',
 };
