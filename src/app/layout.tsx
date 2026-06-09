@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { cookies } from 'next/headers';
+import { Toaster } from 'sonner';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -104,7 +105,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        {/* Global toast portal. Without this, every `toast.error(...)` /
+            `toast.success(...)` call in the app is a silent no-op — which
+            is why mobile users hitting validation guards (phone length,
+            empty required field, etc.) saw "nothing happen" on submit.
+            position=top-center keeps the toast above the on-screen
+            keyboard; richColors makes errors red and successes green. */}
+        <Toaster position="top-center" richColors closeButton />
+      </body>
     </html>
   );
 }
