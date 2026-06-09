@@ -18,6 +18,7 @@ import OwnerAvatar from '../../../../../components/crm/shared/OwnerAvatar';
 import WhatsAppButton from '../../../../../components/crm/shared/WhatsAppButton';
 import CallButton from '../../../../../components/crm/shared/CallButton';
 import LeadEditModal from '../../../../../components/crm/LeadEditModal';
+import LeadDetailsPanel from '../../../../../components/crm/LeadDetailsPanel';
 import ScoreBoostSuggestions from '../../../../../components/crm/ScoreBoostSuggestions';
 import { formatINR } from '../../../../../lib/formatCurrency';
 
@@ -315,18 +316,12 @@ export default function LeadDetailPage() {
           />
         )}
 
-        {isB2C && (
-          <Card title="Customer Profile">
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 14, fontSize: 13 }}>
-              <Field label="Date of Birth" value={lead.date_of_birth ? new Date(lead.date_of_birth).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' }) : null} />
-              <Field label="Gender" value={lead.gender ? lead.gender.replace(/_/g, ' ') : null} />
-              <Field label="Preferred Channel" value={lead.preferred_contact_method} />
-              <Field label="Marketing Consent" value={lead.marketing_consent ? 'Yes' : 'No'} />
-              <Field label="WhatsApp Consent" value={lead.whatsapp_consent ? 'Yes' : 'No'} />
-              <Field label="Address" value={[lead.address_line1, lead.address_line2, lead.city, lead.state, lead.postal_code, lead.country].filter(Boolean).join(', ') || null} />
-            </div>
-          </Card>
-        )}
+        {/* Comprehensive categorised detail panel — supersedes the old
+            B2C-only Customer Profile card. Renders every lead field
+            grouped by Contact / Business / Personal / Address /
+            Lifecycle / Custom Fields / Consent / System, and hides
+            any group with no populated values. */}
+        <LeadDetailsPanel lead={lead} />
 
         {deals.length > 0 && (
           <Card title={`Deals (${deals.length})`}>
