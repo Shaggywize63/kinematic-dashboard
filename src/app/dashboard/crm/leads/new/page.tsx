@@ -234,10 +234,50 @@ export default function NewLeadPage() {
     }));
   };
 
+  // Scroll the named field into view and focus its input/select so the
+  // user can fix the missing value immediately. On mobile, validation
+  // toasts at the top of the page get missed when the user is at the
+  // bottom looking at the submit button — without this, "Create Lead"
+  // appears to do nothing on a half-filled form.
+  const scrollToField = (id: string) => {
+    if (typeof document === 'undefined') return;
+    const el = document.getElementById(id);
+    if (!el) return;
+    // Wrappers like the city picker use `display: contents` so they have
+    // no box of their own — scrollIntoView on them is a no-op. Scroll
+    // the first focusable child instead (the actual input/select the
+    // user needs to fix), falling back to the wrapper element.
+    const focusable: HTMLElement | null = el.matches('input,select,textarea,button')
+      ? (el as HTMLElement)
+      : el.querySelector('input,select,textarea,button');
+    const scrollTarget: Element = focusable || el;
+    scrollTarget.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    // preventScroll: we already smooth-scrolled; focus() would otherwise
+    // snap-jump on iOS Safari and undo the smooth scroll.
+    try { focusable?.focus({ preventScroll: true }); } catch { focusable?.focus(); }
+  };
+
+  // Single missing-field bailout: toast + scroll-to + focus the offending
+  // field. Returns true so callers can `if (fail(...)) return;` cleanly.
+  const fail = (id: string, message: string) => {
+    toast.error(message);
+    scrollToField(id);
+    return true;
+  };
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (form.phone && form.phone.length !== 10) {
-      return toast.error('Primary mobile must be a 10-digit number');
+    // first_name is required by default — was previously only enforced
+    // by the HTML5 `required` attr, which on mobile shows a tiny native
+    // tooltip the user often misses. Promote it to an explicit JS check
+    // so we can scroll-to-field consistently with the others.
+    if (
+      !fields.isHidden('first_name') &&
+      fields.requiredFor('first_name', true) &&
+      (!form.first_name || !form.first_name.trim())
+    ) {
+      fail('lead-field-first_name', 'First name is required.');
+      return;
     }
     // Skip the field if the admin hid it, OR if they explicitly made it
     // optional for the active business-type scope. The backend's
@@ -250,7 +290,8 @@ export default function NewLeadPage() {
       fields.requiredFor('last_name', true) &&
       (!form.last_name || !form.last_name.trim())
     ) {
-      return toast.error('Last name is required.');
+      fail('lead-field-last_name', 'Last name is required.');
+      return;
     }
     // Phone / email defaults are NOT scope-aware anymore. The form
     // honours whatever the admin sets in Settings → Custom Fields
@@ -265,14 +306,31 @@ export default function NewLeadPage() {
       fields.requiredFor('email', false) &&
       (!form.email || !form.email.trim())
     ) {
-      return toast.error('Email is required.');
+      fail('lead-field-email', 'Email is required.');
+      return;
     }
     if (
       !fields.isHidden('phone') &&
       fields.requiredFor('phone', false) &&
       (!form.phone || !form.phone.trim())
     ) {
-      return toast.error('Primary mobile is required.');
+      fail('lead-field-phone', 'Primary mobile is required.');
+      return;
+    }
+    if (form.phone && form.phone.length !== 10) {
+      fail('lead-field-phone', 'Primary mobile must be a 10-digit number');
+      return;
+    }
+    // B2B-only mandatory field. Was previously enforced via the HTML5
+    // `required` attr on the company input — promote to JS so we can
+    // scroll-to-field on mobile.
+    if (
+      !form.is_b2c &&
+      !fields.isHidden('company') &&
+      (!form.company || !form.company.trim())
+    ) {
+      fail('lead-field-company', 'Company is required for B2B leads.');
+      return;
     }
     // City is required on most leads — without it the per-user city
     // scope filter has nothing to match against and the lead would
@@ -285,12 +343,14 @@ export default function NewLeadPage() {
       fields.requiredFor('city', true) &&
       (!form.city || !form.city.trim())
     ) {
-      return toast.error('City is required — pick from the city dropdown.');
+      fail('lead-field-city', 'City is required — pick from the city dropdown.');
+      return;
     }
     // Location is mandatory and auto-captured — block submit until we have it.
     if (!form.latitude || !form.longitude) {
       captureLocation();
-      return toast.error('Location is required. Allow location access, then tap “Use my current location”.');
+      fail('lead-field-location', 'Location is required. Allow location access, then tap “Use my current location”.');
+      return;
     }
     setBusy(true);
     try {
@@ -350,6 +410,7 @@ export default function NewLeadPage() {
           {effLabel}{effRequired && <span style={{ color: '#ef4444', marginLeft: 3 }}>*</span>}
         </span>
         <input
+          id={`lead-field-${k as string}`}
           type={opts.phone ? 'tel' : (opts.type || 'text')}
           inputMode={opts.phone ? 'numeric' : undefined}
           pattern={opts.phone ? '[0-9]{10}' : undefined}
@@ -373,7 +434,7 @@ export default function NewLeadPage() {
     return (
       <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
         <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>{effLabel}</span>
-        <select value={form[k] as string} onChange={(e) => setForm({ ...form, [k]: e.target.value })} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 }}>
+        <select id={`lead-field-${k as string}`} value={form[k] as string} onChange={(e) => setForm({ ...form, [k]: e.target.value })} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 }}>
           <option value="">—</option>
           {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
@@ -392,7 +453,7 @@ export default function NewLeadPage() {
         : 'Business lead — capture company and decision-maker info.');
 
   return (
-    <form onSubmit={submit} style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 24, maxWidth: 820 }}>
+    <form onSubmit={submit} noValidate style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 24, maxWidth: 820 }}>
       <h2 style={{ marginTop: 0, fontSize: 18, color: 'var(--text)' }}>New Lead</h2>
       <p style={{ margin: '-4px 0 18px', fontSize: 13, color: 'var(--text-dim)' }}>
         {leadTypeLabel}{' '}Fields marked <span style={{ color: '#ef4444' }}>*</span> are required.
@@ -502,7 +563,7 @@ export default function NewLeadPage() {
               filter applies to every lead row regardless of B2B/B2C. */}
           {!fields.isHidden('city') && (
             <Section title="Location">
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
+              <div id="lead-field-city" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
                 <LocationPicker stateValue={form.state} cityValue={form.city} onChange={({ state, city }) => setForm({ ...form, state, city })} required={fields.requiredFor('city', true)} />
               </div>
             </Section>
@@ -535,7 +596,9 @@ export default function NewLeadPage() {
               {/* LocationPicker covers state + city. Hide it when the admin
                   has hidden the city built-in (state alone has no value). */}
               {!fields.isHidden('city') && (
-                <LocationPicker stateValue={form.state} cityValue={form.city} onChange={({ state, city }) => setForm({ ...form, state, city })} required={fields.requiredFor('city', true)} />
+                <div id="lead-field-city" style={{ display: 'contents' }}>
+                  <LocationPicker stateValue={form.state} cityValue={form.city} onChange={({ state, city }) => setForm({ ...form, state, city })} required={fields.requiredFor('city', true)} />
+                </div>
               )}
               {text('postal_code', 'Postal Code')}{text('country', 'Country')}
               <CustomFieldsSection
@@ -561,7 +624,7 @@ export default function NewLeadPage() {
       )}
 
       <Section title="Pin Location (required)">
-        <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 10 }}>
+        <div id="lead-field-location" style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 10 }}>
           The lead is geo-tagged with your current location. This is captured automatically and is required to add a lead.
         </div>
         {form.latitude && form.longitude ? (
