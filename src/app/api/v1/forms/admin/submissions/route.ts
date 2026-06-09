@@ -6,7 +6,7 @@ import { corsHeaders } from '@/lib/cors';
 // working when the env wasn't wired. Now read env first and fall back
 // only if absent — same effective behaviour, no string-literal of the
 // project ref / anon key in the bundle.
-const EDGE_BASE = (process.env.NEXT_PUBLIC_API_URL || 'https://kinematic-production.up.railway.app').replace(/\/$/, '');
+const EDGE_BASE = (process.env.NEXT_PUBLIC_API_URL || 'https://api.kinematicapp.com').replace(/\/$/, '');
 const SUPA_REST = `${(process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://lnvxqjqfsxvtjvbzphou.supabase.co').replace(/\/$/, '')}/rest/v1`;
 const ANON_KEY  = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxudnhxanFmc3h2dGp2YnpwaG91Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIwMzQyMDAsImV4cCI6MjA4NzYxMDIwMH0.D6EPi3BC4d0-bfzttbx5ObP0v0fb6HBYWz5HbmCWkJw';
