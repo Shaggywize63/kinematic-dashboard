@@ -228,6 +228,7 @@ export default function CustomFieldsPage() {
     id: string;
     label: string;
     required: boolean;
+    hidden: boolean;
     field_type: CustomField['field_type'];
     optionsRaw: string;
     org_role_ids: string[];
@@ -406,6 +407,10 @@ export default function CustomFieldsPage() {
       id: cf.id,
       label: cf.label,
       required: !!cf.required,
+      // Hidden flag round-trips through the same custom-fields table column
+      // — newly added so the edit dialog can offer parity with system fields.
+      // Older rows that pre-date this column read as `false` here.
+      hidden: !!(cf as { hidden?: boolean }).hidden,
       field_type: cf.field_type,
       optionsRaw: Array.isArray(cf.options) ? cf.options.join(', ') : '',
       org_role_ids: Array.isArray(cf.org_role_ids) ? cf.org_role_ids : [],
@@ -439,6 +444,11 @@ export default function CustomFieldsPage() {
       const body: Record<string, unknown> = {
         label: editingCustom.label.trim(),
         required: editingCustom.required,
+        // Hidden custom fields disappear from the lead/contact/etc.
+        // create + edit forms via CustomFieldsSection's `filter(...)`,
+        // but their stored values are preserved server-side so flipping
+        // back on later doesn't lose data.
+        hidden: editingCustom.hidden,
         // Allow changing the input type post-create. The "Edit Custom
         // Field" modal warns admins that any values already stored
         // for this field will keep their original shape; the new type
@@ -1122,9 +1132,20 @@ export default function CustomFieldsPage() {
               />
             )}
 
-            <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, color: 'var(--text)', marginBottom: 16 }}>
+            <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, color: 'var(--text)', marginBottom: 10 }}>
               <input type="checkbox" checked={editingCustom.required} onChange={(e) => setEditingCustom({ ...editingCustom, required: e.target.checked })} />
               Required field
+            </label>
+            <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, color: 'var(--text)', marginBottom: 16 }}>
+              <input
+                type="checkbox"
+                checked={editingCustom.hidden}
+                onChange={(e) => setEditingCustom({ ...editingCustom, hidden: e.target.checked })}
+              />
+              Hide this field from forms
+              <span style={{ fontSize: 11, color: 'var(--text-dim)', marginLeft: 6 }}>
+                (data isn&rsquo;t deleted; the input just won&rsquo;t appear on the create/edit screens)
+              </span>
             </label>
 
             {roles.length > 0 && (

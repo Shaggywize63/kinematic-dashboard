@@ -59,6 +59,11 @@ export default function CustomFieldsSection({ entity, values, onChange }: Props)
         const all = (r.status === 'fulfilled' ? (r.value.data || []) : []) as CustomField[];
         const visible = all
           .filter((f) => f.entity_type === entity)
+          // Admin can hide an individual custom field without deleting it.
+          // Drop hidden ones from the form; values already stored on records
+          // are preserved server-side so flipping back to visible restores
+          // them on the next render.
+          .filter((f) => !f.hidden)
           // A field with no org_role_ids is universal; otherwise it must list
           // the user's role. Admins/users with no resolved role see universal
           // fields only (role-scoped fields stay with their roles).

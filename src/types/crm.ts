@@ -249,6 +249,11 @@ export interface CustomField {
     | 'image' | 'file'
     | 'lookup';
   options?: string[] | null; required?: boolean; position?: number;
+  // Hides the field from create / edit forms without deleting stored
+  // values. Existing rows keep their data; flipping back to visible
+  // restores the field in the UI. Mirrors the same `hidden` flag the
+  // field-override system supports for built-in fields.
+  hidden?: boolean;
   // Org roles this field is shown to. Empty/null = all roles (universal).
   org_role_ids?: string[] | null;
   // Lookup-only — populated when field_type === 'lookup'. target_table
