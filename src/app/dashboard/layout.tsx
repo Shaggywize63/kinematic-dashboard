@@ -271,6 +271,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       { href: '/dashboard/form-builder',                 label: 'Form Builder',        icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2 M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2', module: 'form_builder' },
       { href: '/dashboard/route-plan',                   label: 'Route Plan',          icon: 'M9 20l-5.44-2.72A2 2 0 013 15.49V4.5a2 2 0 012.89-1.8L9 4 M9 4v16 M15 1l5.44 2.72A2 2 0 0121 5.51v10.98a2 2 0 01-2.89 1.8L15 17 M15 1v16', module: 'orders' },
       { href: '/dashboard/work-activities',              label: 'Work Activities',     icon: 'M12 2v20 M2 12h20 M5 5l14 14 M19 5L5 14', module: 'work_activities' },
+      // FFM Reports hub — parity with the Lead Management Reports entry
+      // a few groups down. Surfaces attendance, visit coverage, hours &
+      // idle time, route adherence, and the rep leaderboard in one place
+      // so admins don't have to hop between sidebar surfaces to build a
+      // monthly review pack.
+      { href: '/dashboard/ffm-reports',                  label: 'Reports',             icon: 'M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6 M16 13H8 M16 17H8', module: 'ffm_reports' },
     ]},
     { label: 'Lead Management', package: 'crm', items: [
       // Daily mission control — target + near-to-close + next actions
