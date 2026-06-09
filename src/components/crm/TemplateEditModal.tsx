@@ -70,6 +70,11 @@ export default function TemplateEditModal({ open, onClose, draft, onSaved }: Pro
     try {
       if (isEmail) {
         if (!form.name || !form.subject) { toast.error('Name and Subject are required'); setBusy(false); return; }
+        // Backend validator requires body_html.min(1) and the table column is
+        // NOT NULL — bail early with a friendly message instead of letting
+        // the request 400 with "Validation failed: body_html…".
+        const html = (form.body_html || '').replace(/<[^>]+>/g, '').trim();
+        if (!html) { toast.error('HTML body is required'); setBusy(false); return; }
         const body = {
           name: form.name, subject: form.subject,
           body_html: form.body_html || '', body_text: form.body_text || null,
