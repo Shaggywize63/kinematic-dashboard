@@ -109,11 +109,15 @@ const cardStyle: React.CSSProperties = {
   overflow: 'hidden',
 };
 
-// Medium-size sandboxed HTML preview of the template body. Plain `<iframe srcDoc>`
-// renders the real HTML so reps see what the email looks like, not a stripped
-// text excerpt. Pointer-events disabled so the surrounding card click still works.
+// Small-but-fully-visible HTML preview of the template body. The iframe
+// renders at desktop email width (600px) and gets scaled down via CSS
+// transform so the entire layout is visible — no clipping, no scrollbar.
 function HtmlPreview({ html, fallback }: { html: string; fallback: string }) {
-  const PREVIEW_H = 220;
+  const PREVIEW_H = 200;
+  const FULL_W = 600;
+  const FULL_H = 800;
+  const SCALE = 0.36;
+
   const isEmpty = !html.trim() && !fallback.trim();
 
   if (isEmpty) {
@@ -135,34 +139,32 @@ function HtmlPreview({ html, fallback }: { html: string; fallback: string }) {
 
   const srcDoc = html.trim()
     ? wrapHtml(html)
-    : wrapHtml(`<pre style="white-space:pre-wrap;font-family:inherit;font-size:14px;color:#0f172a;">${escapeHtml(fallback)}</pre>`);
+    : wrapHtml(`<pre style="white-space:pre-wrap;font-family:inherit;font-size:14px;color:#0f172a;margin:0;">${escapeHtml(fallback)}</pre>`);
 
   return (
     <div style={{
       height: PREVIEW_H,
       background: '#fff',
       borderTop: '1px solid var(--border)',
-      position: 'relative',
       overflow: 'hidden',
+      display: 'flex',
+      justifyContent: 'center',
     }}>
       <iframe
         title="Email preview"
         srcDoc={srcDoc}
         sandbox=""
         style={{
-          width: '100%',
-          height: '100%',
+          width: FULL_W,
+          height: FULL_H,
           border: 'none',
-          pointerEvents: 'none',
           background: '#fff',
+          pointerEvents: 'none',
+          transform: `scale(${SCALE})`,
+          transformOrigin: 'top center',
+          flexShrink: 0,
         }}
       />
-      <div style={{
-        position: 'absolute',
-        inset: 0,
-        background: 'linear-gradient(to bottom, rgba(255,255,255,0) 70%, rgba(255,255,255,0.95) 100%)',
-        pointerEvents: 'none',
-      }} />
     </div>
   );
 }
