@@ -324,6 +324,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       { href: '/dashboard/distribution/returns',          label: 'Returns',      icon: 'M9 14l-4-4 4-4 M5 10h11a4 4 0 014 4v0a4 4 0 01-4 4h-3', module: 'distribution_returns' },
       { href: '/dashboard/distribution/ledger',           label: 'Ledger',       icon: 'M3 6l9-3 9 3 M5 6v15h14V6 M9 11h6 M9 15h6', module: 'distribution_ledger' },
       { href: '/dashboard/distribution/secondary-sales',  label: 'Consumer',     icon: 'M3 3h18v18H3z M3 9h18 M9 21V9', module: 'distribution_consumer' },
+      // Last-mile dashboards (Phase 1): retailer → consumer visibility.
+      { href: '/dashboard/distribution/last-mile',                  label: 'Last Mile',          icon: 'M2 12h4l3-9 4 18 3-9h4 M22 12h-3', module: 'distribution_consumer' },
+      { href: '/dashboard/distribution/last-mile/consumers',        label: 'Consumer Registry',  icon: 'M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 7a4 4 0 100 8 4 4 0 000-8z', module: 'distribution_consumer' },
+      { href: '/dashboard/distribution/last-mile/tertiary-sales',   label: 'Retailer Sales',     icon: 'M9 11l3 3L22 4 M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11', module: 'distribution_consumer' },
       { href: '/dashboard/distribution/integrations',     label: 'Integrations', icon: 'M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71 M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71', module: 'distribution' },
     ]},
     { label: 'Business', package: 'business', items: [
