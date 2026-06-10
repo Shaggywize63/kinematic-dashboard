@@ -87,6 +87,10 @@ export const ALL_MODULES: ModuleEntry[] = [
   { id: 'distribution_returns',        l: 'Returns',      group: 'Distribution', package: 'distribution' },
   { id: 'distribution_ledger',         l: 'Ledger',       group: 'Distribution', package: 'distribution' },
   { id: 'distribution_consumer',       l: 'Consumer',     group: 'Distribution', package: 'distribution' },
+  // Last-mile (Phase 1) — surfaces the new tertiary_sales +
+  // consumer_registrations data. Shares the distribution_consumer SKU on
+  // the backend so granting "Consumer" implicitly unlocks last-mile.
+  { id: 'distribution_last_mile',      l: 'Last Mile',    group: 'Distribution', package: 'distribution' },
 
   // Business (universal — every client gets these)
   { id: 'clients',   l: 'Clients',        group: 'Business', package: 'business', universal: true },

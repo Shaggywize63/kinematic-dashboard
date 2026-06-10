@@ -612,6 +612,17 @@ class ApiClient {
   // ── Distribution: Consumer / Secondary Sales (M3) ────────────────────
   getSecondarySales(params?: Record<string, string>) { return this.get(`/api/v1/distribution/secondary-sales${this.sanitizeParams(params)}`); }
   createSecondarySale(data: object) { return this.post('/api/v1/distribution/secondary-sales', data); }
+
+  // ── Distribution: Last-Mile (Phase 1) ────────────────────────────────
+  // Tertiary sales = retailer → consumer hop. Tracked across organized +
+  // unorganized channels via the captured_by enum.
+  getTertiarySales(params?: Record<string, string>) { return this.get(`/api/v1/distribution/tertiary-sales${this.sanitizeParams(params)}`); }
+  createTertiarySale(data: object) { return this.post('/api/v1/distribution/tertiary-sales', data); }
+  // Consumer registrations — the single endpoint that closes the chain:
+  // creates a registration row, spawns a tertiary_sales row, and creates
+  // a CRM lead with appropriate attribution all in one round-trip.
+  getConsumerRegistrations(params?: Record<string, string>) { return this.get(`/api/v1/distribution/consumer-registrations${this.sanitizeParams(params)}`); }
+  createConsumerRegistration(data: object) { return this.post('/api/v1/distribution/consumer-registrations', data); }
 }
 
 export const api = new ApiClient(API_URL);
