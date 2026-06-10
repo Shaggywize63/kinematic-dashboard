@@ -60,20 +60,40 @@ export default function EmailTemplatesPage() {
             No email templates yet — click <strong style={{ color: 'var(--text)' }}>+ New Template</strong> or <strong style={{ color: 'var(--text)' }}>✦ AI Generate</strong> to add one.
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 14 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(440px, 1fr))', gap: 14 }}>
             {templates.map((t) => (
-              <button key={t.id} onClick={() => openEdit(t)} style={cardStyle}>
-                <div style={{ padding: '14px 16px 10px 16px' }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{t.name}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text)', marginTop: 4, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {t.subject}
+              <div key={t.id} style={cardStyle}>
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => openEdit(t)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openEdit(t); } }}
+                  style={{
+                    padding: '14px 16px 12px 16px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    justifyContent: 'space-between',
+                    gap: 12,
+                    borderBottom: '1px solid var(--border)',
+                  }}
+                >
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{t.name}</div>
+                    <div style={{ fontSize: 12, color: 'var(--text)', marginTop: 4, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {t.subject}
+                    </div>
+                    {t.category && (
+                      <div style={{ fontSize: 10, color: 'var(--accent)', textTransform: 'uppercase', fontWeight: 700, marginTop: 6 }}>{t.category}</div>
+                    )}
                   </div>
-                  {t.category && (
-                    <div style={{ fontSize: 10, color: 'var(--accent)', textTransform: 'uppercase', fontWeight: 700, marginTop: 6 }}>{t.category}</div>
-                  )}
+                  <span style={{
+                    fontSize: 11, fontWeight: 700, color: 'var(--primary)', background: 'rgba(62,158,255,0.1)',
+                    padding: '4px 10px', borderRadius: 6, flexShrink: 0,
+                  }}>Edit ↗</span>
                 </div>
                 <HtmlPreview html={t.body_html || ''} fallback={t.body_text || ''} />
-              </button>
+              </div>
             ))}
           </div>
         )
@@ -101,7 +121,6 @@ const cardStyle: React.CSSProperties = {
   borderRadius: 12,
   padding: 0,
   textAlign: 'left',
-  cursor: 'pointer',
   font: 'inherit',
   color: 'inherit',
   display: 'flex',
@@ -109,15 +128,11 @@ const cardStyle: React.CSSProperties = {
   overflow: 'hidden',
 };
 
-// Small-but-fully-visible HTML preview of the template body. The iframe
-// renders at desktop email width (600px) and gets scaled down via CSS
-// transform so the entire layout is visible — no clipping, no scrollbar.
+// Scrollable HTML preview of the template body — fixed-height window onto the
+// real rendered email. Users can scroll inside the iframe to read the whole
+// thing without the card growing unbounded. Sandbox="" blocks scripts/network.
 function HtmlPreview({ html, fallback }: { html: string; fallback: string }) {
-  const PREVIEW_H = 200;
-  const FULL_W = 600;
-  const FULL_H = 800;
-  const SCALE = 0.36;
-
+  const PREVIEW_H = 260;
   const isEmpty = !html.trim() && !fallback.trim();
 
   if (isEmpty) {
@@ -125,7 +140,6 @@ function HtmlPreview({ html, fallback }: { html: string; fallback: string }) {
       <div style={{
         height: PREVIEW_H,
         background: '#f8fafc',
-        borderTop: '1px solid var(--border)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -145,24 +159,18 @@ function HtmlPreview({ html, fallback }: { html: string; fallback: string }) {
     <div style={{
       height: PREVIEW_H,
       background: '#fff',
-      borderTop: '1px solid var(--border)',
       overflow: 'hidden',
-      display: 'flex',
-      justifyContent: 'center',
     }}>
       <iframe
         title="Email preview"
         srcDoc={srcDoc}
         sandbox=""
         style={{
-          width: FULL_W,
-          height: FULL_H,
+          width: '100%',
+          height: '100%',
           border: 'none',
           background: '#fff',
-          pointerEvents: 'none',
-          transform: `scale(${SCALE})`,
-          transformOrigin: 'top center',
-          flexShrink: 0,
+          display: 'block',
         }}
       />
     </div>
