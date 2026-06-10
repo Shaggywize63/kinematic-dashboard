@@ -3,27 +3,6 @@ import { useEffect, useState } from 'react';
 import { crmCustomFields } from '../../lib/crmApi';
 import type { CustomField, Lead } from '../../types/crm';
 
-/**
- * Comprehensive lead detail panel — categorised, hides empty sections.
- *
- * Sits under the lead detail header (which already shows name + key
- * action buttons) and lays out every field the backend exposes for
- * a Lead row in logical groups:
- *
- *   1. Contact Information        — email, primary + alternate mobiles, preferred channel
- *   2. Business Details (B2B)     — company, job title, industry
- *   3. Personal Details (B2C)     — date of birth, gender
- *   4. Address & Location         — full address + map link if lat/lng exist
- *   5. Lifecycle & Assignment     — status, source, owner, dates, conversion result
- *   6. Custom Fields              — admin-defined values, labelled via crm_custom_field_defs
- *   7. Consent & Preferences (B2C)— marketing + WhatsApp consents
- *   8. System                     — IDs, score, tags, photo
- *
- * Each section hides when it has nothing to show (all values null /
- * empty array / hidden by admin), so a freshly-created lead with
- * only a phone number doesn't render five empty cards.
- */
-
 interface LeadWithCustomFields extends Lead {
   custom_fields?: Record<string, unknown> | null;
   source_name?: string | null;
@@ -31,15 +10,22 @@ interface LeadWithCustomFields extends Lead {
 
 interface Props { lead: LeadWithCustomFields; }
 
+// Accent colours per section — cycles through CSS vars so both light + dark themes work.
+const SECTION_ACCENTS = [
+  'var(--primary)',
+  '#06b6d4',
+  '#8b5cf6',
+  '#f59e0b',
+  '#10b981',
+  '#ec4899',
+  '#3b82f6',
+  '#f97316',
+];
+
 export default function LeadDetailsPanel({ lead }: Props) {
   const isB2C = !!lead.is_b2c;
   const [customDefs, setCustomDefs] = useState<CustomField[]>([]);
 
-  // Fetch the active custom-field definitions for entity='lead' so we
-  // can pretty-print labels (e.g. "First visit date" instead of the
-  // raw `first_visit_date` key) and respect the admin's hidden flag.
-  // Cached on the component instance — the page itself re-renders
-  // often when the rep edits fields inline.
   useEffect(() => {
     let cancelled = false;
     crmCustomFields.list()
@@ -59,23 +45,18 @@ export default function LeadDetailsPanel({ lead }: Props) {
   const altMobiles = Array.isArray(lead.alternate_mobiles) ? lead.alternate_mobiles : [];
   const tags = Array.isArray(lead.tags) ? lead.tags : [];
 
-  // Address pieces — joined into one string for display, but each
-  // individual field still rendered so an admin auditing data can
-  // see exactly which line is missing.
-  const fullAddress = [lead.address_line1, lead.address_line2, lead.city, lead.state, lead.postal_code, lead.country]
-    .filter(Boolean)
-    .join(', ');
-
   const mapHref = (lead.latitude != null && lead.longitude != null)
     ? `https://www.google.com/maps?q=${lead.latitude},${lead.longitude}`
     : null;
 
   const contactItems: Array<[string, React.ReactNode]> = [
-    ['Email',         lead.email || null],
-    ['Primary Mobile', lead.phone ? <Mono>{lead.phone}</Mono> : null],
+    ['Email', lead.email
+      ? <a href={`mailto:${lead.email}`} style={{ color: 'var(--primary)', textDecoration: 'none' }}>{lead.email}</a>
+      : null],
+    ['Primary Mobile', lead.phone ? <PhoneValue phone={lead.phone} /> : null],
     ['Alternate Mobiles', altMobiles.length ? <ChipList items={altMobiles} /> : null],
     ['Preferred Channel', lead.preferred_contact_method
-      ? lead.preferred_contact_method.replace(/_/g, ' ')
+      ? cap(lead.preferred_contact_method.replace(/_/g, ' '))
       : null],
   ];
 
@@ -87,129 +68,254 @@ export default function LeadDetailsPanel({ lead }: Props) {
 
   const personalItems: Array<[string, React.ReactNode]> = [
     ['Date of Birth', lead.date_of_birth ? formatDate(lead.date_of_birth) : null],
-    ['Gender',        lead.gender ? lead.gender.replace(/_/g, ' ') : null],
+    ['Gender',        lead.gender ? cap(lead.gender.replace(/_/g, ' ')) : null],
   ];
 
   const addressItems: Array<[string, React.ReactNode]> = [
-    ['Address Line 1', lead.address_line1 || null],
-    ['Address Line 2', lead.address_line2 || null],
-    ['City',           lead.city || null],
-    ['State',          lead.state || null],
-    ['Postal Code',    lead.postal_code || null],
-    ['Country',        lead.country || null],
-    ['Coordinates', (lead.latitude != null && lead.longitude != null)
-      ? (
-        <span>
-          <Mono>{lead.latitude.toFixed(6)}, {lead.longitude.toFixed(6)}</Mono>
-          {mapHref && (
-            <>
-              {' · '}
-              <a href={mapHref} target="_blank" rel="noreferrer" style={{ color: 'var(--primary)', textDecoration: 'none' }}>
-                Open in Maps ↗
-              </a>
-            </>
-          )}
-        </span>
-      ) : null],
+    ['Line 1',      lead.address_line1 || null],
+    ['Line 2',      lead.address_line2 || null],
+    ['City',        lead.city || null],
+    ['State',       lead.state || null],
+    ['Postal Code', lead.postal_code || null],
+    ['Country',     lead.country || null],
+    ['Map', (lead.latitude != null && lead.longitude != null) ? (
+      <span>
+        <Mono>{lead.latitude.toFixed(4)}, {lead.longitude.toFixed(4)}</Mono>
+        {mapHref && (
+          <> &nbsp;<a href={mapHref} target="_blank" rel="noreferrer"
+            style={{ color: 'var(--primary)', textDecoration: 'none', fontSize: 12 }}>
+            View ↗
+          </a></>
+        )}
+      </span>
+    ) : null],
   ];
 
   const lifecycleItems: Array<[string, React.ReactNode]> = [
-    ['Status',          lead.status || null],
-    ['Source',          lead.source_name || null],
-    ['Owner',           lead.owner_name || 'Unassigned'],
-    ['Score',           lead.score != null ? `${lead.score}${lead.score_grade ? ` · Grade ${lead.score_grade}` : ''}` : null],
-    ['Created',         formatDateTime(lead.created_at)],
-    ['Last Updated',    lead.updated_at ? formatDateTime(lead.updated_at) : null],
-    ['Converted At',    lead.converted_at ? formatDateTime(lead.converted_at) : null],
+    ['Status',       lead.status ? <StatusBadge status={lead.status} /> : null],
+    ['Source',       lead.source_name || null],
+    ['Owner',        lead.owner_name
+      ? <span style={{ fontWeight: 600 }}>{lead.owner_name}</span>
+      : <span style={{ color: 'var(--text-dim)', fontStyle: 'italic' }}>Unassigned</span>],
+    ['Score',        lead.score != null
+      ? <ScoreBadge score={lead.score} grade={lead.score_grade} />
+      : null],
+    ['Created',      formatDateTime(lead.created_at)],
+    ['Updated',      lead.updated_at ? formatDateTime(lead.updated_at) : null],
+    ['Converted At', lead.converted_at ? formatDateTime(lead.converted_at) : null],
   ];
 
   const consentItems: Array<[string, React.ReactNode]> = [
-    ['Marketing Consent', formatBool(lead.marketing_consent)],
-    ['WhatsApp Consent',  formatBool(lead.whatsapp_consent)],
+    ['Marketing', formatConsent(lead.marketing_consent)],
+    ['WhatsApp',  formatConsent(lead.whatsapp_consent)],
   ];
 
   const customItems: Array<[string, React.ReactNode]> = customDefs
     .map((def) => {
       const val = cf[def.field_key];
-      // Skip rows where the rep hasn't filled anything in.
       if (val === undefined || val === null || val === '') return null;
       return [def.label || def.field_key, formatCustomValue(val, def.field_type)] as [string, React.ReactNode];
     })
     .filter((row): row is [string, React.ReactNode] => row !== null);
 
-  const systemItems: Array<[string, React.ReactNode]> = [
-    ['Lead ID',  <Mono key="id">{lead.id}</Mono>],
-    ['Tags',     tags.length ? <ChipList items={tags} /> : null],
-    ['Notes',    lead.notes || null],
+  const notesAndTagsItems: Array<[string, React.ReactNode]> = [
+    ['Tags',  tags.length ? <ChipList items={tags} /> : null],
+    ['Notes', lead.notes ? <NoteValue note={lead.notes} /> : null],
   ];
 
-  return (
-    <Card title="Lead Details">
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 18 }}>
-        <Group title="Contact Information"               items={contactItems} />
-        {!isB2C && <Group title="Business Details"        items={businessItems} />}
-        {isB2C  && <Group title="Personal Details"        items={personalItems} />}
-        <Group title="Address &amp; Location"            items={addressItems} />
-        <Group title="Lifecycle &amp; Assignment"        items={lifecycleItems} />
-        {customItems.length > 0 && <Group title="Custom Fields" items={customItems} />}
-        {isB2C  && <Group title="Consent &amp; Preferences" items={consentItems} />}
-        <Group title="System" items={systemItems} />
-      </div>
-    </Card>
-  );
-}
+  const sections: Array<{ title: string; items: Array<[string, React.ReactNode]>; show: boolean }> = [
+    { title: 'Contact Information',     items: contactItems,      show: true },
+    { title: 'Business Details',        items: businessItems,     show: !isB2C },
+    { title: 'Personal Details',        items: personalItems,     show: isB2C },
+    { title: 'Address & Location',      items: addressItems,      show: true },
+    { title: 'Lifecycle & Assignment',  items: lifecycleItems,    show: true },
+    { title: 'Custom Fields',           items: customItems,       show: customItems.length > 0 },
+    { title: 'Consent & Preferences',   items: consentItems,      show: isB2C },
+    { title: 'Notes & Tags',            items: notesAndTagsItems, show: true },
+  ];
 
-// ─── building blocks ──────────────────────────────────────────────
+  const visible = sections.filter((s) => s.show);
 
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div style={{
-      background: 'var(--s2)', border: '1px solid var(--border)',
-      borderRadius: 12, padding: 18,
-    }}>
-      <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 14 }}>
-        {title}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+        gap: 12,
+      }}>
+        {visible.map((s, i) => (
+          <SectionCard
+            key={s.title}
+            title={s.title}
+            items={s.items}
+            accent={SECTION_ACCENTS[i % SECTION_ACCENTS.length]}
+          />
+        ))}
       </div>
-      {children}
     </div>
   );
 }
 
-function Group({ title, items }: { title: string; items: Array<[string, React.ReactNode]> }) {
-  // Hide the whole group when every value is empty — avoids a sea of
-  // "—" rows for newly-created leads with only a name + phone.
+// ─── Section card ──────────────────────────────────────────────────
+
+function SectionCard({
+  title, items, accent,
+}: {
+  title: string;
+  items: Array<[string, React.ReactNode]>;
+  accent: string;
+}) {
   const visible = items.filter(([, v]) => v !== null && v !== undefined && v !== '');
   if (visible.length === 0) return null;
+
   return (
-    <div>
-      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
-        {title}
+    <div style={{
+      background: 'var(--s2)',
+      border: '1px solid var(--border)',
+      borderRadius: 10,
+      overflow: 'hidden',
+    }}>
+      {/* Header strip */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        padding: '10px 14px',
+        borderBottom: '1px solid var(--border)',
+        background: 'var(--s1)',
+      }}>
+        <span style={{
+          display: 'inline-block',
+          width: 3,
+          height: 14,
+          borderRadius: 2,
+          background: accent,
+          flexShrink: 0,
+        }} />
+        <span style={{
+          fontSize: 11,
+          fontWeight: 700,
+          color: 'var(--text-dim)',
+          textTransform: 'uppercase',
+          letterSpacing: 0.8,
+        }}>
+          {title}
+        </span>
       </div>
-      <dl style={{ margin: 0, display: 'grid', gridTemplateColumns: '120px 1fr', columnGap: 12, rowGap: 8 }}>
+
+      {/* Fields */}
+      <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
         {visible.map(([label, value]) => (
-          <Row key={label} label={label} value={value} />
+          <FieldRow key={label} label={label} value={value} />
         ))}
-      </dl>
+      </div>
     </div>
   );
 }
 
-function Row({ label, value }: { label: string; value: React.ReactNode }) {
+function FieldRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <>
-      <dt style={{ fontSize: 12, color: 'var(--text-dim)', fontWeight: 600 }}>{label}</dt>
-      <dd style={{ margin: 0, fontSize: 13, color: 'var(--text)', wordBreak: 'break-word' }}>{value}</dd>
-    </>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+        {label}
+      </span>
+      <span style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.5, wordBreak: 'break-word' }}>
+        {value}
+      </span>
+    </div>
+  );
+}
+
+// ─── Specialised value renderers ──────────────────────────────────
+
+const STATUS_COLOURS: Record<string, { bg: string; color: string }> = {
+  new:          { bg: '#dbeafe', color: '#1d4ed8' },
+  contacted:    { bg: '#e0e7ff', color: '#4338ca' },
+  qualified:    { bg: '#d1fae5', color: '#065f46' },
+  proposal:     { bg: '#fef3c7', color: '#92400e' },
+  negotiation:  { bg: '#fce7f3', color: '#9d174d' },
+  won:          { bg: '#d1fae5', color: '#065f46' },
+  lost:         { bg: '#fee2e2', color: '#991b1b' },
+  converted:    { bg: '#d1fae5', color: '#065f46' },
+};
+
+function StatusBadge({ status }: { status: string }) {
+  const style = STATUS_COLOURS[status.toLowerCase()] ?? { bg: 'var(--s3)', color: 'var(--text)' };
+  return (
+    <span style={{
+      display: 'inline-block',
+      background: style.bg,
+      color: style.color,
+      padding: '2px 10px',
+      borderRadius: 999,
+      fontSize: 12,
+      fontWeight: 600,
+      textTransform: 'capitalize',
+    }}>
+      {status.replace(/_/g, ' ')}
+    </span>
+  );
+}
+
+function ScoreBadge({ score, grade }: { score: number; grade?: string | null }) {
+  const hue = Math.min(score, 100);
+  const bg = `hsl(${hue}, 60%, 92%)`;
+  const color = `hsl(${hue}, 60%, 30%)`;
+  return (
+    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+      <span style={{
+        background: bg, color, padding: '2px 10px',
+        borderRadius: 999, fontSize: 12, fontWeight: 700,
+      }}>
+        {score}
+      </span>
+      {grade && (
+        <span style={{
+          background: 'var(--s3)', color: 'var(--text)', padding: '2px 8px',
+          borderRadius: 999, fontSize: 11, fontWeight: 600, border: '1px solid var(--border)',
+        }}>
+          Grade {grade}
+        </span>
+      )}
+    </span>
+  );
+}
+
+function PhoneValue({ phone }: { phone: string }) {
+  return (
+    <a href={`tel:${phone}`} style={{ color: 'var(--text)', textDecoration: 'none', fontFamily: 'ui-monospace, monospace', fontSize: 13 }}>
+      {phone}
+    </a>
+  );
+}
+
+function NoteValue({ note }: { note: string }) {
+  return (
+    <span style={{
+      display: 'block',
+      background: 'var(--s1)',
+      border: '1px solid var(--border)',
+      borderRadius: 6,
+      padding: '8px 10px',
+      fontSize: 13,
+      color: 'var(--text)',
+      lineHeight: 1.6,
+      whiteSpace: 'pre-wrap',
+      wordBreak: 'break-word',
+    }}>
+      {note}
+    </span>
   );
 }
 
 function ChipList({ items }: { items: string[] }) {
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
       {items.map((it) => (
         <span key={it} style={{
-          background: 'var(--s3)', color: 'var(--text)', padding: '2px 8px',
-          borderRadius: 999, fontSize: 12, fontWeight: 600, border: '1px solid var(--border)',
+          background: 'var(--s3)', color: 'var(--text)',
+          padding: '2px 9px', borderRadius: 999,
+          fontSize: 12, fontWeight: 500, border: '1px solid var(--border)',
         }}>
           {it}
         </span>
@@ -222,7 +328,11 @@ function Mono({ children }: { children: React.ReactNode }) {
   return <span style={{ fontFamily: 'ui-monospace, monospace', fontSize: 12 }}>{children}</span>;
 }
 
-// ─── formatters ───────────────────────────────────────────────────
+// ─── Formatters ────────────────────────────────────────────────────
+
+function cap(s: string) {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
 
 function formatDate(s: string): string {
   const d = new Date(s);
@@ -234,13 +344,21 @@ function formatDateTime(s: string): string {
   return Number.isNaN(d.getTime()) ? s : d.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' });
 }
 
-function formatBool(v: boolean | undefined | null): React.ReactNode {
+function formatConsent(v: boolean | undefined | null): React.ReactNode {
   if (v === undefined || v === null) return null;
-  return v ? 'Yes' : 'No';
+  return (
+    <span style={{
+      display: 'inline-block',
+      background: v ? '#d1fae5' : '#fee2e2',
+      color: v ? '#065f46' : '#991b1b',
+      padding: '1px 8px', borderRadius: 999,
+      fontSize: 12, fontWeight: 600,
+    }}>
+      {v ? 'Yes' : 'No'}
+    </span>
+  );
 }
 
-// Match the custom-field renderer's vocabulary so a `date`-typed value
-// formats nicely, `select`/`multiselect` print joined options, etc.
 function formatCustomValue(v: unknown, type: CustomField['field_type']): React.ReactNode {
   if (v === null || v === undefined || v === '') return null;
   if (type === 'date' || type === 'datetime') {
@@ -249,12 +367,19 @@ function formatCustomValue(v: unknown, type: CustomField['field_type']): React.R
       ? String(v)
       : d.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', ...(type === 'datetime' ? { timeStyle: 'short' } : {}) });
   }
-  if (type === 'boolean') return v ? 'Yes' : 'No';
+  if (type === 'boolean') return formatConsent(v as boolean);
   if (type === 'multiselect') return Array.isArray(v) ? <ChipList items={v.map(String)} /> : String(v);
   if (type === 'currency') return `₹${Number(v).toLocaleString('en-IN')}`;
   if (type === 'number') return Number(v).toLocaleString('en-IN');
-  if (type === 'url') return <a href={String(v)} target="_blank" rel="noreferrer" style={{ color: 'var(--primary)', textDecoration: 'none' }}>{String(v)} ↗</a>;
-  if (type === 'image') return <img src={String(v)} alt="" style={{ maxWidth: 120, maxHeight: 80, borderRadius: 6, border: '1px solid var(--border)' }} />;
+  if (type === 'url') return (
+    <a href={String(v)} target="_blank" rel="noreferrer"
+      style={{ color: 'var(--primary)', textDecoration: 'none' }}>
+      {String(v)} ↗
+    </a>
+  );
+  if (type === 'image') return (
+    <img src={String(v)} alt="" style={{ maxWidth: 120, maxHeight: 80, borderRadius: 6, border: '1px solid var(--border)' }} />
+  );
   if (type === 'lookup') {
     const obj = v as { label?: string; id?: string };
     return obj && typeof obj === 'object' && obj.label ? obj.label : (obj?.id ? <Mono>{obj.id}</Mono> : String(v));
