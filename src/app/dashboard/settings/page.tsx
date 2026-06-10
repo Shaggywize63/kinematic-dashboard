@@ -75,8 +75,15 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<'users'|'rules'|'pref'|'clients'>('users');
   const [showClientAdd, setShowClientAdd] = useState(false);
   const [editClientId, setEditClientId] = useState<string|null>(null);
+  // Pre-fill new client form with the full CRM bundle (Email, Templates, Senders,
+  // People Directory, Leads, etc.) so super-admins don't need to remember to
+  // tick each one. Edit mode overwrites this from the loaded client.modules.
+  const DEFAULT_NEW_CLIENT_MODULES = ALL_MODULES
+    .filter((m) => m.group === 'CRM')
+    .map((m) => m.id);
+
   const [clientForm, setClientForm] = useState<{ name: string; contact_person: string; email: string; phone: string; password: string; modules: string[] }>({
-    name: '', contact_person: '', email: '', phone: '', password: '', modules: [],
+    name: '', contact_person: '', email: '', phone: '', password: '', modules: DEFAULT_NEW_CLIENT_MODULES,
   });
 
   // Inline role creation. Lives in the User Directory tab so admins can add a
@@ -279,7 +286,7 @@ export default function SettingsPage() {
   };
 
   const resetClientForm = () => {
-    setClientForm({ name: '', contact_person: '', email: '', phone: '', password: '', modules: [] });
+    setClientForm({ name: '', contact_person: '', email: '', phone: '', password: '', modules: DEFAULT_NEW_CLIENT_MODULES });
     setEditClientId(null);
     setShowClientAdd(false);
   };
