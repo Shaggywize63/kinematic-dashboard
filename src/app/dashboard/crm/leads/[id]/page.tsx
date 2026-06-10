@@ -21,6 +21,7 @@ import LeadEditModal from '../../../../../components/crm/LeadEditModal';
 import LeadDetailsPanel from '../../../../../components/crm/LeadDetailsPanel';
 import ScoreBoostSuggestions from '../../../../../components/crm/ScoreBoostSuggestions';
 import { formatINR } from '../../../../../lib/formatCurrency';
+import { useAuth } from '../../../../../hooks/useAuth';
 
 type UserOption = { id: string; name: string };
 
@@ -35,6 +36,10 @@ type LifecycleLead = Lead & {
 export default function LeadDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
+  const { user } = useAuth();
+  // Reps with data_scope='own' (e.g. Consumer Champion) only see their own
+  // leads — reassigning would hide the record from them. Suppress Assign.
+  const canReassign = user?.org_role_data_scope !== 'own';
   const id = params?.id as string;
   const [lead, setLead] = useState<LifecycleLead | null>(null);
   const [score, setScore] = useState<LeadScore | null>(null);
@@ -239,6 +244,7 @@ export default function LeadDetailPage() {
               {!isClosed && (
                 <button onClick={() => setConvertOpen(true)} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>Convert</button>
               )}
+              {canReassign && (
               <div ref={assignRef} style={{ position: 'relative' }}>
                 <button
                   onClick={() => { setAssignOpen((o) => !o); loadUsers(); }}
@@ -262,6 +268,7 @@ export default function LeadDetailPage() {
                   </div>
                 )}
               </div>
+              )}
               {!isClosed && (
                 <>
                   <button onClick={() => openDisqualify('unqualified')} style={{ background: 'transparent', border: '1px solid #f59e0b', color: '#f59e0b', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>
