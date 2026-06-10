@@ -49,11 +49,8 @@ export default function LeadDetailsPanel({ lead }: Props) {
     ? `https://www.google.com/maps?q=${lead.latitude},${lead.longitude}`
     : null;
 
+  // Email + Primary Mobile are already shown in the page header — skip here.
   const contactItems: Array<[string, React.ReactNode]> = [
-    ['Email', lead.email
-      ? <a href={`mailto:${lead.email}`} style={{ color: 'var(--primary)', textDecoration: 'none' }}>{lead.email}</a>
-      : null],
-    ['Primary Mobile', lead.phone ? <PhoneValue phone={lead.phone} /> : null],
     ['Alternate Mobiles', altMobiles.length ? <ChipList items={altMobiles} /> : null],
     ['Preferred Channel', lead.preferred_contact_method
       ? cap(lead.preferred_contact_method.replace(/_/g, ' '))
@@ -91,16 +88,11 @@ export default function LeadDetailsPanel({ lead }: Props) {
     ) : null],
   ];
 
+  // Status, Source, Owner, Created are already shown in the page header — skip here.
   const lifecycleItems: Array<[string, React.ReactNode]> = [
-    ['Status',       lead.status ? <StatusBadge status={lead.status} /> : null],
-    ['Source',       lead.source_name || null],
-    ['Owner',        lead.owner_name
-      ? <span style={{ fontWeight: 600 }}>{lead.owner_name}</span>
-      : <span style={{ color: 'var(--text-dim)', fontStyle: 'italic' }}>Unassigned</span>],
     ['Score',        lead.score != null
       ? <ScoreBadge score={lead.score} grade={lead.score_grade} />
       : null],
-    ['Created',      formatDateTime(lead.created_at)],
     ['Updated',      lead.updated_at ? formatDateTime(lead.updated_at) : null],
     ['Converted At', lead.converted_at ? formatDateTime(lead.converted_at) : null],
   ];
@@ -124,11 +116,11 @@ export default function LeadDetailsPanel({ lead }: Props) {
   ];
 
   const sections: Array<{ title: string; items: Array<[string, React.ReactNode]>; show: boolean }> = [
-    { title: 'Contact Information',     items: contactItems,      show: true },
+    { title: 'Contact Preferences',      items: contactItems,      show: true },
     { title: 'Business Details',        items: businessItems,     show: !isB2C },
     { title: 'Personal Details',        items: personalItems,     show: isB2C },
     { title: 'Address & Location',      items: addressItems,      show: true },
-    { title: 'Lifecycle & Assignment',  items: lifecycleItems,    show: true },
+    { title: 'Score & Dates',            items: lifecycleItems,    show: true },
     { title: 'Custom Fields',           items: customItems,       show: customItems.length > 0 },
     { title: 'Consent & Preferences',   items: consentItems,      show: isB2C },
     { title: 'Notes & Tags',            items: notesAndTagsItems, show: true },
