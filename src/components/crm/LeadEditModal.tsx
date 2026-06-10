@@ -10,10 +10,15 @@ import CustomFieldsSection from './CustomFieldsSection';
 import AlternateMobiles from './AlternateMobiles';
 import UserSearchSelect, { type UserOption } from './shared/UserSearchSelect';
 import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '../../lib/crmFieldOverrides';
+import { useAuth } from '../../hooks/useAuth';
 
 interface Props { lead: Lead; open: boolean; onClose: () => void; onSaved: (updated: Lead) => void; }
 
 export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
+  const { user } = useAuth();
+  // Reps with data_scope='own' (e.g. Consumer Champion) only see their own
+  // leads — reassigning would hide the record from them. Hide the picker.
+  const canReassign = user?.org_role_data_scope !== 'own';
   const [form, setForm] = useState(() => seed(lead));
   const [busy, setBusy] = useState(false);
   const [geoBusy, setGeoBusy] = useState(false);
@@ -152,6 +157,11 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
         // Geo coordinates — null clears, a valid number sets/updates.
         latitude: latNum,
         longitude: lngNum,
+        // Notes — free text, was previously only editable from the lead
+        // detail page so the modal effectively dropped any change here.
+        notes: form.notes.trim() || null,
+        // Tags — CSV → string[]. Empty array deletes all existing tags.
+        tags: form.tags_input.split(',').map((t) => t.trim()).filter(Boolean),
       };
       if (!form.is_b2c) { Object.assign(body, { company: form.company || null, title: form.title || null, industry: form.industry || null }); }
       else { Object.assign(body, { date_of_birth: form.date_of_birth || null, gender: form.gender || null, address_line1: form.address_line1 || null, city: form.city || null, state: form.state || null, postal_code: form.postal_code || null, country: form.country || null, preferred_contact_method: form.preferred_contact_method || null, marketing_consent: form.marketing_consent, whatsapp_consent: form.whatsapp_consent }); }
@@ -213,7 +223,7 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
             {/* Owner reassignment — was previously absent from the modal
                 entirely. Hidden when the /users endpoint comes back empty
                 (e.g. client-role users without manpower read access). */}
-            {!fields.isHidden('owner_id') && users.length > 0 && (
+            {!fields.isHidden('owner_id') && users.length > 0 && canReassign && (
               <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 {/* The IIFE wrapping this block shadows the module-scope `lbl`
                     constant with a same-named helper, so we inline the label
@@ -284,6 +294,43 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
           />
         </Grid>
 
+        {/* Notes + Tags — previously only renderable on the detail page;
+            reps had to copy/paste back into a separate edit flow to change
+            them. Now editable inline alongside the rest of the fields. */}
+        <SL>Notes &amp; Tags</SL>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14 }}>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>Notes</span>
+            <textarea
+              value={form.notes}
+              onChange={(e) => setForm({ ...form, notes: e.target.value })}
+              rows={3}
+              placeholder="Internal notes — visible to other reps."
+              style={{
+                background: 'var(--s2)', border: '1px solid var(--border)',
+                borderRadius: 8, color: 'var(--text)', padding: '10px 12px',
+                fontSize: 13, lineHeight: 1.5, resize: 'vertical', fontFamily: 'inherit',
+              }}
+            />
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>Tags</span>
+            <input
+              value={form.tags_input}
+              onChange={(e) => setForm({ ...form, tags_input: e.target.value })}
+              placeholder="comma,separated,tags"
+              style={{
+                background: 'var(--s2)', border: '1px solid var(--border)',
+                borderRadius: 8, color: 'var(--text)', padding: '10px 12px',
+                fontSize: 13,
+              }}
+            />
+            <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>
+              Comma-separated. Used by the lead list filter chips.
+            </span>
+          </label>
+        </div>
+
         <SL>Pin Location (map)</SL>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
           <button type="button" onClick={captureLocation} disabled={geoBusy} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 12.5, fontWeight: 600, cursor: geoBusy ? 'wait' : 'pointer', opacity: geoBusy ? 0.6 : 1, whiteSpace: 'nowrap' }}>📍 {geoBusy ? 'Locating…' : 'Use current location'}</button>
@@ -327,6 +374,12 @@ function seed(l: Lead) {
     marketing_consent: !!l.marketing_consent, whatsapp_consent: !!l.whatsapp_consent,
     latitude:  l.latitude  != null ? String(l.latitude)  : '',
     longitude: l.longitude != null ? String(l.longitude) : '',
+    notes: l.notes || '',
+    // Tags persist as a string[] but render as a single comma-separated
+    // input — same shape the lead-create form uses.
+    tags_input: Array.isArray((l as Lead & { tags?: string[] | null }).tags)
+      ? ((l as Lead & { tags?: string[] | null }).tags as string[]).join(', ')
+      : '',
   };
 }
 function SL({ children }: { children: React.ReactNode }) { return <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, margin: '14px 0 8px' }}>{children}</div>; }
