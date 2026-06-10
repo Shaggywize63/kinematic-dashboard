@@ -60,15 +60,19 @@ export default function EmailTemplatesPage() {
             No email templates yet — click <strong style={{ color: 'var(--text)' }}>+ New Template</strong> or <strong style={{ color: 'var(--text)' }}>✦ AI Generate</strong> to add one.
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 14 }}>
             {templates.map((t) => (
               <button key={t.id} onClick={() => openEdit(t)} style={cardStyle}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{t.name}</div>
-                <div style={{ fontSize: 12, color: 'var(--text)', marginTop: 4, fontWeight: 600 }}>{t.subject}</div>
-                <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                  {(t.body_text || t.body_html || '').replace(/<[^>]+>/g, ' ').trim()}
+                <div style={{ padding: '14px 16px 10px 16px' }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{t.name}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text)', marginTop: 4, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {t.subject}
+                  </div>
+                  {t.category && (
+                    <div style={{ fontSize: 10, color: 'var(--accent)', textTransform: 'uppercase', fontWeight: 700, marginTop: 6 }}>{t.category}</div>
+                  )}
                 </div>
-                {t.category && <div style={{ fontSize: 10, color: 'var(--accent)', textTransform: 'uppercase', fontWeight: 700, marginTop: 8 }}>{t.category}</div>}
+                <HtmlPreview html={t.body_html || ''} fallback={t.body_text || ''} />
               </button>
             ))}
           </div>
@@ -92,6 +96,88 @@ export default function EmailTemplatesPage() {
 }
 
 const cardStyle: React.CSSProperties = {
-  background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, padding: 16,
-  textAlign: 'left', cursor: 'pointer', font: 'inherit', color: 'inherit',
+  background: 'var(--s2)',
+  border: '1px solid var(--border)',
+  borderRadius: 12,
+  padding: 0,
+  textAlign: 'left',
+  cursor: 'pointer',
+  font: 'inherit',
+  color: 'inherit',
+  display: 'flex',
+  flexDirection: 'column',
+  overflow: 'hidden',
 };
+
+// Medium-size sandboxed HTML preview of the template body. Plain `<iframe srcDoc>`
+// renders the real HTML so reps see what the email looks like, not a stripped
+// text excerpt. Pointer-events disabled so the surrounding card click still works.
+function HtmlPreview({ html, fallback }: { html: string; fallback: string }) {
+  const PREVIEW_H = 220;
+  const isEmpty = !html.trim() && !fallback.trim();
+
+  if (isEmpty) {
+    return (
+      <div style={{
+        height: PREVIEW_H,
+        background: '#f8fafc',
+        borderTop: '1px solid var(--border)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: '#94a3b8',
+        fontSize: 12,
+      }}>
+        No content
+      </div>
+    );
+  }
+
+  const srcDoc = html.trim()
+    ? wrapHtml(html)
+    : wrapHtml(`<pre style="white-space:pre-wrap;font-family:inherit;font-size:14px;color:#0f172a;">${escapeHtml(fallback)}</pre>`);
+
+  return (
+    <div style={{
+      height: PREVIEW_H,
+      background: '#fff',
+      borderTop: '1px solid var(--border)',
+      position: 'relative',
+      overflow: 'hidden',
+    }}>
+      <iframe
+        title="Email preview"
+        srcDoc={srcDoc}
+        sandbox=""
+        style={{
+          width: '100%',
+          height: '100%',
+          border: 'none',
+          pointerEvents: 'none',
+          background: '#fff',
+        }}
+      />
+      <div style={{
+        position: 'absolute',
+        inset: 0,
+        background: 'linear-gradient(to bottom, rgba(255,255,255,0) 70%, rgba(255,255,255,0.95) 100%)',
+        pointerEvents: 'none',
+      }} />
+    </div>
+  );
+}
+
+function wrapHtml(body: string): string {
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>
+    html,body{margin:0;padding:14px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:13px;color:#0f172a;background:#fff;line-height:1.5;}
+    img{max-width:100%;height:auto;}
+    a{color:#2563eb;}
+    table{max-width:100%;}
+  </style></head><body>${body}</body></html>`;
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (c) => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string
+  ));
+}
