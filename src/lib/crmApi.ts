@@ -6,7 +6,7 @@ import type {
   LeadSource, AssignmentRule, Territory, Automation, CustomField,
   ImportJob, LeadScore, NextBestAction, WinProbability,
   AnalyticsSummary, FunnelPoint, PipelineValuePoint, WinRatePoint, ForecastPoint,
-  TeamPerformanceRow,
+  TeamPerformanceRow, LeadTrackerPayload,
   ActivityHeatPoint, SourceROIRow, ScoreDistributionPoint, StateCount,
   KiniContext, KiniCard,
   CrmSettings, BusinessType,
@@ -450,6 +450,10 @@ export const crmAnalytics = {
       total: TeamPerformanceRow;
       rows: TeamPerformanceRow[];
     }>>(`${BASE}/analytics/team-performance${qs({ ...range })}`),
+  // Monthly new-lead bar chart + today/week/month summaries for the
+  // caller's hierarchy subtree.
+  leadTracker: (months = 6) =>
+    api.get<Wrapped<LeadTrackerPayload>>(`${BASE}/analytics/lead-tracker${qs({ months })}`),
   salesCycle: (range?: DateRangeParams) =>
     api.get<Wrapped<Array<{ stage: string; avg_days: number }>>>(`${BASE}/analytics/sales-cycle${qs({ ...range })}`),
   forecast: (period: 'month' | 'quarter' = 'quarter', range?: DateRangeParams, unit: 'inr' | 'weight' = 'inr') =>
