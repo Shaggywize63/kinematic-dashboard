@@ -36,6 +36,10 @@ type Form = {
   // Free-form jsonb for admin-defined custom fields. Keys match
   // crm_custom_field_defs.field_key for the current entity.
   custom_fields: Record<string, unknown>;
+  // Tata Tiscon affordance — backend pops this on POST and atomically
+  // spawns a completed `site_visit` activity tied to the new lead.
+  // Visible + on-by-default for Tata only; ignored elsewhere.
+  log_as_site_visit: boolean;
 };
 
 const empty: Form = {
@@ -47,6 +51,9 @@ const empty: Form = {
   client_id: '',
   latitude: '', longitude: '',
   custom_fields: {},
+  // Default on — most Tata adds happen at the dealer/consumer counter;
+  // ignored entirely for any other tenant via the isTata gate below.
+  log_as_site_visit: true,
 };
 
 export default function NewLeadPage() {
@@ -387,6 +394,12 @@ export default function NewLeadPage() {
           preferred_contact_method: form.preferred_contact_method || undefined,
           marketing_consent: form.marketing_consent, whatsapp_consent: form.whatsapp_consent,
         });
+      }
+      // Tata Tiscon: backend pops this flag before persisting and atomically
+      // spawns a completed `site_visit` activity tied to the new lead. Sent
+      // only when the rep is on a Tata tenant + has the toggle on.
+      if (isTata && form.log_as_site_visit) {
+        payload._auto_log_site_visit = true;
       }
       const r = await crmLeads.create(payload);
       toast.success('Lead created');
@@ -735,6 +748,29 @@ export default function NewLeadPage() {
               );
             })}
           </div>
+        </Section>
+      )}
+
+      {/* Tata Tiscon: tick to atomically spawn a completed `site_visit`
+          activity tied to the new lead. Default on because most adds
+          happen at the dealer / consumer counter; the toggle stays
+          invisible on every other tenant via the isTata gate. */}
+      {isTata && (
+        <Section title="Activity">
+          <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={form.log_as_site_visit}
+              onChange={(e) => setForm({ ...form, log_as_site_visit: e.target.checked })}
+              style={{ marginTop: 3 }}
+            />
+            <span>
+              <strong style={{ color: 'var(--text)' }}>Also log this lead as a Site Visit activity</strong>
+              <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>
+                Creates a completed Site Visit activity tied to this lead — visible on the lead detail timeline.
+              </div>
+            </span>
+          </label>
         </Section>
       )}
 
