@@ -401,6 +401,16 @@ export interface TeamPerformanceRow {
   new_leads_period: number;    // count of leads created in the selected range
 }
 
+// Lead Tracker — monthly bar chart + today / week / month summaries.
+export interface LeadTrackerMonthlyPoint { month: string; count: number; }
+export interface LeadTrackerPeriodSummary { label: string; from: string; to: string; count: number; }
+export interface LeadTrackerPayload {
+  monthly: LeadTrackerMonthlyPoint[];
+  period_today: LeadTrackerPeriodSummary;
+  period_week: LeadTrackerPeriodSummary;
+  period_month: LeadTrackerPeriodSummary;
+}
+
 export interface ForecastPoint { period: string; committed: number; best_case: number; pipeline: number; closed: number; }
 export interface ActivityHeatPoint { date: string; hour: number; count: number; }
 export interface SourceROIRow { source: string; leads: number; deals: number; revenue: number; cost: number; roi: number; }

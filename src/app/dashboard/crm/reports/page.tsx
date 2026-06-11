@@ -4,6 +4,7 @@ import Link from 'next/link';
 const REPORTS = [
   { href: '/dashboard/crm/reports/builder', title: '🛠 Custom Report Builder', desc: 'Pick entity, fields, filters, grouping, and export to CSV.', highlight: true },
   { href: '/dashboard/crm/reports/team-performance', title: 'Team Performance', desc: 'Won volume, conversion rate, lead ageing and new leads per rep across your hierarchy subtree.' },
+  { href: '/dashboard/crm/reports/lead-tracker', title: 'Lead Tracker', desc: 'Monthly new-lead bar chart plus today / week / month summaries for your team.' },
   { href: '/dashboard/crm/reports/rep-leaderboard', title: 'Rep Leaderboard', desc: 'Revenue, deals won, win rate and average cycle by sales rep.' },
   { href: '/dashboard/crm/reports/forecast', title: 'Forecast', desc: 'Pipeline vs committed vs closed by period.' },
   { href: '/dashboard/crm/reports/stage-funnel', title: 'Stage Funnel', desc: 'Deal count and drop-off rate at each pipeline stage.' },
