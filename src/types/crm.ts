@@ -411,6 +411,21 @@ export interface LeadTrackerPayload {
   period_month: LeadTrackerPeriodSummary;
 }
 
+// Team Daily Activity — one card per rep for a chosen day.
+export interface TeamDailyCard {
+  user_id: string;
+  name: string;
+  attendance: {
+    status: 'present' | 'absent';
+    checkin_at: string | null;
+    checkin_address: string | null;
+    checkin_lat: number | null;
+    checkin_lng: number | null;
+  };
+  visits: { achieved: number; scheduled: number };
+  lead_tracker: number;
+}
+
 export interface ForecastPoint { period: string; committed: number; best_case: number; pipeline: number; closed: number; }
 export interface ActivityHeatPoint { date: string; hour: number; count: number; }
 export interface SourceROIRow { source: string; leads: number; deals: number; revenue: number; cost: number; roi: number; }
