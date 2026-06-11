@@ -22,13 +22,11 @@ export default function LogoSpinner({ size = 48, label, overlay = false }: Props
   const inner = (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
       <img
-        src="/logo-mark.png"
+        src="https://kinematicapp.com/assets/logo.png"
         alt="Loading"
-        width={size}
-        height={size}
         style={{
-          width: size,
           height: size,
+          width: 'auto',
           objectFit: 'contain',
           animation: 'logoPulse 1.2s ease-in-out infinite',
           filter: 'drop-shadow(0 4px 12px rgba(208,30,44,0.35))',
