@@ -6,6 +6,7 @@ import type {
   LeadSource, AssignmentRule, Territory, Automation, CustomField,
   ImportJob, LeadScore, NextBestAction, WinProbability,
   AnalyticsSummary, FunnelPoint, PipelineValuePoint, WinRatePoint, ForecastPoint,
+  TeamPerformanceRow,
   ActivityHeatPoint, SourceROIRow, ScoreDistributionPoint, StateCount,
   KiniContext, KiniCard,
   CrmSettings, BusinessType,
@@ -442,6 +443,13 @@ export const crmAnalytics = {
     api.get<Wrapped<FunnelPoint[]>>(`${BASE}/analytics/funnel${qs({ ...range })}`),
   winRate: (by: 'rep' | 'source' | 'stage' = 'rep', range?: DateRangeParams) =>
     api.get<Wrapped<WinRatePoint[]>>(`${BASE}/analytics/win-rate${qs({ by, ...range })}`),
+  // Per-rep KPI roll-up across the caller's hierarchy subtree. Drives
+  // the "Team Performance" report — sticky-Total row + per-rep rows.
+  teamPerformance: (range?: DateRangeParams) =>
+    api.get<Wrapped<{
+      total: TeamPerformanceRow;
+      rows: TeamPerformanceRow[];
+    }>>(`${BASE}/analytics/team-performance${qs({ ...range })}`),
   salesCycle: (range?: DateRangeParams) =>
     api.get<Wrapped<Array<{ stage: string; avg_days: number }>>>(`${BASE}/analytics/sales-cycle${qs({ ...range })}`),
   forecast: (period: 'month' | 'quarter' = 'quarter', range?: DateRangeParams, unit: 'inr' | 'weight' = 'inr') =>

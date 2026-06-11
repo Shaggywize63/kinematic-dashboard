@@ -386,6 +386,21 @@ export interface AnalyticsSummary {
 export interface FunnelPoint { stage: string; count: number; value: number; }
 export interface PipelineValuePoint { stage: string; value: number; count: number; color?: string; }
 export interface WinRatePoint { bucket: string; won: number; lost: number; rate: number; }
+
+// Per-rep KPI roll-up for the Team Performance report. The backend
+// returns `{ total, rows }` where `total` is the aggregated header row
+// across the caller's hierarchy subtree.
+export interface TeamPerformanceRow {
+  user_id: string | null;
+  name: string;
+  won_count: number;
+  won_value: number;
+  lost_count: number;
+  conversion_rate: number;     // 0..1; UI renders as %
+  avg_ageing_days: number;     // mean ageing of open leads
+  new_leads_period: number;    // count of leads created in the selected range
+}
+
 export interface ForecastPoint { period: string; committed: number; best_case: number; pipeline: number; closed: number; }
 export interface ActivityHeatPoint { date: string; hour: number; count: number; }
 export interface SourceROIRow { source: string; leads: number; deals: number; revenue: number; cost: number; roi: number; }
