@@ -393,37 +393,87 @@ export interface WinRatePoint { bucket: string; won: number; lost: number; rate:
 export interface TeamPerformanceRow {
   user_id: string | null;
   name: string;
+  // Lead funnel
+  total_leads_owned: number;
+  new_leads_today: number;
+  new_leads_week: number;
+  new_leads_month: number;
+  new_leads_period: number;
+  qualified_count: number;
+  converted_count: number;
+  unqualified_count: number;
+  lost_leads_count: number;
+  qualified_rate: number;
+  converted_rate: number;
+  // Deal performance
   won_count: number;
   won_value: number;
   lost_count: number;
-  conversion_rate: number;     // 0..1; UI renders as %
-  avg_ageing_days: number;     // mean ageing of open leads
-  new_leads_period: number;    // count of leads created in the selected range
+  open_count: number;
+  open_pipeline_value: number;
+  conversion_rate: number;
+  avg_deal_size: number;
+  avg_sales_cycle_days: number;
+  // Operational health
+  avg_ageing_days: number;
+  oldest_open_lead_days: number;
+  activities_completed_period: number;
+  activities_total_period: number;
+  last_activity_at: string | null;
+  // Quality
+  avg_lead_score: number;
 }
 
-// Lead Tracker — monthly bar chart + today / week / month summaries.
-export interface LeadTrackerMonthlyPoint { month: string; count: number; }
-export interface LeadTrackerPeriodSummary { label: string; from: string; to: string; count: number; }
+// Lead Tracker — chart buckets + period summaries + breakdowns.
+export interface LeadTrackerBucket { key: string; count: number; }
+export interface LeadTrackerPeriodSummary {
+  label: string; from: string; to: string;
+  new_leads: number; converted: number; conversion_rate: number;
+}
+export interface LeadTrackerBreakdown { name: string; count: number; }
 export interface LeadTrackerPayload {
-  monthly: LeadTrackerMonthlyPoint[];
+  monthly: LeadTrackerBucket[];
+  weekly: LeadTrackerBucket[];
+  daily: LeadTrackerBucket[];
   period_today: LeadTrackerPeriodSummary;
   period_week: LeadTrackerPeriodSummary;
   period_month: LeadTrackerPeriodSummary;
+  status_breakdown: { new: number; working: number; qualified: number; converted: number; unqualified: number; lost: number };
+  source_breakdown: LeadTrackerBreakdown[];
+  city_breakdown: LeadTrackerBreakdown[];
+  ageing_distribution: { bucket: string; count: number }[];
 }
 
-// Team Daily Activity — one card per rep for a chosen day.
+// Team Daily Activity — CRM-only signals, no attendance dependency.
 export interface TeamDailyCard {
   user_id: string;
   name: string;
-  attendance: {
-    status: 'present' | 'absent';
-    checkin_at: string | null;
-    checkin_address: string | null;
-    checkin_lat: number | null;
-    checkin_lng: number | null;
+  last_known_location: {
+    captured_at: string | null;
+    source: 'lead_created' | null;
+    latitude: number | null;
+    longitude: number | null;
+    address: string | null;
   };
-  visits: { achieved: number; scheduled: number };
-  lead_tracker: number;
+  last_activity_at: string | null;
+  activities_today: {
+    total: number;
+    completed: number;
+    calls: number;
+    emails: number;
+    meetings: number;
+    site_visits: number;
+    tasks: number;
+    other: number;
+  };
+  leads_today: number;
+  leads_today_qualified: number;
+  leads_today_converted: number;
+  deals_open_count: number;
+  deals_won_today_count: number;
+  deals_won_today_value: number;
+  pipeline_value: number;
+  status: 'active' | 'idle' | 'inactive';
 }
 
 export interface ForecastPoint { period: string; committed: number; best_case: number; pipeline: number; closed: number; }
