@@ -32,7 +32,15 @@ export default function LeadDetailsPanel({ lead }: Props) {
       .then((r) => {
         if (cancelled) return;
         const all = (r.data || []) as CustomField[];
-        setCustomDefs(all.filter((d) => d.entity_type === 'lead' && !d.hidden));
+        // Honour the admin's drag-reorder. The backend list already
+        // ORDER BYs `position`, but a defensive client-side sort keeps
+        // the rendering stable across cached responses, partial
+        // updates, and filter chains.
+        setCustomDefs(
+          all
+            .filter((d) => d.entity_type === 'lead' && !d.hidden)
+            .sort((a, b) => (a.position ?? 0) - (b.position ?? 0)),
+        );
       })
       .catch(() => { /* non-fatal */ });
     return () => { cancelled = true; };
