@@ -51,9 +51,10 @@ const empty: Form = {
   client_id: '',
   latitude: '', longitude: '',
   custom_fields: {},
-  // Default on — most Tata adds happen at the dealer/consumer counter;
-  // ignored entirely for any other tenant via the isTata gate below.
-  log_as_site_visit: true,
+  // Default OFF — the rep ticks it deliberately for the leads where
+  // they actually performed a visit, so spurious site_visit activities
+  // don't pollute the timeline. Toggle stays hidden on non-Tata tenants.
+  log_as_site_visit: false,
 };
 
 export default function NewLeadPage() {
