@@ -14,11 +14,19 @@ import { useAuth } from '../../hooks/useAuth';
 
 interface Props { lead: Lead; open: boolean; onClose: () => void; onSaved: (updated: Lead) => void; }
 
+const TATA_TISCON_CLIENT_ID = 'a1f67468-526e-4734-be3a-2cb132cc2804';
+
 export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
   const { user } = useAuth();
   // Reps with data_scope='own' (e.g. Consumer Champion) only see their own
   // leads — reassigning would hide the record from them. Hide the picker.
   const canReassign = user?.org_role_data_scope !== 'own';
+  // Tata Tiscon affordance — mirror the create form. Lets the rep log a
+  // follow-up site visit while editing without bouncing to Activities.
+  const isTata =
+    (lead as Lead & { client_id?: string | null }).client_id === TATA_TISCON_CLIENT_ID
+    || user?.client_id === TATA_TISCON_CLIENT_ID;
+  const [logAsSiteVisit, setLogAsSiteVisit] = useState(false);
   const [form, setForm] = useState(() => seed(lead));
   const [busy, setBusy] = useState(false);
   const [geoBusy, setGeoBusy] = useState(false);
@@ -165,7 +173,14 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
       };
       if (!form.is_b2c) { Object.assign(body, { company: form.company || null, title: form.title || null, industry: form.industry || null }); }
       else { Object.assign(body, { date_of_birth: form.date_of_birth || null, gender: form.gender || null, address_line1: form.address_line1 || null, city: form.city || null, state: form.state || null, postal_code: form.postal_code || null, country: form.country || null, preferred_contact_method: form.preferred_contact_method || null, marketing_consent: form.marketing_consent, whatsapp_consent: form.whatsapp_consent }); }
+      // Tata: backend reads this flag and spawns a fresh site_visit
+      // activity tied to the lead. Reset the toggle each save so the
+      // rep doesn't accidentally create duplicate visits on next edit.
+      if (isTata && logAsSiteVisit) {
+        (body as Record<string, unknown>)._auto_log_site_visit = true;
+      }
       const r = await crmLeads.update(lead.id, body);
+      if (logAsSiteVisit) setLogAsSiteVisit(false);
       toast.success('Lead updated'); onSaved(r.data); onClose();
     } catch (e: any) { toast.error(e.message || 'Update failed'); } finally { setBusy(false); }
   };
@@ -297,6 +312,24 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
         {/* Notes + Tags — previously only renderable on the detail page;
             reps had to copy/paste back into a separate edit flow to change
             them. Now editable inline alongside the rest of the fields. */}
+        {/* Tata Tiscon: tick to spawn a fresh `site_visit` activity at
+            save time. Default off so saving the form doesn't churn the
+            timeline; reps tick it when they actually performed a visit. */}
+        {isTata && (
+          <>
+            <SL>Activity</SL>
+            <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '12px 14px', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 8, cursor: 'pointer', marginBottom: 14 }}>
+              <input type="checkbox" checked={logAsSiteVisit} onChange={(e) => setLogAsSiteVisit(e.target.checked)} style={{ marginTop: 3 }} />
+              <span>
+                <strong style={{ color: 'var(--text)' }}>Also log a Site Visit activity</strong>
+                <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>
+                  Creates a completed Site Visit on this lead's timeline using the lead's saved photo.
+                </div>
+              </span>
+            </label>
+          </>
+        )}
+
         <SL>Notes &amp; Tags</SL>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14 }}>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
