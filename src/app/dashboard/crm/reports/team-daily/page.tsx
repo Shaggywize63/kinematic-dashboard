@@ -34,7 +34,13 @@ export default function TeamDailyPage() {
     let cancelled = false;
     setLoading(true);
     crmAnalytics.teamDaily(date)
-      .then((r) => { if (!cancelled) setCards(r.data || []); })
+      .then((r) => {
+        if (cancelled) return;
+        // Endpoint returns the array directly (no `{ success, data }`
+        // envelope), so unwrap defensively.
+        const payload = (r as unknown as TeamDailyCard[] | { data?: TeamDailyCard[] });
+        setCards(Array.isArray(payload) ? payload : (payload?.data ?? []));
+      })
       .catch((e: any) => toast.error(e?.message || 'Failed to load Team Daily'))
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };

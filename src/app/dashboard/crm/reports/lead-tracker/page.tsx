@@ -29,7 +29,13 @@ export default function LeadTrackerPage() {
     let cancelled = false;
     setLoading(true);
     crmAnalytics.leadTracker(months)
-      .then((r) => { if (!cancelled) setData(r.data); })
+      .then((r) => {
+        if (cancelled) return;
+        // Endpoint returns the payload directly (no `{ success, data }`
+        // envelope), so unwrap defensively.
+        const payload = (r as unknown as LeadTrackerPayload & { data?: LeadTrackerPayload });
+        setData(payload.data ?? payload);
+      })
       .catch((e: any) => toast.error(e?.message || 'Failed to load Lead Tracker'))
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };

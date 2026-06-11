@@ -40,8 +40,13 @@ export default function TeamPerformancePage() {
     crmAnalytics.teamPerformance(range)
       .then((r) => {
         if (cancelled) return;
-        setTotal(r.data?.total ?? null);
-        setRows(r.data?.rows ?? []);
+        // The /analytics/team-performance endpoint returns the payload
+        // directly (no `{ success, data }` envelope), so we read top-level.
+        const payload = (r as unknown as { total?: TeamPerformanceRow; rows?: TeamPerformanceRow[]; data?: { total?: TeamPerformanceRow; rows?: TeamPerformanceRow[] } });
+        const tot = payload.total ?? payload.data?.total ?? null;
+        const rs  = payload.rows  ?? payload.data?.rows  ?? [];
+        setTotal(tot);
+        setRows(rs);
       })
       .catch((e: any) => toast.error(e?.message || 'Failed to load team performance'))
       .finally(() => { if (!cancelled) setLoading(false); });
