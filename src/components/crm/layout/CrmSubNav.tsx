@@ -2,9 +2,15 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '../../../hooks/useAuth';
-import { isConsumerChampion } from '../../../lib/clientFeatures';
+import { isConsumerChampion, isTataTiscon } from '../../../lib/clientFeatures';
 
-type CrmLink = { href: string; label: string; championHidden?: boolean };
+type CrmLink = {
+  href: string;
+  label: string;
+  championHidden?: boolean;
+  /** Hidden for Consumer Champions AND for TATA Tiscon users */
+  tataTisconHidden?: boolean;
+};
 const LINKS: CrmLink[] = [
   { href: '/dashboard/crm/dashboard', label: 'Dashboard' },
   { href: '/dashboard/crm/leads', label: 'Leads' },
@@ -12,12 +18,11 @@ const LINKS: CrmLink[] = [
   // Overview is back to the legacy stat-card + fixed-chart surface.
   // championHidden: Consumer Champion FEs don't need the analytics tab.
   { href: '/dashboard/crm/leads/analytics', label: 'Lead Analytics', championHidden: true },
-  { href: '/dashboard/crm/contacts', label: 'Contacts' },
-  // Accounts is shown for every org. Pure-B2C orgs may not populate it,
-  // but the tab existing doesn't hurt — and hiding it caused confusion
-  // when reps with a converted lead → account couldn't navigate to the
-  // company record. Field gating on lead/contact forms is enough.
-  { href: '/dashboard/crm/accounts', label: 'Accounts' },
+  // Contacts hidden for Consumer Champions — they work with leads only.
+  { href: '/dashboard/crm/contacts', label: 'Contacts', championHidden: true },
+  // Accounts hidden for Consumer Champions (pure B2C / lead-centric) and
+  // for TATA Tiscon users whose workflow does not include account records.
+  { href: '/dashboard/crm/accounts', label: 'Accounts', championHidden: true, tataTisconHidden: true },
   { href: '/dashboard/crm/deals', label: 'Deals' },
   { href: '/dashboard/crm/pipeline', label: 'Pipeline' },
   { href: '/dashboard/crm/products', label: 'Products' },
@@ -36,7 +41,12 @@ export default function CrmSubNav() {
   const pathname = usePathname();
   const { user } = useAuth();
   const champion = isConsumerChampion(user as any);
-  const visibleLinks = LINKS.filter((l) => !(l.championHidden && champion));
+  const tataTiscon = isTataTiscon(user as any);
+  const visibleLinks = LINKS.filter((l) => {
+    if (l.championHidden && champion) return false;
+    if (l.tataTisconHidden && tataTiscon) return false;
+    return true;
+  });
 
   const isActive = (href: string) => {
     // /dashboard/crm/leads/analytics must NOT match the /dashboard/crm/leads
