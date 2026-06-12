@@ -99,14 +99,25 @@ export default function CustomFieldsSection({ entity, values, onChange }: Props)
 
   return (
     <>
-      {fields.map((f) => (
-        <FieldInput
-          key={f.id}
-          field={f}
-          value={values[f.field_key]}
-          onChange={(v) => set(f.field_key, v)}
-        />
-      ))}
+      {fields.map((f) => {
+        // Formula fields are read-only and computed live from the
+        // current values map. The computed result isn't persisted from
+        // here — server-side eval (planned) is the source of truth on
+        // GET; this is just an in-form preview so reps see the value
+        // update as they type into the inputs it depends on.
+        if (f.field_type === 'formula') {
+          const computed = evaluateClientFormula(f.formula || '', values);
+          return <FormulaPreview key={f.id} field={f} computed={computed} />;
+        }
+        return (
+          <FieldInput
+            key={f.id}
+            field={f}
+            value={values[f.field_key]}
+            onChange={(v) => set(f.field_key, v)}
+          />
+        );
+      })}
     </>
   );
 }
@@ -600,3 +611,233 @@ const LOOKUP_TARGET_LABELS: Record<string, string> = {
   crm_deals: 'Deal',
   people_directory: 'People Directory entry',
 };
+
+/**
+ * Read-only render for a formula custom field. Shows the computed value
+ * (or — when blank / unevaluatable) plus the formula expression as a
+ * subtitle so the admin remembers what they configured.
+ */
+function FormulaPreview({ field, computed }: { field: CustomField; computed: string }) {
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <label style={{ display: 'block', fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.5, marginBottom: 4 }}>
+        {field.label} <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 3, background: 'var(--s3)', color: 'var(--text-dim)', marginLeft: 4 }}>FORMULA</span>
+      </label>
+      <div style={{ background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px', fontSize: 14, color: 'var(--text)', fontWeight: 600 }}>
+        {computed || <span style={{ color: 'var(--text-dim)', fontWeight: 400 }}>—</span>}
+      </div>
+      {field.formula && (
+        <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 4, fontFamily: 'ui-monospace, SFMono-Regular, monospace' }}>
+          = {field.formula}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Client-side formula evaluator. Mirrors the backend's narrow language
+ * exactly: + - * / parens, comparisons, IF / MIN / MAX / ROUND, and
+ * {field_key} references. Tiny recursive-descent so this stays bundled
+ * cheap; no `eval` or external dependency. Returns a string (formatted
+ * number or stringified value) for direct rendering. Empty string when
+ * the expression can't be evaluated — so the UI degrades to a dash.
+ */
+export function evaluateClientFormula(expr: string, vals: Record<string, unknown>): string {
+  if (!expr || !expr.trim()) return '';
+  try {
+    const tokens = formulaTokenize(expr);
+    const parser = new FormulaParser(tokens, vals);
+    const v = parser.parseExpression();
+    parser.expectEnd();
+    if (v === null || v === undefined) return '';
+    if (typeof v === 'number') {
+      if (!Number.isFinite(v)) return '';
+      // Avoid trailing zeros for integers; otherwise 2 decimal places.
+      return Number.isInteger(v) ? String(v) : v.toFixed(2);
+    }
+    if (typeof v === 'boolean') return v ? 'Yes' : 'No';
+    return String(v);
+  } catch {
+    return '';
+  }
+}
+
+type Tok =
+  | { kind: 'num'; value: number }
+  | { kind: 'str'; value: string }
+  | { kind: 'ref'; key: string }
+  | { kind: 'ident'; name: string }
+  | { kind: 'op'; op: string }
+  | { kind: 'lparen' }
+  | { kind: 'rparen' }
+  | { kind: 'comma' };
+
+function formulaTokenize(src: string): Tok[] {
+  const out: Tok[] = [];
+  let i = 0;
+  while (i < src.length) {
+    const c = src[i];
+    if (' \t\n\r'.includes(c)) { i++; continue; }
+    if (c === '(') { out.push({ kind: 'lparen' }); i++; continue; }
+    if (c === ')') { out.push({ kind: 'rparen' }); i++; continue; }
+    if (c === ',') { out.push({ kind: 'comma' }); i++; continue; }
+    if ('+-*/'.includes(c)) { out.push({ kind: 'op', op: c }); i++; continue; }
+    if (c === '<' || c === '>' || c === '=' || c === '!') {
+      if (src[i + 1] === '=') { out.push({ kind: 'op', op: c + '=' }); i += 2; continue; }
+      if (c === '<' || c === '>') { out.push({ kind: 'op', op: c }); i++; continue; }
+      throw new Error('bad op');
+    }
+    if (c === '{') {
+      const end = src.indexOf('}', i + 1);
+      if (end < 0) throw new Error('unterminated ref');
+      const k = src.slice(i + 1, end).trim();
+      if (!/^[a-z][a-z0-9_]*$/.test(k)) throw new Error('bad key');
+      out.push({ kind: 'ref', key: k });
+      i = end + 1; continue;
+    }
+    if (c === '"' || c === "'") {
+      const end = src.indexOf(c, i + 1);
+      if (end < 0) throw new Error('unterminated string');
+      out.push({ kind: 'str', value: src.slice(i + 1, end) });
+      i = end + 1; continue;
+    }
+    if (/[0-9.]/.test(c)) {
+      let j = i;
+      while (j < src.length && /[0-9.]/.test(src[j])) j++;
+      const n = Number(src.slice(i, j));
+      if (!Number.isFinite(n)) throw new Error('bad num');
+      out.push({ kind: 'num', value: n });
+      i = j; continue;
+    }
+    if (/[a-zA-Z_]/.test(c)) {
+      let j = i;
+      while (j < src.length && /[a-zA-Z0-9_]/.test(src[j])) j++;
+      out.push({ kind: 'ident', name: src.slice(i, j) });
+      i = j; continue;
+    }
+    throw new Error('bad char');
+  }
+  return out;
+}
+
+const FN_NAMES = new Set(['IF', 'MIN', 'MAX', 'ROUND']);
+
+class FormulaParser {
+  private pos = 0;
+  constructor(private tokens: Tok[], private vals: Record<string, unknown>) {}
+  expectEnd() { if (this.pos !== this.tokens.length) throw new Error('trailing'); }
+
+  parseExpression(): number | string | boolean {
+    const left = this.parseAdd();
+    const t = this.peek();
+    if (t && t.kind === 'op' && (t.op === '<' || t.op === '>' || t.op === '<=' || t.op === '>=' || t.op === '==' || t.op === '!=')) {
+      this.pos++;
+      const right = this.parseAdd();
+      const a = numOrPrim(left), b = numOrPrim(right);
+      switch (t.op) {
+        case '<':  return (a as number) <  (b as number);
+        case '>':  return (a as number) >  (b as number);
+        case '<=': return (a as number) <= (b as number);
+        case '>=': return (a as number) >= (b as number);
+        case '==': return a === b;
+        case '!=': return a !== b;
+      }
+    }
+    return left;
+  }
+
+  private parseAdd(): number | string {
+    let left = this.parseMul();
+    while (true) {
+      const t = this.peek();
+      if (!t || t.kind !== 'op' || (t.op !== '+' && t.op !== '-')) break;
+      this.pos++;
+      const right = this.parseMul();
+      left = (t.op === '+' ? num(left) + num(right) : num(left) - num(right));
+    }
+    return left;
+  }
+
+  private parseMul(): number | string {
+    let left = this.parseUnary();
+    while (true) {
+      const t = this.peek();
+      if (!t || t.kind !== 'op' || (t.op !== '*' && t.op !== '/')) break;
+      this.pos++;
+      const right = this.parseUnary();
+      if (t.op === '*') left = num(left) * num(right);
+      else { const d = num(right); left = d === 0 ? 0 : num(left) / d; }
+    }
+    return left;
+  }
+
+  private parseUnary(): number | string {
+    const t = this.peek();
+    if (t && t.kind === 'op' && (t.op === '+' || t.op === '-')) {
+      this.pos++;
+      const v = num(this.parseUnary());
+      return t.op === '-' ? -v : v;
+    }
+    return this.parsePrimary();
+  }
+
+  private parsePrimary(): number | string {
+    const t = this.advance();
+    if (!t) throw new Error('end');
+    if (t.kind === 'num') return t.value;
+    if (t.kind === 'str') return t.value;
+    if (t.kind === 'ref') {
+      const v = this.vals[t.key];
+      if (v === undefined || v === null || v === '') return 0;
+      const n = Number(v as any);
+      return Number.isFinite(n) ? n : String(v);
+    }
+    if (t.kind === 'lparen') {
+      const v = this.parseExpression();
+      const r = this.advance();
+      if (!r || r.kind !== 'rparen') throw new Error('expected )');
+      return numOrPrim(v);
+    }
+    if (t.kind === 'ident') {
+      const name = t.name.toUpperCase();
+      if (!FN_NAMES.has(name)) throw new Error('unknown fn');
+      const lp = this.advance(); if (!lp || lp.kind !== 'lparen') throw new Error('expected (');
+      const args: Array<number | string | boolean> = [];
+      if (this.peek()?.kind !== 'rparen') {
+        args.push(this.parseExpression());
+        while (this.peek()?.kind === 'comma') { this.pos++; args.push(this.parseExpression()); }
+      }
+      const rp = this.advance(); if (!rp || rp.kind !== 'rparen') throw new Error('expected )');
+      switch (name) {
+        case 'IF':    return numOrPrim((args[0] ? args[1] : args[2])) as number | string;
+        case 'MIN':   return Math.min(...args.map(num));
+        case 'MAX':   return Math.max(...args.map(num));
+        case 'ROUND': {
+          const v = num(args[0]);
+          const d = args.length > 1 ? Math.max(0, Math.min(10, Math.floor(num(args[1])))) : 0;
+          const f = Math.pow(10, d);
+          return Math.round(v * f) / f;
+        }
+      }
+      throw new Error('unknown fn');
+    }
+    throw new Error('bad token');
+  }
+
+  private peek(): Tok | undefined { return this.tokens[this.pos]; }
+  private advance(): Tok | undefined { return this.tokens[this.pos++]; }
+}
+
+function num(v: number | string | boolean): number {
+  if (typeof v === 'number') return Number.isFinite(v) ? v : 0;
+  if (typeof v === 'boolean') return v ? 1 : 0;
+  if (v == null || v === '') return 0;
+  const n = Number(v as any);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function numOrPrim(v: number | string | boolean): number | string {
+  if (typeof v === 'boolean') return v ? 1 : 0;
+  return v;
+}

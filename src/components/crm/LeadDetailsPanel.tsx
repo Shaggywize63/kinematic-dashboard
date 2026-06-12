@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { crmCustomFields } from '../../lib/crmApi';
 import type { CustomField, Lead } from '../../types/crm';
+import { evaluateClientFormula } from './CustomFieldsSection';
 
 interface LeadWithCustomFields extends Lead {
   custom_fields?: Record<string, unknown> | null;
@@ -112,6 +113,14 @@ export default function LeadDetailsPanel({ lead }: Props) {
 
   const customItems: Array<[string, React.ReactNode]> = customDefs
     .map((def) => {
+      // Formula fields are computed live from the row's other custom
+      // fields — there's no stored value, so we evaluate the
+      // expression against `cf` and render the result read-only.
+      if (def.field_type === 'formula') {
+        const computed = evaluateClientFormula(def.formula || '', cf);
+        if (!computed) return null;
+        return [def.label || def.field_key, computed] as [string, React.ReactNode];
+      }
       const val = cf[def.field_key];
       if (val === undefined || val === null || val === '') return null;
       return [def.label || def.field_key, formatCustomValue(val, def.field_type)] as [string, React.ReactNode];

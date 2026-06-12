@@ -19,6 +19,10 @@ const TYPES: Array<CustomField['field_type']> = [
   'url', 'email', 'phone',
   'image', 'file',
   'lookup',
+  // Read-only computed field — value derived from other custom fields
+  // via an arithmetic + IF / MIN / MAX / ROUND formula. Editor + render
+  // are wired in CustomFieldsSection.
+  'formula',
 ];
 
 // Human-readable labels for the picker. Drives the option text in the
@@ -41,6 +45,7 @@ const TYPE_LABELS: Record<CustomField['field_type'], string> = {
   image:       'Image upload',
   file:        'File upload',
   lookup:      'Linked record (lookup)',
+  formula:     'Formula (computed)',
 };
 
 const TYPES_REQUIRING_OPTIONS = new Set<CustomField['field_type']>(['select', 'multiselect', 'radio']);
@@ -248,6 +253,9 @@ export default function CustomFieldsPage() {
   // 'lookup' so a stale target/filter never gets persisted.
   const [targetTable, setTargetTable] = useState<string>('');
   const [lookupFilter, setLookupFilter] = useState<LookupClause[]>([]);
+  // Formula-only state — the expression itself. Validated cursorily on
+  // submit (non-empty); the backend zod schema caps the length at 500.
+  const [formula, setFormula] = useState<string>('');
   const [filter, setFilter] = useState<'all' | CustomField['entity_type']>('lead');
   // Hierarchy roles a new field is shown to (empty = all roles). Loaded from
   // the org's roles so each role can have its own custom fields.
@@ -333,11 +341,19 @@ export default function CustomFieldsPage() {
       payload.target_table = targetTable;
       if (cleanedFilter && cleanedFilter.length > 0) payload.lookup_filter = cleanedFilter;
     }
+    if (fieldType === 'formula') {
+      if (!formula.trim()) {
+        toast.error('Enter a formula expression — e.g. {price} * {qty}');
+        setCreating(false);
+        return;
+      }
+      payload.formula = formula.trim();
+    }
     try {
       await crmCustomFields.create(payload as any);
       toast.success(`Custom field "${label.trim()}" added to ${entity}`);
       setFieldKey(''); setLabel(''); setOptionsRaw(''); setRequired(false); setPickedRoles([]);
-      setTargetTable(''); setLookupFilter([]);
+      setTargetTable(''); setLookupFilter([]); setFormula('');
       reload();
     } catch (e: any) { toast.error(e.message || 'Create failed — check API connection'); }
     finally { setCreating(false); }
@@ -670,6 +686,19 @@ export default function CustomFieldsPage() {
             filter={lookupFilter}
             onFilterChange={setLookupFilter}
           />
+        )}
+        {fieldType === 'formula' && (
+          <div style={{ marginBottom: 8 }}>
+            <input
+              value={formula}
+              onChange={(e) => setFormula(e.target.value)}
+              placeholder='e.g. {price} * {qty}   or   ROUND(({revenue} - {cost}) / {revenue} * 100, 1)'
+              style={{ ...input, width: '100%', fontFamily: 'ui-monospace, SFMono-Regular, monospace' }}
+            />
+            <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 4 }}>
+              Reference another custom field with <code>{'{field_key}'}</code>. Operators: <code>+ - * /</code> and <code>(  )</code>. Functions: <code>IF(cond, then, else)</code>, <code>MIN(a, b, …)</code>, <code>MAX(a, b, …)</code>, <code>ROUND(value, decimals)</code>.
+            </div>
+          </div>
         )}
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 12 }}>
           <label style={{ display: 'flex', gap: 6, alignItems: 'center', color: 'var(--text)', fontSize: 13 }}>

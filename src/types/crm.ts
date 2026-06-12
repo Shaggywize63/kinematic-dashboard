@@ -247,7 +247,8 @@ export interface CustomField {
     | 'select' | 'multiselect' | 'radio'
     | 'url' | 'email' | 'phone'
     | 'image' | 'file'
-    | 'lookup';
+    | 'lookup'
+    | 'formula';
   options?: string[] | null; required?: boolean; position?: number;
   // Hides the field from create / edit forms without deleting stored
   // values. Existing rows keep their data; flipping back to visible
@@ -262,6 +263,10 @@ export interface CustomField {
   // matching rows appear in the picker.
   target_table?: 'crm_leads' | 'crm_contacts' | 'crm_accounts' | 'crm_deals' | 'people_directory' | null;
   lookup_filter?: Array<{ field: string; op: string; value: string | number | boolean | null }> | null;
+  // Formula-only — the expression to evaluate. References other custom
+  // fields via {field_key}. Supports + - * / parens, comparisons, and
+  // IF / MIN / MAX / ROUND. See backend src/services/crm/formula.service.ts.
+  formula?: string | null;
   created_at: string;
 }
 
