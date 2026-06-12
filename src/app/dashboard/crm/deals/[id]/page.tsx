@@ -3,8 +3,8 @@ import { Component, useEffect, useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { crmDeals, crmPipelines, crmAi } from '../../../../../lib/crmApi';
-import type { Deal, Pipeline, DealHistoryEntry, DealContact, Activity, NextBestAction, WinProbability } from '../../../../../types/crm';
+import { crmDeals, crmPipelines, crmAi, crmLineItems } from '../../../../../lib/crmApi';
+import type { Deal, Pipeline, DealHistoryEntry, DealContact, Activity, NextBestAction, WinProbability, DealLineItem } from '../../../../../types/crm';
 import DealStageProgress from '../../../../../components/crm/DealStageProgress';
 import WinProbabilityGauge from '../../../../../components/crm/WinProbabilityGauge';
 import Breadcrumbs from '../../../../../components/crm/shared/Breadcrumbs';
@@ -452,7 +452,10 @@ export default function DealDetailPage() {
             </Card>
           </SafeRender>
 
-          <SafeRender label="line items">
+          <SafeRender label="line items (editable)">
+            <EditableLineItemsCard dealId={deal.id} />
+          </SafeRender>
+          <SafeRender label="line items (legacy)">
             <DealLineItemsCard customFields={(deal as any).custom_fields} />
           </SafeRender>
 
@@ -605,6 +608,166 @@ export default function DealDetailPage() {
   );
 }
 
+/**
+ * Editable line items section — reads from crm_deal_line_items via the
+ * /deals/:id/line-items endpoint and lets the rep add / edit / delete
+ * rows. Each row has a name, optional product reference, qty, unit
+ * price, and an auto-computed line_total. The card sums the total at
+ * the bottom so the rep can see the deal value materialise as they add
+ * line items. Bespoke for the use case "record multiple deal values on
+ * the deal page" — one deal, N line items, total = Σ line_total.
+ */
+function EditableLineItemsCard({ dealId }: { dealId: string }) {
+  const [items, setItems] = useState<DealLineItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [draft, setDraft] = useState<{ name: string; quantity: string; unit_price: string }>({ name: '', quantity: '1', unit_price: '0' });
+  const [adding, setAdding] = useState(false);
+  const [newRow, setNewRow] = useState<{ name: string; quantity: string; unit_price: string }>({ name: '', quantity: '1', unit_price: '0' });
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const r = await crmDeals.listLineItems(dealId);
+      setItems(r.data || []);
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to load line items');
+    } finally { setLoading(false); }
+  };
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [dealId]);
+
+  const total = items.reduce((s, l) => s + (Number(l.line_total) || 0), 0);
+
+  const startEdit = (l: DealLineItem) => {
+    setEditingId(l.id);
+    setDraft({ name: l.name || '', quantity: String(l.quantity ?? 1), unit_price: String(l.unit_price ?? 0) });
+  };
+
+  const saveEdit = async (id: string) => {
+    setBusyId(id);
+    try {
+      const r = await crmLineItems.update(id, {
+        name: draft.name.trim() || undefined,
+        quantity: Number(draft.quantity) || 0,
+        unit_price: Number(draft.unit_price) || 0,
+      });
+      setItems((prev) => prev.map((l) => (l.id === id ? { ...l, ...r.data } : l)));
+      setEditingId(null);
+      toast.success('Line item updated');
+    } catch (e: any) {
+      toast.error(e.message || 'Update failed');
+    } finally { setBusyId(null); }
+  };
+
+  const remove = async (id: string) => {
+    if (!confirm('Delete this line item?')) return;
+    setBusyId(id);
+    try {
+      await crmLineItems.remove(id);
+      setItems((prev) => prev.filter((l) => l.id !== id));
+      toast.success('Line item deleted');
+    } catch (e: any) {
+      toast.error(e.message || 'Delete failed');
+    } finally { setBusyId(null); }
+  };
+
+  const addRow = async () => {
+    const nm = newRow.name.trim();
+    if (!nm) { toast.error('Name is required'); return; }
+    const qty = Number(newRow.quantity) || 0;
+    const up = Number(newRow.unit_price) || 0;
+    setAdding(true);
+    try {
+      const r = await crmDeals.addLineItem(dealId, { name: nm, quantity: qty, unit_price: up });
+      setItems((prev) => [...prev, r.data]);
+      setNewRow({ name: '', quantity: '1', unit_price: '0' });
+      toast.success('Line item added');
+    } catch (e: any) {
+      toast.error(e.message || 'Add failed');
+    } finally { setAdding(false); }
+  };
+
+  return (
+    <Card title={`Line Items${items.length > 0 ? ` (${items.length})` : ''}`}>
+      {loading ? (
+        <div style={{ color: 'var(--text-dim)', fontSize: 12 }}>Loading…</div>
+      ) : items.length === 0 ? (
+        <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 10 }}>
+          No line items yet. Add one to record a deal value.
+        </div>
+      ) : (
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, color: 'var(--text)' }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid var(--border)', color: 'var(--text-dim)', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                <th style={th}>Item</th>
+                <th style={thRight}>Qty</th>
+                <th style={thRight}>Unit Price</th>
+                <th style={thRight}>Total</th>
+                <th style={thRight}>—</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((l) => {
+                const isEditing = editingId === l.id;
+                return (
+                  <tr key={l.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                    <td style={td}>
+                      {isEditing
+                        ? <input style={inlineInput} value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
+                        : (l.name || '—')}
+                    </td>
+                    <td style={tdRight}>
+                      {isEditing
+                        ? <input style={inlineInputRight} type="number" step="0.01" value={draft.quantity} onChange={(e) => setDraft({ ...draft, quantity: e.target.value })} />
+                        : Number(l.quantity).toLocaleString()}
+                    </td>
+                    <td style={tdRight}>
+                      {isEditing
+                        ? <input style={inlineInputRight} type="number" step="0.01" value={draft.unit_price} onChange={(e) => setDraft({ ...draft, unit_price: e.target.value })} />
+                        : formatINR(Number(l.unit_price) || 0)}
+                    </td>
+                    <td style={tdRight}><strong>{formatINR(Number(l.line_total) || 0)}</strong></td>
+                    <td style={tdRight}>
+                      {isEditing ? (
+                        <>
+                          <button onClick={() => saveEdit(l.id)} disabled={busyId === l.id} style={smallBtnPrimary}>Save</button>{' '}
+                          <button onClick={() => setEditingId(null)} disabled={busyId === l.id} style={smallBtnGhost}>Cancel</button>
+                        </>
+                      ) : (
+                        <>
+                          <button onClick={() => startEdit(l)} disabled={busyId === l.id} style={smallBtnGhost}>Edit</button>{' '}
+                          <button onClick={() => remove(l.id)} disabled={busyId === l.id} style={smallBtnDanger}>Delete</button>
+                        </>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+              <tr style={{ background: 'var(--s3)', fontWeight: 700 }}>
+                <td style={td}>Total</td>
+                <td style={tdRight}>—</td>
+                <td style={tdRight}>—</td>
+                <td style={tdRight}>{formatINR(total)}</td>
+                <td style={tdRight}>—</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Inline "add a line item" row, always visible at the bottom. */}
+      <div style={{ marginTop: 12, padding: 10, background: 'var(--s3)', border: '1px dashed var(--border)', borderRadius: 10, display: 'grid', gridTemplateColumns: '2fr 1fr 1fr auto', gap: 8, alignItems: 'center' }}>
+        <input style={inlineInput} placeholder="Item / product name" value={newRow.name} onChange={(e) => setNewRow({ ...newRow, name: e.target.value })} />
+        <input style={inlineInputRight} type="number" step="0.01" placeholder="Qty" value={newRow.quantity} onChange={(e) => setNewRow({ ...newRow, quantity: e.target.value })} />
+        <input style={inlineInputRight} type="number" step="0.01" placeholder="Unit price" value={newRow.unit_price} onChange={(e) => setNewRow({ ...newRow, unit_price: e.target.value })} />
+        <button onClick={addRow} disabled={adding} style={smallBtnPrimary}>{adding ? 'Adding…' : '+ Add'}</button>
+      </div>
+    </Card>
+  );
+}
+
 // Render the multi-product breakdown stamped onto a deal at conversion
 // time. The convert service writes each row as:
 //   { product_id, product_name, unit_price, unit_weight_kg, pieces,
@@ -694,6 +857,13 @@ const th: React.CSSProperties      = { textAlign: 'left',  padding: '8px 10px', 
 const thRight: React.CSSProperties = { textAlign: 'right', padding: '8px 10px', fontWeight: 700 };
 const td: React.CSSProperties      = { textAlign: 'left',  padding: '10px',     verticalAlign: 'top' };
 const tdRight: React.CSSProperties = { textAlign: 'right', padding: '10px',     verticalAlign: 'top', whiteSpace: 'nowrap' };
+// Used by EditableLineItemsCard — kept inline so the line-items table
+// reads like the rest of the deal page's compact-table aesthetic.
+const inlineInput: React.CSSProperties      = { width: '100%', boxSizing: 'border-box', padding: '6px 8px', fontSize: 12, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--s3)', color: 'var(--text)' };
+const inlineInputRight: React.CSSProperties = { ...inlineInput, textAlign: 'right' };
+const smallBtnPrimary: React.CSSProperties  = { background: 'var(--primary)', border: 'none', color: '#fff', padding: '5px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' };
+const smallBtnGhost: React.CSSProperties    = { background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', padding: '5px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer' };
+const smallBtnDanger: React.CSSProperties   = { background: 'transparent', border: '1px solid #ef4444', color: '#ef4444', padding: '5px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer' };
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (

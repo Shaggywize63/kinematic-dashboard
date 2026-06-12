@@ -112,7 +112,9 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
     const reqGuards: Array<{ key: string; value: string; default: boolean; message: string }> = [
       { key: 'first_name', value: form.first_name, default: true,  message: 'First name is required.' },
       { key: 'last_name',  value: form.last_name,  default: false, message: 'Last name is required.' },
-      { key: 'email',      value: form.email,      default: false, message: 'Email is required.' },
+      // Email guard is suppressed for Tata Tiscon (field is hidden);
+      // an empty value should never block save there.
+      ...(isTata ? [] : [{ key: 'email', value: form.email, default: false, message: 'Email is required.' }]),
       { key: 'phone',      value: form.phone,      default: false, message: 'Primary mobile is required.' },
       ...(!form.is_b2c
         ? [{ key: 'company', value: form.company, default: true, message: 'Company is required for B2B leads.' }]
@@ -212,7 +214,10 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
               admin's Settings → Custom Fields override (lead.email /
               lead.phone) instead of guessing based on is_b2c, so the
               asterisk matches what the settings page actually shows. */}
-          {show('email',      <F label={lbl('email',      'Email')}      type="email" required={req('email', false)} value={form.email} onChange={(v) => setForm({ ...form, email: v })} />)}
+          {/* Email entirely hidden for Tata Tiscon — their FE intake
+              doesn't capture email and we don't want the field showing
+              up in the edit form for legacy leads either. */}
+          {!isTata && show('email', <F label={lbl('email', 'Email')} type="email" required={req('email', false)} value={form.email} onChange={(v) => setForm({ ...form, email: v })} />)}
           {show('phone',      <F label={lbl('phone',      'Phone')}      phone required={req('phone', false)} value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />)}
         </Grid>
 
