@@ -3,6 +3,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import api from '../../../../../lib/api';
 import { crmTargets } from '../../../../../lib/crmApi';
+import { useAuth } from '../../../../../hooks/useAuth';
+import { isConsumerChampion } from '../../../../../lib/clientFeatures';
 
 interface U {
   id: string; name: string; role: string;
@@ -12,6 +14,8 @@ interface U {
 interface Level { id: string; name: string; order: number; }
 
 export default function TargetsSettingsPage() {
+  const { user } = useAuth();
+  const champion = isConsumerChampion(user as any);
   const [users, setUsers] = useState<U[]>([]);
   const [levels, setLevels] = useState<Level[]>([]);
   const [defaultTarget, setDefaultTarget] = useState<number>(0);
@@ -20,6 +24,8 @@ export default function TargetsSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [savingLevel, setSavingLevel] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
+  // Champion-only: their own weekly target, fetched from /targets/me.
+  const [myTarget, setMyTarget] = useState<{ target: number; achieved: number } | null>(null);
 
   // Per-user override panel: which level + optional city to populate.
   const [pickLevel, setPickLevel] = useState<string>('');
@@ -38,6 +44,18 @@ export default function TargetsSettingsPage() {
   const load = async () => {
     setLoading(true);
     try {
+      // Consumer Champion: skip the manager-only payloads and just fetch
+      // their own target for read-only display.
+      if (champion) {
+        try {
+          const r = await api.get<any>('/api/v1/crm/targets/me');
+          const target = Number(r?.target ?? 0);
+          const achieved = Number(r?.achieved ?? 0);
+          setMyTarget({ target, achieved });
+        } catch { setMyTarget({ target: 0, achieved: 0 }); }
+        setLoading(false);
+        return;
+      }
       const [uRes, lRes, tRes] = await Promise.allSettled([
         api.get<any>('/api/v1/users?limit=500'),
         api.get<any>('/api/v1/crm/targets/levels'),
@@ -89,7 +107,7 @@ export default function TargetsSettingsPage() {
     try {
       await crmTargets.set({ hierarchy_level_id: levelId, target_value: v });
       setLevelTargets((m) => ({ ...m, [levelId]: v }));
-      toast.success(`Target set: ${v}/day for this level`);
+      toast.success(`Target set: ${v}/week for this level`);
     } catch (e: any) { toast.error(e.message || 'Failed'); }
     finally { setSavingLevel(null); }
   };
@@ -97,7 +115,7 @@ export default function TargetsSettingsPage() {
   const saveDefault = async () => {
     const v = Math.max(0, Math.floor(defaultTarget ?? 0));
     setSavingLevel('__default__');
-    try { await crmTargets.set({ all: true, target_value: v }); toast.success(`Fallback set to ${v}/day`); }
+    try { await crmTargets.set({ all: true, target_value: v }); toast.success(`Fallback set to ${v}/week`); }
     catch (e: any) { toast.error(e.message || 'Failed'); }
     finally { setSavingLevel(null); }
   };
@@ -109,7 +127,7 @@ export default function TargetsSettingsPage() {
     try {
       await crmTargets.set({ user_id: u.id, target_value: v });
       setOverrides((m) => ({ ...m, [u.id]: v }));
-      toast.success(`${u.name}: ${v}/day`);
+      toast.success(`${u.name}: ${v}/week`);
     } catch (e: any) { toast.error(e.message || 'Failed'); }
     finally { setSavingId(null); }
   };
@@ -121,17 +139,46 @@ export default function TargetsSettingsPage() {
   const rowStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--border)', flexWrap: 'wrap' };
   const controlsStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginLeft: narrow ? 0 : 'auto' };
 
+  // Consumer Champion: view-only screen showing their own weekly target.
+  // No hierarchy levels, no individual overrides, no fallback default —
+  // those are manager-tier controls they cannot touch.
+  if (champion) {
+    return (
+      <div style={{ maxWidth: 760, width: '100%' }}>
+        <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', margin: '0 0 4px' }}>My weekly target</h1>
+        <p style={{ fontSize: 13, color: 'var(--text-dim)', margin: '0 0 18px' }}>
+          Your weekly lead target is set by your manager. Track progress here and on the home dashboard.
+        </p>
+        <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 22 }}>
+          {loading ? (
+            <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>Loading…</div>
+          ) : !myTarget || myTarget.target === 0 ? (
+            <div style={{ fontSize: 13, color: 'var(--text-dim)' }}>
+              No target set yet. Ask your manager to assign one.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
+              <div style={{ fontSize: 36, fontWeight: 800, color: 'var(--text)' }}>{myTarget.achieved}</div>
+              <div style={{ fontSize: 18, color: 'var(--text-dim)' }}>/ {myTarget.target}</div>
+              <div style={{ fontSize: 13, color: 'var(--text-dim)', marginLeft: 6 }}>leads this week</div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ maxWidth: 760, width: '100%' }}>
       <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', margin: '0 0 4px' }}>Targets</h1>
       <p style={{ fontSize: 13, color: 'var(--text-dim)', margin: '0 0 18px' }}>
-        Set the daily lead target for each hierarchy level (e.g. Consumer Champion, Area Sales Officer). Everyone at that level inherits it. You can override individuals below. FEs see their target as a dashboard ticker and a 1/5 badge when adding a lead.
+        Set the weekly lead target for each hierarchy level (e.g. Consumer Champion, Area Sales Officer). Everyone at that level inherits it. You can override individuals below. FEs see their target as a dashboard ticker.
       </p>
 
       {/* Per-hierarchy-level targets — the primary control */}
       <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 16 }}>
         <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)', marginBottom: 4 }}>Targets by hierarchy level</div>
-        <p style={{ fontSize: 12, color: 'var(--text-dim)', margin: '0 0 12px' }}>The daily lead target for every user at each level.</p>
+        <p style={{ fontSize: 12, color: 'var(--text-dim)', margin: '0 0 12px' }}>The weekly lead target for every user at each level.</p>
         {loading ? (
           <div style={{ fontSize: 12, color: 'var(--text-dim)', padding: 12 }}>Loading…</div>
         ) : levels.length === 0 ? (
@@ -152,7 +199,7 @@ export default function TargetsSettingsPage() {
                     placeholder="0"
                     onChange={(e) => setLevelTargets((m) => ({ ...m, [l.id]: parseInt(e.target.value || '0', 10) || 0 }))}
                     style={inputStyle} />
-                  <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>/day</span>
+                  <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>/week</span>
                   <button onClick={() => saveLevel(l.id)} disabled={savingLevel === l.id} style={{ ...btnStyle, opacity: savingLevel === l.id ? 0.6 : 1 }}>
                     {savingLevel === l.id ? 'Saving…' : 'Save'}
                   </button>
@@ -216,7 +263,7 @@ export default function TargetsSettingsPage() {
         <p style={{ fontSize: 12, color: 'var(--text-dim)', margin: '0 0 12px' }}>Used only for people with no hierarchy level and no individual target.</p>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <input type="number" min={0} value={defaultTarget} onChange={(e) => setDefaultTarget(parseInt(e.target.value || '0', 10) || 0)} style={inputStyle} />
-          <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>leads / day</span>
+          <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>leads / week</span>
           <button onClick={saveDefault} disabled={savingLevel === '__default__'} style={{ ...btnStyle, opacity: savingLevel === '__default__' ? 0.6 : 1 }}>{savingLevel === '__default__' ? 'Saving…' : 'Save fallback'}</button>
         </div>
       </div>

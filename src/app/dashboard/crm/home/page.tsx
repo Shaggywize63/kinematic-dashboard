@@ -144,7 +144,7 @@ export default function CrmHomePage() {
               <Stat icon={<Sparkles size={14} />} label="Pace" value={`${t.progress_pct}%`} />
             </div>
           ) : (
-            <div style={{ fontSize: 13, opacity: 0.85 }}>No target set for today. Ask your manager to assign one, or focus on your near-to-close pipeline below.</div>
+            <div style={{ fontSize: 13, opacity: 0.85 }}>No target set for this week. Ask your manager to assign one, or focus on your near-to-close pipeline below.</div>
           )}
         </div>
         <ProgressRing pct={t?.progress_pct ?? 0} achieved={t?.achieved ?? 0} target={t?.target ?? 0} />
