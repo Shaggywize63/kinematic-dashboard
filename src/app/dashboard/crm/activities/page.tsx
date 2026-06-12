@@ -3,7 +3,7 @@ import { Suspense, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { crmActivities, type Pagination, type ActivityView } from '../../../../lib/crmApi';
+import { crmActivities, crmLeads, type Pagination, type ActivityView } from '../../../../lib/crmApi';
 import api, { API_BASE_URL } from '../../../../lib/api';
 import type { Activity } from '../../../../types/crm';
 import { getStoredUser, canAccess, getStoredToken } from '../../../../lib/auth';
@@ -29,7 +29,9 @@ const ACTIVITY_CARD_FIELDS = [
   { key: 'created', label: 'Created date' },
 ] as const;
 
-const TYPE_OPTIONS = ['', 'call', 'email', 'meeting', 'task', 'note', 'sms', 'whatsapp'];
+// Meeting first: in field-force usage it's the most common activity type
+// reps filter for, so it sits at the top of the picker.
+const TYPE_OPTIONS = ['', 'meeting', 'call', 'email', 'task', 'note', 'sms', 'whatsapp'];
 // Activity statuses surfaced on the filter — the same values the row actions
 // can flip activities into (open / completed / in_progress / cancelled).
 const STATUS_OPTIONS = ['', 'open', 'in_progress', 'completed', 'cancelled'];
@@ -65,6 +67,18 @@ function ActivitiesPageInner() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [users, setUsers] = useState<UserOption[]>([]);
   const [feFilter, setFeFilter] = useState('');
+  // Search-by-lead filter — `leadFilterId` carries the picked lead's UUID
+  // (sent as ?lead_id= so the backend's generic crud helper filters via
+  // `.eq('lead_id', uuid)`), `leadFilterLabel` is the human display the
+  // picker should keep showing once selected. `leadOptions` is the
+  // typeahead candidate list, refreshed each time the query string
+  // changes (debounced server-side fetch via crmLeads.list).
+  const [leadFilterId, setLeadFilterId] = useState('');
+  const [leadFilterLabel, setLeadFilterLabel] = useState('');
+  const [leadQuery, setLeadQuery] = useState('');
+  const [leadOptions, setLeadOptions] = useState<Array<{ id: string; label: string }>>([]);
+  const [leadSearching, setLeadSearching] = useState(false);
+  const [leadPickerOpen, setLeadPickerOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
   // Global header city scope. Activities have no city column of their own —
   // the backend filters them via the linked lead — but the page must refetch
@@ -112,6 +126,7 @@ function ActivitiesPageInner() {
       if (type) qs.set('type', type);
       if (statusFilter) qs.set('status', statusFilter);
       if (feFilter) qs.set('owner_id', feFilter);
+      if (leadFilterId) qs.set('lead_id', leadFilterId);
       if (selectedCity) qs.set('city', selectedCity);
       // Demo-account short-circuit — raw fetch() bypasses api.ts's demo
       // intercept, so we'd otherwise hit the real backend with a demo
@@ -190,6 +205,9 @@ function ActivitiesPageInner() {
       if (type) params.type = type;
       if (statusFilter) params.status = statusFilter;
       if (isAdmin && feFilter) params.owner_id = feFilter;
+      // Search by lead — backend's crud.list applies any non-reserved key
+      // as .eq(), so `lead_id` filters crm_activities.lead_id directly.
+      if (leadFilterId) params.lead_id = leadFilterId;
       if (selectedCity) params.city = selectedCity;
       if (dateRange.from) params.from = dateRange.from;
       if (dateRange.to) params.to = dateRange.to;
@@ -243,14 +261,43 @@ function ActivitiesPageInner() {
   // means we don't need the client-side `filtered` array to re-filter on
   // the same dimensions.
   useEffect(() => { reload(); /* eslint-disable-next-line */ }, [
-    type, statusFilter, feFilter, view, page, pageSize, isAdmin, sort, selectedCity, dateRange.from, dateRange.to,
+    type, statusFilter, feFilter, leadFilterId, view, page, pageSize, isAdmin, sort, selectedCity, dateRange.from, dateRange.to,
   ]);
 
   // Reset to page 1 whenever any server-side filter changes — otherwise
   // a stricter filter while on page 5 would land on an empty page.
   useEffect(() => { setPage(1); /* eslint-disable-next-line */ }, [
-    type, statusFilter, feFilter, view, pageSize, selectedCity,
+    type, statusFilter, feFilter, leadFilterId, view, pageSize, selectedCity,
   ]);
+
+  // Debounced typeahead — query the leads list as the user types in the
+  // lead-search picker. Server-side q= matches name/email/phone; the
+  // tenant + city scope are auto-attached via api.ts, so we only see
+  // leads the user actually has visibility on.
+  useEffect(() => {
+    if (!leadPickerOpen) return;
+    const q = leadQuery.trim();
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      setLeadSearching(true);
+      try {
+        const r = await crmLeads.list(q ? { q, limit: 25 } : { limit: 25 });
+        if (cancelled) return;
+        const rows: Array<{ id: string; label: string }> = (r.data || []).map((l: any) => {
+          const name = [l.first_name, l.last_name].filter(Boolean).join(' ').trim() ||
+                       l.full_name || l.name || l.email || l.phone || `Lead ${String(l.id).slice(0, 8)}`;
+          const sub = [l.city, l.state].filter(Boolean).join(', ');
+          return { id: l.id, label: sub ? `${name} · ${sub}` : name };
+        });
+        setLeadOptions(rows);
+      } catch {
+        if (!cancelled) setLeadOptions([]);
+      } finally {
+        if (!cancelled) setLeadSearching(false);
+      }
+    }, 200);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [leadQuery, leadPickerOpen]);
 
   const updateStatus = async (a: Activity, status: string) => {
     setBusyId(a.id);
@@ -412,6 +459,27 @@ function ActivitiesPageInner() {
               <option key={s} value={s}>{s ? s.replace('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : 'All Statuses'}</option>
             ))}
           </select>
+          <LeadFilterPicker
+            value={leadFilterId}
+            label={leadFilterLabel}
+            open={leadPickerOpen}
+            query={leadQuery}
+            options={leadOptions}
+            searching={leadSearching}
+            onOpenChange={(o) => { setLeadPickerOpen(o); if (o) setLeadQuery(''); }}
+            onQueryChange={setLeadQuery}
+            onPick={(opt) => {
+              setLeadFilterId(opt.id);
+              setLeadFilterLabel(opt.label);
+              setLeadPickerOpen(false);
+              setLeadQuery('');
+            }}
+            onClear={() => {
+              setLeadFilterId('');
+              setLeadFilterLabel('');
+              setLeadQuery('');
+            }}
+          />
           <select value={sort} onChange={(e) => setSort(e.target.value as SortOption)} title="Sort order" style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 }}>
             <option value="updated_desc">Latest activity</option>
             <option value="created_desc">Newest first</option>
@@ -1035,7 +1103,7 @@ function EditActivityModal({ activity, onClose, onSaved }: { activity: Activity;
         </div>
         <Field label="Type">
           <select value={type} onChange={(e) => setType(e.target.value)} style={editInput}>
-            {['call', 'email', 'meeting', 'task', 'note', 'whatsapp', 'sms', 'other'].map((t) => (
+            {['meeting', 'call', 'email', 'task', 'note', 'whatsapp', 'sms', 'other'].map((t) => (
               <option key={t} value={t}>{t[0].toUpperCase() + t.slice(1)}</option>
             ))}
           </select>
@@ -1146,6 +1214,113 @@ function AgendaRow({ a }: { a: Activity }) {
         {done ? 'Done' : overdue ? 'Overdue' : 'Open'}
       </span>
     </Link>
+  );
+}
+
+/**
+ * Server-side lead search picker for the Activities filter strip.
+ *
+ * Renders a dropdown trigger that, when expanded, shows a debounced
+ * typeahead over the leads list. Picking a row sets the lead_id filter
+ * on the parent and the picker collapses showing the selected lead's
+ * name. The 🔍 affordance is intentionally identical to the other
+ * inline-styled selects in this header so the filters read as one row.
+ */
+function LeadFilterPicker({
+  value, label, open, query, options, searching,
+  onOpenChange, onQueryChange, onPick, onClear,
+}: {
+  value: string;
+  label: string;
+  open: boolean;
+  query: string;
+  options: Array<{ id: string; label: string }>;
+  searching: boolean;
+  onOpenChange: (open: boolean) => void;
+  onQueryChange: (q: string) => void;
+  onPick: (opt: { id: string; label: string }) => void;
+  onClear: () => void;
+}) {
+  return (
+    <div style={{ position: 'relative' }}>
+      <button
+        type="button"
+        onClick={() => onOpenChange(!open)}
+        title="Filter activities by linked lead"
+        style={{
+          background: value ? 'var(--primary)' : 'var(--s3)',
+          border: `1px solid ${value ? 'var(--primary)' : 'var(--border)'}`,
+          color: value ? '#fff' : 'var(--text)',
+          padding: '8px 12px',
+          borderRadius: 8,
+          fontSize: 13,
+          fontWeight: value ? 700 : 400,
+          cursor: 'pointer',
+          maxWidth: 240,
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+          display: 'inline-flex', alignItems: 'center', gap: 6,
+        }}
+      >
+        🔍 {value ? label : 'Search by lead'}
+        {value && (
+          <span
+            role="button"
+            tabIndex={0}
+            onClick={(e) => { e.stopPropagation(); onClear(); }}
+            style={{ marginLeft: 4, fontSize: 12, opacity: 0.85 }}
+            aria-label="Clear lead filter"
+          >×</span>
+        )}
+      </button>
+      {open && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, marginTop: 4,
+          background: 'var(--s1)', border: '1px solid var(--border)',
+          borderRadius: 10, padding: 8, width: 320, zIndex: 50,
+          boxShadow: '0 6px 24px rgba(0,0,0,0.35)',
+        }}>
+          <input
+            autoFocus
+            value={query}
+            onChange={(e) => onQueryChange(e.target.value)}
+            placeholder="Type a lead name, phone, email…"
+            style={{
+              width: '100%', boxSizing: 'border-box',
+              background: 'var(--s3)', border: '1px solid var(--border)',
+              color: 'var(--text)', padding: '7px 10px',
+              borderRadius: 6, fontSize: 13,
+            }}
+          />
+          <div style={{ marginTop: 6, maxHeight: 260, overflowY: 'auto' }}>
+            {searching ? (
+              <div style={{ padding: 10, fontSize: 12, color: 'var(--text-dim)' }}>Searching…</div>
+            ) : options.length === 0 ? (
+              <div style={{ padding: 10, fontSize: 12, color: 'var(--text-dim)' }}>
+                {query ? 'No leads match.' : 'Start typing to search.'}
+              </div>
+            ) : options.map((o) => (
+              <button
+                key={o.id}
+                type="button"
+                onClick={() => onPick(o)}
+                style={{
+                  display: 'block', width: '100%', textAlign: 'left',
+                  background: 'transparent', border: 'none',
+                  color: 'var(--text)', padding: '7px 10px',
+                  borderRadius: 6, fontSize: 13, cursor: 'pointer',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--s3)')}
+                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 

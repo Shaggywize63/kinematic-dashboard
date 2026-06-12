@@ -13,7 +13,6 @@ import LeadUpdatesTimeline from '../../../../../components/crm/LeadUpdatesTimeli
 import Breadcrumbs from '../../../../../components/crm/shared/Breadcrumbs';
 import LeadConvertModal from '../../../../../components/crm/LeadConvertModal';
 import LeadDisqualifyModal, { type LeadDisqualifyOutcome } from '../../../../../components/crm/LeadDisqualifyModal';
-import AiDraftReplyPanel from '../../../../../components/crm/AiDraftReplyPanel';
 import OwnerAvatar from '../../../../../components/crm/shared/OwnerAvatar';
 import WhatsAppButton from '../../../../../components/crm/shared/WhatsAppButton';
 import CallButton from '../../../../../components/crm/shared/CallButton';
@@ -22,6 +21,7 @@ import LeadDetailsPanel from '../../../../../components/crm/LeadDetailsPanel';
 import ScoreBoostSuggestions from '../../../../../components/crm/ScoreBoostSuggestions';
 import { formatINR } from '../../../../../lib/formatCurrency';
 import { useAuth } from '../../../../../hooks/useAuth';
+import { isConsumerChampion, isTataTiscanActive } from '../../../../../lib/clientFeatures';
 
 type UserOption = { id: string; name: string };
 
@@ -40,6 +40,16 @@ export default function LeadDetailPage() {
   // Reps with data_scope='own' (e.g. Consumer Champion) only see their own
   // leads — reassigning would hide the record from them. Suppress Assign.
   const canReassign = user?.org_role_data_scope !== 'own';
+  // Tenant + designation gates. Consumer Champion FEs (TATA's frontline
+  // designation) don't see the Lead Score breakdown, the boost-score
+  // suggestions, or the analytics surface — those tools target managers,
+  // not field reps. Tata-Tiscon tenants get the streamlined convert flow
+  // (skip the create-account prompt and jump straight to a new Deal where
+  // line items are managed) since they only sell deals, never run a
+  // separate accounts book.
+  const isChampion = isConsumerChampion(user as any);
+  const isTataActive = isTataTiscanActive(user as any);
+  const [tataConverting, setTataConverting] = useState(false);
   const id = params?.id as string;
   const [lead, setLead] = useState<LifecycleLead | null>(null);
   const [score, setScore] = useState<LeadScore | null>(null);
@@ -242,7 +252,40 @@ export default function LeadDetailPage() {
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
               <button onClick={() => setEditOpen(true)} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>Edit</button>
               {!isClosed && (
-                <button onClick={() => setConvertOpen(true)} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>Convert</button>
+                <button
+                  onClick={async () => {
+                    // Tata Tiscon: bypass the create-account / create-deal
+                    // popup entirely. TATA's flow records the deal directly
+                    // (with line items managed on the deal page), so we
+                    // call convert with account=false and route straight to
+                    // the new deal.
+                    if (isTataActive) {
+                      setTataConverting(true);
+                      try {
+                        const defaultName = (lead.company ? `${lead.company} Opportunity` : fullName) || 'New Opportunity';
+                        const r = await crmLeads.convert(id, {
+                          create_account: false,
+                          create_deal: true,
+                          deal_name: defaultName,
+                        });
+                        const data: any = (r as any)?.data ?? r;
+                        const dealId = data?.deal?.id || data?.deal_id;
+                        toast.success('Lead converted to deal');
+                        await reload();
+                        if (dealId) router.push(`/dashboard/crm/deals/${dealId}`);
+                        else router.push('/dashboard/crm/deals');
+                      } catch (e: any) {
+                        toast.error(e.message || 'Conversion failed');
+                      } finally {
+                        setTataConverting(false);
+                      }
+                      return;
+                    }
+                    setConvertOpen(true);
+                  }}
+                  disabled={tataConverting}
+                  style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: tataConverting ? 'not-allowed' : 'pointer', opacity: tataConverting ? 0.7 : 1 }}
+                >{tataConverting ? 'Converting…' : 'Convert'}</button>
               )}
               {canReassign && (
               <div ref={assignRef} style={{ position: 'relative' }}>
@@ -358,23 +401,30 @@ export default function LeadDetailPage() {
           />
         </Card>
         <Card title="Activity Timeline"><ActivityTimeline activities={activities} /></Card>
-        <AiDraftReplyPanel leadId={id} />
       </div>
 
       <div style={{ flex: '1 1 280px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 18 }}>
-        <LeadScoreBreakdown
-          score={score?.score ?? lead.score}
-          grade={(score?.grade ?? lead.score_grade) as any}
-          factors={score?.factors}
-          onRefresh={reScore}
-          loading={scoring}
-        />
-        <ScoreBoostSuggestions
-          lead={lead as any}
-          onEdit={() => setEditOpen(true)}
-          onQualify={markQualified}
-          busy={qualifying || scoring}
-        />
+        {/* LeadScoreBreakdown + ScoreBoostSuggestions hidden for Consumer
+            Champion reps — they're meant for managers, not the FE-tier
+            users. NBA card stays visible since it's an action prompt the
+            FE can act on directly. */}
+        {!isChampion && (
+          <>
+            <LeadScoreBreakdown
+              score={score?.score ?? lead.score}
+              grade={(score?.grade ?? lead.score_grade) as any}
+              factors={score?.factors}
+              onRefresh={reScore}
+              loading={scoring}
+            />
+            <ScoreBoostSuggestions
+              lead={lead as any}
+              onEdit={() => setEditOpen(true)}
+              onQualify={markQualified}
+              busy={qualifying || scoring}
+            />
+          </>
+        )}
         <NextBestActionCard action={nba} onLoad={loadNba} loading={nbaLoading} leadId={id} />
       </div>
 

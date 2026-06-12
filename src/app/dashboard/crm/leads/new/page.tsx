@@ -310,6 +310,7 @@ export default function NewLeadPage() {
     // mandatory on B2B leads (or phone mandatory on B2C) can flip the
     // toggle in settings once and the form picks it up immediately.
     if (
+      !isTata &&
       !fields.isHidden('email') &&
       fields.requiredFor('email', false) &&
       (!form.email || !form.email.trim())
@@ -503,7 +504,10 @@ export default function NewLeadPage() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
           {text('first_name', 'First Name', { required: fields.requiredFor('first_name', true) })}
           {text('last_name',  'Last Name',  { required: fields.requiredFor('last_name',  true) })}
-          {text('email',      'Email', { type: 'email', required: fields.requiredFor('email', false) })}
+          {/* Email field is hidden entirely for Tata Tiscon — their FE
+              walk-in flow doesn't collect email, and prompting for it
+              just to skip it adds friction. */}
+          {!isTata && text('email', 'Email', { type: 'email', required: fields.requiredFor('email', false) })}
           {text('phone',      'Primary Mobile', { required: fields.requiredFor('phone', false), phone: true })}
         </div>
         <AlternateMobiles
