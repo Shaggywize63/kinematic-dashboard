@@ -271,6 +271,9 @@ export default function CustomFieldsPage() {
   // at the bottom can scroll the form into view AND focus the first
   // field — the rep can start typing immediately.
   const fieldKeyRef = useRef<HTMLInputElement | null>(null);
+  // Ref for the formula text input so we can insert {field_key} tokens
+  // at the current cursor position when the admin clicks a field chip.
+  const formulaInputRef = useRef<HTMLInputElement | null>(null);
   // Drag-and-drop state for the custom-fields table. dragId is the
   // row currently being dragged; overId is the row it's hovering on.
   // Set on dragstart/dragover, cleared on dragend. The actual reorder
@@ -689,14 +692,63 @@ export default function CustomFieldsPage() {
         )}
         {fieldType === 'formula' && (
           <div style={{ marginBottom: 8 }}>
+            {/* Available fields for this entity — click to insert {field_key} */}
+            {(() => {
+              const available = items.filter(
+                (f) => f.entity_type === entity && f.field_type !== 'formula' && !f.hidden,
+              );
+              if (available.length === 0) return (
+                <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 6 }}>
+                  No other custom fields for <strong>{entity}</strong> yet. Create them first, then reference them here.
+                </div>
+              );
+              return (
+                <div style={{ marginBottom: 8 }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 600, marginBottom: 4 }}>
+                    Click a field to insert it into the formula:
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                    {available.map((f) => (
+                      <button
+                        key={f.id}
+                        type="button"
+                        title={`Insert {${f.field_key}}`}
+                        onClick={() => {
+                          const el = formulaInputRef.current;
+                          if (!el) { setFormula((prev) => prev + `{${f.field_key}}`); return; }
+                          const start = el.selectionStart ?? formula.length;
+                          const end   = el.selectionEnd   ?? formula.length;
+                          const insert = `{${f.field_key}}`;
+                          const next = formula.slice(0, start) + insert + formula.slice(end);
+                          setFormula(next);
+                          // Restore cursor after the inserted token.
+                          requestAnimationFrame(() => {
+                            el.focus();
+                            el.setSelectionRange(start + insert.length, start + insert.length);
+                          });
+                        }}
+                        style={{
+                          padding: '3px 9px', borderRadius: 999, fontSize: 11, cursor: 'pointer',
+                          border: '1px solid var(--primary)', background: 'var(--s3)',
+                          color: 'var(--primary)', fontWeight: 600, fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+                        }}
+                      >
+                        {'{' + f.field_key + '}'} <span style={{ fontWeight: 400, fontFamily: 'inherit', color: 'var(--text-dim)' }}>{f.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
             <input
+              ref={formulaInputRef}
               value={formula}
               onChange={(e) => setFormula(e.target.value)}
               placeholder='e.g. {price} * {qty}   or   ROUND(({revenue} - {cost}) / {revenue} * 100, 1)'
               style={{ ...input, width: '100%', fontFamily: 'ui-monospace, SFMono-Regular, monospace' }}
             />
             <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 4 }}>
-              Reference another custom field with <code>{'{field_key}'}</code>. Operators: <code>+ - * /</code> and <code>(  )</code>. Functions: <code>IF(cond, then, else)</code>, <code>MIN(a, b, …)</code>, <code>MAX(a, b, …)</code>, <code>ROUND(value, decimals)</code>.
+              Operators: <code>+ - * /</code> and <code>(  )</code>. Functions: <code>IF(cond, then, else)</code>, <code>MIN(a, b, …)</code>, <code>MAX(a, b, …)</code>, <code>ROUND(value, decimals)</code>.
             </div>
           </div>
         )}

@@ -9,7 +9,6 @@ import DealStageProgress from '../../../../../components/crm/DealStageProgress';
 import WinProbabilityGauge from '../../../../../components/crm/WinProbabilityGauge';
 import Breadcrumbs from '../../../../../components/crm/shared/Breadcrumbs';
 import NextBestActionCard from '../../../../../components/crm/NextBestActionCard';
-import AiDraftReplyPanel from '../../../../../components/crm/AiDraftReplyPanel';
 import CallButton from '../../../../../components/crm/shared/CallButton';
 import ActivityTimeline from '../../../../../components/crm/ActivityTimeline';
 import DealEditModal from '../../../../../components/crm/DealEditModal';
@@ -502,9 +501,6 @@ export default function DealDetailPage() {
             </Card>
           </SafeRender>
 
-          <SafeRender label="AI draft reply">
-            <AiDraftReplyPanel dealId={id} />
-          </SafeRender>
         </div>
 
         <div style={{ flex: '1 1 280px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 18 }}>
