@@ -779,35 +779,6 @@ export default function NewLeadPage() {
         )}
       </Section>
 
-      {products.length > 0 && (
-        <Section title="Products of Interest">
-          <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 10 }}>
-            Select products this lead is interested in.
-          </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {products.map((p) => {
-              const selected = form.product_ids.includes(p.id);
-              return (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => toggleProduct(p.id)}
-                  style={{
-                    padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                    border: `1px solid ${selected ? 'var(--primary)' : 'var(--border)'}`,
-                    background: selected ? 'var(--primary)' : 'var(--s3)',
-                    color: selected ? '#fff' : 'var(--text)',
-                  }}
-                >
-                  {p.name}
-                  {p.price > 0 && <span style={{ opacity: 0.7, marginLeft: 6, fontSize: 11 }}>₹{p.price.toLocaleString('en-IN')}</span>}
-                </button>
-              );
-            })}
-          </div>
-        </Section>
-      )}
-
       {/* Tata Tiscon: tick to atomically spawn a completed `site_visit`
           activity tied to the new lead. Default on because most adds
           happen at the dealer / consumer counter; the toggle stays
