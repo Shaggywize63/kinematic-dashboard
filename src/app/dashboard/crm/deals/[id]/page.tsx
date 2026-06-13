@@ -3,8 +3,8 @@ import { Component, useEffect, useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { crmDeals, crmPipelines, crmAi, crmLineItems } from '../../../../../lib/crmApi';
-import type { Deal, Pipeline, DealHistoryEntry, DealContact, Activity, NextBestAction, WinProbability, DealLineItem } from '../../../../../types/crm';
+import { crmDeals, crmPipelines, crmAi, crmLineItems, crmLeads, crmProducts } from '../../../../../lib/crmApi';
+import type { Deal, Pipeline, DealHistoryEntry, DealContact, Activity, NextBestAction, WinProbability, DealLineItem, Lead, Product } from '../../../../../types/crm';
 import DealStageProgress from '../../../../../components/crm/DealStageProgress';
 import WinProbabilityGauge from '../../../../../components/crm/WinProbabilityGauge';
 import Breadcrumbs from '../../../../../components/crm/shared/Breadcrumbs';
@@ -451,11 +451,8 @@ export default function DealDetailPage() {
             </Card>
           </SafeRender>
 
-          <SafeRender label="line items (editable)">
-            <EditableLineItemsCard dealId={deal.id} />
-          </SafeRender>
-          <SafeRender label="line items (legacy)">
-            <DealLineItemsCard customFields={(deal as any).custom_fields} />
+          <SafeRender label="products">
+            <DealProductsCard deal={deal} />
           </SafeRender>
 
           <SafeRender label="activities">
@@ -601,6 +598,233 @@ export default function DealDetailPage() {
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Products section — replaces the legacy line-items table on the deal
+ * page. Reads the product_lines the rep captured on the linked LEAD
+ * (custom_fields.product_lines) and lays them out as one row per
+ * product with four columns: Product Name | Estimated Quantity (with
+ * its unit) | Closed Quantity (editable, number) | Balance (read-only).
+ *
+ * Balance = closed_quantity - estimated_quantity. The display strips
+ * the sign so the cell always reads as a positive number, and a
+ * directional arrow icon encodes the polarity:
+ *
+ *   positive balance (closed > estimated): RED arrow pointing DOWN
+ *   negative balance (closed < estimated): GREEN arrow pointing UP
+ *   zero:                                  no arrow
+ *
+ * Closed quantities live on the deal under
+ *   deal.custom_fields.closed_quantities = { [product_id]: number }
+ * and persist via crmDeals.update(...). Edits debounce-save to avoid
+ * pounding the API on every keystroke.
+ */
+function DealProductsCard({ deal }: { deal: Deal }) {
+  type LeadLine = { product_id?: string | null; quantity?: number | string | null; measuring_unit?: string | null };
+  type ProductRow = { product_id: string; product_name: string; estimated: number; unit: string };
+
+  const leadId = (deal as Deal & { lead_id?: string | null }).lead_id ?? null;
+  const dealCf = ((deal as Deal & { custom_fields?: Record<string, unknown> | null }).custom_fields ?? {}) as Record<string, unknown>;
+  const initialClosed = (() => {
+    const raw = dealCf.closed_quantities;
+    if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+      const out: Record<string, number> = {};
+      for (const [k, v] of Object.entries(raw)) {
+        const n = typeof v === 'number' ? v : Number(v);
+        if (Number.isFinite(n)) out[k] = n;
+      }
+      return out;
+    }
+    return {};
+  })();
+
+  const [rows, setRows] = useState<ProductRow[]>([]);
+  const [closed, setClosed] = useState<Record<string, number>>(initialClosed);
+  // String-edit buffer so the rep can clear a cell mid-typing without
+  // it snapping back to 0 — we only push the number into `closed`
+  // (and persist) once a valid number is entered.
+  const [draft, setDraft] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(true);
+  const [productMap, setProductMap] = useState<Map<string, Product>>(new Map());
+  const [saving, setSaving] = useState(false);
+
+  // Load: linked lead's product_lines + the products catalogue (for
+  // resolving UUID → name when the line doesn't carry a snapshot label).
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [leadR, prodR] = await Promise.allSettled([
+          leadId ? crmLeads.get(leadId) : Promise.resolve(null),
+          crmProducts.list(),
+        ]);
+        if (cancelled) return;
+        const productList = prodR.status === 'fulfilled' ? (prodR.value?.data ?? []) : [];
+        const map = new Map<string, Product>();
+        productList.forEach((p) => map.set(p.id, p));
+        setProductMap(map);
+        if (leadR.status === 'fulfilled' && leadR.value) {
+          const lead = leadR.value.data as Lead & { custom_fields?: Record<string, unknown> | null };
+          const cf = (lead?.custom_fields ?? {}) as Record<string, unknown>;
+          let lines: LeadLine[] = [];
+          const arr = cf.product_lines;
+          if (Array.isArray(arr) && arr.length > 0) {
+            lines = arr as LeadLine[];
+          } else if (cf.product_interested || cf.quantity != null) {
+            lines = [{
+              product_id: cf.product_interested as string | null,
+              quantity: cf.quantity as number | string | null,
+              measuring_unit: typeof cf.measuring_unit === 'string' ? cf.measuring_unit : null,
+            }];
+          }
+          const built: ProductRow[] = lines
+            .filter((l) => !!l.product_id)
+            .map((l) => {
+              const p = map.get(String(l.product_id));
+              const qty = typeof l.quantity === 'number' ? l.quantity : Number(l.quantity ?? 0);
+              return {
+                product_id: String(l.product_id),
+                product_name: p?.name ?? String(l.product_id).slice(0, 8),
+                estimated: Number.isFinite(qty) ? qty : 0,
+                unit: (l.measuring_unit || '').toString(),
+              };
+            });
+          setRows(built);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [leadId]);
+
+  // Persist closed quantities back onto the deal. Debounced so a rapid
+  // sequence of keystrokes results in one PATCH rather than N.
+  useEffect(() => {
+    if (loading) return;
+    const handle = window.setTimeout(async () => {
+      try {
+        setSaving(true);
+        const nextCf = { ...dealCf, closed_quantities: closed };
+        await crmDeals.update(deal.id, { custom_fields: nextCf } as unknown as Partial<Deal>);
+      } catch (e: unknown) {
+        toast.error((e as Error)?.message || 'Could not save closed quantities');
+      } finally {
+        setSaving(false);
+      }
+    }, 600);
+    return () => window.clearTimeout(handle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [closed]);
+
+  // Cell renderer for the balance column. Strips the sign, formats the
+  // number with up to 2dp, and emojis a directional arrow.
+  const renderBalance = (estimated: number, closedQty: number) => {
+    const balance = closedQty - estimated;
+    const abs = Math.abs(balance);
+    const display = Number.isInteger(abs) ? String(abs) : abs.toFixed(2);
+    if (balance > 0) {
+      return (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#ef4444', fontWeight: 700 }}>
+          <span aria-hidden style={{ fontSize: 14, lineHeight: 1 }}>▼</span>
+          <span>{display}</span>
+        </span>
+      );
+    }
+    if (balance < 0) {
+      return (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#10b981', fontWeight: 700 }}>
+          <span aria-hidden style={{ fontSize: 14, lineHeight: 1 }}>▲</span>
+          <span>{display}</span>
+        </span>
+      );
+    }
+    return <span style={{ color: 'var(--text-dim)' }}>—</span>;
+  };
+
+  if (loading) {
+    return (
+      <Card title="Products">
+        <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>Loading…</div>
+      </Card>
+    );
+  }
+  if (!leadId) {
+    return (
+      <Card title="Products">
+        <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>
+          Link this deal to a lead to track product quantities here.
+        </div>
+      </Card>
+    );
+  }
+  if (rows.length === 0) {
+    return (
+      <Card title="Products">
+        <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>
+          The linked lead doesn&rsquo;t have any product lines yet. Capture them on the lead form to see them here.
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card title={`Products${saving ? ' · Saving…' : ''}`}>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <thead>
+            <tr style={{ borderBottom: '1px solid var(--border)', color: 'var(--text-dim)', textAlign: 'left' }}>
+              <th style={{ padding: '8px 10px', fontWeight: 700, fontSize: 11, textTransform: 'uppercase' }}>Product Interested</th>
+              <th style={{ padding: '8px 10px', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', textAlign: 'right' }}>Quantity</th>
+              <th style={{ padding: '8px 10px', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', textAlign: 'right' }}>Closed Quantity</th>
+              <th style={{ padding: '8px 10px', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', textAlign: 'right' }}>Balance</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => {
+              const closedVal = closed[r.product_id] ?? 0;
+              const draftVal = draft[r.product_id];
+              const inputVal = draftVal !== undefined ? draftVal : (closedVal ? String(closedVal) : '');
+              return (
+                <tr key={r.product_id} style={{ borderBottom: '1px solid var(--border)' }}>
+                  <td style={{ padding: '10px', color: 'var(--text)' }}>{r.product_name}</td>
+                  <td style={{ padding: '10px', textAlign: 'right', color: 'var(--text)' }}>
+                    {r.estimated}{r.unit ? <span style={{ color: 'var(--text-dim)', marginLeft: 4 }}>{r.unit}</span> : null}
+                  </td>
+                  <td style={{ padding: '10px', textAlign: 'right' }}>
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={inputVal}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setDraft((d) => ({ ...d, [r.product_id]: v }));
+                        if (v === '') {
+                          setClosed((c) => { const n = { ...c }; delete n[r.product_id]; return n; });
+                        } else {
+                          const n = Number(v);
+                          if (Number.isFinite(n)) {
+                            setClosed((c) => ({ ...c, [r.product_id]: n }));
+                          }
+                        }
+                      }}
+                      style={{ ...inlineInputRight, maxWidth: 110, marginLeft: 'auto' }}
+                      placeholder="0"
+                    />
+                  </td>
+                  <td style={{ padding: '10px', textAlign: 'right' }}>
+                    {renderBalance(r.estimated, closedVal)}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </Card>
   );
 }
 
