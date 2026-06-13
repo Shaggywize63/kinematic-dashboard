@@ -40,6 +40,10 @@ type Form = {
   // spawns a completed `site_visit` activity tied to the new lead.
   // Visible + on-by-default for Tata only; ignored elsewhere.
   log_as_site_visit: boolean;
+  // Sub-flag under log_as_site_visit — when on, the spawned activity's
+  // subject reads "First visit — {lead name}" instead of "Site visit —
+  // {lead name}". Captures the rep's first meeting with this lead.
+  site_visit_is_first: boolean;
 };
 
 const empty: Form = {
@@ -55,6 +59,7 @@ const empty: Form = {
   // they actually performed a visit, so spurious site_visit activities
   // don't pollute the timeline. Toggle stays hidden on non-Tata tenants.
   log_as_site_visit: false,
+  site_visit_is_first: false,
 };
 
 export default function NewLeadPage() {
@@ -402,9 +407,29 @@ export default function NewLeadPage() {
       // only when the rep is on a Tata tenant + has the toggle on.
       if (isTata && form.log_as_site_visit) {
         payload._auto_log_site_visit = true;
+        if (form.site_visit_is_first) payload._site_visit_first = true;
       }
       const r = await crmLeads.create(payload);
       toast.success('Lead created');
+      // When the rep ticked "Also log this lead as a Site Visit activity",
+      // jump straight to the Activity create page pre-bound to the new
+      // lead with Meeting as the default type — the rep finishes the
+      // activity log right there instead of hunting for the activities
+      // tab. Subject prefilled with the lead name (or "First visit — name"
+      // when the first-visit sub-toggle is on) so the field is filled in
+      // and ready to save.
+      if (form.log_as_site_visit) {
+        const name = [form.first_name, form.last_name].filter(Boolean).join(' ').trim()
+          || form.email || form.phone || 'Lead';
+        const subject = form.site_visit_is_first ? `First visit — ${name}` : `Site visit — ${name}`;
+        const qs = new URLSearchParams({
+          lead_id: r.data.id,
+          type: 'meeting',
+          subject,
+        }).toString();
+        router.push(`/dashboard/crm/activities/new?${qs}`);
+        return;
+      }
       router.push(`/dashboard/crm/leads/${r.data.id}`);
     } catch (e: any) { toast.error(e.message || 'Create failed'); setBusy(false); }
   };
@@ -766,7 +791,7 @@ export default function NewLeadPage() {
             <input
               type="checkbox"
               checked={form.log_as_site_visit}
-              onChange={(e) => setForm({ ...form, log_as_site_visit: e.target.checked })}
+              onChange={(e) => setForm({ ...form, log_as_site_visit: e.target.checked, site_visit_is_first: e.target.checked ? form.site_visit_is_first : false })}
               style={{ marginTop: 3 }}
             />
             <span>
@@ -776,6 +801,22 @@ export default function NewLeadPage() {
               </div>
             </span>
           </label>
+          {form.log_as_site_visit && (
+            <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', cursor: 'pointer', marginTop: 10, marginLeft: 24 }}>
+              <input
+                type="checkbox"
+                checked={form.site_visit_is_first}
+                onChange={(e) => setForm({ ...form, site_visit_is_first: e.target.checked })}
+                style={{ marginTop: 3 }}
+              />
+              <span>
+                <strong style={{ color: 'var(--text)' }}>First visit</strong>
+                <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>
+                  Sets the activity subject to &ldquo;First visit&rdquo; instead of &ldquo;Site visit&rdquo;.
+                </div>
+              </span>
+            </label>
+          )}
         </Section>
       )}
 

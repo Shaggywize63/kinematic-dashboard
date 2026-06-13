@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { crmLeads, crmSettings, crmLeadSources } from '../../lib/crmApi';
 import api from '../../lib/api';
@@ -18,6 +19,7 @@ const TATA_TISCON_CLIENT_ID = 'a1f67468-526e-4734-be3a-2cb132cc2804';
 
 export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
   const { user } = useAuth();
+  const router = useRouter();
   // Reps with data_scope='own' (e.g. Consumer Champion) only see their own
   // leads — reassigning would hide the record from them. Hide the picker.
   const canReassign = user?.org_role_data_scope !== 'own';
@@ -27,6 +29,7 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
     (lead as Lead & { client_id?: string | null }).client_id === TATA_TISCON_CLIENT_ID
     || user?.client_id === TATA_TISCON_CLIENT_ID;
   const [logAsSiteVisit, setLogAsSiteVisit] = useState(false);
+  const [siteVisitIsFirst, setSiteVisitIsFirst] = useState(false);
   const [form, setForm] = useState(() => seed(lead));
   const [busy, setBusy] = useState(false);
   const [geoBusy, setGeoBusy] = useState(false);
@@ -180,10 +183,23 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
       // rep doesn't accidentally create duplicate visits on next edit.
       if (isTata && logAsSiteVisit) {
         (body as Record<string, unknown>)._auto_log_site_visit = true;
+        if (siteVisitIsFirst) (body as Record<string, unknown>)._site_visit_first = true;
       }
       const r = await crmLeads.update(lead.id, body);
-      if (logAsSiteVisit) setLogAsSiteVisit(false);
+      const wasLogging = logAsSiteVisit;
+      const wasFirst = siteVisitIsFirst;
+      if (logAsSiteVisit) { setLogAsSiteVisit(false); setSiteVisitIsFirst(false); }
       toast.success('Lead updated'); onSaved(r.data); onClose();
+      // Mirror the new-lead flow: when the rep ticked the Site Visit toggle,
+      // jump them to the Activity create page pre-bound to this lead with
+      // Meeting as the default type, subject prefilled.
+      if (wasLogging) {
+        const name = [form.first_name, form.last_name].filter(Boolean).join(' ').trim()
+          || form.email || form.phone || 'Lead';
+        const subject = wasFirst ? `First visit — ${name}` : `Site visit — ${name}`;
+        const qs = new URLSearchParams({ lead_id: lead.id, type: 'meeting', subject }).toString();
+        router.push(`/dashboard/crm/activities/new?${qs}`);
+      }
     } catch (e: any) { toast.error(e.message || 'Update failed'); } finally { setBusy(false); }
   };
 
@@ -323,8 +339,8 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
         {isTata && (
           <>
             <SL>Activity</SL>
-            <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '12px 14px', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 8, cursor: 'pointer', marginBottom: 14 }}>
-              <input type="checkbox" checked={logAsSiteVisit} onChange={(e) => setLogAsSiteVisit(e.target.checked)} style={{ marginTop: 3 }} />
+            <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '12px 14px', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 8, cursor: 'pointer', marginBottom: logAsSiteVisit ? 8 : 14 }}>
+              <input type="checkbox" checked={logAsSiteVisit} onChange={(e) => { setLogAsSiteVisit(e.target.checked); if (!e.target.checked) setSiteVisitIsFirst(false); }} style={{ marginTop: 3 }} />
               <span>
                 <strong style={{ color: 'var(--text)' }}>Also log a Site Visit activity</strong>
                 <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>
@@ -332,6 +348,17 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
                 </div>
               </span>
             </label>
+            {logAsSiteVisit && (
+              <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '10px 14px', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 8, cursor: 'pointer', marginBottom: 14, marginLeft: 18 }}>
+                <input type="checkbox" checked={siteVisitIsFirst} onChange={(e) => setSiteVisitIsFirst(e.target.checked)} style={{ marginTop: 3 }} />
+                <span>
+                  <strong style={{ color: 'var(--text)' }}>First visit</strong>
+                  <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>
+                    Sets the activity subject to &ldquo;First visit&rdquo; instead of &ldquo;Site visit&rdquo;.
+                  </div>
+                </span>
+              </label>
+            )}
           </>
         )}
 

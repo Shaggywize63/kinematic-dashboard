@@ -33,7 +33,7 @@ export function isTataTiscon(user: AnyUser): boolean {
  */
 export function isConsumerChampion(user: AnyUser): boolean {
   const name = (user?.org_role?.name ?? user?.org_role_name ?? '').toString().trim().toLowerCase();
-  return name === 'consumer champion';
+  return name.includes('consumer champion');
 }
 
 /**
