@@ -616,13 +616,6 @@ export default function NewLeadPage() {
                 onChange={(cf) => setForm({ ...form, custom_fields: cf })}
               />
             </div>
-            {/* Multi-row product picker — drives product_lines and mirrors
-                row 0 onto the legacy product_interested / quantity /
-                measuring_unit / estimated_amount keys for back-compat. */}
-            <ProductLinesSection
-              values={form.custom_fields}
-              onChange={(cf) => setForm({ ...form, custom_fields: cf })}
-            />
           </Section>
           {/* City is required on B2B leads too — the per-user city-scope
               filter applies to every lead row regardless of B2B/B2C. */}
@@ -672,10 +665,6 @@ export default function NewLeadPage() {
                 onChange={(cf) => setForm({ ...form, custom_fields: cf })}
               />
             </div>
-            <ProductLinesSection
-              values={form.custom_fields}
-              onChange={(cf) => setForm({ ...form, custom_fields: cf })}
-            />
           </Section>
           {(!fields.isHidden('marketing_consent') || !fields.isHidden('whatsapp_consent')) && (
             <Section title="Consent">
@@ -691,6 +680,18 @@ export default function NewLeadPage() {
           )}
         </>
       )}
+
+      {/* Multi-row product picker — drives product_lines and mirrors row 0
+          onto the legacy product_interested / quantity / measuring_unit /
+          estimated_amount keys for back-compat. Rendered once at the form
+          level (outside the B2B / B2C branches) so it appears regardless
+          of lead type, in a single dedicated card. */}
+      <Section title="Products of Interest">
+        <ProductLinesSection
+          values={form.custom_fields}
+          onChange={(cf) => setForm({ ...form, custom_fields: cf })}
+        />
+      </Section>
 
       <Section title="Pin Location (required)">
         <div id="lead-field-location" style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 10 }}>
