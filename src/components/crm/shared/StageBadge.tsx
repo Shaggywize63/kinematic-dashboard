@@ -2,6 +2,9 @@
 import React from 'react';
 
 export default function StageBadge({ name, color, won, lost }: { name?: string | null; color?: string | null; won?: boolean; lost?: boolean }) {
+  // Won / lost short-circuit the colour palette so the badge is the
+  // authoritative status indicator even when stage_name didn't resolve.
+  const effectiveName = won ? 'Won' : lost ? 'Lost' : (name?.trim() ? name : '—');
   const bg = won ? 'rgba(40,180,99,0.18)' : lost ? 'rgba(224,30,44,0.18)' : color ? `${color}33` : 'rgba(255,255,255,0.06)';
   const fg = won ? 'var(--green)' : lost ? 'var(--primary)' : color || 'var(--text)';
   return (
@@ -18,7 +21,7 @@ export default function StageBadge({ name, color, won, lost }: { name?: string |
         border: `1px solid ${color || 'var(--border)'}`,
       }}
     >
-      {name || 'Stage'}
+      {effectiveName}
     </span>
   );
 }

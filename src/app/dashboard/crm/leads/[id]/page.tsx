@@ -415,7 +415,9 @@ export default function LeadDetailPage() {
             />
           </>
         )}
-        <NextBestActionCard action={nba} onLoad={loadNba} loading={nbaLoading} leadId={id} />
+        {/* Next Best Action — AI manager-tier surface; hidden for the
+            Consumer Champion FE flow since they don't act on it. */}
+        {!isChampion && <NextBestActionCard action={nba} onLoad={loadNba} loading={nbaLoading} leadId={id} />}
       </div>
 
       <LeadConvertModal

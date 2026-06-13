@@ -15,6 +15,8 @@ import DealEditModal from '../../../../../components/crm/DealEditModal';
 import AddToPipelineModal from '../../../../../components/crm/AddToPipelineModal';
 import LogoSpinner from '../../../../../components/shared/LogoSpinner';
 import { formatINR, formatKg, type DashboardUnit } from '../../../../../lib/formatCurrency';
+import { useAuth } from '../../../../../hooks/useAuth';
+import { isConsumerChampion } from '../../../../../lib/clientFeatures';
 
 const LOST_REASONS = [
   'Price too high',
@@ -117,6 +119,10 @@ class SafeRender extends Component<{ label: string; children: ReactNode }, { err
 }
 
 export default function DealDetailPage() {
+  // Consumer Champion gate — hides Win Probability + Next Best Action
+  // cards. They're manager-tier AI surfaces; reps don't act on them.
+  const { user: authUser } = useAuth();
+  const isChampion = isConsumerChampion(authUser as Parameters<typeof isConsumerChampion>[0]);
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [deal, setDeal] = useState<Deal | null>(null);
@@ -423,42 +429,54 @@ export default function DealDetailPage() {
                 ✗ This deal is closed as LOST
               </div>
             )}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 14, fontSize: 13 }}>
-              <Field
-                label="Amount"
-                value={formatINR(Number(deal.amount) || 0)}
-                trailing={(() => {
-                  // Show the basket weight alongside the amount so reps see
-                  // BOTH the currency value AND the tonnage at a glance.
-                  // Prefer the cached custom_fields.volume_kg (written on
-                  // convert); fall back to recomputing from product_lines
-                  // qty × unit-factor (1 kg / 1000 tonne) so deals saved
-                  // before that mirror landed still show a weight.
-                  const cf = ((deal as Deal & { custom_fields?: Record<string, unknown> | null }).custom_fields ?? {}) as Record<string, unknown>;
-                  let kg = 0;
-                  const cached = cf.volume_kg;
-                  const cachedNum = typeof cached === 'number' ? cached : Number(cached);
-                  if (Number.isFinite(cachedNum) && cachedNum > 0) kg = cachedNum;
-                  else {
-                    const lines = cf.product_lines;
-                    if (Array.isArray(lines)) {
-                      for (const l of lines as Array<Record<string, unknown>>) {
-                        const qty = Number(l.quantity ?? 0);
-                        if (!Number.isFinite(qty) || qty <= 0) continue;
-                        const u = String(l.measuring_unit ?? '').trim().toLowerCase();
-                        kg += qty * (u === 'tonne' ? 1000 : 1);
-                      }
-                    }
+            {(() => {
+              // Hero Amount + Weight card — pulled out of the small Field
+              // grid so the two headline numbers dominate the detail page.
+              // Weight prefers deal.custom_fields.volume_kg, falls back to
+              // recomputing from product_lines (1 kg / 1000 tonne).
+              const cf = ((deal as Deal & { custom_fields?: Record<string, unknown> | null }).custom_fields ?? {}) as Record<string, unknown>;
+              let kg = 0;
+              const cached = cf.volume_kg;
+              const cachedNum = typeof cached === 'number' ? cached : Number(cached);
+              if (Number.isFinite(cachedNum) && cachedNum > 0) kg = cachedNum;
+              else {
+                const lines = cf.product_lines;
+                if (Array.isArray(lines)) {
+                  for (const l of lines as Array<Record<string, unknown>>) {
+                    const qty = Number(l.quantity ?? 0);
+                    if (!Number.isFinite(qty) || qty <= 0) continue;
+                    const u = String(l.measuring_unit ?? '').trim().toLowerCase();
+                    kg += qty * (u === 'tonne' ? 1000 : 1);
                   }
-                  if (kg <= 0) return null;
-                  return (
-                    <div style={{ marginTop: 4, display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-dim)' }}>
-                      <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-dim)', letterSpacing: 0.4 }}>WEIGHT</span>
-                      <span style={{ color: 'var(--text)', fontWeight: 700 }}>{formatKg(kg)}</span>
+                }
+              }
+              return (
+                <div style={{
+                  display: 'flex', alignItems: 'baseline', gap: 24, flexWrap: 'wrap',
+                  background: 'linear-gradient(135deg, rgba(99,102,241,0.10), rgba(99,102,241,0.02))',
+                  border: '1px solid var(--border)', borderRadius: 14, padding: '18px 22px', marginBottom: 14,
+                }}>
+                  <div>
+                    <div style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 700, letterSpacing: 0.8, textTransform: 'uppercase' }}>Amount</div>
+                    <div style={{ fontSize: 30, color: 'var(--text)', fontWeight: 800, lineHeight: 1.1, marginTop: 4 }}>
+                      {formatINR(Number(deal.amount) || 0)}
                     </div>
-                  );
-                })()}
-              />
+                  </div>
+                  {kg > 0 && (
+                    <>
+                      <div style={{ width: 1, alignSelf: 'stretch', background: 'var(--border)' }} />
+                      <div>
+                        <div style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 700, letterSpacing: 0.8, textTransform: 'uppercase' }}>Weight</div>
+                        <div style={{ fontSize: 30, color: 'var(--text)', fontWeight: 800, lineHeight: 1.1, marginTop: 4 }}>
+                          {formatKg(kg)}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })()}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 14, fontSize: 13 }}>
               <Field label="Stage" value={deal.stage_name} />
               <Field label="Status" value={deal.status} />
               <Field label="Probability" value={`${Math.round((Number(deal.probability) || 0) * 100)}%`} />
@@ -571,6 +589,10 @@ export default function DealDetailPage() {
             </Card>
           )}
 
+          {/* Win Probability + Next Best Action are AI manager-tier
+              surfaces — hidden for Consumer Champions who own the
+              FE-tier flow and don't act on these recommendations. */}
+          {!isChampion && (
           <SafeRender label="win probability">
             <div style={{ position: 'relative' }}>
               <WinProbabilityGauge
@@ -588,9 +610,13 @@ export default function DealDetailPage() {
               )}
             </div>
           </SafeRender>
+          )}
+          {!isChampion && (
           <button onClick={loadWinProb} disabled={winBusy} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontSize: 12 }}>
             {winBusy ? 'Predicting…' : 'Re-forecast Win Probability'}
           </button>
+          )}
+          {!isChampion && (
           <SafeRender label="next best action">
             <div style={{ position: 'relative' }}>
               <NextBestActionCard action={nba} onLoad={loadNba} loading={nbaBusy} dealId={id} />
@@ -601,6 +627,7 @@ export default function DealDetailPage() {
               )}
             </div>
           </SafeRender>
+          )}
         </div>
       </div>
 
