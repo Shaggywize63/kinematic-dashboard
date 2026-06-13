@@ -253,6 +253,13 @@ export default function CustomFieldsPage() {
   // 'lookup' so a stale target/filter never gets persisted.
   const [targetTable, setTargetTable] = useState<string>('');
   const [lookupFilter, setLookupFilter] = useState<LookupClause[]>([]);
+  // Dynamic list of every multi-tenant table in the database that's eligible
+  // as a Linked Record target. Loaded from /api/v1/crm/lookup/targets so new
+  // tables added in future migrations appear in the dropdown automatically
+  // without any code change. Falls back to the hardcoded LOOKUP_TARGETS
+  // until the fetch resolves (or if it fails) so the admin can still pick a
+  // core CRM object even when the API is unreachable.
+  const [lookupTargets, setLookupTargets] = useState<Array<{ value: string; label: string }>>(LOOKUP_TARGETS);
   // Formula-only state — the expression itself. Validated cursorily on
   // submit (non-empty); the backend zod schema caps the length at 500.
   const [formula, setFormula] = useState<string>('');
@@ -309,6 +316,15 @@ export default function CustomFieldsPage() {
       return;
     }
     reload();
+    // Pull the live list of lookup-eligible tables. Best-effort — on
+    // failure the dropdown stays on the hardcoded LOOKUP_TARGETS fallback.
+    (async () => {
+      try {
+        const r = await api.get<{ data?: Array<{ value: string; label: string }> }>('/api/v1/crm/lookup/targets');
+        const list = Array.isArray(r?.data) ? r.data : [];
+        if (list.length > 0) setLookupTargets(list);
+      } catch { /* keep the static fallback */ }
+    })();
   }, []);
 
   const create = async () => {
@@ -688,6 +704,7 @@ export default function CustomFieldsPage() {
             onTargetChange={setTargetTable}
             filter={lookupFilter}
             onFilterChange={setLookupFilter}
+            targets={lookupTargets}
           />
         )}
         {fieldType === 'formula' && (
@@ -1210,6 +1227,7 @@ export default function CustomFieldsPage() {
                 onTargetChange={(t) => setEditingCustom({ ...editingCustom, targetTable: t })}
                 filter={editingCustom.lookupFilter}
                 onFilterChange={(f) => setEditingCustom({ ...editingCustom, lookupFilter: f })}
+                targets={lookupTargets}
               />
             )}
 
@@ -1307,12 +1325,15 @@ const td: React.CSSProperties = { padding: '8px 10px', color: 'var(--text)', bor
  * Salesforce-style OR groups and per-type operator restrictions ship later.
  */
 function LookupConfig({
-  target, onTargetChange, filter, onFilterChange,
+  target, onTargetChange, filter, onFilterChange, targets,
 }: {
   target: string;
   onTargetChange: (t: string) => void;
   filter: LookupClause[];
   onFilterChange: (f: LookupClause[]) => void;
+  // Live list of lookup-eligible tables. Sourced from /lookup/targets so
+  // new tables added to the database show up here without a code change.
+  targets: Array<{ value: string; label: string }>;
 }) {
   const updateRow = (idx: number, patch: Partial<LookupClause>) => {
     onFilterChange(filter.map((c, i) => (i === idx ? { ...c, ...patch } : c)));
@@ -1328,7 +1349,7 @@ function LookupConfig({
       <label style={{ display: 'block', fontSize: 11, color: 'var(--text-dim)', marginBottom: 4 }}>Linked object</label>
       <select value={target} onChange={(e) => onTargetChange(e.target.value)} style={{ ...input, width: '100%', marginBottom: 12 }}>
         <option value="">— Choose an object —</option>
-        {LOOKUP_TARGETS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+        {targets.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
       </select>
       {target && (
         <>
