@@ -325,7 +325,7 @@ export default function NewLeadPage() {
     }
     if (
       !fields.isHidden('phone') &&
-      fields.requiredFor('phone', false) &&
+      fields.requiredFor('phone', true) &&
       (!form.phone || !form.phone.trim())
     ) {
       fail('lead-field-phone', 'Primary mobile is required.');
@@ -533,7 +533,7 @@ export default function NewLeadPage() {
               walk-in flow doesn't collect email, and prompting for it
               just to skip it adds friction. */}
           {!isTata && text('email', 'Email', { type: 'email', required: fields.requiredFor('email', false) })}
-          {text('phone',      'Primary Mobile', { required: fields.requiredFor('phone', false), phone: true })}
+          {text('phone',      'Primary Mobile', { required: fields.requiredFor('phone', true), phone: true })}
         </div>
         <AlternateMobiles
           values={form.alternate_mobiles}
