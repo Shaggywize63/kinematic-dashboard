@@ -14,7 +14,7 @@ import ActivityTimeline from '../../../../../components/crm/ActivityTimeline';
 import DealEditModal from '../../../../../components/crm/DealEditModal';
 import AddToPipelineModal from '../../../../../components/crm/AddToPipelineModal';
 import LogoSpinner from '../../../../../components/shared/LogoSpinner';
-import { formatINR } from '../../../../../lib/formatCurrency';
+import { formatINR, formatKg, type DashboardUnit } from '../../../../../lib/formatCurrency';
 
 const LOST_REASONS = [
   'Price too high',
@@ -115,6 +115,23 @@ export default function DealDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [deal, setDeal] = useState<Deal | null>(null);
+  // INR ↔ Weight toggle for the Amount field. Reads / writes the same
+  // localStorage key the dashboard analytics page uses so flipping the
+  // unit on one surface persists everywhere.
+  const [unit, setUnit] = useState<DashboardUnit>('inr');
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage.getItem('crm_dashboard_unit') === 'weight') {
+        setUnit('weight');
+      }
+    } catch { /* ignore */ }
+  }, []);
+  const setUnitPersisted = (next: DashboardUnit) => {
+    setUnit(next);
+    try {
+      if (typeof window !== 'undefined') window.localStorage.setItem('crm_dashboard_unit', next);
+    } catch { /* ignore */ }
+  };
   const [pipeline, setPipeline] = useState<Pipeline | null>(null);
   const [allPipelines, setAllPipelines] = useState<Pipeline[]>([]);
   const [history, setHistory] = useState<DealHistoryEntry[]>([]);
@@ -402,7 +419,40 @@ export default function DealDetailPage() {
               </div>
             )}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 14, fontSize: 13 }}>
-              <Field label="Amount" value={formatINR(Number(deal.amount) || 0)} />
+              <Field
+                label="Amount"
+                value={(() => {
+                  // Weight mode: prefer deal.custom_fields.volume_kg; if missing,
+                  // recompute from product_lines using qty × unit-factor (1 for
+                  // kg, 1000 for tonne) so the toggle is meaningful even on
+                  // deals saved before the volume mirror landed.
+                  if (unit === 'weight') {
+                    const cf = (deal as Deal & { custom_fields?: Record<string, unknown> | null }).custom_fields ?? {};
+                    const cached = (cf as Record<string, unknown>).volume_kg;
+                    const cachedKg = typeof cached === 'number' ? cached : Number(cached);
+                    if (Number.isFinite(cachedKg) && cachedKg > 0) return formatKg(cachedKg);
+                    const lines = (cf as Record<string, unknown>).product_lines;
+                    if (Array.isArray(lines)) {
+                      let total = 0;
+                      for (const l of lines as Array<Record<string, unknown>>) {
+                        const qty = Number(l.quantity ?? 0);
+                        if (!Number.isFinite(qty) || qty <= 0) continue;
+                        const u = String(l.measuring_unit ?? '').trim().toLowerCase();
+                        total += qty * (u === 'tonne' ? 1000 : 1);
+                      }
+                      if (total > 0) return formatKg(total);
+                    }
+                    return formatKg(0);
+                  }
+                  return formatINR(Number(deal.amount) || 0);
+                })()}
+                trailing={(
+                  <div role="tablist" aria-label="Display unit" style={{ display: 'inline-flex', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 6, padding: 2, marginTop: 4 }}>
+                    <button type="button" role="tab" aria-selected={unit === 'inr'} onClick={() => setUnitPersisted('inr')} style={{ padding: '2px 8px', borderRadius: 4, background: unit === 'inr' ? 'var(--s4)' : 'transparent', border: 'none', color: unit === 'inr' ? 'var(--text)' : 'var(--text-dim)', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}>₹</button>
+                    <button type="button" role="tab" aria-selected={unit === 'weight'} onClick={() => setUnitPersisted('weight')} style={{ padding: '2px 8px', borderRadius: 4, background: unit === 'weight' ? 'var(--s4)' : 'transparent', border: 'none', color: unit === 'weight' ? 'var(--text)' : 'var(--text-dim)', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}>KG</button>
+                  </div>
+                )}
+              />
               <Field label="Stage" value={deal.stage_name} />
               <Field label="Status" value={deal.status} />
               <Field label="Probability" value={`${Math.round((Number(deal.probability) || 0) * 100)}%`} />
@@ -1140,11 +1190,12 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
   );
 }
 
-function Field({ label, value }: { label: string; value?: string | null }) {
+function Field({ label, value, trailing }: { label: string; value?: string | null; trailing?: React.ReactNode }) {
   return (
     <div style={{ minWidth: 0 }}>
       <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>{label}</div>
       <div style={{ color: 'var(--text)', marginTop: 2, wordBreak: 'break-word' }}>{value || '—'}</div>
+      {trailing}
     </div>
   );
 }
