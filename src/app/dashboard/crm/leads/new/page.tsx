@@ -411,6 +411,25 @@ export default function NewLeadPage() {
       }
       const r = await crmLeads.create(payload);
       toast.success('Lead created');
+      // When the rep ticked "Also log this lead as a Site Visit activity",
+      // jump straight to the Activity create page pre-bound to the new
+      // lead with Meeting as the default type — the rep finishes the
+      // activity log right there instead of hunting for the activities
+      // tab. Subject prefilled with the lead name (or "First visit — name"
+      // when the first-visit sub-toggle is on) so the field is filled in
+      // and ready to save.
+      if (form.log_as_site_visit) {
+        const name = [form.first_name, form.last_name].filter(Boolean).join(' ').trim()
+          || form.email || form.phone || 'Lead';
+        const subject = form.site_visit_is_first ? `First visit — ${name}` : `Site visit — ${name}`;
+        const qs = new URLSearchParams({
+          lead_id: r.data.id,
+          type: 'meeting',
+          subject,
+        }).toString();
+        router.push(`/dashboard/crm/activities/new?${qs}`);
+        return;
+      }
       router.push(`/dashboard/crm/leads/${r.data.id}`);
     } catch (e: any) { toast.error(e.message || 'Create failed'); setBusy(false); }
   };

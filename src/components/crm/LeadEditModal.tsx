@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { crmLeads, crmSettings, crmLeadSources } from '../../lib/crmApi';
 import api from '../../lib/api';
@@ -18,6 +19,7 @@ const TATA_TISCON_CLIENT_ID = 'a1f67468-526e-4734-be3a-2cb132cc2804';
 
 export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
   const { user } = useAuth();
+  const router = useRouter();
   // Reps with data_scope='own' (e.g. Consumer Champion) only see their own
   // leads — reassigning would hide the record from them. Hide the picker.
   const canReassign = user?.org_role_data_scope !== 'own';
@@ -184,8 +186,20 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
         if (siteVisitIsFirst) (body as Record<string, unknown>)._site_visit_first = true;
       }
       const r = await crmLeads.update(lead.id, body);
+      const wasLogging = logAsSiteVisit;
+      const wasFirst = siteVisitIsFirst;
       if (logAsSiteVisit) { setLogAsSiteVisit(false); setSiteVisitIsFirst(false); }
       toast.success('Lead updated'); onSaved(r.data); onClose();
+      // Mirror the new-lead flow: when the rep ticked the Site Visit toggle,
+      // jump them to the Activity create page pre-bound to this lead with
+      // Meeting as the default type, subject prefilled.
+      if (wasLogging) {
+        const name = [form.first_name, form.last_name].filter(Boolean).join(' ').trim()
+          || form.email || form.phone || 'Lead';
+        const subject = wasFirst ? `First visit — ${name}` : `Site visit — ${name}`;
+        const qs = new URLSearchParams({ lead_id: lead.id, type: 'meeting', subject }).toString();
+        router.push(`/dashboard/crm/activities/new?${qs}`);
+      }
     } catch (e: any) { toast.error(e.message || 'Update failed'); } finally { setBusy(false); }
   };
 
