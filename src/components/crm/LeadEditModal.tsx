@@ -17,6 +17,24 @@ interface Props { lead: Lead; open: boolean; onClose: () => void; onSaved: (upda
 
 const TATA_TISCON_CLIENT_ID = 'a1f67468-526e-4734-be3a-2cb132cc2804';
 
+// True when ANY custom field on the lead matches the "first site visit"
+// shape and carries a truthy value. Admins name the field differently
+// per tenant (first_visit_date, first_site_visit, is_first_visit …), so
+// we match the SHAPE of the key. Mirrors the backend rule in
+// buildSiteVisitSubject so the activity-create subject prefilled by the
+// modal matches what the backend would have written on auto-spawn.
+function isFirstSiteVisit(cf: Record<string, unknown> | null | undefined): boolean {
+  if (!cf) return false;
+  return Object.entries(cf).some(([key, val]) => {
+    const k = String(key).toLowerCase();
+    if (!/first/.test(k) || !/(visit|site)/.test(k)) return false;
+    if (val === true) return true;
+    if (typeof val === 'string' && val.trim() !== '') return true;
+    if (typeof val === 'number' && val !== 0) return true;
+    return false;
+  });
+}
+
 export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
   const { user } = useAuth();
   const router = useRouter();
@@ -195,8 +213,7 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
       if (wasLogging) {
         const name = [form.first_name, form.last_name].filter(Boolean).join(' ').trim()
           || form.email || form.phone || 'Lead';
-        const firstVisitDate = (form.custom_fields as Record<string, unknown> | undefined)?.first_visit_date;
-        const isFirst = typeof firstVisitDate === 'string' && firstVisitDate.trim() !== '';
+        const isFirst = isFirstSiteVisit(form.custom_fields as Record<string, unknown> | undefined);
         const subject = isFirst ? `First Site Visit — ${name}` : `Site visit — ${name}`;
         const qs = new URLSearchParams({ lead_id: lead.id, type: 'meeting', subject }).toString();
         router.push(`/dashboard/crm/activities/new?${qs}`);
