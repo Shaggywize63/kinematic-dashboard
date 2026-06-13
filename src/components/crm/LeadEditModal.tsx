@@ -105,6 +105,11 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
           setBusinessType(t);
           if (t === 'b2b') setForm((f) => ({ ...f, is_b2c: false }));
           if (t === 'b2c') setForm((f) => ({ ...f, is_b2c: true }));
+          // Tata Tiscon is consumer-only regardless of the tenant's
+          // business_type setting — force B2C so an existing record
+          // mis-flagged as B2B (e.g. an old import) opens in the right
+          // mode and the rest of the form behaves consistently.
+          if (isTata) setForm((f) => (f.is_b2c ? f : { ...f, is_b2c: true }));
           setFieldOverrides(extractFieldOverrides(s.value.data));
         }
         if (src.status === 'fulfilled') {
@@ -222,7 +227,11 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
     } catch (e: any) { toast.error(e.message || 'Update failed'); } finally { setBusy(false); }
   };
 
-  const showToggle = businessType === 'both';
+  // Hide the B2B/B2C toggle for Tata Tiscon — they're a consumer-only
+  // tenant, so the toggle would let a rep accidentally flip a lead into
+  // a state the rest of their form (FE intake, custom fields, reports)
+  // doesn't support.
+  const showToggle = businessType === 'both' && !isTata;
 
   return (
     <Modal open={open} onClose={onClose} title="Edit Lead"
