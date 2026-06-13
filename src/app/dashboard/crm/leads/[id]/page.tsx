@@ -355,16 +355,6 @@ export default function LeadDetailPage() {
             reopening={reopening}
           />
         )}
-        {isConverted && (lead.converted_account_id || lead.converted_contact_id || lead.converted_deal_id) && (
-          <ConvertedBanner
-            convertedAt={lead.converted_at || null}
-            accountId={lead.converted_account_id || null}
-            contactId={lead.converted_contact_id || null}
-            dealId={lead.converted_deal_id || null}
-            onReopen={handleReopen}
-            reopening={reopening}
-          />
-        )}
 
         {/* Comprehensive categorised detail panel — supersedes the old
             B2C-only Customer Profile card. Renders every lead field
