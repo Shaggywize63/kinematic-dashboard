@@ -711,6 +711,10 @@ function DealProductsCard({ deal }: { deal: Deal }) {
   const [loading, setLoading] = useState(true);
   const [productMap, setProductMap] = useState<Map<string, Product>>(new Map());
   const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  // Snapshot of `closed` taken from the server on load + after each save.
+  // Used to compute the dirty flag and the "Reset" button.
+  const [savedClosed, setSavedClosed] = useState<Record<string, number>>(initialClosed);
 
   // Load: linked lead's product_lines + the products catalogue (for
   // resolving UUID → name when the line doesn't carry a snapshot label).
@@ -767,24 +771,35 @@ function DealProductsCard({ deal }: { deal: Deal }) {
     return () => { cancelled = true; };
   }, [leadId]);
 
-  // Persist closed quantities back onto the deal. Debounced so a rapid
-  // sequence of keystrokes results in one PATCH rather than N.
+  // Mark the row dirty whenever the rep edits a value so the Save
+  // button can light up; explicit save replaces the previous
+  // auto-save-on-keystroke so each save lands as one history entry.
   useEffect(() => {
     if (loading) return;
-    const handle = window.setTimeout(async () => {
-      try {
-        setSaving(true);
-        const nextCf = { ...dealCf, closed_quantities: closed };
-        await crmDeals.update(deal.id, { custom_fields: nextCf } as unknown as Partial<Deal>);
-      } catch (e: unknown) {
-        toast.error((e as Error)?.message || 'Could not save closed quantities');
-      } finally {
-        setSaving(false);
-      }
-    }, 600);
-    return () => window.clearTimeout(handle);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [closed]);
+    const aKeys = Object.keys(closed).sort();
+    const bKeys = Object.keys(savedClosed).sort();
+    const sameKeys = aKeys.length === bKeys.length && aKeys.every((k, i) => k === bKeys[i]);
+    const sameVals = sameKeys && aKeys.every((k) => closed[k] === savedClosed[k]);
+    setDirty(!sameVals);
+  }, [closed, savedClosed, loading]);
+
+  // Explicit save — fires one PATCH and records a single deal-history
+  // entry. We don't auto-save anymore so the rep can review the row
+  // before committing.
+  const saveClosed = async () => {
+    try {
+      setSaving(true);
+      const nextCf = { ...dealCf, closed_quantities: closed };
+      await crmDeals.update(deal.id, { custom_fields: nextCf } as unknown as Partial<Deal>);
+      setSavedClosed(closed);
+      setDirty(false);
+      toast.success('Saved');
+    } catch (e: unknown) {
+      toast.error((e as Error)?.message || 'Could not save closed quantities');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   // Cell renderer for the balance column. The sign is stripped so the
   // cell always reads as a positive number; a directional arrow encodes
@@ -919,6 +934,29 @@ function DealProductsCard({ deal }: { deal: Deal }) {
             })}
           </tbody>
         </table>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10, marginTop: 12 }}>
+        {dirty && (
+          <button
+            type="button"
+            onClick={() => { setClosed(savedClosed); setDraft({}); setDirty(false); }}
+            disabled={saving}
+            style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+          >Reset</button>
+        )}
+        <button
+          type="button"
+          onClick={() => { void saveClosed(); }}
+          disabled={!dirty || saving}
+          style={{
+            background: dirty ? 'var(--primary)' : 'var(--s3)',
+            border: 'none',
+            color: dirty ? '#fff' : 'var(--text-dim)',
+            padding: '7px 16px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+            cursor: (!dirty || saving) ? 'not-allowed' : 'pointer',
+            opacity: saving ? 0.6 : 1,
+          }}
+        >{saving ? 'Saving…' : 'Save'}</button>
       </div>
     </Card>
   );
