@@ -730,55 +730,6 @@ export default function NewLeadPage() {
         )}
       </Section>
 
-      <Section title="Lead Photo (optional)">
-        <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 10 }}>
-          Snap a photo of the visiting card, the lead in person, or the storefront — anything that helps your team recognise this lead later.
-        </div>
-        {photoUrl ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 10, background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 10 }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={photoUrl} alt="Lead photo" style={{ width: 96, height: 96, objectFit: 'cover', borderRadius: 8 }} />
-            <div style={{ flex: 1, fontSize: 12, color: 'var(--text-dim)' }}>Photo attached.</div>
-            <button type="button" onClick={() => setPhotoUrl('')} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '6px 12px', borderRadius: 8, fontSize: 12, cursor: 'pointer' }}>Remove</button>
-          </div>
-        ) : (
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            {/* `capture` opens the camera directly on mobile; on desktop
-                it's ignored and falls through to the file dialog. */}
-            <input
-              ref={photoCameraRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadPhoto(f); }}
-              disabled={uploadingPhoto}
-              style={{ display: 'none' }}
-            />
-            <input
-              ref={photoGalleryRef}
-              type="file"
-              accept="image/*"
-              onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadPhoto(f); }}
-              disabled={uploadingPhoto}
-              style={{ display: 'none' }}
-            />
-            <button
-              type="button"
-              onClick={() => photoCameraRef.current?.click()}
-              disabled={uploadingPhoto}
-              style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
-            >📷 Take Photo</button>
-            <button
-              type="button"
-              onClick={() => photoGalleryRef.current?.click()}
-              disabled={uploadingPhoto}
-              style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
-            >📎 Upload from Device</button>
-            {uploadingPhoto && <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>Uploading…</span>}
-          </div>
-        )}
-      </Section>
-
       {/* Tata Tiscon: tick to atomically spawn a completed `site_visit`
           activity tied to the new lead. Default on because most adds
           happen at the dealer / consumer counter; the toggle stays

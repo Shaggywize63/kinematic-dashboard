@@ -260,8 +260,10 @@ export interface CustomField {
   // Lookup-only — populated when field_type === 'lookup'. target_table
   // is the table the picker searches; lookup_filter is the optional
   // condition list (each clause AND-ed) the admin configured so only
-  // matching rows appear in the picker.
-  target_table?: 'crm_leads' | 'crm_contacts' | 'crm_accounts' | 'crm_deals' | 'people_directory' | null;
+  // matching rows appear in the picker. Type is now the open snake_case
+  // shape (matches the dynamic /lookup/targets endpoint) rather than a
+  // hardcoded enum so admins can point lookups at any tenant table.
+  target_table?: string | null;
   lookup_filter?: Array<{ field: string; op: string; value: string | number | boolean | null }> | null;
   // Formula-only — the expression to evaluate. References other custom
   // fields via {field_key}. Supports + - * / parens, comparisons, and

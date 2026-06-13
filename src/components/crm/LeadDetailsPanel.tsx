@@ -1,8 +1,9 @@
 'use client';
-import { useEffect, useState } from 'react';
-import { crmCustomFields } from '../../lib/crmApi';
-import type { CustomField, Lead } from '../../types/crm';
+import { useEffect, useMemo, useState } from 'react';
+import { crmCustomFields, crmProducts } from '../../lib/crmApi';
+import type { CustomField, Lead, Product } from '../../types/crm';
 import { evaluateClientFormula } from './CustomFieldsSection';
+import { PRODUCT_LINE_KEYS } from './ProductLinesSection';
 
 interface LeadWithCustomFields extends Lead {
   custom_fields?: Record<string, unknown> | null;
@@ -26,6 +27,15 @@ const SECTION_ACCENTS = [
 export default function LeadDetailsPanel({ lead }: Props) {
   const isB2C = !!lead.is_b2c;
   const [customDefs, setCustomDefs] = useState<CustomField[]>([]);
+  // Products catalogue — used to resolve lookup field UUIDs to display
+  // names (e.g. product_interested) AND to render the multi-row
+  // "Products of Interest" section. Loaded once on mount.
+  const [products, setProducts] = useState<Product[]>([]);
+  const productMap = useMemo(() => {
+    const m = new Map<string, Product>();
+    products.forEach((p) => m.set(p.id, p));
+    return m;
+  }, [products]);
 
   useEffect(() => {
     let cancelled = false;
@@ -43,6 +53,9 @@ export default function LeadDetailsPanel({ lead }: Props) {
             .sort((a, b) => (a.position ?? 0) - (b.position ?? 0)),
         );
       })
+      .catch(() => { /* non-fatal */ });
+    crmProducts.list()
+      .then((r) => { if (!cancelled) setProducts(r.data || []); })
       .catch(() => { /* non-fatal */ });
     return () => { cancelled = true; };
   }, []);
@@ -112,6 +125,9 @@ export default function LeadDetailsPanel({ lead }: Props) {
   ];
 
   const customItems: Array<[string, React.ReactNode]> = customDefs
+    // Skip the four product-line keys — they get their own dedicated
+    // "Products of Interest" section below with multi-row rendering.
+    .filter((def) => !PRODUCT_LINE_KEYS.includes(def.field_key as typeof PRODUCT_LINE_KEYS[number]))
     .map((def) => {
       // Formula fields are computed live from the row's other custom
       // fields — there's no stored value, so we evaluate the
@@ -123,20 +139,72 @@ export default function LeadDetailsPanel({ lead }: Props) {
       }
       const val = cf[def.field_key];
       if (val === undefined || val === null || val === '') return null;
+      // Lookup fields store a UUID; resolve it to a display name when
+      // we recognise the target. Only crm_products is wired today.
+      if (def.field_type === 'lookup' && def.target_table === 'crm_products' && typeof val === 'string') {
+        const p = productMap.get(val);
+        return [def.label || def.field_key, p?.name ?? val.slice(0, 8)] as [string, React.ReactNode];
+      }
       return [def.label || def.field_key, formatCustomValue(val, def.field_type)] as [string, React.ReactNode];
     })
     .filter((row): row is [string, React.ReactNode] => row !== null);
+
+  // Multi-row product picker — render product_lines as a stack of
+  // (product, qty unit, amount) rows. Falls back to building a single
+  // row from the legacy product_interested/quantity/measuring_unit/
+  // estimated_amount scalars when product_lines hasn't been written yet.
+  type ProductLineDisplay = { name: string; quantity?: number | string; unit?: string; amount?: number };
+  const productLines: ProductLineDisplay[] = useMemo(() => {
+    const rawLines = cf.product_lines;
+    if (Array.isArray(rawLines) && rawLines.length > 0) {
+      return (rawLines as Array<Record<string, unknown>>).map((r) => {
+        const id = typeof r.product_id === 'string' ? r.product_id : '';
+        const p = id ? productMap.get(id) : undefined;
+        return {
+          name: p?.name ?? (id ? id.slice(0, 8) : 'Unknown product'),
+          quantity: (r.quantity as number | string | undefined),
+          unit: typeof r.measuring_unit === 'string' ? r.measuring_unit : undefined,
+          amount: typeof r.estimated_amount === 'number' ? r.estimated_amount : undefined,
+        };
+      }).filter((l) => l.name || l.quantity || l.amount);
+    }
+    const id = typeof cf.product_interested === 'string' ? cf.product_interested : '';
+    if (!id && cf.quantity == null && cf.estimated_amount == null) return [];
+    const p = id ? productMap.get(id) : undefined;
+    return [{
+      name: p?.name ?? (id ? id.slice(0, 8) : 'Unknown product'),
+      quantity: cf.quantity as number | string | undefined,
+      unit: typeof cf.measuring_unit === 'string' ? cf.measuring_unit : undefined,
+      amount: typeof cf.estimated_amount === 'number' ? cf.estimated_amount : undefined,
+    }];
+  }, [cf, productMap]);
 
   const notesAndTagsItems: Array<[string, React.ReactNode]> = [
     ['Tags',  tags.length ? <ChipList items={tags} /> : null],
     ['Notes', lead.notes ? <NoteValue note={lead.notes} /> : null],
   ];
 
+  // Render product_lines as one labelled item per line so the section
+  // card stacks them readably with the same Key/Value treatment as the
+  // other sections.
+  const productItems: Array<[string, React.ReactNode]> = productLines.map((l, i) => {
+    const label = productLines.length === 1 ? 'Product' : `Product ${i + 1}`;
+    const qty = l.quantity != null && l.quantity !== '' ? `${l.quantity}${l.unit ? ` ${l.unit}` : ''}` : '';
+    const amt = l.amount && l.amount > 0 ? `₹${Number(l.amount).toLocaleString('en-IN')}` : '';
+    const tail = [qty, amt].filter(Boolean).join(' · ');
+    return [label, tail ? `${l.name} — ${tail}` : l.name];
+  });
+  const basketTotal = productLines.reduce((s, l) => s + (l.amount ?? 0), 0);
+  if (productLines.length > 1 && basketTotal > 0) {
+    productItems.push(['Basket Total', `₹${basketTotal.toLocaleString('en-IN')}`]);
+  }
+
   const sections: Array<{ title: string; items: Array<[string, React.ReactNode]>; show: boolean }> = [
     { title: 'Contact Preferences',      items: contactItems,      show: true },
     { title: 'Business Details',        items: businessItems,     show: !isB2C },
     { title: 'Personal Details',        items: personalItems,     show: isB2C },
     { title: 'Address & Location',      items: addressItems,      show: true },
+    { title: 'Products of Interest',    items: productItems,      show: productItems.length > 0 },
     { title: 'Score & Dates',            items: lifecycleItems,    show: true },
     { title: 'Custom Fields',           items: customItems,       show: customItems.length > 0 },
     { title: 'Consent & Preferences',   items: consentItems,      show: isB2C },
