@@ -623,7 +623,19 @@ export default function DealDetailPage() {
  */
 function DealProductsCard({ deal }: { deal: Deal }) {
   type LeadLine = { product_id?: string | null; quantity?: number | string | null; measuring_unit?: string | null };
-  type ProductRow = { product_id: string; product_name: string; estimated: number; unit: string };
+  // Per-row snapshot of the bits the Products table needs to compute the
+  // three amount columns: estimated, closed, and balance. price / weight_kg
+  // come from the products catalogue so re-saving the deal doesn't have to
+  // re-resolve the product. unitFactor is 1 for kg and 1000 for tonne.
+  type ProductRow = {
+    product_id: string;
+    product_name: string;
+    estimated: number;
+    unit: string;
+    price: number;
+    weight_kg: number;
+    unitFactor: number;
+  };
 
   const leadId = (deal as Deal & { lead_id?: string | null }).lead_id ?? null;
   const dealCf = ((deal as Deal & { custom_fields?: Record<string, unknown> | null }).custom_fields ?? {}) as Record<string, unknown>;
@@ -684,11 +696,16 @@ function DealProductsCard({ deal }: { deal: Deal }) {
             .map((l) => {
               const p = map.get(String(l.product_id));
               const qty = typeof l.quantity === 'number' ? l.quantity : Number(l.quantity ?? 0);
+              const unit = (l.measuring_unit || '').toString();
+              const unitFactor = unit.trim().toLowerCase() === 'tonne' ? 1000 : 1;
               return {
                 product_id: String(l.product_id),
                 product_name: p?.name ?? String(l.product_id).slice(0, 8),
                 estimated: Number.isFinite(qty) ? qty : 0,
-                unit: (l.measuring_unit || '').toString(),
+                unit,
+                price: Number(p?.price ?? 0),
+                weight_kg: Number(p?.weight_kg ?? 0),
+                unitFactor,
               };
             });
           setRows(built);
@@ -719,13 +736,20 @@ function DealProductsCard({ deal }: { deal: Deal }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [closed]);
 
-  // Cell renderer for the balance column. Strips the sign, formats the
-  // number with up to 2dp, and emojis a directional arrow.
-  const renderBalance = (estimated: number, closedQty: number) => {
-    const balance = closedQty - estimated;
+  // Cell renderer for the balance column. The sign is stripped so the
+  // cell always reads as a positive number; a directional arrow encodes
+  // polarity:
+  //   closed < estimated → RED ▼ (rep is short of the target)
+  //   closed > estimated → GREEN ▲ (rep over-delivered)
+  //   zero               → em-dash
+  // Used for BOTH Balance (quantity) and Balance Amount.
+  const renderBalance = (estimated: number, closed: number, opts?: { currency?: boolean }) => {
+    const balance = closed - estimated;
     const abs = Math.abs(balance);
-    const display = Number.isInteger(abs) ? String(abs) : abs.toFixed(2);
-    if (balance > 0) {
+    const display = opts?.currency
+      ? `₹${abs.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
+      : (Number.isInteger(abs) ? String(abs) : abs.toFixed(2));
+    if (closed < estimated) {
       return (
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#ef4444', fontWeight: 700 }}>
           <span aria-hidden style={{ fontSize: 14, lineHeight: 1 }}>▼</span>
@@ -733,7 +757,7 @@ function DealProductsCard({ deal }: { deal: Deal }) {
         </span>
       );
     }
-    if (balance < 0) {
+    if (closed > estimated) {
       return (
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#10b981', fontWeight: 700 }}>
           <span aria-hidden style={{ fontSize: 14, lineHeight: 1 }}>▲</span>
@@ -743,6 +767,17 @@ function DealProductsCard({ deal }: { deal: Deal }) {
     }
     return <span style={{ color: 'var(--text-dim)' }}>—</span>;
   };
+
+  // Amount math: amount = (price / weight_kg) × (quantity × unitFactor).
+  // Returns 0 when any leg is missing or non-positive — same convention
+  // the lead form uses.
+  const amountFor = (row: ProductRow, qty: number): number => {
+    if (row.price <= 0 || row.weight_kg <= 0 || qty <= 0) return 0;
+    return (row.price / row.weight_kg) * (qty * row.unitFactor);
+  };
+
+  const fmtINR = (n: number): string =>
+    n > 0 ? `₹${n.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : '—';
 
   if (loading) {
     return (
@@ -780,6 +815,9 @@ function DealProductsCard({ deal }: { deal: Deal }) {
               <th style={{ padding: '8px 10px', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', textAlign: 'right' }}>Quantity</th>
               <th style={{ padding: '8px 10px', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', textAlign: 'right' }}>Closed Quantity</th>
               <th style={{ padding: '8px 10px', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', textAlign: 'right' }}>Balance</th>
+              <th style={{ padding: '8px 10px', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', textAlign: 'right' }}>Estimate Amount</th>
+              <th style={{ padding: '8px 10px', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', textAlign: 'right' }}>Closed Amount</th>
+              <th style={{ padding: '8px 10px', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', textAlign: 'right' }}>Balance Amount</th>
             </tr>
           </thead>
           <tbody>
@@ -787,6 +825,8 @@ function DealProductsCard({ deal }: { deal: Deal }) {
               const closedVal = closed[r.product_id] ?? 0;
               const draftVal = draft[r.product_id];
               const inputVal = draftVal !== undefined ? draftVal : (closedVal ? String(closedVal) : '');
+              const estimateAmount = amountFor(r, r.estimated);
+              const closedAmount = amountFor(r, closedVal);
               return (
                 <tr key={r.product_id} style={{ borderBottom: '1px solid var(--border)' }}>
                   <td style={{ padding: '10px', color: 'var(--text)' }}>{r.product_name}</td>
@@ -817,6 +857,15 @@ function DealProductsCard({ deal }: { deal: Deal }) {
                   </td>
                   <td style={{ padding: '10px', textAlign: 'right' }}>
                     {renderBalance(r.estimated, closedVal)}
+                  </td>
+                  <td style={{ padding: '10px', textAlign: 'right', color: 'var(--text)' }}>
+                    {fmtINR(estimateAmount)}
+                  </td>
+                  <td style={{ padding: '10px', textAlign: 'right', color: 'var(--text)' }}>
+                    {fmtINR(closedAmount)}
+                  </td>
+                  <td style={{ padding: '10px', textAlign: 'right' }}>
+                    {renderBalance(estimateAmount, closedAmount, { currency: true })}
                   </td>
                 </tr>
               );
