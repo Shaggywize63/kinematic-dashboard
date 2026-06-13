@@ -740,9 +740,9 @@ function DealProductsCard({ deal }: { deal: Deal }) {
   // cell always reads as a positive number; a directional arrow encodes
   // polarity:
   //   closed < estimated → RED ▼ (rep is short of the target)
-  //   closed > estimated → GREEN ▲ (rep over-delivered)
-  //   zero               → em-dash
-  // Used for BOTH Balance (quantity) and Balance Amount.
+  //   closed ≥ estimated → GREEN ▲ (target met or over-delivered)
+  // When the rep has hit the target exactly the cell reads "0" with the
+  // green ▲ — same green-up treatment as an over-delivery.
   const renderBalance = (estimated: number, closed: number, opts?: { currency?: boolean }) => {
     const balance = closed - estimated;
     const abs = Math.abs(balance);
@@ -757,15 +757,12 @@ function DealProductsCard({ deal }: { deal: Deal }) {
         </span>
       );
     }
-    if (closed > estimated) {
-      return (
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#10b981', fontWeight: 700 }}>
-          <span aria-hidden style={{ fontSize: 14, lineHeight: 1 }}>▲</span>
-          <span>{display}</span>
-        </span>
-      );
-    }
-    return <span style={{ color: 'var(--text-dim)' }}>—</span>;
+    return (
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#10b981', fontWeight: 700 }}>
+        <span aria-hidden style={{ fontSize: 14, lineHeight: 1 }}>▲</span>
+        <span>{display}</span>
+      </span>
+    );
   };
 
   // Amount math: amount = (price / weight_kg) × (quantity × unitFactor).
