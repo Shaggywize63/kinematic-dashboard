@@ -418,7 +418,7 @@ export default function NewLeadPage() {
           || form.email || form.phone || 'Lead';
         const firstVisitDate = form.custom_fields?.first_visit_date;
         const isFirst = typeof firstVisitDate === 'string' && firstVisitDate.trim() !== '';
-        const subject = isFirst ? `First visit — ${name}` : `Site visit — ${name}`;
+        const subject = isFirst ? `First Site Visit — ${name}` : `Site visit — ${name}`;
         const qs = new URLSearchParams({
           lead_id: r.data.id,
           type: 'meeting',
@@ -794,7 +794,7 @@ export default function NewLeadPage() {
             <span>
               <strong style={{ color: 'var(--text)' }}>Also log this lead as a Site Visit activity</strong>
               <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>
-                Creates a completed Site Visit activity tied to this lead — visible on the lead detail timeline. When the First Visit Date custom field is filled in, the activity is recorded as a First Visit instead.
+                Creates a completed Site Visit activity tied to this lead — visible on the lead detail timeline. When the First Visit Date custom field is filled in, the activity is recorded as a First Site Visit instead.
               </div>
             </span>
           </label>
