@@ -8,6 +8,7 @@ import { useClient } from '../../../../../context/ClientContext';
 import type { BusinessType, LeadSource, Product } from '../../../../../types/crm';
 import LocationPicker from '../../../../../components/crm/LocationPicker';
 import CustomFieldsSection from '../../../../../components/crm/CustomFieldsSection';
+import ProductLinesSection from '../../../../../components/crm/ProductLinesSection';
 import GoogleAddressAutocomplete from '../../../../../components/crm/GoogleAddressAutocomplete';
 import UserSearchSelect, { type UserOption } from '../../../../../components/crm/shared/UserSearchSelect';
 import AlternateMobiles from '../../../../../components/crm/AlternateMobiles';
@@ -615,6 +616,13 @@ export default function NewLeadPage() {
                 onChange={(cf) => setForm({ ...form, custom_fields: cf })}
               />
             </div>
+            {/* Multi-row product picker — drives product_lines and mirrors
+                row 0 onto the legacy product_interested / quantity /
+                measuring_unit / estimated_amount keys for back-compat. */}
+            <ProductLinesSection
+              values={form.custom_fields}
+              onChange={(cf) => setForm({ ...form, custom_fields: cf })}
+            />
           </Section>
           {/* City is required on B2B leads too — the per-user city-scope
               filter applies to every lead row regardless of B2B/B2C. */}
@@ -664,6 +672,10 @@ export default function NewLeadPage() {
                 onChange={(cf) => setForm({ ...form, custom_fields: cf })}
               />
             </div>
+            <ProductLinesSection
+              values={form.custom_fields}
+              onChange={(cf) => setForm({ ...form, custom_fields: cf })}
+            />
           </Section>
           {(!fields.isHidden('marketing_consent') || !fields.isHidden('whatsapp_consent')) && (
             <Section title="Consent">
