@@ -395,10 +395,10 @@ export default function LeadDetailPage() {
 
       <div style={{ flex: '1 1 280px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 18 }}>
         {/* LeadScoreBreakdown + ScoreBoostSuggestions hidden for Consumer
-            Champion reps — they're meant for managers, not the FE-tier
-            users. NBA card stays visible since it's an action prompt the
-            FE can act on directly. */}
-        {!isChampion && (
+            Champion reps AND for the Tata Tiscon tenant — their flow
+            doesn't use the AI score-boost loop. NBA card stays visible
+            since it's an action prompt the FE can act on directly. */}
+        {!isChampion && !isTataActive && (
           <>
             <LeadScoreBreakdown
               score={score?.score ?? lead.score}
