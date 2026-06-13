@@ -197,7 +197,7 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
           || form.email || form.phone || 'Lead';
         const firstVisitDate = (form.custom_fields as Record<string, unknown> | undefined)?.first_visit_date;
         const isFirst = typeof firstVisitDate === 'string' && firstVisitDate.trim() !== '';
-        const subject = isFirst ? `First visit — ${name}` : `Site visit — ${name}`;
+        const subject = isFirst ? `First Site Visit — ${name}` : `Site visit — ${name}`;
         const qs = new URLSearchParams({ lead_id: lead.id, type: 'meeting', subject }).toString();
         router.push(`/dashboard/crm/activities/new?${qs}`);
       }
@@ -345,7 +345,7 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
               <span>
                 <strong style={{ color: 'var(--text)' }}>Also log a Site Visit activity</strong>
                 <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>
-                  Creates a completed Site Visit on this lead&rsquo;s timeline. When the First Visit Date custom field is filled in, the activity is recorded as a First Visit instead.
+                  Creates a completed Site Visit on this lead&rsquo;s timeline. When the First Visit Date custom field is filled in, the activity is recorded as a First Site Visit instead.
                 </div>
               </span>
             </label>
