@@ -18,11 +18,9 @@ const LINKS: CrmLink[] = [
   // Overview is back to the legacy stat-card + fixed-chart surface.
   // championHidden: Consumer Champion FEs don't need the analytics tab.
   { href: '/dashboard/crm/leads/analytics', label: 'Lead Analytics', championHidden: true },
-  // Contacts hidden for Consumer Champions — they work with leads only.
-  { href: '/dashboard/crm/contacts', label: 'Contacts', championHidden: true },
-  // Accounts hidden for Consumer Champions (pure B2C / lead-centric) and
-  // for TATA Tiscon users whose workflow does not include account records.
-  { href: '/dashboard/crm/accounts', label: 'Accounts', championHidden: true, tataTisconHidden: true },
+  // Contacts + Accounts removed from the CRM sub-nav — Tata's flow
+  // goes lead → deal without those records. Re-add here when a tenant
+  // that actually uses them needs the surface.
   { href: '/dashboard/crm/deals', label: 'Deals' },
   { href: '/dashboard/crm/pipeline', label: 'Pipeline' },
   { href: '/dashboard/crm/products', label: 'Products' },
