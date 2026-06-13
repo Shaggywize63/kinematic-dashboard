@@ -162,6 +162,9 @@ export interface DealHistoryEntry {
   from_stage?: string | null; to_stage?: string | null;
   field?: string | null; old_value?: unknown; new_value?: unknown;
   actor_id?: string | null; actor_name?: string | null; created_at: string;
+  // Free-text annotation written for non-stage / non-amount edits (e.g.
+  // closed-quantity updates). Optional — older rows don't carry it.
+  note?: string | null;
 }
 
 export interface Activity {

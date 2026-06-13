@@ -64,6 +64,10 @@ const EVENT_LABEL: Record<string, string> = {
   reopened: 'Re-opened',
   created: 'Deal created',
   note_added: 'Note added',
+  // New free-text entry written by updateDeal when closed_quantities or
+  // other non-stage / non-amount fields change. The note itself surfaces
+  // alongside this label.
+  note: 'Update',
 };
 const labelEvent = (e?: string) => {
   if (!e) return 'Event';
@@ -81,14 +85,15 @@ function fmtIst(iso?: string | null) {
   } catch { return { date: '—', time: '—', ts: iso }; }
 }
 
-function normaliseEvent(h: any): { id?: string; eventType: string; createdAt: string; fromStage?: string; toStage?: string } | null {
+function normaliseEvent(h: any): { id?: string; eventType: string; createdAt: string; fromStage?: string; toStage?: string; note?: string } | null {
   if (!h || typeof h !== 'object') return null;
   const eventType = h.event_type || h.eventType || h.type || h.event || '';
   const createdAt = h.created_at || h.createdAt || h.timestamp || h.at || '';
   const fromStage = h.from_stage || h.fromStage || h.previous_stage || '';
   const toStage   = h.to_stage   || h.toStage   || h.next_stage     || '';
-  if (!eventType && !createdAt && !fromStage && !toStage) return null;
-  return { id: h.id, eventType, createdAt, fromStage: fromStage || undefined, toStage: toStage || undefined };
+  const note = typeof h.note === 'string' ? h.note : '';
+  if (!eventType && !createdAt && !fromStage && !toStage && !note) return null;
+  return { id: h.id, eventType, createdAt, fromStage: fromStage || undefined, toStage: toStage || undefined, note: note || undefined };
 }
 
 class SafeRender extends Component<{ label: string; children: ReactNode }, { error: Error | null }> {
@@ -533,6 +538,12 @@ export default function DealDetailPage() {
                             </span>
                           )}
                         </div>
+                        {/* Free-text annotation written by updateDeal for
+                            non-stage edits (e.g. closed-quantity updates),
+                            so the rep can see exactly what changed. */}
+                        {h.note && (
+                          <div style={{ fontSize: 12, color: 'var(--text)', lineHeight: 1.4 }}>{h.note}</div>
+                        )}
                         {h.createdAt && (
                           <div style={{ fontSize: 11, color: 'var(--text-dim)', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                             <span>{t.date}</span>
