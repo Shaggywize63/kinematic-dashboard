@@ -16,6 +16,24 @@ import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '.
 
 type UserOpt = UserOption;
 
+// True when ANY custom field on the lead matches the "first site visit"
+// shape and carries a truthy value. Admins name the field differently
+// per tenant (first_visit_date, first_site_visit, is_first_visit …), so
+// we match the SHAPE of the key rather than a single hardcoded one.
+// Used by the new-lead + edit flows to decide whether the auto-spawned
+// activity subject reads "First Site Visit" instead of "Site visit".
+function isFirstSiteVisit(cf: Record<string, unknown> | null | undefined): boolean {
+  if (!cf) return false;
+  return Object.entries(cf).some(([key, val]) => {
+    const k = String(key).toLowerCase();
+    if (!/first/.test(k) || !/(visit|site)/.test(k)) return false;
+    if (val === true) return true;
+    if (typeof val === 'string' && val.trim() !== '') return true;
+    if (typeof val === 'number' && val !== 0) return true;
+    return false;
+  });
+}
+
 // Tata Tiscon is consumer-only — never offer the B2B lead option.
 const TATA_TISCON_CLIENT_ID = 'a1f67468-526e-4734-be3a-2cb132cc2804';
 
@@ -416,8 +434,7 @@ export default function NewLeadPage() {
       if (form.log_as_site_visit) {
         const name = [form.first_name, form.last_name].filter(Boolean).join(' ').trim()
           || form.email || form.phone || 'Lead';
-        const firstVisitDate = form.custom_fields?.first_visit_date;
-        const isFirst = typeof firstVisitDate === 'string' && firstVisitDate.trim() !== '';
+        const isFirst = isFirstSiteVisit(form.custom_fields);
         const subject = isFirst ? `First Site Visit — ${name}` : `Site visit — ${name}`;
         const qs = new URLSearchParams({
           lead_id: r.data.id,
