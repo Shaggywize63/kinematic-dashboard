@@ -19,7 +19,6 @@ interface Props {
 
 export const DEAL_COLUMNS = [
   { key: 'name', label: 'Name', locked: true },
-  { key: 'account', label: 'Account' },
   { key: 'amount', label: 'Amount' },
   { key: 'stage', label: 'Stage' },
   { key: 'status', label: 'Status' },
@@ -37,7 +36,6 @@ export default function DealsTable({ deals, loading, onAssign, onDelete, selecte
   const tableClass = `responsive-cards${viewMode === 'cards' ? ' cards-view' : ''}`;
 
   let colCount = (showSelection ? 1 : 0) + 1; // name always
-  if (!hidden.has('account'))    colCount += 1;
   if (!hidden.has('amount'))     colCount += 1;
   if (!hidden.has('stage'))      colCount += 1;
   if (!hidden.has('status'))     colCount += 1;
@@ -57,7 +55,6 @@ export default function DealsTable({ deals, loading, onAssign, onDelete, selecte
                 </th>
               )}
               <th style={th}>Name</th>
-              {!hidden.has('account')    && <th style={th}>Account</th>}
               {!hidden.has('amount')     && <th style={th}>Amount</th>}
               {!hidden.has('stage')      && <th style={th}>Stage</th>}
               {!hidden.has('status')     && <th style={th}>Status</th>}
@@ -77,15 +74,23 @@ export default function DealsTable({ deals, loading, onAssign, onDelete, selecte
                   </td>
                 )}
                 <td style={td} data-label="Name"><Link href={`/dashboard/crm/deals/${d.id}`} className="km-entity-link" title="Open deal detail">{d.name}</Link></td>
-                {!hidden.has('account') && (
-                  <td style={td} data-label="Account">{d.account_id && d.account_name
-                    ? <Link href={`/dashboard/crm/accounts/${d.account_id}`} className="km-entity-link" title="Open account detail">{d.account_name}</Link>
-                    : (d.account_name || '—')}</td>
-                )}
                 {!hidden.has('amount')     && <td style={td} data-label="Amount">{formatINR(d.amount)}</td>}
                 {!hidden.has('stage')      && <td style={td} data-label="Stage"><StageBadge name={d.stage_name} won={d.status === 'won'} lost={d.status === 'lost'} /></td>}
                 {!hidden.has('status')     && <td style={td} data-label="Status"><span style={{ textTransform: 'capitalize' }}>{d.status}</span></td>}
-                {!hidden.has('close_date') && <td style={td} data-label="Close Date">{d.expected_close_date ? new Date(d.expected_close_date).toLocaleDateString() : '—'}</td>}
+                {!hidden.has('close_date') && (
+                  <td style={td} data-label="Close Date">
+                    {(() => {
+                      // For a won / lost deal, prefer actual_close_date
+                      // (set by winDeal / loseDeal) so the column shows
+                      // when the deal actually closed, not when it was
+                      // forecast. Open deals fall back to the forecast.
+                      const closed = (d.status === 'won' || d.status === 'lost')
+                        ? (d.actual_close_date as string | null | undefined) ?? d.expected_close_date
+                        : d.expected_close_date;
+                      return closed ? new Date(closed).toLocaleDateString() : '—';
+                    })()}
+                  </td>
+                )}
                 {!hidden.has('owner') && (
                   <td style={td} data-label="Owner">
                     {onAssign ? (

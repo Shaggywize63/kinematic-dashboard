@@ -137,6 +137,10 @@ export interface Deal {
   currency?: string | null;
   probability?: number | null;
   expected_close_date?: string | null;
+  // Captured by winDeal / loseDeal when the rep marks the deal closed.
+  // Open deals carry only expected_close_date; closed deals show the
+  // real date in the deals table + analytics.
+  actual_close_date?: string | null;
   status: DealStatus;
   owner_id?: string | null;
   owner_name?: string | null;
