@@ -6,6 +6,7 @@ import api from '../../lib/api';
 import { getStoredToken } from '../../lib/auth';
 import { API_BASE_URL } from '../../lib/api';
 import type { CustomField } from '../../types/crm';
+import { PRODUCT_LINE_KEYS } from './ProductLinesSection';
 
 /**
  * Renders the active custom fields for a given entity (lead / contact /
@@ -64,6 +65,12 @@ export default function CustomFieldsSection({ entity, values, onChange }: Props)
           // are preserved server-side so flipping back to visible restores
           // them on the next render.
           .filter((f) => !f.hidden)
+          // The four product-line keys (product_interested / quantity /
+          // measuring_unit / estimated_amount) are rendered by the
+          // dedicated ProductLinesSection on the lead form so the rep
+          // gets a multi-row UI with the auto-calculated amount. Skip
+          // them here so they don't double-render.
+          .filter((f) => entity !== 'lead' || !PRODUCT_LINE_KEYS.includes(f.field_key as typeof PRODUCT_LINE_KEYS[number]))
           // A field with no org_role_ids is universal; otherwise it must list
           // the user's role. Admins/users with no resolved role see universal
           // fields only (role-scoped fields stay with their roles).
