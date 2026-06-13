@@ -426,37 +426,38 @@ export default function DealDetailPage() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 14, fontSize: 13 }}>
               <Field
                 label="Amount"
-                value={(() => {
-                  // Weight mode: prefer deal.custom_fields.volume_kg; if missing,
-                  // recompute from product_lines using qty × unit-factor (1 for
-                  // kg, 1000 for tonne) so the toggle is meaningful even on
-                  // deals saved before the volume mirror landed.
-                  if (unit === 'weight') {
-                    const cf = (deal as Deal & { custom_fields?: Record<string, unknown> | null }).custom_fields ?? {};
-                    const cached = (cf as Record<string, unknown>).volume_kg;
-                    const cachedKg = typeof cached === 'number' ? cached : Number(cached);
-                    if (Number.isFinite(cachedKg) && cachedKg > 0) return formatKg(cachedKg);
-                    const lines = (cf as Record<string, unknown>).product_lines;
+                value={formatINR(Number(deal.amount) || 0)}
+                trailing={(() => {
+                  // Show the basket weight alongside the amount so reps see
+                  // BOTH the currency value AND the tonnage at a glance.
+                  // Prefer the cached custom_fields.volume_kg (written on
+                  // convert); fall back to recomputing from product_lines
+                  // qty × unit-factor (1 kg / 1000 tonne) so deals saved
+                  // before that mirror landed still show a weight.
+                  const cf = ((deal as Deal & { custom_fields?: Record<string, unknown> | null }).custom_fields ?? {}) as Record<string, unknown>;
+                  let kg = 0;
+                  const cached = cf.volume_kg;
+                  const cachedNum = typeof cached === 'number' ? cached : Number(cached);
+                  if (Number.isFinite(cachedNum) && cachedNum > 0) kg = cachedNum;
+                  else {
+                    const lines = cf.product_lines;
                     if (Array.isArray(lines)) {
-                      let total = 0;
                       for (const l of lines as Array<Record<string, unknown>>) {
                         const qty = Number(l.quantity ?? 0);
                         if (!Number.isFinite(qty) || qty <= 0) continue;
                         const u = String(l.measuring_unit ?? '').trim().toLowerCase();
-                        total += qty * (u === 'tonne' ? 1000 : 1);
+                        kg += qty * (u === 'tonne' ? 1000 : 1);
                       }
-                      if (total > 0) return formatKg(total);
                     }
-                    return formatKg(0);
                   }
-                  return formatINR(Number(deal.amount) || 0);
+                  if (kg <= 0) return null;
+                  return (
+                    <div style={{ marginTop: 4, display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-dim)' }}>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-dim)', letterSpacing: 0.4 }}>WEIGHT</span>
+                      <span style={{ color: 'var(--text)', fontWeight: 700 }}>{formatKg(kg)}</span>
+                    </div>
+                  );
                 })()}
-                trailing={(
-                  <div role="tablist" aria-label="Display unit" style={{ display: 'inline-flex', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 6, padding: 2, marginTop: 4 }}>
-                    <button type="button" role="tab" aria-selected={unit === 'inr'} onClick={() => setUnitPersisted('inr')} style={{ padding: '2px 8px', borderRadius: 4, background: unit === 'inr' ? 'var(--s4)' : 'transparent', border: 'none', color: unit === 'inr' ? 'var(--text)' : 'var(--text-dim)', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}>₹</button>
-                    <button type="button" role="tab" aria-selected={unit === 'weight'} onClick={() => setUnitPersisted('weight')} style={{ padding: '2px 8px', borderRadius: 4, background: unit === 'weight' ? 'var(--s4)' : 'transparent', border: 'none', color: unit === 'weight' ? 'var(--text)' : 'var(--text-dim)', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}>KG</button>
-                  </div>
-                )}
               />
               <Field label="Stage" value={deal.stage_name} />
               <Field label="Status" value={deal.status} />
