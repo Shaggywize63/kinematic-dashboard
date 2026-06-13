@@ -118,7 +118,7 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
       // Email guard is suppressed for Tata Tiscon (field is hidden);
       // an empty value should never block save there.
       ...(isTata ? [] : [{ key: 'email', value: form.email, default: false, message: 'Email is required.' }]),
-      { key: 'phone',      value: form.phone,      default: false, message: 'Primary mobile is required.' },
+      { key: 'phone',      value: form.phone,      default: true,  message: 'Primary mobile is required.' },
       ...(!form.is_b2c
         ? [{ key: 'company', value: form.company, default: true, message: 'Company is required for B2B leads.' }]
         : []),
@@ -234,7 +234,7 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
               doesn't capture email and we don't want the field showing
               up in the edit form for legacy leads either. */}
           {!isTata && show('email', <F label={lbl('email', 'Email')} type="email" required={req('email', false)} value={form.email} onChange={(v) => setForm({ ...form, email: v })} />)}
-          {show('phone',      <F label={lbl('phone',      'Phone')}      phone required={req('phone', false)} value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />)}
+          {show('phone',      <F label={lbl('phone',      'Phone')}      phone required={req('phone', true)} value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />)}
         </Grid>
 
         {/* Alternate mobile numbers — chip list, same component the

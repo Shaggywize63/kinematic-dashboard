@@ -136,11 +136,11 @@ const BUILTIN_FIELDS: Record<string, BuiltinField[]> = {
     { key: 'first_name', label: 'First Name', type: 'text', required: true },
     { key: 'last_name', label: 'Last Name', type: 'text', required: true },
     { key: 'email', label: 'Email', type: 'text' },
-    // Phone is optional by default — the lead form mirrors this. To
-    // make Primary Mobile mandatory on a specific scope (B2C only,
-    // say), use the B2C scope tab above the table and toggle Required
-    // on; the lead form will pick it up on the next page load.
-    { key: 'phone', label: 'Primary Mobile', type: 'text' },
+    // Phone is required by default — the lead form mirrors this. The
+    // primary mobile is the canonical contact for B2C intake and the
+    // de-facto identifier for B2B reps too. Admins can flip it to
+    // optional via the Edit dialog for tenants that don't collect it.
+    { key: 'phone', label: 'Primary Mobile', type: 'text', required: true },
     { key: 'company', label: 'Company', type: 'text' },
     { key: 'title', label: 'Job Title', type: 'text' },
     { key: 'industry', label: 'Industry', type: 'text' },
