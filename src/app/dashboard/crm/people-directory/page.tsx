@@ -20,17 +20,18 @@ import { toast } from 'sonner';
 import { API_BASE_URL } from '../../../../lib/api';
 import { getStoredToken } from '../../../../lib/auth';
 import {
-  crmPeopleDirectory, crmPeopleDirectoryTypes,
+  crmPeopleDirectory, crmPeopleDirectoryTypes, crmCitiesApi,
   type PeopleDirectoryEntry, type PeopleDirectoryType,
 } from '../../../../lib/crmApi';
+import type { CrmCity } from '../../../../types/crm';
 
 type Row = PeopleDirectoryEntry & { id: string };
 
 function downloadTemplate() {
   const rows = [
-    'first_name,last_name,mobile,email,type,city,address',
-    'Ravi,Kumar,9988776655,ravi@example.com,Dealer,Bhagalpur,"Shop 12, Main Road"',
-    'Priya,Sharma,8877665544,priya@example.com,Architect,Patna,"Flat 3, Building B"',
+    'first_name,last_name,mobile,email,code,type,city,address',
+    'Ravi,Kumar,9988776655,ravi@example.com,EMP-001,Dealer,Bhagalpur,"Shop 12, Main Road"',
+    'Priya,Sharma,8877665544,priya@example.com,EMP-002,Architect,Patna,"Flat 3, Building B"',
   ];
   const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
   const a = document.createElement('a');
@@ -52,12 +53,27 @@ export default function PeopleDirectoryPage() {
   // Loaded once on mount + refreshed after an inline add so the dropdown in
   // the create / edit modal always reflects the live list.
   const [types, setTypes] = useState<PeopleDirectoryType[]>([]);
+  // Cities for the dropdown — sourced from the admin-curated crm_cities
+  // list so Tata Tiscon reps pick from the same allow-list their other
+  // CRM screens use, instead of typing freeform values that don't roll
+  // up to any city report.
+  const [cities, setCities] = useState<CrmCity[]>([]);
 
   const loadTypes = async () => {
     try {
       const r = await crmPeopleDirectoryTypes.list({ limit: 200 });
       setTypes(((r.data as PeopleDirectoryType[]) || []).filter((t) => t.is_active !== false));
     } catch { setTypes([]); }
+  };
+
+  const loadCities = async () => {
+    try {
+      const r = await crmCitiesApi.list({ limit: 1000, is_active: true });
+      const list = ((r.data as CrmCity[]) || []).filter((c) => c.is_active !== false);
+      // Alphabetise so reps don't hunt through an insertion-ordered list.
+      list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+      setCities(list);
+    } catch { setCities([]); }
   };
 
   const refresh = async () => {
@@ -78,7 +94,7 @@ export default function PeopleDirectoryPage() {
     }
   };
 
-  useEffect(() => { refresh(); loadTypes(); /* eslint-disable-next-line */ }, []);
+  useEffect(() => { refresh(); loadTypes(); loadCities(); /* eslint-disable-next-line */ }, []);
   // Debounce search so each keystroke doesn't fire a new request.
   // Refire on type-filter change too — without it the dropdown only takes
   // effect after the next keystroke / re-render (the bug pattern flagged
@@ -104,6 +120,7 @@ export default function PeopleDirectoryPage() {
       address:    editing.address?.trim()    || null,
       type:       editing.type?.trim()       || null,
       city:       editing.city?.trim()       || null,
+      code:       editing.code?.trim()       || null,
     };
     if (!body.first_name && !body.last_name && !body.mobile && !body.email) {
       toast.error('Provide at least a name, mobile, or email');
@@ -234,6 +251,7 @@ export default function PeopleDirectoryPage() {
           <thead>
             <tr style={{ background: 'var(--s3)', color: 'var(--text-dim)', textAlign: 'left' }}>
               <th style={thStyle}>Name</th>
+              <th style={thStyle}>Code</th>
               <th style={thStyle}>Type</th>
               <th style={thStyle}>Mobile</th>
               <th style={thStyle}>Email</th>
@@ -245,7 +263,7 @@ export default function PeopleDirectoryPage() {
           <tbody>
             {!loading && rows.length === 0 && (
               <tr>
-                <td colSpan={7} style={{ padding: 36, textAlign: 'center', color: 'var(--text-dim)' }}>
+                <td colSpan={8} style={{ padding: 36, textAlign: 'center', color: 'var(--text-dim)' }}>
                   {search.trim() || typeFilter
                     ? 'No matching entries.'
                     : (<>Nothing here yet. Use <strong>Bulk Import</strong> to load a roster from CSV/XLSX, or <strong>+ New Person</strong> to add one.</>)}
@@ -257,6 +275,7 @@ export default function PeopleDirectoryPage() {
               return (
                 <tr key={r.id} style={{ borderTop: '1px solid var(--border)' }}>
                   <td style={tdStyle}>{fullName || <span style={{ color: 'var(--text-dim)' }}>—</span>}</td>
+                  <td style={tdStyle}>{r.code || <span style={{ color: 'var(--text-dim)' }}>—</span>}</td>
                   <td style={tdStyle}>
                     {r.type
                       ? <span style={typePill}>{r.type}</span>
@@ -303,7 +322,41 @@ export default function PeopleDirectoryPage() {
               />
             </Field>
             <Field label="City">
-              <input value={editing.city ?? ''} onChange={(e) => setEditing({ ...editing, city: e.target.value })} style={inputStyle} />
+              {cities.length > 0 ? (
+                <select
+                  value={editing.city ?? ''}
+                  onChange={(e) => setEditing({ ...editing, city: e.target.value || null })}
+                  style={inputStyle}
+                >
+                  <option value="">— Select —</option>
+                  {/* Tolerate a previously-saved value that's no longer
+                      in the allow-list (renamed / deactivated): surface
+                      it at the top so the rep doesn't lose context. */}
+                  {editing.city && !cities.some((c) => c.name === editing.city) && (
+                    <option value={editing.city}>{editing.city} (legacy)</option>
+                  )}
+                  {cities.map((c) => (
+                    <option key={c.id} value={c.name}>{c.name}</option>
+                  ))}
+                </select>
+              ) : (
+                // Fallback to free-text while the city list loads / when
+                // the tenant hasn't seeded any cities yet.
+                <input
+                  value={editing.city ?? ''}
+                  onChange={(e) => setEditing({ ...editing, city: e.target.value })}
+                  placeholder="No cities configured — type one"
+                  style={inputStyle}
+                />
+              )}
+            </Field>
+            <Field label="Code">
+              <input
+                value={editing.code ?? ''}
+                onChange={(e) => setEditing({ ...editing, code: e.target.value })}
+                placeholder="Employee / dealer code"
+                style={inputStyle}
+              />
             </Field>
             <div style={{ gridColumn: '1 / -1' }}>
               <Field label="Address">

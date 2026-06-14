@@ -284,6 +284,9 @@ export interface PeopleDirectoryEntry {
   address?: string | null;
   type?: string | null;
   city?: string | null;
+  // Tenant-supplied identifier (employee id, dealer code, etc.).
+  // Tata Tiscon writes it on every person to roll up their reports.
+  code?: string | null;
   created_at?: string;
   updated_at?: string;
 }
