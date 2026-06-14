@@ -20,8 +20,11 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { crmPeopleDirectory } from '../../../../../lib/crmApi';
 
-type DirField = 'first_name' | 'last_name' | 'mobile' | 'email' | 'address' | 'type' | 'city' | 'code';
+type DirField = 'id' | 'first_name' | 'last_name' | 'mobile' | 'email' | 'address' | 'type' | 'city' | 'code';
 const DIR_FIELDS: { key: DirField; label: string; hint?: string }[] = [
+  // `id` leads so re-importing a previous export updates the same rows
+  // instead of going through the mobile/email dedup path.
+  { key: 'id',         label: 'ID',      hint: 'Leave blank for new rows; populated on re-import' },
   { key: 'first_name', label: 'First name' },
   { key: 'last_name',  label: 'Last name' },
   { key: 'mobile',     label: 'Mobile',  hint: 'Used for duplicate detection' },
@@ -36,6 +39,7 @@ const DIR_FIELDS: { key: DirField; label: string; hint?: string }[] = [
 // compare against a few known synonyms per field. Matches what reps
 // typically name columns in their exports.
 const SYNONYMS: Record<DirField, string[]> = {
+  id:         ['id', 'uuid', 'rowid', 'recordid'],
   first_name: ['firstname', 'givenname', 'fname', 'first'],
   last_name:  ['lastname', 'surname', 'familyname', 'lname', 'last'],
   mobile:     ['mobile', 'mobilenumber', 'mob', 'phone', 'phonenumber', 'contact', 'contactnumber', 'whatsapp'],
@@ -48,7 +52,7 @@ const SYNONYMS: Record<DirField, string[]> = {
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
 function autoMap(headers: string[]): Record<DirField, string | null> {
   const out: Record<DirField, string | null> = {
-    first_name: null, last_name: null, mobile: null, email: null, address: null, type: null, city: null, code: null,
+    id: null, first_name: null, last_name: null, mobile: null, email: null, address: null, type: null, city: null, code: null,
   };
   for (const field of Object.keys(SYNONYMS) as DirField[]) {
     const syns = new Set(SYNONYMS[field]);
@@ -92,9 +96,11 @@ function parseCsv(text: string): string[][] {
 
 function downloadTemplate() {
   const rows = [
-    'first_name,last_name,mobile,email,code,type,city,address',
-    'Ravi,Kumar,9988776655,ravi@example.com,EMP-001,Dealer,Bhagalpur,"Shop 12, Main Road"',
-    'Priya,Sharma,8877665544,priya@example.com,EMP-002,Architect,Patna,"Flat 3, Building B"',
+    // `id` lets a re-imported export update existing rows (the bulk-
+    // import handler matches on it first); leave it blank for new ones.
+    'id,first_name,last_name,mobile,email,code,type,city,address',
+    ',Ravi,Kumar,9988776655,ravi@example.com,EMP-001,Dealer,Bhagalpur,"Shop 12, Main Road"',
+    ',Priya,Sharma,8877665544,priya@example.com,EMP-002,Architect,Patna,"Flat 3, Building B"',
   ];
   const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
   const a = document.createElement('a');
@@ -112,7 +118,7 @@ export default function PeopleDirectoryImportPage() {
   const [rawText, setRawText] = useState('');
   const [parsed, setParsed] = useState<{ headers: string[]; rows: string[][] } | null>(null);
   const [mapping, setMapping] = useState<Record<DirField, string | null>>({
-    first_name: null, last_name: null, mobile: null, email: null, address: null, type: null, city: null, code: null,
+    id: null, first_name: null, last_name: null, mobile: null, email: null, address: null, type: null, city: null, code: null,
   });
   const [onDuplicate, setOnDuplicate] = useState<'skip' | 'update'>('skip');
   const [busy, setBusy] = useState(false);
@@ -140,6 +146,7 @@ export default function PeopleDirectoryImportPage() {
     if (!parsed) return [];
     const idx = (col: string | null) => col === null ? -1 : parsed.headers.indexOf(col);
     const cols: Record<DirField, number> = {
+      id:         idx(mapping.id),
       first_name: idx(mapping.first_name),
       last_name:  idx(mapping.last_name),
       mobile:     idx(mapping.mobile),
@@ -151,6 +158,7 @@ export default function PeopleDirectoryImportPage() {
     };
     return parsed.rows
       .map((row) => ({
+        id:         cols.id         >= 0 ? row[cols.id]?.trim()         || null : null,
         first_name: cols.first_name >= 0 ? row[cols.first_name]?.trim() || null : null,
         last_name:  cols.last_name  >= 0 ? row[cols.last_name]?.trim()  || null : null,
         mobile:     cols.mobile     >= 0 ? row[cols.mobile]?.trim()     || null : null,
@@ -353,11 +361,12 @@ function Preview({ rows }: { rows: Array<Record<string, string | null>> }) {
       <div style={{ background: 'var(--s1)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
           <thead><tr style={{ background: 'var(--s3)' }}>
-            <th style={previewTh}>First</th><th style={previewTh}>Last</th><th style={previewTh}>Code</th><th style={previewTh}>Type</th><th style={previewTh}>Mobile</th><th style={previewTh}>Email</th><th style={previewTh}>City</th><th style={previewTh}>Address</th>
+            <th style={previewTh}>ID</th><th style={previewTh}>First</th><th style={previewTh}>Last</th><th style={previewTh}>Code</th><th style={previewTh}>Type</th><th style={previewTh}>Mobile</th><th style={previewTh}>Email</th><th style={previewTh}>City</th><th style={previewTh}>Address</th>
           </tr></thead>
           <tbody>
             {rows.map((r, i) => (
               <tr key={i} style={{ borderTop: '1px solid var(--border)' }}>
+                <td style={previewTd}>{r.id ? r.id.slice(0, 8) : '—'}</td>
                 <td style={previewTd}>{r.first_name || '—'}</td>
                 <td style={previewTd}>{r.last_name || '—'}</td>
                 <td style={previewTd}>{r.code || '—'}</td>

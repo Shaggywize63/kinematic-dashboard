@@ -33,9 +33,9 @@ type Row = PeopleDirectoryEntry & { id: string };
 
 function downloadTemplate() {
   const rows = [
-    'first_name,last_name,mobile,email,code,type,city,address',
-    'Ravi,Kumar,9988776655,ravi@example.com,EMP-001,Dealer,Bhagalpur,"Shop 12, Main Road"',
-    'Priya,Sharma,8877665544,priya@example.com,EMP-002,Architect,Patna,"Flat 3, Building B"',
+    'id,first_name,last_name,mobile,email,code,type,city,address',
+    ',Ravi,Kumar,9988776655,ravi@example.com,EMP-001,Dealer,Bhagalpur,"Shop 12, Main Road"',
+    ',Priya,Sharma,8877665544,priya@example.com,EMP-002,Architect,Patna,"Flat 3, Building B"',
   ];
   const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
   const a = document.createElement('a');
@@ -265,6 +265,7 @@ export default function PeopleDirectoryPage() {
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
             <tr style={{ background: 'var(--s3)', color: 'var(--text-dim)', textAlign: 'left' }}>
+              <th style={{ ...thStyle, width: 120 }}>ID</th>
               <th style={thStyle}>Name</th>
               <th style={thStyle}>Code</th>
               <th style={thStyle}>Type</th>
@@ -278,7 +279,7 @@ export default function PeopleDirectoryPage() {
           <tbody>
             {!loading && rows.length === 0 && (
               <tr>
-                <td colSpan={8} style={{ padding: 36, textAlign: 'center', color: 'var(--text-dim)' }}>
+                <td colSpan={9} style={{ padding: 36, textAlign: 'center', color: 'var(--text-dim)' }}>
                   {search.trim() || typeFilter
                     ? 'No matching entries.'
                     : (<>Nothing here yet. Use <strong>Bulk Import</strong> to load a roster from CSV/XLSX, or <strong>+ New Person</strong> to add one.</>)}
@@ -289,6 +290,10 @@ export default function PeopleDirectoryPage() {
               const fullName = [r.first_name, r.last_name].filter(Boolean).join(' ').trim();
               return (
                 <tr key={r.id} style={{ borderTop: '1px solid var(--border)' }}>
+                  <td style={{ ...tdStyle, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', color: 'var(--text-dim)' }}
+                      title={r.id}>
+                    {r.id ? r.id.slice(0, 8) : '—'}
+                  </td>
                   <td style={tdStyle}>{fullName || <span style={{ color: 'var(--text-dim)' }}>—</span>}</td>
                   <td style={tdStyle}>{r.code || <span style={{ color: 'var(--text-dim)' }}>—</span>}</td>
                   <td style={tdStyle}>
