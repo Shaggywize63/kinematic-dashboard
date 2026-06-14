@@ -321,6 +321,21 @@ export default function PeopleDirectoryPage() {
       {editing && (
         <Modal onClose={() => setEditing(null)} title={editing.id ? 'Edit person' : 'Add person'}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            {/* ID is server-assigned (UUID). For a new row we tell the
+                rep that it'll be generated on save; for an existing row
+                we surface the id read-only so it can be copied for
+                cross-referencing reports / external systems. */}
+            <div style={{ gridColumn: '1 / -1' }}>
+              <Field label="ID">
+                <input
+                  value={editing.id ?? ''}
+                  readOnly
+                  placeholder="Auto-generated on save"
+                  style={{ ...inputStyle, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', color: 'var(--text-dim)' }}
+                  onClick={(e) => (e.target as HTMLInputElement).select()}
+                />
+              </Field>
+            </div>
             <Field label="First name">
               <input value={editing.first_name ?? ''} onChange={(e) => setEditing({ ...editing, first_name: e.target.value })} style={inputStyle} />
             </Field>
