@@ -17,21 +17,25 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { API_BASE_URL } from '../../../../lib/api';
+import api, { API_BASE_URL } from '../../../../lib/api';
 import { getStoredToken } from '../../../../lib/auth';
 import {
-  crmPeopleDirectory, crmPeopleDirectoryTypes, crmCitiesApi,
+  crmPeopleDirectory, crmPeopleDirectoryTypes,
   type PeopleDirectoryEntry, type PeopleDirectoryType,
 } from '../../../../lib/crmApi';
-import type { CrmCity } from '../../../../types/crm';
+
+// One row from /api/v1/crm/locations — the per-tenant city allow-list
+// managed under Settings → Locations. We only care about the city name
+// for the People Directory dropdown.
+interface CityRow { id?: string; city?: string | null; is_active?: boolean | null }
 
 type Row = PeopleDirectoryEntry & { id: string };
 
 function downloadTemplate() {
   const rows = [
-    'first_name,last_name,mobile,email,code,type,city,address',
-    'Ravi,Kumar,9988776655,ravi@example.com,EMP-001,Dealer,Bhagalpur,"Shop 12, Main Road"',
-    'Priya,Sharma,8877665544,priya@example.com,EMP-002,Architect,Patna,"Flat 3, Building B"',
+    'id,first_name,last_name,mobile,email,code,type,city,address',
+    ',Ravi,Kumar,9988776655,ravi@example.com,EMP-001,Dealer,Bhagalpur,"Shop 12, Main Road"',
+    ',Priya,Sharma,8877665544,priya@example.com,EMP-002,Architect,Patna,"Flat 3, Building B"',
   ];
   const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
   const a = document.createElement('a');
@@ -53,11 +57,13 @@ export default function PeopleDirectoryPage() {
   // Loaded once on mount + refreshed after an inline add so the dropdown in
   // the create / edit modal always reflects the live list.
   const [types, setTypes] = useState<PeopleDirectoryType[]>([]);
-  // Cities for the dropdown — sourced from the admin-curated crm_cities
-  // list so Tata Tiscon reps pick from the same allow-list their other
-  // CRM screens use, instead of typing freeform values that don't roll
-  // up to any city report.
-  const [cities, setCities] = useState<CrmCity[]>([]);
+  // Cities for the dropdown — sourced from /api/v1/crm/locations (the
+  // per-tenant State/City allow-list managed under Settings →
+  // Locations). Reps reported the previous source (crm_cities, the
+  // India-wide master list) leaked 800+ rows the admin had never
+  // curated; the locations table is what they actually maintain, so
+  // it's the right source of truth here.
+  const [cities, setCities] = useState<string[]>([]);
 
   const loadTypes = async () => {
     try {
@@ -68,11 +74,20 @@ export default function PeopleDirectoryPage() {
 
   const loadCities = async () => {
     try {
-      const r = await crmCitiesApi.list({ limit: 1000, is_active: true });
-      const list = ((r.data as CrmCity[]) || []).filter((c) => c.is_active !== false);
-      // Alphabetise so reps don't hunt through an insertion-ordered list.
-      list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-      setCities(list);
+      const r = await api.get<{ success?: boolean; data?: CityRow[] } | CityRow[]>(
+        '/api/v1/crm/locations',
+      );
+      // The endpoint sometimes returns the raw array, sometimes wraps in
+      // { data }. Handle both so we don't have to chase wrappers.
+      const arr: CityRow[] = Array.isArray(r) ? r : (r.data ?? []);
+      const names = Array.from(new Set(
+        arr
+          .filter((row) => row.is_active !== false)
+          .map((row) => (row.city ?? '').trim())
+          .filter(Boolean),
+      ));
+      names.sort((a, b) => a.localeCompare(b));
+      setCities(names);
     } catch { setCities([]); }
   };
 
@@ -250,6 +265,7 @@ export default function PeopleDirectoryPage() {
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
             <tr style={{ background: 'var(--s3)', color: 'var(--text-dim)', textAlign: 'left' }}>
+              <th style={{ ...thStyle, width: 120 }}>ID</th>
               <th style={thStyle}>Name</th>
               <th style={thStyle}>Code</th>
               <th style={thStyle}>Type</th>
@@ -263,7 +279,7 @@ export default function PeopleDirectoryPage() {
           <tbody>
             {!loading && rows.length === 0 && (
               <tr>
-                <td colSpan={8} style={{ padding: 36, textAlign: 'center', color: 'var(--text-dim)' }}>
+                <td colSpan={9} style={{ padding: 36, textAlign: 'center', color: 'var(--text-dim)' }}>
                   {search.trim() || typeFilter
                     ? 'No matching entries.'
                     : (<>Nothing here yet. Use <strong>Bulk Import</strong> to load a roster from CSV/XLSX, or <strong>+ New Person</strong> to add one.</>)}
@@ -274,6 +290,10 @@ export default function PeopleDirectoryPage() {
               const fullName = [r.first_name, r.last_name].filter(Boolean).join(' ').trim();
               return (
                 <tr key={r.id} style={{ borderTop: '1px solid var(--border)' }}>
+                  <td style={{ ...tdStyle, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', color: 'var(--text-dim)' }}
+                      title={r.id}>
+                    {r.id ? r.id.slice(0, 8) : '—'}
+                  </td>
                   <td style={tdStyle}>{fullName || <span style={{ color: 'var(--text-dim)' }}>—</span>}</td>
                   <td style={tdStyle}>{r.code || <span style={{ color: 'var(--text-dim)' }}>—</span>}</td>
                   <td style={tdStyle}>
@@ -301,6 +321,21 @@ export default function PeopleDirectoryPage() {
       {editing && (
         <Modal onClose={() => setEditing(null)} title={editing.id ? 'Edit person' : 'Add person'}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            {/* ID is server-assigned (UUID). For a new row we tell the
+                rep that it'll be generated on save; for an existing row
+                we surface the id read-only so it can be copied for
+                cross-referencing reports / external systems. */}
+            <div style={{ gridColumn: '1 / -1' }}>
+              <Field label="ID">
+                <input
+                  value={editing.id ?? ''}
+                  readOnly
+                  placeholder="Auto-generated on save"
+                  style={{ ...inputStyle, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', color: 'var(--text-dim)' }}
+                  onClick={(e) => (e.target as HTMLInputElement).select()}
+                />
+              </Field>
+            </div>
             <Field label="First name">
               <input value={editing.first_name ?? ''} onChange={(e) => setEditing({ ...editing, first_name: e.target.value })} style={inputStyle} />
             </Field>
@@ -332,20 +367,21 @@ export default function PeopleDirectoryPage() {
                   {/* Tolerate a previously-saved value that's no longer
                       in the allow-list (renamed / deactivated): surface
                       it at the top so the rep doesn't lose context. */}
-                  {editing.city && !cities.some((c) => c.name === editing.city) && (
+                  {editing.city && !cities.includes(editing.city) && (
                     <option value={editing.city}>{editing.city} (legacy)</option>
                   )}
-                  {cities.map((c) => (
-                    <option key={c.id} value={c.name}>{c.name}</option>
+                  {cities.map((name) => (
+                    <option key={name} value={name}>{name}</option>
                   ))}
                 </select>
               ) : (
                 // Fallback to free-text while the city list loads / when
-                // the tenant hasn't seeded any cities yet.
+                // the tenant hasn't added any cities under Settings →
+                // Locations yet.
                 <input
                   value={editing.city ?? ''}
                   onChange={(e) => setEditing({ ...editing, city: e.target.value })}
-                  placeholder="No cities configured — type one"
+                  placeholder="No cities configured — add some in Settings → Locations"
                   style={inputStyle}
                 />
               )}
