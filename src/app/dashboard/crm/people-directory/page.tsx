@@ -17,13 +17,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { API_BASE_URL } from '../../../../lib/api';
+import api, { API_BASE_URL } from '../../../../lib/api';
 import { getStoredToken } from '../../../../lib/auth';
 import {
-  crmPeopleDirectory, crmPeopleDirectoryTypes, crmCitiesApi,
+  crmPeopleDirectory, crmPeopleDirectoryTypes,
   type PeopleDirectoryEntry, type PeopleDirectoryType,
 } from '../../../../lib/crmApi';
-import type { CrmCity } from '../../../../types/crm';
+
+// One row from /api/v1/crm/locations — the per-tenant city allow-list
+// managed under Settings → Locations. We only care about the city name
+// for the People Directory dropdown.
+interface CityRow { id?: string; city?: string | null; is_active?: boolean | null }
 
 type Row = PeopleDirectoryEntry & { id: string };
 
@@ -53,11 +57,13 @@ export default function PeopleDirectoryPage() {
   // Loaded once on mount + refreshed after an inline add so the dropdown in
   // the create / edit modal always reflects the live list.
   const [types, setTypes] = useState<PeopleDirectoryType[]>([]);
-  // Cities for the dropdown — sourced from the admin-curated crm_cities
-  // list so Tata Tiscon reps pick from the same allow-list their other
-  // CRM screens use, instead of typing freeform values that don't roll
-  // up to any city report.
-  const [cities, setCities] = useState<CrmCity[]>([]);
+  // Cities for the dropdown — sourced from /api/v1/crm/locations (the
+  // per-tenant State/City allow-list managed under Settings →
+  // Locations). Reps reported the previous source (crm_cities, the
+  // India-wide master list) leaked 800+ rows the admin had never
+  // curated; the locations table is what they actually maintain, so
+  // it's the right source of truth here.
+  const [cities, setCities] = useState<string[]>([]);
 
   const loadTypes = async () => {
     try {
@@ -68,11 +74,20 @@ export default function PeopleDirectoryPage() {
 
   const loadCities = async () => {
     try {
-      const r = await crmCitiesApi.list({ limit: 1000, is_active: true });
-      const list = ((r.data as CrmCity[]) || []).filter((c) => c.is_active !== false);
-      // Alphabetise so reps don't hunt through an insertion-ordered list.
-      list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-      setCities(list);
+      const r = await api.get<{ success?: boolean; data?: CityRow[] } | CityRow[]>(
+        '/api/v1/crm/locations',
+      );
+      // The endpoint sometimes returns the raw array, sometimes wraps in
+      // { data }. Handle both so we don't have to chase wrappers.
+      const arr: CityRow[] = Array.isArray(r) ? r : (r.data ?? []);
+      const names = Array.from(new Set(
+        arr
+          .filter((row) => row.is_active !== false)
+          .map((row) => (row.city ?? '').trim())
+          .filter(Boolean),
+      ));
+      names.sort((a, b) => a.localeCompare(b));
+      setCities(names);
     } catch { setCities([]); }
   };
 
@@ -332,20 +347,21 @@ export default function PeopleDirectoryPage() {
                   {/* Tolerate a previously-saved value that's no longer
                       in the allow-list (renamed / deactivated): surface
                       it at the top so the rep doesn't lose context. */}
-                  {editing.city && !cities.some((c) => c.name === editing.city) && (
+                  {editing.city && !cities.includes(editing.city) && (
                     <option value={editing.city}>{editing.city} (legacy)</option>
                   )}
-                  {cities.map((c) => (
-                    <option key={c.id} value={c.name}>{c.name}</option>
+                  {cities.map((name) => (
+                    <option key={name} value={name}>{name}</option>
                   ))}
                 </select>
               ) : (
                 // Fallback to free-text while the city list loads / when
-                // the tenant hasn't seeded any cities yet.
+                // the tenant hasn't added any cities under Settings →
+                // Locations yet.
                 <input
                   value={editing.city ?? ''}
                   onChange={(e) => setEditing({ ...editing, city: e.target.value })}
-                  placeholder="No cities configured — type one"
+                  placeholder="No cities configured — add some in Settings → Locations"
                   style={inputStyle}
                 />
               )}
