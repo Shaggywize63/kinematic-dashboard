@@ -10,7 +10,7 @@ import type { Deal, Pipeline } from '../../../../types/crm';
 import DealsTable, { DEAL_COLUMNS } from '../../../../components/crm/DealsTable';
 import ViewCustomizer from '../../../../components/crm/shared/ViewCustomizer';
 import { useViewPrefs } from '../../../../lib/crmViewPrefs';
-import { getStoredUser, canAccess, getStoredToken } from '../../../../lib/auth';
+import { getStoredUser, canAccess, getStoredToken, userHasModule } from '../../../../lib/auth';
 import { API_BASE_URL } from '../../../../lib/api';
 
 const DEAL_PAGE_SIZE_OPTIONS = [25, 50, 100, 200] as const;
@@ -43,6 +43,9 @@ function DealsListPage() {
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [pipelineId, setPipelineId] = useState<string>(initialPipelineId);
   const [deals, setDeals] = useState<Deal[]>([]);
+  // Value + volume summed across the whole filtered set (all pages), from
+  // the backend `totals` field — accurate regardless of pagination.
+  const [totals, setTotals] = useState<{ value: number; volume_kg: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState('');
   const [status, setStatus] = useState('');
@@ -140,6 +143,7 @@ function DealsListPage() {
       }
       const r = await crmDeals.list(params);
       setDeals(r.data || []);
+      setTotals((r as unknown as { totals?: { value: number; volume_kg: number } }).totals ?? null);
       // Kanban ignores pagination metadata.
       if (view === 'list') {
         setPagination(r.pagination ?? {
@@ -213,6 +217,26 @@ function DealsListPage() {
         <div style={{ fontSize: 13, color: 'var(--text-dim)', lineHeight: 1.6 }}>
           Revenue opportunities progressing through your sales pipeline. Each deal tracks value, expected close date, and AI-powered win probability. Toggle <strong style={{ color: 'var(--text)' }}>Kanban</strong> to drag deals between stages, or stay on <strong style={{ color: 'var(--text)' }}>List</strong> for bulk edits and filters.
         </div>
+      </div>
+
+      {/* Total value + volume across the current filter (all pages). */}
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
+        <div style={{ flex: '1 1 200px', minWidth: 180, padding: '12px 16px', background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Total Deal Value{status ? ` · ${status}` : ''}</div>
+          <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--text)', marginTop: 2 }}>
+            {totals ? `₹${Math.round(totals.value).toLocaleString('en-IN')}` : '—'}
+          </div>
+        </div>
+        {!!(totals && totals.volume_kg > 0) && (
+          <div style={{ flex: '1 1 200px', minWidth: 180, padding: '12px 16px', background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Total Volume</div>
+            <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--text)', marginTop: 2 }}>
+              {totals.volume_kg >= 1000
+                ? `${(totals.volume_kg / 1000).toLocaleString('en-IN', { maximumFractionDigits: 1 })} MT`
+                : `${Math.round(totals.volume_kg).toLocaleString('en-IN')} kg`}
+            </div>
+          </div>
+        )}
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 8, flexWrap: 'wrap' }}>
@@ -314,7 +338,10 @@ function DealsListPage() {
           </div>
         ) : stages.length === 0 ? (
           <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-dim)', background: 'var(--s2)', border: '1px dashed var(--border)', borderRadius: 14 }}>
-            Pipeline “{activePipeline.name}” has no stages yet. <Link href={`/dashboard/crm/settings/stages?pipeline_id=${activePipeline.id}`} style={{ color: 'var(--primary)' }}>Add stages →</Link>
+            Pipeline “{activePipeline.name}” has no stages yet.
+            {userHasModule(getStoredUser(), 'crm_settings') && (
+              <> <Link href={`/dashboard/crm/settings/stages?pipeline_id=${activePipeline.id}`} style={{ color: 'var(--primary)' }}>Add stages →</Link></>
+            )}
           </div>
         ) : (
           <DealKanban stages={stages} initialDeals={filtered} />

@@ -259,6 +259,118 @@ const DIST_SECONDARY_FEED = Array.from({ length: 14 }, (_, i) => {
   };
 });
 
+// ── Last-mile (Phase 1) demo data ─────────────────────────────────
+// Reuse a small set of stable retailer / distributor / sku ids so the
+// "Top retailers" leaderboard on the overview has a meaningful cluster
+// instead of a flat sea of one-off ids. Mock data deliberately spans
+// every captured_by / registered_via value so the channel-mix bars on
+// the overview render populated by default.
+
+const DEMO_LAST_MILE_RETAILERS = [
+  'demo-retailer-acme-tyres-mumbai',
+  'demo-retailer-shantipur-motors-pune',
+  'demo-retailer-roadway-tyres-hyderabad',
+  'demo-retailer-grand-auto-bengaluru',
+  'demo-retailer-popular-tyres-delhi',
+];
+const DEMO_LAST_MILE_DISTRIBUTORS = [
+  'demo-distributor-coastal-west',
+  'demo-distributor-deccan-south',
+  'demo-distributor-northern-hub',
+];
+const DEMO_LAST_MILE_SKUS = [
+  'demo-sku-tyre-145-80-r13',
+  'demo-sku-tyre-185-65-r15',
+  'demo-sku-tyre-205-55-r16',
+  'demo-sku-tyre-235-65-r17',
+];
+const DEMO_LAST_MILE_CONSUMERS = [
+  { name: 'Rohit Sharma',  phone: '9876543210', email: 'rohit@example.com',  vehicle: 'MH 02 AB 4521' },
+  { name: 'Anita Iyer',    phone: '9123456780', email: null,                  vehicle: 'KA 03 CD 1812' },
+  { name: 'Vikram Rao',    phone: '9988776655', email: 'vikram@example.com', vehicle: 'TS 09 EF 9087' },
+  { name: 'Priya Menon',   phone: '9012345678', email: null,                  vehicle: 'TN 22 GH 3344' },
+  { name: 'Sandeep Bhat',  phone: '9876123456', email: 'sandeep@example.com', vehicle: 'MH 14 JK 5566' },
+  { name: 'Meera Verma',   phone: '8800123456', email: null,                  vehicle: 'DL 03 LM 7788' },
+  { name: 'Arjun Pillai',  phone: '7011223344', email: null,                  vehicle: 'KL 07 NO 9912' },
+  { name: 'Kavya Reddy',   phone: '8908765432', email: null,                  vehicle: 'AP 16 PQ 6677' },
+];
+
+const DIST_TERTIARY_FEED = (() => {
+  const captureMethods = [
+    'consumer_self', 'retailer_app', 'fe_visit',
+    'whatsapp_bot', 'ocr_invoice', 'mechanic_install', 'integration',
+  ] as const;
+  return Array.from({ length: 22 }, (_, i) => {
+    const consumer = DEMO_LAST_MILE_CONSUMERS[i % DEMO_LAST_MILE_CONSUMERS.length];
+    const retailer = DEMO_LAST_MILE_RETAILERS[i % DEMO_LAST_MILE_RETAILERS.length];
+    const distributor = DEMO_LAST_MILE_DISTRIBUTORS[i % DEMO_LAST_MILE_DISTRIBUTORS.length];
+    const sku = DEMO_LAST_MILE_SKUS[i % DEMO_LAST_MILE_SKUS.length];
+    const captured_by = captureMethods[i % captureMethods.length];
+    const qty = 1 + (i % 4);
+    const unit_price = 3800 + (i % 5) * 450;
+    return {
+      id: `demo-tertiary-${i + 1}`,
+      retailer_id: retailer,
+      distributor_id: distributor,
+      sku_id: sku,
+      serial_id: i % 3 === 0 ? null : `demo-serial-${i + 1}`,
+      consumer_phone: consumer.phone,
+      consumer_name: consumer.name,
+      consumer_email: consumer.email,
+      vehicle_reg: consumer.vehicle,
+      qty,
+      unit_price,
+      discount: i % 4 === 0 ? 200 : 0,
+      total: qty * unit_price - (i % 4 === 0 ? 200 : 0),
+      sold_at: new Date(Date.now() - (i + 1) * 86400000).toISOString(),
+      captured_by,
+      captured_user_id: 'demo-user-999',
+      referrer_id: captured_by === 'mechanic_install' ? `demo-mechanic-${(i % 3) + 1}` : null,
+      evidence_url: captured_by === 'ocr_invoice' ? 'https://example.com/demo-bill.jpg' : null,
+      notes: captured_by === 'fe_visit'
+        ? 'Captured during dealer audit visit'
+        : captured_by === 'mechanic_install'
+          ? 'Installed at Sharma Tyre Works'
+          : null,
+      verified_at: i % 5 === 0 ? new Date(Date.now() - i * 43200000).toISOString() : null,
+      verified_by: i % 5 === 0 ? 'demo-supervisor-1' : null,
+      created_at: new Date(Date.now() - (i + 1) * 86400000).toISOString(),
+      updated_at: new Date(Date.now() - (i + 1) * 86400000).toISOString(),
+    };
+  });
+})();
+
+const DIST_CONSUMER_REGISTRATIONS = (() => {
+  const channels = ['whatsapp', 'app', 'dealer', 'cashback_form', 'sms', 'webform'] as const;
+  return Array.from({ length: 18 }, (_, i) => {
+    const consumer = DEMO_LAST_MILE_CONSUMERS[i % DEMO_LAST_MILE_CONSUMERS.length];
+    const retailer = DEMO_LAST_MILE_RETAILERS[i % DEMO_LAST_MILE_RETAILERS.length];
+    const sku = DEMO_LAST_MILE_SKUS[i % DEMO_LAST_MILE_SKUS.length];
+    const channel = channels[i % channels.length];
+    return {
+      id: `demo-consumer-reg-${i + 1}`,
+      serial_id: i % 4 === 0 ? null : `demo-serial-${i + 1}`,
+      serial_text: i % 4 === 0 ? null : `DOT-${1000 + i}-${20 + (i % 8)}24`,
+      sku_id: sku,
+      retailer_id: retailer,
+      consumer_phone: consumer.phone,
+      consumer_name: consumer.name,
+      consumer_email: consumer.email,
+      vehicle_reg: consumer.vehicle,
+      registered_via: channel,
+      cashback_amount: channel === 'cashback_form' ? 100 : (channel === 'whatsapp' ? 50 : 0),
+      cashback_paid_at: channel === 'cashback_form' ? new Date(Date.now() - i * 86400000).toISOString() : null,
+      evidence_url: channel === 'cashback_form' ? 'https://example.com/demo-bill.jpg' : null,
+      tertiary_sale_id: `demo-tertiary-${i + 1}`,
+      // Pretend every registration auto-created a lead so the "Leads
+      // auto-created" KPI on the overview is non-zero out of the box.
+      lead_id: `demo-lead-cr-${i + 1}`,
+      registered_at: new Date(Date.now() - (i + 1) * 86400000).toISOString(),
+      created_at:    new Date(Date.now() - (i + 1) * 86400000).toISOString(),
+    };
+  });
+})();
+
 const SECURITY_ALERTS = (() => {
   const users = [
     { id: 'demo-fe-1', name: 'Arjun Sharma',   employee_id: 'FE-1042', role: 'executive',  zones: { name: 'Mumbai West' } },
@@ -506,7 +618,11 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
         joined_date: '2024-01-01',
         created_at: '2024-01-01T00:00:00Z',
         permissions: [],
-        enabled_modules: ['crm','distribution','people','reports','analytics','attendance','live_tracking','wms','manpower','clients'],
+        // ffm_reports = the new Field Force Reports hub at /dashboard/ffm-reports
+        // (parity with crm_reports). Demo account always sees it.
+        // distribution_consumer + distribution_last_mile gate the
+        // Last-Mile pages in the sidebar; demo user always sees them.
+        enabled_modules: ['crm','distribution','distribution_consumer','distribution_last_mile','people','reports','analytics','attendance','live_tracking','wms','manpower','clients','ffm_reports'],
         enabled_packages: ['crm','distribution','field_force','business','system','people','audit'],
         location_ping_interval_seconds: 600,
         business_type: 'both',
@@ -553,6 +669,12 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
     if (path === '/distribution/ledger/ageing')           return wrap(DIST_AGEING_SUMMARY) as unknown as T;
     if (path === '/distribution/schemes')                 return list(DIST_SCHEMES) as unknown as T;
     if (path === '/distribution/secondary-sales')         return list(DIST_SECONDARY_FEED) as unknown as T;
+    // Last-mile (Phase 1) — tertiary sales + consumer registrations.
+    // Mock data deliberately spans every captured_by / registered_via
+    // value so the overview dashboard's channel-mix bars render
+    // populated by default for demo users.
+    if (path === '/distribution/tertiary-sales')          return list(DIST_TERTIARY_FEED) as unknown as T;
+    if (path === '/distribution/consumer-registrations')  return list(DIST_CONSUMER_REGISTRATIONS) as unknown as T;
     if (path === '/distribution/gstin/states')            return list(DIST_GSTIN_STATES) as unknown as T;
     {
       const brandById = path.match(/^\/distribution\/brands\/([^/]+)$/);
@@ -997,6 +1119,36 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
       if (winM) return mockWinProbability(winM[1]) as unknown as T;
       const nbaM = path.match(/^\/crm\/ai\/next-best-action\/([^/]+)$/);
       if (nbaM) return mockNextBestAction(nbaM[1]) as unknown as T;
+    }
+    // Last-mile (Phase 1) writes — echo the body back as a saved row.
+    // Consumer registration also fakes the tertiary_sale + lead spawn so
+    // the success toast on the form ("CRM lead auto-created") looks
+    // realistic in the demo flow.
+    if (m === 'POST' && path === '/distribution/tertiary-sales') {
+      const id = `demo-tertiary-${Math.random().toString(36).slice(2, 8)}`;
+      return wrap({
+        id,
+        sold_at: new Date().toISOString(),
+        captured_user_id: 'demo-user-999',
+        verified_at: null,
+        verified_by: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        ...bodyObj,
+      }) as unknown as T;
+    }
+    if (m === 'POST' && path === '/distribution/consumer-registrations') {
+      const id = `demo-consumer-reg-${Math.random().toString(36).slice(2, 8)}`;
+      const tertiary_sale_id = `demo-tertiary-${Math.random().toString(36).slice(2, 8)}`;
+      const lead_id = `demo-lead-cr-${Math.random().toString(36).slice(2, 8)}`;
+      return wrap({
+        id,
+        registered_at: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+        tertiary_sale_id,
+        lead_id,
+        ...bodyObj,
+      }) as unknown as T;
     }
     if (m === 'POST' && path === '/distribution/gstin/verify') {
       const gstin = String((bodyObj as { gstin?: string }).gstin || '').toUpperCase();

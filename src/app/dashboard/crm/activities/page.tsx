@@ -3,7 +3,7 @@ import { Suspense, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { crmActivities, type Pagination, type ActivityView } from '../../../../lib/crmApi';
+import { crmActivities, crmLeads, type Pagination, type ActivityView } from '../../../../lib/crmApi';
 import api, { API_BASE_URL } from '../../../../lib/api';
 import type { Activity } from '../../../../types/crm';
 import { getStoredUser, canAccess, getStoredToken } from '../../../../lib/auth';
@@ -12,6 +12,8 @@ import { ActivityTypeIcon, activityTypeEmoji } from '../../../../components/crm/
 import GoogleCalendarBanner from '../../../../components/crm/GoogleCalendarBanner';
 import ViewCustomizer from '../../../../components/crm/shared/ViewCustomizer';
 import { useViewPrefs } from '../../../../lib/crmViewPrefs';
+import { useCityScope } from '../../../../context/CityScopeContext';
+import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
 
 // Activity cards are not a table, so the customizer toggles which
 // optional sections appear in each card. Subject + status are locked.
@@ -27,7 +29,9 @@ const ACTIVITY_CARD_FIELDS = [
   { key: 'created', label: 'Created date' },
 ] as const;
 
-const TYPE_OPTIONS = ['', 'call', 'email', 'meeting', 'task', 'note', 'sms', 'whatsapp'];
+// Meeting first: in field-force usage it's the most common activity type
+// reps filter for, so it sits at the top of the picker.
+const TYPE_OPTIONS = ['', 'meeting', 'call', 'email', 'task', 'note', 'sms', 'whatsapp'];
 // Activity statuses surfaced on the filter — the same values the row actions
 // can flip activities into (open / completed / in_progress / cancelled).
 const STATUS_OPTIONS = ['', 'open', 'in_progress', 'completed', 'cancelled'];
@@ -63,7 +67,25 @@ function ActivitiesPageInner() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [users, setUsers] = useState<UserOption[]>([]);
   const [feFilter, setFeFilter] = useState('');
+  // Search-by-lead filter — `leadFilterId` carries the picked lead's UUID
+  // (sent as ?lead_id= so the backend's generic crud helper filters via
+  // `.eq('lead_id', uuid)`), `leadFilterLabel` is the human display the
+  // picker should keep showing once selected. `leadOptions` is the
+  // typeahead candidate list, refreshed each time the query string
+  // changes (debounced server-side fetch via crmLeads.list).
+  const [leadFilterId, setLeadFilterId] = useState('');
+  const [leadFilterLabel, setLeadFilterLabel] = useState('');
+  const [leadQuery, setLeadQuery] = useState('');
+  const [leadOptions, setLeadOptions] = useState<Array<{ id: string; label: string }>>([]);
+  const [leadSearching, setLeadSearching] = useState(false);
+  const [leadPickerOpen, setLeadPickerOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
+  // Global header city scope. Activities have no city column of their own —
+  // the backend filters them via the linked lead — but the page must refetch
+  // when the picked city changes and send it on the request.
+  const { selectedCity } = useCityScope();
+  // Global CRM date range (header) — applied to the activities' completed_at.
+  const dateRange = useCrmDateRange((s) => ({ from: s.from, to: s.to }));
   // Layout toggle between the existing list and the month-grid
   // calendar view. Independent of the server-side `view` filter
   // (Overdue / Upcoming / Completed) which both layouts honour. The
@@ -83,6 +105,13 @@ function ActivitiesPageInner() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
   const [pagination, setPagination] = useState<Pagination | null>(null);
+  // Sort dropdown — "latest activity" maps to updated_at desc so any
+  // touch (status flip, notes edit, reopen) bubbles a row to the top.
+  // created_at variants give a static newest/oldest-first; due_at lets
+  // reps focus on what's coming up next.
+  type SortOption = 'updated_desc' | 'created_desc' | 'created_asc' | 'due_asc' | 'due_desc';
+  const [sort, setSort] = useState<SortOption>('updated_desc');
+  const [editing, setEditing] = useState<Activity | null>(null);
   const cardView = useViewPrefs('activities');
   const cardHidden = useMemo(() => new Set(cardView.prefs.hidden), [cardView.prefs.hidden]);
   const cardsMode = cardView.prefs.mode === 'cards';
@@ -97,6 +126,8 @@ function ActivitiesPageInner() {
       if (type) qs.set('type', type);
       if (statusFilter) qs.set('status', statusFilter);
       if (feFilter) qs.set('owner_id', feFilter);
+      if (leadFilterId) qs.set('lead_id', leadFilterId);
+      if (selectedCity) qs.set('city', selectedCity);
       // Demo-account short-circuit — raw fetch() bypasses api.ts's demo
       // intercept, so we'd otherwise hit the real backend with a demo
       // token and 401. Build the CSV from the in-memory rows so the demo
@@ -174,9 +205,27 @@ function ActivitiesPageInner() {
       if (type) params.type = type;
       if (statusFilter) params.status = statusFilter;
       if (isAdmin && feFilter) params.owner_id = feFilter;
+      // Search by lead — backend's crud.list applies any non-reserved key
+      // as .eq(), so `lead_id` filters crm_activities.lead_id directly.
+      if (leadFilterId) params.lead_id = leadFilterId;
+      if (selectedCity) params.city = selectedCity;
+      if (dateRange.from) params.from = dateRange.from;
+      if (dateRange.to) params.to = dateRange.to;
       // KPI-tile filter — only send when not 'all'. Backend ignores
       // unknown values; sending 'all' as a no-op keeps the URL clean.
       if (view !== 'all') params.view = view;
+      // Sort — backend's crud.list passes `sort` + `order` straight into
+      // supabase .order(). due_at/created_at/updated_at are all valid
+      // columns on crm_activities.
+      const sortMap: Record<SortOption, { sort: string; order: 'asc' | 'desc' }> = {
+        updated_desc: { sort: 'updated_at', order: 'desc' },
+        created_desc: { sort: 'created_at', order: 'desc' },
+        created_asc:  { sort: 'created_at', order: 'asc'  },
+        due_asc:      { sort: 'due_at',     order: 'asc'  },
+        due_desc:     { sort: 'due_at',     order: 'desc' },
+      };
+      params.sort  = sortMap[sort].sort;
+      params.order = sortMap[sort].order;
       const r = await crmActivities.list(params);
       setActivities(r.data || []);
       // `pagination` may be undefined if the backend hasn't shipped the
@@ -212,14 +261,43 @@ function ActivitiesPageInner() {
   // means we don't need the client-side `filtered` array to re-filter on
   // the same dimensions.
   useEffect(() => { reload(); /* eslint-disable-next-line */ }, [
-    type, statusFilter, feFilter, view, page, pageSize, isAdmin,
+    type, statusFilter, feFilter, leadFilterId, view, page, pageSize, isAdmin, sort, selectedCity, dateRange.from, dateRange.to,
   ]);
 
   // Reset to page 1 whenever any server-side filter changes — otherwise
   // a stricter filter while on page 5 would land on an empty page.
   useEffect(() => { setPage(1); /* eslint-disable-next-line */ }, [
-    type, statusFilter, feFilter, view, pageSize,
+    type, statusFilter, feFilter, leadFilterId, view, pageSize, selectedCity,
   ]);
+
+  // Debounced typeahead — query the leads list as the user types in the
+  // lead-search picker. Server-side q= matches name/email/phone; the
+  // tenant + city scope are auto-attached via api.ts, so we only see
+  // leads the user actually has visibility on.
+  useEffect(() => {
+    if (!leadPickerOpen) return;
+    const q = leadQuery.trim();
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      setLeadSearching(true);
+      try {
+        const r = await crmLeads.list(q ? { q, limit: 25 } : { limit: 25 });
+        if (cancelled) return;
+        const rows: Array<{ id: string; label: string }> = (r.data || []).map((l: any) => {
+          const name = [l.first_name, l.last_name].filter(Boolean).join(' ').trim() ||
+                       l.full_name || l.name || l.email || l.phone || `Lead ${String(l.id).slice(0, 8)}`;
+          const sub = [l.city, l.state].filter(Boolean).join(', ');
+          return { id: l.id, label: sub ? `${name} · ${sub}` : name };
+        });
+        setLeadOptions(rows);
+      } catch {
+        if (!cancelled) setLeadOptions([]);
+      } finally {
+        if (!cancelled) setLeadSearching(false);
+      }
+    }, 200);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [leadQuery, leadPickerOpen]);
 
   const updateStatus = async (a: Activity, status: string) => {
     setBusyId(a.id);
@@ -380,6 +458,34 @@ function ActivitiesPageInner() {
             {STATUS_OPTIONS.map((s) => (
               <option key={s} value={s}>{s ? s.replace('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : 'All Statuses'}</option>
             ))}
+          </select>
+          <LeadFilterPicker
+            value={leadFilterId}
+            label={leadFilterLabel}
+            open={leadPickerOpen}
+            query={leadQuery}
+            options={leadOptions}
+            searching={leadSearching}
+            onOpenChange={(o) => { setLeadPickerOpen(o); if (o) setLeadQuery(''); }}
+            onQueryChange={setLeadQuery}
+            onPick={(opt) => {
+              setLeadFilterId(opt.id);
+              setLeadFilterLabel(opt.label);
+              setLeadPickerOpen(false);
+              setLeadQuery('');
+            }}
+            onClear={() => {
+              setLeadFilterId('');
+              setLeadFilterLabel('');
+              setLeadQuery('');
+            }}
+          />
+          <select value={sort} onChange={(e) => setSort(e.target.value as SortOption)} title="Sort order" style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 }}>
+            <option value="updated_desc">Latest activity</option>
+            <option value="created_desc">Newest first</option>
+            <option value="created_asc">Oldest first</option>
+            <option value="due_asc">Due soonest</option>
+            <option value="due_desc">Due latest</option>
           </select>
           {isAdmin && (
             <span style={{ fontSize: 11, color: 'var(--primary)', background: 'var(--s3)', padding: '3px 8px', borderRadius: 6, fontWeight: 700 }}>
@@ -592,6 +698,12 @@ function ActivitiesPageInner() {
                       ↺ Reopen
                     </button>
                   )}
+                  {/* Edit is available regardless of status — reps need to fix
+                      typos, update notes, push out the due_at, etc., on both
+                      planned and completed/reopened rows. */}
+                  <button onClick={() => setEditing(a)} disabled={busyId === a.id} style={btnGhost}>
+                    ✎ Edit
+                  </button>
                   {(a as any).status !== 'cancelled' && !a.completed_at && (
                     <button onClick={() => updateStatus(a, 'cancelled')} disabled={busyId === a.id} style={btnGray}>
                       ✕ Cancel
@@ -624,6 +736,13 @@ function ActivitiesPageInner() {
         onPageSizeChange={setPageSize}
         loading={loading}
       />
+      {editing && (
+        <EditActivityModal
+          activity={editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => { setEditing(null); reload(); }}
+        />
+      )}
     </div>
   );
 }
@@ -938,6 +1057,108 @@ function ActivityCalendar({
   );
 }
 
+function EditActivityModal({ activity, onClose, onSaved }: { activity: Activity; onClose: () => void; onSaved: () => void }) {
+  const [subject, setSubject] = useState(activity.subject || '');
+  const [description, setDescription] = useState(activity.description || activity.body || '');
+  const [outcome, setOutcome] = useState(activity.outcome || '');
+  const [dueAt, setDueAt] = useState(activity.due_at ? toLocalDateTime(activity.due_at) : '');
+  const [type, setType] = useState<string>(activity.type);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const submit = async () => {
+    setSaving(true);
+    try {
+      const payload: Record<string, unknown> = {
+        type,
+        subject: subject.trim() || null,
+        description: description.trim() || null,
+        outcome: outcome.trim() || null,
+        due_at: dueAt ? new Date(dueAt).toISOString() : null,
+      };
+      await crmActivities.update(activity.id, payload as any);
+      toast.success('Activity updated');
+      onSaved();
+    } catch (e: any) { toast.error(e.message || 'Failed to update'); }
+    finally { setSaving(false); }
+  };
+
+  const remove = async () => {
+    if (!confirm(`Delete this ${activity.type}? It will be soft-deleted on the backend and can be recovered by support, but won't appear in lists or analytics.`)) return;
+    setDeleting(true);
+    try {
+      await crmActivities.remove(activity.id);
+      toast.success('Activity deleted');
+      onSaved();
+    } catch (e: any) { toast.error(e.message || 'Failed to delete'); }
+    finally { setDeleting(false); }
+  };
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, zIndex: 100 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 520, background: 'var(--s1)', border: '1px solid var(--border)', borderRadius: 12, padding: 18, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ fontSize: 16, fontWeight: 800 }}>Edit activity</div>
+          <button onClick={onClose} aria-label="Close" style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 22 }}>×</button>
+        </div>
+        <Field label="Type">
+          <select value={type} onChange={(e) => setType(e.target.value)} style={editInput}>
+            {['meeting', 'call', 'email', 'task', 'note', 'whatsapp', 'sms', 'other'].map((t) => (
+              <option key={t} value={t}>{t[0].toUpperCase() + t.slice(1)}</option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Subject"><input value={subject} onChange={(e) => setSubject(e.target.value)} style={editInput} /></Field>
+        <Field label="Description / notes">
+          <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4} style={{ ...editInput, fontFamily: 'inherit', resize: 'vertical' }} />
+        </Field>
+        <Field label="Outcome (optional)"><input value={outcome} onChange={(e) => setOutcome(e.target.value)} style={editInput} /></Field>
+        <Field label="Due / scheduled for"><input type="datetime-local" value={dueAt} onChange={(e) => setDueAt(e.target.value)} style={editInput} /></Field>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginTop: 6 }}>
+          {/* Delete is destructive and sits on the opposite side from
+              the primary Save action so a slip-of-the-thumb doesn't
+              nuke the row. The double-confirm in remove() catches the
+              rest. */}
+          <button onClick={remove} disabled={deleting || saving} style={{
+            padding: '9px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700,
+            background: 'transparent', border: '1px solid rgba(224,30,44,0.4)',
+            color: 'var(--primary)', cursor: deleting ? 'not-allowed' : 'pointer',
+            opacity: deleting ? 0.5 : 1,
+          }}>
+            {deleting ? 'Deleting…' : '🗑 Delete'}
+          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={onClose} disabled={deleting || saving} style={{ padding: '9px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', cursor: 'pointer' }}>Cancel</button>
+            <button onClick={submit} disabled={saving || deleting} style={{ padding: '9px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, background: 'var(--primary)', border: 'none', color: '#fff', cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.5 : 1 }}>{saving ? 'Saving…' : 'Save changes'}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>{label}</label>
+      {children}
+    </div>
+  );
+}
+const editInput: React.CSSProperties = {
+  width: '100%', boxSizing: 'border-box', padding: 9, fontSize: 13,
+  borderRadius: 8, border: '1px solid var(--border)',
+  background: 'var(--s3)', color: 'var(--text)',
+};
+
+function toLocalDateTime(iso: string): string {
+  // <input type="datetime-local"> expects "YYYY-MM-DDTHH:mm" in *local* time;
+  // ISO strings are UTC, so we offset before slicing.
+  const d = new Date(iso);
+  const off = d.getTimezoneOffset() * 60_000;
+  return new Date(d.getTime() - off).toISOString().slice(0, 16);
+}
+
 /**
  * Compact agenda row used in the phone-optimised calendar layout.
  * Renders the type icon (date-aware where applicable), the subject /
@@ -993,6 +1214,113 @@ function AgendaRow({ a }: { a: Activity }) {
         {done ? 'Done' : overdue ? 'Overdue' : 'Open'}
       </span>
     </Link>
+  );
+}
+
+/**
+ * Server-side lead search picker for the Activities filter strip.
+ *
+ * Renders a dropdown trigger that, when expanded, shows a debounced
+ * typeahead over the leads list. Picking a row sets the lead_id filter
+ * on the parent and the picker collapses showing the selected lead's
+ * name. The 🔍 affordance is intentionally identical to the other
+ * inline-styled selects in this header so the filters read as one row.
+ */
+function LeadFilterPicker({
+  value, label, open, query, options, searching,
+  onOpenChange, onQueryChange, onPick, onClear,
+}: {
+  value: string;
+  label: string;
+  open: boolean;
+  query: string;
+  options: Array<{ id: string; label: string }>;
+  searching: boolean;
+  onOpenChange: (open: boolean) => void;
+  onQueryChange: (q: string) => void;
+  onPick: (opt: { id: string; label: string }) => void;
+  onClear: () => void;
+}) {
+  return (
+    <div style={{ position: 'relative' }}>
+      <button
+        type="button"
+        onClick={() => onOpenChange(!open)}
+        title="Filter activities by linked lead"
+        style={{
+          background: value ? 'var(--primary)' : 'var(--s3)',
+          border: `1px solid ${value ? 'var(--primary)' : 'var(--border)'}`,
+          color: value ? '#fff' : 'var(--text)',
+          padding: '8px 12px',
+          borderRadius: 8,
+          fontSize: 13,
+          fontWeight: value ? 700 : 400,
+          cursor: 'pointer',
+          maxWidth: 240,
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+          display: 'inline-flex', alignItems: 'center', gap: 6,
+        }}
+      >
+        🔍 {value ? label : 'Search by lead'}
+        {value && (
+          <span
+            role="button"
+            tabIndex={0}
+            onClick={(e) => { e.stopPropagation(); onClear(); }}
+            style={{ marginLeft: 4, fontSize: 12, opacity: 0.85 }}
+            aria-label="Clear lead filter"
+          >×</span>
+        )}
+      </button>
+      {open && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, marginTop: 4,
+          background: 'var(--s1)', border: '1px solid var(--border)',
+          borderRadius: 10, padding: 8, width: 320, zIndex: 50,
+          boxShadow: '0 6px 24px rgba(0,0,0,0.35)',
+        }}>
+          <input
+            autoFocus
+            value={query}
+            onChange={(e) => onQueryChange(e.target.value)}
+            placeholder="Type a lead name, phone, email…"
+            style={{
+              width: '100%', boxSizing: 'border-box',
+              background: 'var(--s3)', border: '1px solid var(--border)',
+              color: 'var(--text)', padding: '7px 10px',
+              borderRadius: 6, fontSize: 13,
+            }}
+          />
+          <div style={{ marginTop: 6, maxHeight: 260, overflowY: 'auto' }}>
+            {searching ? (
+              <div style={{ padding: 10, fontSize: 12, color: 'var(--text-dim)' }}>Searching…</div>
+            ) : options.length === 0 ? (
+              <div style={{ padding: 10, fontSize: 12, color: 'var(--text-dim)' }}>
+                {query ? 'No leads match.' : 'Start typing to search.'}
+              </div>
+            ) : options.map((o) => (
+              <button
+                key={o.id}
+                type="button"
+                onClick={() => onPick(o)}
+                style={{
+                  display: 'block', width: '100%', textAlign: 'left',
+                  background: 'transparent', border: 'none',
+                  color: 'var(--text)', padding: '7px 10px',
+                  borderRadius: 6, fontSize: 13, cursor: 'pointer',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--s3)')}
+                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 

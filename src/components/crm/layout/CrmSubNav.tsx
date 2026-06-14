@@ -1,19 +1,26 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useAuth } from '../../../hooks/useAuth';
+import { isConsumerChampion, isTataTiscon } from '../../../lib/clientFeatures';
 
-const LINKS = [
+type CrmLink = {
+  href: string;
+  label: string;
+  championHidden?: boolean;
+  /** Hidden for Consumer Champions AND for TATA Tiscon users */
+  tataTisconHidden?: boolean;
+};
+const LINKS: CrmLink[] = [
   { href: '/dashboard/crm/dashboard', label: 'Dashboard' },
   { href: '/dashboard/crm/leads', label: 'Leads' },
   // Customisable widget grid lives on its own route now — the CRM
   // Overview is back to the legacy stat-card + fixed-chart surface.
-  { href: '/dashboard/crm/leads/analytics', label: 'Lead Analytics' },
-  { href: '/dashboard/crm/contacts', label: 'Contacts' },
-  // Accounts is shown for every org. Pure-B2C orgs may not populate it,
-  // but the tab existing doesn't hurt — and hiding it caused confusion
-  // when reps with a converted lead → account couldn't navigate to the
-  // company record. Field gating on lead/contact forms is enough.
-  { href: '/dashboard/crm/accounts', label: 'Accounts' },
+  // championHidden: Consumer Champion FEs don't need the analytics tab.
+  { href: '/dashboard/crm/leads/analytics', label: 'Lead Analytics', championHidden: true },
+  // Contacts + Accounts removed from the CRM sub-nav — Tata's flow
+  // goes lead → deal without those records. Re-add here when a tenant
+  // that actually uses them needs the surface.
   { href: '/dashboard/crm/deals', label: 'Deals' },
   { href: '/dashboard/crm/pipeline', label: 'Pipeline' },
   { href: '/dashboard/crm/products', label: 'Products' },
@@ -30,6 +37,14 @@ const LINKS = [
 
 export default function CrmSubNav() {
   const pathname = usePathname();
+  const { user } = useAuth();
+  const champion = isConsumerChampion(user as any);
+  const tataTiscon = isTataTiscon(user as any);
+  const visibleLinks = LINKS.filter((l) => {
+    if (l.championHidden && champion) return false;
+    if (l.tataTisconHidden && tataTiscon) return false;
+    return true;
+  });
 
   const isActive = (href: string) => {
     // /dashboard/crm/leads/analytics must NOT match the /dashboard/crm/leads
@@ -43,7 +58,7 @@ export default function CrmSubNav() {
 
   return (
     <nav style={{ display: 'flex', gap: 4, padding: '4px', background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, marginBottom: 18, overflowX: 'auto' }}>
-      {LINKS.map((l) => (
+      {visibleLinks.map((l) => (
         <Link key={l.href} href={l.href} style={{ padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', color: isActive(l.href) ? '#fff' : 'var(--text-dim)', background: isActive(l.href) ? 'var(--primary)' : 'transparent', textDecoration: 'none' }}>
           {l.label}
         </Link>

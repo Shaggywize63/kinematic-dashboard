@@ -13,12 +13,15 @@ import LeadUpdatesTimeline from '../../../../../components/crm/LeadUpdatesTimeli
 import Breadcrumbs from '../../../../../components/crm/shared/Breadcrumbs';
 import LeadConvertModal from '../../../../../components/crm/LeadConvertModal';
 import LeadDisqualifyModal, { type LeadDisqualifyOutcome } from '../../../../../components/crm/LeadDisqualifyModal';
-import AiDraftReplyPanel from '../../../../../components/crm/AiDraftReplyPanel';
 import OwnerAvatar from '../../../../../components/crm/shared/OwnerAvatar';
 import WhatsAppButton from '../../../../../components/crm/shared/WhatsAppButton';
 import CallButton from '../../../../../components/crm/shared/CallButton';
 import LeadEditModal from '../../../../../components/crm/LeadEditModal';
+import LeadDetailsPanel from '../../../../../components/crm/LeadDetailsPanel';
+import ScoreBoostSuggestions from '../../../../../components/crm/ScoreBoostSuggestions';
 import { formatINR } from '../../../../../lib/formatCurrency';
+import { useAuth } from '../../../../../hooks/useAuth';
+import { isConsumerChampion, isTataTiscanActive } from '../../../../../lib/clientFeatures';
 
 type UserOption = { id: string; name: string };
 
@@ -33,6 +36,20 @@ type LifecycleLead = Lead & {
 export default function LeadDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
+  const { user } = useAuth();
+  // Reps with data_scope='own' (e.g. Consumer Champion) only see their own
+  // leads — reassigning would hide the record from them. Suppress Assign.
+  const canReassign = user?.org_role_data_scope !== 'own';
+  // Tenant + designation gates. Consumer Champion FEs (TATA's frontline
+  // designation) don't see the Lead Score breakdown, the boost-score
+  // suggestions, or the analytics surface — those tools target managers,
+  // not field reps. Tata-Tiscon tenants get the streamlined convert flow
+  // (skip the create-account prompt and jump straight to a new Deal where
+  // line items are managed) since they only sell deals, never run a
+  // separate accounts book.
+  const isChampion = isConsumerChampion(user as any);
+  const isTataActive = isTataTiscanActive(user as any);
+  const [tataConverting, setTataConverting] = useState(false);
   const id = params?.id as string;
   const [lead, setLead] = useState<LifecycleLead | null>(null);
   const [score, setScore] = useState<LeadScore | null>(null);
@@ -99,6 +116,20 @@ export default function LeadDetailPage() {
       setLead((l) => l ? { ...l, score: r.data.score, score_grade: r.data.grade } : l);
       toast.success(`Lead scored: ${r.data.score} (${r.data.grade})`);
     } catch (e: any) { toast.error(e.message || 'Scoring failed'); } finally { setScoring(false); }
+  };
+
+  // "Boost score" action: mark the lead Qualified, then re-score so the bump
+  // shows immediately.
+  const [qualifying, setQualifying] = useState(false);
+  const markQualified = async () => {
+    if (!id) return;
+    setQualifying(true);
+    try {
+      const r = await crmLeads.update(id, { status: 'qualified' } as any);
+      setLead(r.data as any);
+      toast.success('Lead marked Qualified');
+      await reScore();
+    } catch (e: any) { toast.error(e.message || 'Update failed'); } finally { setQualifying(false); }
   };
 
   const loadNba = async () => {
@@ -221,8 +252,42 @@ export default function LeadDetailPage() {
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
               <button onClick={() => setEditOpen(true)} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>Edit</button>
               {!isClosed && (
-                <button onClick={() => setConvertOpen(true)} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>Convert</button>
+                <button
+                  onClick={async () => {
+                    // Tata Tiscon: bypass the create-account / create-deal
+                    // popup entirely. TATA's flow records the deal directly
+                    // (with line items managed on the deal page), so we
+                    // call convert with account=false and route straight to
+                    // the new deal.
+                    if (isTataActive) {
+                      setTataConverting(true);
+                      try {
+                        const defaultName = (lead.company ? `${lead.company} Opportunity` : fullName) || 'New Opportunity';
+                        const r = await crmLeads.convert(id, {
+                          create_account: false,
+                          create_deal: true,
+                          deal_name: defaultName,
+                        });
+                        const data: any = (r as any)?.data ?? r;
+                        const dealId = data?.deal?.id || data?.deal_id;
+                        toast.success('Lead converted to deal');
+                        await reload();
+                        if (dealId) router.push(`/dashboard/crm/deals/${dealId}`);
+                        else router.push('/dashboard/crm/deals');
+                      } catch (e: any) {
+                        toast.error(e.message || 'Conversion failed');
+                      } finally {
+                        setTataConverting(false);
+                      }
+                      return;
+                    }
+                    setConvertOpen(true);
+                  }}
+                  disabled={tataConverting}
+                  style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: tataConverting ? 'not-allowed' : 'pointer', opacity: tataConverting ? 0.7 : 1 }}
+                >{tataConverting ? 'Converting…' : 'Convert'}</button>
               )}
+              {canReassign && (
               <div ref={assignRef} style={{ position: 'relative' }}>
                 <button
                   onClick={() => { setAssignOpen((o) => !o); loadUsers(); }}
@@ -246,6 +311,7 @@ export default function LeadDetailPage() {
                   </div>
                 )}
               </div>
+              )}
               {!isClosed && (
                 <>
                   <button onClick={() => openDisqualify('unqualified')} style={{ background: 'transparent', border: '1px solid #f59e0b', color: '#f59e0b', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>
@@ -289,29 +355,13 @@ export default function LeadDetailPage() {
             reopening={reopening}
           />
         )}
-        {isConverted && (lead.converted_account_id || lead.converted_contact_id || lead.converted_deal_id) && (
-          <ConvertedBanner
-            convertedAt={lead.converted_at || null}
-            accountId={lead.converted_account_id || null}
-            contactId={lead.converted_contact_id || null}
-            dealId={lead.converted_deal_id || null}
-            onReopen={handleReopen}
-            reopening={reopening}
-          />
-        )}
 
-        {isB2C && (
-          <Card title="Customer Profile">
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 14, fontSize: 13 }}>
-              <Field label="Date of Birth" value={lead.date_of_birth ? new Date(lead.date_of_birth).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' }) : null} />
-              <Field label="Gender" value={lead.gender ? lead.gender.replace(/_/g, ' ') : null} />
-              <Field label="Preferred Channel" value={lead.preferred_contact_method} />
-              <Field label="Marketing Consent" value={lead.marketing_consent ? 'Yes' : 'No'} />
-              <Field label="WhatsApp Consent" value={lead.whatsapp_consent ? 'Yes' : 'No'} />
-              <Field label="Address" value={[lead.address_line1, lead.address_line2, lead.city, lead.state, lead.postal_code, lead.country].filter(Boolean).join(', ') || null} />
-            </div>
-          </Card>
-        )}
+        {/* Comprehensive categorised detail panel — supersedes the old
+            B2C-only Customer Profile card. Renders every lead field
+            grouped by Contact / Business / Personal / Address /
+            Lifecycle / Custom Fields / Consent / System, and hides
+            any group with no populated values. */}
+        <LeadDetailsPanel lead={lead} />
 
         {deals.length > 0 && (
           <Card title={`Deals (${deals.length})`}>
@@ -341,18 +391,33 @@ export default function LeadDetailPage() {
           />
         </Card>
         <Card title="Activity Timeline"><ActivityTimeline activities={activities} /></Card>
-        <AiDraftReplyPanel leadId={id} />
       </div>
 
       <div style={{ flex: '1 1 280px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 18 }}>
-        <LeadScoreBreakdown
-          score={score?.score ?? lead.score}
-          grade={(score?.grade ?? lead.score_grade) as any}
-          factors={score?.factors}
-          onRefresh={reScore}
-          loading={scoring}
-        />
-        <NextBestActionCard action={nba} onLoad={loadNba} loading={nbaLoading} />
+        {/* LeadScoreBreakdown + ScoreBoostSuggestions hidden for Consumer
+            Champion reps AND for the Tata Tiscon tenant — their flow
+            doesn't use the AI score-boost loop. NBA card stays visible
+            since it's an action prompt the FE can act on directly. */}
+        {!isChampion && !isTataActive && (
+          <>
+            <LeadScoreBreakdown
+              score={score?.score ?? lead.score}
+              grade={(score?.grade ?? lead.score_grade) as any}
+              factors={score?.factors}
+              onRefresh={reScore}
+              loading={scoring}
+            />
+            <ScoreBoostSuggestions
+              lead={lead as any}
+              onEdit={() => setEditOpen(true)}
+              onQualify={markQualified}
+              busy={qualifying || scoring}
+            />
+          </>
+        )}
+        {/* Next Best Action — AI manager-tier surface; hidden for the
+            Consumer Champion FE flow since they don't act on it. */}
+        {!isChampion && <NextBestActionCard action={nba} onLoad={loadNba} loading={nbaLoading} leadId={id} />}
       </div>
 
       <LeadConvertModal
@@ -375,7 +440,7 @@ export default function LeadDetailPage() {
         lead={lead}
         open={editOpen}
         onClose={() => setEditOpen(false)}
-        onSaved={(updated) => { setLead(updated as LifecycleLead); reload(); }}
+        onSaved={(updated) => { setLead(updated as LifecycleLead); reload(); reScore(); }}
       />
       </div>
     </div>

@@ -7,6 +7,7 @@ import type { Account } from '../../../../types/crm';
 import AccountsTable, { ACCOUNT_COLUMNS } from '../../../../components/crm/AccountsTable';
 import ViewCustomizer from '../../../../components/crm/shared/ViewCustomizer';
 import { useViewPrefs } from '../../../../lib/crmViewPrefs';
+import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
 
 export default function AccountsListPage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -14,13 +15,23 @@ export default function AccountsListPage() {
   const [q, setQ] = useState('');
   const view = useViewPrefs('accounts');
   const hiddenSet = useMemo(() => new Set(view.prefs.hidden), [view.prefs.hidden]);
+  // Global CRM date range (header). City scope is handled by the layout remount.
+  const range = useCrmDateRange((s) => ({ from: s.from, to: s.to }));
 
   useEffect(() => {
     (async () => {
-      try { const r = await crmAccounts.list(); setAccounts(r.data || []); }
+      setLoading(true);
+      try {
+        const params: Record<string, string> = {};
+        if (range.from) params.from = range.from;
+        if (range.to) params.to = range.to;
+        const r = await crmAccounts.list(params);
+        setAccounts(r.data || []);
+      }
       catch (e: any) { toast.error(e.message || 'Failed to load'); } finally { setLoading(false); }
     })();
-  }, []);
+    /* eslint-disable-next-line */
+  }, [range.from, range.to]);
 
   const filtered = accounts.filter((a) => !q || `${a.name} ${a.industry || ''}`.toLowerCase().includes(q.toLowerCase()));
 

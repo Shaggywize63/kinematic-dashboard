@@ -384,6 +384,108 @@ main a[style*="padding: 8px 18"] {
   }
 }
 
+/* ============================================================================
+   Tablet breakpoint (641–1023px). Phones get the stricter rules above; this
+   block closes the iPad-portrait gap where the kanban still tries to render
+   5 horizontal columns and the header GlobalClientFilter still locks 220px.
+   ============================================================================ */
+@media (min-width: 641px) and (max-width: 1023px) {
+  /* Kanban — same vertical stack we use on phones, because iPad portrait
+     can't fit more than 2 columns side-by-side comfortably. */
+  .kanban-touch-hint { display: block !important; }
+  .kanban-board {
+    flex-direction: column !important;
+    overflow-x: visible !important;
+    overflow-y: visible !important;
+    scroll-snap-type: none !important;
+    gap: 10px !important;
+  }
+  .kanban-column {
+    min-width: 100% !important;
+    max-width: 100% !important;
+    flex: 1 1 100% !important;
+  }
+  .kanban-column > div:last-child { max-height: 60vh !important; }
+
+  /* Dashboard top header — compress the 220px client filter so it stops
+     fighting the NotificationBell + user identity badge for space. */
+  header [style*="width: 220"] {
+    width: auto !important;
+    max-width: 180px !important;
+    flex-shrink: 1 !important;
+  }
+}
+
+/* ============================================================================
+   Ultra-narrow phone (≤380px) — iPhone SE 1st-gen, Galaxy Fold front face,
+   any compact Android. Last line of defence so the layout never overflows.
+   ============================================================================ */
+@media (max-width: 380px) {
+  main { padding: 10px !important; }
+
+  /* Header collapses to icon-only: hide the client filter entirely, let
+     the user identity badge truncate its role label so the avatar +
+     name + bell still fit. */
+  header [style*="width: 220"] { display: none !important; }
+  header [style*="font-size: 11"], header [style*="font-size:11"] { display: none; }
+
+  /* Sidebar drawer narrower so it doesn't eat the whole viewport. */
+  aside[style*="position:fixed"], aside[style*="position: fixed"] {
+    max-width: 84vw !important;
+  }
+}
+
+/* ============================================================================
+   Cross-OS polish. iOS Safari tap highlights, Android elastic scroll, Windows
+   touch-action defaults — set once globally so individual components don't
+   need to think about it.
+   ============================================================================ */
+* { -webkit-tap-highlight-color: transparent; }
+
+button, a, [role="button"], input[type="button"], input[type="submit"] {
+  /* Stops iOS from injecting its blue tap flash on every CRM row. */
+  -webkit-tap-highlight-color: transparent;
+  /* Disables iOS double-tap-to-zoom on interactive elements while
+     keeping single-tap behaviour. */
+  touch-action: manipulation;
+}
+
+input, textarea, select {
+  /* iOS auto-zooms when an input has font-size < 16px. Keep our small UI
+     font but cap the input minimum so Safari doesn't trigger zoom on
+     focus — that zoom never restores cleanly on rotation. */
+  font-size: max(16px, 1em);
+}
+@media (min-width: 1024px) {
+  /* Desktop reclaims the original input typography — zoom isn't a risk on
+     a real keyboard. */
+  input, textarea, select { font-size: inherit; }
+}
+
+/* Safe-area insets for notched iPhones + Android edge-to-edge displays.
+   The viewport meta in src/app/layout.tsx sets viewportFit: 'cover', so
+   we just need to add padding for the notch / home indicator. */
+@supports (padding: max(0px)) {
+  body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
+  /* Bottom-fixed elements (FAB, mobile bottom bar) read the inset on the
+     wrapper they choose — we don't force it globally because it would
+     leave a blank strip below normal content. */
+}
+
+/* Smooth scrolling everywhere — matches the polish expectation of a
+   modern CRM. Respects users who've opted out via prefers-reduced-motion. */
+@media (prefers-reduced-motion: no-preference) {
+  html { scroll-behavior: smooth; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* CRM: visible affordance for clickable links */
 .crm-area a:not([class*="active"]):not([role="button"]) {
   text-decoration: underline;

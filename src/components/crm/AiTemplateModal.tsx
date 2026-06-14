@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import Modal from './shared/Modal';
 import { crmAi } from '../../lib/crmApi';
@@ -39,6 +39,19 @@ function toSnake(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 60) || 'template';
 }
 
+// Hard client-side deadline so the generate flow can never hang on a stuck
+// backend (the "stuck at 92%" symptom). If the request doesn't resolve in
+// time we reject with a clear, retryable message and free the UI.
+const GEN_TIMEOUT_MS = 75_000;
+function withTimeout<T>(p: Promise<T>, ms = GEN_TIMEOUT_MS): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error('Generation timed out — the AI service is slow or unavailable. Please try again.')), ms)
+    ),
+  ]);
+}
+
 // Same list as TemplateEditModal.SUPPORTED_LANGS — keep in sync.
 const LANG_OPTIONS: Array<{ code: string; label: string }> = [
   { code: 'en', label: 'English' },
@@ -58,6 +71,24 @@ export default function AiTemplateModal({ open, channel, onClose, onApply }: Pro
   const [audience, setAudience] = useState('');
   const [language, setLanguage] = useState<string>('en');
   const [busy, setBusy] = useState(false);
+  // Indeterminate-but-reassuring progress: the request is a single non-streaming
+  // call, so we animate a bar toward ~92% while we wait, then snap to 100% on
+  // completion. Gives the user feedback that generation is in flight.
+  const [progress, setProgress] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (busy) {
+      setProgress(8);
+      timerRef.current = setInterval(() => {
+        setProgress((p) => (p < 92 ? p + Math.max(1, Math.round((92 - p) / 14)) : p));
+      }, 350);
+    } else if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    return () => { if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; } };
+  }, [busy]);
 
   const reset = () => { setGoal(''); setAudience(''); setTone('friendly'); setLanguage('en'); };
 
@@ -72,17 +103,20 @@ export default function AiTemplateModal({ open, channel, onClose, onApply }: Pro
         : '';
 
       if (channel === 'email') {
-        const r = await crmAi.draftReply({ goal: langPreamble ? `${langPreamble}\n\n${goal}` : goal, tone });
+        // Dedicated email-template generator: returns a reusable template with
+        // {{placeholders}} + detected variables, not a one-off reply.
+        const r = await withTimeout(crmAi.draftEmailTemplate({ goal, tone, audience: audience || undefined, language }));
         const html = r.data.body_html || r.data.body_text || '';
+        setProgress(100);
         onApply({
           channel: 'email',
           isNew: true,
-          name: goal.trim().slice(0, 60),
+          name: r.data.name || goal.trim().slice(0, 60),
           subject: r.data.subject,
           body_html: html,
           body_text: r.data.body_text || null,
-          category: 'marketing',
-          variables: extractEmailVars(html),
+          category: r.data.category || 'marketing',
+          variables: r.data.variables?.length ? r.data.variables : extractEmailVars(html),
         });
         reset();
       } else {
@@ -91,10 +125,11 @@ Goal: ${goal}
 Audience: ${audience || 'general'}
 ${langPreamble}
 Return JSON only — no prose, no code fences.`;
-        const r = await crmAi.chat({ messages: [{ role: 'user', content: userMsg }], system: WA_SYSTEM });
+        const r = await withTimeout(crmAi.chat({ messages: [{ role: 'user', content: userMsg }], system: WA_SYSTEM }));
         const json = extractJson(r.data.text || '');
         const bodyText = (json?.body_text as string) || '';
         if (!bodyText) throw new Error('AI did not return a usable body. Try a different goal phrasing.');
+        setProgress(100);
         onApply({
           channel: 'whatsapp',
           isNew: true,
@@ -114,15 +149,26 @@ Return JSON only — no prose, no code fences.`;
 
   return (
     <Modal open={open} onClose={onClose}
-      title={`✦ AI Generate — ${channel === 'email' ? 'Email' : 'WhatsApp'} Template`}
-      subtitle="Describe the template goal. Claude drafts the content; you review and edit before saving."
+      title={`✦ KINI AI Generate — ${channel === 'email' ? 'Email' : 'WhatsApp'} Template`}
+      subtitle="Describe the template goal. KINI AI drafts the content; you review and edit before saving."
       footer={
         <>
           <button type="button" onClick={onClose} style={btn.secondary}>Cancel</button>
-          <button type="button" onClick={generate} disabled={busy || !goal.trim()} style={btn.primary(busy)}>{busy ? 'Generating…' : '✦ Generate'}</button>
+          <button type="button" onClick={generate} disabled={busy || !goal.trim()} style={btn.primary(busy)}>{busy ? 'Generating…' : '✦ Generate with KINI AI'}</button>
         </>
       }>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {busy && (
+          <div aria-live="polite" style={{ background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 10, padding: 14 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>✦ KINI AI is drafting your {channel === 'email' ? 'emailer' : 'template'}…</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent)' }}>{Math.min(100, Math.round(progress))}%</span>
+            </div>
+            <div style={{ height: 8, borderRadius: 999, background: 'var(--s2)', overflow: 'hidden' }}>
+              <div style={{ height: '100%', width: `${Math.min(100, progress)}%`, background: 'linear-gradient(90deg, var(--primary), var(--accent))', borderRadius: 999, transition: 'width 0.35s ease' }} />
+            </div>
+          </div>
+        )}
         <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <span style={lblStyle}>Goal / Description<span style={{ color: '#ef4444', marginLeft: 3 }}>*</span></span>
           <textarea

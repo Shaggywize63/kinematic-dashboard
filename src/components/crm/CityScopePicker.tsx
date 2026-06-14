@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useCityScope } from '../../context/CityScopeContext';
 import { getStoredUser } from '../../lib/auth';
 import api from '../../lib/api';
@@ -46,14 +46,27 @@ export default function CityScopePicker() {
   const { selectedCity, setSelectedCity } = useCityScope();
   const [allCities, setAllCities] = useState<string[]>([]);
 
-  // Cities to show in the dropdown. If the user's stored profile already
-  // lists assigned_city_names, render those — those are the cities they're
-  // explicitly capped to. Otherwise (admins / super_admin / older sessions
-  // before /auth/me was extended) we fetch the tenant's own cities.
-  const stored = useMemo(() => getStoredUser() as any, []);
-  const userCities: string[] = Array.isArray(stored?.assigned_city_names)
-    ? stored.assigned_city_names
-    : [];
+  // Cities to show in the dropdown. If the user's profile lists
+  // assigned_city_names, render ONLY those — the cities they're explicitly
+  // capped to. Seed from the stored login profile for an instant first
+  // paint, then refresh from /auth/me so a session whose stored profile
+  // predates assigned_city_names self-heals without a re-login (the login
+  // payload now includes it too). Only when the user has zero assigned
+  // cities (true unrestricted admins / super_admin) do we fall back to the
+  // tenant's own city list below.
+  const [userCities, setUserCities] = useState<string[]>(() => {
+    const s = getStoredUser() as any;
+    return Array.isArray(s?.assigned_city_names) ? s.assigned_city_names : [];
+  });
+
+  useEffect(() => {
+    api.get<any>('/api/v1/auth/me')
+      .then((r: any) => {
+        const u = r?.data ?? r;
+        if (Array.isArray(u?.assigned_city_names)) setUserCities(u.assigned_city_names);
+      })
+      .catch(() => { /* keep seeded value */ });
+  }, []);
 
   useEffect(() => {
     if (userCities.length > 0) return;

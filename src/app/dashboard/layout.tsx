@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
-import { getStoredUser, isSessionValid, clearSession } from '../../lib/auth';
+import { getStoredUser, isSessionValid, clearSession, getDesignationLabel } from '../../lib/auth';
 import api from '../../lib/api';
 import { ClientProvider, useClient } from '../../context/ClientContext';
 import { CityScopeProvider } from '../../context/CityScopeContext';
@@ -13,6 +13,9 @@ import NotificationBell from '../../components/crm/NotificationBell';
 // KINI chat is ~250 lines + 4 card components + markdown helpers; load it on
 // demand so the main dashboard JS stays lean. ssr:false avoids hydration cost.
 const KinematicAI = dynamic(() => import('../../components/KinematicAI'), { ssr: false });
+// Floating chat launcher (Messenger-style FAB + popup panel) — replaces the
+// sidebar Inbox entry. Lazy-loaded to keep TTI snappy.
+const ChatLauncher = dynamic(() => import('../../components/messaging/ChatLauncher'), { ssr: false });
 
 function GlobalClientFilter({ isPlatformAdmin }: { isPlatformAdmin: boolean }) {
   const { selectedClientId, setSelectedClientId } = useClient();
@@ -67,10 +70,30 @@ function useIsMobile(breakpoint = 1024) {
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<any>(null);
+  // Persist the desktop collapse preference so the rep gets the same
+  // sidebar width on every reload. Mobile uses a hamburger drawer and
+  // ignores this flag.
   const [collapsed, setCollapsed] = useState(false);
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem('kin_sidebar_collapsed');
+      if (v === '1') setCollapsed(true);
+    } catch { /* ignore */ }
+  }, []);
+  const toggleCollapsed = useCallback(() => {
+    setCollapsed(prev => {
+      const next = !prev;
+      try { localStorage.setItem('kin_sidebar_collapsed', next ? '1' : '0'); } catch { /* ignore */ }
+      return next;
+    });
+  }, []);
   const [otherOpen, setOtherOpen] = useState(false);
   const [token, setToken] = useState('');
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // True once /auth/me has resolved. Until then, if the cached profile has no
+  // explicit permissions, we hold the role-gated nav back to avoid a flash of
+  // modules (e.g. Settings) the user shouldn't see.
+  const [hydrated, setHydrated] = useState(false);
   const isMobile = useIsMobile(1024);
   const router = useRouter();
   const pathname = usePathname();
@@ -81,6 +104,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     setUser(u);
     if (typeof window !== 'undefined') {
       setToken(localStorage.getItem('kinematic_token') || '');
+      // Register the push service worker once per dashboard session so a
+      // user who already granted notification permission keeps receiving
+      // them without visiting /dashboard/inbox first.
+      void import('../../lib/webPush').then((wp) => wp.registerServiceWorker()).catch(() => { /* ignore */ });
     }
     (async () => {
       try {
@@ -93,6 +120,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           setUser(next);
         }
       } catch { /* keep cached user */ }
+      finally { setHydrated(true); }
     })();
   }, [router]);
 
@@ -150,11 +178,44 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const isSuperAdmin = (userRole || '').toLowerCase().replace(/-/g, '_') === 'super_admin';
 
+  // Only build the nav once we can trust the permission set. Platform admins
+  // and cached profiles that already carry permissions render immediately;
+  // everyone else waits for the fresh /auth/me so role-gated items don't flash.
+  const cachedHasPerms = Array.isArray(user?.permissions) && (user!.permissions as string[]).length > 0;
+  const navReady = hydrated || isPlatformAdmin || cachedHasPerms;
+
   const hasModule = (m: string) => {
     if (!m) return true;
-    if (enabledModules.length > 0) return enabledModules.includes(m);
-    return userPerms.includes(m);
+    // Two independent gates must BOTH pass:
+    //   1. Entitlement — the client must own the module SKU.
+    //   2. Role grant — the user's designation must include the module.
+    // Previously an entitlement alone was sufficient, so every user in an
+    // entitled client saw modules (e.g. Settings) their role omitted. We now
+    // intersect: when the user has an explicit permission set, the module must
+    // be in it; legacy accounts with no granular permissions fall back to the
+    // entitlement so they aren't locked out.
+    const entitled = enabledModules.length === 0 || enabledModules.includes(m);
+    if (!entitled) return false;
+    if (userPerms.length > 0) return userPerms.includes(m);
+    return true;
   };
+
+  // Detect the active Tata Tiscon scope so we can hide the Home nav
+  // entry for now. Users pinned to Tata (client_id in JWT) always count;
+  // super-admins viewing-as-Tata via the picker also count, so the
+  // experience is consistent with whichever scope the rep is in.
+  // selectedClientId lives on the ClientProvider context which is
+  // mounted further down the tree, so we read the persisted picker
+  // value off localStorage directly — same key the api client uses.
+  const TATA_TISCON_CLIENT_ID = 'a1f67468-526e-4734-be3a-2cb132cc2804';
+  const userClientId = (user as any)?.client_id as string | undefined;
+  const [pickerClientId, setPickerClientId] = useState<string | null>(null);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try { setPickerClientId(localStorage.getItem('kinematic_selected_client')); }
+    catch { /* ignore — storage disabled */ }
+  }, []);
+  const tataActive = userClientId === TATA_TISCON_CLIENT_ID || pickerClientId === TATA_TISCON_CLIENT_ID;
 
   const filterNav = (items: any[]) => {
     const visibleAfterRole = items.filter((i) => !i.superAdminOnly || isSuperAdmin);
@@ -164,8 +225,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const visibleAfterDemo = visibleAfterRole.filter(
       (i) => !i.demoOnly || user?.email === 'demo@kinematic.com'
     );
-    if (isPlatformAdmin) return visibleAfterDemo;
-    return visibleAfterDemo.filter(i => hasModule(i.module));
+    // Tenant-specific hide list. Each item can opt-in via `hiddenForTata`.
+    const visibleAfterTata = visibleAfterDemo.filter((i) => !(i.hiddenForTata && tataActive));
+    if (isPlatformAdmin) return visibleAfterTata;
+    return visibleAfterTata.filter(i => hasModule(i.module));
   };
 
   const isCrmOnlyClient =
@@ -191,6 +254,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // Deals nav matches the rupee-denominated business.
   const ICON_RUPEE = 'M6 3h12 M6 8h12 M6 13h3a4.5 4.5 0 0 0 0-9 M6 13l8 8';
 
+  // KEEP-IN-SYNC: every `module` ID below MUST exist in `ALL_MODULES`
+  // (src/lib/modules.ts). The module access checklist (settings/page.tsx,
+  // settings/roles/page.tsx, clients/page.tsx) renders permissions from
+  // ALL_MODULES — a menu item whose module ID is missing from that list
+  // cannot be granted to anyone and will silently disappear from the nav
+  // for non-super-admin roles.
   const rawNavGroups = [
     { label: 'Field Force', package: 'field_force', items: [
       { href: '/dashboard',                              label: 'Dashboard',           icon: 'M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z M9 22V12h6v10', module: 'dashboard' },
@@ -202,18 +271,41 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       { href: '/dashboard/form-builder',                 label: 'Form Builder',        icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2 M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2', module: 'form_builder' },
       { href: '/dashboard/route-plan',                   label: 'Route Plan',          icon: 'M9 20l-5.44-2.72A2 2 0 013 15.49V4.5a2 2 0 012.89-1.8L9 4 M9 4v16 M15 1l5.44 2.72A2 2 0 0121 5.51v10.98a2 2 0 01-2.89 1.8L15 17 M15 1v16', module: 'orders' },
       { href: '/dashboard/work-activities',              label: 'Work Activities',     icon: 'M12 2v20 M2 12h20 M5 5l14 14 M19 5L5 14', module: 'work_activities' },
+      // FFM Reports hub — parity with the Lead Management Reports entry
+      // a few groups down. Surfaces attendance, visit coverage, hours &
+      // idle time, route adherence, and the rep leaderboard in one place
+      // so admins don't have to hop between sidebar surfaces to build a
+      // monthly review pack.
+      { href: '/dashboard/ffm-reports',                  label: 'Reports',             icon: 'M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6 M16 13H8 M16 17H8', module: 'ffm_reports' },
     ]},
     { label: 'Lead Management', package: 'crm', items: [
+      // Daily mission control — target + near-to-close + next actions
+      // + productivity tips. Mounted above Dashboard so reps land on
+      // their action list, not the analytics widgets.
+      // Hidden for Tata Tiscon (a1f67468-…) while the surface is
+      // being tuned for their consumer-only workflow; reachable on
+      // every other tenant. Toggle the `tataHideKeys` filter below.
+      { href: '/dashboard/crm/home',             label: 'Home',           icon: 'M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z M9 22V12h6v10', module: 'crm_dashboard', hiddenForTata: true },
       { href: '/dashboard/crm/dashboard',        label: 'Dashboard',      icon: 'M3 3v18h18 M7 14l4-4 4 4 5-5', module: 'crm_dashboard' },
       { href: '/dashboard/crm/leads',            label: 'Leads',          icon: 'M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 7a4 4 0 100-8 4 4 0 000 8z', module: 'crm_leads' },
       { href: '/dashboard/crm/leads/analytics',  label: 'Lead Analytics', icon: 'M18 20V10 M12 20V4 M6 20v-6', module: 'crm_leads' },
       { href: '/dashboard/crm/contacts',         label: 'Contacts',       icon: 'M20 21v-2a4 4 0 00-3-3.87 M4 21v-2a4 4 0 014-4h4a4 4 0 014 4v2 M16 3.13a4 4 0 010 7.75 M8 11a4 4 0 100-8 4 4 0 000 8z', module: 'crm_contacts' },
+      // Address book for dealers / influencers / referrers — per-client,
+      // CRM-Admin gated (the entitlement key matches the module the
+      // backend's requireModuleAccess gate honours).
+      { href: '/dashboard/crm/people-directory', label: 'People Directory', icon: 'M17 20v-2a4 4 0 00-3-3.87 M9 7a4 4 0 100-8 4 4 0 000 8z M3 21h12 M19 3l2 2-2 2 M17 5h4', module: 'crm_people_directory' },
       { href: '/dashboard/crm/accounts',         label: 'Accounts',       icon: 'M3 21h18 M3 7v14 M21 7v14 M3 7l9-4 9 4 M9 12h6', module: 'crm_accounts' },
       { href: '/dashboard/crm/deals',            label: 'Deals',          icon: ICON_RUPEE, module: 'crm_deals' },
       { href: '/dashboard/crm/pipeline',         label: 'Pipeline',       icon: 'M3 5h6v14H3z M9 9h6v6H9z M15 5h6v14h-6z', module: 'crm_pipeline' },
       { href: '/dashboard/crm/products',         label: 'Products',       icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4', module: 'crm_products' },
       { href: '/dashboard/crm/activities',       label: 'Activities',     icon: 'M22 11.08V12a10 10 0 11-5.93-9.14 M22 4L12 14.01l-3-3', module: 'crm_activities' },
       { href: '/dashboard/crm/whatsapp',         label: 'WhatsApp',       icon: ICON_WHATSAPP, module: 'crm_whatsapp' },
+      // Email alerts + verified senders — the marketing-side email surface.
+      // Templates live at the existing /crm/email-templates page; alerts
+      // composes them with a verified From + scheduler.
+      { href: '/dashboard/crm/email-alerts',     label: 'Email Alerts',   icon: 'M4 4h16a2 2 0 012 2v12a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2z M22 6l-10 7L2 6 M12 13v7', module: 'crm_email' },
+      { href: '/dashboard/crm/email-templates',  label: 'Email Templates', icon: 'M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6 M16 13H8 M16 17H8 M10 9H8', module: 'crm_email' },
+      { href: '/dashboard/crm/email-senders',    label: 'Email Senders',  icon: 'M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 7a4 4 0 100-8 4 4 0 000 8z M20 8l2 2-4 4 M22 10l-4 4', module: 'crm_email' },
       { href: '/dashboard/crm/nurturing',        label: 'Nurturing',      icon: 'M13 2L3 14h9l-1 8 10-12h-9l1-8z', module: 'crm_dashboard', demoOnly: true },
       { href: '/dashboard/crm/reports',          label: 'Reports',        icon: 'M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6 M16 13H8 M16 17H8', module: 'crm_reports' },
       { href: '/dashboard/crm/settings',         label: 'Settings',       icon: ICON_SETTINGS, module: 'crm_settings' },
@@ -232,6 +324,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       { href: '/dashboard/distribution/returns',          label: 'Returns',      icon: 'M9 14l-4-4 4-4 M5 10h11a4 4 0 014 4v0a4 4 0 01-4 4h-3', module: 'distribution_returns' },
       { href: '/dashboard/distribution/ledger',           label: 'Ledger',       icon: 'M3 6l9-3 9 3 M5 6v15h14V6 M9 11h6 M9 15h6', module: 'distribution_ledger' },
       { href: '/dashboard/distribution/secondary-sales',  label: 'Consumer',     icon: 'M3 3h18v18H3z M3 9h18 M9 21V9', module: 'distribution_consumer' },
+      // Last-mile dashboards (Phase 1): retailer → consumer visibility.
+      { href: '/dashboard/distribution/last-mile',                  label: 'Last Mile',          icon: 'M2 12h4l3-9 4 18 3-9h4 M22 12h-3', module: 'distribution_consumer' },
+      { href: '/dashboard/distribution/last-mile/consumers',        label: 'Consumer Registry',  icon: 'M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 7a4 4 0 100 8 4 4 0 000-8z', module: 'distribution_consumer' },
+      { href: '/dashboard/distribution/last-mile/tertiary-sales',   label: 'Retailer Sales',     icon: 'M9 11l3 3L22 4 M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11', module: 'distribution_consumer' },
       { href: '/dashboard/distribution/integrations',     label: 'Integrations', icon: 'M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71 M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71', module: 'distribution' },
     ]},
     { label: 'Business', package: 'business', items: [
@@ -255,14 +351,31 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       { href: '/dashboard/security-alerts',          label: 'Security Alerts', icon: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z', module: 'security_alerts' },
       { href: '/dashboard/settings',                 label: 'Settings',        icon: ICON_SETTINGS, module: 'settings' },
     ]},
+    // Messaging is surfaced as a floating chat box at the bottom-right of
+    // every dashboard page (see ChatLauncher) — there is intentionally no
+    // sidebar entry. The full-page /dashboard/inbox route still works for
+    // direct links from notifications but isn't promoted in the nav.
     { label: 'Audit', package: 'audit', items: [
       { href: '/dashboard/audit-log', label: 'Activity Log', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2 M9 5a2 2 0 002 2h2a2 2 0 002-2 M12 11h4 M12 15h4 M8 11h.01 M8 15h.01', module: 'audit_log', superAdminOnly: true },
+      { href: '/dashboard/audit-log/messages', label: 'Message Log', icon: 'M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z', module: 'audit_log', superAdminOnly: true },
     ]},
   ];
 
-  const navGroups = rawNavGroups
+  const navGroups = !navReady ? [] : rawNavGroups
     .map(g => ({ ...g, items: filterNav(g.items) }))
     .filter(g => sectionVisible(g.package, g.items));
+
+  // Collapsible nav sections (Field Force, Lead Management, …). Per-section
+  // open/closed state persisted to localStorage so it survives reloads.
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+  useEffect(() => {
+    try { const s = localStorage.getItem('nav.collapsedSections'); if (s) setCollapsedSections(JSON.parse(s)); } catch { /* ignore */ }
+  }, []);
+  const toggleSection = (label: string) => setCollapsedSections((prev) => {
+    const next = { ...prev, [label]: !prev[label] };
+    try { localStorage.setItem('nav.collapsedSections', JSON.stringify(next)); } catch { /* ignore */ }
+    return next;
+  });
 
 
 
@@ -282,33 +395,180 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           borderRight:`1px solid ${C.border}`,
           position:'fixed', top:0, left:0, bottom:0,
           display:'flex', flexDirection:'column',
-          transition:'transform .25s ease, width .2s',
+          transition:'transform .25s ease, width .2s ease',
           transform: sidebarVisible ? 'translateX(0)' : `translateX(-${drawerW}px)`,
           zIndex: isMobile ? 999 : 10,
           boxShadow: isMobile && drawerOpen ? '4px 0 24px rgba(0,0,0,0.4)' : 'none',
         }}>
-          <div style={{ height:65, display:'flex', alignItems:'center', padding:'0 20px', borderBottom:`1px solid ${C.border}`, gap:12 }}>
-            <img src="/logo-mark.png" alt="K" style={{ width:28, height:28, objectFit:'contain' }} />
-            {(isMobile || !collapsed) && <span style={{ fontWeight:800, fontSize:18, letterSpacing:'-0.5px' }}>Kinematic</span>}
+          {/* Brand row + collapse toggle. The toggle is hidden on mobile
+              (the drawer has its own open/close via the header hamburger). */}
+          <div style={{
+            height:65,
+            display:'flex',
+            alignItems:'center',
+            justifyContent: collapsed && !isMobile ? 'center' : 'space-between',
+            padding: collapsed && !isMobile ? '0' : '0 16px 0 20px',
+            borderBottom:`1px solid ${C.border}`,
+            gap:12,
+          }}>
+            <div style={{ display:'flex', alignItems:'center', gap:12, minWidth:0 }}>
+              <img
+                src="https://kinematicapp.com/assets/logo.png"
+                alt="K"
+                style={{ height: 28, width: 'auto', objectFit: 'contain', flexShrink: 0, display: 'block' }}
+              />
+              {(isMobile || !collapsed) && (
+                <span style={{ fontWeight:800, fontSize:18, letterSpacing:'-0.5px', whiteSpace:'nowrap' }}>Kinematic</span>
+              )}
+            </div>
+            {!isMobile && !collapsed && (
+              <button
+                onClick={toggleCollapsed}
+                aria-label="Collapse sidebar"
+                title="Collapse sidebar"
+                style={{
+                  width:28, height:28, padding:0, borderRadius:8,
+                  background:'transparent', border:`1px solid ${C.border}`,
+                  color:C.gray, cursor:'pointer',
+                  display:'flex', alignItems:'center', justifyContent:'center',
+                  flexShrink:0,
+                  transition:'color .15s, background .15s, border-color .15s',
+                }}
+                onMouseEnter={(e) => { const t = e.currentTarget; t.style.color = C.white; t.style.background = C.s2; }}
+                onMouseLeave={(e) => { const t = e.currentTarget; t.style.color = C.gray; t.style.background = 'transparent'; }}
+              >
+                <Icon d="M15 18l-6-6 6-6" size={14} />
+              </button>
+            )}
           </div>
 
-          <nav style={{ flex:1, padding:'15px 0', overflowY:'auto' }}>
-            {navGroups.map((g, gi) => (
-              <div key={gi} style={{ marginBottom:20 }}>
-                {(isMobile || !collapsed) && <div style={{ padding:'0 20px', fontSize:10, color:C.grayd, textTransform:'uppercase', letterSpacing:1, marginBottom:10 }}>{g.label}</div>}
-                {g.items.map((i:any) => (
-                  <Link key={i.href} href={i.href}>
-                    <div style={{ display:'flex', alignItems:'center', padding:'10px 20px', gap:12, color:isActive(i.href)?C.red:C.gray, background:isActive(i.href)?C.redD:'transparent', cursor:'pointer' }}>
-                      <Icon d={i.icon} size={18} />
-                      {(isMobile || !collapsed) && <span style={{ fontSize:14 }}>{i.label}</span>}
-                    </div>
-                  </Link>
+          {/* Collapsed-mode expand button sits just under the logo so the
+              rep can re-open the sidebar without hunting for a control. */}
+          {!isMobile && collapsed && (
+            <button
+              onClick={toggleCollapsed}
+              aria-label="Expand sidebar"
+              title="Expand sidebar"
+              style={{
+                margin:'10px auto 0', width:32, height:32, padding:0, borderRadius:8,
+                background:'transparent', border:`1px solid ${C.border}`,
+                color:C.gray, cursor:'pointer',
+                display:'flex', alignItems:'center', justifyContent:'center',
+                transition:'color .15s, background .15s',
+              }}
+              onMouseEnter={(e) => { const t = e.currentTarget; t.style.color = C.white; t.style.background = C.s2; }}
+              onMouseLeave={(e) => { const t = e.currentTarget; t.style.color = C.gray; t.style.background = 'transparent'; }}
+            >
+              <Icon d="M9 18l6-6-6-6" size={14} />
+            </button>
+          )}
+
+          <nav style={{ flex:1, padding: collapsed && !isMobile ? '10px 0' : '15px 0', overflowY:'auto' }}>
+            {!navReady && (
+              <div style={{ padding: '8px 16px', display:'flex', flexDirection:'column', gap:12 }}>
+                {[0,1,2,3,4,5].map(i => (
+                  <div key={i} style={{ height:12, borderRadius:6, background:C.border, opacity:0.45 }} />
                 ))}
+              </div>
+            )}
+            {navGroups.map((g, gi) => (
+              <div key={gi} style={{ marginBottom: collapsed && !isMobile ? 10 : 18 }}>
+                {(isMobile || !collapsed) ? (
+                  <button
+                    type="button"
+                    onClick={() => toggleSection(g.label)}
+                    aria-expanded={!collapsedSections[g.label]}
+                    style={{
+                      width:'calc(100% - 8px)',
+                      margin:'0 4px',
+                      display:'flex',
+                      alignItems:'center',
+                      justifyContent:'space-between',
+                      padding:'4px 16px',
+                      background:'transparent',
+                      border:'none',
+                      fontSize:10,
+                      color:C.grayd,
+                      textTransform:'uppercase',
+                      letterSpacing:1.2,
+                      fontWeight:700,
+                      marginBottom:6,
+                      cursor:'pointer',
+                    }}
+                  >
+                    <span>{g.label}</span>
+                    <span style={{
+                      fontSize:9,
+                      transition:'transform .15s ease',
+                      transform: collapsedSections[g.label] ? 'rotate(-90deg)' : 'none',
+                    }}>▾</span>
+                  </button>
+                ) : (
+                  // In collapsed mode, replace the text group label with a
+                  // thin horizontal divider so groups stay visually distinct
+                  // without overflowing the 64px rail.
+                  gi > 0 && (
+                    <div style={{
+                      height:1,
+                      background:C.border,
+                      margin:'0 16px 8px',
+                    }} />
+                  )
+                )}
+                {/* In the rail-collapsed sidebar we always show the icons;
+                    in the expanded sidebar, hide a section's items when the
+                    user has collapsed that section. */}
+                {((collapsed && !isMobile) || !collapsedSections[g.label]) && g.items.map((i:any) => {
+                  const active = isActive(i.href);
+                  return (
+                    <Link key={i.href} href={i.href} style={{ textDecoration:'none' }}>
+                      <div
+                        title={collapsed && !isMobile ? i.label : undefined}
+                        style={{
+                          position:'relative',
+                          display:'flex',
+                          alignItems:'center',
+                          padding: collapsed && !isMobile ? '10px 0' : '8px 16px 8px 20px',
+                          margin: collapsed && !isMobile ? '2px 8px' : '1px 10px',
+                          borderRadius:8,
+                          gap:12,
+                          color: active ? C.white : C.gray,
+                          background: active ? C.redD : 'transparent',
+                          cursor:'pointer',
+                          justifyContent: collapsed && !isMobile ? 'center' : 'flex-start',
+                          transition:'background .15s, color .15s',
+                        }}
+                        onMouseEnter={(e) => { if (!active) { e.currentTarget.style.background = C.s2; e.currentTarget.style.color = C.white; } }}
+                        onMouseLeave={(e) => { if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = C.gray; } }}
+                      >
+                        {/* Left-rail accent on active items — replaces the
+                            full-row red wash so the sidebar reads calmer and
+                            the active item still pops. */}
+                        {active && (
+                          <span style={{
+                            position:'absolute',
+                            left: collapsed && !isMobile ? 4 : 0,
+                            top:6, bottom:6,
+                            width:3,
+                            borderRadius:3,
+                            background:C.red,
+                          }} />
+                        )}
+                        <span style={{ color: active ? C.red : 'inherit', display:'flex', alignItems:'center' }}>
+                          <Icon d={i.icon} size={18} />
+                        </span>
+                        {(isMobile || !collapsed) && (
+                          <span style={{ fontSize:13.5, fontWeight: active ? 600 : 500, whiteSpace:'nowrap' }}>{i.label}</span>
+                        )}
+                      </div>
+                    </Link>
+                  );
+                })}
               </div>
             ))}
           </nav>
 
-          <div style={{ padding:20, borderTop:`1px solid ${C.border}` }}>
+          <div style={{ padding: collapsed && !isMobile ? '12px 8px' : 16, borderTop:`1px solid ${C.border}` }}>
             {(isMobile || !collapsed) && (
               <div style={{ marginBottom:10 }}>
                 <div style={{ fontSize:13, fontWeight:700, color:C.white, lineHeight:1.2 }}>{user?.name || 'Admin'}</div>
@@ -316,19 +576,44 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     "Consumer Champion"). Falls back to the legacy preset role
                     label so we never show an empty descriptor. */}
                 <div style={{ fontSize:11, color:C.gray, marginTop:2, lineHeight:1.2 }}>
-                  {/* Show only the hierarchy designation (Business Manager,
-                      Consumer Champion, etc.). Never expose the legacy preset
-                      role like "Sub-Admin" — admins consider that an
-                      implementation detail. */}
-                  {hierarchyRoleName || 'Team Member'}
+                  {/* Show the real hierarchy designation (Business Manager,
+                      Consumer Champion, …). For platform admins with no
+                      org_role assigned, the shared helper resolves to
+                      "Super Admin" / "Admin". Returns "—" only when there
+                      is genuinely no designation — never substitutes a
+                      generic "Team Member" placeholder. */}
+                  {hierarchyRoleName || getDesignationLabel(user)}
                 </div>
               </div>
             )}
-            <button onClick={handleLogout} style={{ width:'100%', padding:'10px', background:'transparent', border:`1px solid ${C.border}`, color:C.gray, borderRadius:8, cursor:'pointer' }}>Sign Out</button>
+            <button
+              onClick={handleLogout}
+              title={collapsed && !isMobile ? 'Sign Out' : undefined}
+              style={{
+                width:'100%',
+                padding: collapsed && !isMobile ? '10px 0' : '10px',
+                background:'transparent',
+                border:`1px solid ${C.border}`,
+                color:C.gray,
+                borderRadius:8,
+                cursor:'pointer',
+                display:'flex',
+                alignItems:'center',
+                justifyContent:'center',
+                gap:8,
+                fontSize:13,
+                transition:'color .15s, border-color .15s, background .15s',
+              }}
+              onMouseEnter={(e) => { const t = e.currentTarget; t.style.color = C.red; t.style.borderColor = 'rgba(224,30,44,0.3)'; t.style.background = C.redD; }}
+              onMouseLeave={(e) => { const t = e.currentTarget; t.style.color = C.gray; t.style.borderColor = C.border; t.style.background = 'transparent'; }}
+            >
+              <Icon d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4 M16 17l5-5-5-5 M21 12H9" size={15} />
+              {(isMobile || !collapsed) && <span>Sign Out</span>}
+            </button>
 
-            {user?.email === 'demo@kinematic.com' && (
-              <div style={{ marginTop:15, padding:10, background:'rgba(255,59,48,0.1)', border:'1px solid rgba(255,59,48,0.2)', borderRadius:8, textAlign:'center' }}>
-                <div style={{ color:C.red, fontSize:9, fontWeight:900 }}>DEMO ACTIVE</div>
+            {user?.email === 'demo@kinematic.com' && (isMobile || !collapsed) && (
+              <div style={{ marginTop:12, padding:'8px 10px', background:'rgba(255,59,48,0.08)', border:'1px solid rgba(255,59,48,0.2)', borderRadius:8, textAlign:'center' }}>
+                <div style={{ color:C.red, fontSize:9, fontWeight:900, letterSpacing:1 }}>DEMO ACTIVE</div>
                 <div style={{ fontSize:8, color:C.grayd }}>Stable Mock Intercept</div>
               </div>
             )}
@@ -416,16 +701,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     {user?.name || 'Signed in'}
                   </span>
                   <span style={{ fontSize: isMobile ? 10 : 11, color: C.gray, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
-                    {/* Show only the hierarchy designation (Business Manager,
-                      Consumer Champion, etc.). Never expose the legacy preset
-                      role like "Sub-Admin" — admins consider that an
-                      implementation detail. */}
-                  {hierarchyRoleName || 'Team Member'}
+                    {/* Hierarchy designation (Business Manager,
+                        Consumer Champion, …) via getDesignationLabel —
+                        falls back to "Super Admin" / "Admin" for platform
+                        roles, else a dash; never substitutes "Team Member". */}
+                  {hierarchyRoleName || getDesignationLabel(user)}
                   </span>
                 </div>
               </Link>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, zIndex: 1 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, zIndex: 1 }}>
+              {/* Chat trigger lives next to the notification bell — the
+                  previous floating FAB cramped on phones. ChatLauncher
+                  renders an icon button here and pops the panel inline. */}
+              {token && <ChatLauncher />}
               <NotificationBell />
               <GlobalClientFilter isPlatformAdmin={isPlatformAdmin} />
             </div>

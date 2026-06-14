@@ -3,6 +3,7 @@ import { memo, useCallback, useState } from 'react';
 import Link from 'next/link';
 import type { Lead } from '../../types/crm';
 import LeadScoreBadge from './LeadScoreBadge';
+import { breakdownFactors, llmAdjustmentOf } from '../../lib/crm/scoreFactors';
 import OwnerAvatar from './shared/OwnerAvatar';
 import InlineOwnerAssign from './shared/InlineOwnerAssign';
 
@@ -33,6 +34,10 @@ export const LEAD_COLUMNS = [
   { key: 'latest_update', label: 'Latest Update' },
   { key: 'source', label: 'Source' },
   { key: 'owner', label: 'Owner' },
+  // "Uploaded by" — set on lead create, hydrated server-side via
+  // stampCreatedByNames so we get the user's display name not a UUID.
+  { key: 'created_by', label: 'Uploaded By' },
+  { key: 'created_at', label: 'Uploaded On' },
   { key: 'action', label: 'Action' },
 ] as const;
 
@@ -59,6 +64,8 @@ export default function LeadsTable({ leads, selected, onToggle, onToggleAll, loa
   if (isVisible('latest_update')) colCount += 1;
   if (isVisible('source'))    colCount += 1;
   if (isVisible('owner'))     colCount += 1;
+  if (isVisible('created_by')) colCount += 1;
+  if (isVisible('created_at')) colCount += 1;
   if (isVisible('action'))    colCount += 1;
 
   return (
@@ -79,6 +86,8 @@ export default function LeadsTable({ leads, selected, onToggle, onToggleAll, loa
                 {isVisible('latest_update') && <th style={thStyle}>Latest Update</th>}
                 {isVisible('source') && <th style={thStyle}>Source</th>}
                 {isVisible('owner') && <th style={thStyle}>Owner</th>}
+                {isVisible('created_by') && <th style={thStyle}>Uploaded By</th>}
+                {isVisible('created_at') && <th style={thStyle}>Uploaded On</th>}
                 {isVisible('action') && <th style={{ ...thStyle, textAlign: 'right' }}>Action</th>}
               </tr>
             </thead>
@@ -158,6 +167,20 @@ const LeadRow = memo(function LeadRow({ lead: l, isSelected, onToggle, onScoreCl
           )}
         </td>
       )}
+      {!hidden.has('created_by') && (
+        <td style={tdStyle} data-label="Uploaded By">
+          {(l as { created_by_name?: string | null }).created_by_name || <span style={{ color: 'var(--text-dim)' }}>—</span>}
+        </td>
+      )}
+      {!hidden.has('created_at') && (
+        <td style={tdStyle} data-label="Uploaded On">
+          {l.created_at ? (
+            <span title={new Date(l.created_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}>
+              {new Date(l.created_at).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', year: 'numeric' })}
+            </span>
+          ) : <span style={{ color: 'var(--text-dim)' }}>—</span>}
+        </td>
+      )}
       {!hidden.has('action') && (
         <td style={{ ...tdStyle, textAlign: 'right', whiteSpace: 'nowrap' }} data-label="Action">
           {l.status === 'converted' ? (
@@ -222,45 +245,13 @@ function ScoreBreakdownModal({ lead, onClose }: { lead: Lead; onClose: () => voi
   const score = lead.score ?? 0;
   const grade = lead.score_grade;
 
-  const entries: Array<[string, number]> = breakdown && typeof breakdown === 'object'
-    ? Object.entries(breakdown).filter(([_, v]) => typeof v === 'number')
-    : [];
-
-  const labels: Record<string, string> = {
-    // v1 keys (kept for back-compat with score history written under the
-    // legacy heuristic_b2b_v1 / heuristic_b2c_v1 models)
-    title_seniority: 'Job Title Seniority',
-    title: 'Job Title Seniority',
-    company_size: 'Company Size',
-    company: 'Company Match',
-    source_weight: 'Lead Source',
-    source: 'Lead Source',
-    engagement: 'Engagement Activity',
-    recency: 'Recency',
-    icp_match: 'ICP (Ideal Customer Profile) Match',
-    icp: 'ICP Match',
-    industry: 'Industry Match',
-    geo: 'Geography',
-    email_quality: 'Email Quality',
-    phone_present: 'Phone Number Present',
-    // v2 keys (heuristic_b2b_v2 / heuristic_b2c_v2 — emitted by the
-    // unified scoring path in leadScoring.service.ts)
-    email_present: 'Email Present',
-    marketing_consent: 'Marketing Consent',
-    whatsapp_consent: 'WhatsApp Consent',
-    source_quality: 'Source Quality',
-    whatsapp_30d: 'WhatsApp Activity (30d)',
-    calls_30d: 'Calls (30d)',
-    meetings_30d: 'Meetings (30d)',
-    updates_30d: 'Updates (30d)',
-    updates_present: 'Recent Updates',
-    bant_signals_in_updates: 'BANT Signals in Updates',
-    company_present: 'Company Present',
-    industry_match: 'Industry Match (ICP)',
-    contact_complete: 'Contact Completeness',
-    recent_touch: 'Recent Touch',
-    recent_touch_med: 'Recent Touch',
-  };
+  // Label dict + sorting moved to lib/crm/scoreFactors.ts so the leads-
+  // table popup and the dashboard map popup stay in lock-step. The v2
+  // keys this PR originally introduced are already in that catalog
+  // (`source_quality`, `whatsapp_30d`, `bant_signals_in_updates`,
+  // `contact_complete`, etc.), so no manual labels dict is needed here.
+  const factors = breakdownFactors(breakdown);
+  const llmAdjustment = llmAdjustmentOf(breakdown);
 
   return (
     <div
@@ -291,15 +282,14 @@ function ScoreBreakdownModal({ lead, onClose }: { lead: Lead; onClose: () => voi
           Score is computed from a heuristic model that weighs key lead attributes. Higher scores indicate hotter leads worth prioritizing first.
         </div>
 
-        {entries.length === 0 ? (
+        {factors.length === 0 ? (
           <div style={{ padding: 16, background: 'var(--s3)', borderRadius: 8, fontSize: 13, color: 'var(--text-dim)', textAlign: 'center' }}>
             No detailed breakdown available yet. Click <em>Rescore</em> on the lead detail page to compute one.
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {entries.map(([key, value]) => {
-              const label = labels[key] || key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-              const max = Math.max(20, ...entries.map(([, v]) => v));
+            {factors.map(({ key, label, value }) => {
+              const max = Math.max(20, ...factors.map((f) => f.value));
               const pct = Math.max(0, Math.min(100, (value / max) * 100));
               const color = value >= 15 ? '#10b981' : value >= 8 ? '#f59e0b' : '#6366f1';
               return (
@@ -314,6 +304,13 @@ function ScoreBreakdownModal({ lead, onClose }: { lead: Lead; onClose: () => voi
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {llmAdjustment != null && llmAdjustment !== 0 && (
+          <div style={{ marginTop: 10, fontSize: 12, color: 'var(--text-dim)', display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--s3)', borderRadius: 8 }}>
+            <span>AI rerank adjustment</span>
+            <span style={{ fontWeight: 700, color: llmAdjustment > 0 ? '#10b981' : '#ef4444' }}>{llmAdjustment > 0 ? '+' : ''}{llmAdjustment}</span>
           </div>
         )}
 

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { crmLeads, type LeadUpdate } from '../../lib/crmApi';
 import OwnerAvatar from './shared/OwnerAvatar';
+import MentionInput, { renderMentions } from '../messaging/MentionInput';
 
 /**
  * Append-only timeline of free-form Updates for a lead.
@@ -78,25 +79,18 @@ export default function LeadUpdatesTimeline({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        <textarea
+        <MentionInput
           value={draft}
-          onChange={(e) => setDraft(e.target.value)}
+          onChange={setDraft}
           onKeyDown={onKeyDown}
-          placeholder="Add an update — what just happened on this lead? (Ctrl/Cmd+Enter to save)"
+          placeholder="Add an update — type @ to tag a teammate (Ctrl/Cmd+Enter to save)"
           rows={3}
           maxLength={2000}
           disabled={saving}
-          style={{
-            width: '100%', boxSizing: 'border-box',
-            background: 'var(--s3)', border: '1px solid var(--border)',
-            color: 'var(--text)', padding: 10, borderRadius: 8, fontSize: 13,
-            resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5,
-            opacity: saving ? 0.6 : 1, minHeight: 60,
-          }}
         />
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <div style={{ fontSize: 10, color: 'var(--text-dim)' }}>
-            {draft.length}/2000 · stamps your name and time · feeds the next NBA
+            {draft.length}/2000 · stamps your name and time · @-mentioned teammates get notified
           </div>
           <button
             onClick={submit}
@@ -149,7 +143,7 @@ function UpdateRow({ u }: { u: LeadUpdate }) {
           </span>
         </div>
         <div style={{ fontSize: 13, color: 'var(--text)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: 1.5 }}>
-          {u.body}
+          {renderMentions(u.body)}
         </div>
       </div>
     </div>

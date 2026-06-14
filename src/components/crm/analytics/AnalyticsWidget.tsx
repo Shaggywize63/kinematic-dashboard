@@ -14,9 +14,20 @@ import {
   ResponsiveContainer, BarChart, Bar, LineChart, Line, AreaChart, Area,
   PieChart, Pie, Cell, XAxis, YAxis, Tooltip, Legend, CartesianGrid,
 } from 'recharts';
+import dynamic from 'next/dynamic';
 import { X, Pin, MoreVertical, AlertTriangle, Inbox, Edit3 } from 'lucide-react';
 import { crmAnalyticsExt, type WidgetInstance } from '../../../lib/crmAnalyticsExtApi';
+import { crmLeads } from '../../../lib/crmApi';
 import { widgetByType, datasetById, type ChartType, type WidgetMeta } from '../../../lib/crm/widgetCatalog';
+import TargetsLeaderboard from './TargetsLeaderboard';
+
+// leaflet.heat reaches for window.L on import, so the heatmap can only
+// load client-side. Dynamic-import with ssr:false keeps the analytics
+// page rendering on the server when the widget isn't in the layout.
+const LeadsGeoHeatmap = dynamic(() => import('../charts/LeadsGeoHeatmap'), {
+  ssr: false,
+  loading: () => <div style={{ padding: 16, color: 'var(--text-secondary)' }}>Loading map…</div>,
+});
 
 const COLORS = ['#3B82F6', '#10B981', '#8B5CF6', '#F59E0B', '#EC4899', '#14B8A6', '#F97316', '#84CC16', '#06B6D4', '#E0282C'];
 
@@ -187,6 +198,14 @@ async function fetchWidgetData(widget: WidgetInstance): Promise<unknown> {
     case 'territory_conversion':     return (await crmAnalyticsExt.territoryConversion()).data;
     case 'touchpoints_to_response':  return (await crmAnalyticsExt.touchpointsToResponse()).data;
     case 'leads_at_risk':            return (await crmAnalyticsExt.leadsAtRisk()).data;
+    // Heatmap shares the existing /leads/geo payload (also used by the
+    // LeadsGeoMap markers view), so the same tenant + city scope applies
+    // automatically. We strip down to the {latitude, longitude} the
+    // heat layer needs — the widget doesn't read status / score.
+    case 'leads_geo_heatmap':        return (await crmLeads.geo()).data ?? [];
+    // The leaderboard widget renders its own self-contained component
+    // (it fetches its own data), so there's nothing to fetch here.
+    case 'targets_leaderboard':      return null;
     default: throw new Error(`Unknown widget: ${widget.widget_type}`);
   }
 }
@@ -214,6 +233,12 @@ async function fetchCustomDataset(id: string): Promise<unknown> {
 
 function WidgetBody({ widget, data, accent }: { widget: WidgetInstance; data: unknown; accent: string }) {
   const chart = widget.chart_type as ChartType;
+
+  // The Targets leaderboard is a self-contained widget (own period + role
+  // pickers and data fetch); render it flat inside the tile.
+  if (widget.widget_type === 'targets_leaderboard') {
+    return <TargetsLeaderboard embedded />;
+  }
 
   if (widget.widget_type === 'custom') {
     const cfg = (widget.config as CustomConfig | undefined) ?? {};
@@ -340,6 +365,13 @@ function WidgetBody({ widget, data, accent }: { widget: WidgetInstance; data: un
       const rows = (data as Array<{ name: string; score: number; days_idle: number }>) ?? [];
       if (!rows.length) return <div style={{ ...empty, color: '#10B981' }}>✅ No leads at risk</div>;
       return <TableView rows={rows.map(r => ({ Name: r.name, Score: r.score, 'Days idle': r.days_idle }))} />;
+    }
+    case 'leads_geo_heatmap': {
+      // The geo endpoint already filters out null lat/lng rows server-side,
+      // but the dynamic-import wrapper re-checks before mounting so an
+      // empty payload renders a placeholder instead of a blank map.
+      const rows = (data as Array<{ latitude: number | null; longitude: number | null }>) ?? [];
+      return <LeadsGeoHeatmap points={rows} />;
     }
   }
   return <div style={empty}>Unsupported chart type</div>;

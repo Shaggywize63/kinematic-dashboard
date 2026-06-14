@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import type { NextBestAction, NextBestActionMethodology } from '../../types/crm';
 import AiBadge from './shared/AiBadge';
 
@@ -28,11 +29,19 @@ export default function NextBestActionCard({
   action,
   onLoad,
   loading,
+  leadId,
+  dealId,
 }: {
   action?: NextBestAction | null;
   onLoad?: () => void;
   loading?: boolean;
+  // Either leadId or dealId enables the CTA buttons. The card hides
+  // them when neither is set (e.g. a forecast widget that surfaces an
+  // NBA without context).
+  leadId?: string | null;
+  dealId?: string | null;
 }) {
+  const router = useRouter();
   const prio = priorityKey(action?.priority as string | undefined);
   const tone = prio === 'high' ? '#E01E2C' : prio === 'medium' ? '#F7B538' : '#28B463';
   const reasonText = action?.reason ?? action?.rationale ?? '';
@@ -91,6 +100,28 @@ export default function NextBestActionCard({
               </div>
             )}
           </div>
+          {/* CTAs — make the suggestion actionable. Log it now jumps to
+              the activity composer with completed_at preset to now;
+              Schedule it leaves the activity planned with due_at derived
+              from the suggested_when bucket. Both prefill the parent
+              record (lead or deal) + type + subject so the rep lands
+              on a near-complete row. Hidden when no parent context. */}
+          {(leadId || dealId) && (
+            <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+              <button
+                onClick={() => router.push(buildComposeHref({ action, leadId, dealId, mode: 'log' }))}
+                style={ctaPrimary(tone)}
+              >
+                ✓ Log it now
+              </button>
+              <button
+                onClick={() => router.push(buildComposeHref({ action, leadId, dealId, mode: 'schedule' }))}
+                style={ctaSecondary}
+              >
+                📅 Schedule {action.suggested_when ? `for ${WHEN_LABEL[action.suggested_when] || action.suggested_when}` : ''}
+              </button>
+            </div>
+          )}
         </div>
       ) : (
         <div style={{ color: 'var(--text-dim)', fontSize: 12 }}>No suggestion yet.</div>
@@ -245,6 +276,96 @@ function SignalChip({ label, value, sub }: { label: string; value: string; sub?:
     </div>
   );
 }
+
+// ── CTA helpers ──────────────────────────────────────────────────────
+
+// Map the NBA action verb to a CRM activity type. The compose page accepts
+// these as its `?type=` param.
+const NBA_TO_ACTIVITY_TYPE: Record<string, string> = {
+  call: 'call',
+  meeting: 'meeting',
+  send_proposal: 'task',
+  nurture: 'task',
+  qualify: 'call',
+  disqualify: 'note',
+};
+
+const ACTION_SUBJECT: Record<string, string> = {
+  call: 'Call the lead — NBA suggestion',
+  meeting: 'Meet with the lead — NBA suggestion',
+  send_proposal: 'Send proposal — NBA suggestion',
+  nurture: 'Nurture follow-up — NBA suggestion',
+  qualify: 'Qualify the lead — NBA suggestion',
+  disqualify: 'Disqualify — NBA suggestion',
+};
+
+function whenToDueAt(when?: string | null): string | null {
+  if (!when || when === 'now') return new Date().toISOString();
+  const d = new Date();
+  if (when === 'today') {
+    d.setHours(17, 0, 0, 0);
+    return d.toISOString();
+  }
+  if (when === 'this_week') {
+    // Friday of this week, 5pm — gives 1-5 days runway depending on
+    // what day it currently is. Past Friday rolls to next Friday.
+    const day = d.getDay(); // 0 = Sun … 5 = Fri
+    const delta = ((5 - day + 7) % 7) || 7;
+    d.setDate(d.getDate() + delta);
+    d.setHours(17, 0, 0, 0);
+    return d.toISOString();
+  }
+  if (when === 'next_week') {
+    d.setDate(d.getDate() + 7 + ((1 - d.getDay() + 7) % 7)); // next Monday
+    d.setHours(10, 0, 0, 0);
+    return d.toISOString();
+  }
+  return new Date().toISOString();
+}
+
+function buildComposeHref({
+  action,
+  leadId,
+  dealId,
+  mode,
+}: {
+  action: NextBestAction;
+  leadId?: string | null;
+  dealId?: string | null;
+  mode: 'log' | 'schedule';
+}): string {
+  const type = NBA_TO_ACTIVITY_TYPE[action.action] || 'task';
+  const subject = ACTION_SUBJECT[action.action] || `${action.action} — NBA suggestion`;
+  const params = new URLSearchParams();
+  params.set('type', type);
+  params.set('subject', subject);
+  if (leadId) params.set('lead_id', leadId);
+  if (dealId) params.set('deal_id', dealId);
+  if (mode === 'log') {
+    // Tell the composer to default the row to completed (now). The page
+    // reads this flag to flip the "log past" toggle on its own.
+    params.set('completed', '1');
+  } else {
+    const due = whenToDueAt(action.suggested_when);
+    if (due) params.set('due_at', due);
+  }
+  return `/dashboard/crm/activities/new?${params.toString()}`;
+}
+
+function ctaPrimary(tone: string): React.CSSProperties {
+  return {
+    padding: '7px 14px', borderRadius: 8, border: 'none',
+    background: tone, color: '#fff', fontSize: 12, fontWeight: 700,
+    cursor: 'pointer',
+  };
+}
+
+const ctaSecondary: React.CSSProperties = {
+  padding: '7px 14px', borderRadius: 8,
+  border: '1px solid var(--border)',
+  background: 'var(--s3)', color: 'var(--text)',
+  fontSize: 12, fontWeight: 700, cursor: 'pointer',
+};
 
 function PlanStep({ step }: { step: NextBestActionMethodology['closing_plan'][number] }) {
   const whenColor = step.when === 'now' || step.when === 'today' ? '#E01E2C'

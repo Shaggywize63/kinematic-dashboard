@@ -3,19 +3,20 @@ import { Component, useEffect, useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { crmDeals, crmPipelines, crmAi } from '../../../../../lib/crmApi';
-import type { Deal, Pipeline, DealHistoryEntry, DealContact, Activity, NextBestAction, WinProbability } from '../../../../../types/crm';
+import { crmDeals, crmPipelines, crmAi, crmLineItems, crmLeads, crmProducts } from '../../../../../lib/crmApi';
+import type { Deal, Pipeline, DealHistoryEntry, DealContact, Activity, NextBestAction, WinProbability, DealLineItem, Lead, Product } from '../../../../../types/crm';
 import DealStageProgress from '../../../../../components/crm/DealStageProgress';
 import WinProbabilityGauge from '../../../../../components/crm/WinProbabilityGauge';
 import Breadcrumbs from '../../../../../components/crm/shared/Breadcrumbs';
 import NextBestActionCard from '../../../../../components/crm/NextBestActionCard';
-import AiDraftReplyPanel from '../../../../../components/crm/AiDraftReplyPanel';
 import CallButton from '../../../../../components/crm/shared/CallButton';
 import ActivityTimeline from '../../../../../components/crm/ActivityTimeline';
 import DealEditModal from '../../../../../components/crm/DealEditModal';
 import AddToPipelineModal from '../../../../../components/crm/AddToPipelineModal';
 import LogoSpinner from '../../../../../components/shared/LogoSpinner';
-import { formatINR } from '../../../../../lib/formatCurrency';
+import { formatINR, formatKg, type DashboardUnit } from '../../../../../lib/formatCurrency';
+import { useAuth } from '../../../../../hooks/useAuth';
+import { isConsumerChampion } from '../../../../../lib/clientFeatures';
 
 const LOST_REASONS = [
   'Price too high',
@@ -65,6 +66,10 @@ const EVENT_LABEL: Record<string, string> = {
   reopened: 'Re-opened',
   created: 'Deal created',
   note_added: 'Note added',
+  // New free-text entry written by updateDeal when closed_quantities or
+  // other non-stage / non-amount fields change. The note itself surfaces
+  // alongside this label.
+  note: 'Update',
 };
 const labelEvent = (e?: string) => {
   if (!e) return 'Event';
@@ -82,14 +87,15 @@ function fmtIst(iso?: string | null) {
   } catch { return { date: '—', time: '—', ts: iso }; }
 }
 
-function normaliseEvent(h: any): { id?: string; eventType: string; createdAt: string; fromStage?: string; toStage?: string } | null {
+function normaliseEvent(h: any): { id?: string; eventType: string; createdAt: string; fromStage?: string; toStage?: string; note?: string } | null {
   if (!h || typeof h !== 'object') return null;
   const eventType = h.event_type || h.eventType || h.type || h.event || '';
   const createdAt = h.created_at || h.createdAt || h.timestamp || h.at || '';
   const fromStage = h.from_stage || h.fromStage || h.previous_stage || '';
   const toStage   = h.to_stage   || h.toStage   || h.next_stage     || '';
-  if (!eventType && !createdAt && !fromStage && !toStage) return null;
-  return { id: h.id, eventType, createdAt, fromStage: fromStage || undefined, toStage: toStage || undefined };
+  const note = typeof h.note === 'string' ? h.note : '';
+  if (!eventType && !createdAt && !fromStage && !toStage && !note) return null;
+  return { id: h.id, eventType, createdAt, fromStage: fromStage || undefined, toStage: toStage || undefined, note: note || undefined };
 }
 
 class SafeRender extends Component<{ label: string; children: ReactNode }, { error: Error | null }> {
@@ -113,9 +119,30 @@ class SafeRender extends Component<{ label: string; children: ReactNode }, { err
 }
 
 export default function DealDetailPage() {
+  // Consumer Champion gate — hides Win Probability + Next Best Action
+  // cards. They're manager-tier AI surfaces; reps don't act on them.
+  const { user: authUser } = useAuth();
+  const isChampion = isConsumerChampion(authUser as Parameters<typeof isConsumerChampion>[0]);
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [deal, setDeal] = useState<Deal | null>(null);
+  // INR ↔ Weight toggle for the Amount field. Reads / writes the same
+  // localStorage key the dashboard analytics page uses so flipping the
+  // unit on one surface persists everywhere.
+  const [unit, setUnit] = useState<DashboardUnit>('inr');
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage.getItem('crm_dashboard_unit') === 'weight') {
+        setUnit('weight');
+      }
+    } catch { /* ignore */ }
+  }, []);
+  const setUnitPersisted = (next: DashboardUnit) => {
+    setUnit(next);
+    try {
+      if (typeof window !== 'undefined') window.localStorage.setItem('crm_dashboard_unit', next);
+    } catch { /* ignore */ }
+  };
   const [pipeline, setPipeline] = useState<Pipeline | null>(null);
   const [allPipelines, setAllPipelines] = useState<Pipeline[]>([]);
   const [history, setHistory] = useState<DealHistoryEntry[]>([]);
@@ -402,8 +429,54 @@ export default function DealDetailPage() {
                 ✗ This deal is closed as LOST
               </div>
             )}
+            {(() => {
+              // Hero Amount + Weight card — pulled out of the small Field
+              // grid so the two headline numbers dominate the detail page.
+              // Weight prefers deal.custom_fields.volume_kg, falls back to
+              // recomputing from product_lines (1 kg / 1000 tonne).
+              const cf = ((deal as Deal & { custom_fields?: Record<string, unknown> | null }).custom_fields ?? {}) as Record<string, unknown>;
+              let kg = 0;
+              const cached = cf.volume_kg;
+              const cachedNum = typeof cached === 'number' ? cached : Number(cached);
+              if (Number.isFinite(cachedNum) && cachedNum > 0) kg = cachedNum;
+              else {
+                const lines = cf.product_lines;
+                if (Array.isArray(lines)) {
+                  for (const l of lines as Array<Record<string, unknown>>) {
+                    const qty = Number(l.quantity ?? 0);
+                    if (!Number.isFinite(qty) || qty <= 0) continue;
+                    const u = String(l.measuring_unit ?? '').trim().toLowerCase();
+                    kg += qty * (u === 'tonne' ? 1000 : 1);
+                  }
+                }
+              }
+              return (
+                <div style={{
+                  display: 'flex', alignItems: 'baseline', gap: 24, flexWrap: 'wrap',
+                  background: 'linear-gradient(135deg, rgba(99,102,241,0.10), rgba(99,102,241,0.02))',
+                  border: '1px solid var(--border)', borderRadius: 14, padding: '18px 22px', marginBottom: 14,
+                }}>
+                  <div>
+                    <div style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 700, letterSpacing: 0.8, textTransform: 'uppercase' }}>Amount</div>
+                    <div style={{ fontSize: 30, color: 'var(--text)', fontWeight: 800, lineHeight: 1.1, marginTop: 4 }}>
+                      {formatINR(Number(deal.amount) || 0)}
+                    </div>
+                  </div>
+                  {kg > 0 && (
+                    <>
+                      <div style={{ width: 1, alignSelf: 'stretch', background: 'var(--border)' }} />
+                      <div>
+                        <div style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 700, letterSpacing: 0.8, textTransform: 'uppercase' }}>Weight</div>
+                        <div style={{ fontSize: 30, color: 'var(--text)', fontWeight: 800, lineHeight: 1.1, marginTop: 4 }}>
+                          {formatKg(kg)}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })()}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 14, fontSize: 13 }}>
-              <Field label="Amount" value={formatINR(Number(deal.amount) || 0)} />
               <Field label="Stage" value={deal.stage_name} />
               <Field label="Status" value={deal.status} />
               <Field label="Probability" value={`${Math.round((Number(deal.probability) || 0) * 100)}%`} />
@@ -452,8 +525,8 @@ export default function DealDetailPage() {
             </Card>
           </SafeRender>
 
-          <SafeRender label="line items">
-            <DealLineItemsCard customFields={(deal as any).custom_fields} />
+          <SafeRender label="products">
+            <DealProductsCard deal={deal} />
           </SafeRender>
 
           <SafeRender label="activities">
@@ -484,6 +557,12 @@ export default function DealDetailPage() {
                             </span>
                           )}
                         </div>
+                        {/* Free-text annotation written by updateDeal for
+                            non-stage edits (e.g. closed-quantity updates),
+                            so the rep can see exactly what changed. */}
+                        {h.note && (
+                          <div style={{ fontSize: 12, color: 'var(--text)', lineHeight: 1.4 }}>{h.note}</div>
+                        )}
                         {h.createdAt && (
                           <div style={{ fontSize: 11, color: 'var(--text-dim)', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                             <span>{t.date}</span>
@@ -499,9 +578,6 @@ export default function DealDetailPage() {
             </Card>
           </SafeRender>
 
-          <SafeRender label="AI draft reply">
-            <AiDraftReplyPanel dealId={id} />
-          </SafeRender>
         </div>
 
         <div style={{ flex: '1 1 280px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 18 }}>
@@ -513,6 +589,10 @@ export default function DealDetailPage() {
             </Card>
           )}
 
+          {/* Win Probability + Next Best Action are AI manager-tier
+              surfaces — hidden for Consumer Champions who own the
+              FE-tier flow and don't act on these recommendations. */}
+          {!isChampion && (
           <SafeRender label="win probability">
             <div style={{ position: 'relative' }}>
               <WinProbabilityGauge
@@ -530,12 +610,16 @@ export default function DealDetailPage() {
               )}
             </div>
           </SafeRender>
+          )}
+          {!isChampion && (
           <button onClick={loadWinProb} disabled={winBusy} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontSize: 12 }}>
             {winBusy ? 'Predicting…' : 'Re-forecast Win Probability'}
           </button>
+          )}
+          {!isChampion && (
           <SafeRender label="next best action">
             <div style={{ position: 'relative' }}>
-              <NextBestActionCard action={nba} onLoad={loadNba} loading={nbaBusy} />
+              <NextBestActionCard action={nba} onLoad={loadNba} loading={nbaBusy} dealId={id} />
               {nbaBusy && !nba && (
                 <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <LogoSpinner size={40} label="Computing…" />
@@ -543,6 +627,7 @@ export default function DealDetailPage() {
               )}
             </div>
           </SafeRender>
+          )}
         </div>
       </div>
 
@@ -602,6 +687,477 @@ export default function DealDetailPage() {
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Products section — replaces the legacy line-items table on the deal
+ * page. Reads the product_lines the rep captured on the linked LEAD
+ * (custom_fields.product_lines) and lays them out as one row per
+ * product with four columns: Product Name | Estimated Quantity (with
+ * its unit) | Closed Quantity (editable, number) | Balance (read-only).
+ *
+ * Balance = closed_quantity - estimated_quantity. The display strips
+ * the sign so the cell always reads as a positive number, and a
+ * directional arrow icon encodes the polarity:
+ *
+ *   positive balance (closed > estimated): RED arrow pointing DOWN
+ *   negative balance (closed < estimated): GREEN arrow pointing UP
+ *   zero:                                  no arrow
+ *
+ * Closed quantities live on the deal under
+ *   deal.custom_fields.closed_quantities = { [product_id]: number }
+ * and persist via crmDeals.update(...). Edits debounce-save to avoid
+ * pounding the API on every keystroke.
+ */
+function DealProductsCard({ deal }: { deal: Deal }) {
+  type LeadLine = { product_id?: string | null; quantity?: number | string | null; measuring_unit?: string | null };
+  // Per-row snapshot of the bits the Products table needs to compute the
+  // three amount columns: estimated, closed, and balance. price / weight_kg
+  // come from the products catalogue so re-saving the deal doesn't have to
+  // re-resolve the product. unitFactor is 1 for kg and 1000 for tonne.
+  type ProductRow = {
+    product_id: string;
+    product_name: string;
+    estimated: number;
+    unit: string;
+    price: number;
+    weight_kg: number;
+    unitFactor: number;
+  };
+
+  const leadId = (deal as Deal & { lead_id?: string | null }).lead_id ?? null;
+  const dealCf = ((deal as Deal & { custom_fields?: Record<string, unknown> | null }).custom_fields ?? {}) as Record<string, unknown>;
+  const initialClosed = (() => {
+    const raw = dealCf.closed_quantities;
+    if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+      const out: Record<string, number> = {};
+      for (const [k, v] of Object.entries(raw)) {
+        const n = typeof v === 'number' ? v : Number(v);
+        if (Number.isFinite(n)) out[k] = n;
+      }
+      return out;
+    }
+    return {};
+  })();
+
+  const [rows, setRows] = useState<ProductRow[]>([]);
+  const [closed, setClosed] = useState<Record<string, number>>(initialClosed);
+  // String-edit buffer so the rep can clear a cell mid-typing without
+  // it snapping back to 0 — we only push the number into `closed`
+  // (and persist) once a valid number is entered.
+  const [draft, setDraft] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(true);
+  const [productMap, setProductMap] = useState<Map<string, Product>>(new Map());
+  const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  // Snapshot of `closed` taken from the server on load + after each save.
+  // Used to compute the dirty flag and the "Reset" button.
+  const [savedClosed, setSavedClosed] = useState<Record<string, number>>(initialClosed);
+
+  // Load: linked lead's product_lines + the products catalogue (for
+  // resolving UUID → name when the line doesn't carry a snapshot label).
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [leadR, prodR] = await Promise.allSettled([
+          leadId ? crmLeads.get(leadId) : Promise.resolve(null),
+          crmProducts.list(),
+        ]);
+        if (cancelled) return;
+        const productList = prodR.status === 'fulfilled' ? (prodR.value?.data ?? []) : [];
+        const map = new Map<string, Product>();
+        productList.forEach((p) => map.set(p.id, p));
+        setProductMap(map);
+        if (leadR.status === 'fulfilled' && leadR.value) {
+          const lead = leadR.value.data as Lead & { custom_fields?: Record<string, unknown> | null };
+          const cf = (lead?.custom_fields ?? {}) as Record<string, unknown>;
+          let lines: LeadLine[] = [];
+          const arr = cf.product_lines;
+          if (Array.isArray(arr) && arr.length > 0) {
+            lines = arr as LeadLine[];
+          } else if (cf.product_interested || cf.quantity != null) {
+            lines = [{
+              product_id: cf.product_interested as string | null,
+              quantity: cf.quantity as number | string | null,
+              measuring_unit: typeof cf.measuring_unit === 'string' ? cf.measuring_unit : null,
+            }];
+          }
+          const built: ProductRow[] = lines
+            .filter((l) => !!l.product_id)
+            .map((l) => {
+              const p = map.get(String(l.product_id));
+              const qty = typeof l.quantity === 'number' ? l.quantity : Number(l.quantity ?? 0);
+              const unit = (l.measuring_unit || '').toString();
+              const unitFactor = unit.trim().toLowerCase() === 'tonne' ? 1000 : 1;
+              return {
+                product_id: String(l.product_id),
+                product_name: p?.name ?? String(l.product_id).slice(0, 8),
+                estimated: Number.isFinite(qty) ? qty : 0,
+                unit,
+                price: Number(p?.price ?? 0),
+                weight_kg: Number(p?.weight_kg ?? 0),
+                unitFactor,
+              };
+            });
+          setRows(built);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [leadId]);
+
+  // Mark the row dirty whenever the rep edits a value so the Save
+  // button can light up; explicit save replaces the previous
+  // auto-save-on-keystroke so each save lands as one history entry.
+  useEffect(() => {
+    if (loading) return;
+    const aKeys = Object.keys(closed).sort();
+    const bKeys = Object.keys(savedClosed).sort();
+    const sameKeys = aKeys.length === bKeys.length && aKeys.every((k, i) => k === bKeys[i]);
+    const sameVals = sameKeys && aKeys.every((k) => closed[k] === savedClosed[k]);
+    setDirty(!sameVals);
+  }, [closed, savedClosed, loading]);
+
+  // Explicit save — fires one PATCH and records a single deal-history
+  // entry. We don't auto-save anymore so the rep can review the row
+  // before committing.
+  const saveClosed = async () => {
+    try {
+      setSaving(true);
+      const nextCf = { ...dealCf, closed_quantities: closed };
+      await crmDeals.update(deal.id, { custom_fields: nextCf } as unknown as Partial<Deal>);
+      setSavedClosed(closed);
+      setDirty(false);
+      toast.success('Saved');
+    } catch (e: unknown) {
+      toast.error((e as Error)?.message || 'Could not save closed quantities');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Cell renderer for the balance column. The sign is stripped so the
+  // cell always reads as a positive number; a directional arrow encodes
+  // polarity:
+  //   closed < estimated → RED ▼ (rep is short of the target)
+  //   closed ≥ estimated → GREEN ▲ (target met or over-delivered)
+  // When the rep has hit the target exactly the cell reads "0" with the
+  // green ▲ — same green-up treatment as an over-delivery.
+  const renderBalance = (estimated: number, closed: number, opts?: { currency?: boolean }) => {
+    const balance = closed - estimated;
+    const abs = Math.abs(balance);
+    const display = opts?.currency
+      ? `₹${abs.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
+      : (Number.isInteger(abs) ? String(abs) : abs.toFixed(2));
+    if (closed < estimated) {
+      return (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#ef4444', fontWeight: 700 }}>
+          <span aria-hidden style={{ fontSize: 14, lineHeight: 1 }}>▼</span>
+          <span>{display}</span>
+        </span>
+      );
+    }
+    return (
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#10b981', fontWeight: 700 }}>
+        <span aria-hidden style={{ fontSize: 14, lineHeight: 1 }}>▲</span>
+        <span>{display}</span>
+      </span>
+    );
+  };
+
+  // Amount math: amount = (price / weight_kg) × (quantity × unitFactor).
+  // Returns 0 when any leg is missing or non-positive — same convention
+  // the lead form uses.
+  const amountFor = (row: ProductRow, qty: number): number => {
+    if (row.price <= 0 || row.weight_kg <= 0 || qty <= 0) return 0;
+    return (row.price / row.weight_kg) * (qty * row.unitFactor);
+  };
+
+  const fmtINR = (n: number): string =>
+    n > 0 ? `₹${n.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : '—';
+
+  if (loading) {
+    return (
+      <Card title="Products">
+        <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>Loading…</div>
+      </Card>
+    );
+  }
+  if (!leadId) {
+    return (
+      <Card title="Products">
+        <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>
+          Link this deal to a lead to track product quantities here.
+        </div>
+      </Card>
+    );
+  }
+  if (rows.length === 0) {
+    return (
+      <Card title="Products">
+        <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>
+          The linked lead doesn&rsquo;t have any product lines yet. Capture them on the lead form to see them here.
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card title={`Products${saving ? ' · Saving…' : ''}`}>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <thead>
+            <tr style={{ borderBottom: '1px solid var(--border)', color: 'var(--text-dim)', textAlign: 'left' }}>
+              <th style={{ padding: '8px 10px', fontWeight: 700, fontSize: 11, textTransform: 'uppercase' }}>Product Interested</th>
+              <th style={{ padding: '8px 10px', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', textAlign: 'right' }}>Quantity</th>
+              <th style={{ padding: '8px 10px', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', textAlign: 'right' }}>Closed Quantity</th>
+              <th style={{ padding: '8px 10px', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', textAlign: 'right' }}>Balance</th>
+              <th style={{ padding: '8px 10px', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', textAlign: 'right' }}>Estimate Amount</th>
+              <th style={{ padding: '8px 10px', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', textAlign: 'right' }}>Closed Amount</th>
+              <th style={{ padding: '8px 10px', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', textAlign: 'right' }}>Balance Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => {
+              const closedVal = closed[r.product_id] ?? 0;
+              const draftVal = draft[r.product_id];
+              const inputVal = draftVal !== undefined ? draftVal : (closedVal ? String(closedVal) : '');
+              const estimateAmount = amountFor(r, r.estimated);
+              const closedAmount = amountFor(r, closedVal);
+              return (
+                <tr key={r.product_id} style={{ borderBottom: '1px solid var(--border)' }}>
+                  <td style={{ padding: '10px', color: 'var(--text)' }}>{r.product_name}</td>
+                  <td style={{ padding: '10px', textAlign: 'right', color: 'var(--text)' }}>
+                    {r.estimated}{r.unit ? <span style={{ color: 'var(--text-dim)', marginLeft: 4 }}>{r.unit}</span> : null}
+                  </td>
+                  <td style={{ padding: '10px', textAlign: 'right' }}>
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={inputVal}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setDraft((d) => ({ ...d, [r.product_id]: v }));
+                        if (v === '') {
+                          setClosed((c) => { const n = { ...c }; delete n[r.product_id]; return n; });
+                        } else {
+                          const n = Number(v);
+                          if (Number.isFinite(n)) {
+                            setClosed((c) => ({ ...c, [r.product_id]: n }));
+                          }
+                        }
+                      }}
+                      style={{ ...inlineInputRight, maxWidth: 110, marginLeft: 'auto' }}
+                      placeholder="0"
+                    />
+                  </td>
+                  <td style={{ padding: '10px', textAlign: 'right' }}>
+                    {renderBalance(r.estimated, closedVal)}
+                  </td>
+                  <td style={{ padding: '10px', textAlign: 'right', color: 'var(--text)' }}>
+                    {fmtINR(estimateAmount)}
+                  </td>
+                  <td style={{ padding: '10px', textAlign: 'right', color: 'var(--text)' }}>
+                    {fmtINR(closedAmount)}
+                  </td>
+                  <td style={{ padding: '10px', textAlign: 'right' }}>
+                    {renderBalance(estimateAmount, closedAmount, { currency: true })}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10, marginTop: 12 }}>
+        {dirty && (
+          <button
+            type="button"
+            onClick={() => { setClosed(savedClosed); setDraft({}); setDirty(false); }}
+            disabled={saving}
+            style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+          >Reset</button>
+        )}
+        <button
+          type="button"
+          onClick={() => { void saveClosed(); }}
+          disabled={!dirty || saving}
+          style={{
+            background: dirty ? 'var(--primary)' : 'var(--s3)',
+            border: 'none',
+            color: dirty ? '#fff' : 'var(--text-dim)',
+            padding: '7px 16px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+            cursor: (!dirty || saving) ? 'not-allowed' : 'pointer',
+            opacity: saving ? 0.6 : 1,
+          }}
+        >{saving ? 'Saving…' : 'Save'}</button>
+      </div>
+    </Card>
+  );
+}
+
+/**
+ * Editable line items section — reads from crm_deal_line_items via the
+ * /deals/:id/line-items endpoint and lets the rep add / edit / delete
+ * rows. Each row has a name, optional product reference, qty, unit
+ * price, and an auto-computed line_total. The card sums the total at
+ * the bottom so the rep can see the deal value materialise as they add
+ * line items. Bespoke for the use case "record multiple deal values on
+ * the deal page" — one deal, N line items, total = Σ line_total.
+ */
+function EditableLineItemsCard({ dealId }: { dealId: string }) {
+  const [items, setItems] = useState<DealLineItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [draft, setDraft] = useState<{ name: string; quantity: string; unit_price: string }>({ name: '', quantity: '1', unit_price: '0' });
+  const [adding, setAdding] = useState(false);
+  const [newRow, setNewRow] = useState<{ name: string; quantity: string; unit_price: string }>({ name: '', quantity: '1', unit_price: '0' });
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const r = await crmDeals.listLineItems(dealId);
+      setItems(r.data || []);
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to load line items');
+    } finally { setLoading(false); }
+  };
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [dealId]);
+
+  const total = items.reduce((s, l) => s + (Number(l.line_total) || 0), 0);
+
+  const startEdit = (l: DealLineItem) => {
+    setEditingId(l.id);
+    setDraft({ name: l.name || '', quantity: String(l.quantity ?? 1), unit_price: String(l.unit_price ?? 0) });
+  };
+
+  const saveEdit = async (id: string) => {
+    setBusyId(id);
+    try {
+      const r = await crmLineItems.update(id, {
+        name: draft.name.trim() || undefined,
+        quantity: Number(draft.quantity) || 0,
+        unit_price: Number(draft.unit_price) || 0,
+      });
+      setItems((prev) => prev.map((l) => (l.id === id ? { ...l, ...r.data } : l)));
+      setEditingId(null);
+      toast.success('Line item updated');
+    } catch (e: any) {
+      toast.error(e.message || 'Update failed');
+    } finally { setBusyId(null); }
+  };
+
+  const remove = async (id: string) => {
+    if (!confirm('Delete this line item?')) return;
+    setBusyId(id);
+    try {
+      await crmLineItems.remove(id);
+      setItems((prev) => prev.filter((l) => l.id !== id));
+      toast.success('Line item deleted');
+    } catch (e: any) {
+      toast.error(e.message || 'Delete failed');
+    } finally { setBusyId(null); }
+  };
+
+  const addRow = async () => {
+    const nm = newRow.name.trim();
+    if (!nm) { toast.error('Name is required'); return; }
+    const qty = Number(newRow.quantity) || 0;
+    const up = Number(newRow.unit_price) || 0;
+    setAdding(true);
+    try {
+      const r = await crmDeals.addLineItem(dealId, { name: nm, quantity: qty, unit_price: up });
+      setItems((prev) => [...prev, r.data]);
+      setNewRow({ name: '', quantity: '1', unit_price: '0' });
+      toast.success('Line item added');
+    } catch (e: any) {
+      toast.error(e.message || 'Add failed');
+    } finally { setAdding(false); }
+  };
+
+  return (
+    <Card title={`Line Items${items.length > 0 ? ` (${items.length})` : ''}`}>
+      {loading ? (
+        <div style={{ color: 'var(--text-dim)', fontSize: 12 }}>Loading…</div>
+      ) : items.length === 0 ? (
+        <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 10 }}>
+          No line items yet. Add one to record a deal value.
+        </div>
+      ) : (
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, color: 'var(--text)' }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid var(--border)', color: 'var(--text-dim)', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                <th style={th}>Item</th>
+                <th style={thRight}>Qty</th>
+                <th style={thRight}>Unit Price</th>
+                <th style={thRight}>Total</th>
+                <th style={thRight}>—</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((l) => {
+                const isEditing = editingId === l.id;
+                return (
+                  <tr key={l.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                    <td style={td}>
+                      {isEditing
+                        ? <input style={inlineInput} value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
+                        : (l.name || '—')}
+                    </td>
+                    <td style={tdRight}>
+                      {isEditing
+                        ? <input style={inlineInputRight} type="number" step="0.01" value={draft.quantity} onChange={(e) => setDraft({ ...draft, quantity: e.target.value })} />
+                        : Number(l.quantity).toLocaleString()}
+                    </td>
+                    <td style={tdRight}>
+                      {isEditing
+                        ? <input style={inlineInputRight} type="number" step="0.01" value={draft.unit_price} onChange={(e) => setDraft({ ...draft, unit_price: e.target.value })} />
+                        : formatINR(Number(l.unit_price) || 0)}
+                    </td>
+                    <td style={tdRight}><strong>{formatINR(Number(l.line_total) || 0)}</strong></td>
+                    <td style={tdRight}>
+                      {isEditing ? (
+                        <>
+                          <button onClick={() => saveEdit(l.id)} disabled={busyId === l.id} style={smallBtnPrimary}>Save</button>{' '}
+                          <button onClick={() => setEditingId(null)} disabled={busyId === l.id} style={smallBtnGhost}>Cancel</button>
+                        </>
+                      ) : (
+                        <>
+                          <button onClick={() => startEdit(l)} disabled={busyId === l.id} style={smallBtnGhost}>Edit</button>{' '}
+                          <button onClick={() => remove(l.id)} disabled={busyId === l.id} style={smallBtnDanger}>Delete</button>
+                        </>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+              <tr style={{ background: 'var(--s3)', fontWeight: 700 }}>
+                <td style={td}>Total</td>
+                <td style={tdRight}>—</td>
+                <td style={tdRight}>—</td>
+                <td style={tdRight}>{formatINR(total)}</td>
+                <td style={tdRight}>—</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Inline "add a line item" row, always visible at the bottom. */}
+      <div style={{ marginTop: 12, padding: 10, background: 'var(--s3)', border: '1px dashed var(--border)', borderRadius: 10, display: 'grid', gridTemplateColumns: '2fr 1fr 1fr auto', gap: 8, alignItems: 'center' }}>
+        <input style={inlineInput} placeholder="Item / product name" value={newRow.name} onChange={(e) => setNewRow({ ...newRow, name: e.target.value })} />
+        <input style={inlineInputRight} type="number" step="0.01" placeholder="Qty" value={newRow.quantity} onChange={(e) => setNewRow({ ...newRow, quantity: e.target.value })} />
+        <input style={inlineInputRight} type="number" step="0.01" placeholder="Unit price" value={newRow.unit_price} onChange={(e) => setNewRow({ ...newRow, unit_price: e.target.value })} />
+        <button onClick={addRow} disabled={adding} style={smallBtnPrimary}>{adding ? 'Adding…' : '+ Add'}</button>
+      </div>
+    </Card>
   );
 }
 
@@ -694,6 +1250,13 @@ const th: React.CSSProperties      = { textAlign: 'left',  padding: '8px 10px', 
 const thRight: React.CSSProperties = { textAlign: 'right', padding: '8px 10px', fontWeight: 700 };
 const td: React.CSSProperties      = { textAlign: 'left',  padding: '10px',     verticalAlign: 'top' };
 const tdRight: React.CSSProperties = { textAlign: 'right', padding: '10px',     verticalAlign: 'top', whiteSpace: 'nowrap' };
+// Used by EditableLineItemsCard — kept inline so the line-items table
+// reads like the rest of the deal page's compact-table aesthetic.
+const inlineInput: React.CSSProperties      = { width: '100%', boxSizing: 'border-box', padding: '6px 8px', fontSize: 12, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--s3)', color: 'var(--text)' };
+const inlineInputRight: React.CSSProperties = { ...inlineInput, textAlign: 'right' };
+const smallBtnPrimary: React.CSSProperties  = { background: 'var(--primary)', border: 'none', color: '#fff', padding: '5px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' };
+const smallBtnGhost: React.CSSProperties    = { background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', padding: '5px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer' };
+const smallBtnDanger: React.CSSProperties   = { background: 'transparent', border: '1px solid #ef4444', color: '#ef4444', padding: '5px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer' };
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -704,11 +1267,12 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
   );
 }
 
-function Field({ label, value }: { label: string; value?: string | null }) {
+function Field({ label, value, trailing }: { label: string; value?: string | null; trailing?: React.ReactNode }) {
   return (
     <div style={{ minWidth: 0 }}>
       <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>{label}</div>
       <div style={{ color: 'var(--text)', marginTop: 2, wordBreak: 'break-word' }}>{value || '—'}</div>
+      {trailing}
     </div>
   );
 }

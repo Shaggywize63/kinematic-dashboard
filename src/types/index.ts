@@ -15,6 +15,14 @@ export interface AuthUser {
   // back to the tenant's full city list.
   assigned_city_names?: string[];
   role_assigned_cities?: string[];
+  // Org-role identity, surfaced by /auth/me when the user has a designation
+  // assigned via Settings → Roles. Used by the CRM UI to gate write actions:
+  // a "Consumer Champion" (data_scope='own') sees their own leads only and
+  // therefore must NOT be allowed to reassign — the picker / Assign button
+  // disappear when this is 'own'.
+  org_role_id?: string | null;
+  org_role_name?: string | null;
+  org_role_data_scope?: 'own' | 'team' | 'all' | null;
   is_active: boolean;
 }
 

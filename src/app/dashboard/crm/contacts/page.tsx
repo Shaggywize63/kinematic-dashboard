@@ -7,6 +7,7 @@ import type { Contact } from '../../../../types/crm';
 import ContactsTable, { CONTACT_COLUMNS } from '../../../../components/crm/ContactsTable';
 import ViewCustomizer from '../../../../components/crm/shared/ViewCustomizer';
 import { useViewPrefs } from '../../../../lib/crmViewPrefs';
+import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
 
 export default function ContactsListPage() {
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -15,17 +16,23 @@ export default function ContactsListPage() {
   const [isB2C, setIsB2C] = useState(false);
   const view = useViewPrefs('contacts');
   const hiddenSet = useMemo(() => new Set(view.prefs.hidden), [view.prefs.hidden]);
+  // Global CRM date range (header picker). City scope is handled by the
+  // layout remount; the date range is applied here as created_at from/to.
+  const range = useCrmDateRange((s) => ({ from: s.from, to: s.to }));
 
   const reload = async () => {
     setLoading(true);
     try {
-      const r = await crmContacts.list({});
+      const params: Record<string, string> = {};
+      if (range.from) params.from = range.from;
+      if (range.to) params.to = range.to;
+      const r = await crmContacts.list(params);
       setContacts(r.data || []);
     }
     catch (e: any) { toast.error(e.message || 'Failed to load'); } finally { setLoading(false); }
   };
 
-  useEffect(() => { reload(); }, []);
+  useEffect(() => { reload(); /* eslint-disable-next-line */ }, [range.from, range.to]);
 
   useEffect(() => {
     crmSettings.get().then((r) => {

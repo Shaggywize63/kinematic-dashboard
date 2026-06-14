@@ -26,6 +26,9 @@ export interface B2CFields {
   interests?: string[] | null;
   /** Secondary phone numbers — the primary stays in `phone` (lead) / `mobile` (contact). */
   alternate_mobiles?: string[] | null;
+  /** Geo coordinates — captured on add (device GPS / manual) or backfilled in bulk. Plotted on the map. */
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 export interface Lead extends B2CFields {
@@ -134,6 +137,10 @@ export interface Deal {
   currency?: string | null;
   probability?: number | null;
   expected_close_date?: string | null;
+  // Captured by winDeal / loseDeal when the rep marks the deal closed.
+  // Open deals carry only expected_close_date; closed deals show the
+  // real date in the deals table + analytics.
+  actual_close_date?: string | null;
   status: DealStatus;
   owner_id?: string | null;
   owner_name?: string | null;
@@ -159,6 +166,9 @@ export interface DealHistoryEntry {
   from_stage?: string | null; to_stage?: string | null;
   field?: string | null; old_value?: unknown; new_value?: unknown;
   actor_id?: string | null; actor_name?: string | null; created_at: string;
+  // Free-text annotation written for non-stage / non-amount edits (e.g.
+  // closed-quantity updates). Optional — older rows don't carry it.
+  note?: string | null;
 }
 
 export interface Activity {
@@ -243,8 +253,29 @@ export interface CustomField {
     | 'date' | 'datetime'
     | 'select' | 'multiselect' | 'radio'
     | 'url' | 'email' | 'phone'
-    | 'image' | 'file';
+    | 'image' | 'file'
+    | 'lookup'
+    | 'formula';
   options?: string[] | null; required?: boolean; position?: number;
+  // Hides the field from create / edit forms without deleting stored
+  // values. Existing rows keep their data; flipping back to visible
+  // restores the field in the UI. Mirrors the same `hidden` flag the
+  // field-override system supports for built-in fields.
+  hidden?: boolean;
+  // Org roles this field is shown to. Empty/null = all roles (universal).
+  org_role_ids?: string[] | null;
+  // Lookup-only — populated when field_type === 'lookup'. target_table
+  // is the table the picker searches; lookup_filter is the optional
+  // condition list (each clause AND-ed) the admin configured so only
+  // matching rows appear in the picker. Type is now the open snake_case
+  // shape (matches the dynamic /lookup/targets endpoint) rather than a
+  // hardcoded enum so admins can point lookups at any tenant table.
+  target_table?: string | null;
+  lookup_filter?: Array<{ field: string; op: string; value: string | number | boolean | null }> | null;
+  // Formula-only — the expression to evaluate. References other custom
+  // fields via {field_key}. Supports + - * / parens, comparisons, and
+  // IF / MIN / MAX / ROUND. See backend src/services/crm/formula.service.ts.
+  formula?: string | null;
   created_at: string;
 }
 
@@ -357,7 +388,7 @@ export interface WinProbability {
 
 export interface AnalyticsSummary {
   total_leads: number; new_leads_30d: number;
-  open_deals: number; open_deal_value: number;
+  open_deals: number; open_deal_value: number; open_deal_volume?: number;
   won_deals_30d: number; won_revenue_30d: number;
   win_rate_30d: number; avg_deal_size: number;
   avg_sales_cycle_days: number; pipeline_velocity: number;
@@ -369,6 +400,96 @@ export interface AnalyticsSummary {
 export interface FunnelPoint { stage: string; count: number; value: number; }
 export interface PipelineValuePoint { stage: string; value: number; count: number; color?: string; }
 export interface WinRatePoint { bucket: string; won: number; lost: number; rate: number; }
+
+// Per-rep KPI roll-up for the Team Performance report. The backend
+// returns `{ total, rows }` where `total` is the aggregated header row
+// across the caller's hierarchy subtree.
+export interface TeamPerformanceRow {
+  user_id: string | null;
+  name: string;
+  // Lead funnel
+  total_leads_owned: number;
+  new_leads_today: number;
+  new_leads_week: number;
+  new_leads_month: number;
+  new_leads_period: number;
+  qualified_count: number;
+  converted_count: number;
+  unqualified_count: number;
+  lost_leads_count: number;
+  qualified_rate: number;
+  converted_rate: number;
+  // Deal performance
+  won_count: number;
+  won_value: number;
+  lost_count: number;
+  open_count: number;
+  open_pipeline_value: number;
+  conversion_rate: number;
+  avg_deal_size: number;
+  avg_sales_cycle_days: number;
+  // Operational health
+  avg_ageing_days: number;
+  oldest_open_lead_days: number;
+  activities_completed_period: number;
+  activities_total_period: number;
+  last_activity_at: string | null;
+  // Quality
+  avg_lead_score: number;
+}
+
+// Lead Tracker — chart buckets + period summaries + breakdowns.
+export interface LeadTrackerBucket { key: string; count: number; }
+export interface LeadTrackerPeriodSummary {
+  label: string; from: string; to: string;
+  new_leads: number; converted: number; conversion_rate: number;
+}
+export interface LeadTrackerBreakdown { name: string; count: number; }
+export interface LeadTrackerPayload {
+  monthly: LeadTrackerBucket[];
+  weekly: LeadTrackerBucket[];
+  daily: LeadTrackerBucket[];
+  period_today: LeadTrackerPeriodSummary;
+  period_week: LeadTrackerPeriodSummary;
+  period_month: LeadTrackerPeriodSummary;
+  status_breakdown: { new: number; working: number; qualified: number; converted: number; unqualified: number; lost: number };
+  source_breakdown: LeadTrackerBreakdown[];
+  city_breakdown: LeadTrackerBreakdown[];
+  ageing_distribution: { bucket: string; count: number }[];
+}
+
+// Team Daily Activity — CRM-only signals, no attendance dependency.
+export interface TeamDailyCard {
+  user_id: string;
+  name: string;
+  last_known_location: {
+    captured_at: string | null;
+    source: 'lead_created' | null;
+    latitude: number | null;
+    longitude: number | null;
+    address: string | null;
+  };
+  last_activity_at: string | null;
+  activities_today: {
+    total: number;
+    completed: number;
+    calls: number;
+    emails: number;
+    meetings: number;
+    site_visits: number;
+    tasks: number;
+    other: number;
+  };
+  leads_today: number;
+  leads_today_qualified: number;
+  leads_today_converted: number;
+  deals_open_count: number;
+  deals_won_today_count: number;
+  deals_won_today_value: number;
+  pipeline_value: number;
+  status: 'active' | 'idle' | 'inactive';
+}
+
 export interface ForecastPoint { period: string; committed: number; best_case: number; pipeline: number; closed: number; }
 export interface ActivityHeatPoint { date: string; hour: number; count: number; }
 export interface SourceROIRow { source: string; leads: number; deals: number; revenue: number; cost: number; roi: number; }

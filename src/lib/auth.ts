@@ -31,6 +31,32 @@ export function getStoredUser(): AuthUser | null {
   } catch { return null; }
 }
 
+/**
+ * Module-permission check for the freshest user payload we have locally.
+ * Mirrors the dashboard layout's `hasModule()` gate so per-page conditional
+ * UI (e.g. inline "Edit stages" deep-links into /crm/settings) stays in sync
+ * with the sidebar visibility instead of being hard-coded per-page.
+ *
+ * Platform admins (no client_id, admin-ish role) always return true — they
+ * are not governed by org_role permissions. For everyone else: the module
+ * must be in the client's entitlements AND in the user's role permissions
+ * (or the user has no explicit permission set at all, which means they're a
+ * legacy account that hadn't been migrated to org_roles yet).
+ */
+export function userHasModule(user: AuthUser | null | undefined, moduleId: string): boolean {
+  if (!user) return false;
+  const role = normalizeRole((user as any).role || '');
+  const isPlatformAdmin = !(user as any).client_id && (
+    ['super_admin', 'admin', 'main_admin', 'master_admin', 'sub_admin'].includes(role) || role.includes('admin')
+  );
+  if (isPlatformAdmin) return true;
+  const entitled: string[] = Array.isArray((user as any).enabled_modules) ? (user as any).enabled_modules : [];
+  if (entitled.length > 0 && !entitled.includes(moduleId)) return false;
+  const perms: string[] = Array.isArray((user as any).permissions) ? (user as any).permissions : [];
+  if (perms.length > 0) return perms.includes(moduleId);
+  return true;
+}
+
 export function getStoredToken(): string | null {
   if (typeof window === 'undefined') return null;
   return localStorage.getItem(TOKEN_KEY);
@@ -97,6 +123,32 @@ export function getRoleLabel(role: string): string {
   return labels[role] || role;
 }
 
+/**
+ * Resolve a user's display designation — the label admins actually want to
+ * see (e.g. "Consumer Champion", "Consumer Champion Manager", "Area Sales
+ * Officer"). Source of truth is `org_role.name` from the org_roles join
+ * (also exposed as a flat `org_role_name` on some endpoints). Falls back
+ * to the platform-admin label only for genuinely platform-level system
+ * roles (super_admin / admin / main_admin / master_admin); never falls
+ * back to the legacy preset like "Sub-Admin" — admins consider that an
+ * implementation detail. Returns a dash when no designation is set so
+ * the UI never invents a generic descriptor like "Team Member".
+ */
+export function getDesignationLabel(user: {
+  org_role?: { name?: string | null } | null;
+  org_role_name?: string | null;
+  role?: string | null;
+} | null | undefined): string {
+  const joined = user?.org_role?.name?.trim();
+  if (joined) return joined;
+  const flat = (user as { org_role_name?: string | null } | null | undefined)?.org_role_name?.trim();
+  if (flat) return flat;
+  const sys = (user?.role || '').toLowerCase().trim().replace(/-/g, '_');
+  if (sys === 'super_admin') return 'Super Admin';
+  if (sys === 'admin' || sys === 'main_admin' || sys === 'master_admin') return 'Admin';
+  return '—';
+}
+
 function normalizeRole(role: string): string {
   return (role || '').toLowerCase().trim().replace(/-/g, '_');
 }
@@ -149,7 +201,22 @@ export function landingRouteFor(user?: AuthUser | null): string {
   if (role === 'super_admin' || role === 'admin' || role === 'main_admin' || role === 'platform_admin') {
     return '/dashboard';
   }
+
+  // Package-level check takes precedence over the permissions array: if the client's
+  // enabled_packages includes crm but NOT field_force, this user is on a CRM-only
+  // client and should land on the lead management dashboard regardless of what
+  // 'analytics' appears in their permissions (some roles carry it redundantly).
+  const pkgs: string[] = Array.isArray((user as any).enabled_packages) ? (user as any).enabled_packages : [];
+  if (pkgs.length > 0 && pkgs.includes('crm') && !pkgs.includes('field_force')) {
+    return '/dashboard/crm/dashboard';
+  }
+
   const perms = (user as AuthUser & { permissions?: string[] }).permissions ?? [];
+  // User-permission-level CRM-only check: user has crm permission but not field_force
+  // or analytics. Handles reps on a mixed-module client whose personal role is CRM-only.
+  if (perms.includes('crm') && !perms.includes('field_force') && !perms.includes('analytics')) {
+    return '/dashboard/crm/dashboard';
+  }
   if (perms.includes('analytics')) return '/dashboard';
   if (perms.includes('crm')) return '/dashboard/crm/dashboard';
   if (perms.includes('distribution')) return '/dashboard/distribution';

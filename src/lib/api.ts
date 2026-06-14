@@ -46,6 +46,28 @@ const TTL_OVERRIDES: Array<[RegExp, number]> = [
   [/^\/api\/v1\/live-tracking\b/,                        15_000],
 ];
 
+// CRM endpoints whose backend handler actually filters by city. Anything
+// not on this list (lead-sources, assignment-rules, products, settings,
+// stages, hierarchy, …) goes through the generic list helper, which would
+// blindly `.eq('city', …)` and 500 on tables with no city column.
+const CITY_AWARE_CRM_PREFIXES = [
+  '/api/v1/crm/leads',
+  '/api/v1/crm/contacts',
+  '/api/v1/crm/accounts',
+  '/api/v1/crm/deals',
+  '/api/v1/crm/activities',
+  '/api/v1/crm/tasks',
+  '/api/v1/crm/notes',
+  '/api/v1/crm/reports',
+  '/api/v1/crm/dashboard',
+  '/api/v1/crm/analytics',
+  '/api/v1/crm/lead-analytics',
+];
+
+function isCityAwareCrmPath(path: string): boolean {
+  return CITY_AWARE_CRM_PREFIXES.some((p) => path === p || path.startsWith(`${p}/`) || path.startsWith(`${p}?`));
+}
+
 function ttlFor(path: string): number {
   for (const [re, ttl] of TTL_OVERRIDES) if (re.test(path)) return ttl;
   return GET_CACHE_TTL_MS;
@@ -91,6 +113,19 @@ function lsClear() {
       .filter(k => k.startsWith(LS_PREFIX))
       .forEach(k => window.localStorage.removeItem(k));
   } catch {}
+}
+
+// Backend errors come back as `{ success:false, error:{ code, message } }` but
+// some older handlers use a flat `{ error: "msg" }` or `{ message }`. Pull a
+// human string out of any of these shapes (a naive `data.error` would render
+// "[object Object]" for the nested form).
+function extractApiError(data: any): string {
+  if (!data || typeof data !== 'object') return 'Request failed';
+  const e = data.error;
+  if (typeof e === 'string') return e;
+  if (e && typeof e === 'object' && typeof e.message === 'string') return e.message;
+  if (typeof data.message === 'string') return data.message;
+  return 'Request failed';
 }
 
 class ApiClient {
@@ -206,16 +241,22 @@ class ApiClient {
     }
 
     // CRM city scope — auto-attach the picked city to GET requests that
-    // already use a city filter (leads, contacts, reports). Picker source
-    // is the CityScopePicker (stored in localStorage as
-    // kinematic_selected_city). Only fires on CRM endpoints; skipped if
-    // the caller already specified a `city=` (their value wins) or if no
-    // city is picked. Backend still caps results via the user's
-    // assigned_city_names, so this can only narrow within scope.
+    // genuinely accept a `city` filter. Picker source is the
+    // CityScopePicker (stored in localStorage as
+    // kinematic_selected_city). Skipped if the caller already specified
+    // `city=` (their value wins) or if no city is picked. Backend still
+    // caps results via the user's assigned_city_names, so this can only
+    // narrow within scope.
+    //
+    // IMPORTANT: only the city-aware CRM endpoints below are whitelisted.
+    // Attaching `?city=` to lookup/config endpoints (lead-sources,
+    // assignment-rules, products, …) makes the backend's generic list
+    // handler run `.eq('city', …)` against a table with no `city` column,
+    // which 500s — the FE then renders an empty dropdown ("only Unspecified").
     let pathWithCity = path;
     try {
       const method = (options.method || 'GET').toUpperCase();
-      if (method === 'GET' && path.startsWith('/api/v1/crm/') && !/[?&]city=/i.test(path)) {
+      if (method === 'GET' && isCityAwareCrmPath(path) && !/[?&]city=/i.test(path)) {
         const city = typeof window !== 'undefined' ? window.localStorage.getItem('kinematic_selected_city') : null;
         if (city) {
           const sep = path.includes('?') ? '&' : '?';
@@ -266,7 +307,7 @@ class ApiClient {
     let data: any;
     try { data = JSON.parse(text); }
     catch { throw new Error(text.slice(0, 200)); }
-    if (!res.ok) throw new Error(data.error || data.message || 'Request failed');
+    if (!res.ok) throw new Error(extractApiError(data));
     return data;
   }
 
@@ -286,7 +327,20 @@ class ApiClient {
     // Include selected client in cache keys for any client-scoped path so
     // switching clients via the picker invalidates per-tenant data.
     const clientPart = `|c:${this.getSelectedClient() || 'org'}`;
-    const key = `${this.getToken() || 'anon'}|${path}${clientPart}`;
+    // Include the CRM city-scope picker in the key. request() appends the
+    // picked city as `?city=` to CRM GETs AFTER this key is computed, so
+    // without this the key would be identical across cities and changing
+    // the picker would return the previous city's cached rows (the list
+    // would only update on a hard reload that clears the cache). Mirror the
+    // exact append condition in request() so non-CRM paths are unaffected.
+    let cityPart = '';
+    try {
+      const selCity = typeof window !== 'undefined' ? window.localStorage.getItem('kinematic_selected_city') : null;
+      if (selCity && isCityAwareCrmPath(path) && !/[?&]city=/i.test(path)) {
+        cityPart = `|city:${selCity}`;
+      }
+    } catch { /* ignore */ }
+    const key = `${this.getToken() || 'anon'}|${path}${clientPart}${cityPart}`;
     const now = Date.now();
 
     // 1) In-memory hot cache (fresh): return immediately, no network.
@@ -385,7 +439,7 @@ class ApiClient {
       .then(async res => {
         if (res.status === 401) throw new Error('Unauthorized');
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || data.message || 'Request failed');
+        if (!res.ok) throw new Error(extractApiError(data));
         return data;
       });
   }
@@ -421,7 +475,7 @@ class ApiClient {
       .then(async res => {
         if (res.status === 401) throw new Error('Unauthorized');
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || data.message || 'Request failed');
+        if (!res.ok) throw new Error(extractApiError(data));
         return data;
       });
   }
@@ -456,6 +510,9 @@ class ApiClient {
 
   getNotifications() { return this.get('/api/v1/notifications'); }
   markNotificationsRead() { return this.patch('/api/v1/notifications/read', {}); }
+  // Permanently delete every notification for the signed-in user (the
+  // "Clear all" action empties the feed, not just marks it read).
+  clearNotifications() { return this.delete('/api/v1/notifications/clear'); }
 
   getLeaderboard() { return this.get('/api/v1/leaderboard'); }
 
@@ -555,6 +612,17 @@ class ApiClient {
   // ── Distribution: Consumer / Secondary Sales (M3) ────────────────────
   getSecondarySales(params?: Record<string, string>) { return this.get(`/api/v1/distribution/secondary-sales${this.sanitizeParams(params)}`); }
   createSecondarySale(data: object) { return this.post('/api/v1/distribution/secondary-sales', data); }
+
+  // ── Distribution: Last-Mile (Phase 1) ────────────────────────────────
+  // Tertiary sales = retailer → consumer hop. Tracked across organized +
+  // unorganized channels via the captured_by enum.
+  getTertiarySales(params?: Record<string, string>) { return this.get(`/api/v1/distribution/tertiary-sales${this.sanitizeParams(params)}`); }
+  createTertiarySale(data: object) { return this.post('/api/v1/distribution/tertiary-sales', data); }
+  // Consumer registrations — the single endpoint that closes the chain:
+  // creates a registration row, spawns a tertiary_sales row, and creates
+  // a CRM lead with appropriate attribution all in one round-trip.
+  getConsumerRegistrations(params?: Record<string, string>) { return this.get(`/api/v1/distribution/consumer-registrations${this.sanitizeParams(params)}`); }
+  createConsumerRegistration(data: object) { return this.post('/api/v1/distribution/consumer-registrations', data); }
 }
 
 export const api = new ApiClient(API_URL);

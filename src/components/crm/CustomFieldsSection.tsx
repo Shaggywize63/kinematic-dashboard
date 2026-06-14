@@ -1,10 +1,12 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { crmCustomFields } from '../../lib/crmApi';
+import { crmCustomFields, crmLookup, type LookupHit } from '../../lib/crmApi';
+import api from '../../lib/api';
 import { getStoredToken } from '../../lib/auth';
 import { API_BASE_URL } from '../../lib/api';
 import type { CustomField } from '../../types/crm';
+import { PRODUCT_LINE_KEYS } from './ProductLinesSection';
 
 /**
  * Renders the active custom fields for a given entity (lead / contact /
@@ -45,11 +47,38 @@ export default function CustomFieldsSection({ entity, values, onChange }: Props)
     let cancel = false;
     (async () => {
       try {
-        const r = await crmCustomFields.list();
+        // Resolve the current user's org role so we can show only the custom
+        // fields targeted at their role (plus universal/untagged fields).
+        const [r, meRes] = await Promise.allSettled([
+          crmCustomFields.list(),
+          api.get<{ data?: { org_role_id?: string | null } }>('/api/v1/auth/me'),
+        ]);
         if (cancel) return;
-        const all = (r.data || []) as CustomField[];
+        const myRoleId = meRes.status === 'fulfilled'
+          ? (((meRes.value as { data?: { org_role_id?: string | null } })?.data?.org_role_id) ?? null)
+          : null;
+        const all = (r.status === 'fulfilled' ? (r.value.data || []) : []) as CustomField[];
         const visible = all
           .filter((f) => f.entity_type === entity)
+          // Admin can hide an individual custom field without deleting it.
+          // Drop hidden ones from the form; values already stored on records
+          // are preserved server-side so flipping back to visible restores
+          // them on the next render.
+          .filter((f) => !f.hidden)
+          // The four product-line keys (product_interested / quantity /
+          // measuring_unit / estimated_amount) are rendered by the
+          // dedicated ProductLinesSection on the lead form so the rep
+          // gets a multi-row UI with the auto-calculated amount. Skip
+          // them here so they don't double-render.
+          .filter((f) => entity !== 'lead' || !PRODUCT_LINE_KEYS.includes(f.field_key as typeof PRODUCT_LINE_KEYS[number]))
+          // A field with no org_role_ids is universal; otherwise it must list
+          // the user's role. Admins/users with no resolved role see universal
+          // fields only (role-scoped fields stay with their roles).
+          .filter((f) => {
+            const roles = f.org_role_ids;
+            if (!roles || roles.length === 0) return true;
+            return !!myRoleId && roles.includes(myRoleId);
+          })
           .sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
         setFields(visible);
       } catch {
@@ -77,14 +106,25 @@ export default function CustomFieldsSection({ entity, values, onChange }: Props)
 
   return (
     <>
-      {fields.map((f) => (
-        <FieldInput
-          key={f.id}
-          field={f}
-          value={values[f.field_key]}
-          onChange={(v) => set(f.field_key, v)}
-        />
-      ))}
+      {fields.map((f) => {
+        // Formula fields are read-only and computed live from the
+        // current values map. The computed result isn't persisted from
+        // here — server-side eval (planned) is the source of truth on
+        // GET; this is just an in-form preview so reps see the value
+        // update as they type into the inputs it depends on.
+        if (f.field_type === 'formula') {
+          const computed = evaluateClientFormula(f.formula || '', values);
+          return <FormulaPreview key={f.id} field={f} computed={computed} />;
+        }
+        return (
+          <FieldInput
+            key={f.id}
+            field={f}
+            value={values[f.field_key]}
+            onChange={(v) => set(f.field_key, v)}
+          />
+        );
+      })}
     </>
   );
 }
@@ -244,12 +284,39 @@ function FieldInput({ field, value, onChange }: { field: CustomField; value: unk
     return <FileUploader field={field} value={value} onChange={onChange} />;
   }
 
-  // ── number / date / datetime / url / email / text fallthrough ────
+  // ── Lookup (linked record) ───────────────────────────────────────
+  // Stores the picked row's UUID in custom_fields[field_key]. The
+  // picker UI calls /api/v1/crm/lookup/search with the field's
+  // configured target_table + lookup_filter so only matching rows
+  // appear. We persist (id, label) together as JSON so the lead detail
+  // page can render the label without an extra round-trip — the
+  // backend doesn't care, it stores the whole blob in the custom_fields
+  // JSONB column.
+  if (t === 'lookup') {
+    return (
+      <Wrap field={field} fullWidth>
+        <LookupField field={field} value={value} onChange={onChange} />
+      </Wrap>
+    );
+  }
+
+  // ── date / datetime — separate path so we can open the native picker
+  //     programmatically. Without this, the bare <input type="date"> only
+  //     opens the calendar when the user taps the tiny calendar icon on
+  //     the right edge — Android Chrome and iOS Safari users tapping the
+  //     middle of the field see "nothing happen" and assume it's a text
+  //     input. Calling showPicker() on every focus/click makes the
+  //     calendar appear from any tap. The optional-chain (?.) handles
+  //     older browsers (Safari <16, Firefox <101) where showPicker isn't
+  //     implemented — the field still works as a normal date input there.
+  if (t === 'date' || t === 'datetime') {
+    return <DateField field={field} value={value} onChange={onChange} kind={t === 'date' ? 'date' : 'datetime-local'} />;
+  }
+
+  // ── number / url / email / text fallthrough ───────────────────────
   const htmlType = (() => {
     switch (t) {
       case 'number':   return 'number';
-      case 'date':     return 'date';
-      case 'datetime': return 'datetime-local';
       case 'url':      return 'url';
       case 'email':    return 'email';
       default:         return 'text';
@@ -271,6 +338,39 @@ function FieldInput({ field, value, onChange }: { field: CustomField; value: unk
           onChange(raw);
         }}
         style={inputStyle}
+      />
+    </Wrap>
+  );
+}
+
+function DateField({
+  field, value, onChange, kind,
+}: {
+  field: CustomField;
+  value: unknown;
+  onChange: (v: unknown) => void;
+  kind: 'date' | 'datetime-local';
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+  // showPicker() is a recent addition (~2022). Wrapped in try/catch
+  // because some browsers throw if you call it when the input is
+  // already focused or hidden — we never want a thrown error here to
+  // block the click.
+  const open = () => { try { ref.current?.showPicker?.(); } catch { /* noop */ } };
+  return (
+    <Wrap field={field}>
+      <input
+        ref={ref}
+        type={kind}
+        value={value == null ? '' : String(value)}
+        onChange={(e) => {
+          const raw = e.target.value;
+          if (raw === '') return onChange(undefined);
+          onChange(raw);
+        }}
+        onClick={open}
+        onFocus={open}
+        style={{ ...inputStyle, cursor: 'pointer' }}
       />
     </Wrap>
   );
@@ -374,3 +474,377 @@ const inputStyle: React.CSSProperties = {
   background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)',
   padding: '8px 12px', borderRadius: 8, fontSize: 13, width: '100%', boxSizing: 'border-box',
 };
+
+/**
+ * Linked-record picker for the `lookup` custom field type. Behaves like
+ * the picker used elsewhere in the CRM (Lead → Owner, Deal → Stage):
+ * a single-line trigger that opens a searchable dropdown of matching
+ * rows from the target object the admin chose when authoring the field.
+ *
+ * Storage shape on the parent record: `{ id, label, target_table }`
+ * persisted inside the parent's `custom_fields` JSONB. We keep the
+ * label alongside the id so the row reads correctly on the detail
+ * page without a second round-trip to resolve UUIDs.
+ *
+ * Filter and target come from the CustomField definition the admin
+ * configured — see LookupConfig on the custom-fields settings page.
+ */
+function LookupField({
+  field, value, onChange,
+}: {
+  field: CustomField;
+  value: unknown;
+  onChange: (v: unknown) => void;
+}) {
+  const stored = (value && typeof value === 'object'
+    ? value as { id?: string; label?: string; target_table?: string }
+    : null);
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState('');
+  const [hits, setHits] = useState<LookupHit[]>([]);
+  const [loading, setLoading] = useState(false);
+  const target = field.target_table || '';
+
+  useEffect(() => {
+    if (!open || !target) return;
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const r = await crmLookup.search({
+          target,
+          q: q.trim() || undefined,
+          filter: Array.isArray(field.lookup_filter) ? field.lookup_filter : undefined,
+        });
+        if (!cancelled) setHits(r.data || []);
+      } catch {
+        if (!cancelled) setHits([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }, 200);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [open, q, target, field.lookup_filter]);
+
+  if (!target) {
+    return <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>This lookup hasn't been configured yet — set its linked object in CRM Settings → Custom Fields.</div>;
+  }
+
+  const pick = (h: LookupHit) => {
+    onChange({ id: h.id, label: h.label, target_table: target });
+    setOpen(false);
+    setQ('');
+  };
+  const clear = () => onChange(undefined);
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <div
+        onClick={() => setOpen((o) => !o)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          padding: '8px 12px', borderRadius: 8,
+          background: 'var(--s3)', border: '1px solid var(--border)',
+          cursor: 'pointer', fontSize: 13, color: stored?.label ? 'var(--text)' : 'var(--text-dim)',
+        }}
+      >
+        <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {stored?.label || `Pick a ${LOOKUP_TARGET_LABELS[target] || 'record'}`}
+        </span>
+        {stored?.id && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); clear(); }}
+            title="Clear"
+            style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', padding: 0, fontSize: 16, lineHeight: 1 }}
+          >×</button>
+        )}
+        <span style={{ color: 'var(--text-dim)', fontSize: 11 }}>▾</span>
+      </div>
+      {open && (
+        <div
+          style={{
+            position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0,
+            background: 'var(--s1)', border: '1px solid var(--border)', borderRadius: 8,
+            boxShadow: '0 4px 16px rgba(0,0,0,0.2)', zIndex: 50, padding: 8, maxHeight: 320, overflow: 'hidden',
+            display: 'flex', flexDirection: 'column', gap: 6,
+          }}
+        >
+          <input
+            autoFocus
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search…"
+            style={{
+              padding: '6px 10px', borderRadius: 6, background: 'var(--s2)',
+              border: '1px solid var(--border)', color: 'var(--text)', fontSize: 13,
+            }}
+          />
+          <div style={{ overflowY: 'auto', flex: 1 }}>
+            {loading && <div style={{ padding: 8, fontSize: 12, color: 'var(--text-dim)' }}>Searching…</div>}
+            {!loading && hits.length === 0 && (
+              <div style={{ padding: 8, fontSize: 12, color: 'var(--text-dim)' }}>
+                {q.trim() ? 'No matching records.' : 'No records — try typing a name.'}
+              </div>
+            )}
+            {hits.map((h) => (
+              <button
+                key={h.id}
+                type="button"
+                onClick={() => pick(h)}
+                style={{
+                  display: 'block', width: '100%', textAlign: 'left',
+                  padding: '6px 10px', borderRadius: 6, background: 'transparent',
+                  border: 'none', color: 'var(--text)', cursor: 'pointer', fontSize: 13,
+                }}
+                onMouseOver={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--s2)'; }}
+                onMouseOut={(e)  => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
+              >{h.label}</button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Mirrors the catalog on the custom-fields settings page so the
+// picker label reads "Pick a Lead" / "Pick a People Directory entry"
+// instead of a raw table name.
+const LOOKUP_TARGET_LABELS: Record<string, string> = {
+  crm_leads: 'Lead',
+  crm_contacts: 'Contact',
+  crm_accounts: 'Account',
+  crm_deals: 'Deal',
+  people_directory: 'People Directory entry',
+};
+
+/**
+ * Read-only render for a formula custom field. Shows the computed value
+ * (or — when blank / unevaluatable) plus the formula expression as a
+ * subtitle so the admin remembers what they configured.
+ */
+function FormulaPreview({ field, computed }: { field: CustomField; computed: string }) {
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <label style={{ display: 'block', fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.5, marginBottom: 4 }}>
+        {field.label} <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 3, background: 'var(--s3)', color: 'var(--text-dim)', marginLeft: 4 }}>FORMULA</span>
+      </label>
+      <div style={{ background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px', fontSize: 14, color: 'var(--text)', fontWeight: 600 }}>
+        {computed || <span style={{ color: 'var(--text-dim)', fontWeight: 400 }}>—</span>}
+      </div>
+      {field.formula && (
+        <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 4, fontFamily: 'ui-monospace, SFMono-Regular, monospace' }}>
+          = {field.formula}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Client-side formula evaluator. Mirrors the backend's narrow language
+ * exactly: + - * / parens, comparisons, IF / MIN / MAX / ROUND, and
+ * {field_key} references. Tiny recursive-descent so this stays bundled
+ * cheap; no `eval` or external dependency. Returns a string (formatted
+ * number or stringified value) for direct rendering. Empty string when
+ * the expression can't be evaluated — so the UI degrades to a dash.
+ */
+export function evaluateClientFormula(expr: string, vals: Record<string, unknown>): string {
+  if (!expr || !expr.trim()) return '';
+  try {
+    const tokens = formulaTokenize(expr);
+    const parser = new FormulaParser(tokens, vals);
+    const v = parser.parseExpression();
+    parser.expectEnd();
+    if (v === null || v === undefined) return '';
+    if (typeof v === 'number') {
+      if (!Number.isFinite(v)) return '';
+      // Avoid trailing zeros for integers; otherwise 2 decimal places.
+      return Number.isInteger(v) ? String(v) : v.toFixed(2);
+    }
+    if (typeof v === 'boolean') return v ? 'Yes' : 'No';
+    return String(v);
+  } catch {
+    return '';
+  }
+}
+
+type Tok =
+  | { kind: 'num'; value: number }
+  | { kind: 'str'; value: string }
+  | { kind: 'ref'; key: string }
+  | { kind: 'ident'; name: string }
+  | { kind: 'op'; op: string }
+  | { kind: 'lparen' }
+  | { kind: 'rparen' }
+  | { kind: 'comma' };
+
+function formulaTokenize(src: string): Tok[] {
+  const out: Tok[] = [];
+  let i = 0;
+  while (i < src.length) {
+    const c = src[i];
+    if (' \t\n\r'.includes(c)) { i++; continue; }
+    if (c === '(') { out.push({ kind: 'lparen' }); i++; continue; }
+    if (c === ')') { out.push({ kind: 'rparen' }); i++; continue; }
+    if (c === ',') { out.push({ kind: 'comma' }); i++; continue; }
+    if ('+-*/'.includes(c)) { out.push({ kind: 'op', op: c }); i++; continue; }
+    if (c === '<' || c === '>' || c === '=' || c === '!') {
+      if (src[i + 1] === '=') { out.push({ kind: 'op', op: c + '=' }); i += 2; continue; }
+      if (c === '<' || c === '>') { out.push({ kind: 'op', op: c }); i++; continue; }
+      throw new Error('bad op');
+    }
+    if (c === '{') {
+      const end = src.indexOf('}', i + 1);
+      if (end < 0) throw new Error('unterminated ref');
+      const k = src.slice(i + 1, end).trim();
+      if (!/^[a-z][a-z0-9_]*$/.test(k)) throw new Error('bad key');
+      out.push({ kind: 'ref', key: k });
+      i = end + 1; continue;
+    }
+    if (c === '"' || c === "'") {
+      const end = src.indexOf(c, i + 1);
+      if (end < 0) throw new Error('unterminated string');
+      out.push({ kind: 'str', value: src.slice(i + 1, end) });
+      i = end + 1; continue;
+    }
+    if (/[0-9.]/.test(c)) {
+      let j = i;
+      while (j < src.length && /[0-9.]/.test(src[j])) j++;
+      const n = Number(src.slice(i, j));
+      if (!Number.isFinite(n)) throw new Error('bad num');
+      out.push({ kind: 'num', value: n });
+      i = j; continue;
+    }
+    if (/[a-zA-Z_]/.test(c)) {
+      let j = i;
+      while (j < src.length && /[a-zA-Z0-9_]/.test(src[j])) j++;
+      out.push({ kind: 'ident', name: src.slice(i, j) });
+      i = j; continue;
+    }
+    throw new Error('bad char');
+  }
+  return out;
+}
+
+const FN_NAMES = new Set(['IF', 'MIN', 'MAX', 'ROUND']);
+
+class FormulaParser {
+  private pos = 0;
+  constructor(private tokens: Tok[], private vals: Record<string, unknown>) {}
+  expectEnd() { if (this.pos !== this.tokens.length) throw new Error('trailing'); }
+
+  parseExpression(): number | string | boolean {
+    const left = this.parseAdd();
+    const t = this.peek();
+    if (t && t.kind === 'op' && (t.op === '<' || t.op === '>' || t.op === '<=' || t.op === '>=' || t.op === '==' || t.op === '!=')) {
+      this.pos++;
+      const right = this.parseAdd();
+      const a = numOrPrim(left), b = numOrPrim(right);
+      switch (t.op) {
+        case '<':  return (a as number) <  (b as number);
+        case '>':  return (a as number) >  (b as number);
+        case '<=': return (a as number) <= (b as number);
+        case '>=': return (a as number) >= (b as number);
+        case '==': return a === b;
+        case '!=': return a !== b;
+      }
+    }
+    return left;
+  }
+
+  private parseAdd(): number | string {
+    let left = this.parseMul();
+    while (true) {
+      const t = this.peek();
+      if (!t || t.kind !== 'op' || (t.op !== '+' && t.op !== '-')) break;
+      this.pos++;
+      const right = this.parseMul();
+      left = (t.op === '+' ? num(left) + num(right) : num(left) - num(right));
+    }
+    return left;
+  }
+
+  private parseMul(): number | string {
+    let left = this.parseUnary();
+    while (true) {
+      const t = this.peek();
+      if (!t || t.kind !== 'op' || (t.op !== '*' && t.op !== '/')) break;
+      this.pos++;
+      const right = this.parseUnary();
+      if (t.op === '*') left = num(left) * num(right);
+      else { const d = num(right); left = d === 0 ? 0 : num(left) / d; }
+    }
+    return left;
+  }
+
+  private parseUnary(): number | string {
+    const t = this.peek();
+    if (t && t.kind === 'op' && (t.op === '+' || t.op === '-')) {
+      this.pos++;
+      const v = num(this.parseUnary());
+      return t.op === '-' ? -v : v;
+    }
+    return this.parsePrimary();
+  }
+
+  private parsePrimary(): number | string {
+    const t = this.advance();
+    if (!t) throw new Error('end');
+    if (t.kind === 'num') return t.value;
+    if (t.kind === 'str') return t.value;
+    if (t.kind === 'ref') {
+      const v = this.vals[t.key];
+      if (v === undefined || v === null || v === '') return 0;
+      const n = Number(v as any);
+      return Number.isFinite(n) ? n : String(v);
+    }
+    if (t.kind === 'lparen') {
+      const v = this.parseExpression();
+      const r = this.advance();
+      if (!r || r.kind !== 'rparen') throw new Error('expected )');
+      return numOrPrim(v);
+    }
+    if (t.kind === 'ident') {
+      const name = t.name.toUpperCase();
+      if (!FN_NAMES.has(name)) throw new Error('unknown fn');
+      const lp = this.advance(); if (!lp || lp.kind !== 'lparen') throw new Error('expected (');
+      const args: Array<number | string | boolean> = [];
+      if (this.peek()?.kind !== 'rparen') {
+        args.push(this.parseExpression());
+        while (this.peek()?.kind === 'comma') { this.pos++; args.push(this.parseExpression()); }
+      }
+      const rp = this.advance(); if (!rp || rp.kind !== 'rparen') throw new Error('expected )');
+      switch (name) {
+        case 'IF':    return numOrPrim((args[0] ? args[1] : args[2])) as number | string;
+        case 'MIN':   return Math.min(...args.map(num));
+        case 'MAX':   return Math.max(...args.map(num));
+        case 'ROUND': {
+          const v = num(args[0]);
+          const d = args.length > 1 ? Math.max(0, Math.min(10, Math.floor(num(args[1])))) : 0;
+          const f = Math.pow(10, d);
+          return Math.round(v * f) / f;
+        }
+      }
+      throw new Error('unknown fn');
+    }
+    throw new Error('bad token');
+  }
+
+  private peek(): Tok | undefined { return this.tokens[this.pos]; }
+  private advance(): Tok | undefined { return this.tokens[this.pos++]; }
+}
+
+function num(v: number | string | boolean): number {
+  if (typeof v === 'number') return Number.isFinite(v) ? v : 0;
+  if (typeof v === 'boolean') return v ? 1 : 0;
+  if (v == null || v === '') return 0;
+  const n = Number(v as any);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function numOrPrim(v: number | string | boolean): number | string {
+  if (typeof v === 'boolean') return v ? 1 : 0;
+  return v;
+}

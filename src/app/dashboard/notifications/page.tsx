@@ -37,7 +37,10 @@ export default function NotificationsPage() {
   const [cms,setCms]=useState<User[]>([]);
   const [zones,setZones]=useState<{id:string,name:string,city:string}[]>([]);
   const [history,setHistory]=useState<Notif[]>([]);
-  const [sendPush,setSendPush]=useState(false);
+  // Default ON so a broadcast actually reaches every recipient's phone (lock
+  // screen via FCM), not just the in-app bell — otherwise users who aren't
+  // currently in the app "miss" the notification. Admins can still uncheck it.
+  const [sendPush,setSendPush]=useState(true);
   const [sending,setSending]=useState(false);
   const [page,setPage]=useState(1);
   const [total,setTotal]=useState(0);

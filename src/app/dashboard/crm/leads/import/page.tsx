@@ -54,11 +54,38 @@ export default function LeadImportPage() {
       const firstLine = text.split('\n')[0] || '';
       const cols = firstLine.split(',').map((c) => c.trim().replace(/^"|"$/g, ''));
       setHeaders(cols);
+      // Auto-map header → CRM field. Strict equality first; only fall back
+      // to a synonym match if no exact hit. The previous "substring
+      // includes" check wrongly mapped `owner_email` → `email` (because
+      // "owner_email".includes("email") is true), which then overwrote
+      // every imported lead's email with the rep's address and made
+      // re-imports all dedup into the same lead. The fix: require an
+      // exact normalised match OR an explicit synonym, never a loose
+      // substring overlap.
+      const SYNONYMS: Record<string, string> = {
+        firstname: 'first_name', fname: 'first_name', given_name: 'first_name',
+        lastname: 'last_name', lname: 'last_name', surname: 'last_name', family_name: 'last_name',
+        mobile: 'phone', mobile_number: 'phone', phone_number: 'phone', contact: 'phone', contact_number: 'phone',
+        email_id: 'email', email_address: 'email', mail: 'email',
+        organization: 'company', organisation: 'company', firm: 'company',
+        designation: 'title', position: 'title', role: 'title',
+        lead_source: 'source', channel: 'source',
+        // Owner-identity synonyms — these all map to owner_email (the
+        // import service then resolves owner_email → owner_id at run
+        // time). NEVER fold into the lead's own email/phone columns.
+        owneremail: 'owner_email', rep_email: 'owner_email', sales_email: 'owner_email',
+        assigned_to: 'owner_email', assigned_to_email: 'owner_email',
+        owner_mail: 'owner_email',
+      };
       const auto: Record<string, string> = {};
       cols.forEach((c) => {
         const norm = c.toLowerCase().replace(/[\s-]/g, '_');
-        const match = LEAD_FIELDS.find((f) => f === norm || f.includes(norm) || norm.includes(f));
-        if (match) auto[c] = match;
+        if (LEAD_FIELDS.includes(norm)) {
+          auto[c] = norm;
+        } else if (SYNONYMS[norm]) {
+          auto[c] = SYNONYMS[norm];
+        }
+        // Anything else stays unmapped — the rep can choose on the Map step.
       });
       setMapping(auto);
       setStep(2);
@@ -80,19 +107,55 @@ export default function LeadImportPage() {
     if (!job) return;
     setBusy(true);
     try {
-      const r = await crmImport.commit({ job_id: job.id });
-      // Backend now returns summary inline — render the breakdown instead of
-      // an opaque "Import committed" toast.
-      const updated = (r.data ?? r) as ImportJob & { summary?: CommitSummary };
-      setJob(updated);
-      if (updated.summary) {
-        setSummary(updated.summary);
-        setStep(4);
-      } else {
-        toast.success('Import committed');
-        router.push('/dashboard/crm/leads');
+      // Backend now kicks off the import in the background and returns
+      // immediately with status='running'. We poll /jobs/:id every 1.5s
+      // to drive the progress bar and detect completion.
+      await crmImport.commit({ job_id: job.id });
+      pollJobUntilDone(job.id);
+    } catch (e: any) {
+      toast.error(e.message || 'Commit failed');
+      setBusy(false);
+    }
+  };
+
+  // Poll the import job until status flips to 'completed' or 'failed'. Updates
+  // the job state on every tick so the progress bar advances. Stops after
+  // 30 minutes of polling as a hard safety cap.
+  const pollJobUntilDone = (jobId: string) => {
+    const started = Date.now();
+    const tick = async () => {
+      try {
+        const r = await crmImport.getJob(jobId);
+        const updated = (((r as unknown) as { data?: ImportJob & { summary?: CommitSummary } }).data
+          ?? ((r as unknown) as ImportJob & { summary?: CommitSummary }));
+        setJob(updated);
+        const s = (updated as { status?: string }).status;
+        if (s === 'completed') {
+          const sum = (updated as { summary?: CommitSummary }).summary;
+          if (sum) setSummary(sum);
+          setStep(4);
+          setBusy(false);
+          return;
+        }
+        if (s === 'failed') {
+          toast.error('Import failed. See errors in the job summary.');
+          const sum = (updated as { summary?: CommitSummary }).summary;
+          if (sum) { setSummary(sum); setStep(4); }
+          setBusy(false);
+          return;
+        }
+        if (Date.now() - started > 30 * 60_000) {
+          toast.error('Import is taking unusually long — refresh and check the leads list.');
+          setBusy(false);
+          return;
+        }
+        setTimeout(tick, 1500);
+      } catch {
+        // Transient errors (e.g. brief network blip) — back off and retry.
+        setTimeout(tick, 3000);
       }
-    } catch (e: any) { toast.error(e.message || 'Commit failed'); } finally { setBusy(false); }
+    };
+    void tick();
   };
 
   return (
@@ -162,6 +225,37 @@ export default function LeadImportPage() {
               <div style={{ color: 'var(--primary)', marginTop: 6 }}>{job.errors.length} validation issues found.</div>
             )}
           </div>
+          {busy && (() => {
+            // Progress is updated by the backend every 25 rows; reads
+            // straight off the polled job. Falls back to 0 / total when
+            // the first poll hasn't landed yet.
+            const total = (job.total_rows as number) || sample.length || 0;
+            const processed = ((job as { processed_rows?: number }).processed_rows as number) || 0;
+            const inserted = ((job as { inserted?: number }).inserted as number) || 0;
+            const skipped = ((job as { skipped?: number }).skipped as number) || 0;
+            const pct = total > 0 ? Math.min(100, Math.round((processed / total) * 100)) : 0;
+            return (
+              <div style={{ marginBottom: 16, padding: 14, background: 'var(--s3)', borderRadius: 10, border: '1px solid var(--border)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8, flexWrap: 'wrap', gap: 6 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
+                    Importing… {processed} / {total} rows
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>
+                    {inserted} new · {skipped} merged or skipped
+                  </div>
+                </div>
+                <div style={{ height: 8, borderRadius: 999, background: 'var(--s2)', overflow: 'hidden' }}>
+                  <div style={{
+                    width: `${pct}%`, height: '100%', background: 'var(--primary)',
+                    transition: 'width 300ms ease',
+                  }} />
+                </div>
+                <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 6 }}>
+                  Keep this tab open while the import runs. You can leave at any time — the job continues in the background and you can come back to /dashboard/crm/leads to see the result.
+                </div>
+              </div>
+            );
+          })()}
           <div style={{ overflowX: 'auto', background: 'var(--s3)', borderRadius: 8, padding: 8, maxHeight: 300 }}>
             <table style={{ width: '100%', fontSize: 12 }}>
               <thead><tr>{Object.keys(sample[0] || {}).map((k) => <th key={k} style={{ textAlign: 'left', padding: 6, color: 'var(--text-dim)' }}>{k}</th>)}</tr></thead>
@@ -173,8 +267,8 @@ export default function LeadImportPage() {
             </table>
           </div>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 18 }}>
-            <button onClick={() => setStep(2)} style={btnGhost}>Back</button>
-            <button onClick={commit} disabled={busy} style={btnPrimary}>{busy ? 'Committing...' : `Commit ${job.total_rows || sample.length} Rows`}</button>
+            <button onClick={() => setStep(2)} disabled={busy} style={btnGhost}>Back</button>
+            <button onClick={commit} disabled={busy} style={btnPrimary}>{busy ? 'Importing…' : `Commit ${job.total_rows || sample.length} Rows`}</button>
           </div>
         </div>
       )}

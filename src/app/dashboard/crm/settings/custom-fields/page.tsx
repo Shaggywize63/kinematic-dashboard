@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { crmCustomFields, crmSettings } from '../../../../../lib/crmApi';
+import { crmCustomFields, crmSettings, crmTargets } from '../../../../../lib/crmApi';
 import api from '../../../../../lib/api';
 import type { CustomField } from '../../../../../types/crm';
 import { getStoredUser, canAccess } from '../../../../../lib/auth';
@@ -18,6 +18,11 @@ const TYPES: Array<CustomField['field_type']> = [
   'select', 'multiselect', 'radio',
   'url', 'email', 'phone',
   'image', 'file',
+  'lookup',
+  // Read-only computed field — value derived from other custom fields
+  // via an arithmetic + IF / MIN / MAX / ROUND formula. Editor + render
+  // are wired in CustomFieldsSection.
+  'formula',
 ];
 
 // Human-readable labels for the picker. Drives the option text in the
@@ -39,9 +44,83 @@ const TYPE_LABELS: Record<CustomField['field_type'], string> = {
   phone:       'Phone (10-digit)',
   image:       'Image upload',
   file:        'File upload',
+  lookup:      'Linked record (lookup)',
+  formula:     'Formula (computed)',
 };
 
 const TYPES_REQUIRING_OPTIONS = new Set<CustomField['field_type']>(['select', 'multiselect', 'radio']);
+
+// Tables the lookup field can point at. Mirrors the backend allowlist —
+// only these targets are honoured by /api/v1/crm/lookup/search.
+const LOOKUP_TARGETS: Array<{ value: string; label: string }> = [
+  { value: 'crm_leads',        label: 'Lead' },
+  { value: 'crm_contacts',     label: 'Contact' },
+  { value: 'crm_accounts',     label: 'Account' },
+  { value: 'crm_deals',        label: 'Deal' },
+  { value: 'people_directory', label: 'People Directory entry' },
+];
+
+// Operators the simple v1 filter builder supports. Each clause is ANDed
+// with the others on the backend — Salesforce-style OR groups + per-type
+// operator restrictions are an explicit later iteration.
+const LOOKUP_OPS: Array<{ value: string; label: string }> = [
+  { value: 'eq',       label: 'equals' },
+  { value: 'ne',       label: 'is not' },
+  { value: 'contains', label: 'contains' },
+  { value: 'gte',      label: 'is at least' },
+  { value: 'lte',      label: 'is at most' },
+];
+type LookupClause = { field: string; op: string; value: string };
+
+// Filterable columns per target table — what the admin can choose as
+// the "column" side of a lookup-filter clause. Curated so internal /
+// audit columns (org_id, deleted_at, created_by, …) don't show in the
+// dropdown; we only surface fields a CRM admin would reasonably want
+// to narrow by. Keep in sync with the backend's per-target search /
+// allowlist in crm.routes.ts /lookup/search.
+const LOOKUP_FIELDS: Record<string, Array<{ value: string; label: string }>> = {
+  crm_leads: [
+    { value: 'status',          label: 'Status (new / working / …)' },
+    { value: 'lifecycle_stage', label: 'Lifecycle stage' },
+    { value: 'score',           label: 'Score (number)' },
+    { value: 'score_grade',     label: 'Score grade (A / B / C / D)' },
+    { value: 'is_b2c',          label: 'Is B2C (true / false)' },
+    { value: 'company',         label: 'Company' },
+    { value: 'industry',        label: 'Industry' },
+    { value: 'city',            label: 'City' },
+    { value: 'state',           label: 'State' },
+    { value: 'country',         label: 'Country' },
+    { value: 'source_id',       label: 'Source (UUID)' },
+    { value: 'owner_id',        label: 'Owner (UUID)' },
+    { value: 'is_converted',    label: 'Converted (true / false)' },
+  ],
+  crm_contacts: [
+    { value: 'account_id',  label: 'Account (UUID)' },
+    { value: 'owner_id',    label: 'Owner (UUID)' },
+    { value: 'city',        label: 'City' },
+    { value: 'state',       label: 'State' },
+    { value: 'country',     label: 'Country' },
+    { value: 'is_b2c',      label: 'Is B2C (true / false)' },
+    { value: 'loyalty_tier', label: 'Loyalty tier' },
+  ],
+  crm_accounts: [
+    { value: 'industry', label: 'Industry' },
+    { value: 'city',     label: 'City' },
+    { value: 'country',  label: 'Country' },
+    { value: 'owner_id', label: 'Owner (UUID)' },
+  ],
+  crm_deals: [
+    { value: 'status',     label: 'Status' },
+    { value: 'stage_id',   label: 'Stage (UUID)' },
+    { value: 'pipeline_id', label: 'Pipeline (UUID)' },
+    { value: 'amount',     label: 'Amount (number)' },
+    { value: 'owner_id',   label: 'Owner (UUID)' },
+  ],
+  people_directory: [
+    { value: 'type', label: 'Type (Dealer / Engineer / …)' },
+    { value: 'city', label: 'City' },
+  ],
+};
 
 // Built-in standard fields for each entity
 type BuiltinField = { key: string; label: string; type: string; required?: boolean };
@@ -57,11 +136,11 @@ const BUILTIN_FIELDS: Record<string, BuiltinField[]> = {
     { key: 'first_name', label: 'First Name', type: 'text', required: true },
     { key: 'last_name', label: 'Last Name', type: 'text', required: true },
     { key: 'email', label: 'Email', type: 'text' },
-    // Phone is optional by default — the lead form mirrors this. To
-    // make Primary Mobile mandatory on a specific scope (B2C only,
-    // say), use the B2C scope tab above the table and toggle Required
-    // on; the lead form will pick it up on the next page load.
-    { key: 'phone', label: 'Primary Mobile', type: 'text' },
+    // Phone is required by default — the lead form mirrors this. The
+    // primary mobile is the canonical contact for B2C intake and the
+    // de-facto identifier for B2B reps too. Admins can flip it to
+    // optional via the Edit dialog for tenants that don't collect it.
+    { key: 'phone', label: 'Primary Mobile', type: 'text', required: true },
     { key: 'company', label: 'Company', type: 'text' },
     { key: 'title', label: 'Job Title', type: 'text' },
     { key: 'industry', label: 'Industry', type: 'text' },
@@ -154,8 +233,12 @@ export default function CustomFieldsPage() {
     id: string;
     label: string;
     required: boolean;
+    hidden: boolean;
     field_type: CustomField['field_type'];
     optionsRaw: string;
+    org_role_ids: string[];
+    targetTable: string;
+    lookupFilter: LookupClause[];
   } | null>(null);
   const [savingCustom, setSavingCustom] = useState(false);
 
@@ -165,7 +248,26 @@ export default function CustomFieldsPage() {
   const [fieldType, setFieldType] = useState<CustomField['field_type']>('text');
   const [optionsRaw, setOptionsRaw] = useState('');
   const [required, setRequired] = useState(false);
+  // Lookup-only state for the create form. Mirrors the edit dialog
+  // above. Defaults reset whenever the user flips field_type away from
+  // 'lookup' so a stale target/filter never gets persisted.
+  const [targetTable, setTargetTable] = useState<string>('');
+  const [lookupFilter, setLookupFilter] = useState<LookupClause[]>([]);
+  // Dynamic list of every multi-tenant table in the database that's eligible
+  // as a Linked Record target. Loaded from /api/v1/crm/lookup/targets so new
+  // tables added in future migrations appear in the dropdown automatically
+  // without any code change. Falls back to the hardcoded LOOKUP_TARGETS
+  // until the fetch resolves (or if it fails) so the admin can still pick a
+  // core CRM object even when the API is unreachable.
+  const [lookupTargets, setLookupTargets] = useState<Array<{ value: string; label: string }>>(LOOKUP_TARGETS);
+  // Formula-only state — the expression itself. Validated cursorily on
+  // submit (non-empty); the backend zod schema caps the length at 500.
+  const [formula, setFormula] = useState<string>('');
   const [filter, setFilter] = useState<'all' | CustomField['entity_type']>('lead');
+  // Hierarchy roles a new field is shown to (empty = all roles). Loaded from
+  // the org's roles so each role can have its own custom fields.
+  const [roles, setRoles] = useState<Array<{ id: string; name: string }>>([]);
+  const [pickedRoles, setPickedRoles] = useState<string[]>([]);
   // Active business-type scope for built-in field overrides. 'universal'
   // edits the legacy unscoped key; 'b2b' / 'b2c' edits the
   // entity.key@scope key. At render time scoped overrides are merged on
@@ -176,6 +278,9 @@ export default function CustomFieldsPage() {
   // at the bottom can scroll the form into view AND focus the first
   // field — the rep can start typing immediately.
   const fieldKeyRef = useRef<HTMLInputElement | null>(null);
+  // Ref for the formula text input so we can insert {field_key} tokens
+  // at the current cursor position when the admin clicks a field chip.
+  const formulaInputRef = useRef<HTMLInputElement | null>(null);
   // Drag-and-drop state for the custom-fields table. dragId is the
   // row currently being dragged; overId is the row it's hovering on.
   // Set on dragstart/dragover, cleared on dragend. The actual reorder
@@ -187,10 +292,12 @@ export default function CustomFieldsPage() {
   const reload = async () => {
     setLoading(true);
     try {
-      const [cfRes, settingsRes] = await Promise.allSettled([
+      const [cfRes, settingsRes, rolesRes] = await Promise.allSettled([
         crmCustomFields.list(),
         crmSettings.get(),
+        crmTargets.levels(),
       ]);
+      if (rolesRes.status === 'fulfilled') setRoles(rolesRes.value.data || []);
       if (cfRes.status === 'fulfilled') setItems(cfRes.value.data || []);
       if (settingsRes.status === 'fulfilled') {
         const cfg = (settingsRes.value.data?.config as Record<string, unknown>) || {};
@@ -209,6 +316,15 @@ export default function CustomFieldsPage() {
       return;
     }
     reload();
+    // Pull the live list of lookup-eligible tables. Best-effort — on
+    // failure the dropdown stays on the hardcoded LOOKUP_TARGETS fallback.
+    (async () => {
+      try {
+        const r = await api.get<{ data?: Array<{ value: string; label: string }> }>('/api/v1/crm/lookup/targets');
+        const list = Array.isArray(r?.data) ? r.data : [];
+        if (list.length > 0) setLookupTargets(list);
+      } catch { /* keep the static fallback */ }
+    })();
   }, []);
 
   const create = async () => {
@@ -220,6 +336,14 @@ export default function CustomFieldsPage() {
     const needsOptions = TYPES_REQUIRING_OPTIONS.has(fieldType);
     const parsedOptions = needsOptions ? optionsRaw.split(',').map((s) => s.trim()).filter(Boolean) : undefined;
     if (needsOptions && (!parsedOptions || parsedOptions.length === 0)) return toast.error('Add at least one option for select/multiselect');
+    // Lookup fields require a target table — without it the picker has
+    // nothing to query against. Filter clauses with an empty field/value
+    // are dropped silently so a half-typed row doesn't sneak into the
+    // saved payload.
+    if (fieldType === 'lookup' && !targetTable) return toast.error('Choose which object this lookup should point to');
+    const cleanedFilter = fieldType === 'lookup'
+      ? lookupFilter.filter((c) => c.field.trim() && c.value !== '')
+      : undefined;
     setCreating(true);
     // Backend (customFieldSchema in src/validators/crm.validators.ts) expects
     // `entity_type` — sending `entity` silently failed validation and the
@@ -231,10 +355,24 @@ export default function CustomFieldsPage() {
       position: items.filter((i) => i.entity_type === entity).length,
     };
     if (parsedOptions !== undefined) payload.options = parsedOptions;
+    if (pickedRoles.length > 0) payload.org_role_ids = pickedRoles;
+    if (fieldType === 'lookup') {
+      payload.target_table = targetTable;
+      if (cleanedFilter && cleanedFilter.length > 0) payload.lookup_filter = cleanedFilter;
+    }
+    if (fieldType === 'formula') {
+      if (!formula.trim()) {
+        toast.error('Enter a formula expression — e.g. {price} * {qty}');
+        setCreating(false);
+        return;
+      }
+      payload.formula = formula.trim();
+    }
     try {
       await crmCustomFields.create(payload as any);
       toast.success(`Custom field "${label.trim()}" added to ${entity}`);
-      setFieldKey(''); setLabel(''); setOptionsRaw(''); setRequired(false);
+      setFieldKey(''); setLabel(''); setOptionsRaw(''); setRequired(false); setPickedRoles([]);
+      setTargetTable(''); setLookupFilter([]); setFormula('');
       reload();
     } catch (e: any) { toast.error(e.message || 'Create failed — check API connection'); }
     finally { setCreating(false); }
@@ -304,8 +442,19 @@ export default function CustomFieldsPage() {
       id: cf.id,
       label: cf.label,
       required: !!cf.required,
+      // Hidden flag round-trips through the same custom-fields table column
+      // — newly added so the edit dialog can offer parity with system fields.
+      // Older rows that pre-date this column read as `false` here.
+      hidden: !!(cf as { hidden?: boolean }).hidden,
       field_type: cf.field_type,
       optionsRaw: Array.isArray(cf.options) ? cf.options.join(', ') : '',
+      org_role_ids: Array.isArray(cf.org_role_ids) ? cf.org_role_ids : [],
+      // Lookup-only — defaults to empty so a non-lookup field doesn't
+      // accidentally stamp these columns when edited.
+      targetTable: (cf.target_table as string) || '',
+      lookupFilter: Array.isArray(cf.lookup_filter)
+        ? cf.lookup_filter.map((c) => ({ field: String(c.field), op: String(c.op), value: c.value == null ? '' : String(c.value) }))
+        : [],
     });
   };
 
@@ -319,11 +468,22 @@ export default function CustomFieldsPage() {
     if (needsOptions && (!parsed || parsed.length === 0)) {
       return toast.error('Add at least one option for select/multiselect');
     }
+    if (editingCustom.field_type === 'lookup' && !editingCustom.targetTable) {
+      return toast.error('Choose which object this lookup should point to');
+    }
+    const cleanedFilter = editingCustom.field_type === 'lookup'
+      ? editingCustom.lookupFilter.filter((c) => c.field.trim() && c.value !== '')
+      : null;
     setSavingCustom(true);
     try {
       const body: Record<string, unknown> = {
         label: editingCustom.label.trim(),
         required: editingCustom.required,
+        // Hidden custom fields disappear from the lead/contact/etc.
+        // create + edit forms via CustomFieldsSection's `filter(...)`,
+        // but their stored values are preserved server-side so flipping
+        // back on later doesn't lose data.
+        hidden: editingCustom.hidden,
         // Allow changing the input type post-create. The "Edit Custom
         // Field" modal warns admins that any values already stored
         // for this field will keep their original shape; the new type
@@ -333,6 +493,17 @@ export default function CustomFieldsPage() {
       };
       if (parsed !== undefined) body.options = parsed;
       else if (!needsOptions) body.options = null; // wipe when no longer needed
+      body.org_role_ids = editingCustom.org_role_ids.length ? editingCustom.org_role_ids : null;
+      // Lookup config — wipe both columns when the type is no longer
+      // lookup so a field flipped back to text doesn't carry stale
+      // target/filter info.
+      if (editingCustom.field_type === 'lookup') {
+        body.target_table = editingCustom.targetTable;
+        body.lookup_filter = (cleanedFilter && cleanedFilter.length > 0) ? cleanedFilter : null;
+      } else {
+        body.target_table = null;
+        body.lookup_filter = null;
+      }
       await crmCustomFields.update(editingCustom.id, body as any);
       toast.success('Field updated');
       setEditingCustom(null);
@@ -497,7 +668,14 @@ export default function CustomFieldsPage() {
     );
   }
 
-  const visible = filter === 'all' ? items : items.filter((i) => i.entity_type === filter);
+  // Render in saved order: group by entity, then by position. Without this
+  // sort, drag-to-reorder updated the position values but the list kept its
+  // original (API/insertion) order, so shuffling appeared to do nothing.
+  const visible = (filter === 'all' ? items : items.filter((i) => i.entity_type === filter))
+    .slice()
+    .sort((a, b) =>
+      (a.entity_type || '').localeCompare(b.entity_type || '')
+      || (a.position ?? 0) - (b.position ?? 0));
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -520,11 +698,106 @@ export default function CustomFieldsPage() {
         {TYPES_REQUIRING_OPTIONS.has(fieldType) && (
           <input value={optionsRaw} onChange={(e) => setOptionsRaw(e.target.value)} placeholder="Comma-separated options (e.g. Hot, Warm, Cold)" style={{ ...input, width: '100%', marginBottom: 8 }} />
         )}
+        {fieldType === 'lookup' && (
+          <LookupConfig
+            target={targetTable}
+            onTargetChange={setTargetTable}
+            filter={lookupFilter}
+            onFilterChange={setLookupFilter}
+            targets={lookupTargets}
+          />
+        )}
+        {fieldType === 'formula' && (
+          <div style={{ marginBottom: 8 }}>
+            {/* Available fields for this entity — click to insert {field_key} */}
+            {(() => {
+              const available = items.filter(
+                (f) => f.entity_type === entity && f.field_type !== 'formula' && !f.hidden,
+              );
+              if (available.length === 0) return (
+                <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 6 }}>
+                  No other custom fields for <strong>{entity}</strong> yet. Create them first, then reference them here.
+                </div>
+              );
+              return (
+                <div style={{ marginBottom: 8 }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 600, marginBottom: 4 }}>
+                    Click a field to insert it into the formula:
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                    {available.map((f) => (
+                      <button
+                        key={f.id}
+                        type="button"
+                        title={`Insert {${f.field_key}}`}
+                        onClick={() => {
+                          const el = formulaInputRef.current;
+                          if (!el) { setFormula((prev) => prev + `{${f.field_key}}`); return; }
+                          const start = el.selectionStart ?? formula.length;
+                          const end   = el.selectionEnd   ?? formula.length;
+                          const insert = `{${f.field_key}}`;
+                          const next = formula.slice(0, start) + insert + formula.slice(end);
+                          setFormula(next);
+                          // Restore cursor after the inserted token.
+                          requestAnimationFrame(() => {
+                            el.focus();
+                            el.setSelectionRange(start + insert.length, start + insert.length);
+                          });
+                        }}
+                        style={{
+                          padding: '3px 9px', borderRadius: 999, fontSize: 11, cursor: 'pointer',
+                          border: '1px solid var(--primary)', background: 'var(--s3)',
+                          color: 'var(--primary)', fontWeight: 600, fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+                        }}
+                      >
+                        {'{' + f.field_key + '}'} <span style={{ fontWeight: 400, fontFamily: 'inherit', color: 'var(--text-dim)' }}>{f.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+            <input
+              ref={formulaInputRef}
+              value={formula}
+              onChange={(e) => setFormula(e.target.value)}
+              placeholder='e.g. {price} * {qty}   or   ROUND(({revenue} - {cost}) / {revenue} * 100, 1)'
+              style={{ ...input, width: '100%', fontFamily: 'ui-monospace, SFMono-Regular, monospace' }}
+            />
+            <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 4 }}>
+              Operators: <code>+ - * /</code> and <code>(  )</code>. Functions: <code>IF(cond, then, else)</code>, <code>MIN(a, b, …)</code>, <code>MAX(a, b, …)</code>, <code>ROUND(value, decimals)</code>.
+            </div>
+          </div>
+        )}
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 12 }}>
           <label style={{ display: 'flex', gap: 6, alignItems: 'center', color: 'var(--text)', fontSize: 13 }}>
             <input type="checkbox" checked={required} onChange={(e) => setRequired(e.target.checked)} /> Required
           </label>
         </div>
+        {roles.length > 0 && (
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 12, color: 'var(--text-dim)', fontWeight: 600, marginBottom: 6 }}>
+              Show to roles <span style={{ fontWeight: 400 }}>(none selected = everyone)</span>
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {roles.map((r) => {
+                const on = pickedRoles.includes(r.id);
+                return (
+                  <button
+                    key={r.id}
+                    type="button"
+                    onClick={() => setPickedRoles((prev) => on ? prev.filter((x) => x !== r.id) : [...prev, r.id])}
+                    style={{ padding: '5px 10px', borderRadius: 999, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                      border: `1px solid ${on ? 'var(--primary)' : 'var(--border)'}`,
+                      background: on ? 'var(--primary)' : 'var(--s3)', color: on ? '#fff' : 'var(--text)' }}
+                  >
+                    {on ? '✓ ' : ''}{r.name}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
         <button onClick={create} disabled={creating} style={btnPrimary}>{creating ? 'Adding…' : '+ Add Field'}</button>
       </div>
 
@@ -948,11 +1221,56 @@ export default function CustomFieldsPage() {
                 />
               </div>
             )}
+            {editingCustom.field_type === 'lookup' && (
+              <LookupConfig
+                target={editingCustom.targetTable}
+                onTargetChange={(t) => setEditingCustom({ ...editingCustom, targetTable: t })}
+                filter={editingCustom.lookupFilter}
+                onFilterChange={(f) => setEditingCustom({ ...editingCustom, lookupFilter: f })}
+                targets={lookupTargets}
+              />
+            )}
 
-            <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, color: 'var(--text)', marginBottom: 16 }}>
+            <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, color: 'var(--text)', marginBottom: 10 }}>
               <input type="checkbox" checked={editingCustom.required} onChange={(e) => setEditingCustom({ ...editingCustom, required: e.target.checked })} />
               Required field
             </label>
+            <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, color: 'var(--text)', marginBottom: 16 }}>
+              <input
+                type="checkbox"
+                checked={editingCustom.hidden}
+                onChange={(e) => setEditingCustom({ ...editingCustom, hidden: e.target.checked })}
+              />
+              Hide this field from forms
+              <span style={{ fontSize: 11, color: 'var(--text-dim)', marginLeft: 6 }}>
+                (data isn&rsquo;t deleted; the input just won&rsquo;t appear on the create/edit screens)
+              </span>
+            </label>
+
+            {roles.length > 0 && (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 12, color: 'var(--text-dim)', fontWeight: 600, marginBottom: 6 }}>
+                  Show to roles <span style={{ fontWeight: 400 }}>(none = everyone)</span>
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {roles.map((r) => {
+                    const on = editingCustom.org_role_ids.includes(r.id);
+                    return (
+                      <button
+                        key={r.id}
+                        type="button"
+                        onClick={() => setEditingCustom({ ...editingCustom, org_role_ids: on ? editingCustom.org_role_ids.filter((x) => x !== r.id) : [...editingCustom.org_role_ids, r.id] })}
+                        style={{ padding: '5px 10px', borderRadius: 999, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                          border: `1px solid ${on ? 'var(--primary)' : 'var(--border)'}`,
+                          background: on ? 'var(--primary)' : 'var(--s3)', color: on ? '#fff' : 'var(--text)' }}
+                      >
+                        {on ? '✓ ' : ''}{r.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
               <button onClick={() => setEditingCustom(null)} disabled={savingCustom} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontSize: 13 }}>Cancel</button>
@@ -998,3 +1316,95 @@ const btnSmallGhost: React.CSSProperties = { background: 'transparent', border: 
 const btnSmallDanger: React.CSSProperties = { background: 'transparent', border: '1px solid #ef4444', color: '#ef4444', padding: '4px 10px', borderRadius: 6, cursor: 'pointer', fontSize: 11 };
 const th: React.CSSProperties = { textAlign: 'left', padding: '8px 10px', color: 'var(--text-dim)', fontSize: 11, textTransform: 'uppercase', fontWeight: 700, borderBottom: '1px solid var(--border)' };
 const td: React.CSSProperties = { padding: '8px 10px', color: 'var(--text)', borderBottom: '1px solid var(--border)' };
+
+/**
+ * Lookup configuration block — target object picker + simple AND-of-clauses
+ * filter builder. Used in both the "Add Custom Field" create form and the
+ * "Edit Custom Field" dialog so the wiring stays in one place. v1 supports
+ * one operator per clause (equals / is not / contains / at-least / at-most);
+ * Salesforce-style OR groups and per-type operator restrictions ship later.
+ */
+function LookupConfig({
+  target, onTargetChange, filter, onFilterChange, targets,
+}: {
+  target: string;
+  onTargetChange: (t: string) => void;
+  filter: LookupClause[];
+  onFilterChange: (f: LookupClause[]) => void;
+  // Live list of lookup-eligible tables. Sourced from /lookup/targets so
+  // new tables added to the database show up here without a code change.
+  targets: Array<{ value: string; label: string }>;
+}) {
+  const updateRow = (idx: number, patch: Partial<LookupClause>) => {
+    onFilterChange(filter.map((c, i) => (i === idx ? { ...c, ...patch } : c)));
+  };
+  const addRow = () => onFilterChange([...filter, { field: '', op: 'eq', value: '' }]);
+  const removeRow = (idx: number) => onFilterChange(filter.filter((_, i) => i !== idx));
+  return (
+    <div style={{ background: 'var(--s1)', border: '1px solid var(--border)', borderRadius: 10, padding: 12, marginBottom: 8 }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>Linked Record settings</div>
+      <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 10 }}>
+        Picks which object this lookup field points at, and optionally narrows the records that show in the picker.
+      </div>
+      <label style={{ display: 'block', fontSize: 11, color: 'var(--text-dim)', marginBottom: 4 }}>Linked object</label>
+      <select value={target} onChange={(e) => onTargetChange(e.target.value)} style={{ ...input, width: '100%', marginBottom: 12 }}>
+        <option value="">— Choose an object —</option>
+        {targets.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+      </select>
+      {target && (
+        <>
+          <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 6 }}>
+            Filter (optional) — only records matching <strong>all</strong> of these conditions appear in the picker.
+          </div>
+          {(() => {
+            // Per-target column catalog. If the admin picks a target we
+            // haven't curated yet, fall back to a free-text field so we
+            // never block the form — but keep the warning visible.
+            const cols = LOOKUP_FIELDS[target];
+            return filter.map((c, idx) => (
+              <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1fr 130px 1fr auto', gap: 6, marginBottom: 6 }}>
+                {cols ? (
+                  <select
+                    value={c.field}
+                    onChange={(e) => updateRow(idx, { field: e.target.value })}
+                    style={input}
+                  >
+                    <option value="">— Choose column —</option>
+                    {cols.map((col) => (
+                      <option key={col.value} value={col.value}>{col.label}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    value={c.field}
+                    onChange={(e) => updateRow(idx, { field: e.target.value })}
+                    placeholder="Column on the linked object (e.g. status)"
+                    style={input}
+                  />
+                )}
+                <select value={c.op} onChange={(e) => updateRow(idx, { op: e.target.value })} style={input}>
+                  {LOOKUP_OPS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+                <input
+                  value={c.value}
+                  onChange={(e) => updateRow(idx, { value: e.target.value })}
+                  placeholder="Value"
+                  style={input}
+                />
+                <button
+                  onClick={() => removeRow(idx)}
+                  title="Remove condition"
+                  style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', borderRadius: 6, cursor: 'pointer', padding: '0 10px', fontSize: 13 }}
+                >×</button>
+              </div>
+            ));
+          })()}
+          <button
+            onClick={addRow}
+            style={{ background: 'transparent', border: '1px dashed var(--border)', color: 'var(--primary)', borderRadius: 6, padding: '6px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+          >+ Add condition</button>
+        </>
+      )}
+    </div>
+  );
+}

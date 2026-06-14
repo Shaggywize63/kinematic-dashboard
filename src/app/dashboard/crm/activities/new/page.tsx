@@ -225,10 +225,12 @@ function NewActivityPageInner() {
       let data: any[] = [];
       if (entityType === 'lead') {
         const r = await crmLeads.list(q ? { q } : undefined);
-        data = (r.data || []).map((x: Lead) => ({
-          id: x.id,
-          label: [x.first_name, x.last_name].filter(Boolean).join(' ') || x.email || 'Lead',
-        }));
+        data = (r.data || []).map((x: Lead) => {
+          const name = [x.first_name, x.last_name].filter(Boolean).join(' ') || x.email || 'Lead';
+          // Show the contact number alongside the name so the FE can pick the
+          // right lead while logging an activity.
+          return { id: x.id, label: x.phone ? `${name} · ${x.phone}` : name };
+        });
       } else if (entityType === 'contact') {
         const r = await crmContacts.list(q ? { q } : undefined);
         data = (r.data || []).map((x: any) => ({

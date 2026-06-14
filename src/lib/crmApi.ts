@@ -6,6 +6,7 @@ import type {
   LeadSource, AssignmentRule, Territory, Automation, CustomField,
   ImportJob, LeadScore, NextBestAction, WinProbability,
   AnalyticsSummary, FunnelPoint, PipelineValuePoint, WinRatePoint, ForecastPoint,
+  TeamPerformanceRow, LeadTrackerPayload, TeamDailyCard,
   ActivityHeatPoint, SourceROIRow, ScoreDistributionPoint, StateCount,
   KiniContext, KiniCard,
   CrmSettings, BusinessType,
@@ -65,6 +66,9 @@ export const crmLeads = {
   scoreHistory: (id: string) => api.get<Wrapped<LeadScore[]>>(`${BASE}/leads/${id}/score-history`),
   activities: (id: string) => api.get<Wrapped<Activity[]>>(`${BASE}/leads/${id}/activities`),
   deals: (id: string) => api.get<Wrapped<Deal[]>>(`${BASE}/leads/${id}/deals`),
+  // All geo-tagged leads (up to 5000) for the dashboard map — bypasses the
+  // 200-row list cap. City is auto-attached by the api client.
+  geo: () => api.get<Wrapped<Array<{ id: string; first_name?: string | null; last_name?: string | null; city?: string | null; state?: string | null; status?: string | null; latitude?: number | null; longitude?: number | null; score?: number | null; score_grade?: 'A' | 'B' | 'C' | 'D' | null }>>>(`${BASE}/leads/geo`),
   convert: (
     id: string,
     body: { create_account?: boolean; create_deal?: boolean; deal_name?: string; deal_amount?: number; account_id?: string }
@@ -75,6 +79,11 @@ export const crmLeads = {
     ),
   bulkAssign: (body: { lead_ids: string[]; owner_id?: string; territory_id?: string }) =>
     api.post<Wrapped<{ updated: number }>>(`${BASE}/leads/bulk-assign`, body),
+  // Bulk lat/long backfill for existing leads. Each row matches one lead by
+  // id -> email -> phone (server-side, org-scoped).
+  bulkCoordinates: (body: { rows: Array<{ id?: string; email?: string; phone?: string; latitude: number; longitude: number }> }) =>
+    api.post<Wrapped<{ updated: number; skipped: number; errors: Array<{ row: number; reason: string }> }>>(
+      `${BASE}/leads/bulk-coordinates`, body),
   // Lifecycle: disqualify with a reason and reopen.
   // Disqualify routes through the existing PATCH so the server's status-transition
   // audit + disqualified_at stamping (lead lifecycle Step 1) fires uniformly.
@@ -162,6 +171,96 @@ export const crmActivities = {
     api.get<Wrapped<Activity[]>>(`${BASE}/activities/calendar${qs(params)}`),
 };
 
+// Per-FE / per-hierarchy-level daily lead targets. Managers read/set.
+export interface TargetsState {
+  default_target: number;
+  per_level: Array<{ hierarchy_level_id: string; target_value: number }>;
+  per_user: Array<{ user_id: string; target_value: number }>;
+}
+export interface MyTarget { metric: string; period: string; target: number; achieved: number; }
+export type LeaderboardPeriod = 'today' | 'week' | 'month';
+export interface LeaderboardEntry {
+  user_id: string; name: string; city: string | null;
+  leads: number; target: number; pct: number | null;
+}
+export interface Leaderboard {
+  period: LeaderboardPeriod;
+  days: number;
+  generated_at: string;
+  stats: {
+    participants: number;
+    total_leads: number;
+    average_leads: number;
+    meeting_target: number;
+    target_participants: number;
+    top_performer: { name: string; leads: number } | null;
+    lowest_performer: { name: string; leads: number } | null;
+  };
+  entries: LeaderboardEntry[];
+  role_id?: string | null;
+}
+// ── Home aggregator ─────────────────────────────────────────────────
+// Composes today's target + near-to-close leads + top 3 next-best
+// actions (with reasoning) + today's activity stats + productivity
+// tips into one payload so the Home page is a single round-trip.
+export interface HomeNextAction {
+  lead_id: string;
+  lead_name: string;
+  action: 'call' | 'whatsapp' | 'follow_up' | 'qualify' | 'meeting' | 'create_deal' | 'nurture';
+  label: string;
+  reason: string;
+  urgency: 'high' | 'medium' | 'low';
+  deeplink_path: string;
+  score: number | null;
+  score_grade: string | null;
+}
+export interface HomeNearLead {
+  id: string;
+  name: string;
+  score: number | null;
+  score_grade: string | null;
+  lifecycle_stage: string | null;
+  status: string | null;
+  last_activity_at: string | null;
+  days_since_touch: number | null;
+  reason: string;
+}
+export interface HomePayload {
+  today_target: {
+    has_target: boolean;
+    achieved: number;
+    target: number;
+    progress_pct: number;
+    remaining: number;
+    headline: string;
+  };
+  near_to_close: HomeNearLead[];
+  next_actions: HomeNextAction[];
+  today_activity: {
+    total: number;
+    by_type: Record<string, number>;
+    last_activity_at: string | null;
+  };
+  productivity_tips: string[];
+}
+export const crmHome = {
+  get: () => api.get<Wrapped<HomePayload>>(`${BASE}/home`),
+};
+
+export const crmTargets = {
+  get: () => api.get<Wrapped<TargetsState>>(`${BASE}/targets`),
+  mine: () => api.get<Wrapped<MyTarget>>(`${BASE}/targets/me`),
+  set: (body: { user_id?: string | null; hierarchy_level_id?: string | null; target_value: number; all?: boolean }) =>
+    api.put<Wrapped<unknown>>(`${BASE}/targets`, body),
+  leaderboard: (period: LeaderboardPeriod = 'today') =>
+    api.get<Wrapped<Leaderboard>>(`${BASE}/targets/leaderboard${qs({ period })}`),
+  // Hierarchy roles to choose from (org_roles), used by the leaderboard role picker.
+  levels: () => api.get<Wrapped<Array<{ id: string; name: string }>>>(`${BASE}/targets/levels`),
+  getLeaderboardRole: () => api.get<Wrapped<{ role_id: string | null }>>(`${BASE}/targets/leaderboard-role`),
+  setLeaderboardRole: (role_id: string | null) =>
+    api.put<Wrapped<{ role_id: string | null }>>(`${BASE}/targets/leaderboard-role`, { role_id }),
+};
+
 export const crmNotes = crud<Note>(`${BASE}/notes`);
 export const crmTasks = crud<Task>(`${BASE}/tasks`);
 export const crmEmailTemplates = crud<EmailTemplate>(`${BASE}/email-templates`);
@@ -171,6 +270,67 @@ export const crmAssignmentRules = crud<AssignmentRule>(`${BASE}/assignment-rules
 export const crmTerritories = crud<Territory>(`${BASE}/territories`);
 export const crmAutomations = crud<Automation>(`${BASE}/automations`);
 export const crmCustomFields = crud<CustomField>(`${BASE}/custom-fields`);
+
+// People Directory — per-client address book sitting alongside contacts.
+// Same CRUD shape as the other CRM lookups, plus /bulk-import + /export
+// + an adjacent /people-directory-types catalog the admin can extend
+// (Dealer / Engineer / Architect / …) without a code change.
+export interface PeopleDirectoryEntry {
+  id?: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  mobile?: string | null;
+  email?: string | null;
+  address?: string | null;
+  type?: string | null;
+  city?: string | null;
+  // Tenant-supplied identifier (employee id, dealer code, etc.).
+  // Tata Tiscon writes it on every person to roll up their reports.
+  code?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+export interface PeopleDirectoryType {
+  id?: string;
+  name: string;
+  is_active?: boolean;
+  position?: number;
+  created_at?: string;
+}
+export const crmPeopleDirectory = {
+  ...crud<PeopleDirectoryEntry>(`${BASE}/people-directory`),
+  bulkImport: (body: {
+    rows: Array<Omit<PeopleDirectoryEntry, 'id' | 'created_at' | 'updated_at'>>;
+    on_duplicate: 'skip' | 'update';
+  }) =>
+    api.post<Wrapped<{ added: number; updated: number; skipped: number; total: number }>>(
+      `${BASE}/people-directory/bulk-import`, body,
+    ),
+  // CSV export uses the same scope + filter as the list endpoint and
+  // returns raw text. Resolves via the api client's text-bypass branch
+  // (Content-Type: text/csv), which we surface to the page via
+  // window.open(...) instead.
+  exportUrl: (q?: Record<string, string | undefined>) => {
+    const qs = new URLSearchParams();
+    for (const [k, v] of Object.entries(q || {})) if (v) qs.set(k, v);
+    return `${BASE}/people-directory/export${qs.toString() ? `?${qs.toString()}` : ''}`;
+  },
+};
+export const crmPeopleDirectoryTypes = crud<PeopleDirectoryType>(`${BASE}/people-directory-types`);
+
+// Lookup search — powers the new "linked record" custom-field picker.
+// Returns up to 50 (id, label, raw) tuples from the chosen target
+// table, optionally filtered by the admin-configured condition list.
+export interface LookupHit { id: string; label: string; raw: Record<string, unknown> }
+export const crmLookup = {
+  search: (params: { target: string; q?: string; filter?: Array<{ field: string; op: string; value: unknown }> }) => {
+    const qs = new URLSearchParams();
+    qs.set('target', params.target);
+    if (params.q) qs.set('q', params.q);
+    if (params.filter && params.filter.length) qs.set('filter', JSON.stringify(params.filter));
+    return api.get<Wrapped<LookupHit[]>>(`${BASE}/lookup/search?${qs.toString()}`);
+  },
+};
 
 // Phase 2: Products + WhatsApp
 export const crmProductCategories = crud<ProductCategory>(`${BASE}/product-categories`);
@@ -286,6 +446,21 @@ export const crmAnalytics = {
     api.get<Wrapped<FunnelPoint[]>>(`${BASE}/analytics/funnel${qs({ ...range })}`),
   winRate: (by: 'rep' | 'source' | 'stage' = 'rep', range?: DateRangeParams) =>
     api.get<Wrapped<WinRatePoint[]>>(`${BASE}/analytics/win-rate${qs({ by, ...range })}`),
+  // Per-rep KPI roll-up across the caller's hierarchy subtree. Drives
+  // the "Team Performance" report — sticky-Total row + per-rep rows.
+  teamPerformance: (range?: DateRangeParams) =>
+    api.get<Wrapped<{
+      total: TeamPerformanceRow;
+      rows: TeamPerformanceRow[];
+    }>>(`${BASE}/analytics/team-performance${qs({ ...range })}`),
+  // Monthly new-lead bar chart + today/week/month summaries for the
+  // caller's hierarchy subtree.
+  leadTracker: (months = 6) =>
+    api.get<Wrapped<LeadTrackerPayload>>(`${BASE}/analytics/lead-tracker${qs({ months })}`),
+  // One card per rep for a chosen day — attendance check-in, today's
+  // visits achieved vs scheduled, and leads added.
+  teamDaily: (date?: string) =>
+    api.get<Wrapped<TeamDailyCard[]>>(`${BASE}/analytics/team-daily${qs({ date })}`),
   salesCycle: (range?: DateRangeParams) =>
     api.get<Wrapped<Array<{ stage: string; avg_days: number }>>>(`${BASE}/analytics/sales-cycle${qs({ ...range })}`),
   forecast: (period: 'month' | 'quarter' = 'quarter', range?: DateRangeParams, unit: 'inr' | 'weight' = 'inr') =>
@@ -304,6 +479,13 @@ export const crmAi = {
   draftReply: (body: { lead_id?: string; deal_id?: string; thread?: string; tone?: string; goal?: string }) =>
     api.post<Wrapped<{ subject: string; body_html: string; body_text: string }>>(
       `${BASE}/ai/draft-reply`,
+      body
+    ),
+  // Purpose-built email TEMPLATE generator (KINI AI Generate). Returns a
+  // ready-to-edit template with {{placeholders}} and detected variables.
+  draftEmailTemplate: (body: { goal: string; tone?: string; audience?: string; language?: string }) =>
+    api.post<Wrapped<{ name: string; subject: string; body_html: string; body_text: string; variables: string[]; category: string }>>(
+      `${BASE}/ai/draft-email-template`,
       body
     ),
   nextBestAction: (dealId: string) =>

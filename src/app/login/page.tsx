@@ -1,7 +1,7 @@
 'use client';
 import { useState, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import api from '../../lib/api';
+import api, { API_BASE_URL } from '../../lib/api';
 import { saveSession, landingRouteFor } from '../../lib/auth';
 
 /**
@@ -112,31 +112,52 @@ export default function LoginPage() {
     if (password.length < 4) { setError('Password must be at least 4 characters.'); return; }
 
     setError(''); setLoading(true);
-    try {
-      const res = await api.login(email, password) as {
-        success: boolean;
-        data: {
-          user: { id: string; name: string; role: string; org_id: string; permissions: string[] };
-          access_token: string;
-          refresh_token?: string;
-          expires_at: number;
+
+    // Retry up to 3 attempts on network errors (covers backend cold starts on Railway).
+    // Credential errors (wrong password, inactive account, etc.) are not retried.
+    let lastErr: unknown;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (attempt > 0) await new Promise(r => setTimeout(r, 1500 * attempt));
+      try {
+        const res = await api.login(email, password) as {
+          success: boolean;
+          data: {
+            user: { id: string; name: string; role: string; org_id: string; permissions: string[] };
+            access_token: string;
+            refresh_token?: string;
+            expires_at: number;
+          };
         };
-      };
-      if (res.success && res.data) {
-        const user = res.data.user as Parameters<typeof saveSession>[0]['user'];
-        saveSession({
-          user,
-          access_token: res.data.access_token,
-          refresh_token: res.data.refresh_token,
-          expires_at: res.data.expires_at ?? Math.floor(Date.now() / 1000) + 86400,
-        });
-        router.push(landingRouteFor(user));
+        if (res.success && res.data) {
+          const user = res.data.user as Parameters<typeof saveSession>[0]['user'];
+          saveSession({
+            user,
+            access_token: res.data.access_token,
+            refresh_token: res.data.refresh_token,
+            expires_at: res.data.expires_at ?? Math.floor(Date.now() / 1000) + 86400,
+          });
+          router.push(landingRouteFor(user));
+        }
+        setLoading(false);
+        return;
+      } catch (err) {
+        const raw = err instanceof Error ? err.message : '';
+        const isNetwork = /Failed to fetch|NetworkError|Load failed/i.test(raw);
+        lastErr = err;
+        if (!isNetwork) break; // credential / server error — don't retry
       }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Login failed. Check your credentials.');
-    } finally {
-      setLoading(false);
     }
+
+    // All attempts exhausted — surface the error.
+    const raw = lastErr instanceof Error ? lastErr.message : '';
+    if (/Failed to fetch|NetworkError|Load failed/i.test(raw)) {
+      // eslint-disable-next-line no-console
+      console.error('[login] could not reach API after retries', API_BASE_URL, raw);
+      setError('Could not reach the server. Check your internet connection and try again, or contact your administrator if the problem persists.');
+    } else {
+      setError(raw || 'Login failed. Check your credentials.');
+    }
+    setLoading(false);
   };
 
   return (
@@ -198,7 +219,7 @@ export default function LoginPage() {
 
         @media (max-width: 960px) {
           /* Mobile: collapse the constellation into a normal vertical
-             stack — logo + headline → form → recap grid. */
+             stack — logo + headline → form → section/mockup parade. */
           .login-constellation { display: none !important; }
           .login-card-center {
             position: static !important;
@@ -210,6 +231,17 @@ export default function LoginPage() {
         }
         @media (min-width: 961px) {
           .login-mobile-stack { display: none !important; }
+        }
+        /* Wider than ~720px: section + mockup go side-by-side. The
+           inline CSS order on the children alternates which side
+           the copy sits on per section. */
+        @media (min-width: 720px) {
+          .marketing-section {
+            grid-template-columns: 1fr 1fr !important;
+            gap: 28px !important;
+            padding: 32px !important;
+            align-items: center;
+          }
         }
       `}</style>
 
@@ -283,7 +315,11 @@ export default function LoginPage() {
           boxShadow: '0 30px 80px rgba(15, 30, 60, 0.12)',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
-            <img src="/logo-mark.png" alt="Kinematic" style={{ width: 40, height: 40, objectFit: 'contain' }} />
+            <img
+              src="https://kinematicapp.com/assets/logo.png"
+              alt="Kinematic"
+              style={{ height: 40, width: 'auto', objectFit: 'contain', display: 'block' }}
+            />
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 <span style={{ fontFamily: "'Syne',sans-serif", fontSize: 20, fontWeight: 900, letterSpacing: '-0.3px' }}>
@@ -416,42 +452,251 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* MOBILE — orderly stack below the form. Hidden on desktop via CSS.
-          On mobile the centred form drops position:absolute and flows
-          naturally above this block, so we DON'T add a top margin —
-          adding one used to leave a viewport-tall blank gap. */}
+      {/* MOBILE / NARROW — section + adjacent mockup, repeated per group.
+          Replaces the flat 20-card stack that didn't read as a marketing
+          page. Each group block is paired with a CSS-rendered preview of
+          the actual surface that delivers it (route plan / leads kanban /
+          distributor ledger), so reading scrolls section → mockup → section
+          → mockup instead of all features then all visuals. */}
       <div className="login-mobile-stack" style={{
-        display: 'none', flexDirection: 'column', gap: 12,
-        padding: '24px 20px 40px',
+        display: 'none', flexDirection: 'column', gap: 24,
+        padding: '32px 20px 48px',
       }}>
-        <div style={{
-          fontFamily: "'Syne',sans-serif", fontSize: 14, fontWeight: 800,
-          color: PALETTE.inkDim, textTransform: 'uppercase', letterSpacing: 0.6,
-          textAlign: 'center', marginBottom: 4,
-        }}>
-          What you get
-        </div>
-        {FEATURES.map((f, i) => (
-          <div key={f.title} style={{
-            background: PALETTE.surface,
-            border: `1px solid ${PALETTE.border}`,
-            borderRadius: 12,
-            padding: '12px 14px',
-            display: 'flex', alignItems: 'center', gap: 12,
-            animation: `loginFadeIn 0.5s cubic-bezier(0.16,1,0.3,1) ${0.1 + i * 0.04}s both`,
-          }}>
-            <div style={{
-              width: 32, height: 32, borderRadius: 8, flexShrink: 0,
-              background: `${f.accent}14`, color: f.accent,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 17,
-            }}>{f.icon}</div>
-            <div style={{ fontWeight: 800, fontSize: 13, color: PALETTE.ink }}>
-              {f.title}
-            </div>
-          </div>
+        {SECTIONS.map((s, idx) => (
+          <MarketingSection key={s.key} section={s} index={idx} />
         ))}
       </div>
     </main>
+  );
+}
+
+// ── Marketing sections ──────────────────────────────────────────────
+// Each section pairs a feature group with a stylized device mockup.
+// On screens wider than 720px the two columns sit side-by-side and
+// alternate sides per section; on phones they stack section → mockup.
+
+interface SectionDef {
+  key: 'field' | 'leads' | 'supply';
+  eyebrow: string;
+  title: string;
+  body: string;
+  features: Feature[];
+  mockup: 'field' | 'leads' | 'supply';
+}
+
+const SECTIONS: SectionDef[] = [
+  {
+    key: 'field',
+    eyebrow: 'Field Force',
+    title: 'Every metre walked, every minute logged.',
+    body: 'Live GPS trail, selfie attendance, smart route plans, geo-tagged check-ins and a real-time heatmap — your field team’s day captured automatically, end to end.',
+    features: FEATURES.filter((f) => f.group === 'field'),
+    mockup: 'field',
+  },
+  {
+    key: 'leads',
+    eyebrow: 'Lead Management',
+    title: 'KINI AI runs the pipeline. You close.',
+    body: 'AI lead scoring, win probability, next-best-action, WhatsApp + Email outreach and a tap-to-deal Kanban that moves leads through your funnel without manual lift.',
+    features: FEATURES.filter((f) => f.group === 'leads'),
+    mockup: 'leads',
+  },
+  {
+    key: 'supply',
+    eyebrow: 'Supply Chain',
+    title: 'Distributor to consumer, one ledger.',
+    body: 'Distributor network, GST-grade invoicing, payments + returns, SKU catalogue and a Tally bridge — plus last-mile visibility down to the retailer, dealer and consumer.',
+    features: FEATURES.filter((f) => f.group === 'supply'),
+    mockup: 'supply',
+  },
+];
+
+function MarketingSection({ section, index }: { section: SectionDef; index: number }) {
+  const reverse = index % 2 === 1;
+  return (
+    <section
+      style={{
+        background: PALETTE.surface,
+        border: `1px solid ${PALETTE.border}`,
+        borderRadius: 20,
+        padding: 24,
+        display: 'grid',
+        gridTemplateColumns: '1fr',
+        gap: 20,
+        animation: `loginFadeIn 0.6s cubic-bezier(0.16,1,0.3,1) ${0.1 + index * 0.08}s both`,
+      }}
+      className="marketing-section"
+      data-reverse={reverse ? 'true' : 'false'}
+    >
+      <div style={{ order: reverse ? 2 : 1 }}>
+        <div style={{
+          fontSize: 11, fontWeight: 800, letterSpacing: 0.8, textTransform: 'uppercase',
+          color: PALETTE.red, marginBottom: 10,
+        }}>
+          {section.eyebrow}
+        </div>
+        <h2 style={{
+          fontFamily: "'Syne',sans-serif", fontSize: 22, fontWeight: 900,
+          margin: '0 0 10px', letterSpacing: '-0.4px', color: PALETTE.ink, lineHeight: 1.2,
+        }}>
+          {section.title}
+        </h2>
+        <p style={{ fontSize: 14, lineHeight: 1.55, color: PALETTE.inkDim, margin: '0 0 16px' }}>
+          {section.body}
+        </p>
+        <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 8 }}>
+          {section.features.map((f) => (
+            <li key={f.title} style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              fontSize: 13, color: PALETTE.ink, fontWeight: 600,
+            }}>
+              <span style={{
+                width: 26, height: 26, borderRadius: 7, flexShrink: 0,
+                background: `${f.accent}14`, color: f.accent,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 15,
+              }}>{f.icon}</span>
+              {f.title}
+            </li>
+          ))}
+        </ul>
+      </div>
+      <div style={{ order: reverse ? 1 : 2, display: 'flex', justifyContent: 'center' }}>
+        <SectionMockup variant={section.mockup} />
+      </div>
+    </section>
+  );
+}
+
+// ── Stylized mockups ───────────────────────────────────────────────
+// CSS-rendered device frames standing in for product screenshots. The
+// frame chrome is consistent; the inner panel varies per section so the
+// visual matches the surface being described (map, kanban, ledger).
+
+function SectionMockup({ variant }: { variant: 'field' | 'leads' | 'supply' }) {
+  return (
+    <div style={{
+      background: '#0F172A',
+      border: `1px solid ${PALETTE.border}`,
+      borderRadius: 14,
+      padding: 8,
+      width: '100%',
+      maxWidth: 360,
+      boxShadow: '0 18px 50px rgba(15, 30, 60, 0.15)',
+    }}>
+      <div style={{
+        display: 'flex', gap: 5, padding: '6px 8px 10px',
+      }}>
+        {['#FF5F57', '#FEBC2E', '#28C840'].map((c) => (
+          <span key={c} style={{ width: 9, height: 9, borderRadius: '50%', background: c }} />
+        ))}
+      </div>
+      <div style={{
+        background: '#fff', borderRadius: 8, padding: 12, minHeight: 220,
+      }}>
+        {variant === 'field' && <FieldMockup />}
+        {variant === 'leads' && <LeadsMockup />}
+        {variant === 'supply' && <SupplyMockup />}
+      </div>
+    </div>
+  );
+}
+
+function FieldMockup() {
+  return (
+    <>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+        <strong style={{ fontSize: 12, color: PALETTE.ink }}>Live Tracking</strong>
+        <span style={{ fontSize: 10, color: '#22C55E', fontWeight: 800 }}>● 14 active</span>
+      </div>
+      <div style={{
+        height: 130, borderRadius: 6, position: 'relative', overflow: 'hidden',
+        background: 'radial-gradient(circle at 30% 40%, #E0F2FE 0%, #F0F9FF 50%, #FAFAFA 100%)',
+      }}>
+        <svg viewBox="0 0 200 130" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}>
+          <path d="M10 100 Q 40 70 70 80 T 130 50 T 190 30" stroke="#F59E0B" strokeWidth="2.2" fill="none" strokeDasharray="3,3" />
+          <circle cx="70" cy="80" r="3.5" fill="#F59E0B" />
+          <circle cx="130" cy="50" r="3.5" fill="#F59E0B" />
+          <circle cx="190" cy="30" r="5" fill="#EF4444" />
+        </svg>
+      </div>
+      <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
+        {[['Visits', '38'], ['Hours', '7.2h'], ['Idle', '12m']].map(([k, v]) => (
+          <div key={k} style={{
+            flex: 1, background: '#F8FAFC', borderRadius: 6, padding: '6px 8px',
+          }}>
+            <div style={{ fontSize: 8, color: PALETTE.inkDim, textTransform: 'uppercase', letterSpacing: 0.4 }}>{k}</div>
+            <div style={{ fontSize: 13, fontWeight: 800, color: PALETTE.ink }}>{v}</div>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
+function LeadsMockup() {
+  const cols: Array<{ name: string; tone: string; cards: Array<{ name: string; score: string }> }> = [
+    { name: 'New',       tone: '#3E9EFF', cards: [{ name: 'Sharma & Co.', score: 'A' }, { name: 'Patel Steels',  score: 'B' }] },
+    { name: 'Qualified', tone: '#10B981', cards: [{ name: 'Acme Tyres',   score: 'A' }] },
+    { name: 'Won',       tone: '#A855F7', cards: [{ name: 'Iyer Motors',  score: 'A' }] },
+  ];
+  return (
+    <>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+        <strong style={{ fontSize: 12, color: PALETTE.ink }}>Pipeline</strong>
+        <span style={{ fontSize: 10, color: PALETTE.red, fontWeight: 800 }}>✦ KINI AI scoring</span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
+        {cols.map((c) => (
+          <div key={c.name} style={{ background: '#F8FAFC', borderRadius: 6, padding: 6 }}>
+            <div style={{ fontSize: 9, fontWeight: 800, color: c.tone, textTransform: 'uppercase', marginBottom: 4 }}>{c.name}</div>
+            {c.cards.map((card) => (
+              <div key={card.name} style={{
+                background: '#fff', border: `1px solid ${PALETTE.border}`, borderRadius: 5,
+                padding: '5px 6px', marginBottom: 4,
+              }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: PALETTE.ink, lineHeight: 1.2 }}>{card.name}</div>
+                <div style={{ fontSize: 8, color: PALETTE.inkDim, marginTop: 2 }}>Grade {card.score}</div>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
+function SupplyMockup() {
+  const rows = [
+    { name: 'Coastal West Distributors',  pending: '₹2.4L', state: 'paid'    },
+    { name: 'Deccan South Trading',       pending: '₹1.8L', state: 'pending' },
+    { name: 'Northern Hub Industries',    pending: '₹3.1L', state: 'paid'    },
+    { name: 'Acme Tyres (retailer)',      pending: '₹62K',  state: 'pending' },
+  ];
+  return (
+    <>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+        <strong style={{ fontSize: 12, color: PALETTE.ink }}>Distributor Ledger</strong>
+        <span style={{ fontSize: 10, color: PALETTE.inkDim, fontWeight: 700 }}>This week</span>
+      </div>
+      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.name} style={{ borderBottom: '1px solid #F1F5F9' }}>
+              <td style={{ fontSize: 11, color: PALETTE.ink, padding: '6px 0', fontWeight: 600 }}>{r.name}</td>
+              <td style={{ fontSize: 11, color: PALETTE.ink, padding: '6px 0', textAlign: 'right', fontWeight: 800 }}>{r.pending}</td>
+              <td style={{ padding: '6px 0 6px 6px', textAlign: 'right' }}>
+                <span style={{
+                  fontSize: 9, fontWeight: 800,
+                  color: r.state === 'paid' ? '#10B981' : '#F59E0B',
+                  background: r.state === 'paid' ? 'rgba(16,185,129,0.1)' : 'rgba(245,158,11,0.12)',
+                  padding: '2px 7px', borderRadius: 999, textTransform: 'uppercase', letterSpacing: 0.4,
+                }}>{r.state}</span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </>
   );
 }

@@ -4,6 +4,7 @@ import api from '../../../lib/api';
 import CitySelect from '../../../components/CitySelect';
 import FieldTrackingCadencePicker from '../../../components/FieldTrackingCadencePicker';
 import { AuthUser } from '../../../types';
+import { getDesignationLabel } from '../../../lib/auth';
 import { ALL_MODULES, MODULE_GROUPS, MODULE_GROUP_LABELS } from '../../../lib/modules';
 
 const C = {
@@ -74,8 +75,15 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<'users'|'rules'|'pref'|'clients'>('users');
   const [showClientAdd, setShowClientAdd] = useState(false);
   const [editClientId, setEditClientId] = useState<string|null>(null);
+  // Pre-fill new client form with the full CRM bundle (Email, Templates, Senders,
+  // People Directory, Leads, etc.) so super-admins don't need to remember to
+  // tick each one. Edit mode overwrites this from the loaded client.modules.
+  const DEFAULT_NEW_CLIENT_MODULES = ALL_MODULES
+    .filter((m) => m.group === 'CRM')
+    .map((m) => m.id);
+
   const [clientForm, setClientForm] = useState<{ name: string; contact_person: string; email: string; phone: string; password: string; modules: string[] }>({
-    name: '', contact_person: '', email: '', phone: '', password: '', modules: [],
+    name: '', contact_person: '', email: '', phone: '', password: '', modules: DEFAULT_NEW_CLIENT_MODULES,
   });
 
   // Inline role creation. Lives in the User Directory tab so admins can add a
@@ -278,7 +286,7 @@ export default function SettingsPage() {
   };
 
   const resetClientForm = () => {
-    setClientForm({ name: '', contact_person: '', email: '', phone: '', password: '', modules: [] });
+    setClientForm({ name: '', contact_person: '', email: '', phone: '', password: '', modules: DEFAULT_NEW_CLIENT_MODULES });
     setEditClientId(null);
     setShowClientAdd(false);
   };
@@ -662,14 +670,14 @@ export default function SettingsPage() {
                     </div>
                     <div>
                       <div style={{ display: 'inline-flex', padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 800, background: `${roleColors[u.role] || C.gray}15`, color: roleColors[u.role] || C.gray, border: `1px solid ${roleColors[u.role] || C.gray}33`, textTransform: 'capitalize', marginBottom: 4 }}>
-                        {/* Show the hierarchy designation when one is set
-                            (Business Manager, Consumer Champion…); fall back
-                            to a neutral "Team Member" so we never expose
-                            internal preset role names like "Sub-Admin". The
-                            backend joins org_roles and stamps either
-                            org_role.name (the join) or a flat org_role_name
-                            on each row. */}
-                        {((u as any).org_role?.name) || ((u as any).org_role_name) || 'Team Member'}
+                        {/* Hierarchy designation via the shared helper —
+                            picks org_role.name (or the flat org_role_name)
+                            first, falls back to "Super Admin" / "Admin"
+                            only for genuinely platform-level system roles,
+                            else a dash. Never substitutes "Team Member"
+                            for a user whose actual role is e.g. Consumer
+                            Champion Manager. */}
+                        {getDesignationLabel(u as any)}
                       </div>
                       <div style={{ fontSize: 10, color: C.gray, fontWeight: 600 }}>
                         {u.permissions?.length || 0} modules · {u.assigned_cities?.length ? `${u.assigned_cities.length} cities` : u.client_id ? `Client: ${clients.find(c => c.id === u.client_id)?.name || 'Unknown'}` : 'Global'}

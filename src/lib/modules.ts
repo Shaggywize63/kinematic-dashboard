@@ -46,6 +46,10 @@ export const ALL_MODULES: ModuleEntry[] = [
   { id: 'attendance',      l: 'Attendance',       group: 'FieldForce', package: 'field_force' },
   { id: 'analytics',       l: 'Analytics',        group: 'FieldForce', package: 'field_force' },
   { id: 'ffm_analytics',   l: 'FFM Analytics',    group: 'FieldForce', package: 'field_force' },
+  // FFM Reports hub — attendance, visit coverage, hours & idle, route
+  // adherence, leaderboard, etc. Mirrors `crm_reports` for the CRM side.
+  // Surfaced under Field Force in the sidebar.
+  { id: 'ffm_reports',     l: 'FFM Reports',      group: 'FieldForce', package: 'field_force' },
   { id: 'live_tracking',   l: 'Live Tracking',    group: 'FieldForce', package: 'field_force' },
   { id: 'activities',      l: 'Activity Mgmt',    group: 'FieldForce', package: 'field_force' },
   { id: 'planograms',      l: 'Planograms',       group: 'FieldForce', package: 'field_force' },
@@ -59,6 +63,7 @@ export const ALL_MODULES: ModuleEntry[] = [
   { id: 'crm_lead_analytics', l: 'Lead Analytics',   group: 'CRM', package: 'crm' },
   { id: 'crm_leads',          l: 'Leads',            group: 'CRM', package: 'crm' },
   { id: 'crm_contacts',       l: 'Contacts',         group: 'CRM', package: 'crm' },
+  { id: 'crm_people_directory', l: 'People Directory', group: 'CRM', package: 'crm' },
   { id: 'crm_accounts',       l: 'Accounts',         group: 'CRM', package: 'crm' },
   { id: 'crm_deals',          l: 'Deals',            group: 'CRM', package: 'crm' },
   { id: 'crm_pipeline',       l: 'Pipeline',         group: 'CRM', package: 'crm' },
@@ -66,6 +71,7 @@ export const ALL_MODULES: ModuleEntry[] = [
   { id: 'crm_activities',     l: 'CRM Activities',   group: 'CRM', package: 'crm' },
   { id: 'crm_tasks',          l: 'CRM Tasks',        group: 'CRM', package: 'crm' },
   { id: 'crm_whatsapp',       l: 'CRM WhatsApp',     group: 'CRM', package: 'crm' },
+  { id: 'crm_email',          l: 'CRM Email',        group: 'CRM', package: 'crm' },
   { id: 'crm_reports',        l: 'CRM Reports',      group: 'CRM', package: 'crm' },
   { id: 'crm_settings',       l: 'CRM Settings',     group: 'CRM', package: 'crm' },
 
@@ -81,6 +87,10 @@ export const ALL_MODULES: ModuleEntry[] = [
   { id: 'distribution_returns',        l: 'Returns',      group: 'Distribution', package: 'distribution' },
   { id: 'distribution_ledger',         l: 'Ledger',       group: 'Distribution', package: 'distribution' },
   { id: 'distribution_consumer',       l: 'Consumer',     group: 'Distribution', package: 'distribution' },
+  // Last-mile (Phase 1) — surfaces the new tertiary_sales +
+  // consumer_registrations data. Shares the distribution_consumer SKU on
+  // the backend so granting "Consumer" implicitly unlocks last-mile.
+  { id: 'distribution_last_mile',      l: 'Last Mile',    group: 'Distribution', package: 'distribution' },
 
   // Business (universal — every client gets these)
   { id: 'clients',   l: 'Clients',        group: 'Business', package: 'business', universal: true },
@@ -97,7 +107,8 @@ export const ALL_MODULES: ModuleEntry[] = [
 
   // People (universal subset)
   { id: 'users',      l: 'Manpower',     group: 'People', package: 'people', universal: true },
-  { id: 'broadcast',  l: 'Broadcast',    group: 'People', package: 'people', universal: true },
+  { id: 'broadcast',    l: 'Broadcast',     group: 'People', package: 'people', universal: true },
+  { id: 'notifications', l: 'Notifications', group: 'People', package: 'people', universal: true },
   { id: 'hr',         l: 'HR & Payroll', group: 'People', package: 'people', universal: true },
   { id: 'grievances', l: 'Grievances',   group: 'People', package: 'people', universal: true },
   { id: 'reports',    l: 'Reports',      group: 'People', package: 'people', universal: true },

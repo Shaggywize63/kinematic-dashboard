@@ -1,19 +1,79 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { crmLeads, crmSettings, crmLeadSources } from '../../lib/crmApi';
+import api from '../../lib/api';
 import type { BusinessType, Lead, LeadStatus, LeadSource } from '../../types/crm';
 import Modal from './shared/Modal';
 import LocationPicker from './LocationPicker';
+import CustomFieldsSection from './CustomFieldsSection';
+import ProductLinesSection from './ProductLinesSection';
+import AlternateMobiles from './AlternateMobiles';
+import UserSearchSelect, { type UserOption } from './shared/UserSearchSelect';
 import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '../../lib/crmFieldOverrides';
+import { useAuth } from '../../hooks/useAuth';
 
 interface Props { lead: Lead; open: boolean; onClose: () => void; onSaved: (updated: Lead) => void; }
 
+const TATA_TISCON_CLIENT_ID = 'a1f67468-526e-4734-be3a-2cb132cc2804';
+
+// True when ANY custom field on the lead matches the "first site visit"
+// shape and carries a truthy value. Admins name the field differently
+// per tenant (first_visit_date, first_site_visit, is_first_visit …), so
+// we match the SHAPE of the key. Mirrors the backend rule in
+// buildSiteVisitSubject so the activity-create subject prefilled by the
+// modal matches what the backend would have written on auto-spawn.
+function isFirstSiteVisit(cf: Record<string, unknown> | null | undefined): boolean {
+  if (!cf) return false;
+  return Object.entries(cf).some(([key, val]) => {
+    const k = String(key).toLowerCase();
+    if (!/first/.test(k) || !/(visit|site)/.test(k)) return false;
+    if (val === true) return true;
+    if (typeof val === 'string' && val.trim() !== '') return true;
+    if (typeof val === 'number' && val !== 0) return true;
+    return false;
+  });
+}
+
 export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
+  const { user } = useAuth();
+  const router = useRouter();
+  // Reps with data_scope='own' (e.g. Consumer Champion) only see their own
+  // leads — reassigning would hide the record from them. Hide the picker.
+  const canReassign = user?.org_role_data_scope !== 'own';
+  // Tata Tiscon affordance — mirror the create form. Lets the rep log a
+  // follow-up site visit while editing without bouncing to Activities.
+  const isTata =
+    (lead as Lead & { client_id?: string | null }).client_id === TATA_TISCON_CLIENT_ID
+    || user?.client_id === TATA_TISCON_CLIENT_ID;
+  const [logAsSiteVisit, setLogAsSiteVisit] = useState(false);
   const [form, setForm] = useState(() => seed(lead));
   const [busy, setBusy] = useState(false);
+  const [geoBusy, setGeoBusy] = useState(false);
+
+  const captureLocation = () => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      toast.error('Location is not available on this device/browser.');
+      return;
+    }
+    setGeoBusy(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setForm((f) => ({ ...f, latitude: pos.coords.latitude.toFixed(6), longitude: pos.coords.longitude.toFixed(6) }));
+        setGeoBusy(false);
+        toast.success('Location captured');
+      },
+      () => { setGeoBusy(false); toast.error('Could not get your location — enter coordinates manually.'); },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
+    );
+  };
   const [businessType, setBusinessType] = useState<BusinessType>('both');
   const [sources, setSources] = useState<LeadSource[]>([]);
+  // Assignable owners drive the "Assign To" picker — drop-in parity with
+  // the new-lead form. Endpoint is admin-gated; non-admin role gets a
+  // 403 and an empty list (which simply hides the picker dropdown).
+  const [users, setUsers] = useState<UserOption[]>([]);
   // Field-level admin overrides (hide / relabel / toggle-required) for
   // built-in lead fields. Loaded from crm_settings alongside business_type
   // so a single round-trip drives both. Empty until first fetch.
@@ -34,29 +94,79 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
     let cancelled = false;
     (async () => {
       try {
-        const [s, src] = await Promise.allSettled([crmSettings.get(), crmLeadSources.list()]);
+        const [s, src, u] = await Promise.allSettled([
+          crmSettings.get(),
+          crmLeadSources.list(),
+          api.getUsers({ limit: '500' }) as Promise<{ data?: Array<{ id: string; name?: string; full_name?: string; email?: string }> }>,
+        ]);
         if (cancelled) return;
         if (s.status === 'fulfilled') {
           const t: BusinessType = s.value.data?.business_type ?? 'both';
           setBusinessType(t);
           if (t === 'b2b') setForm((f) => ({ ...f, is_b2c: false }));
           if (t === 'b2c') setForm((f) => ({ ...f, is_b2c: true }));
+          // Tata Tiscon is consumer-only regardless of the tenant's
+          // business_type setting — force B2C so an existing record
+          // mis-flagged as B2B (e.g. an old import) opens in the right
+          // mode and the rest of the form behaves consistently.
+          if (isTata) setForm((f) => (f.is_b2c ? f : { ...f, is_b2c: true }));
           setFieldOverrides(extractFieldOverrides(s.value.data));
         }
         if (src.status === 'fulfilled') {
           setSources((src.value.data || []).filter((x: LeadSource) => x.is_active !== false));
         }
-      } catch { /* default to 'both' + empty sources */ }
+        if (u.status === 'fulfilled') {
+          const list = ((u.value as { data?: any[] })?.data || []).map((x: any) => ({
+            id: x.id, name: x.name || x.full_name || x.email || 'User',
+          }));
+          setUsers(list);
+        }
+      } catch { /* default to 'both' + empty sources / users */ }
     })();
     return () => { cancelled = true; };
   }, [open]);
 
   const submit = async () => {
+    // Required-field guards. Walked top-to-bottom matching the form layout
+    // so the toast points at the first thing the rep needs to fix.
+    // Each guard reads the admin's per-tenant override via
+    // `fields.requiredFor` — so when Tata Tiscon makes Primary Mobile
+    // mandatory under the B2C scope, this modal blocks save just like
+    // the new-lead form does (previously it only checked phone FORMAT,
+    // never whether a required phone was missing — which is how reps
+    // could save mobile-less leads despite the override being set).
+    const reqGuards: Array<{ key: string; value: string; default: boolean; message: string }> = [
+      { key: 'first_name', value: form.first_name, default: true,  message: 'First name is required.' },
+      { key: 'last_name',  value: form.last_name,  default: false, message: 'Last name is required.' },
+      // Email guard is suppressed for Tata Tiscon (field is hidden);
+      // an empty value should never block save there.
+      ...(isTata ? [] : [{ key: 'email', value: form.email, default: false, message: 'Email is required.' }]),
+      { key: 'phone',      value: form.phone,      default: true,  message: 'Primary mobile is required.' },
+      ...(!form.is_b2c
+        ? [{ key: 'company', value: form.company, default: true, message: 'Company is required for B2B leads.' }]
+        : []),
+      { key: 'city',       value: form.city,       default: true,  message: 'City is required — pick from the dropdown.' },
+    ];
+    for (const g of reqGuards) {
+      if (fields.isHidden(g.key)) continue;
+      if (fields.requiredFor(g.key, g.default) && !(g.value && g.value.trim())) {
+        return toast.error(g.message);
+      }
+    }
     // Phone, when present, must be a clean 10-digit number — the F(phone)
     // input has already stripped junk, but reject explicitly so we don't
     // POST a 7-digit half-typed value.
     if (form.phone && form.phone.length !== 10) {
       return toast.error('Phone must be a 10-digit mobile number');
+    }
+    // Coordinates: blank clears them; otherwise must be valid + in range.
+    const latStr = form.latitude.trim();
+    const lngStr = form.longitude.trim();
+    const latNum = latStr === '' ? null : Number(latStr);
+    const lngNum = lngStr === '' ? null : Number(lngStr);
+    if ((latNum !== null && (!Number.isFinite(latNum) || Math.abs(latNum) > 90))
+      || (lngNum !== null && (!Number.isFinite(lngNum) || Math.abs(lngNum) > 180))) {
+      return toast.error('Latitude must be −90..90 and longitude −180..180');
     }
     setBusy(true);
     try {
@@ -69,16 +179,59 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
         // Send null when the rep clears the picker, so the column actually
         // clears (sending undefined would leave the existing value untouched).
         source_id: form.source_id || null,
+        owner_id: form.owner_id || null,
+        // alternate_mobiles is a varchar[]; empty array means "the rep
+        // cleared every chip", which the backend honours as a delete.
+        alternate_mobiles: form.alternate_mobiles,
+        // Admin-defined custom fields (e.g. `first_visit_date`). Sent as
+        // a map so the backend persists into the row's custom_fields jsonb.
+        custom_fields: form.custom_fields,
         is_b2c: form.is_b2c,
+        // Address line 2 lives on every lead (B2B + B2C). Was previously
+        // not editable from the modal even though new-lead supports it.
+        address_line2: form.address_line2 || null,
+        // Geo coordinates — null clears, a valid number sets/updates.
+        latitude: latNum,
+        longitude: lngNum,
+        // Notes — free text, was previously only editable from the lead
+        // detail page so the modal effectively dropped any change here.
+        notes: form.notes.trim() || null,
+        // Tags — CSV → string[]. Empty array deletes all existing tags.
+        tags: form.tags_input.split(',').map((t) => t.trim()).filter(Boolean),
       };
       if (!form.is_b2c) { Object.assign(body, { company: form.company || null, title: form.title || null, industry: form.industry || null }); }
       else { Object.assign(body, { date_of_birth: form.date_of_birth || null, gender: form.gender || null, address_line1: form.address_line1 || null, city: form.city || null, state: form.state || null, postal_code: form.postal_code || null, country: form.country || null, preferred_contact_method: form.preferred_contact_method || null, marketing_consent: form.marketing_consent, whatsapp_consent: form.whatsapp_consent }); }
+      // Tata: backend reads this flag and spawns a fresh site_visit
+      // activity tied to the lead. Reset the toggle each save so the
+      // rep doesn't accidentally create duplicate visits on next edit.
+      if (isTata && logAsSiteVisit) {
+        (body as Record<string, unknown>)._auto_log_site_visit = true;
+      }
       const r = await crmLeads.update(lead.id, body);
+      const wasLogging = logAsSiteVisit;
+      if (logAsSiteVisit) setLogAsSiteVisit(false);
       toast.success('Lead updated'); onSaved(r.data); onClose();
+      // Mirror the new-lead flow: when the rep ticked the Site Visit toggle,
+      // jump them to the Activity create page pre-bound to this lead with
+      // Meeting as the default type, subject prefilled. Prefix flips to
+      // "First visit" when the lead carries a first_visit_date custom
+      // field — same rule the backend applies to the auto-spawn.
+      if (wasLogging) {
+        const name = [form.first_name, form.last_name].filter(Boolean).join(' ').trim()
+          || form.email || form.phone || 'Lead';
+        const isFirst = isFirstSiteVisit(form.custom_fields as Record<string, unknown> | undefined);
+        const subject = isFirst ? `First Site Visit — ${name}` : `Site visit — ${name}`;
+        const qs = new URLSearchParams({ lead_id: lead.id, type: 'meeting', subject }).toString();
+        router.push(`/dashboard/crm/activities/new?${qs}`);
+      }
     } catch (e: any) { toast.error(e.message || 'Update failed'); } finally { setBusy(false); }
   };
 
-  const showToggle = businessType === 'both';
+  // Hide the B2B/B2C toggle for Tata Tiscon — they're a consumer-only
+  // tenant, so the toggle would let a rep accidentally flip a lead into
+  // a state the rest of their form (FE intake, custom fields, reports)
+  // doesn't support.
+  const showToggle = businessType === 'both' && !isTata;
 
   return (
     <Modal open={open} onClose={onClose} title="Edit Lead"
@@ -105,17 +258,52 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
               admin's Settings → Custom Fields override (lead.email /
               lead.phone) instead of guessing based on is_b2c, so the
               asterisk matches what the settings page actually shows. */}
-          {show('email',      <F label={lbl('email',      'Email')}      type="email" required={req('email', false)} value={form.email} onChange={(v) => setForm({ ...form, email: v })} />)}
-          {show('phone',      <F label={lbl('phone',      'Phone')}      phone required={req('phone', false)} value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />)}
+          {/* Email entirely hidden for Tata Tiscon — their FE intake
+              doesn't capture email and we don't want the field showing
+              up in the edit form for legacy leads either. */}
+          {!isTata && show('email', <F label={lbl('email', 'Email')} type="email" required={req('email', false)} value={form.email} onChange={(v) => setForm({ ...form, email: v })} />)}
+          {show('phone',      <F label={lbl('phone',      'Phone')}      phone required={req('phone', true)} value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />)}
         </Grid>
 
-        {(!fields.isHidden('status') || !fields.isHidden('source_id')) && (
-          <><SL>Lifecycle & Source</SL><Grid>
+        {/* Alternate mobile numbers — chip list, same component the
+            new-lead form uses. Was previously not editable from the
+            modal so reps couldn't add or remove secondary numbers
+            without flipping into Settings. */}
+        {!fields.isHidden('phone') && (
+          <AlternateMobiles
+            values={form.alternate_mobiles}
+            primary={form.phone}
+            onChange={(next) => setForm({ ...form, alternate_mobiles: next })}
+          />
+        )}
+
+        {(!fields.isHidden('status') || !fields.isHidden('source_id') || !fields.isHidden('owner_id')) && (
+          <><SL>Lifecycle &amp; Assignment</SL><Grid>
             {show('status', <SF label={lbl('status', 'Status')} value={form.status} options={[{ value: 'new', label: 'New' }, { value: 'working', label: 'Working' }, { value: 'qualified', label: 'Qualified' }, { value: 'unqualified', label: 'Unqualified' }, { value: 'converted', label: 'Converted' }]} onChange={(v) => setForm({ ...form, status: v as LeadStatus })} />)}
             {/* Source — list comes from the active lead-sources catalogue. Empty
                 value clears the FK back to NULL; reps can manage the list under
                 CRM Settings → Lead Sources. */}
             {show('source_id', <SF label={lbl('source_id', 'Source')} value={form.source_id} options={[{ value: '', label: '— Unspecified —' }, ...sources.map((s) => ({ value: s.id, label: s.name }))]} onChange={(v) => setForm({ ...form, source_id: v })} />)}
+            {/* Owner reassignment — was previously absent from the modal
+                entirely. Hidden when the /users endpoint comes back empty
+                (e.g. client-role users without manpower read access). */}
+            {!fields.isHidden('owner_id') && users.length > 0 && canReassign && (
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {/* The IIFE wrapping this block shadows the module-scope `lbl`
+                    constant with a same-named helper, so we inline the label
+                    style instead of referencing it. */}
+                <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>
+                  {fields.labelFor('owner_id', 'Assign To')}
+                </span>
+                <UserSearchSelect
+                  options={users}
+                  value={form.owner_id}
+                  onChange={(id) => setForm({ ...form, owner_id: id })}
+                  placeholder="Search team member…"
+                  emptyLabel="Unassigned"
+                />
+              </label>
+            )}
           </Grid></>
         )}
 
@@ -135,6 +323,7 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
           </Grid>
           <SL>Address</SL><Grid>
             {show('address_line1', <F label={lbl('address_line1', 'Address Line 1')} value={form.address_line1} onChange={(v) => setForm({ ...form, address_line1: v })} />)}
+            {show('address_line2', <F label={lbl('address_line2', 'Address Line 2')} value={form.address_line2} onChange={(v) => setForm({ ...form, address_line2: v })} />)}
             {/* LocationPicker bundles state + city — gated on city since
                 state alone has no meaningful UI without a city picker. */}
             {!fields.isHidden('city') && (
@@ -155,13 +344,130 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
           )}
           </>
         )}
+
+        {/* Admin-defined custom fields (e.g. "First visit date") render
+            type-aware: date opens a calendar, select shows a dropdown,
+            etc. Was previously absent from the edit modal entirely so
+            reps couldn't change custom-field values after creation. */}
+        <SL>Additional details</SL>
+        <Grid>
+          <CustomFieldsSection
+            entity="lead"
+            values={form.custom_fields}
+            onChange={(cf) => setForm({ ...form, custom_fields: cf })}
+          />
+        </Grid>
+        <ProductLinesSection
+          values={form.custom_fields}
+          onChange={(cf) => setForm({ ...form, custom_fields: cf })}
+        />
+
+        {/* Notes + Tags — previously only renderable on the detail page;
+            reps had to copy/paste back into a separate edit flow to change
+            them. Now editable inline alongside the rest of the fields. */}
+        {/* Tata Tiscon: tick to spawn a fresh `site_visit` activity at
+            save time. Default off so saving the form doesn't churn the
+            timeline; reps tick it when they actually performed a visit. */}
+        {isTata && (
+          <>
+            <SL>Activity</SL>
+            <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '12px 14px', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 8, cursor: 'pointer', marginBottom: 14 }}>
+              <input type="checkbox" checked={logAsSiteVisit} onChange={(e) => setLogAsSiteVisit(e.target.checked)} style={{ marginTop: 3 }} />
+              <span>
+                <strong style={{ color: 'var(--text)' }}>Also log a Site Visit activity</strong>
+                <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>
+                  Creates a completed Site Visit on this lead&rsquo;s timeline. When the First Visit Date custom field is filled in, the activity is recorded as a First Site Visit instead.
+                </div>
+              </span>
+            </label>
+          </>
+        )}
+
+        <SL>Notes &amp; Tags</SL>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14 }}>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>Notes</span>
+            <textarea
+              value={form.notes}
+              onChange={(e) => setForm({ ...form, notes: e.target.value })}
+              rows={3}
+              placeholder="Internal notes — visible to other reps."
+              style={{
+                background: 'var(--s2)', border: '1px solid var(--border)',
+                borderRadius: 8, color: 'var(--text)', padding: '10px 12px',
+                fontSize: 13, lineHeight: 1.5, resize: 'vertical', fontFamily: 'inherit',
+              }}
+            />
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>Tags</span>
+            <input
+              value={form.tags_input}
+              onChange={(e) => setForm({ ...form, tags_input: e.target.value })}
+              placeholder="comma,separated,tags"
+              style={{
+                background: 'var(--s2)', border: '1px solid var(--border)',
+                borderRadius: 8, color: 'var(--text)', padding: '10px 12px',
+                fontSize: 13,
+              }}
+            />
+            <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>
+              Comma-separated. Used by the lead list filter chips.
+            </span>
+          </label>
+        </div>
+
+        <SL>Pin Location (map)</SL>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+          <button type="button" onClick={captureLocation} disabled={geoBusy} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 12.5, fontWeight: 600, cursor: geoBusy ? 'wait' : 'pointer', opacity: geoBusy ? 0.6 : 1, whiteSpace: 'nowrap' }}>📍 {geoBusy ? 'Locating…' : 'Use current location'}</button>
+          {(form.latitude || form.longitude) && (
+            <button type="button" onClick={() => setForm({ ...form, latitude: '', longitude: '' })} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '8px 10px', borderRadius: 8, fontSize: 12, cursor: 'pointer' }}>Clear</button>
+          )}
+        </div>
+        <Grid>
+          <F label="Latitude" value={form.latitude} onChange={(v) => setForm({ ...form, latitude: v })} />
+          <F label="Longitude" value={form.longitude} onChange={(v) => setForm({ ...form, longitude: v })} />
+        </Grid>
         </>
       ); })()}
     </Modal>
   );
 }
 
-function seed(l: Lead) { return { first_name: l.first_name || '', last_name: l.last_name || '', email: l.email || '', phone: l.phone || '', status: l.status, source_id: (l as any).source_id || '', company: l.company || '', title: l.title || '', industry: l.industry || '', is_b2c: !!l.is_b2c, date_of_birth: l.date_of_birth || '', gender: l.gender || '', address_line1: l.address_line1 || '', city: l.city || '', state: l.state || '', postal_code: l.postal_code || '', country: l.country || 'India', preferred_contact_method: l.preferred_contact_method || '', marketing_consent: !!l.marketing_consent, whatsapp_consent: !!l.whatsapp_consent }; }
+function seed(l: Lead) {
+  const anyL = l as Lead & {
+    owner_id?: string | null;
+    alternate_mobiles?: string[] | null;
+    address_line2?: string | null;
+    custom_fields?: Record<string, unknown> | null;
+  };
+  return {
+    first_name: l.first_name || '', last_name: l.last_name || '',
+    email: l.email || '', phone: l.phone || '',
+    status: l.status,
+    source_id: (l as any).source_id || '',
+    owner_id: anyL.owner_id || '',
+    alternate_mobiles: Array.isArray(anyL.alternate_mobiles) ? anyL.alternate_mobiles : [],
+    custom_fields: (anyL.custom_fields && typeof anyL.custom_fields === 'object') ? { ...(anyL.custom_fields as Record<string, unknown>) } : {} as Record<string, unknown>,
+    company: l.company || '', title: l.title || '', industry: l.industry || '',
+    is_b2c: !!l.is_b2c,
+    date_of_birth: l.date_of_birth || '', gender: l.gender || '',
+    address_line1: l.address_line1 || '',
+    address_line2: anyL.address_line2 || '',
+    city: l.city || '', state: l.state || '',
+    postal_code: l.postal_code || '', country: l.country || 'India',
+    preferred_contact_method: l.preferred_contact_method || '',
+    marketing_consent: !!l.marketing_consent, whatsapp_consent: !!l.whatsapp_consent,
+    latitude:  l.latitude  != null ? String(l.latitude)  : '',
+    longitude: l.longitude != null ? String(l.longitude) : '',
+    notes: l.notes || '',
+    // Tags persist as a string[] but render as a single comma-separated
+    // input — same shape the lead-create form uses.
+    tags_input: Array.isArray((l as Lead & { tags?: string[] | null }).tags)
+      ? ((l as Lead & { tags?: string[] | null }).tags as string[]).join(', ')
+      : '',
+  };
+}
 function SL({ children }: { children: React.ReactNode }) { return <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, margin: '14px 0 8px' }}>{children}</div>; }
 function Grid({ children }: { children: React.ReactNode }) { return <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>{children}</div>; }
 function F(p: { label: string; value: string; onChange: (v: string) => void; type?: string; required?: boolean; phone?: boolean }) {
