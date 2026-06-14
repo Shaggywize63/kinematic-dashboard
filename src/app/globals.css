@@ -656,6 +656,43 @@ table.cards-view td::before {
 }
 table.cards-view td[data-label=""] { display: none; }
 
+/* Latest-update column cell — single-line truncate on the desktop table
+   so rows don't grow unbounded, multi-line wrap inside responsive-cards
+   + cards-view layouts where vertical space is plentiful. The body and
+   relative-time labels are both styled here so the row stays consistent
+   wherever it renders. */
+.latest-update-cell {
+  max-width: 260px;
+  min-width: 0;
+}
+.latest-update-cell .latest-update-body {
+  font-size: 12px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.latest-update-cell .latest-update-time {
+  font-size: 10px;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+/* Forced cards-view mode (any screen) — uncap + wrap. */
+table.cards-view .latest-update-cell { max-width: none; text-align: right; }
+table.cards-view .latest-update-cell .latest-update-body {
+  overflow: visible; text-overflow: clip; white-space: normal; word-break: break-word;
+}
+/* Auto cards mode on mobile (≤768px) — same uncap + wrap behaviour. The
+   media query mirrors the one that turns `.responsive-cards` into card
+   layout above (line 225), so this only kicks in when the table is
+   actually rendering as cards. */
+@media (max-width: 768px) {
+  table.responsive-cards .latest-update-cell { max-width: none; text-align: right; }
+  table.responsive-cards .latest-update-cell .latest-update-body {
+    overflow: visible; text-overflow: clip; white-space: normal; word-break: break-word;
+  }
+}
+
 /* View customizer popover — desktop default is the inline right-aligned
    popover defined inline on the component. On phones (≤640px) the same
    element snaps to a bottom sheet so it never clips off the side of
