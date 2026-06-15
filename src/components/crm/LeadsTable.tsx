@@ -213,11 +213,14 @@ function LatestUpdateCell({ lead, tdStyle }: { lead: Lead; tdStyle: React.CSSPro
   }
   const rel = at ? formatRelativeTime(at) : '';
   const tooltip = at ? `${text}\n\n${new Date(at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}` : text;
+  // The `.latest-update-cell` class lets the responsive-cards CSS allow
+  // the body to wrap on small screens instead of single-line ellipsing
+  // (cards mode has room for multi-line; desktop table rows don't).
   return (
     <td style={tdStyle} data-label="Latest Update" title={tooltip}>
-      <div style={{ maxWidth: 260, minWidth: 0 }}>
-        <div style={{ fontSize: 12, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{text}</div>
-        {rel && <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 2 }}>{rel}</div>}
+      <div className="latest-update-cell">
+        <div className="latest-update-body">{text}</div>
+        {rel && <div className="latest-update-time">{rel}</div>}
       </div>
     </td>
   );
@@ -242,6 +245,11 @@ function ScoreBreakdownModal({ lead, onClose }: { lead: Lead; onClose: () => voi
   const score = lead.score ?? 0;
   const grade = lead.score_grade;
 
+  // Label dict + sorting moved to lib/crm/scoreFactors.ts so the leads-
+  // table popup and the dashboard map popup stay in lock-step. The v2
+  // keys this PR originally introduced are already in that catalog
+  // (`source_quality`, `whatsapp_30d`, `bant_signals_in_updates`,
+  // `contact_complete`, etc.), so no manual labels dict is needed here.
   const factors = breakdownFactors(breakdown);
   const llmAdjustment = llmAdjustmentOf(breakdown);
 
