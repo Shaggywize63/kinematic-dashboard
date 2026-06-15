@@ -185,7 +185,22 @@ export default function PeopleDirectoryPage() {
       const s = search.trim(); if (s) qs.set('q', s);
       if (typeFilter) qs.set('type', typeFilter);
       const url = `${API_BASE_URL}${crmPeopleDirectory.exportUrl()}${qs.toString() ? `?${qs.toString()}` : ''}`;
-      const res = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+      // Bearer token + the tenant scope headers the rest of the API
+      // client auto-attaches via api.ts. Without these the new strict-
+      // client gate on People Directory (added when we tightened
+      // crm_cities + people_directory tenant isolation) returned an
+      // empty CSV and the Export button looked broken to admins
+      // working under a picked client.
+      const headers: Record<string, string> = {};
+      if (token) headers.Authorization = `Bearer ${token}`;
+      try {
+        const rawUser = typeof window !== 'undefined' ? localStorage.getItem('kinematic_user') : null;
+        const orgId = rawUser ? JSON.parse(rawUser)?.org_id : null;
+        if (orgId) headers['X-Org-Id'] = orgId;
+      } catch { /* tolerate parse errors */ }
+      const sel = typeof window !== 'undefined' ? localStorage.getItem('kinematic_selected_client') : null;
+      if (sel) headers['X-Client-Id'] = sel;
+      const res = await fetch(url, { headers });
       if (!res.ok) throw new Error(`Export failed (${res.status})`);
       const blob = await res.blob();
       const a = document.createElement('a');
