@@ -52,6 +52,11 @@ export default function PeopleDirectoryPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>(''); // empty = all types
+  // City filter — narrows to people whose `city` matches the selected
+  // option. Options come from the same /api/v1/crm/locations list that
+  // populates the editor's city dropdown so the filter never offers a
+  // city the directory can't contain. Empty = all cities.
+  const [cityFilter, setCityFilter] = useState<string>('');
   const [editing, setEditing] = useState<Partial<Row> | null>(null);
   // Admin-managed catalogue of role labels (Dealer / Engineer / Architect / …).
   // Loaded once on mount + refreshed after an inline add so the dropdown in
@@ -105,6 +110,7 @@ export default function PeopleDirectoryPage() {
       const params: Record<string, string | number | undefined> = {};
       const s = search.trim(); if (s) params.q = s;
       if (typeFilter) params.type = typeFilter;
+      if (cityFilter) params.city = cityFilter;
       const r = await crmPeopleDirectory.list(params);
       setRows(((r.data as Row[]) || []).filter((x) => !!x.id));
     } catch (err: any) {
@@ -123,7 +129,7 @@ export default function PeopleDirectoryPage() {
     const t = setTimeout(() => { refresh(); }, 300);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, typeFilter]);
+  }, [search, typeFilter, cityFilter]);
 
   const totalLabel = useMemo(
     () => loading ? 'Loading…' : `${rows.length} ${rows.length === 1 ? 'person' : 'people'}`,
@@ -197,6 +203,7 @@ export default function PeopleDirectoryPage() {
       const params: Record<string, string | number | undefined> = {};
       const s = search.trim(); if (s) params.q = s;
       if (typeFilter) params.type = typeFilter;
+      if (cityFilter) params.city = cityFilter;
       const r = await crmPeopleDirectory.list(params);
       const data = ((r.data as Row[]) || []).filter((x) => !!x.id);
       if (data.length === 0) {
@@ -286,6 +293,22 @@ export default function PeopleDirectoryPage() {
           <option value="">All types</option>
           {types.map((t) => <option key={t.id} value={t.name}>{t.name}</option>)}
         </select>
+        {/* City filter — same options as the editor city dropdown so a
+            rep can narrow the directory to a specific city. Server-side
+            via ?city=<name> on the list endpoint. */}
+        <select
+          value={cityFilter}
+          onChange={(e) => setCityFilter(e.target.value)}
+          title="Filter by city"
+          style={{
+            padding: '8px 12px', borderRadius: 8,
+            background: 'var(--s2)', border: '1px solid var(--border)',
+            color: 'var(--text)', fontSize: 13,
+          }}
+        >
+          <option value="">All cities</option>
+          {cities.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
         <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>{totalLabel}</span>
       </div>
 
@@ -307,7 +330,7 @@ export default function PeopleDirectoryPage() {
             {!loading && rows.length === 0 && (
               <tr>
                 <td colSpan={8} style={{ padding: 36, textAlign: 'center', color: 'var(--text-dim)' }}>
-                  {search.trim() || typeFilter
+                  {search.trim() || typeFilter || cityFilter
                     ? 'No matching entries.'
                     : (<>Nothing here yet. Use <strong>Bulk Import</strong> to load a roster from CSV/XLSX, or <strong>+ New Person</strong> to add one.</>)}
                 </td>
