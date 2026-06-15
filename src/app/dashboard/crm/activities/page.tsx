@@ -381,15 +381,16 @@ function ActivitiesPageInner() {
       {isAdmin && pagination && pagination.total > 0 && (
         <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
           {([
-            // All values come from /activities/summary so the numbers
-            // actually tally with Total. Falls back to .length of the
-            // current page only if the summary request failed.
-            // Undated = no due_at AND no completed_at; partitioning
-            // tile so overdue + upcoming + completed + undated = total.
+            // Row 1: TOTAL + attention buckets (rows that need a date
+            // or that already missed a date). "Completed" lives only
+            // on the status-axis row below — it was duplicated here
+            // before and confused reps.
+            //   overdue  = past-due + uncompleted
+            //   upcoming = future-due + uncompleted
+            //   undated  = no due_at AND no completed_at
             { key: 'all',       label: 'Total',     value: summary?.total     ?? pagination.total, color: 'var(--primary)' },
             { key: 'overdue',   label: 'Overdue',   value: summary?.overdue   ?? overdue.length,   color: '#ef4444' },
             { key: 'upcoming',  label: 'Upcoming',  value: summary?.upcoming  ?? upcoming.length,  color: '#f59e0b' },
-            { key: 'completed', label: 'Completed', value: summary?.completed ?? completed.length, color: '#10b981' },
             { key: 'undated',   label: 'No Date',   value: summary?.undated   ?? 0,                color: '#8b5cf6' },
           ] as Array<{ key: ActivityView; label: string; value: number; color: string }>).map(({ key, label, value, color }) => {
             const active = view === key;
