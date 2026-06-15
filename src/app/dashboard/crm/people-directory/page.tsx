@@ -33,9 +33,10 @@ type Row = PeopleDirectoryEntry & { id: string };
 
 function downloadTemplate() {
   const rows = [
-    'id,first_name,last_name,mobile,email,code,type,city,address',
-    ',Ravi,Kumar,9988776655,ravi@example.com,EMP-001,Dealer,Bhagalpur,"Shop 12, Main Road"',
-    ',Priya,Sharma,8877665544,priya@example.com,EMP-002,Architect,Patna,"Flat 3, Building B"',
+    // `id` is the tenant-supplied identifier reps type by hand.
+    'id,first_name,last_name,mobile,email,type,city,address',
+    'EMP-001,Ravi,Kumar,9988776655,ravi@example.com,Dealer,Bhagalpur,"Shop 12, Main Road"',
+    'EMP-002,Priya,Sharma,8877665544,priya@example.com,Architect,Patna,"Flat 3, Building B"',
   ];
   const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
   const a = document.createElement('a');
@@ -265,9 +266,8 @@ export default function PeopleDirectoryPage() {
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
             <tr style={{ background: 'var(--s3)', color: 'var(--text-dim)', textAlign: 'left' }}>
-              <th style={{ ...thStyle, width: 120 }}>ID</th>
+              <th style={{ ...thStyle, width: 140 }}>ID</th>
               <th style={thStyle}>Name</th>
-              <th style={thStyle}>Code</th>
               <th style={thStyle}>Type</th>
               <th style={thStyle}>Mobile</th>
               <th style={thStyle}>Email</th>
@@ -279,7 +279,7 @@ export default function PeopleDirectoryPage() {
           <tbody>
             {!loading && rows.length === 0 && (
               <tr>
-                <td colSpan={9} style={{ padding: 36, textAlign: 'center', color: 'var(--text-dim)' }}>
+                <td colSpan={8} style={{ padding: 36, textAlign: 'center', color: 'var(--text-dim)' }}>
                   {search.trim() || typeFilter
                     ? 'No matching entries.'
                     : (<>Nothing here yet. Use <strong>Bulk Import</strong> to load a roster from CSV/XLSX, or <strong>+ New Person</strong> to add one.</>)}
@@ -290,12 +290,8 @@ export default function PeopleDirectoryPage() {
               const fullName = [r.first_name, r.last_name].filter(Boolean).join(' ').trim();
               return (
                 <tr key={r.id} style={{ borderTop: '1px solid var(--border)' }}>
-                  <td style={{ ...tdStyle, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', color: 'var(--text-dim)' }}
-                      title={r.id}>
-                    {r.id ? r.id.slice(0, 8) : '—'}
-                  </td>
-                  <td style={tdStyle}>{fullName || <span style={{ color: 'var(--text-dim)' }}>—</span>}</td>
                   <td style={tdStyle}>{r.code || <span style={{ color: 'var(--text-dim)' }}>—</span>}</td>
+                  <td style={tdStyle}>{fullName || <span style={{ color: 'var(--text-dim)' }}>—</span>}</td>
                   <td style={tdStyle}>
                     {r.type
                       ? <span style={typePill}>{r.type}</span>
@@ -321,18 +317,18 @@ export default function PeopleDirectoryPage() {
       {editing && (
         <Modal onClose={() => setEditing(null)} title={editing.id ? 'Edit person' : 'Add person'}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            {/* ID is server-assigned (UUID). For a new row we tell the
-                rep that it'll be generated on save; for an existing row
-                we surface the id read-only so it can be copied for
-                cross-referencing reports / external systems. */}
+            {/* ID is the tenant-supplied identifier (employee / dealer
+                code) that reps type by hand. Stored in `code` server-
+                side; surfaced as "ID" everywhere user-facing because
+                that's how Tata Tiscon refers to it on their existing
+                rosters. The system UUID stays internal — not shown. */}
             <div style={{ gridColumn: '1 / -1' }}>
               <Field label="ID">
                 <input
-                  value={editing.id ?? ''}
-                  readOnly
-                  placeholder="Auto-generated on save"
-                  style={{ ...inputStyle, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', color: 'var(--text-dim)' }}
-                  onClick={(e) => (e.target as HTMLInputElement).select()}
+                  value={editing.code ?? ''}
+                  onChange={(e) => setEditing({ ...editing, code: e.target.value })}
+                  placeholder="Employee / dealer ID"
+                  style={inputStyle}
                 />
               </Field>
             </div>
@@ -385,14 +381,6 @@ export default function PeopleDirectoryPage() {
                   style={inputStyle}
                 />
               )}
-            </Field>
-            <Field label="Code">
-              <input
-                value={editing.code ?? ''}
-                onChange={(e) => setEditing({ ...editing, code: e.target.value })}
-                placeholder="Employee / dealer code"
-                style={inputStyle}
-              />
             </Field>
             <div style={{ gridColumn: '1 / -1' }}>
               <Field label="Address">

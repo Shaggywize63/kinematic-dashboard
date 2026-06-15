@@ -31,6 +31,8 @@ type UserOption = { id: string; name: string };
 type LifecycleLead = Lead & {
   lost_reason?: string | null;
   disqualified_at?: string | null;
+  /** Stamped server-side on insert. Drives the edit gate. */
+  created_by?: string | null;
 };
 
 export default function LeadDetailPage() {
@@ -40,6 +42,13 @@ export default function LeadDetailPage() {
   // Reps with data_scope='own' (e.g. Consumer Champion) only see their own
   // leads — reassigning would hide the record from them. Suppress Assign.
   const canReassign = user?.org_role_data_scope !== 'own';
+  // Edit RBAC — only the rep who CREATED this lead may edit it (plus
+  // system-tier CRM admins). Owner / assigned_to grants read but not
+  // edit. Mirrors the backend PATCH /leads/:id gate so reps aren't
+  // promised an affordance the server will then 403. `lead` is set
+  // later by useState; the actual gate is computed inline below.
+  const isAdminTier = ['super_admin', 'admin', 'sub_admin']
+    .includes((user?.role ?? '').toLowerCase());
   // Tenant + designation gates. Consumer Champion FEs (TATA's frontline
   // designation) don't see the Lead Score breakdown, the boost-score
   // suggestions, or the analytics surface — those tools target managers,
@@ -52,6 +61,9 @@ export default function LeadDetailPage() {
   const [tataConverting, setTataConverting] = useState(false);
   const id = params?.id as string;
   const [lead, setLead] = useState<LifecycleLead | null>(null);
+  const canEditLead =
+    isAdminTier ||
+    (!!user?.id && lead?.created_by != null && lead.created_by === user.id);
   const [score, setScore] = useState<LeadScore | null>(null);
   // NBA is computed lazily — the card's "Suggest" button calls loadNba()
   // below to POST to /crm/ai/next-best-action/lead/:id. The 6h server-side
@@ -250,7 +262,9 @@ export default function LeadDetailPage() {
               </div>
             </div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-              <button onClick={() => setEditOpen(true)} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>Edit</button>
+              {canEditLead && (
+                <button onClick={() => setEditOpen(true)} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>Edit</button>
+              )}
               {!isClosed && (
                 <button
                   onClick={async () => {
@@ -409,7 +423,7 @@ export default function LeadDetailPage() {
             />
             <ScoreBoostSuggestions
               lead={lead as any}
-              onEdit={() => setEditOpen(true)}
+              onEdit={() => { if (canEditLead) setEditOpen(true); }}
               onQualify={markQualified}
               busy={qualifying || scoring}
             />

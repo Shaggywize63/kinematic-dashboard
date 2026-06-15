@@ -20,18 +20,17 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { crmPeopleDirectory } from '../../../../../lib/crmApi';
 
-type DirField = 'id' | 'first_name' | 'last_name' | 'mobile' | 'email' | 'address' | 'type' | 'city' | 'code';
+// `id` here is the user-typed employee / dealer identifier (stored
+// server-side as `code`). The system UUID is never imported / exported.
+type DirField = 'id' | 'first_name' | 'last_name' | 'mobile' | 'email' | 'address' | 'type' | 'city';
 const DIR_FIELDS: { key: DirField; label: string; hint?: string }[] = [
-  // `id` leads so re-importing a previous export updates the same rows
-  // instead of going through the mobile/email dedup path.
-  { key: 'id',         label: 'ID',      hint: 'Leave blank for new rows; populated on re-import' },
+  { key: 'id',         label: 'ID',      hint: 'Tenant employee / dealer ID — used for duplicate detection' },
   { key: 'first_name', label: 'First name' },
   { key: 'last_name',  label: 'Last name' },
   { key: 'mobile',     label: 'Mobile',  hint: 'Used for duplicate detection' },
   { key: 'email',      label: 'Email',   hint: 'Used for duplicate detection' },
   { key: 'type',       label: 'Type',    hint: 'Dealer / Engineer / Architect / …' },
   { key: 'city',       label: 'City' },
-  { key: 'code',       label: 'Code',    hint: 'Employee / dealer code' },
   { key: 'address',    label: 'Address' },
 ];
 
@@ -39,7 +38,7 @@ const DIR_FIELDS: { key: DirField; label: string; hint?: string }[] = [
 // compare against a few known synonyms per field. Matches what reps
 // typically name columns in their exports.
 const SYNONYMS: Record<DirField, string[]> = {
-  id:         ['id', 'uuid', 'rowid', 'recordid'],
+  id:         ['id', 'code', 'employeeid', 'empid', 'employeecode', 'empcode', 'dealercode', 'dealerid'],
   first_name: ['firstname', 'givenname', 'fname', 'first'],
   last_name:  ['lastname', 'surname', 'familyname', 'lname', 'last'],
   mobile:     ['mobile', 'mobilenumber', 'mob', 'phone', 'phonenumber', 'contact', 'contactnumber', 'whatsapp'],
@@ -47,12 +46,11 @@ const SYNONYMS: Record<DirField, string[]> = {
   address:    ['address', 'addressline', 'addr', 'street', 'location'],
   type:       ['type', 'role', 'category', 'designation', 'profession'],
   city:       ['city', 'town', 'cityname', 'locationcity'],
-  code:       ['code', 'employeecode', 'empcode', 'empid', 'employeeid', 'dealercode', 'dealerid'],
 };
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
 function autoMap(headers: string[]): Record<DirField, string | null> {
   const out: Record<DirField, string | null> = {
-    id: null, first_name: null, last_name: null, mobile: null, email: null, address: null, type: null, city: null, code: null,
+    id: null, first_name: null, last_name: null, mobile: null, email: null, address: null, type: null, city: null,
   };
   for (const field of Object.keys(SYNONYMS) as DirField[]) {
     const syns = new Set(SYNONYMS[field]);
@@ -118,7 +116,7 @@ export default function PeopleDirectoryImportPage() {
   const [rawText, setRawText] = useState('');
   const [parsed, setParsed] = useState<{ headers: string[]; rows: string[][] } | null>(null);
   const [mapping, setMapping] = useState<Record<DirField, string | null>>({
-    id: null, first_name: null, last_name: null, mobile: null, email: null, address: null, type: null, city: null, code: null,
+    id: null, first_name: null, last_name: null, mobile: null, email: null, address: null, type: null, city: null,
   });
   const [onDuplicate, setOnDuplicate] = useState<'skip' | 'update'>('skip');
   const [busy, setBusy] = useState(false);
@@ -154,11 +152,12 @@ export default function PeopleDirectoryImportPage() {
       address:    idx(mapping.address),
       type:       idx(mapping.type),
       city:       idx(mapping.city),
-      code:       idx(mapping.code),
     };
     return parsed.rows
       .map((row) => ({
-        id:         cols.id         >= 0 ? row[cols.id]?.trim()         || null : null,
+        // `id` (typed) maps to the `code` column server-side. The
+        // bulk-import handler dedups on this when present.
+        code:       cols.id         >= 0 ? row[cols.id]?.trim()         || null : null,
         first_name: cols.first_name >= 0 ? row[cols.first_name]?.trim() || null : null,
         last_name:  cols.last_name  >= 0 ? row[cols.last_name]?.trim()  || null : null,
         mobile:     cols.mobile     >= 0 ? row[cols.mobile]?.trim()     || null : null,
@@ -166,7 +165,6 @@ export default function PeopleDirectoryImportPage() {
         address:    cols.address    >= 0 ? row[cols.address]?.trim()    || null : null,
         type:       cols.type       >= 0 ? row[cols.type]?.trim()       || null : null,
         city:       cols.city       >= 0 ? row[cols.city]?.trim()       || null : null,
-        code:       cols.code       >= 0 ? row[cols.code]?.trim()       || null : null,
       }))
       .filter((r) => r.first_name || r.last_name || r.mobile || r.email);
   }, [parsed, mapping]);
@@ -361,15 +359,14 @@ function Preview({ rows }: { rows: Array<Record<string, string | null>> }) {
       <div style={{ background: 'var(--s1)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
           <thead><tr style={{ background: 'var(--s3)' }}>
-            <th style={previewTh}>ID</th><th style={previewTh}>First</th><th style={previewTh}>Last</th><th style={previewTh}>Code</th><th style={previewTh}>Type</th><th style={previewTh}>Mobile</th><th style={previewTh}>Email</th><th style={previewTh}>City</th><th style={previewTh}>Address</th>
+            <th style={previewTh}>ID</th><th style={previewTh}>First</th><th style={previewTh}>Last</th><th style={previewTh}>Type</th><th style={previewTh}>Mobile</th><th style={previewTh}>Email</th><th style={previewTh}>City</th><th style={previewTh}>Address</th>
           </tr></thead>
           <tbody>
             {rows.map((r, i) => (
               <tr key={i} style={{ borderTop: '1px solid var(--border)' }}>
-                <td style={previewTd}>{r.id ? r.id.slice(0, 8) : '—'}</td>
+                <td style={previewTd}>{r.code || '—'}</td>
                 <td style={previewTd}>{r.first_name || '—'}</td>
                 <td style={previewTd}>{r.last_name || '—'}</td>
-                <td style={previewTd}>{r.code || '—'}</td>
                 <td style={previewTd}>{r.type || '—'}</td>
                 <td style={previewTd}>{r.mobile || '—'}</td>
                 <td style={previewTd}>{r.email || '—'}</td>
