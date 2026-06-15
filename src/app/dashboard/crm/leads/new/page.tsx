@@ -425,13 +425,27 @@ export default function NewLeadPage() {
         payload._auto_log_site_visit = true;
       }
       const r = await crmLeads.create(payload);
-      toast.success(form.log_as_site_visit ? 'Lead created · site visit logged' : 'Lead created');
-      // The backend already spawned a completed `site_visit` activity
-      // tied to the new lead with subject + status + completed_at
-      // pre-filled (see backend leads.post). Land the rep on the lead
-      // detail page so they see the activity in the timeline they came
-      // for — the old redirect to /activities/new was creating a
-      // duplicate manual activity on top of the auto-spawned one.
+      toast.success('Lead created');
+      // The backend no longer auto-creates the site_visit activity.
+      // Instead, when the rep ticked "Also log as Site Visit", the
+      // response carries `auto_log_site_visit_prefill` with the
+      // suggested subject + lead_id. We hop to /activities/new with
+      // those fields pre-filled so the rep can attach notes / outcome
+      // / photo before actually saving the activity. Type defaults to
+      // 'meeting' to match the subject management seeding (Meeting is
+      // the first option).
+      const prefill = (r.data as unknown as Record<string, unknown>).auto_log_site_visit_prefill as
+        | { lead_id?: string; subject?: string; type?: string }
+        | undefined;
+      if (prefill?.lead_id) {
+        const qs = new URLSearchParams({
+          lead_id: prefill.lead_id,
+          type: prefill.type ?? 'meeting',
+          subject: prefill.subject ?? '',
+        }).toString();
+        router.push(`/dashboard/crm/activities/new?${qs}`);
+        return;
+      }
       router.push(`/dashboard/crm/leads/${r.data.id}`);
     } catch (e: any) { toast.error(e.message || 'Create failed'); setBusy(false); }
   };
