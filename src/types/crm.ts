@@ -1,6 +1,6 @@
 // CRM module types — mirror backend resource shapes.
 
-export type LeadStatus = 'new' | 'working' | 'qualified' | 'unqualified' | 'converted';
+export type LeadStatus = 'new' | 'working' | 'qualified' | 'unqualified' | 'converted' | 'lost';
 export type DealStatus = 'open' | 'won' | 'lost';
 export type ActivityType = 'call' | 'email' | 'meeting' | 'task' | 'note' | 'sms' | 'whatsapp';
 export type WhatsappStatus = 'queued' | 'sent' | 'delivered' | 'read' | 'failed' | 'received' | 'replied';

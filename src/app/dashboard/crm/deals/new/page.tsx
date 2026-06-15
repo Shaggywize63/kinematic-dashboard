@@ -35,7 +35,9 @@ function NewDealPageInner() {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [form, setForm] = useState({
     name: '', amount: '', volume_kg: '', product_id: '',
-    pipeline_id: initialPipelineId, stage_id: '', expected_close_date: '',
+    // Default expected_close to "two weeks from now" so the field is
+    // never empty by accident. Reps still override; backend requires it.
+    pipeline_id: initialPipelineId, stage_id: '', expected_close_date: new Date(Date.now() + 14 * 86_400_000).toISOString().slice(0, 10),
     client_id: '',
     account_id: initialAccountId, primary_contact_id: initialContactId, lead_id: initialLeadId,
   });
@@ -178,7 +180,9 @@ function NewDealPageInner() {
           )}
         </Field>
         <Field label="Stage"><select value={form.stage_id} onChange={(e) => setForm({ ...form, stage_id: e.target.value })} style={input}>{stages.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>
-        <Field label="Close Date"><input type="date" value={form.expected_close_date} onChange={(e) => setForm({ ...form, expected_close_date: e.target.value })} style={input} /></Field>
+        {/* Expected close date is required — without it the Forecast
+            and Sales-cycle reports show nothing. */}
+        <Field label="Expected Close Date *"><input type="date" value={form.expected_close_date} onChange={(e) => setForm({ ...form, expected_close_date: e.target.value })} required style={input} /></Field>
         {showLinks && (
           <>
             <Field label="Account">
