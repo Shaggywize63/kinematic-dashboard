@@ -3,7 +3,7 @@ import { Suspense, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { crmActivities, crmLeads, type Pagination, type ActivityView } from '../../../../lib/crmApi';
+import { crmActivities, crmLeads, type Pagination, type ActivityView, type ActivitySummary } from '../../../../lib/crmApi';
 import api, { API_BASE_URL } from '../../../../lib/api';
 import type { Activity } from '../../../../types/crm';
 import { getStoredUser, canAccess, getStoredToken } from '../../../../lib/auth';
@@ -105,6 +105,11 @@ function ActivitiesPageInner() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
   const [pagination, setPagination] = useState<Pagination | null>(null);
+  // Server-side head-count summary. The list response only has `total`;
+  // overdue / upcoming / completed (and the status-axis breakdown) come
+  // from /activities/summary, which applies the same scope as the list.
+  // This is what the KPI tiles read so the numbers tally with Total.
+  const [summary, setSummary] = useState<ActivitySummary | null>(null);
   // Sort dropdown — "latest activity" maps to updated_at desc so any
   // touch (status flip, notes edit, reopen) bubbles a row to the top.
   // created_at variants give a static newest/oldest-first; due_at lets
@@ -226,7 +231,22 @@ function ActivitiesPageInner() {
       };
       params.sort  = sortMap[sort].sort;
       params.order = sortMap[sort].order;
-      const r = await crmActivities.list(params);
+      // Summary uses the same filters as the list (minus pagination /
+      // sort) so the tiles reflect the same scope. `view` is the
+      // tile-active filter — we don't forward it to /summary, otherwise
+      // selecting "Overdue" would zero out the other tiles.
+      const summaryParams: Record<string, string | number> = {};
+      if (type) summaryParams.type = type;
+      if (statusFilter) summaryParams.status = statusFilter;
+      if (isAdmin && feFilter) summaryParams.owner_id = feFilter;
+      if (leadFilterId) summaryParams.lead_id = leadFilterId;
+      if (selectedCity) summaryParams.city = selectedCity;
+      if (dateRange.from) summaryParams.from = dateRange.from;
+      if (dateRange.to) summaryParams.to = dateRange.to;
+      const [r, s] = await Promise.all([
+        crmActivities.list(params),
+        crmActivities.summary(summaryParams).catch(() => null),
+      ]);
       setActivities(r.data || []);
       // `pagination` may be undefined if the backend hasn't shipped the
       // new shape yet — keep the UI working by inferring a single page.
@@ -238,6 +258,7 @@ function ActivitiesPageInner() {
         hasNext: false,
         hasPrev: false,
       });
+      setSummary(s?.data ?? null);
     } catch (e: any) { toast.error(e.message || 'Failed'); } finally { setLoading(false); }
   };
 
@@ -357,18 +378,18 @@ function ActivitiesPageInner() {
       {isAdmin && pagination && pagination.total > 0 && (
         <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
           {([
-            { key: 'all',       label: 'Total',     value: pagination.total, color: 'var(--primary)' },
-            { key: 'overdue',   label: 'Overdue',   value: overdue.length,   color: '#ef4444' },
-            { key: 'upcoming',  label: 'Upcoming',  value: upcoming.length,  color: '#f59e0b' },
-            { key: 'completed', label: 'Completed', value: completed.length, color: '#10b981' },
+            // All four values come from /activities/summary so the
+            // numbers actually tally with Total. Falls back to .length
+            // of the current page only if the summary request failed.
+            { key: 'all',       label: 'Total',     value: summary?.total     ?? pagination.total, color: 'var(--primary)' },
+            { key: 'overdue',   label: 'Overdue',   value: summary?.overdue   ?? overdue.length,   color: '#ef4444' },
+            { key: 'upcoming',  label: 'Upcoming',  value: summary?.upcoming  ?? upcoming.length,  color: '#f59e0b' },
+            { key: 'completed', label: 'Completed', value: summary?.completed ?? completed.length, color: '#10b981' },
           ] as Array<{ key: ActivityView; label: string; value: number; color: string }>).map(({ key, label, value, color }) => {
             const active = view === key;
-            // "Total" tile shows server-wide count; the rest count the
-            // current page only. Sub-label reflects that so users don't
-            // misread Overdue/Upcoming/Completed as network totals.
-            const sub = key === 'all'
-              ? 'all matching filter'
-              : (active ? 'filtering by this' : 'on this page · tap to filter');
+            // Every tile is now a server-wide head count under the
+            // current filters, so the sub-label is the same for all.
+            const sub = active ? 'filtering by this' : 'all matching filter';
             return (
               <button
                 key={key}
@@ -412,6 +433,50 @@ function ActivitiesPageInner() {
               ✕ Clear filter
             </button>
           )}
+        </div>
+      )}
+
+      {/* Status-axis breakdown — open + in_progress + cancelled +
+          completed partitions every activity in scope, so this row
+          tallies exactly to Total. Each tile is also a one-click
+          status filter (sets ?status=<x>). */}
+      {isAdmin && summary && summary.total > 0 && (
+        <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
+          {([
+            { key: 'open',        label: 'Pending',   value: summary.by_status.open,        color: '#6366f1' },
+            { key: 'in_progress', label: 'Ongoing',   value: summary.by_status.in_progress, color: '#f59e0b' },
+            { key: 'completed',   label: 'Completed', value: summary.by_status.completed,   color: '#10b981' },
+            { key: 'cancelled',   label: 'Cancelled', value: summary.by_status.cancelled,   color: '#9ca3af' },
+          ] as Array<{ key: string; label: string; value: number; color: string }>).map(({ key, label, value, color }) => {
+            const active = statusFilter === key;
+            return (
+              <button
+                key={`status-${key}`}
+                type="button"
+                onClick={() => setStatusFilter(active ? '' : key)}
+                aria-pressed={active}
+                title={`Filter list to ${label.toLowerCase()} activities`}
+                className="km-clickable"
+                style={{
+                  background: active ? color : 'var(--s2)',
+                  border: `2px solid ${active ? color : 'var(--border)'}`,
+                  borderRadius: 10, padding: '8px 16px', minWidth: 110, textAlign: 'center',
+                  cursor: 'pointer', color: 'inherit',
+                  boxShadow: active ? `0 4px 14px ${color}40` : 'none',
+                }}
+              >
+                <div style={{ fontSize: 20, fontWeight: 800, color: active ? '#fff' : color }}>
+                  {value.toLocaleString()}
+                </div>
+                <div style={{ fontSize: 11, color: active ? '#fff' : 'var(--text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                  {label}
+                </div>
+                <div style={{ fontSize: 9, color: active ? 'rgba(255,255,255,0.85)' : 'var(--text-dim)', marginTop: 2 }}>
+                  status · {active ? 'filtering by this' : 'tap to filter'}
+                </div>
+              </button>
+            );
+          })}
         </div>
       )}
 

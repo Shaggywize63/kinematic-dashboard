@@ -165,10 +165,27 @@ export const crmLineItems = {
 export const crmPipelines = crud<Pipeline>(`${BASE}/pipelines`);
 export const crmStages = crud<Stage>(`${BASE}/stages`);
 
+export interface ActivitySummary {
+  total: number;
+  overdue: number;
+  upcoming: number;
+  completed: number;
+  by_status: {
+    open: number;
+    in_progress: number;
+    cancelled: number;
+    completed: number;
+  };
+}
 export const crmActivities = {
   ...crud<Activity>(`${BASE}/activities`),
   calendar: (params: { from: string; to: string }) =>
     api.get<Wrapped<Activity[]>>(`${BASE}/activities/calendar${qs(params)}`),
+  // Head-count summary that uses the same scope as the list. Tiles on
+  // the activities page sum to total because each count is run
+  // server-side instead of `.length` on the current page.
+  summary: (params: Record<string, string | number | undefined> = {}) =>
+    api.get<Wrapped<ActivitySummary>>(`${BASE}/activities/summary${qs(params)}`),
 };
 
 // Per-FE / per-hierarchy-level daily lead targets. Managers read/set.
