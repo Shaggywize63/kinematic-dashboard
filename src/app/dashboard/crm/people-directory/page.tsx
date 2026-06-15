@@ -17,8 +17,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import api, { API_BASE_URL } from '../../../../lib/api';
-import { getStoredToken } from '../../../../lib/auth';
+import api from '../../../../lib/api';
 import {
   crmPeopleDirectory, crmPeopleDirectoryTypes,
   type PeopleDirectoryEntry, type PeopleDirectoryType,
@@ -180,14 +179,37 @@ export default function PeopleDirectoryPage() {
   // returns 401. Stream the response into a blob and trigger a download.
   const handleExport = async () => {
     try {
-      const token = getStoredToken();
-      const qs = new URLSearchParams();
-      const s = search.trim(); if (s) qs.set('q', s);
-      if (typeFilter) qs.set('type', typeFilter);
-      const url = `${API_BASE_URL}${crmPeopleDirectory.exportUrl()}${qs.toString() ? `?${qs.toString()}` : ''}`;
-      const res = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
-      if (!res.ok) throw new Error(`Export failed (${res.status})`);
-      const blob = await res.blob();
+      // Build the CSV client-side from the list endpoint instead of
+      // /people-directory/export. The dedicated /export route was
+      // shadowed for a while by the generic /:id GET handler (Express
+      // matches in registration order, so /export got treated as
+      // ":id = export" and the backend returned 404). The fix is
+      // shipping in the matching backend PR, but the client-side
+      // approach works against every backend version we'll ever
+      // need to support without a deploy gate. Same filters the
+      // list view uses (search + type) so the export reflects what
+      // the rep currently sees on screen.
+      const params: Record<string, string | number | undefined> = { limit: 5000 };
+      const s = search.trim(); if (s) params.q = s;
+      if (typeFilter) params.type = typeFilter;
+      const r = await crmPeopleDirectory.list(params);
+      const data = ((r.data as Row[]) || []).filter((x) => !!x.id);
+      if (data.length === 0) {
+        toast.error('Nothing to export — adjust the filters first.');
+        return;
+      }
+      const esc = (v: unknown): string => {
+        if (v == null) return '';
+        const str = String(v);
+        return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+      };
+      // User-facing "id" column = the typed `code` value. System
+      // UUIDs stay internal so reps work in their own ID space.
+      const header = ['id', 'first_name', 'last_name', 'mobile', 'email', 'type', 'city', 'address', 'created_at'];
+      const colFor = (k: string): keyof PeopleDirectoryEntry => (k === 'id' ? 'code' : (k as keyof PeopleDirectoryEntry));
+      const lines = data.map((row) => header.map((k) => esc((row as unknown as Record<string, unknown>)[colFor(k) as string])).join(','));
+      const csv = `${header.join(',')}\n${lines.join('\n')}\n`;
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
       a.download = `people-directory-${new Date().toISOString().slice(0, 10)}.csv`;
