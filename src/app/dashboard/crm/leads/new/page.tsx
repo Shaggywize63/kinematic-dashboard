@@ -70,10 +70,12 @@ const empty: Form = {
   client_id: '',
   latitude: '', longitude: '',
   custom_fields: {},
-  // Default OFF — the rep ticks it deliberately for the leads where
-  // they actually performed a visit, so spurious site_visit activities
-  // don't pollute the timeline. Toggle stays hidden on non-Tata tenants.
-  log_as_site_visit: false,
+  // Default ON for Tata: every Champion lead creation is a physical
+  // site visit, and reps weren't reliably ticking the checkbox — the
+  // activity section never populated. They can still uncheck it when
+  // they're recording a lead they DIDN'T visit. Toggle stays hidden
+  // on non-Tata tenants so this default doesn't pollute other tenants.
+  log_as_site_visit: true,
 };
 
 export default function NewLeadPage() {
@@ -423,28 +425,13 @@ export default function NewLeadPage() {
         payload._auto_log_site_visit = true;
       }
       const r = await crmLeads.create(payload);
-      toast.success('Lead created');
-      // When the rep ticked "Also log this lead as a Site Visit activity",
-      // jump straight to the Activity create page pre-bound to the new
-      // lead with Meeting as the default type — the rep finishes the
-      // activity log right there instead of hunting for the activities
-      // tab. Subject prefilled with the lead name; the prefix flips to
-      // "First visit" automatically when the rep has populated the
-      // first_visit_date custom field on the lead (same rule the backend
-      // uses for the auto-spawned activity).
-      if (form.log_as_site_visit) {
-        const name = [form.first_name, form.last_name].filter(Boolean).join(' ').trim()
-          || form.email || form.phone || 'Lead';
-        const isFirst = isFirstSiteVisit(form.custom_fields);
-        const subject = isFirst ? `First Site Visit — ${name}` : `Site visit — ${name}`;
-        const qs = new URLSearchParams({
-          lead_id: r.data.id,
-          type: 'meeting',
-          subject,
-        }).toString();
-        router.push(`/dashboard/crm/activities/new?${qs}`);
-        return;
-      }
+      toast.success(form.log_as_site_visit ? 'Lead created · site visit logged' : 'Lead created');
+      // The backend already spawned a completed `site_visit` activity
+      // tied to the new lead with subject + status + completed_at
+      // pre-filled (see backend leads.post). Land the rep on the lead
+      // detail page so they see the activity in the timeline they came
+      // for — the old redirect to /activities/new was creating a
+      // duplicate manual activity on top of the auto-spawned one.
       router.push(`/dashboard/crm/leads/${r.data.id}`);
     } catch (e: any) { toast.error(e.message || 'Create failed'); setBusy(false); }
   };
