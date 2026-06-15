@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { crmCustomFields, crmSettings, crmTargets } from '../../../../../lib/crmApi';
+import { crmCustomFields, crmPeopleDirectoryTypes, crmSettings, crmTargets } from '../../../../../lib/crmApi';
 import api from '../../../../../lib/api';
 import type { CustomField } from '../../../../../types/crm';
 import { getStoredUser, canAccess } from '../../../../../lib/auth';
@@ -1335,6 +1335,39 @@ function LookupConfig({
   // new tables added to the database show up here without a code change.
   targets: Array<{ value: string; label: string }>;
 }) {
+  // Per-tenant people-directory types + cities — fetched once when the
+  // admin chooses `people_directory` as the lookup target so they can
+  // pick "Engineer" / "Architect" / a configured city from a dropdown
+  // instead of typing the literal value. Every other person type the
+  // admin adds in the future surfaces automatically.
+  const [peopleTypes, setPeopleTypes] = useState<string[]>([]);
+  const [peopleCities, setPeopleCities] = useState<string[]>([]);
+  useEffect(() => {
+    if (target !== 'people_directory') return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const typesResp = await crmPeopleDirectoryTypes.list({ limit: 500 });
+        const tnames = Array.from(new Set(((typesResp.data as Array<{ name?: string; is_active?: boolean }>) || [])
+          .filter((t) => t.is_active !== false)
+          .map((t) => (t.name ?? '').trim())
+          .filter(Boolean)))
+          .sort((a, b) => a.localeCompare(b));
+        if (!cancelled) setPeopleTypes(tnames);
+      } catch { /* tolerate — falls back to free-text */ }
+      try {
+        const locResp = await api.get<{ success?: boolean; data?: Array<{ city?: string; is_active?: boolean }> } | Array<{ city?: string; is_active?: boolean }>>('/api/v1/crm/locations');
+        const arr = Array.isArray(locResp) ? locResp : (locResp.data ?? []);
+        const cnames = Array.from(new Set(arr
+          .filter((row) => row.is_active !== false)
+          .map((row) => (row.city ?? '').trim())
+          .filter(Boolean)))
+          .sort((a, b) => a.localeCompare(b));
+        if (!cancelled) setPeopleCities(cnames);
+      } catch { /* tolerate */ }
+    })();
+    return () => { cancelled = true; };
+  }, [target]);
   const updateRow = (idx: number, patch: Partial<LookupClause>) => {
     onFilterChange(filter.map((c, i) => (i === idx ? { ...c, ...patch } : c)));
   };
@@ -1385,12 +1418,43 @@ function LookupConfig({
                 <select value={c.op} onChange={(e) => updateRow(idx, { op: e.target.value })} style={input}>
                   {LOOKUP_OPS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
-                <input
-                  value={c.value}
-                  onChange={(e) => updateRow(idx, { value: e.target.value })}
-                  placeholder="Value"
-                  style={input}
-                />
+                {(() => {
+                  // Pre-load a select of legal values when the field
+                  // has a known catalog. Today: people_directory's
+                  // `type` (Engineer / Architect / Dealer / …) +
+                  // `city` (per-tenant Locations). Falls back to a
+                  // free-text input for everything else so this stays
+                  // forward-compatible with arbitrary clauses.
+                  const useTypesDropdown = target === 'people_directory' && c.field === 'type' && peopleTypes.length > 0;
+                  const useCitiesDropdown = target === 'people_directory' && c.field === 'city' && peopleCities.length > 0;
+                  if (useTypesDropdown || useCitiesDropdown) {
+                    const opts = useTypesDropdown ? peopleTypes : peopleCities;
+                    return (
+                      <select
+                        value={c.value}
+                        onChange={(e) => updateRow(idx, { value: e.target.value })}
+                        style={input}
+                      >
+                        <option value="">— Select —</option>
+                        {/* Preserve a previously-saved value that's
+                            no longer in the catalog (renamed / removed)
+                            so the rep doesn't lose context. */}
+                        {c.value && !opts.includes(c.value) && (
+                          <option value={c.value}>{c.value} (legacy)</option>
+                        )}
+                        {opts.map((v) => <option key={v} value={v}>{v}</option>)}
+                      </select>
+                    );
+                  }
+                  return (
+                    <input
+                      value={c.value}
+                      onChange={(e) => updateRow(idx, { value: e.target.value })}
+                      placeholder="Value"
+                      style={input}
+                    />
+                  );
+                })()}
                 <button
                   onClick={() => removeRow(idx)}
                   title="Remove condition"
