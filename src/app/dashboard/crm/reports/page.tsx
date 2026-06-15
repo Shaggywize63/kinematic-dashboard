@@ -43,9 +43,14 @@ export default function ReportsIndex() {
   const { user } = useAuth();
   const champion = isConsumerChampion(user as any);
 
+  // `championHidden: true` means "hide this for Champion users" — so
+  // non-Champion users see EVERY report (including the ones flagged
+  // championHidden). The earlier filter inverted that and was hiding
+  // the Custom Report Builder + most reports from non-Champions,
+  // which is the opposite of what the flag is for.
   const visible = champion
     ? REPORTS.filter((r) => CHAMPION_HREFS.has(r.href))
-    : REPORTS.filter((r) => !r.championHidden);
+    : REPORTS;
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12 }}>
