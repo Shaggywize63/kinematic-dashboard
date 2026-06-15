@@ -357,10 +357,12 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
             onChange={(cf) => setForm({ ...form, custom_fields: cf })}
           />
         </Grid>
-        <ProductLinesSection
-          values={form.custom_fields}
-          onChange={(cf) => setForm({ ...form, custom_fields: cf })}
-        />
+        {isTata && (
+          <ProductLinesSection
+            values={form.custom_fields}
+            onChange={(cf) => setForm({ ...form, custom_fields: cf })}
+          />
+        )}
 
         {/* Notes + Tags — previously only renderable on the detail page;
             reps had to copy/paste back into a separate edit flow to change

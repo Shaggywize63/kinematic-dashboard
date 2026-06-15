@@ -686,12 +686,14 @@ export default function NewLeadPage() {
           estimated_amount keys for back-compat. Rendered once at the form
           level (outside the B2B / B2C branches) so it appears regardless
           of lead type, in a single dedicated card. */}
-      <Section title="Products of Interest">
-        <ProductLinesSection
-          values={form.custom_fields}
-          onChange={(cf) => setForm({ ...form, custom_fields: cf })}
-        />
-      </Section>
+      {isTata && (
+        <Section title="Products of Interest">
+          <ProductLinesSection
+            values={form.custom_fields}
+            onChange={(cf) => setForm({ ...form, custom_fields: cf })}
+          />
+        </Section>
+      )}
 
       <Section title="Pin Location (required)">
         <div id="lead-field-location" style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 10 }}>
