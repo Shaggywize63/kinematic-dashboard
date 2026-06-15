@@ -97,7 +97,12 @@ export default function PeopleDirectoryPage() {
       // The generic crud helper applies any non-reserved query key as
       // `.eq(...)`, so passing `type` here narrows the server-side scan
       // rather than us filtering in memory.
-      const params: Record<string, string | number | undefined> = { limit: 200 };
+      // No page limit — People Directory is a per-tenant roster and
+      // the screen is the place you'd come specifically to see every
+      // entry. Backend returns un-paged for this resource (see
+      // crm.routes.ts), so omitting `limit` here lets the full set
+      // surface to the rep instead of clipping at 200.
+      const params: Record<string, string | number | undefined> = {};
       const s = search.trim(); if (s) params.q = s;
       if (typeFilter) params.type = typeFilter;
       const r = await crmPeopleDirectory.list(params);
@@ -189,7 +194,7 @@ export default function PeopleDirectoryPage() {
       // need to support without a deploy gate. Same filters the
       // list view uses (search + type) so the export reflects what
       // the rep currently sees on screen.
-      const params: Record<string, string | number | undefined> = { limit: 5000 };
+      const params: Record<string, string | number | undefined> = {};
       const s = search.trim(); if (s) params.q = s;
       if (typeFilter) params.type = typeFilter;
       const r = await crmPeopleDirectory.list(params);
