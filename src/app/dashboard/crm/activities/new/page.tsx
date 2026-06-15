@@ -66,6 +66,11 @@ function NewActivityPageInner() {
   const [type, setType] = useState<string>(prefillType);
   const [activityTypes, setActivityTypes] = useState<Array<{ value: string; label: string; icon?: string | null }>>(BUILTIN_TYPES);
   const [subject, setSubject] = useState(prefillSubject);
+  // Admin-curated subject presets from /api/v1/crm/activity-subjects.
+  // The picker lets reps pick a stock subject quickly (Meeting first by
+  // position=0). Free-text fallback stays so reps can still type a custom
+  // subject if nothing in the list matches.
+  const [subjectOptions, setSubjectOptions] = useState<Array<{ id: string; name: string }>>([]);
   const [body, setBody] = useState('');
   const [dueAt, setDueAt] = useState('');
   // Default the assignee to the signed-in user so the most common case
@@ -155,6 +160,16 @@ function NewActivityPageInner() {
         }
       })
       .catch(() => {});
+    // Subject presets — admin-curated dropdown options. Backend
+    // returns them ordered by position so Meeting (position=0) lands
+    // first. Falls back to an empty list silently so the free-text
+    // input still works if the endpoint is unreachable.
+    api.get<{ success?: boolean; data?: Array<{ id: string; name: string; is_active?: boolean | null }> }>(
+      '/api/v1/crm/activity-subjects',
+    ).then((r) => {
+      const rows = (r?.data ?? []) as Array<{ id: string; name: string; is_active?: boolean | null }>;
+      setSubjectOptions(rows.filter((row) => row.is_active !== false).map((row) => ({ id: row.id, name: row.name })));
+    }).catch(() => setSubjectOptions([]));
   }, []);
 
   // Skip the entity-reset effect on the very first render if we arrived
@@ -323,6 +338,23 @@ function NewActivityPageInner() {
             />
           </Field>
           <Field label="Subject *">
+            {/* Subject picker — admin-curated presets from
+                /api/v1/crm/activity-subjects (Meeting first by
+                position). Picking a preset fills the subject input;
+                the input stays editable so reps can override or
+                free-type when none of the presets fits. */}
+            {subjectOptions.length > 0 && (
+              <select
+                value={subjectOptions.some((o) => o.name === subject) ? subject : ''}
+                onChange={(e) => setSubject(e.target.value)}
+                style={{ ...input, marginBottom: 6 }}
+              >
+                <option value="">— pick a subject preset —</option>
+                {subjectOptions.map((o) => (
+                  <option key={o.id} value={o.name}>{o.name}</option>
+                ))}
+              </select>
+            )}
             <input value={subject} onChange={(e) => setSubject(e.target.value)} required placeholder="e.g. Discovery call with Acme" style={input} />
           </Field>
         </div>
