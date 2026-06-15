@@ -34,7 +34,10 @@ const ACTIVITY_CARD_FIELDS = [
 const TYPE_OPTIONS = ['', 'meeting', 'call', 'email', 'task', 'note', 'sms', 'whatsapp'];
 // Activity statuses surfaced on the filter — the same values the row actions
 // can flip activities into (open / completed / in_progress / cancelled).
-const STATUS_OPTIONS = ['', 'open', 'in_progress', 'completed', 'cancelled'];
+// `unset` is a synthetic value the backend translates to
+// "status IS NULL OR status NOT IN (canonical set)" so reps can find
+// rows whose status was never assigned and edit them.
+const STATUS_OPTIONS = ['', 'open', 'in_progress', 'completed', 'cancelled', 'unset'];
 const PAGE_SIZE_OPTIONS = [25, 50, 100, 200] as const;
 const DEFAULT_PAGE_SIZE = 50;
 
@@ -378,13 +381,16 @@ function ActivitiesPageInner() {
       {isAdmin && pagination && pagination.total > 0 && (
         <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
           {([
-            // All four values come from /activities/summary so the
-            // numbers actually tally with Total. Falls back to .length
-            // of the current page only if the summary request failed.
+            // All values come from /activities/summary so the numbers
+            // actually tally with Total. Falls back to .length of the
+            // current page only if the summary request failed.
+            // Undated = no due_at AND no completed_at; partitioning
+            // tile so overdue + upcoming + completed + undated = total.
             { key: 'all',       label: 'Total',     value: summary?.total     ?? pagination.total, color: 'var(--primary)' },
             { key: 'overdue',   label: 'Overdue',   value: summary?.overdue   ?? overdue.length,   color: '#ef4444' },
             { key: 'upcoming',  label: 'Upcoming',  value: summary?.upcoming  ?? upcoming.length,  color: '#f59e0b' },
             { key: 'completed', label: 'Completed', value: summary?.completed ?? completed.length, color: '#10b981' },
+            { key: 'undated',   label: 'No Date',   value: summary?.undated   ?? 0,                color: '#8b5cf6' },
           ] as Array<{ key: ActivityView; label: string; value: number; color: string }>).map(({ key, label, value, color }) => {
             const active = view === key;
             // Every tile is now a server-wide head count under the
@@ -443,10 +449,16 @@ function ActivitiesPageInner() {
       {isAdmin && summary && summary.total > 0 && (
         <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
           {([
+            // `unset` is a synthetic value handled server-side: the
+            // list route translates ?status=unset into "status IS NULL
+            // OR status NOT IN (canonical set)". So clicking the tile
+            // surfaces rows whose status was never set / has a legacy
+            // value — reps can then edit them.
             { key: 'open',        label: 'Pending',   value: summary.by_status.open,        color: '#6366f1' },
             { key: 'in_progress', label: 'Ongoing',   value: summary.by_status.in_progress, color: '#f59e0b' },
             { key: 'completed',   label: 'Completed', value: summary.by_status.completed,   color: '#10b981' },
             { key: 'cancelled',   label: 'Cancelled', value: summary.by_status.cancelled,   color: '#9ca3af' },
+            { key: 'unset',       label: 'Unset',     value: summary.by_status.unset,       color: '#ef4444' },
           ] as Array<{ key: string; label: string; value: number; color: string }>).map(({ key, label, value, color }) => {
             const active = statusFilter === key;
             return (

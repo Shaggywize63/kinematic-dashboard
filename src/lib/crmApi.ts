@@ -23,7 +23,7 @@ export interface DateRangeParams { from?: string; to?: string }
 // GET /crm/activities. 'overdue' / 'upcoming' / 'completed' apply
 // date-based predicates on top of the existing type/status/owner
 // filters. 'all' (or undefined) is the default = no extra constraint.
-export type ActivityView = 'all' | 'overdue' | 'upcoming' | 'completed';
+export type ActivityView = 'all' | 'overdue' | 'upcoming' | 'completed' | 'undated';
 
 // Server pagination shape — returned alongside `data` on list endpoints
 // that opt into pagination (currently /crm/leads + /crm/deals). Callers
@@ -170,11 +170,17 @@ export interface ActivitySummary {
   overdue: number;
   upcoming: number;
   completed: number;
+  // Rows with no due_at AND no completed_at — surfaces the "missing"
+  // bucket so view-axis tiles can be a true partition of total.
+  undated: number;
   by_status: {
     open: number;
     in_progress: number;
     cancelled: number;
     completed: number;
+    // NULL or legacy status — surfaces rows whose status was never
+    // set so reps can find and fix them.
+    unset: number;
   };
 }
 export const crmActivities = {
