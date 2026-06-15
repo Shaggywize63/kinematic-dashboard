@@ -176,6 +176,12 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
         email: form.email || null,
         phone: form.phone || null,
         status: form.status,
+        // Send the lost-reason only when the lead is in a terminal
+        // status that justifies it. Sending it for working/qualified
+        // leads would pollute the column.
+        lost_reason: (form.status === 'lost' || form.status === 'unqualified')
+          ? (form.lost_reason.trim() || null)
+          : null,
         // Send null when the rep clears the picker, so the column actually
         // clears (sending undefined would leave the existing value untouched).
         source_id: form.source_id || null,
@@ -279,7 +285,30 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
 
         {(!fields.isHidden('status') || !fields.isHidden('source_id') || !fields.isHidden('owner_id')) && (
           <><SL>Lifecycle &amp; Assignment</SL><Grid>
-            {show('status', <SF label={lbl('status', 'Status')} value={form.status} options={[{ value: 'new', label: 'New' }, { value: 'working', label: 'Working' }, { value: 'qualified', label: 'Qualified' }, { value: 'unqualified', label: 'Unqualified' }, { value: 'converted', label: 'Converted' }]} onChange={(v) => setForm({ ...form, status: v as LeadStatus })} />)}
+            {show('status', <SF label={lbl('status', 'Status')} value={form.status} options={[{ value: 'new', label: 'New' }, { value: 'working', label: 'Working' }, { value: 'qualified', label: 'Qualified' }, { value: 'unqualified', label: 'Unqualified' }, { value: 'converted', label: 'Converted' }, { value: 'lost', label: 'Lost' }]} onChange={(v) => setForm({ ...form, status: v as LeadStatus })} />)}
+            {/* Lost-reason capture — appears only when the rep is
+                moving the lead into a terminal status that needs an
+                explanation. Free-text for now; analytics rolls up by
+                normalising lowercase + trimming common variants. */}
+            {(form.status === 'lost' || form.status === 'unqualified') && (
+              <SF
+                label="Reason"
+                value={form.lost_reason}
+                options={[
+                  { value: '', label: '— pick a reason —' },
+                  { value: 'price', label: 'Price' },
+                  { value: 'budget', label: 'Budget not enough' },
+                  { value: 'timing', label: 'Timing / not ready' },
+                  { value: 'competitor', label: 'Chose competitor' },
+                  { value: 'no_response', label: 'No response' },
+                  { value: 'wrong_fit', label: 'Wrong product fit' },
+                  { value: 'duplicate', label: 'Duplicate lead' },
+                  { value: 'spam', label: 'Spam / invalid' },
+                  { value: 'other', label: 'Other' },
+                ]}
+                onChange={(v) => setForm({ ...form, lost_reason: v })}
+              />
+            )}
             {/* Source — list comes from the active lead-sources catalogue. Empty
                 value clears the FK back to NULL; reps can manage the list under
                 CRM Settings → Lead Sources. */}
@@ -463,6 +492,9 @@ function seed(l: Lead) {
     latitude:  l.latitude  != null ? String(l.latitude)  : '',
     longitude: l.longitude != null ? String(l.longitude) : '',
     notes: l.notes || '',
+    // Captured when the rep moves status to lost / unqualified. Stored
+    // so the LostReasons report can roll up "why are we losing leads".
+    lost_reason: (l as Lead & { lost_reason?: string | null }).lost_reason || '',
     // Tags persist as a string[] but render as a single comma-separated
     // input — same shape the lead-create form uses.
     tags_input: Array.isArray((l as Lead & { tags?: string[] | null }).tags)

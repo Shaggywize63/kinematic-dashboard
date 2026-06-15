@@ -79,6 +79,13 @@ function NewActivityPageInner() {
     const u = getStoredUser() as { id?: string } | null;
     return u?.id || '';
   });
+  // Direction — inbound vs outbound. Unblocks the
+  // touchpoints-to-response report, which previously read 0% response
+  // rate everywhere because the column was null on every row. Default
+  // 'outbound' since the typical activity a rep logs is something they
+  // did (call out, email out, visit out); inbound is reserved for
+  // replies to that outreach.
+  const [direction, setDirection] = useState<'' | 'inbound' | 'outbound'>('outbound');
   const [entityType, setEntityType] = useState(initialEntityType);
   const [entityId, setEntityId] = useState(initialEntityId);
   const [users, setUsers] = useState<UserOption[]>([]);
@@ -304,6 +311,9 @@ function NewActivityPageInner() {
       status:       noSchedule && type !== 'task' ? 'completed' : 'planned',
       assigned_to: assignedTo || undefined,
       image_url: imageUrl || undefined,
+      // Inbound vs outbound — drives the touchpoints-to-response
+      // report which was 100% empty without this.
+      direction: direction || undefined,
     };
     if (entityType && entityId) {
       payload[`${entityType}_id`] = entityId;
@@ -337,6 +347,24 @@ function NewActivityPageInner() {
               onChange={setType}
             />
           </Field>
+          {/* Direction — only meaningful for two-way activity types
+              (call, email, sms, whatsapp). Note/task/meeting always
+              have a single direction, so the picker is hidden there
+              to keep the form short. */}
+          {['call', 'email', 'sms', 'whatsapp'].includes(type) && (
+            <Field label="Direction">
+              <select
+                value={direction}
+                onChange={(e) => setDirection(e.target.value as '' | 'inbound' | 'outbound')}
+                style={input}
+                title="Was this an inbound (lead contacted us) or outbound (we contacted lead) activity?"
+              >
+                <option value="outbound">Outbound — we contacted the lead</option>
+                <option value="inbound">Inbound — the lead contacted us</option>
+                <option value="">—</option>
+              </select>
+            </Field>
+          )}
           <Field label="Subject *">
             {/* Subject picker — admin-curated presets from
                 /api/v1/crm/activity-subjects (Meeting first by
