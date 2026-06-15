@@ -426,22 +426,22 @@ export default function NewLeadPage() {
       }
       const r = await crmLeads.create(payload);
       toast.success('Lead created');
-      // The backend no longer auto-creates the site_visit activity.
-      // Instead, when the rep ticked "Also log as Site Visit", the
-      // response carries `auto_log_site_visit_prefill` with the
-      // suggested subject + lead_id. We hop to /activities/new with
-      // those fields pre-filled so the rep can attach notes / outcome
-      // / photo before actually saving the activity. Type defaults to
-      // 'meeting' to match the subject management seeding (Meeting is
-      // the first option).
-      const prefill = (r.data as unknown as Record<string, unknown>).auto_log_site_visit_prefill as
-        | { lead_id?: string; subject?: string; type?: string }
-        | undefined;
-      if (prefill?.lead_id) {
+      // After creating a lead on Tata, ALWAYS hop to the activity
+      // compose screen pre-filled with this lead + Meeting (matches
+      // the user requirement: "Do not add the activity by default,
+      // just open the activity section with information pre-filled
+      // like Meeting selected by default."). We don't gate on the
+      // backend echoing back `auto_log_site_visit_prefill` because
+      // the rep wants this redirect for every new lead, not just
+      // when they ticked a toggle. Non-Tata tenants keep the
+      // legacy "land on lead detail" flow.
+      if (isTata && r.data?.id) {
+        const name = [form.first_name, form.last_name].filter(Boolean).join(' ').trim()
+          || form.email || form.phone || 'Lead';
         const qs = new URLSearchParams({
-          lead_id: prefill.lead_id,
-          type: prefill.type ?? 'meeting',
-          subject: prefill.subject ?? '',
+          lead_id: r.data.id,
+          type: 'meeting',
+          subject: `Meeting — ${name}`,
         }).toString();
         router.push(`/dashboard/crm/activities/new?${qs}`);
         return;

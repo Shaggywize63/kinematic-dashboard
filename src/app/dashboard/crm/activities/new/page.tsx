@@ -49,7 +49,10 @@ function NewActivityPageInner() {
   const searchParams = useSearchParams();
   // URL prefill — set by tap-to-call buttons (and could be set by any future
   // entry point that wants to pre-bind the new activity to a parent record).
-  const prefillType = searchParams.get('type') || 'call';
+  // Meeting first by default — matches the activity-subject catalogue
+  // seeding (Meeting at position=0) and the user requirement that
+  // "Meeting should be the first option". Old default was 'call'.
+  const prefillType = searchParams.get('type') || 'meeting';
   const prefillSubject = searchParams.get('subject') || '';
   const prefillLeadId = searchParams.get('lead_id') || '';
   const prefillContactId = searchParams.get('contact_id') || '';
