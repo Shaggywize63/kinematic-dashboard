@@ -14,6 +14,7 @@ const SECTIONS = [
   { href: '/dashboard/crm/settings/stages', title: 'Stages', desc: 'Manage stages within pipelines.', icon: '📊' },
   { href: '/dashboard/crm/settings/sources', title: 'Lead Sources', desc: 'Where your leads come from.', icon: '🎯' },
   { href: '/dashboard/crm/settings/activity-types', title: 'Activity Types', desc: 'Configure the call/meeting/email/task types reps can log.', icon: '📞' },
+  { href: '/dashboard/crm/settings/activity-subjects', title: 'Activity Subjects', desc: 'Curate the subject dropdown reps pick from on activity compose. Meeting first by position.', icon: '📝' },
   { href: '/dashboard/crm/settings/integrations', title: 'Integrations', desc: 'Connect web forms, Facebook, Google Ads, Zoho. Cross-channel dedup baked in.', icon: '🔌' },
   { href: '/dashboard/crm/settings/automations', title: 'Automations', desc: 'Trigger-based workflows: assign, notify, create tasks on lead/deal events.', icon: '⚡' },
   { href: '/dashboard/crm/settings/assignment-rules', title: 'Assignment Rules', desc: 'Auto-assign new leads.', icon: '🎲' },
