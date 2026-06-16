@@ -8,6 +8,7 @@ import { getStoredUser } from '../../../../../lib/auth';
 import type { Lead } from '../../../../../types/crm';
 import UserSearchSelect, { type UserOption } from '../../../../../components/crm/shared/UserSearchSelect';
 import ActivityTypePicker from '../../../../../components/crm/shared/ActivityTypePicker';
+import CustomFieldsSection from '../../../../../components/crm/CustomFieldsSection';
 
 // Built-ins are kept for the initial render before the API responds. The
 // real list (including any client-specific custom types) loads from
@@ -82,13 +83,11 @@ function NewActivityPageInner() {
     const u = getStoredUser() as { id?: string } | null;
     return u?.id || '';
   });
-  // Direction — inbound vs outbound. Unblocks the
-  // touchpoints-to-response report, which previously read 0% response
-  // rate everywhere because the column was null on every row. Default
-  // 'outbound' since the typical activity a rep logs is something they
-  // did (call out, email out, visit out); inbound is reserved for
-  // replies to that outreach.
-  const [direction, setDirection] = useState<'' | 'inbound' | 'outbound'>('outbound');
+  // Admin-defined custom fields scoped to entity_type='activity'.
+  // CustomFieldsSection reads /api/v1/crm/custom-fields?entity=activity
+  // on mount; we just hold the form's values blob and post it as
+  // custom_fields on save (same shape as lead / deal forms).
+  const [customFields, setCustomFields] = useState<Record<string, unknown>>({});
   const [entityType, setEntityType] = useState(initialEntityType);
   const [entityId, setEntityId] = useState(initialEntityId);
   const [users, setUsers] = useState<UserOption[]>([]);
@@ -314,9 +313,10 @@ function NewActivityPageInner() {
       status:       noSchedule && type !== 'task' ? 'completed' : 'planned',
       assigned_to: assignedTo || undefined,
       image_url: imageUrl || undefined,
-      // Inbound vs outbound — drives the touchpoints-to-response
-      // report which was 100% empty without this.
-      direction: direction || undefined,
+      // Send custom_fields only when the rep filled at least one in,
+      // so the backend validator doesn't run on an empty object on
+      // every save.
+      custom_fields: Object.keys(customFields).length > 0 ? customFields : undefined,
     };
     if (entityType && entityId) {
       payload[`${entityType}_id`] = entityId;
@@ -350,24 +350,6 @@ function NewActivityPageInner() {
               onChange={setType}
             />
           </Field>
-          {/* Direction — only meaningful for two-way activity types
-              (call, email, sms, whatsapp). Note/task/meeting always
-              have a single direction, so the picker is hidden there
-              to keep the form short. */}
-          {['call', 'email', 'sms', 'whatsapp'].includes(type) && (
-            <Field label="Direction">
-              <select
-                value={direction}
-                onChange={(e) => setDirection(e.target.value as '' | 'inbound' | 'outbound')}
-                style={input}
-                title="Was this an inbound (lead contacted us) or outbound (we contacted lead) activity?"
-              >
-                <option value="outbound">Outbound — we contacted the lead</option>
-                <option value="inbound">Inbound — the lead contacted us</option>
-                <option value="">—</option>
-              </select>
-            </Field>
-          )}
           <Field label="Subject *">
             {/* Subject picker — admin-curated presets from
                 /api/v1/crm/activity-subjects (Meeting first by
@@ -392,6 +374,17 @@ function NewActivityPageInner() {
         <Field label="Notes / Description" style={{ marginTop: 12 }}>
           <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={4} placeholder="What was discussed, outcome, follow-up points…" style={{ ...input, fontFamily: 'inherit', resize: 'vertical' }} />
         </Field>
+        {/* Admin-defined custom fields for activities. Renders nothing
+            when the tenant hasn't configured any defs for
+            entity_type='activity', so the form stays unchanged for
+            tenants that don't use this. */}
+        <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
+          <CustomFieldsSection
+            entity="activity"
+            values={customFields}
+            onChange={(cf) => setCustomFields(cf)}
+          />
+        </div>
         <Field label="Photo (optional)" style={{ marginTop: 12 }}>
           {imageUrl ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 10, background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 10 }}>

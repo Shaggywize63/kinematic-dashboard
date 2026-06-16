@@ -6,7 +6,7 @@ import api from '../../../../../lib/api';
 import type { CustomField } from '../../../../../types/crm';
 import { getStoredUser, canAccess } from '../../../../../lib/auth';
 
-const ENTITIES: Array<CustomField['entity_type']> = ['lead', 'contact', 'account', 'deal'];
+const ENTITIES: Array<CustomField['entity_type']> = ['lead', 'contact', 'account', 'deal', 'activity'];
 // Full set of supported input types. Render-side hooks (form renderer
 // in CustomFieldsSection) know what to do with each. Keep in lockstep
 // with the backend zod enum in crm.validators.ts.

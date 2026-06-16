@@ -244,7 +244,7 @@ export interface CustomField {
   // Backend column is `entity_type` (lead/contact/account/deal). Older
   // code used `entity`; rename kept here so the field name matches what
   // the server actually returns + validates against.
-  entity_type: 'lead' | 'contact' | 'account' | 'deal';
+  entity_type: 'lead' | 'contact' | 'account' | 'deal' | 'activity';
   field_key: string; label: string;
   field_type:
     | 'text' | 'longtext'
