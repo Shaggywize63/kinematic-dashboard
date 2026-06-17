@@ -90,18 +90,41 @@ export default function LocationsSettingsPage() {
   useEffect(() => { load(); }, [load, selectedClientId]);
 
   // Unified row shape rendered in the grid. Each row carries a source
-  // discriminator so delete can route to the right endpoint without
-  // a separate column on screen.
+  // discriminator so delete can route to the right endpoint without a
+  // separate column on screen. `cityFirst` flips off the state/city
+  // cells on subsequent rows for the same city so the grid reads as a
+  // single city header with nested blocks beneath, instead of a
+  // visual duplicate of the city on every block row.
   type Row =
-    | { kind: 'location'; id: string; state: string; city: string; district: string | null; block: string | null }
-    | { kind: 'block';    id: string; state: string; city: string; district: string;        block: string };
-  const unified: Row[] = [
-    ...rows.map((r) => ({ kind: 'location' as const, id: r.id, state: r.state, city: r.city, district: r.district, block: r.block })),
-    // Block rows surface under the same grid — the rep's "city" in
-    // Tata's setup is the district name, so we show it in both
-    // columns. Block goes in its own column.
-    ...blocks.map((b) => ({ kind: 'block' as const, id: b.id, state: b.state ?? '', city: b.district, district: b.district, block: b.name })),
-  ];
+    | { kind: 'location'; id: string; state: string; city: string; district: string | null; block: string | null; cityFirst: boolean }
+    | { kind: 'block';    id: string; state: string; city: string; district: string;        block: string;        cityFirst: boolean };
+
+  // Group: by city. Each city is the union of its location rows + any
+  // catalogue blocks where district === that city. Catalogue blocks
+  // without a matching location row still surface as their own city
+  // group at the bottom (admins haven't added the city to the
+  // locations table yet, but the blocks under it are real).
+  const cityKey = (s: string, c: string) => `${s}|||${c}`;
+  const cityOrder: string[] = [];
+  const byCity = new Map<string, Row[]>();
+  const push = (state: string, city: string, row: Row) => {
+    const key = cityKey(state, city);
+    if (!byCity.has(key)) { cityOrder.push(key); byCity.set(key, []); }
+    byCity.get(key)!.push(row);
+  };
+  for (const r of rows) {
+    push(r.state, r.city, { kind: 'location', id: r.id, state: r.state, city: r.city, district: r.district, block: r.block, cityFirst: false });
+  }
+  for (const b of blocks) {
+    push(b.state ?? '', b.district, { kind: 'block', id: b.id, state: b.state ?? '', city: b.district, district: b.district, block: b.name, cityFirst: false });
+  }
+  // Tag the first row in each city group so the render layer knows
+  // where to print the State/City labels.
+  for (const key of cityOrder) {
+    const group = byCity.get(key)!;
+    if (group.length > 0) group[0].cityFirst = true;
+  }
+  const unified: Row[] = cityOrder.flatMap((k) => byCity.get(k)!);
 
   const remove = async (row: Row) => {
     const label = row.kind === 'block' ? 'this block from the catalogue' : 'this location';
@@ -157,11 +180,26 @@ export default function LocationsSettingsPage() {
             {unified.length === 0 ? 'No locations yet. Add some or bulk-import a list.' : 'No matches.'}
           </div>
         ) : filtered.map((r) => (
-          <div key={`${r.kind}-${r.id}`} style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.2fr 1fr 1fr 80px', padding: '12px 14px', borderBottom: '1px solid var(--border)', fontSize: 13, alignItems: 'center' }}>
-            <div>{r.state}</div>
-            <div>{r.city}</div>
+          <div key={`${r.kind}-${r.id}`} style={{
+            display: 'grid',
+            gridTemplateColumns: '1.2fr 1.2fr 1fr 1fr 80px',
+            padding: '12px 14px',
+            borderBottom: '1px solid var(--border)',
+            // Subtle separator at the top of each city group so the
+            // city / its blocks visually cohere as one cluster.
+            borderTop: r.cityFirst ? '1px solid var(--border)' : 'none',
+            fontSize: 13,
+            alignItems: 'center',
+          }}>
+            {/* State + City only render on the first row of each city
+                group — every subsequent row in that group leaves these
+                cells blank so the city isn't visually duplicated. */}
+            <div>{r.cityFirst ? r.state : ''}</div>
+            <div style={{ fontWeight: r.cityFirst ? 700 : 400 }}>{r.cityFirst ? r.city : ''}</div>
             <div style={{ color: r.district ? 'var(--text)' : 'var(--text-dim)' }}>{r.district || '—'}</div>
-            <div style={{ color: r.block    ? 'var(--text)' : 'var(--text-dim)' }}>
+            <div style={{ color: r.block ? 'var(--text)' : 'var(--text-dim)' }}>
+              {/* Indent block rows so they read as nested under the city. */}
+              {r.kind === 'block' && <span style={{ color: 'var(--text-dim)', marginRight: 6 }}>└</span>}
               {r.block || '—'}
               {r.kind === 'block' && (
                 <span style={{ marginLeft: 6, fontSize: 10, padding: '2px 6px', borderRadius: 4, background: '#10b98122', color: '#10b981', fontWeight: 700, verticalAlign: 'middle' }}>
