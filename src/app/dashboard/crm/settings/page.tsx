@@ -10,6 +10,7 @@ import type { BusinessType } from '../../../../types/crm';
 const SECTIONS = [
   { href: '/dashboard/crm/settings/users', title: 'Team Members', desc: 'Create CRM users scoped to the active client. Synced with global Settings → Users.', icon: '👥' },
   { href: '/dashboard/crm/settings/locations', title: 'States & Cities', desc: 'Centralised location list used by forms and filters.', icon: '🌍' },
+  { href: '/dashboard/crm/settings/blocks', title: 'Blocks (Talukas)', desc: 'Per-district block catalogue. Powers the city-scoped block picker on the lead form.', icon: '📍' },
   { href: '/dashboard/crm/settings/pipelines', title: 'Pipelines', desc: 'Configure deal pipelines.', icon: '🔀' },
   { href: '/dashboard/crm/settings/stages', title: 'Stages', desc: 'Manage stages within pipelines.', icon: '📊' },
   { href: '/dashboard/crm/settings/sources', title: 'Lead Sources', desc: 'Where your leads come from.', icon: '🎯' },
