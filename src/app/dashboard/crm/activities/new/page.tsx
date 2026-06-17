@@ -353,22 +353,24 @@ function NewActivityPageInner() {
           <Field label="Subject *">
             {/* Subject picker — admin-curated presets from
                 /api/v1/crm/activity-subjects (Meeting first by
-                position). Picking a preset fills the subject input;
-                the input stays editable so reps can override or
-                free-type when none of the presets fits. */}
-            {subjectOptions.length > 0 && (
+                position). The dropdown is the only subject control;
+                reps pick a preset. Falls back to a free-text input
+                only when the tenant has no presets configured. */}
+            {subjectOptions.length > 0 ? (
               <select
                 value={subjectOptions.some((o) => o.name === subject) ? subject : ''}
                 onChange={(e) => setSubject(e.target.value)}
-                style={{ ...input, marginBottom: 6 }}
+                required
+                style={input}
               >
                 <option value="">— pick a subject preset —</option>
                 {subjectOptions.map((o) => (
                   <option key={o.id} value={o.name}>{o.name}</option>
                 ))}
               </select>
+            ) : (
+              <input value={subject} onChange={(e) => setSubject(e.target.value)} required placeholder="e.g. Discovery call with Acme" style={input} />
             )}
-            <input value={subject} onChange={(e) => setSubject(e.target.value)} required placeholder="e.g. Discovery call with Acme" style={input} />
           </Field>
         </div>
         <Field label="Notes / Description" style={{ marginTop: 12 }}>
