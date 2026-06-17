@@ -60,6 +60,10 @@ function pickedClientId(): string | null {
 export default function LocationsSettingsPage() {
   const { selectedClientId } = useClient();
   const [rows, setRows] = useState<Location[]>([]);
+  // Catalogue blocks (talukas) merged into the grid as synthetic rows.
+  // Source is tracked separately so delete knows whether to route to
+  // /api/v1/crm/locations/:id or /api/v1/crm/blocks/:id.
+  const [blocks, setBlocks] = useState<Block[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('');
   const [showAdd, setShowAdd] = useState(false);
@@ -71,8 +75,13 @@ export default function LocationsSettingsPage() {
       let path = '/api/v1/crm/locations';
       const sel = pickedClientId();
       if (sel) path += `?client_id=${encodeURIComponent(sel)}`;
-      const r = await api.get<ApiList<Location>>(path, { noCache: true } as RequestInit & { noCache?: boolean });
-      setRows(r.data || []);
+      const [locResp, blkResp] = await Promise.all([
+        api.get<ApiList<Location>>(path, { noCache: true } as RequestInit & { noCache?: boolean }),
+        api.get<ApiList<Block>>('/api/v1/crm/blocks?limit=1000', { noCache: true } as RequestInit & { noCache?: boolean })
+          .catch(() => ({ data: [] }) as ApiList<Block>),
+      ]);
+      setRows(locResp.data || []);
+      setBlocks((blkResp.data || []).filter((b) => b.is_active !== false));
     } catch (e: any) {
       toast.error(e.message || 'Failed to load locations');
     } finally { setLoading(false); }
@@ -80,16 +89,34 @@ export default function LocationsSettingsPage() {
 
   useEffect(() => { load(); }, [load, selectedClientId]);
 
-  const remove = async (id: string) => {
-    if (!confirm('Delete this location?')) return;
+  // Unified row shape rendered in the grid. Each row carries a source
+  // discriminator so delete can route to the right endpoint without
+  // a separate column on screen.
+  type Row =
+    | { kind: 'location'; id: string; state: string; city: string; district: string | null; block: string | null }
+    | { kind: 'block';    id: string; state: string; city: string; district: string;        block: string };
+  const unified: Row[] = [
+    ...rows.map((r) => ({ kind: 'location' as const, id: r.id, state: r.state, city: r.city, district: r.district, block: r.block })),
+    // Block rows surface under the same grid — the rep's "city" in
+    // Tata's setup is the district name, so we show it in both
+    // columns. Block goes in its own column.
+    ...blocks.map((b) => ({ kind: 'block' as const, id: b.id, state: b.state ?? '', city: b.district, district: b.district, block: b.name })),
+  ];
+
+  const remove = async (row: Row) => {
+    const label = row.kind === 'block' ? 'this block from the catalogue' : 'this location';
+    if (!confirm(`Delete ${label}?`)) return;
     try {
-      await api.delete(`/api/v1/crm/locations/${id}`);
+      const path = row.kind === 'block'
+        ? `/api/v1/crm/blocks/${row.id}`
+        : `/api/v1/crm/locations/${row.id}`;
+      await api.delete(path);
       toast.success('Deleted');
       load();
     } catch (e: any) { toast.error(e.message || 'Delete failed'); }
   };
 
-  const filtered = rows.filter((r) => {
+  const filtered = unified.filter((r) => {
     if (!filter) return true;
     const f = filter.toLowerCase();
     return [r.state, r.city, r.district, r.block].some((v) => (v || '').toLowerCase().includes(f));
@@ -123,27 +150,34 @@ export default function LocationsSettingsPage() {
         <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.2fr 1fr 1fr 80px', padding: '10px 14px', background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border)', fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-dim)', letterSpacing: 1 }}>
           <div>State</div><div>City</div><div>District</div><div>Block</div><div style={{ textAlign: 'right' }}></div>
         </div>
-        {loading && rows.length === 0 ? (
+        {loading && unified.length === 0 ? (
           <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-dim)' }}>Loading…</div>
         ) : filtered.length === 0 ? (
           <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-dim)' }}>
-            {rows.length === 0 ? 'No locations yet. Add some or bulk-import a list.' : 'No matches.'}
+            {unified.length === 0 ? 'No locations yet. Add some or bulk-import a list.' : 'No matches.'}
           </div>
         ) : filtered.map((r) => (
-          <div key={r.id} style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.2fr 1fr 1fr 80px', padding: '12px 14px', borderBottom: '1px solid var(--border)', fontSize: 13, alignItems: 'center' }}>
+          <div key={`${r.kind}-${r.id}`} style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.2fr 1fr 1fr 80px', padding: '12px 14px', borderBottom: '1px solid var(--border)', fontSize: 13, alignItems: 'center' }}>
             <div>{r.state}</div>
             <div>{r.city}</div>
             <div style={{ color: r.district ? 'var(--text)' : 'var(--text-dim)' }}>{r.district || '—'}</div>
-            <div style={{ color: r.block    ? 'var(--text)' : 'var(--text-dim)' }}>{r.block    || '—'}</div>
+            <div style={{ color: r.block    ? 'var(--text)' : 'var(--text-dim)' }}>
+              {r.block || '—'}
+              {r.kind === 'block' && (
+                <span style={{ marginLeft: 6, fontSize: 10, padding: '2px 6px', borderRadius: 4, background: '#10b98122', color: '#10b981', fontWeight: 700, verticalAlign: 'middle' }}>
+                  CATALOGUE
+                </span>
+              )}
+            </div>
             <div style={{ textAlign: 'right' }}>
-              <button onClick={() => remove(r.id)} style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 12 }} title="Delete">✕</button>
+              <button onClick={() => remove(r)} style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 12 }} title="Delete">✕</button>
             </div>
           </div>
         ))}
       </div>
 
       <div style={{ marginTop: 10, fontSize: 11, color: 'var(--text-dim)' }}>
-        {rows.length} location{rows.length === 1 ? '' : 's'} loaded.
+        {rows.length} location{rows.length === 1 ? '' : 's'} + {blocks.length} catalogue block{blocks.length === 1 ? '' : 's'} loaded.
       </div>
 
       {showAdd && <AddLocationModal onClose={() => setShowAdd(false)} onSaved={() => { setShowAdd(false); load(); }} />}
