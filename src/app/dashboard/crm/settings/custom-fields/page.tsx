@@ -58,6 +58,11 @@ const LOOKUP_TARGETS: Array<{ value: string; label: string }> = [
   { value: 'crm_accounts',     label: 'Account' },
   { value: 'crm_deals',        label: 'Deal' },
   { value: 'people_directory', label: 'People Directory entry' },
+  // Block / taluka picker. Backend filters this by the rep's effective
+  // city scope (e.g. a Dhanbad Champion sees only Dhanbad blocks) so
+  // admins don't need to add a per-user filter clause manually — just
+  // point the custom field at crm_blocks and the gate runs server-side.
+  { value: 'crm_blocks',       label: 'Block (taluka)' },
 ];
 
 // Operators the simple v1 filter builder supports. Each clause is ANDed
