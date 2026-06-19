@@ -37,6 +37,31 @@ chain end-to-end:
 7. **Verify against real data** and state explicitly what you could not verify
    (missing key, sparse data, etc.).
 
+## Built-in field overrides — the contract
+
+Every render site for a built-in lead / contact / deal / account field
+(those persisted as columns on the row, not custom-field jsonb) MUST
+be gated through the field-override helpers. There is no exception
+and no "I'll add the gate later". If a new field is added to the
+form, it ships gated on day one.
+
+- Resolver: `kinematic-dashboard/src/lib/crmFieldOverrides.ts` —
+  `extractFieldOverrides(settingsData)` + `buildFieldHelpers(map,
+  entity, scope)` returns `{ isHidden, labelFor, requiredFor }`.
+- Web lead forms use a `show(key, <Field />)` helper or a direct
+  `!fields.isHidden(key)` wrap.
+- The lead-form admin (Settings → Custom Fields) writes the override
+  as `${entity}.${key}` (and optionally `@b2c` / `@b2b` for a scoped
+  variant). Tata Tiscon currently hides DOB / Gender / Preferred
+  Channel / City / State / Country / Company / Title / Industry /
+  Date of Birth / Email.
+
+If you add a new built-in field anywhere on a lead / contact / deal /
+account form, the PR MUST include three things:
+1. `isHidden(key)` wrap at every render site (Create + Edit + Detail).
+2. `labelFor(key, default)` for the label so admins can relabel it.
+3. `requiredFor(key, defaultRequired)` for required-marker support.
+
 ## Build / check
 - `npx tsc --noEmit` — a pre-existing `baseUrl` deprecation warning is expected;
   treat only other errors as failures.
