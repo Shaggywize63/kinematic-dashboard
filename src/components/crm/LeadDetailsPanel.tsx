@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
-import { crmCustomFields, crmProducts } from '../../lib/crmApi';
+import { crmCustomFields, crmLookup, crmProducts } from '../../lib/crmApi';
 import type { CustomField, Lead, Product } from '../../types/crm';
 import { evaluateClientFormula } from './CustomFieldsSection';
 import { PRODUCT_LINE_KEYS } from './ProductLinesSection';
@@ -37,6 +37,13 @@ export default function LeadDetailsPanel({ lead }: Props) {
     return m;
   }, [products]);
 
+  // Generic lookup resolution — keyed by `${target_table}:${id}` → display
+  // label. Populated lazily once we know which lookup defs the entity has
+  // AND which UUIDs the row stores in custom_fields. Previously only
+  // `crm_products` was special-cased, so a Block / Dealer / People-Directory
+  // lookup field rendered as a raw UUID on the detail panel.
+  const [lookupLabels, setLookupLabels] = useState<Map<string, string>>(new Map());
+
   useEffect(() => {
     let cancelled = false;
     crmCustomFields.list()
@@ -63,6 +70,41 @@ export default function LeadDetailsPanel({ lead }: Props) {
   const cf = (lead.custom_fields && typeof lead.custom_fields === 'object')
     ? lead.custom_fields as Record<string, unknown>
     : {};
+
+  // Resolve every lookup field's stored UUID → display label. One
+  // /lookup/search per unique target_table; the result map covers all
+  // lookup fields that point at that table. Re-fires whenever the
+  // custom-field defs land OR the lead's custom_fields blob changes.
+  useEffect(() => {
+    let cancelled = false;
+    const targets = new Set<string>();
+    for (const def of customDefs) {
+      if (def.field_type !== 'lookup' || !def.target_table) continue;
+      const v = cf[def.field_key];
+      // Need to resolve only when the stored value lacks a label —
+      // the new object shape `{ id, label }` already carries one.
+      if (typeof v === 'string' && v) {
+        targets.add(def.target_table);
+      } else if (v && typeof v === 'object') {
+        const o = v as { id?: string; label?: string };
+        if (o.id && !o.label) targets.add(def.target_table);
+      }
+    }
+    if (targets.size === 0) return;
+    (async () => {
+      const next = new Map<string, string>();
+      for (const target of targets) {
+        try {
+          const r = await crmLookup.search({ target });
+          for (const hit of (r.data || [])) {
+            next.set(`${target}:${hit.id}`, hit.label);
+          }
+        } catch { /* non-fatal — leaves the UUID visible for that target */ }
+      }
+      if (!cancelled) setLookupLabels(next);
+    })();
+    return () => { cancelled = true; };
+  }, [customDefs, cf]);
 
   const altMobiles = Array.isArray(lead.alternate_mobiles) ? lead.alternate_mobiles : [];
   const tags = Array.isArray(lead.tags) ? lead.tags : [];
@@ -139,11 +181,29 @@ export default function LeadDetailsPanel({ lead }: Props) {
       }
       const val = cf[def.field_key];
       if (val === undefined || val === null || val === '') return null;
-      // Lookup fields store a UUID; resolve it to a display name when
-      // we recognise the target. Only crm_products is wired today.
-      if (def.field_type === 'lookup' && def.target_table === 'crm_products' && typeof val === 'string') {
-        const p = productMap.get(val);
-        return [def.label || def.field_key, p?.name ?? val.slice(0, 8)] as [string, React.ReactNode];
+      // Lookup fields can be stored as either a raw UUID string (legacy
+      // writes) OR `{ id, label, target_table }` (current shape). For
+      // either form, resolve the display name via the per-target
+      // lookupLabels map populated in the effect above. Products keep
+      // their dedicated map because the catalogue is already loaded
+      // separately for the multi-row product picker.
+      if (def.field_type === 'lookup' && def.target_table) {
+        const obj = (val && typeof val === 'object') ? (val as { id?: string; label?: string }) : null;
+        const id = obj?.id ?? (typeof val === 'string' ? val : null);
+        const inlineLabel = obj?.label;
+        if (id) {
+          if (inlineLabel) {
+            return [def.label || def.field_key, inlineLabel] as [string, React.ReactNode];
+          }
+          if (def.target_table === 'crm_products') {
+            const p = productMap.get(id);
+            if (p?.name) return [def.label || def.field_key, p.name] as [string, React.ReactNode];
+          }
+          const resolved = lookupLabels.get(`${def.target_table}:${id}`);
+          if (resolved) return [def.label || def.field_key, resolved] as [string, React.ReactNode];
+          // Fall through to formatCustomValue for the un-resolved UUID
+          // so we still render something while the fetch is in flight.
+        }
       }
       return [def.label || def.field_key, formatCustomValue(val, def.field_type)] as [string, React.ReactNode];
     })
