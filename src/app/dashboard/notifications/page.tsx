@@ -2,8 +2,8 @@
 // Deployment V4 - Force Refresh
 import { useState, useEffect, useCallback } from 'react';
 import api from '../../../lib/api';
-import CitySelect from '../../../components/CitySelect';
 import { useAuth } from '../../../hooks/useAuth';
+import RecipientPicker from '../../../components/RecipientPicker';
 
 const C = {
   red: '#E01E2C', 
@@ -21,7 +21,7 @@ const C = {
   white: 'var(--text)',
 };
 
-interface User { id:string; name:string; role:string; city?:string; zones?:{name:string,city?:string}; supervisor_id?:string; }
+interface User { id:string; name:string; role:string; city?:string; zones?:{name:string,city?:string}; supervisor_id?:string; hierarchy_level_id?:string; }
 interface City { id:string; name:string; }
 interface Notif { id:string; title:string; body:string; priority:string; audience_summary:string; created_at:string; recipients_count:number; read_count:number; send_push?:boolean; }
 
@@ -29,13 +29,12 @@ export default function NotificationsPage() {
   const [title,setTitle]=useState('');
   const [body,setBody]=useState('');
   const [priority,setPriority]=useState('info');
-  const [city,setCity]=useState('');
-  const [supId,setSupId]=useState('');
-  const [feId,setFeId]=useState('');
-  const [fes,setFes]=useState<User[]>([]);
-  const [sups,setSups]=useState<User[]>([]);
-  const [cms,setCms]=useState<User[]>([]);
-  const [zones,setZones]=useState<{id:string,name:string,city:string}[]>([]);
+  // New composer state — a flat set of picked user UUIDs sent to
+  // /notifications/send as `targeting.user_ids`. Replaces the legacy
+  // city + supervisor + FE dropdowns; users pick via the tree
+  // (RecipientPicker) which groups by city / hierarchy / saved group.
+  const [allUsers, setAllUsers] = useState<User[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [history,setHistory]=useState<Notif[]>([]);
   // Default ON so a broadcast actually reaches every recipient's phone (lock
   // screen via FCM), not just the in-app bell — otherwise users who aren't
@@ -49,11 +48,8 @@ export default function NotificationsPage() {
 
   const fetchAll = useCallback(async(p: number = 1)=>{
     try {
-      const [uR,sR,cR,zR,hR] = await Promise.all([
+      const [uR, hR] = await Promise.all([
         api.get<any>('/api/v1/users?limit=500'),
-        api.get<any>('/api/v1/users?role=supervisor&limit=200'),
-        api.get<any>('/api/v1/users?role=city_manager&limit=100'),
-        api.get<any>('/api/v1/zones'),
         api.get<any>(`/api/v1/notifications/history?limit=10&page=${p}`),
       ]);
       const pick=(r:any)=>{
@@ -62,37 +58,29 @@ export default function NotificationsPage() {
         if(Array.isArray(r?.data?.data))return r.data.data;
         return r?.users||r?.zones||[];
       };
-      
-      const allUsers=pick(uR);
-      setFes(allUsers.filter((u:User)=>u.role==='executive'||u.role==='field_executive'));
-      setSups(pick(sR)); 
-      setCms(pick(cR)); 
-      setZones(pick(zR));
-
-      // Handle history separately for totalCount
+      setAllUsers(pick(uR));
       const hData = hR?.data?.data || hR?.data || [];
       setHistory(Array.isArray(hData) ? hData : []);
       setTotal(hR?.data?.totalCount || 0);
-
     } catch(e){ console.error('Fetch error:',e); }
   },[]);
 
   useEffect(()=>{fetchAll(page);}, [fetchAll, page]);
 
-  const filtSups=city?sups.filter(s=>(s.zones?.city||s.city)===city):sups;
-  const filtFes=fes.filter(f=>{
-    const matchCity = !city || (f.zones?.city || f.city) === city;
-    const matchSup = !supId || f.supervisor_id === supId;
-    return matchCity && matchSup;
-  });
-
   const send=async()=>{
     if(!title||!body)return alert('Title and message are required');
+    if(selectedIds.size===0)return alert('Pick at least one recipient.');
     setSending(true);
     try{
-      await api.post('/api/v1/notifications/send',{title,body,priority,send_push:sendPush,targeting:{city:city||null,supervisor_id:supId||null,fe_id:feId||null}});
+      await api.post('/api/v1/notifications/send',{
+        title,
+        body,
+        priority,
+        send_push:sendPush,
+        targeting:{ user_ids: Array.from(selectedIds) },
+      });
       alert('Sent successfully!');
-      setTitle('');setBody('');setCity('');setSupId('');setFeId('');
+      setTitle('');setBody('');setSelectedIds(new Set());
       fetchAll();
     }catch(e:any){alert(e.message||'Failed');}
     finally{setSending(false);}
@@ -148,41 +136,13 @@ export default function NotificationsPage() {
 
             <div style={{height:1,background:C.border}}/>
 
-            <div style={{display:'flex',flexDirection:'column',gap:16}}>
-              <div>
-                <label style={{fontSize:11,color:C.gray,fontWeight:600,display:'block',marginBottom:8}}>CITY</label>
-                <div style={{ position: 'relative' }}>
-                  <CitySelect 
-                    value={city} 
-                    onChange={(val) => { setCity(val); setSupId(''); setFeId(''); }} 
-                    placeholder="All Cities"
-                  />
-                  {city && (
-                    <button 
-                      onClick={() => { setCity(''); setSupId(''); setFeId(''); }}
-                      style={{ position: 'absolute', right: 38, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: C.gray, cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center' }}
-                    >
-                      ×
-                    </button>
-                  )}
-                </div>
-              </div>
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
-                <div>
-                  <label style={{fontSize:11,color:C.gray,fontWeight:600,display:'block',marginBottom:8}}>SUPERVISOR</label>
-                  <select value={supId} onChange={e=>{setSupId(e.target.value);setFeId('');}} style={{...inp,appearance:'none'}}>
-                    <option value="">All Supervisors ({filtSups.length})</option>
-                    {filtSups.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={{fontSize:11,color:C.gray,fontWeight:600,display:'block',marginBottom:8}}>FIELD EXECUTIVE</label>
-                  <select value={feId} onChange={e=>setFeId(e.target.value)} style={{...inp,appearance:'none'}}>
-                    <option value="">All FEs ({filtFes.length})</option>
-                    {filtFes.map(f=><option key={f.id} value={f.id}>{f.name}</option>)}
-                  </select>
-                </div>
-              </div>
+            <div>
+              <label style={{fontSize:11,color:C.gray,fontWeight:600,display:'block',marginBottom:8}}>RECIPIENTS</label>
+              <RecipientPicker
+                users={allUsers}
+                selectedIds={selectedIds}
+                onChange={setSelectedIds}
+              />
             </div>
 
             <label style={{display:'flex',alignItems:'center',gap:12,cursor:'pointer',padding:'12px 16px',background:C.s3,border:`1px solid ${C.border}`,borderRadius:12,marginTop:8}}>
@@ -201,15 +161,14 @@ export default function NotificationsPage() {
         </div>
 
         <div style={{width:320,background:C.s2,border:`1px solid ${C.border}`,borderRadius:16,padding:24}}>
-          <h2 style={{fontSize:16,fontWeight:700,marginBottom:20}}>Recipients</h2>
+          <h2 style={{fontSize:16,fontWeight:700,marginBottom:20}}>Summary</h2>
           <div style={{display:'flex',flexDirection:'column',gap:12}}>
-            <Row label="City" val={city||'All Cities'} col={city?C.purple:C.gray}/>
-            <Row label="Supervisor" val={supId?sups.find(s=>s.id===supId)?.name||'...':'All'} col={supId?C.green:C.gray}/>
-            <Row label="Field Exec" val={feId?fes.find(f=>f.id===feId)?.name||'...':'All'} col={feId?C.blue:C.gray}/>
+            <Row label="Selected" val={`${selectedIds.size} user${selectedIds.size===1?'':'s'}`} col={selectedIds.size?C.red:C.gray}/>
+            <Row label="Push" val={sendPush?'Enabled':'In-app only'} col={sendPush?C.green:C.gray}/>
             <div style={{marginTop:16,padding:16,background:'rgba(224,30,44,0.06)',borderRadius:12,border:`1px solid ${C.red}22`}}>
               <div style={{fontSize:11,color:C.gray,fontWeight:600,marginBottom:4}}>AUDIENCE</div>
-              <div style={{fontSize:26,fontWeight:800}}>{feId?'1 FE':supId?'1 SUP + FEs':city?`${filtFes.length+filtSups.length} users`:'All Users'}</div>
-              <div style={{fontSize:11,color:C.red,marginTop:4}}>via In-App Feed</div>
+              <div style={{fontSize:26,fontWeight:800}}>{selectedIds.size} {selectedIds.size===1?'recipient':'recipients'}</div>
+              <div style={{fontSize:11,color:C.red,marginTop:4}}>{sendPush?'In-app + push':'In-app only'}</div>
             </div>
           </div>
         </div>
