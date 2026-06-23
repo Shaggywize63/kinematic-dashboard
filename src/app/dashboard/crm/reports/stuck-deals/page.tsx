@@ -6,6 +6,7 @@ import { crmDeals } from '../../../../../lib/crmApi';
 import api from '../../../../../lib/api';
 import type { Deal } from '../../../../../types/crm';
 import { downloadCsv } from '../../../../../lib/exportCsv';
+import { useReportCityKey } from '../../../../../components/crm/reports/ReportFilters';
 
 // "Stuck deal" = open status (not won/lost) where the stage hasn't moved
 // in N days. Pulls crm_deals, filters client-side, sorts by oldest first.
@@ -28,9 +29,11 @@ export default function StuckDealsPage() {
   const [rows, setRows] = useState<DealRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [threshold, setThreshold] = useState<number>(14);
+  const cityKey = useReportCityKey();
 
   useEffect(() => {
     let cancelled = false;
+    setLoading(true);
     (async () => {
       try {
         const [dealsRes, usersRes] = await Promise.all([
@@ -70,7 +73,7 @@ export default function StuckDealsPage() {
       finally { if (!cancelled) setLoading(false); }
     })();
     return () => { cancelled = true; };
-  }, [threshold]);
+  }, [threshold, cityKey]);
 
   const totalValue = useMemo(() => rows.reduce((s, r) => s + r.amount, 0), [rows]);
 

@@ -6,6 +6,7 @@ import { crmLeads } from '../../../../../lib/crmApi';
 import api from '../../../../../lib/api';
 import type { Lead } from '../../../../../types/crm';
 import { downloadCsv } from '../../../../../lib/exportCsv';
+import { useReportCityKey } from '../../../../../components/crm/reports/ReportFilters';
 
 // "Lead aging" = open lead (status not in converted/lost/unqualified)
 // sorted by how long since stage_changed_at. Tells the rep who to call
@@ -28,9 +29,11 @@ export default function LeadAgingPage() {
   const [rows, setRows] = useState<LeadRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [threshold, setThreshold] = useState<number>(7);
+  const cityKey = useReportCityKey();
 
   useEffect(() => {
     let cancelled = false;
+    setLoading(true);
     (async () => {
       try {
         const [leadsRes, usersRes] = await Promise.all([
@@ -72,7 +75,7 @@ export default function LeadAgingPage() {
       finally { if (!cancelled) setLoading(false); }
     })();
     return () => { cancelled = true; };
-  }, [threshold]);
+  }, [threshold, cityKey]);
 
   const byStatus = useMemo(() => {
     const map = new Map<string, number>();

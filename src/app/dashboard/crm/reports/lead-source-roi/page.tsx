@@ -6,13 +6,16 @@ import type { SourceROIRow } from '../../../../../types/crm';
 import LeadSourceRoiChart from '../../../../../components/crm/charts/LeadSourceRoiChart';
 import { formatINR } from '../../../../../lib/formatCurrency';
 import { downloadCsv } from '../../../../../lib/exportCsv';
+import { useReportCityKey } from '../../../../../components/crm/reports/ReportFilters';
 
 export default function LeadSourceRoiPage() {
   const [data, setData] = useState<SourceROIRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const cityKey = useReportCityKey();
   useEffect(() => {
+    setLoading(true);
     crmAnalytics.leadSourceRoi().then((r) => setData(r.data || [])).catch((e) => toast.error(e.message)).finally(() => setLoading(false));
-  }, []);
+  }, [cityKey]);
 
   // Defensive normalisation: tolerate either canonical (source/leads/revenue/cost/roi)
   // or legacy MV column shapes (source_name/lead_count/revenue_won/total_cost) so the

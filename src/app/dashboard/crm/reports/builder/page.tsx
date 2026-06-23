@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { toast } from 'sonner';
 import { crmLeads, crmContacts, crmAccounts, crmDeals, crmActivities, crmCustomFields } from '../../../../../lib/crmApi';
 import type { CustomField } from '../../../../../types/crm';
+import { useReportCityKey } from '../../../../../components/crm/reports/ReportFilters';
 
 type Entity = 'leads' | 'contacts' | 'accounts' | 'deals' | 'activities';
 
@@ -144,6 +145,9 @@ export default function ReportBuilderPage() {
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [hasRun, setHasRun] = useState(false);
+  // Global city picker — if the user already ran the report, re-run on
+  // any city change so the rendered rows match the picked city.
+  const cityKey = useReportCityKey();
   // Admin-defined custom fields per entity. Cached client-side so
   // flipping between entities doesn't refetch unless the cache misses.
   // Falsy entry means "not yet loaded"; empty array means "loaded, none
@@ -290,6 +294,14 @@ export default function ReportBuilderPage() {
     setHasRun(true);
     toast.success(`Report: ${filtered.length} row${filtered.length === 1 ? '' : 's'}`);
   };
+
+  // Auto re-run when the global city picker changes IF the report has
+  // already been run once — without this the rendered rows would keep
+  // showing the previous city's data until the user clicked "Run Report"
+  // again. Guard on `hasRun` so we don't fire a fetch on mount before
+  // the user has even chosen what to render.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (hasRun) { runReport(); } }, [cityKey]);
 
   const grouped = useMemo(() => {
     if (!groupBy) return null;

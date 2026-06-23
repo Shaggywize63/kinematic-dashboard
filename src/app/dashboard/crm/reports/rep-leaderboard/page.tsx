@@ -5,6 +5,7 @@ import { crmDeals } from '../../../../../lib/crmApi';
 import api from '../../../../../lib/api';
 import type { Deal } from '../../../../../types/crm';
 import { downloadCsv } from '../../../../../lib/exportCsv';
+import { useReportCityKey } from '../../../../../components/crm/reports/ReportFilters';
 
 interface RepRow {
   user_id: string;
@@ -27,9 +28,13 @@ export default function RepLeaderboardPage() {
   const [rows, setRows] = useState<RepRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState<'revenue' | 'won' | 'win_rate' | 'avg_deal'>('revenue');
+  // Refetch when the global city picker changes — crmDeals.list is
+  // city-aware via the auto-attached `?city=` query.
+  const cityKey = useReportCityKey();
 
   useEffect(() => {
     let cancelled = false;
+    setLoading(true);
     (async () => {
       try {
         const [dealsRes, usersRes] = await Promise.all([
@@ -84,7 +89,7 @@ export default function RepLeaderboardPage() {
       finally { if (!cancelled) setLoading(false); }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [cityKey]);
 
   const sorted = useMemo(() => {
     const out = [...rows];
