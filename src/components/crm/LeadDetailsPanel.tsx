@@ -71,31 +71,37 @@ export default function LeadDetailsPanel({ lead }: Props) {
     ? lead.custom_fields as Record<string, unknown>
     : {};
 
-  // Resolve every lookup field's stored UUID → display label. One
-  // /lookup/search per unique target_table; the result map covers all
-  // lookup fields that point at that table. Re-fires whenever the
-  // custom-field defs land OR the lead's custom_fields blob changes.
+  // Resolve every lookup field's stored UUID → display label. We send
+  // the exact UUID list per target so /lookup/search bypasses its
+  // per-user city/district gate — a Champion viewing a lead whose
+  // dealer is in another city still gets the dealer's name resolved.
+  // Without `ids`, the picker mode returned at most 500 rows in the
+  // viewer's effective cities, so labels for out-of-scope rows came
+  // back as raw UUIDs.
   useEffect(() => {
     let cancelled = false;
-    const targets = new Set<string>();
+    const idsByTarget = new Map<string, Set<string>>();
     for (const def of customDefs) {
       if (def.field_type !== 'lookup' || !def.target_table) continue;
       const v = cf[def.field_key];
-      // Need to resolve only when the stored value lacks a label —
-      // the new object shape `{ id, label }` already carries one.
+      let id: string | null = null;
       if (typeof v === 'string' && v) {
-        targets.add(def.target_table);
+        id = v;
       } else if (v && typeof v === 'object') {
         const o = v as { id?: string; label?: string };
-        if (o.id && !o.label) targets.add(def.target_table);
+        if (o.id && !o.label) id = o.id;
       }
+      if (!id) continue;
+      const set = idsByTarget.get(def.target_table) ?? new Set<string>();
+      set.add(id);
+      idsByTarget.set(def.target_table, set);
     }
-    if (targets.size === 0) return;
+    if (idsByTarget.size === 0) return;
     (async () => {
       const next = new Map<string, string>();
-      for (const target of targets) {
+      for (const [target, ids] of idsByTarget) {
         try {
-          const r = await crmLookup.search({ target });
+          const r = await crmLookup.search({ target, ids: Array.from(ids) });
           for (const hit of (r.data || [])) {
             next.set(`${target}:${hit.id}`, hit.label);
           }

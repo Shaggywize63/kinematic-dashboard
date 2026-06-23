@@ -14,7 +14,6 @@ type ReportEntry = {
 
 const REPORTS: ReportEntry[] = [
   { href: '/dashboard/crm/reports/builder', title: '🛠 Custom Report Builder', desc: 'Pick entity, fields, filters, grouping, and export to CSV.', highlight: true, championHidden: true },
-  { href: '/dashboard/crm/reports/team-performance', title: 'Team Performance', desc: 'Won volume, conversion rate, lead ageing and new leads per rep across your hierarchy subtree.' },
   { href: '/dashboard/crm/reports/lead-tracker', title: 'Lead Tracker', desc: 'Monthly new-lead bar chart plus today / week / month summaries for your team.', championHidden: true },
   { href: '/dashboard/crm/reports/team-daily', title: 'Team Daily Activity', desc: 'Per-rep attendance, visits achieved vs scheduled, and leads added — for any chosen day.', championHidden: true },
   { href: '/dashboard/crm/reports/rep-leaderboard', title: 'Rep Leaderboard', desc: 'Revenue, deals won, win rate and average cycle by sales rep.', championHidden: true },
@@ -28,11 +27,10 @@ const REPORTS: ReportEntry[] = [
   { href: '/dashboard/crm/reports/sales-cycle', title: 'Sales Cycle', desc: 'Average days deals spend in each stage.', championHidden: true },
 ];
 
-// Champion-visible hrefs — only these three surfaces are relevant for the
-// Consumer Champion FE role: total leads captured (lead-tracker), total
-// deals (team-performance counts), and win/loss rate.
+// Champion-visible hrefs — only these surfaces are relevant for the
+// Consumer Champion FE role: total leads captured (lead-tracker) and
+// win/loss rate.
 const CHAMPION_HREFS = new Set([
-  '/dashboard/crm/reports/team-performance',
   '/dashboard/crm/reports/win-loss',
   // Lead Tracker shows "Total leads captured" — the bar-chart + period cards
   // are the primary tool a Champion Manager uses to track new leads.

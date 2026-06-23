@@ -346,11 +346,16 @@ export const crmPeopleDirectoryTypes = crud<PeopleDirectoryType>(`${BASE}/people
 // table, optionally filtered by the admin-configured condition list.
 export interface LookupHit { id: string; label: string; raw: Record<string, unknown> }
 export const crmLookup = {
-  search: (params: { target: string; q?: string; filter?: Array<{ field: string; op: string; value: unknown }> }) => {
+  search: (params: { target: string; q?: string; filter?: Array<{ field: string; op: string; value: unknown }>; ids?: string[] }) => {
     const qs = new URLSearchParams();
     qs.set('target', params.target);
     if (params.q) qs.set('q', params.q);
     if (params.filter && params.filter.length) qs.set('filter', JSON.stringify(params.filter));
+    // Resolve-by-ids mode — the backend skips the per-user city/district
+    // gate when `ids` is set so label hydration works for rows the
+    // viewer can read but whose dealer/block is outside their effective
+    // cities (e.g. a reassigned lead).
+    if (params.ids && params.ids.length) qs.set('ids', params.ids.join(','));
     return api.get<Wrapped<LookupHit[]>>(`${BASE}/lookup/search?${qs.toString()}`);
   },
 };
