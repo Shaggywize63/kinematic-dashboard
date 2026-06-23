@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { crmDeals, crmPipelines, crmStages } from '../../../../../lib/crmApi';
 import type { Deal, Pipeline, Stage } from '../../../../../types/crm';
 import { downloadCsv } from '../../../../../lib/exportCsv';
+import { useReportCityKey } from '../../../../../components/crm/reports/ReportFilters';
 
 // Stage funnel = count of deals per stage in pipeline order, plus the
 // conversion ratio from each stage to the next. Strategic report — shows
@@ -25,6 +26,7 @@ export default function StageFunnelPage() {
   const [selectedPipeline, setSelectedPipeline] = useState<string>('');
   const [rows, setRows] = useState<StageRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const cityKey = useReportCityKey();
 
   useEffect(() => {
     let cancelled = false;
@@ -98,7 +100,7 @@ export default function StageFunnelPage() {
       finally { if (!cancelled) setLoading(false); }
     })();
     return () => { cancelled = true; };
-  }, [selectedPipeline]);
+  }, [selectedPipeline, cityKey]);
 
   const maxCount = useMemo(() => rows.reduce((m, r) => Math.max(m, r.count), 0), [rows]);
 

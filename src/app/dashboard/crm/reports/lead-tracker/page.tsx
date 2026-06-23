@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { toast } from 'sonner';
 import { crmAnalytics } from '../../../../../lib/crmApi';
 import type { LeadTrackerPayload, LeadTrackerBucket } from '../../../../../types/crm';
+import { useReportCityKey } from '../../../../../components/crm/reports/ReportFilters';
 
 /**
  * Lead Tracker — rich rollup of the lead funnel across the caller's
@@ -24,6 +25,10 @@ export default function LeadTrackerPage() {
   const [months, setMonths] = useState(6);
   const [data, setData] = useState<LeadTrackerPayload | null>(null);
   const [loading, setLoading] = useState(true);
+  // Global city picker — refetch when it changes (api.ts attaches it
+  // to the GET, but the response is cached per-key so we need the
+  // city in the dep list to bust stale data).
+  const cityKey = useReportCityKey();
 
   useEffect(() => {
     let cancelled = false;
@@ -39,7 +44,7 @@ export default function LeadTrackerPage() {
       .catch((e: any) => toast.error(e?.message || 'Failed to load Lead Tracker'))
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [months]);
+  }, [months, cityKey]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>

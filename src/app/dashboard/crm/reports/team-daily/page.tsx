@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { toast } from 'sonner';
 import { crmAnalytics } from '../../../../../lib/crmApi';
 import type { TeamDailyCard } from '../../../../../types/crm';
+import { useReportCityKey } from '../../../../../components/crm/reports/ReportFilters';
 
 /**
  * Team Daily Activity — per-rep snapshot for the chosen day, sourced
@@ -29,6 +30,7 @@ export default function TeamDailyPage() {
   const [date, setDate] = useState(todayIso);
   const [cards, setCards] = useState<TeamDailyCard[]>([]);
   const [loading, setLoading] = useState(true);
+  const cityKey = useReportCityKey();
 
   useEffect(() => {
     let cancelled = false;
@@ -44,7 +46,7 @@ export default function TeamDailyPage() {
       .catch((e: any) => toast.error(e?.message || 'Failed to load Team Daily'))
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [date]);
+  }, [date, cityKey]);
 
   const active   = cards.filter((c) => c.status === 'active').length;
   const idle     = cards.filter((c) => c.status === 'idle').length;

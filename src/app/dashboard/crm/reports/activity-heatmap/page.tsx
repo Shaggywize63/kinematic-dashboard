@@ -5,13 +5,16 @@ import { crmAnalytics } from '../../../../../lib/crmApi';
 import type { ActivityHeatPoint } from '../../../../../types/crm';
 import ActivityHeatmap from '../../../../../components/crm/charts/ActivityHeatmap';
 import { downloadCsv } from '../../../../../lib/exportCsv';
+import { useReportCityKey } from '../../../../../components/crm/reports/ReportFilters';
 
 export default function ActivityHeatmapPage() {
   const [data, setData] = useState<ActivityHeatPoint[]>([]);
   const [loading, setLoading] = useState(true);
+  const cityKey = useReportCityKey();
   useEffect(() => {
+    setLoading(true);
     crmAnalytics.activityHeatmap().then((r) => setData(r.data || [])).catch((e) => toast.error(e.message)).finally(() => setLoading(false));
-  }, []);
+  }, [cityKey]);
   return (
     <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, gap: 8, flexWrap: 'wrap' }}>
