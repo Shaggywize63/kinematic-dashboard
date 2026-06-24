@@ -1,5 +1,6 @@
 import * as demo from './demoMocks';
 import { isUUID } from './utils';
+import { getStoredProjectKey, DEFAULT_PROJECT } from './projects';
 
 export function resolveApiUrl(): string {
   const url = process.env.NEXT_PUBLIC_API_URL;
@@ -227,6 +228,15 @@ class ApiClient {
 
     const orgId = this.getOrgId();
     if (orgId && !headers['X-Org-Id']) headers['X-Org-Id'] = orgId;
+
+    // Multi-project routing: tell the backend which Supabase project this
+    // session belongs to (resolved from the user's email at login, stored in
+    // localStorage as kinematic_supabase_project). Omitted for the default
+    // project so existing single-project traffic is byte-for-byte unchanged.
+    if (!headers['X-Kinematic-Project']) {
+      const project = getStoredProjectKey();
+      if (project && project !== DEFAULT_PROJECT) headers['X-Kinematic-Project'] = project;
+    }
 
     // Multi-tenant: auto-attach the active client_id (chosen via the global
     // header picker, persisted in localStorage as kinematic_selected_client) on

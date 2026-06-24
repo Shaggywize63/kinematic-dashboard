@@ -1,5 +1,6 @@
 // Version: 2026-03-24-1525 (Force Re-deploy)
 import { clsx, type ClassValue } from 'clsx';
+import { supabaseConfigForCurrentProject } from './projects';
 
 export function cn(...inputs: ClassValue[]) {
   return clsx(inputs);
@@ -53,7 +54,7 @@ export function isUUID(str: string | null | undefined): boolean {
 export function extractImageUrls(value: any): string[] {
   if (!value) return [];
   
-  const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://lnvxqjqfsxvtjvbzphou.supabase.co';
+  const baseUrl = supabaseConfigForCurrentProject().url;
   const bucket = 'form-responses';
   const bucketUrl = `${baseUrl}/storage/v1/object/public/${bucket}/`;
 
