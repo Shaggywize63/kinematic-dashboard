@@ -968,6 +968,42 @@ function AttendanceContent() {
           ))}
         </div>
 
+        {/* ── Attendance Analysis ── derived from the loaded records ── */}
+        {records.length > 0 && (() => {
+          const total = records.length;
+          const present = records.filter(r => { const d = classifyDay(r); return d === 'Present' || d === 'Checked In'; }).length;
+          const hoursArr = records.map(r => calcHours(r)).filter((h): h is number => h != null);
+          const totalHours = hoursArr.reduce((a, b) => a + b, 0);
+          const avgHours = hoursArr.length ? totalHours / hoursArr.length : 0;
+          const onTime = records.filter(r => {
+            if (!r.checkin_at) return false;
+            const d = new Date(r.checkin_at);
+            return d.getHours() < 9 || (d.getHours() === 9 && d.getMinutes() <= 30);
+          }).length;
+          const attendanceRate = total ? Math.round((present / total) * 100) : 0;
+          const onTimePct = present ? Math.round((onTime / present) * 100) : 0;
+          const fmtH = (h: number) => `${Math.floor(h)}h ${Math.round((h % 1) * 60)}m`;
+          const metrics = [
+            { l: 'Attendance Rate', v: `${attendanceRate}%`,        c: C.green },
+            { l: 'Avg Hours / Day', v: fmtH(avgHours),              c: C.blue },
+            { l: 'On-time Check-ins', v: `${onTimePct}%`,           c: C.purple },
+            { l: 'Total Hours',     v: fmtH(totalHours),            c: C.yellow },
+          ];
+          return (
+            <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 16, padding: '16px 18px' }}>
+              <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 14, fontWeight: 800, color: C.white, marginBottom: 14 }}>Attendance Analysis</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
+                {metrics.map(m => (
+                  <div key={m.l}>
+                    <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 24, fontWeight: 800, color: m.c, lineHeight: 1 }}>{m.v}</div>
+                    <div style={{ fontSize: 11, color: C.gray, marginTop: 5, fontWeight: 600 }}>{m.l}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
+
         {/* ── Role Tabs ── */}
         <div style={{ display: 'flex', gap: 10, borderBottom: `1px solid ${C.border}`, paddingBottom: 10 }}>
           <button

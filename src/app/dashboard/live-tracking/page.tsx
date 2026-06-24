@@ -1,8 +1,10 @@
 'use client';
+import 'leaflet/dist/leaflet.css';
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import api from '../../../lib/api';
 import * as demoMocks from '../../../lib/demoMocks';
 import { getStoredUser } from '../../../lib/auth';
+import { getStoredIndustryScope } from '../../../context/IndustryScopeContext';
 import { LowBatteryKpi, LowBatteryAlert, LowBatteryFilter } from '../../../components/live-tracking/LowBattery';
 import useOsrmTrail from '../../../components/live-tracking/useOsrmTrail';
 
@@ -298,7 +300,6 @@ function LiveMap({
   return (
     <>
       <style>{`.km-popup .leaflet-popup-content-wrapper{background:var(--s1);border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.3);padding:0}.km-popup .leaflet-popup-content{margin:0}.km-popup .leaflet-popup-tip{background:var(--s1)}`}</style>
-      <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
       <div ref={mapRef} style={{ width:'100%', height:'100%' }}/>
       {!mapLoaded && (
         <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center',
@@ -337,14 +338,14 @@ export default function LiveTrackingPage() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     if ((window as any).L) { setMapLoaded(true); return; }
-    const s = document.createElement('script');
-    s.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-    s.onload = () => setMapLoaded(true);
-    document.head.appendChild(s);
-    const css = document.createElement('link');
-    css.rel = 'stylesheet';
-    css.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-    document.head.appendChild(css);
+    // Load Leaflet from the bundled npm package, NOT a CDN — the app's CSP
+    // (next.config.mjs script-src) blocks unpkg.com, so the old <script> tag
+    // never loaded and the map stayed stuck on "Loading map…".
+    let cancelled = false;
+    import('leaflet')
+      .then((mod) => { if (cancelled) return; (window as any).L = (mod as any).default ?? mod; setMapLoaded(true); })
+      .catch(() => { if (!cancelled) setError('Could not load the map library'); });
+    return () => { cancelled = true; };
   }, []);
 
   const fetchAll = useCallback(async () => {
@@ -883,7 +884,7 @@ export default function LiveTrackingPage() {
                     {[
                       { l:'Status',    v: selFE.status.replace('_',' '), c: STATUS_COLOR[selFE.status]||C.gray },
                       { l:'Check-in',  v: selFE.checkin_at ? new Date(selFE.checkin_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : '—', c: C.white },
-                      { l:'TFF Today', v: String(selFE.today_tff ?? '—'), c: C.green },
+                      { l: (getStoredIndustryScope() === 'insurance' ? 'Meetings Today' : 'TFF Today'), v: String(selFE.today_tff ?? '—'), c: C.green },
                       { l:'Trail',     v: selectedTrail.length > 0 ? `${selectedTrail.length} pings` : '—', c: selectedTrail.length > 0 ? '#63B3ED' : C.gray },
                     ].map((s,i) => (
                       <div key={i} style={{ textAlign:'center' }}>

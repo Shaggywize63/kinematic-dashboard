@@ -1,7 +1,11 @@
 'use client';
 import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import { api } from '../../../lib/api';
+
+// Leaflet-based map of a single plan's stops; client-only (ssr:false).
+const RoutePlanMap = dynamic(() => import('../../../components/route-plan/RoutePlanMap'), { ssr: false });
 
 /* ── COLOURS ─────────────────────────────────────────────── */
 const C = {
@@ -854,6 +858,15 @@ function RoutePlanContent() {
 
                     {/* Outlet stops */}
                     <div style={{ padding: '16px 20px' }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: C.grayd, letterSpacing: '0.9px', textTransform: 'uppercase', marginBottom: 12 }}>
+                        Route Map
+                      </div>
+                      {plan.outlets.length > 0 && (
+                        <div style={{ marginBottom: 16 }}>
+                          <RoutePlanMap stops={plan.outlets} height={300} />
+                        </div>
+                      )}
+
                       <div style={{ fontSize: 11, fontWeight: 700, color: C.grayd, letterSpacing: '0.9px', textTransform: 'uppercase', marginBottom: 12 }}>
                         Outlet Visits ({plan.outlets.length})
                       </div>
