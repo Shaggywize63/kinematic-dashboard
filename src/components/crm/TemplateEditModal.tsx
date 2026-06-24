@@ -54,6 +54,11 @@ export default function TemplateEditModal({ open, onClose, draft, onSaved }: Pro
   const [busy, setBusy] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [varInput, setVarInput] = useState('');
+  // True once the user has tried to save with an empty plain-text
+  // body. The banner then sits inline above the textarea so they can
+  // either fill it in or save anyway (the backend derives plain text
+  // from the HTML body — this is a deliverability nudge, not a gate).
+  const [plainTextNudge, setPlainTextNudge] = useState(false);
   // Hidden <input type=file> behind the Upload HTML button. Lets the
   // user pick a designed .html / .htm artefact (e.g. exported from
   // Mailchimp / Beefree / Stripo / Litmus) and import its body into
@@ -99,6 +104,7 @@ export default function TemplateEditModal({ open, onClose, draft, onSaved }: Pro
     if (open && draft) {
       setForm({ ...draft, language: draft.language || 'en' });
       setVarInput('');
+      setPlainTextNudge(false);
     }
   }, [open, draft]);
 
@@ -116,6 +122,15 @@ export default function TemplateEditModal({ open, onClose, draft, onSaved }: Pro
         // the request 400 with "Validation failed: body_html…".
         const html = (form.body_html || '').replace(/<[^>]+>/g, '').trim();
         if (!html) { toast.error('HTML body is required'); setBusy(false); return; }
+        // Deliverability nudge — first save with an empty plain-text
+        // body just flips the inline banner into "click Save again"
+        // mode. Saving without one IS allowed; we just want the user
+        // to read the warning before they commit.
+        if (!((form.body_text || '').trim()) && !plainTextNudge) {
+          setPlainTextNudge(true);
+          setBusy(false);
+          return;
+        }
         const body = {
           name: form.name, subject: form.subject,
           body_html: form.body_html || '', body_text: form.body_text || null,
@@ -223,7 +238,40 @@ export default function TemplateEditModal({ open, onClose, draft, onSaved }: Pro
               minHeight={320}
             />
           </div>
-          <Area label="Plain Text (optional)" rows={5} value={form.body_text || ''} onChange={(v) => setForm({ ...form, body_text: v })} />
+          <div>
+            <Area label="Plain Text (optional)" rows={5} value={form.body_text || ''} onChange={(v) => setForm({ ...form, body_text: v })} />
+            {!((form.body_text || '').trim()) && (
+              // Soft warning. Gmail's inbox preview, accessibility
+              // screen readers, and some corporate spam filters
+              // prefer the multipart/alternative text leg over the
+              // HTML one. The backend will auto-derive from the HTML
+              // on send if this is empty, but a hand-written
+              // version still reads better.
+              <div
+                role="note"
+                style={{
+                  marginTop: 6,
+                  background: 'rgba(234,179,8,0.08)',
+                  border: '1px solid rgba(234,179,8,0.4)',
+                  color: '#a16207',
+                  borderRadius: 8,
+                  padding: '8px 12px',
+                  fontSize: 12,
+                  lineHeight: 1.5,
+                }}
+              >
+                <strong>No plain-text fallback.</strong>{' '}
+                Recipients on minimal mail clients (and Gmail's inbox
+                preview) will see auto-derived text from your HTML — usable, but a
+                hand-written version reads better and lifts deliverability.
+                {plainTextNudge && (
+                  <div style={{ marginTop: 6, color: '#854d0e', fontWeight: 600 }}>
+                    Click Save again to save without a plain-text body.
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
