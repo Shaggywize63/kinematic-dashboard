@@ -34,6 +34,11 @@ export default function LeadsListPage() {
   const [usersLoading, setUsersLoading] = useState(false);
   const [isB2C, setIsB2C] = useState(false);
   const [exporting, setExporting] = useState(false);
+  // Elapsed seconds for the export progress UI. Server caps at 10k rows so the
+  // upper bound on duration is bounded but variable (10–40s depending on
+  // tenant size + custom-field hydration). Reps were reporting "export is
+  // broken" when really the request just took 25s with no visible feedback.
+  const [exportElapsed, setExportElapsed] = useState(0);
   const [showCoordsModal, setShowCoordsModal] = useState(false);
   // Disables the bulk-delete button + selection while the soft-delete
   // loop is running so a user can't double-click or change selection
@@ -53,20 +58,38 @@ export default function LeadsListPage() {
   const hiddenSet = useMemo(() => new Set(view.prefs.hidden), [view.prefs.hidden]);
 
   // CSV download — calls the backend export endpoint with the same
-  // server-side filters the list is already using (state/city/district/
-  // block + date range), then triggers a browser download from the
-  // returned blob. Tenant + city scope is enforced server-side so the
-  // export can never leak rows the user isn't allowed to see.
+  // server-side filters the list is already using, then triggers a
+  // browser download from the returned blob. Tenant + city scope is
+  // enforced server-side so the export can never leak rows the user
+  // isn't allowed to see.
+  //
+  // Filter parity (see CLAUDE.md golden rule #6): every list-side filter
+  // MUST be forwarded to /export, otherwise picking "Status: working +
+  // Owner: Nandan" on the list and clicking Export silently returns the
+  // full org-wide CSV. Reps were reporting this as "export not working"
+  // — they were filtering, exporting, and getting tens of thousands of
+  // rows they couldn't reconcile against the on-screen view.
   const handleExport = async () => {
     setExporting(true);
+    setExportElapsed(0);
+    const startedAt = Date.now();
+    const ticker = window.setInterval(() => {
+      setExportElapsed(Math.floor((Date.now() - startedAt) / 1000));
+    }, 1000);
     try {
       const qs = new URLSearchParams();
-      if (range.from)       qs.set('from', range.from);
-      if (range.to)         qs.set('to',   range.to);
-      if (filters.state)    qs.set('state',    filters.state);
-      if (filters.city)     qs.set('city',     filters.city);
-      if (filters.district) qs.set('district', filters.district);
-      if (filters.block)    qs.set('block',    filters.block);
+      if (range.from)         qs.set('from', range.from);
+      if (range.to)           qs.set('to',   range.to);
+      if (filters.state)      qs.set('state',     filters.state);
+      if (filters.city)       qs.set('city',      filters.city);
+      if (filters.district)   qs.set('district',  filters.district);
+      if (filters.block)      qs.set('block',     filters.block);
+      // The list-side filters that were silently dropped before:
+      if (filters.status)     qs.set('status',      filters.status);
+      if (filters.source)     qs.set('source_id',   filters.source);
+      if (filters.owner)      qs.set('owner_id',    filters.owner);
+      if (filters.grade)      qs.set('score_grade', filters.grade);
+      if (debouncedQ)         qs.set('q',           debouncedQ);
       // Demo-account short-circuit — raw fetch() bypasses api.ts's
       // demo intercept, so we'd otherwise hit the real backend with a
       // demo token and 401. Build the CSV from the in-memory rows
@@ -116,7 +139,19 @@ export default function LeadsListPage() {
         }
       } catch { /* ignore */ }
       const res = await fetch(url, { headers });
-      if (!res.ok) throw new Error(`Export failed (HTTP ${res.status})`);
+      if (!res.ok) {
+        // Pull the backend's {success:false, error, code} body so the
+        // toast surfaces "Validation failed: ..." / "Forbidden: ..."
+        // instead of a bare "Export failed (HTTP 403)". Best-effort —
+        // if the body isn't JSON (e.g. proxy 502 returns HTML), fall
+        // back to the status code.
+        let detail = `HTTP ${res.status}`;
+        try {
+          const body = await res.clone().json();
+          if (body?.error && typeof body.error === 'string') detail = body.error;
+        } catch { /* not JSON */ }
+        throw new Error(`Export failed: ${detail}`);
+      }
       const blob = await res.blob();
       const objUrl = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -130,7 +165,9 @@ export default function LeadsListPage() {
     } catch (e: any) {
       toast.error(e.message || 'Export failed');
     } finally {
+      window.clearInterval(ticker);
       setExporting(false);
+      setExportElapsed(0);
     }
   };
   const assignMenuRef = useRef<HTMLDivElement>(null);
@@ -311,6 +348,13 @@ export default function LeadsListPage() {
 
   return (
     <div>
+      {/* Keyframes for the Export CSV button's indeterminate progress bar. */}
+      <style jsx global>{`
+        @keyframes kn-export-progress {
+          0%   { transform: translateX(-100%); }
+          100% { transform: translateX(350%); }
+        }
+      `}</style>
       <div style={{ marginBottom: 14, padding: '12px 16px', background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 10 }}>
         <div style={{ fontSize: 13, color: 'var(--text-dim)', lineHeight: 1.6 }}>
           Track and nurture potential customers before they become deals. Use AI scoring to prioritise hot leads, qualify them with your team, and convert top prospects to contacts, accounts, and deals in one click. Bulk-import from CSV or capture individually.
@@ -398,9 +442,45 @@ export default function LeadsListPage() {
             onClick={handleExport}
             disabled={exporting}
             title="Download leads as CSV (current filters apply)"
-            style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: exporting ? 'not-allowed' : 'pointer', opacity: exporting ? 0.6 : 1 }}
+            style={{
+              position: 'relative',
+              background: 'var(--s3)',
+              border: '1px solid var(--border)',
+              color: 'var(--text)',
+              padding: '8px 14px',
+              borderRadius: 8,
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: exporting ? 'wait' : 'pointer',
+              opacity: exporting ? 0.85 : 1,
+              overflow: 'hidden',
+              minWidth: exporting ? 200 : 'auto',
+            }}
           >
-            {exporting ? 'Exporting…' : '⬇ Export CSV'}
+            {/* Indeterminate progress bar — the server doesn't stream per-row
+                counts, so we can't show real %. The bar pulses left-to-right
+                while elapsed seconds tick up next to the label. Tells the rep
+                "still working" without lying about progress. */}
+            {exporting && (
+              <span
+                aria-hidden
+                style={{
+                  position: 'absolute',
+                  left: 0,
+                  top: 0,
+                  bottom: 0,
+                  width: '40%',
+                  background: 'var(--primary)',
+                  opacity: 0.25,
+                  animation: 'kn-export-progress 1.4s ease-in-out infinite',
+                }}
+              />
+            )}
+            <span style={{ position: 'relative' }}>
+              {exporting
+                ? `Exporting… ${exportElapsed}s`
+                : '⬇ Export CSV'}
+            </span>
           </button>
           <Link href="/dashboard/crm/leads/import" style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600 }}>Import</Link>
           <button
