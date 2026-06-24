@@ -2,6 +2,7 @@
 import { useState, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import api, { API_BASE_URL } from '../../lib/api';
+import * as demo from '../../lib/demoMocks';
 import { saveSession, landingRouteFor } from '../../lib/auth';
 import { resolveProjectForEmail, setStoredProjectKey } from '../../lib/projects';
 
@@ -113,6 +114,26 @@ export default function LoginPage() {
     if (password.length < 4) { setError('Password must be at least 4 characters.'); return; }
 
     setError(''); setLoading(true);
+
+    // Demo account runs entirely on client-side fixtures (matchDemoMock). Log
+    // it in WITHOUT calling the backend so the showcase works even when the API
+    // is cold-starting or unreachable. Any password is accepted for the single
+    // public demo email; every subsequent request is served from the mocks.
+    if (email.trim().toLowerCase() === demo.DEMO_USER_EMAIL) {
+      const me = demo.matchDemoMock<{ data?: Record<string, unknown> }>('/api/v1/auth/me', 'GET');
+      const user = (me && me.data ? me.data : {
+        id: 'demo-user-999', email: demo.DEMO_USER_EMAIL, name: 'Demo Admin',
+        role: 'super_admin', org_id: 'demo-org-999', permissions: [],
+      }) as Parameters<typeof saveSession>[0]['user'];
+      saveSession({
+        user,
+        access_token: 'demo-token',
+        expires_at: Math.floor(Date.now() / 1000) + 86400,
+      });
+      setLoading(false);
+      router.push(landingRouteFor(user));
+      return;
+    }
 
     // Multi-project: resolve which Supabase project this email belongs to and
     // store it BEFORE login, so api.login() stamps the X-Kinematic-Project
