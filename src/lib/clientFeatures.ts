@@ -15,6 +15,10 @@
 
 export const TATA_TISCON_CLIENT_ID = 'a1f67468-526e-4734-be3a-2cb132cc2804';
 
+/** The parent Kinematic tenant. Used to trim CRM surfaces Kinematic
+ * doesn't use (Pipeline, Products, People Directory, leads-on-map). */
+export const KINEMATIC_CLIENT_ID = '7ecd47d7-9268-4ea2-a8ce-384978c13667';
+
 type AnyUser = {
   client_id?: string | null;
   org_role?: { name?: string | null } | null;
@@ -53,4 +57,10 @@ export function activeClientId(user: AnyUser): string | null {
 
 export function isTataTiscanActive(user: AnyUser): boolean {
   return activeClientId(user) === TATA_TISCON_CLIENT_ID;
+}
+
+/** True when the active tenant (bound client_id or super-admin picker) is
+ * the parent Kinematic tenant. */
+export function isKinematicActive(user: AnyUser): boolean {
+  return activeClientId(user) === KINEMATIC_CLIENT_ID;
 }
