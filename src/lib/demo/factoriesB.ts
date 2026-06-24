@@ -179,12 +179,12 @@ export const mockCityPerformance = () => ({
   success: true,
   data: {
     cities: [
-      { city: 'Bangalore', fes: 38, check_ins: 132, tff: 450, outlets: 280 },
-      { city: 'Mumbai',    fes: 32, check_ins: 118, tff: 380, outlets: 240 },
-      { city: 'Delhi',     fes: 28, check_ins: 102, tff: 320, outlets: 195 },
-      { city: 'Chennai',   fes: 22, check_ins:  84, tff: 280, outlets: 168 },
-      { city: 'Pune',      fes: 18, check_ins:  68, tff: 215, outlets: 130 },
-      { city: 'Hyderabad', fes: 14, check_ins:  52, tff: 168, outlets: 102 }
+      { city: 'Bangalore', zones: 6, active_fes: 38, checkins: 132, tff: 450, unique_outlets: 280 },
+      { city: 'Mumbai',    zones: 5, active_fes: 32, checkins: 118, tff: 380, unique_outlets: 240 },
+      { city: 'Delhi',     zones: 4, active_fes: 28, checkins: 102, tff: 320, unique_outlets: 195 },
+      { city: 'Chennai',   zones: 3, active_fes: 22, checkins:  84, tff: 280, unique_outlets: 168 },
+      { city: 'Pune',      zones: 3, active_fes: 18, checkins:  68, tff: 215, unique_outlets: 130 },
+      { city: 'Hyderabad', zones: 2, active_fes: 14, checkins:  52, tff: 168, unique_outlets: 102 }
     ]
   }
 });

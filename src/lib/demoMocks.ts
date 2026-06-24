@@ -51,6 +51,39 @@ const GEN_HIER_LEVELS = [
   { id: 'hl-3', name: 'Area Manager',    level_order: 3, parent_level_id: 'hl-2', capabilities: {} },
   { id: 'hl-4', name: 'Field Executive', level_order: 4, parent_level_id: 'hl-3', capabilities: {} },
 ];
+// ── Form builder demo forms ─────────────────────────────────────────────
+// /builder/forms had no demo handler → the Form Builder list came back empty.
+const _bnow = new Date().toISOString();
+const KYC_FORM = {
+  id: 'kyc-form-1', title: 'Customer KYC Form', description: 'Aadhaar / PAN / address verification captured on the visit',
+  status: 'published', version: 2, icon: '🪪', cover_color: '#3E9EFF', created_at: _bnow,
+  _pages: [
+    { id: 'kyc-p1', form_id: 'kyc-form-1', title: 'Identity', description: 'Government ID proof', page_order: 1 },
+    { id: 'kyc-p2', form_id: 'kyc-form-1', title: 'Address & Nominee', description: 'Address proof and nominee', page_order: 2 },
+  ],
+  _questions: [
+    { id: 'kyc-q1', form_id: 'kyc-form-1', page_id: 'kyc-p1', qtype: 'short_text', label: 'Full Name (as per PAN)', is_required: true,  q_order: 1, options: [], validation: {}, logic: [], media_config: {} },
+    { id: 'kyc-q2', form_id: 'kyc-form-1', page_id: 'kyc-p1', qtype: 'date',       label: 'Date of Birth',          is_required: true,  q_order: 2, options: [], validation: {}, logic: [], media_config: {} },
+    { id: 'kyc-q3', form_id: 'kyc-form-1', page_id: 'kyc-p1', qtype: 'short_text', label: 'PAN Number',              is_required: true,  q_order: 3, options: [], validation: {}, logic: [], media_config: {} },
+    { id: 'kyc-q4', form_id: 'kyc-form-1', page_id: 'kyc-p1', qtype: 'image',      label: 'PAN Card Photo',          is_required: true,  q_order: 4, options: [], validation: {}, logic: [], media_config: { image_count: 1 } },
+    { id: 'kyc-q5', form_id: 'kyc-form-1', page_id: 'kyc-p1', qtype: 'short_text', label: 'Aadhaar Number',          is_required: true,  q_order: 5, options: [], validation: {}, logic: [], media_config: {} },
+    { id: 'kyc-q6', form_id: 'kyc-form-1', page_id: 'kyc-p1', qtype: 'image',      label: 'Aadhaar Card Photo',      is_required: true,  q_order: 6, options: [], validation: {}, logic: [], media_config: { image_count: 2 } },
+    { id: 'kyc-q7', form_id: 'kyc-form-1', page_id: 'kyc-p2', qtype: 'long_text',  label: 'Residential Address',     is_required: true,  q_order: 1, options: [], validation: {}, logic: [], media_config: {} },
+    { id: 'kyc-q8', form_id: 'kyc-form-1', page_id: 'kyc-p2', qtype: 'dropdown',   label: 'Nominee Relationship',    is_required: true,  q_order: 2, options: ['Spouse','Child','Parent','Sibling','Other'], validation: {}, logic: [], media_config: {} },
+    { id: 'kyc-q9', form_id: 'kyc-form-1', page_id: 'kyc-p2', qtype: 'signature',  label: 'Customer Signature',      is_required: true,  q_order: 3, options: [], validation: {}, logic: [], media_config: {} },
+  ],
+};
+const INS_BUILDER_FORMS = [
+  KYC_FORM,
+  { id: 'na-form-1', title: 'Customer Needs Analysis', description: 'Capture goals, dependents and protection gap', status: 'published', version: 1, icon: '📋', cover_color: '#7B61FF', created_at: _bnow },
+  { id: 'rnw-form-1', title: 'Policy Renewal Visit',   description: 'Renewal confirmation and premium mode',        status: 'published', version: 1, icon: '🔁', cover_color: '#28B463', created_at: _bnow },
+  { id: 'clm-form-1', title: 'Claim Documentation',    description: 'Collect claim forms and supporting documents',  status: 'draft',     version: 1, icon: '🧾', cover_color: '#F7B538', created_at: _bnow },
+];
+const GEN_BUILDER_FORMS = [
+  { id: 'audit-form-1', title: 'Daily Store Audit',  description: 'Shelf, stock and planogram compliance', status: 'published', version: 3, icon: '🏪', cover_color: '#3E9EFF', created_at: _bnow },
+  { id: 'comp-form-1',  title: 'Competitor Tracking', description: 'Competitor pricing and promos',          status: 'published', version: 1, icon: '📊', cover_color: '#F7B538', created_at: _bnow },
+];
+
 const GEN_HIER_MEMBERS = [
   { id: 'fe-sd', name: 'Vikas Bansal', email: 'vikas@demo.in', role: 'admin',      supervisor_id: null,    hierarchy_level_id: 'hl-1', client_id: null },
   { id: 'fe4',   name: 'Sneha Rao',    email: 'sneha@demo.in', role: 'supervisor', supervisor_id: 'fe-sd', hierarchy_level_id: 'hl-2', client_id: null },
@@ -648,6 +681,7 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
     if (path === '/analytics/heatmap')          return mockHeatmap() as unknown as T;
     if (path === '/analytics/contact-heatmap')  return mockHeatmap() as unknown as T;
     if (path === '/analytics/locations')        return mockLocations() as unknown as T;
+    if (path === '/analytics/live-locations')   return mockLocations() as unknown as T;
     if (path === '/analytics/weekly-contacts')  return mockWeeklyContacts() as unknown as T;
     if (path === '/analytics/city-performance') return mockCityPerformance() as unknown as T;
     if (path === '/analytics/outlet-coverage')  return mockOutletCoverage() as unknown as T;
@@ -713,6 +747,8 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
     if (path === '/visit-logs' || path === '/visits/team' || path === '/visits') return mockVisitLogs() as unknown as T;
     if (path === '/forms/templates' || path === '/form-templates') return mockFormTemplates() as unknown as T;
     if (path === '/forms/submissions' || path === '/submissions')  return mockSubmissions() as unknown as T;
+    if (path === '/forms/admin/submissions')                       return mockSubmissions() as unknown as T;
+    if (path === '/builder/forms')                                 return list(isInsuranceDemo() ? INS_BUILDER_FORMS : GEN_BUILDER_FORMS) as unknown as T;
     if (path === '/route-plans')                return list(ACTIVE_ROUTE_PLANS) as unknown as T;
     if (path === '/activity-mappings')          return list([]) as unknown as T;
     if (path === '/activities')                 return mockActivities() as unknown as T;

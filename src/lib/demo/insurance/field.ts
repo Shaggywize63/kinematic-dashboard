@@ -234,15 +234,58 @@ const mockVisitLogs = () => {
   };
 };
 
+// Realistic ID-document images so the KYC answers render as photo thumbnails
+// (Aadhaar / PAN proof captured on the visit).
+const AADHAAR_IMG = 'https://images.unsplash.com/photo-1614064642639-e8b0c2f2b1f7?auto=format&fit=crop&w=640&q=70';
+const PAN_IMG     = 'https://images.unsplash.com/photo-1586281380349-632531db7ed4?auto=format&fit=crop&w=640&q=70';
+const SELFIE_IMG  = 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=400&q=70';
+
+// Build a submission with check-in/out timestamps (so the page's duration
+// shows a real "Xm", not 0m) and KYC document answers (Aadhaar/PAN photos).
+const mkSub = (
+  id: string, agoMin: number, durMin: number, converted: boolean,
+  customer: string, advisor: string, employee_id: string,
+  form: string, activity: string, address: string, withDocs: boolean,
+) => {
+  const start = new Date(Date.now() - agoMin * 60000).toISOString();
+  const end = new Date(Date.now() - (agoMin - durMin) * 60000).toISOString();
+  const answers = withDocs
+    ? [
+        { label: 'Customer Name', qtype: 'short_text', value: customer.split(' (')[0] },
+        { label: 'Aadhaar Card', qtype: 'image', value: AADHAAR_IMG },
+        { label: 'PAN Card', qtype: 'image', value: PAN_IMG },
+        { label: 'Customer Selfie', qtype: 'image', value: SELFIE_IMG },
+        { label: 'KYC Verified', qtype: 'yes_no', value: true },
+      ]
+    : [
+        { label: 'Protection Gap (₹)', qtype: 'number', value: 5000000 },
+        { label: 'Dependents', qtype: 'number', value: 2 },
+        { label: 'Recommended Product', qtype: 'short_text', value: 'Aviva i-Life Term' },
+      ];
+  return {
+    id, submitted_at: end, is_converted: converted,
+    outlet_name: `${customer} – ${address}`,
+    users: { name: advisor, employee_id },
+    activities: { name: activity },
+    form_templates: { name: form },
+    builder_forms: { id: `bf-${id}`, title: form },
+    check_in_at: start, check_out_at: end,
+    address,
+    answers,
+    form_responses: answers.map((a) => ({ builder_questions: { label: a.label, qtype: a.qtype }, value_text: typeof a.value === 'string' ? a.value : String(a.value), photo_url: a.qtype === 'image' ? a.value : undefined })),
+  };
+};
+
 const mockSubmissions = () => ({
   success: true,
   total: 1560,
   data: [
-    { id: 's1', submitted_at: new Date().toISOString(), is_converted: true, outlet_name: 'Rakesh Sharma (Policyholder) – Andheri', users: { name: 'Arjun Sharma' }, form_templates: { name: 'Customer Needs Analysis' }, activities: { name: 'Needs Analysis' } },
-    { id: 's2', submitted_at: new Date(Date.now() - 1800000).toISOString(), is_converted: false, outlet_name: 'Aviva Branch – Bandra Kurla', users: { name: 'Priya Patel' }, form_templates: { name: 'KYC Verification' }, activities: { name: 'KYC Document Collection' } },
-    { id: 's3', submitted_at: new Date(Date.now() - 3600000).toISOString(), is_converted: true, outlet_name: 'Meena Iyer (Prospect) – Koramangala', users: { name: 'Rahul Verma' }, form_templates: { name: 'Customer Needs Analysis' }, activities: { name: 'Needs Analysis' } },
-    { id: 's4', submitted_at: new Date(Date.now() - 7200000).toISOString(), is_converted: true, outlet_name: 'Suresh Nair (Policyholder) – T Nagar', users: { name: 'Sneha Rao' }, form_templates: { name: 'Policy Renewal Visit' }, activities: { name: 'Policy Renewal Visit' } },
-    { id: 's5', submitted_at: new Date(Date.now() - 10800000).toISOString(), is_converted: false, outlet_name: 'Anil Khanna (Prospect) – Khan Market', users: { name: 'Amit Singh' }, form_templates: { name: 'Claim Documentation' }, activities: { name: 'Claim Assistance' } }
+    mkSub('s1', 95,  38, true,  'Rakesh Sharma (Policyholder)', 'Arjun Sharma', 'AV-001', 'Customer Needs Analysis', 'Needs Analysis',          'Andheri West, Mumbai',   false),
+    mkSub('s2', 180, 26, false, 'Walk-in Customer',             'Priya Patel',  'AV-002', 'KYC Verification',        'KYC Document Collection', 'Bandra Kurla, Mumbai',   true),
+    mkSub('s3', 240, 42, true,  'Meena Iyer (Prospect)',        'Rahul Verma',  'AV-003', 'Customer Needs Analysis', 'Needs Analysis',          'Koramangala, Bengaluru', false),
+    mkSub('s4', 320, 21, true,  'Suresh Nair (Policyholder)',   'Sneha Rao',    'AV-004', 'Policy Renewal Visit',    'Policy Renewal Visit',    'T Nagar, Chennai',       false),
+    mkSub('s5', 410, 33, false, 'Anil Khanna (Prospect)',       'Amit Singh',   'AV-005', 'Claim Documentation',     'Claim Assistance',        'Khan Market, Delhi',     true),
+    mkSub('s6', 520, 29, true,  'Kavita Joshi (Prospect)',      'Rahul Verma',  'AV-003', 'KYC Verification',        'KYC Document Collection', 'Khar West, Mumbai',      true),
   ]
 });
 
@@ -266,16 +309,19 @@ const mockWeeklyContacts = () => ({
   }
 });
 
+// NOTE: the dashboard City-wise Performance table reads active_fes / checkins /
+// unique_outlets / zones (NOT fes / check_ins / outlets) — for insurance these
+// read as advisors / customer visits / policies serviced.
 const mockCityPerformance = () => ({
   success: true,
   data: {
     cities: [
-      { city: 'Bengaluru', fes: 38, check_ins: 132, tff: 450, outlets: 280 },
-      { city: 'Mumbai',    fes: 32, check_ins: 118, tff: 380, outlets: 240 },
-      { city: 'Delhi',     fes: 28, check_ins: 102, tff: 320, outlets: 195 },
-      { city: 'Chennai',   fes: 22, check_ins:  84, tff: 280, outlets: 168 },
-      { city: 'Pune',      fes: 18, check_ins:  68, tff: 215, outlets: 130 },
-      { city: 'Hyderabad', fes: 14, check_ins:  52, tff: 168, outlets: 102 }
+      { city: 'Mumbai',    zones: 6, active_fes: 32, checkins: 118, tff: 380, unique_outlets: 240 },
+      { city: 'Bengaluru', zones: 5, active_fes: 38, checkins: 132, tff: 450, unique_outlets: 280 },
+      { city: 'Delhi',     zones: 4, active_fes: 28, checkins: 102, tff: 320, unique_outlets: 195 },
+      { city: 'Chennai',   zones: 3, active_fes: 22, checkins:  84, tff: 280, unique_outlets: 168 },
+      { city: 'Pune',      zones: 3, active_fes: 18, checkins:  68, tff: 215, unique_outlets: 130 },
+      { city: 'Hyderabad', zones: 2, active_fes: 14, checkins:  52, tff: 168, unique_outlets: 102 }
     ]
   }
 });
