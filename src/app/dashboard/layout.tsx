@@ -7,7 +7,9 @@ import { getStoredUser, isSessionValid, clearSession, getDesignationLabel } from
 import api from '../../lib/api';
 import { ClientProvider, useClient } from '../../context/ClientContext';
 import { CityScopeProvider } from '../../context/CityScopeContext';
+import { IndustryScopeProvider } from '../../context/IndustryScopeContext';
 import ClientSelect from '../../components/ClientSelect';
+import IndustryScopePicker from '../../components/IndustryScopePicker';
 import NotificationBell from '../../components/crm/NotificationBell';
 
 // KINI chat is ~250 lines + 4 card components + markdown helpers; load it on
@@ -382,6 +384,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <ClientProvider>
       <CityScopeProvider>
+      <IndustryScopeProvider>
       <div style={{ display:'flex', minHeight:'100vh', background:C.bg, color:C.white }}>
         {isMobile && drawerOpen && (
           <div onClick={() => setDrawerOpen(false)} style={{
@@ -716,6 +719,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   renders an icon button here and pops the panel inline. */}
               {token && <ChatLauncher />}
               <NotificationBell />
+              {/* Demo-only industry vertical switcher (renders null for
+                  non-demo accounts). Sits next to the client filter. */}
+              <IndustryScopePicker />
               <GlobalClientFilter isPlatformAdmin={isPlatformAdmin} />
             </div>
           </header>
@@ -726,6 +732,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </main>
         {token && <KinematicAI token={token} />}
       </div>
+      </IndustryScopeProvider>
       </CityScopeProvider>
     </ClientProvider>
   );
