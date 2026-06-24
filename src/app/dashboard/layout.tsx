@@ -216,6 +216,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     catch { /* ignore — storage disabled */ }
   }, []);
   const tataActive = userClientId === TATA_TISCON_CLIENT_ID || pickerClientId === TATA_TISCON_CLIENT_ID;
+  // Parent Kinematic tenant — trims CRM surfaces it doesn't use. Same
+  // bound-client-OR-picker logic as Tata above.
+  const KINEMATIC_CLIENT_ID = '7ecd47d7-9268-4ea2-a8ce-384978c13667';
+  const kinematicActive = userClientId === KINEMATIC_CLIENT_ID || pickerClientId === KINEMATIC_CLIENT_ID;
 
   const filterNav = (items: any[]) => {
     const visibleAfterRole = items.filter((i) => !i.superAdminOnly || isSuperAdmin);
@@ -227,8 +231,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     );
     // Tenant-specific hide list. Each item can opt-in via `hiddenForTata`.
     const visibleAfterTata = visibleAfterDemo.filter((i) => !(i.hiddenForTata && tataActive));
-    if (isPlatformAdmin) return visibleAfterTata;
-    return visibleAfterTata.filter(i => hasModule(i.module));
+    // Parent Kinematic tenant hide list (opt-in via `hiddenForKinematic`).
+    const visibleAfterKinematic = visibleAfterTata.filter((i) => !(i.hiddenForKinematic && kinematicActive));
+    if (isPlatformAdmin) return visibleAfterKinematic;
+    return visibleAfterKinematic.filter(i => hasModule(i.module));
   };
 
   const isCrmOnlyClient =
@@ -293,11 +299,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       // Address book for dealers / influencers / referrers — per-client,
       // CRM-Admin gated (the entitlement key matches the module the
       // backend's requireModuleAccess gate honours).
-      { href: '/dashboard/crm/people-directory', label: 'People Directory', icon: 'M17 20v-2a4 4 0 00-3-3.87 M9 7a4 4 0 100-8 4 4 0 000 8z M3 21h12 M19 3l2 2-2 2 M17 5h4', module: 'crm_people_directory' },
+      { href: '/dashboard/crm/people-directory', label: 'People Directory', icon: 'M17 20v-2a4 4 0 00-3-3.87 M9 7a4 4 0 100-8 4 4 0 000 8z M3 21h12 M19 3l2 2-2 2 M17 5h4', module: 'crm_people_directory', hiddenForKinematic: true },
       { href: '/dashboard/crm/accounts',         label: 'Accounts',       icon: 'M3 21h18 M3 7v14 M21 7v14 M3 7l9-4 9 4 M9 12h6', module: 'crm_accounts', hiddenForTata: true },
       { href: '/dashboard/crm/deals',            label: 'Deals',          icon: ICON_RUPEE, module: 'crm_deals' },
-      { href: '/dashboard/crm/pipeline',         label: 'Pipeline',       icon: 'M3 5h6v14H3z M9 9h6v6H9z M15 5h6v14h-6z', module: 'crm_pipeline' },
-      { href: '/dashboard/crm/products',         label: 'Products',       icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4', module: 'crm_products' },
+      { href: '/dashboard/crm/pipeline',         label: 'Pipeline',       icon: 'M3 5h6v14H3z M9 9h6v6H9z M15 5h6v14h-6z', module: 'crm_pipeline', hiddenForKinematic: true },
+      { href: '/dashboard/crm/products',         label: 'Products',       icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4', module: 'crm_products', hiddenForKinematic: true },
       { href: '/dashboard/crm/activities',       label: 'Activities',     icon: 'M22 11.08V12a10 10 0 11-5.93-9.14 M22 4L12 14.01l-3-3', module: 'crm_activities' },
       { href: '/dashboard/crm/whatsapp',         label: 'WhatsApp',       icon: ICON_WHATSAPP, module: 'crm_whatsapp' },
       // Email alerts + verified senders — the marketing-side email surface.

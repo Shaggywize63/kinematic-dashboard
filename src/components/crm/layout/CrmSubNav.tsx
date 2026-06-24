@@ -1,8 +1,9 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import { useAuth } from '../../../hooks/useAuth';
-import { isConsumerChampion, isTataTiscon } from '../../../lib/clientFeatures';
+import { isConsumerChampion, isTataTiscon, isKinematicActive } from '../../../lib/clientFeatures';
 
 type CrmLink = {
   href: string;
@@ -10,6 +11,8 @@ type CrmLink = {
   championHidden?: boolean;
   /** Hidden for Consumer Champions AND for TATA Tiscon users */
   tataTisconHidden?: boolean;
+  /** Hidden for the parent Kinematic tenant */
+  kinematicHidden?: boolean;
 };
 const LINKS: CrmLink[] = [
   { href: '/dashboard/crm/dashboard', label: 'Dashboard' },
@@ -22,8 +25,8 @@ const LINKS: CrmLink[] = [
   // goes lead → deal without those records. Re-add here when a tenant
   // that actually uses them needs the surface.
   { href: '/dashboard/crm/deals', label: 'Deals' },
-  { href: '/dashboard/crm/pipeline', label: 'Pipeline' },
-  { href: '/dashboard/crm/products', label: 'Products' },
+  { href: '/dashboard/crm/pipeline', label: 'Pipeline', kinematicHidden: true },
+  { href: '/dashboard/crm/products', label: 'Products', kinematicHidden: true },
   // Tasks merged into Activities — tasks are now activities of type='task'.
   // /dashboard/crm/tasks redirects to /dashboard/crm/activities?type=task.
   { href: '/dashboard/crm/activities', label: 'Activities' },
@@ -40,9 +43,16 @@ export default function CrmSubNav() {
   const { user } = useAuth();
   const champion = isConsumerChampion(user as any);
   const tataTiscon = isTataTiscon(user as any);
+  // Resolve the Kinematic tenant after mount — isKinematicActive reads the
+  // super-admin client picker off localStorage, which isn't available during
+  // SSR. Starting false keeps server/client markup in sync (no hydration
+  // mismatch); the hidden tabs disappear on the first client render.
+  const [kinematic, setKinematic] = useState(false);
+  useEffect(() => { setKinematic(isKinematicActive(user as any)); }, [user]);
   const visibleLinks = LINKS.filter((l) => {
     if (l.championHidden && champion) return false;
     if (l.tataTisconHidden && tataTiscon) return false;
+    if (l.kinematicHidden && kinematic) return false;
     return true;
   });
 

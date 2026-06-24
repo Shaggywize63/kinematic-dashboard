@@ -16,6 +16,8 @@ import { getStoredUser, canAccess } from '../../../../lib/auth';
 // weight. No other client sells by mass, so the toggle is hidden for
 // everyone else and the unit is force-pinned to INR.
 const TATA_TISCON_CLIENT_ID = 'a1f67468-526e-4734-be3a-2cb132cc2804';
+// Parent Kinematic tenant — doesn't use the geo leads-on-map surface.
+const KINEMATIC_CLIENT_ID = '7ecd47d7-9268-4ea2-a8ce-384978c13667';
 
 // Recharts is heavy (~150 KB gzipped). Lazy-load each chart so the dashboard
 // initial bundle stays small and charts only download when their card paints.
@@ -113,6 +115,10 @@ export default function CrmDashboardPage() {
   const allowWeightToggle =
     userClientId === TATA_TISCON_CLIENT_ID ||
     selectedClientId === TATA_TISCON_CLIENT_ID;
+  // Kinematic tenant hides the "Leads on Map" geo surface entirely.
+  const kinematicActive =
+    userClientId === KINEMATIC_CLIENT_ID ||
+    selectedClientId === KINEMATIC_CLIENT_ID;
 
   useEffect(() => {
     if (!allowWeightToggle) return; // Non-Tata clients never resurrect 'weight'.
@@ -299,7 +305,7 @@ export default function CrmDashboardPage() {
       )}
 
       {/* Map gets full width so the bubbles + legend + side panel fit cleanly. */}
-      {isVisible('chart_geo_map') && (
+      {!kinematicActive && isVisible('chart_geo_map') && (
         <div style={{ display: 'block' }}>
           <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
