@@ -1,15 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { corsHeaders } from '@/lib/cors';
 
-// Backend + Supabase REST URLs come from env; the hardcoded literals
-// that used to live here were left as fallbacks to keep local dev
-// working when the env wasn't wired. Now read env first and fall back
-// only if absent — same effective behaviour, no string-literal of the
-// project ref / anon key in the bundle.
+// Backend + Supabase REST URLs come from env (no project ref / anon key is
+// hardcoded in the bundle).
+// TODO(multi-project): this admin submissions proxy is still bound to the
+// default project's Supabase REST. It should resolve per request via
+// projectFromHeaders()/serverSupabaseConfig() (X-Kinematic-Project) like the
+// /clients proxies. Deferred because SUPA_REST/ANON_KEY are referenced by
+// several module-level helpers here; the Kinematic project has no form data
+// yet, so default-project behaviour is correct for now.
 const EDGE_BASE = (process.env.NEXT_PUBLIC_API_URL || 'https://api.kinematicapp.com').replace(/\/$/, '');
-const SUPA_REST = `${(process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://lnvxqjqfsxvtjvbzphou.supabase.co').replace(/\/$/, '')}/rest/v1`;
-const ANON_KEY  = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxudnhxanFmc3h2dGp2YnpwaG91Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIwMzQyMDAsImV4cCI6MjA4NzYxMDIwMH0.D6EPi3BC4d0-bfzttbx5ObP0v0fb6HBYWz5HbmCWkJw';
+const SUPA_REST = `${(process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/\/$/, '')}/rest/v1`;
+const ANON_KEY  = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
 // Never cache — data changes frequently and date filters must always be fresh.
 export const dynamic = 'force-dynamic';

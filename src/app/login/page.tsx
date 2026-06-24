@@ -3,6 +3,7 @@ import { useState, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import api, { API_BASE_URL } from '../../lib/api';
 import { saveSession, landingRouteFor } from '../../lib/auth';
+import { resolveProjectForEmail, setStoredProjectKey } from '../../lib/projects';
 
 /**
  * Login page — light-themed marketing surface + sign-in form.
@@ -112,6 +113,15 @@ export default function LoginPage() {
     if (password.length < 4) { setError('Password must be at least 4 characters.'); return; }
 
     setError(''); setLoading(true);
+
+    // Multi-project: resolve which Supabase project this email belongs to and
+    // store it BEFORE login, so api.login() stamps the X-Kinematic-Project
+    // header and the backend authenticates against the correct project. Always
+    // resolves (defaults on failure), so this never blocks login.
+    try {
+      const project = await resolveProjectForEmail(API_BASE_URL, email);
+      setStoredProjectKey(project);
+    } catch { setStoredProjectKey(null); }
 
     // Retry up to 3 attempts on network errors (covers backend cold starts on Railway).
     // Credential errors (wrong password, inactive account, etc.) are not retried.

@@ -6,30 +6,36 @@
 'use client';
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-
-const SUPABASE_URL  = process.env.NEXT_PUBLIC_SUPABASE_URL  || 'https://lnvxqjqfsxvtjvbzphou.supabase.co';
-const SUPABASE_ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+import { supabaseConfigForCurrentProject, getStoredProjectKey } from './projects';
 
 let _client: SupabaseClient | null = null;
+let _clientProject: string | null = null;
 
 /**
  * Singleton Supabase client. Creates lazily on first call so SSR + bundling
  * never tries to spin up a websocket. Pulls the user's access_token from
  * localStorage and forwards it with every Realtime connection so RLS
- * SELECT policies see the right JWT (org_id, role).
+ * SELECT policies see the right JWT (org_id, role). The URL + anon key follow
+ * the current session's project (multi-project routing), and the singleton is
+ * rebuilt if the project changes (e.g. logging in as a user on another project).
  */
 export function getSupabase(): SupabaseClient | null {
   if (typeof window === 'undefined') return null;
-  if (_client) return _client;
 
-  if (!SUPABASE_ANON) {
-    // No anon key in env → realtime disabled. Surface a single warn so the
-    // dashboard still works (falls back to polling).
+  const project = getStoredProjectKey();
+  if (_client && _clientProject === project) return _client;
+
+  const { url: SUPABASE_URL, anonKey: SUPABASE_ANON } = supabaseConfigForCurrentProject();
+
+  if (!SUPABASE_URL || !SUPABASE_ANON) {
+    // No project config in env → realtime disabled. Surface a single warn so
+    // the dashboard still works (falls back to polling).
     // eslint-disable-next-line no-console
-    console.warn('[supabase] NEXT_PUBLIC_SUPABASE_ANON_KEY missing; realtime disabled');
+    console.warn('[supabase] Supabase URL/anon key missing for project; realtime disabled');
     return null;
   }
 
+  _clientProject = project;
   _client = createClient(SUPABASE_URL, SUPABASE_ANON, {
     auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
     realtime: { params: { eventsPerSecond: 5 } },

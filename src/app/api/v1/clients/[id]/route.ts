@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { corsHeaders } from '@/lib/cors';
-
-const EDGE_BASE = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/api-proxy`;
-const ANON_KEY  = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
+import { projectFromHeaders, serverSupabaseConfig } from '@/lib/serverProjects';
 
 const ALL_MODULES = [
   { id: 'analytics',       name: 'Analytics & Tracking' },
@@ -28,9 +26,8 @@ const ALL_MODULES = [
   { id: 'settings',        name: 'System Settings' },
 ];
 
-async function seedModules() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceKey  = process.env.SUPABASE_SERVICE_ROLE_KEY;
+async function seedModules(projectKey: string) {
+  const { url: supabaseUrl, serviceKey } = serverSupabaseConfig(projectKey);
   if (!supabaseUrl || !serviceKey) return;
   try {
     const supabase = createClient(supabaseUrl, serviceKey);
@@ -55,15 +52,17 @@ export async function PATCH(
     const auth    = req.headers.get('Authorization') ?? '';
     const orgId   = req.headers.get('X-Org-Id') ?? '';
     const body    = await req.text();
+    const project = projectFromHeaders(req.headers);
+    const { url, anonKey } = serverSupabaseConfig(project);
 
-    await seedModules();
+    await seedModules(project);
 
-    const res = await fetch(`${EDGE_BASE}/api/v1/clients/${id}`, {
+    const res = await fetch(`${url}/functions/v1/api-proxy/api/v1/clients/${id}`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': auth,
-        'apikey': ANON_KEY,
+        'apikey': anonKey,
         'X-Org-Id': orgId,
       },
       body,

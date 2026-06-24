@@ -16,6 +16,9 @@
 //   2. add `report-uri` + monitor for legitimate sources we missed
 //   3. switch back to 'self' on `default-src` after auditing img/font.
 const SUPABASE_HOST = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/\/+$/, '');
+// Second Supabase project (multi-project routing) — its realtime websocket +
+// REST must be reachable, so allowlist it in connect-src too. Blank when unset.
+const KINEMATIC_SUPABASE_HOST = (process.env.NEXT_PUBLIC_KINEMATIC_SUPABASE_URL || '').replace(/\/+$/, '');
 const API_HOST      = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/+$/, '');
 
 // Google Maps JS (address autocomplete on the lead form) loads its script from
@@ -36,7 +39,7 @@ const csp = [
   `style-src 'self' 'unsafe-inline' ${GOOGLE_FONTS_CSS}`,
   `img-src 'self' data: blob: https:`,
   `font-src 'self' data: ${GOOGLE_FONTS_FILES}`,
-  `connect-src 'self' ${SUPABASE_HOST} ${API_HOST} https://api.anthropic.com ${GOOGLE_MAPS} wss: https:`.replace(/\s+/g, ' ').trim(),
+  `connect-src 'self' ${SUPABASE_HOST} ${KINEMATIC_SUPABASE_HOST} ${API_HOST} https://api.anthropic.com ${GOOGLE_MAPS} wss: https:`.replace(/\s+/g, ' ').trim(),
   `frame-ancestors 'none'`,
   `frame-src 'self'`,
   `object-src 'none'`,

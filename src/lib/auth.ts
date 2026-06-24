@@ -83,6 +83,9 @@ export function clearSession() {
   localStorage.removeItem(REFRESH_KEY);
   localStorage.removeItem(USER_KEY);
   localStorage.removeItem(EXPIRY_KEY);
+  // Drop the resolved Supabase project so the next login re-resolves it from
+  // the entered email (a different user may belong to a different project).
+  localStorage.removeItem('kinematic_supabase_project');
   // Wipe the GET response cache too — otherwise a stale empty payload from
   // the previous user/session leaks into the next login (e.g. an empty leads
   // list cached during a 401 storm reappears after re-login).
