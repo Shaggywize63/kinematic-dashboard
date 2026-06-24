@@ -22,7 +22,43 @@ import {
   mockMobileHome,
 } from './demo/factoriesB';
 import { mockDealHistory, mockWinProbability, mockNextBestAction } from './demo/crmAiMocks';
-import { getActiveSeed } from './demo/activeSeed';
+import { getActiveSeed, isInsuranceDemo } from './demo/activeSeed';
+
+// ── CRM org-hierarchy demo data (Settings → Hierarchy) ──────────────────
+// Without these handlers the demo's /crm/hierarchy/* GETs fall through to a
+// real network call and the page shows "Failed to load hierarchy".
+const INS_HIER_LEVELS = [
+  { id: 'hl-1', name: 'Managing Director / CEO', level_order: 1, parent_level_id: null,  capabilities: {} },
+  { id: 'hl-2', name: 'Zonal Manager',           level_order: 2, parent_level_id: 'hl-1', capabilities: {} },
+  { id: 'hl-3', name: 'Regional Manager',        level_order: 3, parent_level_id: 'hl-2', capabilities: {} },
+  { id: 'hl-4', name: 'Branch Manager',          level_order: 4, parent_level_id: 'hl-3', capabilities: {} },
+  { id: 'hl-5', name: 'Sales Manager',           level_order: 5, parent_level_id: 'hl-4', capabilities: {} },
+  { id: 'hl-6', name: 'Insurance Advisor',       level_order: 6, parent_level_id: 'hl-5', capabilities: {} },
+];
+const INS_HIER_MEMBERS = [
+  { id: 'fe-md', name: 'Rajiv Malhotra', email: 'rajiv.malhotra@aviva.demo', role: 'super_admin', supervisor_id: null,    hierarchy_level_id: 'hl-1', client_id: null },
+  { id: 'fe-zm', name: 'Vikas Bansal',   email: 'vikas.bansal@aviva.demo',   role: 'admin',       supervisor_id: 'fe-md', hierarchy_level_id: 'hl-2', client_id: null },
+  { id: 'fe-rm', name: 'Anita Desai',    email: 'anita.desai@aviva.demo',    role: 'admin',       supervisor_id: 'fe-zm', hierarchy_level_id: 'hl-3', client_id: null },
+  { id: 'fe4',   name: 'Sneha Rao',      email: 'sneha@demo.in',             role: 'supervisor',  supervisor_id: 'fe-rm', hierarchy_level_id: 'hl-4', client_id: null },
+  { id: 'fe3',   name: 'Rahul Verma',    email: 'rahul@demo.in',             role: 'executive',   supervisor_id: 'fe4',   hierarchy_level_id: 'hl-5', client_id: null },
+  { id: 'fe1',   name: 'Arjun Sharma',   email: 'arjun@demo.in',             role: 'executive',   supervisor_id: 'fe3',   hierarchy_level_id: 'hl-6', client_id: null },
+  { id: 'fe2',   name: 'Priya Patel',    email: 'priya@demo.in',             role: 'executive',   supervisor_id: 'fe3',   hierarchy_level_id: 'hl-6', client_id: null },
+  { id: 'fe5',   name: 'Amit Singh',     email: 'amit@demo.in',              role: 'executive',   supervisor_id: 'fe3',   hierarchy_level_id: 'hl-6', client_id: null },
+];
+const GEN_HIER_LEVELS = [
+  { id: 'hl-1', name: 'Sales Director',  level_order: 1, parent_level_id: null,  capabilities: {} },
+  { id: 'hl-2', name: 'Regional Manager',level_order: 2, parent_level_id: 'hl-1', capabilities: {} },
+  { id: 'hl-3', name: 'Area Manager',    level_order: 3, parent_level_id: 'hl-2', capabilities: {} },
+  { id: 'hl-4', name: 'Field Executive', level_order: 4, parent_level_id: 'hl-3', capabilities: {} },
+];
+const GEN_HIER_MEMBERS = [
+  { id: 'fe-sd', name: 'Vikas Bansal', email: 'vikas@demo.in', role: 'admin',      supervisor_id: null,    hierarchy_level_id: 'hl-1', client_id: null },
+  { id: 'fe4',   name: 'Sneha Rao',    email: 'sneha@demo.in', role: 'supervisor', supervisor_id: 'fe-sd', hierarchy_level_id: 'hl-2', client_id: null },
+  { id: 'fe3',   name: 'Rahul Verma',  email: 'rahul@demo.in', role: 'executive',  supervisor_id: 'fe4',   hierarchy_level_id: 'hl-3', client_id: null },
+  { id: 'fe1',   name: 'Arjun Sharma', email: 'arjun@demo.in', role: 'executive',  supervisor_id: 'fe3',   hierarchy_level_id: 'hl-4', client_id: null },
+  { id: 'fe2',   name: 'Priya Patel',  email: 'priya@demo.in', role: 'executive',  supervisor_id: 'fe3',   hierarchy_level_id: 'hl-4', client_id: null },
+  { id: 'fe5',   name: 'Amit Singh',   email: 'amit@demo.in',  role: 'executive',  supervisor_id: 'fe3',   hierarchy_level_id: 'hl-4', client_id: null },
+];
 import {
   CRM_LEADS, CRM_PIPELINES, CRM_ACCOUNTS, CRM_CONTACTS, CRM_DEALS, CRM_ACTIVITIES,
   CRM_SOURCES, CRM_DASHBOARD_SUMMARY, CRM_PIPELINE_VALUE, CRM_FUNNEL, CRM_WIN_RATE,
@@ -764,6 +800,11 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
       if (schById) return wrap(DIST_SCHEMES.find(s => s.id === schById[1]) || DIST_SCHEMES[0]) as unknown as T;
     }
 
+    // Geo-tagged leads for the dashboard map. MUST be matched before the
+    // `/crm/leads/:id` singleton route below (otherwise `geo` is read as an
+    // id and a single lead object comes back, crashing the map's .map()).
+    if (path === '/crm/leads/geo') return list(CRM_LEADS) as unknown as T;
+
     if (path === '/crm/leads') {
       // Apply the demo-side equivalent of the server filters so the
       // total + page slice line up with what the UI actually shows.
@@ -830,6 +871,12 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
     if (path === '/crm/assignment-rules')    return list([])               as unknown as T;
     if (path === '/crm/custom-fields')       return list(readDemoCustomFields()) as unknown as T;
     if (path === '/crm/settings')            return wrap(CRM_SETTINGS)      as unknown as T;
+
+    // CRM org hierarchy (Settings → Hierarchy). Insurance shows a general
+    // insurance org structure; generic shows a sales structure.
+    if (path === '/crm/hierarchy/enabled')   return wrap({ enabled: true })                                       as unknown as T;
+    if (path === '/crm/hierarchy/levels')    return list(isInsuranceDemo() ? INS_HIER_LEVELS : GEN_HIER_LEVELS)   as unknown as T;
+    if (path === '/crm/hierarchy/members')   return list(isInsuranceDemo() ? INS_HIER_MEMBERS : GEN_HIER_MEMBERS) as unknown as T;
 
     {
       const leadById = path.match(/^\/crm\/leads\/([^/]+)$/);
