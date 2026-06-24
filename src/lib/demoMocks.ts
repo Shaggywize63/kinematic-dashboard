@@ -109,6 +109,42 @@ import {
   PLAN_RISK_FORECAST, HR_CANDIDATES,
 } from './demo/seedData';
 
+// ── Org roles (Settings → Roles "role hierarchy") ───────────────────────
+// /roles/tree and /roles/:id/users had no demo handler → the page errored.
+const _rnow = new Date().toISOString();
+const INS_ROLES = [
+  { id: 'role-md',    org_id: 'demo-org-999', client_id: null, name: 'Managing Director / CEO', description: 'Heads the insurance business.',                 parent_id: null,      position: 0, color: '#E0282C', permissions: ['*'],                         permissions_write: ['*'],            assigned_cities: [],                  created_at: _rnow, updated_at: _rnow, user_count: 1 },
+  { id: 'role-zm',    org_id: 'demo-org-999', client_id: null, name: 'Zonal Manager',           description: 'Owns a zone across multiple regions.',          parent_id: 'role-md', position: 1, color: '#3B82F6', permissions: ['crm.*', 'analytics.*'],      permissions_write: ['crm.*'],        assigned_cities: ['Mumbai', 'Pune'],  created_at: _rnow, updated_at: _rnow, user_count: 3 },
+  { id: 'role-rm',    org_id: 'demo-org-999', client_id: null, name: 'Regional Manager',        description: 'Owns a region — supervises branches.',          parent_id: 'role-zm', position: 2, color: '#8B5CF6', permissions: ['crm.read', 'crm.deals.write'], permissions_write: ['crm.deals.write'], assigned_cities: ['Bengaluru'],     created_at: _rnow, updated_at: _rnow, user_count: 6 },
+  { id: 'role-bm',    org_id: 'demo-org-999', client_id: null, name: 'Branch Manager',          description: 'Runs a branch — supervises sales managers.',    parent_id: 'role-rm', position: 3, color: '#F59E0B', permissions: ['crm.read', 'crm.leads.write'], permissions_write: ['crm.leads.write'], assigned_cities: ['Hyderabad'],     created_at: _rnow, updated_at: _rnow, user_count: 14 },
+  { id: 'role-sm',    org_id: 'demo-org-999', client_id: null, name: 'Sales Manager',           description: 'Leads a team of advisors.',                     parent_id: 'role-bm', position: 4, color: '#14B8A6', permissions: ['crm.read', 'crm.leads.write'], permissions_write: [],               assigned_cities: ['Delhi'],           created_at: _rnow, updated_at: _rnow, user_count: 28 },
+  { id: 'role-adv',   org_id: 'demo-org-999', client_id: null, name: 'Insurance Advisor',       description: 'On-ground advisor — prospects, KYC, renewals.', parent_id: 'role-sm', position: 5, color: '#10B981', permissions: ['crm.read', 'crm.leads.create', 'crm.activities.create'], permissions_write: [], assigned_cities: ['Chennai'], created_at: _rnow, updated_at: _rnow, user_count: 120 },
+  { id: 'role-banca', org_id: 'demo-org-999', client_id: null, name: 'Bancassurance Partner',   description: 'Bank channel partner sourcing leads.',          parent_id: 'role-zm', position: 6, color: '#94A3B8', permissions: ['crm.leads.read', 'crm.leads.create'], permissions_write: [], assigned_cities: [], created_at: _rnow, updated_at: _rnow, user_count: 8 },
+];
+const GEN_ROLES = [
+  { id: 'demo-role-1', org_id: 'demo-org-999', client_id: null, name: 'Super Admin',       description: 'Full access to every module + settings.',                parent_id: null,          position: 0, color: '#E0282C', permissions: ['*'], permissions_write: ['*'], assigned_cities: [], created_at: _rnow, updated_at: _rnow, user_count: 1 },
+  { id: 'demo-role-2', org_id: 'demo-org-999', client_id: null, name: 'Sales Director',    description: 'Owns the entire sales org — pipelines, forecasts, team.', parent_id: 'demo-role-1', position: 1, color: '#3B82F6', permissions: ['crm.*', 'analytics.*'], permissions_write: ['crm.*'], assigned_cities: [], created_at: _rnow, updated_at: _rnow, user_count: 2 },
+  { id: 'demo-role-3', org_id: 'demo-org-999', client_id: null, name: 'Regional Manager',  description: 'Owns a region — supervises area managers and FEs.',       parent_id: 'demo-role-2', position: 2, color: '#8B5CF6', permissions: ['crm.read', 'crm.leads.write', 'crm.deals.write'], permissions_write: ['crm.leads.write'], assigned_cities: ['Mumbai', 'Pune'], created_at: _rnow, updated_at: _rnow, user_count: 4 },
+  { id: 'demo-role-4', org_id: 'demo-org-999', client_id: null, name: 'Area Manager',      description: 'Owns a beat / cluster — supervises 5-10 FEs.',           parent_id: 'demo-role-3', position: 3, color: '#F59E0B', permissions: ['crm.read', 'crm.leads.write'], permissions_write: [], assigned_cities: ['Bengaluru'], created_at: _rnow, updated_at: _rnow, user_count: 6 },
+  { id: 'demo-role-5', org_id: 'demo-org-999', client_id: null, name: 'Field Executive',   description: 'On-ground rep — captures orders, runs visit plans.',     parent_id: 'demo-role-4', position: 4, color: '#10B981', permissions: ['crm.read', 'crm.leads.create', 'crm.activities.create'], permissions_write: [], assigned_cities: ['Delhi', 'Chennai'], created_at: _rnow, updated_at: _rnow, user_count: 24 },
+];
+function buildRoleTree(roles: typeof INS_ROLES) {
+  const byId: Record<string, any> = {};
+  roles.forEach((r) => { byId[r.id] = { ...r, children: [] }; });
+  const roots: any[] = [];
+  roles.forEach((r) => { if (r.parent_id && byId[r.parent_id]) byId[r.parent_id].children.push(byId[r.id]); else roots.push(byId[r.id]); });
+  return roots;
+}
+const INS_ROLE_USERS: Record<string, Array<{ id: string; name: string; email: string; role: string }>> = {
+  'role-md':    [{ id: 'fe-md', name: 'Rajiv Malhotra', email: 'rajiv.malhotra@aviva.demo', role: 'super_admin' }],
+  'role-zm':    [{ id: 'fe-zm', name: 'Vikas Bansal',   email: 'vikas.bansal@aviva.demo',   role: 'admin' }],
+  'role-rm':    [{ id: 'fe-rm', name: 'Anita Desai',    email: 'anita.desai@aviva.demo',    role: 'admin' }],
+  'role-bm':    [{ id: 'fe4',   name: 'Sneha Rao',      email: 'sneha@demo.in',             role: 'supervisor' }],
+  'role-sm':    [{ id: 'fe3',   name: 'Rahul Verma',    email: 'rahul@demo.in',             role: 'executive' }],
+  'role-adv':   [{ id: 'fe1', name: 'Arjun Sharma', email: 'arjun@demo.in', role: 'executive' }, { id: 'fe2', name: 'Priya Patel', email: 'priya@demo.in', role: 'executive' }, { id: 'fe5', name: 'Amit Singh', email: 'amit@demo.in', role: 'executive' }],
+  'role-banca': [{ id: 'fe-banca', name: 'Sunita Menon', email: 'sunita.menon@policybazaar.demo', role: 'executive' }],
+};
+
 const DIST_BRANDS = [
   { id: 'demo-brand-1', name: 'HUL',       code: 'HUL',  is_active: true,  created_at: new Date(Date.now() - 200*86400000).toISOString() },
   { id: 'demo-brand-2', name: 'ITC',       code: 'ITC',  is_active: true,  created_at: new Date(Date.now() - 180*86400000).toISOString() },
@@ -749,6 +785,17 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
     if (path === '/forms/submissions' || path === '/submissions')  return mockSubmissions() as unknown as T;
     if (path === '/forms/admin/submissions')                       return mockSubmissions() as unknown as T;
     if (path === '/builder/forms')                                 return list(isInsuranceDemo() ? INS_BUILDER_FORMS : GEN_BUILDER_FORMS) as unknown as T;
+    {
+      // Builder form detail + its pages/questions (so opening the KYC form in
+      // the builder shows its fields). KYC_FORM carries _pages/_questions.
+      const forms = isInsuranceDemo() ? INS_BUILDER_FORMS : GEN_BUILDER_FORMS;
+      const fPagesM = path.match(/^\/builder\/forms\/([^/]+)\/pages$/);
+      if (fPagesM) { const f = forms.find((x: any) => x.id === fPagesM[1]) as any; return list((f?._pages) ?? []) as unknown as T; }
+      const fQM = path.match(/^\/builder\/forms\/([^/]+)\/questions$/);
+      if (fQM) { const f = forms.find((x: any) => x.id === fQM[1]) as any; return list((f?._questions) ?? []) as unknown as T; }
+      const fOneM = path.match(/^\/builder\/forms\/([^/]+)$/);
+      if (fOneM) { const f = forms.find((x: any) => x.id === fOneM[1]) as any; return wrap(f ?? forms[0]) as unknown as T; }
+    }
     if (path === '/route-plans')                return list(ACTIVE_ROUTE_PLANS) as unknown as T;
     if (path === '/activity-mappings')          return list([]) as unknown as T;
     if (path === '/activities')                 return mockActivities() as unknown as T;
@@ -907,6 +954,33 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
     if (path === '/crm/assignment-rules')    return list([])               as unknown as T;
     if (path === '/crm/custom-fields')       return list(readDemoCustomFields()) as unknown as T;
     if (path === '/crm/settings')            return wrap(CRM_SETTINGS)      as unknown as T;
+
+    // CRM "Home" (lead-management home) — was empty (no demo handler).
+    if (path === '/crm/home') {
+      const near = CRM_LEADS.filter((l: any) => l.status === 'qualified').slice(0, 4).map((l: any) => ({
+        id: l.id, name: `${l.first_name} ${l.last_name}`, score: l.score, score_grade: l.score_grade,
+        lifecycle_stage: 'qualified', status: l.status, last_activity_at: l.last_activity_at ?? null,
+        days_since_touch: 2, reason: 'High score, recently engaged',
+      }));
+      const acts = ['call', 'whatsapp', 'follow_up'] as const;
+      const nextActions = CRM_LEADS.slice(0, 5).map((l: any, i: number) => ({
+        lead_id: l.id, lead_name: `${l.first_name} ${l.last_name}`, action: acts[i % acts.length],
+        label: `Follow up with ${l.first_name}`, reason: 'Due for next touch',
+        urgency: (i < 2 ? 'high' : i < 4 ? 'medium' : 'low'),
+        deeplink_path: `/dashboard/crm/leads/${l.id}`, score: l.score, score_grade: l.score_grade,
+      }));
+      return wrap({
+        today_target: { has_target: true, achieved: 3, target: 6, progress_pct: 50, remaining: 3, headline: 'Halfway to today’s goal — 3 more conversions to hit target' },
+        near_to_close: near,
+        next_actions: nextActions,
+        today_activity: { total: CRM_ACTIVITIES.length, by_type: { call: 4, email: 3, meeting: 2, task: 2, note: 1 }, last_activity_at: (CRM_ACTIVITIES[0] as any)?.completed_at ?? null },
+        productivity_tips: [
+          'Call your top-scored lead before noon — response rates are 2× higher.',
+          'Send renewal reminders 15 days before the premium due date.',
+          'Log every customer conversation to keep lead scores fresh.',
+        ],
+      }) as unknown as T;
+    }
 
     // CRM org hierarchy (Settings → Hierarchy). Insurance shows a general
     // insurance org structure; generic shows a sales structure.
@@ -1130,16 +1204,14 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
 
     if (path === '/settings' || path === '/settings/org') return wrap({}) as unknown as T;
     if (path === '/roles') {
-      const now = new Date().toISOString();
-      return ([
-        { id: 'demo-role-1', org_id: 'demo-org-999', client_id: null, name: 'Super Admin',     description: 'Full access to every module + settings.',                parent_id: null,            position: 0, color: '#E0282C', permissions: ['*'], permissions_write: ['*'], assigned_cities: [], created_at: now, updated_at: now, user_count: 1 },
-        { id: 'demo-role-2', org_id: 'demo-org-999', client_id: null, name: 'Sales Director',  description: 'Owns the entire sales org — pipelines, forecasts, team.', parent_id: 'demo-role-1',   position: 1, color: '#3B82F6', permissions: ['crm.*', 'analytics.*'], permissions_write: ['crm.*'], assigned_cities: [], created_at: now, updated_at: now, user_count: 2 },
-        { id: 'demo-role-3', org_id: 'demo-org-999', client_id: null, name: 'Regional Manager', description: 'Owns a region — supervises area managers and FEs.',       parent_id: 'demo-role-2',   position: 2, color: '#8B5CF6', permissions: ['crm.read', 'crm.leads.write', 'crm.deals.write'], permissions_write: ['crm.leads.write'], assigned_cities: ['Mumbai', 'Pune'], created_at: now, updated_at: now, user_count: 4 },
-        { id: 'demo-role-4', org_id: 'demo-org-999', client_id: null, name: 'Area Manager',     description: 'Owns a beat / cluster — supervises 5-10 FEs.',           parent_id: 'demo-role-3',   position: 3, color: '#F59E0B', permissions: ['crm.read', 'crm.leads.write'],                       permissions_write: [],                       assigned_cities: ['Bengaluru'], created_at: now, updated_at: now, user_count: 6 },
-        { id: 'demo-role-5', org_id: 'demo-org-999', client_id: null, name: 'Field Executive', description: 'On-ground rep — captures orders, runs visit plans.',     parent_id: 'demo-role-4',   position: 4, color: '#10B981', permissions: ['crm.read', 'crm.leads.create', 'crm.activities.create'], permissions_write: [],          assigned_cities: ['Delhi', 'Chennai'], created_at: now, updated_at: now, user_count: 24 },
-        { id: 'demo-role-6', org_id: 'demo-org-999', client_id: null, name: 'Inside Sales',    description: 'Phone / WhatsApp inbound + outbound. No field visits.',  parent_id: 'demo-role-2',   position: 5, color: '#14B8A6', permissions: ['crm.leads.read', 'crm.leads.write', 'crm.contacts.write'], permissions_write: ['crm.leads.write'], assigned_cities: [], created_at: now, updated_at: now, user_count: 3 },
-        { id: 'demo-role-7', org_id: 'demo-org-999', client_id: null, name: 'Read-only Auditor', description: 'View-only across CRM + ops. Used for compliance / partners.', parent_id: 'demo-role-1', position: 6, color: '#94A3B8', permissions: ['*.read'], permissions_write: [],                          assigned_cities: [], created_at: now, updated_at: now, user_count: 1 },
-      ]) as unknown as T;
+      return (isInsuranceDemo() ? INS_ROLES : GEN_ROLES) as unknown as T;
+    }
+    if (path === '/roles/tree') {
+      return buildRoleTree(isInsuranceDemo() ? INS_ROLES : GEN_ROLES) as unknown as T;
+    }
+    {
+      const roleUsersM = path.match(/^\/roles\/([^/]+)\/users$/);
+      if (roleUsersM) return (INS_ROLE_USERS[roleUsersM[1]] ?? []) as unknown as T;
     }
     if (path === '/modules') return list([]) as unknown as T;
 

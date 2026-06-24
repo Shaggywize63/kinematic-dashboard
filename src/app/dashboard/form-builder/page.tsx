@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import ConfirmModal from '../../../components/ConfirmModal';
 import { useAuth } from '../../../hooks/useAuth';
+import { matchDemoMock, DEMO_USER_EMAIL } from '../../../lib/demoMocks';
 import { 
   DndContext, 
   closestCenter,
@@ -55,6 +56,23 @@ const API   = process.env.NEXT_PUBLIC_API_URL ?? '';
 const tok   = () => (typeof window !== 'undefined' ? localStorage.getItem('kinematic_token') ?? '' : '');
 const hdrs  = () => ({ 'Content-Type':'application/json', Authorization:`Bearer ${tok()}` });
 async function apiFetch<T>(path:string, opts:RequestInit={}):Promise<T> {
+  // This wrapper bypasses the api-client demo intercept, so the demo account's
+  // Form Builder hit the real backend and came back empty. Serve canned data
+  // (and never touch the network) when the demo user is logged in.
+  try {
+    const email = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('kinematic_user') || '{}')?.email : null;
+    if (email === DEMO_USER_EMAIL) {
+      const method = (opts.method || 'GET').toUpperCase();
+      let parsed: unknown;
+      if (opts.body && typeof opts.body === 'string') { try { parsed = JSON.parse(opts.body); } catch { /* ignore */ } }
+      const m = matchDemoMock<any>(path, method, parsed);
+      if (m !== undefined) return (m?.data ?? m) as T;
+      // Unhandled demo call — the demo has no backend, so return a benign shape
+      // instead of erroring out.
+      if (method === 'GET') return ([] as unknown) as T;
+      return ({ id: 'demo-' + Math.random().toString(36).slice(2, 8), success: true } as unknown) as T;
+    }
+  } catch { /* fall through to network */ }
   const r = await fetch(`${API}${path}`, { ...opts, headers:{ ...hdrs(), ...(opts.headers||{}) } });
   const text = await r.text();
   let j: any = {};
