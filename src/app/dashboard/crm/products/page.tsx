@@ -31,6 +31,15 @@ export default function ProductsListPage() {
 
   useEffect(() => { reload(); /* eslint-disable-next-line */ }, [q, catFilter, showInactive]);
 
+  const handleDelete = async (p: Product) => {
+    if (!confirm(`Delete product "${p.name}"? It will be removed from the list.`)) return;
+    try {
+      await crmProducts.remove(p.id);
+      toast.success('Product deleted');
+      setItems((prev) => prev.filter((it) => it.id !== p.id));
+    } catch (e: any) { toast.error(e.message || 'Delete failed'); }
+  };
+
   const td: React.CSSProperties = { padding: '12px 14px', fontSize: 13, color: 'var(--text)', borderBottom: '1px solid var(--border)' };
   const th: React.CSSProperties = { padding: '10px 14px', fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', textAlign: 'left', borderBottom: '1px solid var(--border)', background: 'var(--s2)', fontWeight: 700 };
   const catName = (id?: string | null) => cats.find((c) => c.id === id)?.name ?? '—';
@@ -58,10 +67,10 @@ export default function ProductsListPage() {
       </div>
       <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead><tr><th style={th}>SKU</th><th style={th}>Name</th><th style={th}>Category</th><th style={th}>Price</th><th style={th}>Weight</th><th style={th}>Price/tonne</th><th style={th}>Tax %</th><th style={th}>HSN</th><th style={th}>Active</th></tr></thead>
+          <thead><tr><th style={th}>SKU</th><th style={th}>Name</th><th style={th}>Category</th><th style={th}>Price</th><th style={th}>Weight</th><th style={th}>Price/tonne</th><th style={th}>Tax %</th><th style={th}>HSN</th><th style={th}>Active</th><th style={{ ...th, textAlign: 'right' }}>Actions</th></tr></thead>
           <tbody>
-            {loading && <tr><td colSpan={9} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)' }}>Loading...</td></tr>}
-            {!loading && items.length === 0 && <tr><td colSpan={9} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)' }}>No products yet.</td></tr>}
+            {loading && <tr><td colSpan={10} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)' }}>Loading...</td></tr>}
+            {!loading && items.length === 0 && <tr><td colSpan={10} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)' }}>No products yet.</td></tr>}
             {items.map((p) => {
               const w = p.weight_kg ?? 0;
               const perTonne = w > 0 ? Math.round((Number(p.price) / w) * 1000) : null;
@@ -76,6 +85,10 @@ export default function ProductsListPage() {
                 <td style={td}>{p.tax_rate_pct ?? 0}%</td>
                 <td style={td}>{p.hsn_code || '—'}</td>
                 <td style={td}>{p.is_active ? 'Yes' : <span style={{ color: 'var(--text-dim)' }}>No</span>}</td>
+                <td style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap' }}>
+                  <Link href={`/dashboard/crm/products/${p.id}`} style={{ color: 'var(--primary)', fontWeight: 600, fontSize: 12, marginRight: 12, textDecoration: 'none' }}>Edit</Link>
+                  <button type="button" onClick={() => handleDelete(p)} style={{ background: 'transparent', border: '1px solid #E01E2C', color: '#E01E2C', padding: '4px 10px', borderRadius: 6, fontSize: 12, cursor: 'pointer' }}>Delete</button>
+                </td>
               </tr>
               );
             })}
