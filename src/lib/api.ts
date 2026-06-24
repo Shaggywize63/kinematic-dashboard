@@ -455,6 +455,13 @@ class ApiClient {
     return this.get('/api/v1/analytics/activity-feed');
   }
   getLiveLocations(params?: Record<string, string>) {
+    // This method uses a raw fetch (bypasses request()), so the demo mock
+    // intercept must be applied here too — otherwise the demo account hits the
+    // network with a fake token and the live map never gets locations.
+    if (this.getUserEmail() === demo.DEMO_USER_EMAIL) {
+      const m = demo.matchDemoMock<unknown>('/api/v1/analytics/live-locations', 'GET');
+      if (m !== undefined) return Promise.resolve(m);
+    }
     const base = typeof window !== 'undefined' ? window.location.origin : this.baseUrl;
     const token = this.getToken();
     const orgId = this.getOrgId();
@@ -489,6 +496,12 @@ class ApiClient {
   }
 
   getAdminSubmissions(params?: Record<string, string>) {
+    // Raw fetch (bypasses request()) → apply the demo intercept here so the
+    // demo account's Work Activities page shows submissions instead of failing.
+    if (this.getUserEmail() === demo.DEMO_USER_EMAIL) {
+      const m = demo.matchDemoMock<unknown>('/api/v1/forms/admin/submissions', 'GET');
+      if (m !== undefined) return Promise.resolve(m);
+    }
     const qs = this.sanitizeParams(params);
     // Use window.location.origin so this goes through the Next.js API route
     // instead of Railway (which has a broken filter select clause → 400 errors).

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import api from '../../lib/api';
 import { getStoredUser, landingRouteFor } from '../../lib/auth';
+import { getStoredIndustryScope } from '../../context/IndustryScopeContext';
 import { useClient } from '../../context/ClientContext';
 
 /* ── palette ─────────────────────────────────────────────── */
@@ -416,6 +417,11 @@ export default function DashboardPage() {
 
   const [attData,    setAtt]    = useState<{ summary:AttSummary; executives:any[] }|null>(null);
   const [weekData,   setWeek]   = useState<{ days:WeekDay[]; total_cc:number; total_tff:number }|null>(null);
+  // Demo-only: when the Insurance vertical is selected, this field force is
+  // advisors visiting customers (no retail outlets), so the field-force overview
+  // is re-labelled and the outlet-coverage card is hidden. Empty for every real
+  // tenant and the generic demo → no behaviour change for them.
+  const isIns = getStoredIndustryScope() === 'insurance';
   const [cityData,   setCity]   = useState<{ cities:CityPerf[] }|null>(null);
   const [outletData, setOutlet] = useState<{ summary:any; outlets:OutletRow[]; cities:any[] }|null>(null);
   const [summData,   setSumm]   = useState<any>(null);
@@ -657,10 +663,10 @@ export default function DashboardPage() {
                   }}
                 >
                   <div>City</div>
-                  <div style={{ textAlign:'center' }}>FEs</div>
-                  <div style={{ textAlign:'center' }}>Check-ins</div>
-                  <div style={{ textAlign:'center' }}>TFF</div>
-                  <div style={{ textAlign:'center' }}>Outlets</div>
+                  <div style={{ textAlign:'center' }}>{isIns ? 'Advisors' : 'FEs'}</div>
+                  <div style={{ textAlign:'center' }}>{isIns ? 'Visits' : 'Check-ins'}</div>
+                  <div style={{ textAlign:'center' }}>{isIns ? 'Meetings' : 'TFF'}</div>
+                  <div style={{ textAlign:'center' }}>{isIns ? 'Policies' : 'Outlets'}</div>
                 </div>
                 {visibleCities.map((city, i) => {
                   const barW = (city.tff / maxTFF) * 100;
@@ -774,7 +780,8 @@ export default function DashboardPage() {
           })()}
         </Card>
 
-        {/* Row 5: Outlet Coverage */}
+        {/* Row 5: Outlet Coverage — hidden for the insurance vertical (no outlets) */}
+        {!isIns && (
         <Card>
           <div
             style={{
@@ -950,6 +957,7 @@ export default function DashboardPage() {
             </div>
           )}
         </Card>
+        )}
 
 
       </div>
