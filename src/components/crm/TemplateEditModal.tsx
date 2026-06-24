@@ -1,9 +1,10 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import Modal from './shared/Modal';
 import api from '../../lib/api';
 import { crmEmailTemplates, crmWhatsappTemplates } from '../../lib/crmApi';
+import { sanitiseEmailHtml } from '../../lib/sanitiseEmailHtml';
 import HtmlEmailEditor from './email/HtmlEmailEditor';
 
 export type TemplateDraft = {
@@ -53,6 +54,46 @@ export default function TemplateEditModal({ open, onClose, draft, onSaved }: Pro
   const [busy, setBusy] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [varInput, setVarInput] = useState('');
+  // Hidden <input type=file> behind the Upload HTML button. Lets the
+  // user pick a designed .html / .htm artefact (e.g. exported from
+  // Mailchimp / Beefree / Stripo / Litmus) and import its body into
+  // the editor. The reader strips scripts / event-handlers / etc. via
+  // sanitiseEmailHtml so the saved template never carries JS that a
+  // webmail client would silently drop on the recipient.
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const handleHtmlUpload = (file: File) => {
+    if (!file) return;
+    // Cheap guard rails — refuse anything that isn't plainly HTML or
+    // is larger than ~2 MB (real templates clock in <100 KB; 2 MB is
+    // a generous safety net against accidental binary picks).
+    const okType = /\.html?$/i.test(file.name) || /^text\/html(?:;.*)?$/i.test(file.type) || file.type === '';
+    if (!okType) { toast.error('Pick a .html or .htm file'); return; }
+    if (file.size > 2 * 1024 * 1024) { toast.error('HTML file is too large (max 2 MB)'); return; }
+    setUploading(true);
+    const reader = new FileReader();
+    reader.onerror = () => { setUploading(false); toast.error('Could not read the file'); };
+    reader.onload = () => {
+      try {
+        const raw = String(reader.result || '');
+        const cleaned = sanitiseEmailHtml(raw);
+        if (!cleaned.trim()) { toast.error('That file had no usable HTML body after stripping scripts.'); return; }
+        // Preserve any name the user already typed; otherwise seed
+        // from the file name so the rep doesn't have to type it
+        // twice. Strip the extension and snake-case-ish it.
+        const seededName = form.name || file.name.replace(/\.html?$/i, '').replace(/[_-]+/g, ' ').trim();
+        setForm({ ...form, body_html: cleaned, name: seededName });
+        toast.success('HTML imported — scripts and event handlers were stripped for safety.');
+      } catch (e) {
+        toast.error((e as Error).message || 'Could not import the file');
+      } finally {
+        setUploading(false);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+      }
+    };
+    reader.readAsText(file);
+  };
 
   useEffect(() => {
     if (open && draft) {
@@ -145,9 +186,36 @@ export default function TemplateEditModal({ open, onClose, draft, onSaved }: Pro
           <Select label="Category" value={form.category || ''} onChange={(v) => setForm({ ...form, category: v || null })}
             options={[{ value: '', label: '—' }, { value: 'sales', label: 'Sales' }, { value: 'follow_up', label: 'Follow-up' }, { value: 'onboarding', label: 'Onboarding' }, { value: 'support', label: 'Support' }, { value: 'marketing', label: 'Marketing' }]} />
           <div>
-            <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
-              HTML Body <span style={{ color: 'var(--primary)' }}>*</span>
-            </label>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6, gap: 8 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 1 }}>
+                HTML Body <span style={{ color: 'var(--primary)' }}>*</span>
+              </label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".html,.htm,text/html"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) handleHtmlUpload(f);
+                  }}
+                  style={{ display: 'none' }}
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                  title="Import a designed .html / .htm file (Mailchimp / Beefree / Stripo export). Scripts and event handlers are stripped for safety."
+                  style={{
+                    background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)',
+                    padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                    cursor: uploading ? 'wait' : 'pointer', opacity: uploading ? 0.7 : 1,
+                  }}
+                >
+                  {uploading ? 'Importing…' : '⬆ Upload HTML'}
+                </button>
+              </div>
+            </div>
             <HtmlEmailEditor
               value={form.body_html || ''}
               onChange={(v) => setForm({ ...form, body_html: v })}
