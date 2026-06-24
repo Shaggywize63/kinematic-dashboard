@@ -22,6 +22,7 @@ import {
   mockMobileHome,
 } from './demo/factoriesB';
 import { mockDealHistory, mockWinProbability, mockNextBestAction } from './demo/crmAiMocks';
+import { getActiveSeed } from './demo/activeSeed';
 import {
   CRM_LEADS, CRM_PIPELINES, CRM_ACCOUNTS, CRM_CONTACTS, CRM_DEALS, CRM_ACTIVITIES,
   CRM_SOURCES, CRM_DASHBOARD_SUMMARY, CRM_PIPELINE_VALUE, CRM_FUNNEL, CRM_WIN_RATE,
@@ -576,6 +577,32 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
     ? (body as Record<string, unknown>)
     : {};
 
+  // Resolve the active industry-vertical fixture bundle (default = generic).
+  // These locals shadow the module-level imports of the same name, so every
+  // reference below transparently uses the selected vertical's data. Names
+  // not listed here (mockSOS, mockInventory, distribution data, …) keep the
+  // generic module imports — those surfaces are vertical-agnostic.
+  const __seed = getActiveSeed();
+  const {
+    CRM_LEADS, CRM_DEALS, CRM_ACCOUNTS, CRM_CONTACTS, CRM_ACTIVITIES,
+    CRM_PIPELINES, CRM_SOURCES, CRM_TERRITORIES, CRM_PRODUCTS, CRM_WA_TEMPLATES_SEED,
+    readDemoCustomFields, writeDemoCustomFields, readDemoWaTemplates, CRM_SETTINGS,
+    CRM_DASHBOARD_COMPLETE, CRM_DASHBOARD_SUMMARY, CRM_PIPELINE_VALUE, CRM_FUNNEL,
+    CRM_WIN_RATE, CRM_SALES_CYCLE, CRM_FORECAST, CRM_HEATMAP, CRM_LEAD_SOURCE_ROI,
+    CRM_SCORE_DIST, CRM_LEAD_VELOCITY, CRM_TIME_TO_FIRST_TOUCH, CRM_STUCK_LEADS_KPI,
+    CRM_LOST_REASONS, CRM_WON_REASONS, CRM_DISQUAL_REASONS, CRM_STAGE_CONVERSION,
+    CRM_LEAD_AGING, CRM_COHORT_CONVERSION, CRM_ENGAGEMENT_COMPARISON, CRM_DAYS_SINCE_TOUCH,
+    CRM_SCORE_BAND_CONVERSION, CRM_TERRITORY_CONVERSION, CRM_TOUCHPOINTS_TO_RESPONSE,
+    CRM_LEADS_AT_RISK, CRM_ANALYTICS_LAYOUT, CRM_OVERVIEW_LAYOUT,
+    mockDashboardInit, mockSummary, mockTrends, mockFeed, mockHeatmap, mockLocations,
+    mockUsers, mockAttendanceTeam, mockStores, mockFormTemplates, mockActivities,
+    mockVisitLogs, mockSubmissions, mockCityPerformance, mockOutletCoverage,
+    mockWeeklyContacts, mockBroadcasts, mockBroadcastAdmin, mockLearningMaterials, mockMobileHome,
+  } = __seed;
+  // ROUTE_PLANS lives as a local const in this file (generic). The insurance
+  // bundle supplies its own; fall back to the generic when not set.
+  const ACTIVE_ROUTE_PLANS = (__seed.ROUTE_PLANS as typeof ROUTE_PLANS | undefined) ?? ROUTE_PLANS;
+
   if (m === 'GET') {
     if (path === '/analytics/dashboard-init')   return mockDashboardInit() as unknown as T;
     if (path === '/analytics/summary')          return mockSummary(new Date().toISOString().split('T')[0]) as unknown as T;
@@ -650,7 +677,7 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
     if (path === '/visit-logs' || path === '/visits/team' || path === '/visits') return mockVisitLogs() as unknown as T;
     if (path === '/forms/templates' || path === '/form-templates') return mockFormTemplates() as unknown as T;
     if (path === '/forms/submissions' || path === '/submissions')  return mockSubmissions() as unknown as T;
-    if (path === '/route-plans')                return list(ROUTE_PLANS) as unknown as T;
+    if (path === '/route-plans')                return list(ACTIVE_ROUTE_PLANS) as unknown as T;
     if (path === '/activity-mappings')          return list([]) as unknown as T;
     if (path === '/activities')                 return mockActivities() as unknown as T;
     if (path === '/assets')                     return mockAssets() as unknown as T;
@@ -802,7 +829,7 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
     if (path === '/crm/automations')         return list([])               as unknown as T;
     if (path === '/crm/assignment-rules')    return list([])               as unknown as T;
     if (path === '/crm/custom-fields')       return list(readDemoCustomFields()) as unknown as T;
-    if (path === '/crm/settings')            return wrap({})               as unknown as T;
+    if (path === '/crm/settings')            return wrap(CRM_SETTINGS)      as unknown as T;
 
     {
       const leadById = path.match(/^\/crm\/leads\/([^/]+)$/);
@@ -1008,7 +1035,7 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
     {
       const planById = path.match(/^\/route-plans\/([^/]+)$/);
       if (planById && !['summary', 'esg-summary'].includes(planById[1])) {
-        return wrap(ROUTE_PLANS.find(p => p.id === planById[1]) || ROUTE_PLANS[0]) as unknown as T;
+        return wrap(ACTIVE_ROUTE_PLANS.find(p => p.id === planById[1]) || ACTIVE_ROUTE_PLANS[0]) as unknown as T;
       }
     }
 

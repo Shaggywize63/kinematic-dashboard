@@ -250,6 +250,16 @@ class ApiClient {
       } catch { /* ignore */ }
     }
 
+    // Demo-only industry vertical switcher — auto-attach the selected vertical
+    // (kinematic_selected_industry) so the backend demo middleware serves the
+    // matching fixtures. Harmless for non-demo accounts (backend ignores it).
+    if (!headers['X-Demo-Industry']) {
+      try {
+        const ind = typeof window !== 'undefined' ? window.localStorage.getItem('kinematic_selected_industry') : null;
+        if (ind) headers['X-Demo-Industry'] = ind;
+      } catch { /* ignore */ }
+    }
+
     // CRM city scope — auto-attach the picked city to GET requests that
     // genuinely accept a `city` filter. Picker source is the
     // CityScopePicker (stored in localStorage as
@@ -350,7 +360,14 @@ class ApiClient {
         cityPart = `|city:${selCity}`;
       }
     } catch { /* ignore */ }
-    const key = `${this.getToken() || 'anon'}|${path}${clientPart}${cityPart}`;
+    // Include the demo industry vertical so flipping the switcher invalidates
+    // cached fixtures for the demo account.
+    let industryPart = '';
+    try {
+      const selInd = typeof window !== 'undefined' ? window.localStorage.getItem('kinematic_selected_industry') : null;
+      if (selInd) industryPart = `|ind:${selInd}`;
+    } catch { /* ignore */ }
+    const key = `${this.getToken() || 'anon'}|${path}${clientPart}${cityPart}${industryPart}`;
     const now = Date.now();
 
     // 1) In-memory hot cache (fresh): return immediately, no network.
