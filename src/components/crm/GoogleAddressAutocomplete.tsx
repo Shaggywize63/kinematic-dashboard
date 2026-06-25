@@ -70,17 +70,67 @@ export default function GoogleAddressAutocomplete({ onSelect }: { onSelect: (p: 
       }
     })();
 
-    // Best-effort browser geolocation for the nearest-first bias. The
-    // user is asked only once (browser caches the prompt); we cache
-    // the fix for the lifetime of the component.
+    // Best-effort browser geolocation for the nearest-first bias AND
+    // for the one-shot reverse geocode below. The user is asked only
+    // once (browser caches the prompt); we cache the fix for the
+    // lifetime of the component.
     if (typeof navigator !== 'undefined' && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
-        (pos) => { biasRef.current = { lat: pos.coords.latitude, lng: pos.coords.longitude }; },
+        (pos) => {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          biasRef.current = { lat, lng };
+          // Reverse geocode the fix and auto-populate the address
+          // fields. Reps repeatedly asked for the form to "fill
+          // itself" when they're standing at the lead's site — the
+          // typed autocomplete still works for cases where the GPS
+          // dropped them at the wrong gate / building. Best-effort:
+          // a Geocoder failure just leaves the form blank for manual
+          // entry, no toast or banner.
+          void autoFillFromCoords(lat, lng);
+        },
         () => { /* permission denied / timeout — fall through to no bias */ },
         { enableHighAccuracy: false, maximumAge: 5 * 60_000, timeout: 4_000 },
       );
     }
   }, []);
+
+  /**
+   * One-shot reverse geocode → fires onSelect with the resolved
+   * address. Only the FIRST run matters; subsequent runs are no-ops
+   * so a re-render doesn't overwrite a coord the rep manually picked
+   * from the autocomplete dropdown afterwards.
+   */
+  const autoFilledRef = useRef(false);
+  const autoFillFromCoords = async (lat: number, lng: number) => {
+    if (autoFilledRef.current) return;
+    autoFilledRef.current = true;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const w = window as any;
+      // The Geocoding library is part of the core Maps SDK — same
+      // bootstrap as Places, just a different importLibrary slug.
+      const geo = await w.google?.maps?.importLibrary?.('geocoding');
+      if (!geo?.Geocoder) return;
+      const geocoder = new geo.Geocoder();
+      const { results } = await geocoder.geocode({ location: { lat, lng } });
+      const result = results?.[0];
+      if (!result) return;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const comps: any[] = result.address_components || [];
+      const get = (type: string) => comps.find((c) => (c.types || []).includes(type))?.long_name as string | undefined;
+      onSelect({
+        address_line1: result.formatted_address || '',
+        city: get('locality') || get('administrative_area_level_3') || get('administrative_area_level_2'),
+        state: get('administrative_area_level_1'),
+        postal_code: get('postal_code'),
+        latitude: lat.toFixed(6),
+        longitude: lng.toFixed(6),
+      });
+    } catch {
+      /* silent — manual typing still works */
+    }
+  };
 
   // Debounced suggestion fetch.
   useEffect(() => {
