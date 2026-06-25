@@ -20,6 +20,26 @@ type UserOption = { id: string; name: string };
 const PAGE_SIZE_OPTIONS = [25, 50, 100, 200] as const;
 const DEFAULT_PAGE_SIZE = 50;
 
+/**
+ * Phone-width viewport flag. Per kinematic-dashboard/CLAUDE.md the
+ * dashboard uses a `narrow` / `isCompact` JS flag for responsiveness
+ * instead of CSS media queries (because every style on this page is
+ * inline). Breakpoint matches "phone or smaller" — at 640 px the
+ * 5-button toolbar row (ViewCustomizer · Export · Import · Coordinates
+ * · + New Lead) wraps onto 4+ lines and the New Lead CTA can end up
+ * below the page header where reps don't see it.
+ */
+function useIsCompact(breakpoint = 640): boolean {
+  const [v, setV] = useState(false);
+  useEffect(() => {
+    const check = () => setV(window.innerWidth < breakpoint);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, [breakpoint]);
+  return v;
+}
+
 export default function LeadsListPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [sources, setSources] = useState<LeadSource[]>([]);
@@ -56,6 +76,8 @@ export default function LeadsListPage() {
   const [sort, setSort] = useState<{ key: string; order: 'asc' | 'desc' }>({ key: 'recent', order: 'desc' });
   const view = useViewPrefs('leads');
   const hiddenSet = useMemo(() => new Set(view.prefs.hidden), [view.prefs.hidden]);
+  // Phone-width flag — drives the floating "+ New Lead" CTA below.
+  const isCompact = useIsCompact();
 
   // CSV download — calls the backend export endpoint with the same
   // server-side filters the list is already using, then triggers a
@@ -535,6 +557,39 @@ export default function LeadsListPage() {
         onPageSizeChange={setPageSize}
         loading={loading}
       />
+      {/* Phone-only floating "+ New Lead" CTA. The toolbar version is
+          still rendered above for desktop / tablet, but on a 360-560 px
+          screen the 5-button cluster wraps onto multiple lines and the
+          New Lead button can land off-screen below the page header.
+          A sticky FAB at the bottom-right guarantees the primary
+          action is always one tap away regardless of scroll position. */}
+      {isCompact && (
+        <Link
+          href="/dashboard/crm/leads/new"
+          aria-label="New lead"
+          style={{
+            position: 'fixed',
+            right: 18,
+            bottom: 84,
+            zIndex: 50,
+            background: 'var(--primary)',
+            color: '#fff',
+            width: 56,
+            height: 56,
+            borderRadius: 28,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 28,
+            fontWeight: 700,
+            lineHeight: 1,
+            textDecoration: 'none',
+            boxShadow: '0 12px 28px -8px rgba(208, 30, 44, 0.55), 0 2px 6px rgba(0,0,0,0.2)',
+          }}
+        >
+          +
+        </Link>
+      )}
     </div>
   );
 }
