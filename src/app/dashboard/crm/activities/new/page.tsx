@@ -77,18 +77,25 @@ function NewActivityPageInner() {
   const [subjectOptions, setSubjectOptions] = useState<Array<{ id: string; name: string }>>([]);
   const [body, setBody] = useState('');
   const [dueAt, setDueAt] = useState('');
-  // Visit kind. When the rep arrives here straight from a lead save
-  // (the most common Tata flow), they need a clear binary choice:
-  //   - 'now'       → log a completed visit RIGHT NOW. due_at stays
-  //                    empty; the existing submit branch stamps
-  //                    completed_at=now and status='completed'.
-  //   - 'scheduled' → schedule a future visit. Reveals the date
-  //                    picker; status='planned', due_at=picked date.
-  // Defaults to 'now' so the one-tap "I just visited this lead" case
-  // is zero extra clicks. Only surfaces when the activity type is
-  // meeting (where a visit lives) — call/email/note/task keep the
-  // legacy single date control.
-  const [visitKind, setVisitKind] = useState<'now' | 'scheduled'>('now');
+  // Visit composer state. The rep can do BOTH on one screen / one
+  // save:
+  //   - `markFirstVisit` → log a completed "First Site Visit"
+  //                         activity for today. Auto-checked when the
+  //                         rep arrives here straight from a lead
+  //                         create (prefillLeadId is set in the URL).
+  //                         For manual entry it starts unchecked so
+  //                         the rep deliberately opts in.
+  //   - `dueAt`          → if filled, also create a scheduled "Site
+  //                         visit" activity for that future date.
+  //                         Independent of the checkbox above — the
+  //                         rep can mark today AND schedule next, or
+  //                         do just one.
+  // Saves create one or two activities depending on which boxes were
+  // ticked; at least one must be active or we surface a friendly
+  // toast. Falls back to the legacy single-activity behaviour for
+  // call/email/note/task — only meeting wires the visit composer.
+  const cameFromLead = !!prefillLeadId;
+  const [markFirstVisit, setMarkFirstVisit] = useState<boolean>(cameFromLead);
   // Default the assignee to the signed-in user so the most common case
   // ("log something I just did") needs zero extra clicks.
   const [assignedTo, setAssignedTo] = useState<string>(() => {
@@ -310,40 +317,109 @@ function NewActivityPageInner() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!subject.trim()) return toast.error('Subject is required');
+
+    // Meeting path: the visit composer can create up to TWO activities
+    // in one save — a completed "first visit today" + a scheduled
+    // "next visit". At least one must be active or the save is a
+    // no-op; surface a friendly toast instead of POSTing nothing.
+    if (type === 'meeting' && !markFirstVisit && !dueAt) {
+      return toast.error('Pick "Mark visit · today", schedule a next visit, or both.');
+    }
+
     setBusy(true);
     const nowIso = new Date().toISOString();
-    // No schedule + non-task type → "happening now". We mark it completed
-    // immediately so it shows on the timeline with a real timestamp rather
-    // than sitting in the open queue with no due date.
-    const noSchedule = !dueAt;
-    const payload: Record<string, unknown> = {
+    const baseSubject = subject.trim();
+    // Subject decoration. When the rep marks the first visit AND
+    // schedules a next visit on the same save, we adjust the two
+    // subjects so the timeline reads cleanly:
+    //   first  → "First Site Visit — <name>" (already set by the
+    //             redirect URL when arriving from a lead, but
+    //             defaulted to the typed subject otherwise)
+    //   next   → "Next Site Visit — <name>" (replaces the leading
+    //             "First " / "First Site Visit" so the scheduled
+    //             entry doesn't read like a duplicate)
+    const nextSubject = baseSubject
+      .replace(/^First Site Visit/i, 'Site visit')
+      .replace(/^First /, '');
+
+    const linkedFields: Record<string, unknown> = {};
+    if (entityType && entityId) linkedFields[`${entityType}_id`] = entityId;
+
+    const sharedCustomFields = { ...customFields };
+
+    const buildPayload = (params: {
+      subject: string;
+      status: 'completed' | 'planned';
+      dueAt?: string;
+      completedAt?: string;
+      visitKind: 'completed' | 'scheduled';
+      isFirstVisit: boolean;
+    }): Record<string, unknown> => ({
       type,
-      subject: subject.trim(),
+      subject: params.subject,
       body: body.trim() || undefined,
-      due_at: dueAt ? new Date(dueAt).toISOString() : undefined,
-      completed_at: noSchedule && type !== 'task' ? nowIso : undefined,
-      status:       noSchedule && type !== 'task' ? 'completed' : 'planned',
+      due_at: params.dueAt,
+      completed_at: params.completedAt,
+      status: params.status,
       assigned_to: assignedTo || undefined,
       image_url: imageUrl || undefined,
-      // Stamp visit_kind on meetings so the report builder + CSV
-      // export carry "Visit (completed)" vs "Visit (scheduled)" as
-      // a first-class filterable column. Backend stores it in
-      // crm_activities.custom_fields jsonb; the report builder
-      // auto-discovers it via CUSTOM_FIELD_ENTITY.activities.
-      custom_fields: (() => {
-        const cf: Record<string, unknown> = { ...customFields };
-        if (type === 'meeting') {
-          cf.visit_kind = visitKind === 'now' ? 'completed' : 'scheduled';
-        }
-        return Object.keys(cf).length > 0 ? cf : undefined;
-      })(),
-    };
-    if (entityType && entityId) {
-      payload[`${entityType}_id`] = entityId;
-    }
+      custom_fields: {
+        ...sharedCustomFields,
+        // visit_kind drives the new "Visit kind" CSV column + the
+        // report-builder filter; is_first_visit lets reports
+        // segment first vs. follow-up visits across the book.
+        visit_kind: params.visitKind,
+        ...(params.isFirstVisit ? { is_first_visit: true } : {}),
+      },
+      ...linkedFields,
+    });
+
     try {
-      await crmActivities.create(payload as any);
-      toast.success('Activity logged successfully');
+      const requests: Array<Promise<unknown>> = [];
+
+      if (type === 'meeting') {
+        if (markFirstVisit) {
+          requests.push(crmActivities.create(buildPayload({
+            subject: baseSubject,
+            status: 'completed',
+            completedAt: nowIso,
+            visitKind: 'completed',
+            isFirstVisit: cameFromLead,
+          }) as any));
+        }
+        if (dueAt) {
+          requests.push(crmActivities.create(buildPayload({
+            subject: nextSubject,
+            status: 'planned',
+            dueAt: new Date(dueAt).toISOString(),
+            visitKind: 'scheduled',
+            isFirstVisit: false,
+          }) as any));
+        }
+      } else {
+        // Legacy single-activity path for call/email/note/task.
+        const noSchedule = !dueAt;
+        const cf: Record<string, unknown> = { ...customFields };
+        requests.push(crmActivities.create({
+          type,
+          subject: baseSubject,
+          body: body.trim() || undefined,
+          due_at: dueAt ? new Date(dueAt).toISOString() : undefined,
+          completed_at: noSchedule && type !== 'task' ? nowIso : undefined,
+          status: noSchedule && type !== 'task' ? 'completed' : 'planned',
+          assigned_to: assignedTo || undefined,
+          image_url: imageUrl || undefined,
+          custom_fields: Object.keys(cf).length > 0 ? cf : undefined,
+          ...linkedFields,
+        } as any));
+      }
+
+      await Promise.all(requests);
+      toast.success(
+        requests.length === 2
+          ? 'First visit logged + next visit scheduled'
+          : 'Activity logged successfully',
+      );
       router.push('/dashboard/crm/activities');
     } catch (err: any) {
       toast.error(err.message || 'Failed to save activity');
@@ -455,54 +531,53 @@ function NewActivityPageInner() {
             </div>
           )}
         </Field>
-        {/* Mark-as-visit / Schedule-visit segmented control. Surfaced
-            only for the meeting type since that's the activity verb
-            that maps to a site visit. Defaults to "Now" — the
-            common case is a rep saving a lead and immediately
-            logging the visit they just performed; the "Scheduled"
-            tab reveals the date picker for future commitments. */}
+        {/* Visit composer — meeting-only. Single screen, single Save,
+            but the rep can do BOTH actions: mark today's visit as
+            done AND schedule the next one. Coming from a lead save
+            auto-checks "Mark first visit"; manual entry leaves both
+            empty so the rep deliberately picks. */}
         {type === 'meeting' && (
-          <div style={{ marginTop: 12 }}>
-            <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.6, marginBottom: 6 }}>Visit</div>
-            <div role="tablist" style={{ display: 'inline-flex', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 10, padding: 4, gap: 4 }}>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={visitKind === 'now'}
-                onClick={() => { setVisitKind('now'); setDueAt(''); }}
-                style={{
-                  background: visitKind === 'now' ? 'var(--primary)' : 'transparent',
-                  color: visitKind === 'now' ? '#fff' : 'var(--text)',
-                  border: 'none', padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                }}
-              >Mark as visit</button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={visitKind === 'scheduled'}
-                onClick={() => setVisitKind('scheduled')}
-                style={{
-                  background: visitKind === 'scheduled' ? 'var(--primary)' : 'transparent',
-                  color: visitKind === 'scheduled' ? '#fff' : 'var(--text)',
-                  border: 'none', padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                }}
-              >Schedule a visit</button>
-            </div>
-            <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 6 }}>
-              {visitKind === 'now'
-                ? 'Logs this visit as completed right now.'
-                : 'Pick the date and time when the visit will happen.'}
+          <div style={{ marginTop: 12, padding: '14px 16px', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 10 }}>
+            <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.6, marginBottom: 10 }}>Visit</div>
+
+            {/* Row 1: mark first visit (today). One tap = done. */}
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', marginBottom: 12 }}>
+              <input
+                type="checkbox"
+                checked={markFirstVisit}
+                onChange={(e) => setMarkFirstVisit(e.target.checked)}
+                style={{ marginTop: 3 }}
+              />
+              <span>
+                <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>
+                  Mark {cameFromLead ? 'first ' : ''}visit · today
+                </span>
+                <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2 }}>
+                  Logs a completed visit on this lead's timeline right now.
+                  {cameFromLead && ' Pre-checked because you arrived from the lead — uncheck if this is only a forward-scheduled visit.'}
+                </div>
+              </span>
+            </label>
+
+            {/* Row 2: schedule next visit (optional). Independent. */}
+            <div style={{ paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>Schedule next visit</div>
+              <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2, marginBottom: 8 }}>
+                Optional — pick a date and time, or leave blank to skip.
+              </div>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <input type="datetime-local" value={dueAt} onChange={(e) => setDueAt(e.target.value)} style={input} />
+                {dueAt && (
+                  <button type="button" onClick={() => setDueAt('')} title="Clear scheduled date" style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '6px 10px', borderRadius: 8, fontSize: 11, cursor: 'pointer' }}>Clear</button>
+                )}
+              </div>
             </div>
           </div>
         )}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginTop: 12 }}>
-          {/* Date picker hides when the rep chose "Mark as visit" for
-              a meeting — that flow is explicitly "log it now" and the
-              picker would just confuse the rep into thinking they
-              need to fill it. Shows for tasks (which always need a
-              due date), other activity types, and meetings that are
-              being scheduled. */}
-          {!(type === 'meeting' && visitKind === 'now') && (
+          {/* The legacy date picker stays for call/email/note/task —
+              the new visit composer only owns meetings. */}
+          {type !== 'meeting' && (
             <Field label={`${type === 'task' ? 'Due Date & Time' : 'Scheduled At'} (optional)`}>
               <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                 <input type="datetime-local" value={dueAt} onChange={(e) => setDueAt(e.target.value)} style={input} />
