@@ -95,7 +95,14 @@ function NewActivityPageInner() {
   // toast. Falls back to the legacy single-activity behaviour for
   // call/email/note/task — only meeting wires the visit composer.
   const cameFromLead = !!prefillLeadId;
+  // When the rep arrives from a lead-save the markFirstVisit flag is
+  // already true and the screen acts like a one-tap confirmation.
+  // The schedule-next section starts collapsed behind a "+ Also
+  // schedule next visit" link — most reps just want to confirm the
+  // visit and return to the leads list; revealing the picker is a
+  // deliberate opt-in.
   const [markFirstVisit, setMarkFirstVisit] = useState<boolean>(cameFromLead);
+  const [showScheduleNext, setShowScheduleNext] = useState<boolean>(false);
   // Default the assignee to the signed-in user so the most common case
   // ("log something I just did") needs zero extra clicks.
   const [assignedTo, setAssignedTo] = useState<string>(() => {
@@ -318,12 +325,15 @@ function NewActivityPageInner() {
     e.preventDefault();
     if (!subject.trim()) return toast.error('Subject is required');
 
-    // Meeting path: the visit composer can create up to TWO activities
-    // in one save — a completed "first visit today" + a scheduled
-    // "next visit". At least one must be active or the save is a
-    // no-op; surface a friendly toast instead of POSTing nothing.
-    if (type === 'meeting' && !markFirstVisit && !dueAt) {
-      return toast.error('Pick "Mark visit · today", schedule a next visit, or both.');
+    // From-lead meeting path: the visit composer can create up to
+    // TWO activities in one save — a completed "first visit today"
+    // + a scheduled "next visit". At least one must be active or
+    // the save is a no-op; surface a friendly toast instead of
+    // POSTing nothing. The legacy path (any other entry) skips this
+    // guard — its existing "blank date = log now" behaviour is
+    // already a valid save.
+    if (cameFromLead && type === 'meeting' && !markFirstVisit && !dueAt) {
+      return toast.error('Mark first visit or schedule the next one.');
     }
 
     setBusy(true);
@@ -377,14 +387,15 @@ function NewActivityPageInner() {
     try {
       const requests: Array<Promise<unknown>> = [];
 
-      if (type === 'meeting') {
+      if (cameFromLead && type === 'meeting') {
+        // From-lead branch — composer drives the activity shape.
         if (markFirstVisit) {
           requests.push(crmActivities.create(buildPayload({
             subject: baseSubject,
             status: 'completed',
             completedAt: nowIso,
             visitKind: 'completed',
-            isFirstVisit: cameFromLead,
+            isFirstVisit: true,
           }) as any));
         }
         if (dueAt) {
@@ -531,53 +542,72 @@ function NewActivityPageInner() {
             </div>
           )}
         </Field>
-        {/* Visit composer — meeting-only. Single screen, single Save,
-            but the rep can do BOTH actions: mark today's visit as
-            done AND schedule the next one. Coming from a lead save
-            auto-checks "Mark first visit"; manual entry leaves both
-            empty so the rep deliberately picks. */}
-        {type === 'meeting' && (
-          <div style={{ marginTop: 12, padding: '14px 16px', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 10 }}>
-            <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.6, marginBottom: 10 }}>Visit</div>
-
-            {/* Row 1: mark first visit (today). One tap = done. */}
-            <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', marginBottom: 12 }}>
+        {/* Visit composer is conditional:
+            - From a lead-save + meeting type → single-tap confirmation
+              card. Default state IS the action ("First visit today,
+              ready to log"). Scheduling a follow-up is a one-click
+              opt-in via the "+ Also schedule next visit" link.
+            - Any other entry path → no visit composer at all. The
+              legacy single date picker below (or its "log now"
+              fallback) handles call / email / note / task / manual
+              meeting entry. Removing the composer's two-section box
+              from the manual flow is what the user asked for: less
+              cognitive load when it doesn't apply. */}
+        {cameFromLead && type === 'meeting' && (
+          <div style={{ marginTop: 12, padding: '14px 16px', background: 'rgba(208,30,44,0.06)', border: '1px solid rgba(208,30,44,0.25)', borderRadius: 10 }}>
+            {/* Primary card: the rep just visited the lead, this is
+                today's first visit. Pre-checked, prominent, single
+                line. Unchecking it is the rare path (rep arrived
+                here purely to schedule a future visit). */}
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
               <input
                 type="checkbox"
                 checked={markFirstVisit}
                 onChange={(e) => setMarkFirstVisit(e.target.checked)}
-                style={{ marginTop: 3 }}
+                style={{ width: 18, height: 18 }}
               />
-              <span>
-                <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>
-                  Mark {cameFromLead ? 'first ' : ''}visit · today
-                </span>
-                <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2 }}>
-                  Logs a completed visit on this lead's timeline right now.
-                  {cameFromLead && ' Pre-checked because you arrived from the lead — uncheck if this is only a forward-scheduled visit.'}
-                </div>
+              <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>
+                Mark first visit done · today
               </span>
             </label>
 
-            {/* Row 2: schedule next visit (optional). Independent. */}
-            <div style={{ paddingTop: 12, borderTop: '1px solid var(--border)' }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>Schedule next visit</div>
-              <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2, marginBottom: 8 }}>
-                Optional — pick a date and time, or leave blank to skip.
+            {/* Secondary action: schedule next. Collapsed behind a
+                link by default — keeps the screen quiet for the
+                common one-tap save. Clicking the link reveals the
+                date picker inline. */}
+            {!showScheduleNext ? (
+              <button
+                type="button"
+                onClick={() => setShowScheduleNext(true)}
+                style={{
+                  marginTop: 12, background: 'transparent', border: 'none',
+                  color: 'var(--primary)', fontSize: 13, fontWeight: 600,
+                  cursor: 'pointer', padding: 0, textDecoration: 'underline',
+                }}
+              >
+                + Also schedule next visit
+              </button>
+            ) : (
+              <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid rgba(208,30,44,0.18)' }}>
+                <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 6 }}>Next visit on…</div>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <input type="datetime-local" value={dueAt} onChange={(e) => setDueAt(e.target.value)} style={input} />
+                  <button
+                    type="button"
+                    onClick={() => { setDueAt(''); setShowScheduleNext(false); }}
+                    style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '6px 10px', borderRadius: 8, fontSize: 11, cursor: 'pointer' }}
+                  >Skip</button>
+                </div>
               </div>
-              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                <input type="datetime-local" value={dueAt} onChange={(e) => setDueAt(e.target.value)} style={input} />
-                {dueAt && (
-                  <button type="button" onClick={() => setDueAt('')} title="Clear scheduled date" style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '6px 10px', borderRadius: 8, fontSize: 11, cursor: 'pointer' }}>Clear</button>
-                )}
-              </div>
-            </div>
+            )}
           </div>
         )}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginTop: 12 }}>
-          {/* The legacy date picker stays for call/email/note/task —
-              the new visit composer only owns meetings. */}
-          {type !== 'meeting' && (
+          {/* Legacy single date picker. Shows for everything EXCEPT
+              the from-lead meeting flow (which has its own composer
+              above). One source of truth for the schedule input,
+              zero overlap. */}
+          {!(cameFromLead && type === 'meeting') && (
             <Field label={`${type === 'task' ? 'Due Date & Time' : 'Scheduled At'} (optional)`}>
               <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                 <input type="datetime-local" value={dueAt} onChange={(e) => setDueAt(e.target.value)} style={input} />
