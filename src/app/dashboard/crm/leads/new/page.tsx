@@ -294,8 +294,8 @@ export default function NewLeadPage() {
     return true;
   };
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const submit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     // first_name is required by default — was previously only enforced
     // by the HTML5 `required` attr, which on mobile shows a tiny native
     // tooltip the user often misses. Promote it to an explicit JS check
@@ -743,13 +743,23 @@ export default function NewLeadPage() {
             <input
               type="checkbox"
               checked={form.log_as_site_visit}
-              onChange={(e) => setForm({ ...form, log_as_site_visit: e.target.checked })}
+              onChange={(e) => {
+                const on = e.target.checked;
+                setForm({ ...form, log_as_site_visit: on });
+                // Ticking the toggle is the "save & open the activity
+                // composer" shortcut. We trigger the existing submit
+                // handler — required-field guards still run, so an
+                // empty form surfaces the same validation toasts
+                // (first-name, phone, coordinates) before any save.
+                if (on && !busy) void submit();
+              }}
               style={{ marginTop: 3 }}
             />
             <span>
               <strong style={{ color: 'var(--text)' }}>Also log this lead as a Site Visit activity</strong>
               <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>
-                Creates a completed Site Visit activity tied to this lead — visible on the lead detail timeline. When the First Visit Date custom field is filled in, the activity is recorded as a First Site Visit instead.
+                Saves this lead and opens the Site Visit activity composer pre-filled.
+                When the First Visit Date custom field is filled in, the activity is recorded as a First Site Visit instead.
               </div>
             </span>
           </label>

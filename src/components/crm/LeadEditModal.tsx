@@ -126,7 +126,7 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
     return () => { cancelled = true; };
   }, [open]);
 
-  const submit = async () => {
+  const submit = async (overrideSiteVisit?: boolean) => {
     // Required-field guards. Walked top-to-bottom matching the form layout
     // so the toast points at the first thing the rep needs to fix.
     // Each guard reads the admin's per-tenant override via
@@ -210,11 +210,15 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
       // Tata: backend reads this flag and spawns a fresh site_visit
       // activity tied to the lead. Reset the toggle each save so the
       // rep doesn't accidentally create duplicate visits on next edit.
-      if (isTata && logAsSiteVisit) {
+      // `overrideSiteVisit` lets the toggle onChange handler trigger a
+      // save BEFORE its setState has flushed — without it the closure
+      // would still see logAsSiteVisit=false and skip the redirect.
+      const siteVisitOn = overrideSiteVisit ?? logAsSiteVisit;
+      if (isTata && siteVisitOn) {
         (body as Record<string, unknown>)._auto_log_site_visit = true;
       }
       const r = await crmLeads.update(lead.id, body);
-      const wasLogging = logAsSiteVisit;
+      const wasLogging = siteVisitOn;
       if (logAsSiteVisit) setLogAsSiteVisit(false);
       toast.success('Lead updated'); onSaved(r.data); onClose();
       // Mirror the new-lead flow: when the rep ticked the Site Visit toggle,
@@ -241,7 +245,7 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
 
   return (
     <Modal open={open} onClose={onClose} title="Edit Lead"
-      footer={<><button type="button" onClick={onClose} style={btn.secondary}>Cancel</button><button type="button" disabled={busy} onClick={submit} style={btn.primary(busy)}>{busy ? 'Saving…' : 'Save changes'}</button></>}>
+      footer={<><button type="button" onClick={onClose} style={btn.secondary}>Cancel</button><button type="button" disabled={busy} onClick={() => submit()} style={btn.primary(busy)}>{busy ? 'Saving…' : 'Save changes'}</button></>}>
       <p style={{ margin: '0 0 12px', fontSize: 12, color: 'var(--text-dim)' }}>Fields marked <span style={{ color: '#ef4444' }}>*</span> are required.</p>
       {showToggle && (
         <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
@@ -403,11 +407,26 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
           <>
             <SL>Activity</SL>
             <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '12px 14px', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 8, cursor: 'pointer', marginBottom: 14 }}>
-              <input type="checkbox" checked={logAsSiteVisit} onChange={(e) => setLogAsSiteVisit(e.target.checked)} style={{ marginTop: 3 }} />
+              <input
+                type="checkbox"
+                checked={logAsSiteVisit}
+                onChange={(e) => {
+                  const on = e.target.checked;
+                  setLogAsSiteVisit(on);
+                  // Ticking the toggle is the "open the activity composer"
+                  // shortcut — don't make the rep also click Save. We save
+                  // the lead in-place using the in-flight value (state hasn't
+                  // flushed yet), then the existing save handler redirects
+                  // to /dashboard/crm/activities/new prefilled for this lead.
+                  if (on && !busy) void submit(true);
+                }}
+                style={{ marginTop: 3 }}
+              />
               <span>
                 <strong style={{ color: 'var(--text)' }}>Also log a Site Visit activity</strong>
                 <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>
-                  Creates a completed Site Visit on this lead&rsquo;s timeline. When the First Visit Date custom field is filled in, the activity is recorded as a First Site Visit instead.
+                  Saves this lead and opens the Site Visit activity composer pre-filled.
+                  When the First Visit Date custom field is filled in, the activity is recorded as a First Site Visit instead.
                 </div>
               </span>
             </label>
