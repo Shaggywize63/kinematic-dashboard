@@ -44,6 +44,13 @@ export default function GoogleAddressAutocomplete({ onSelect }: { onSelect: (p: 
   const placesRef = useRef<any>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const tokenRef = useRef<any>(null);
+  // Browser-geo bias for the New Places API. We capture the rep's
+  // current latitude/longitude once on mount and feed it as
+  // `locationBias` so suggestions surface the *nearest* outlets/
+  // colonies first instead of the alphabetic top-of-India list. Reps
+  // who decline the permission still get useful results (the bias is
+  // optional — autocomplete just falls back to country-only ranking).
+  const biasRef = useRef<{ lat: number; lng: number } | null>(null);
 
   useEffect(() => {
     if (!KEY) return;
@@ -62,7 +69,68 @@ export default function GoogleAddressAutocomplete({ onSelect }: { onSelect: (p: 
         setErr('Could not load Google Places: ' + ((e as Error)?.message || 'unknown error') + '.');
       }
     })();
+
+    // Best-effort browser geolocation for the nearest-first bias AND
+    // for the one-shot reverse geocode below. The user is asked only
+    // once (browser caches the prompt); we cache the fix for the
+    // lifetime of the component.
+    if (typeof navigator !== 'undefined' && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          biasRef.current = { lat, lng };
+          // Reverse geocode the fix and auto-populate the address
+          // fields. Reps repeatedly asked for the form to "fill
+          // itself" when they're standing at the lead's site — the
+          // typed autocomplete still works for cases where the GPS
+          // dropped them at the wrong gate / building. Best-effort:
+          // a Geocoder failure just leaves the form blank for manual
+          // entry, no toast or banner.
+          void autoFillFromCoords(lat, lng);
+        },
+        () => { /* permission denied / timeout — fall through to no bias */ },
+        { enableHighAccuracy: false, maximumAge: 5 * 60_000, timeout: 4_000 },
+      );
+    }
   }, []);
+
+  /**
+   * One-shot reverse geocode → fires onSelect with the resolved
+   * address. Only the FIRST run matters; subsequent runs are no-ops
+   * so a re-render doesn't overwrite a coord the rep manually picked
+   * from the autocomplete dropdown afterwards.
+   */
+  const autoFilledRef = useRef(false);
+  const autoFillFromCoords = async (lat: number, lng: number) => {
+    if (autoFilledRef.current) return;
+    autoFilledRef.current = true;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const w = window as any;
+      // The Geocoding library is part of the core Maps SDK — same
+      // bootstrap as Places, just a different importLibrary slug.
+      const geo = await w.google?.maps?.importLibrary?.('geocoding');
+      if (!geo?.Geocoder) return;
+      const geocoder = new geo.Geocoder();
+      const { results } = await geocoder.geocode({ location: { lat, lng } });
+      const result = results?.[0];
+      if (!result) return;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const comps: any[] = result.address_components || [];
+      const get = (type: string) => comps.find((c) => (c.types || []).includes(type))?.long_name as string | undefined;
+      onSelect({
+        address_line1: result.formatted_address || '',
+        city: get('locality') || get('administrative_area_level_3') || get('administrative_area_level_2'),
+        state: get('administrative_area_level_1'),
+        postal_code: get('postal_code'),
+        latitude: lat.toFixed(6),
+        longitude: lng.toFixed(6),
+      });
+    } catch {
+      /* silent — manual typing still works */
+    }
+  };
 
   // Debounced suggestion fetch.
   useEffect(() => {
@@ -73,11 +141,25 @@ export default function GoogleAddressAutocomplete({ onSelect }: { onSelect: (p: 
     const timer = setTimeout(async () => {
       try {
         if (!tokenRef.current && places.AutocompleteSessionToken) tokenRef.current = new places.AutocompleteSessionToken();
-        const resp = await places.AutocompleteSuggestion.fetchAutocompleteSuggestions({
+        // Build the request. `locationBias` is the Google-recommended
+        // way to tell the New Places API "rank by proximity to this
+        // point" — we feed a ~50 km circle around the rep's current
+        // GPS fix so colonies/branches near their site jump to the
+        // top of the list. Falls back to country-only ranking when
+        // we couldn't get a fix.
+        const bias = biasRef.current;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const req: any = {
           input: q,
           includedRegionCodes: ['in'],
           sessionToken: tokenRef.current ?? undefined,
-        });
+        };
+        if (bias) {
+          req.locationBias = {
+            circle: { center: { latitude: bias.lat, longitude: bias.lng }, radius: 50_000 },
+          };
+        }
+        const resp = await places.AutocompleteSuggestion.fetchAutocompleteSuggestions(req);
         if (active) { setSuggestions(resp?.suggestions ?? []); setOpen(true); }
       } catch {
         if (active) setSuggestions([]);

@@ -304,9 +304,18 @@ export default function DealDetailPage() {
     setNbaBusy(true);
     try { const r = await crmAi.nextBestAction(deal.id); setNba(r?.data || null); }
     catch (e: any) {
+      // KINI calls auto-fire on every deal-detail open. When the org
+      // (or the user) is over the monthly KINI cap, the backend
+      // returns 429 USER_KINI_LIMIT_REACHED / ORG_KINI_LIMIT_REACHED.
+      // Hema and other reps who haven't used KINI themselves were
+      // getting a toast on EVERY deal page load when the org-wide
+      // cap was breached by someone else — they'd rightly complain
+      // "I never used KINI, why am I getting this error?". We log
+      // to the console for debugging and let the card render its
+      // empty state ("Suggest" button) so the rep can opt in
+      // manually when the cap resets.
       // eslint-disable-next-line no-console
-      console.error('[deal-detail] NBA failed', e);
-      toast.error(e?.message || 'NBA failed');
+      console.warn('[deal-detail] NBA unavailable', e?.message || e);
     } finally { setNbaBusy(false); }
   };
   const loadWinProb = async () => {
@@ -314,9 +323,12 @@ export default function DealDetailPage() {
     setWinBusy(true);
     try { const r = await crmAi.winProbability(deal.id); setWinProb(r?.data || null); }
     catch (e: any) {
+      // Same rationale as loadNba above — silent failure so reps
+      // who haven't used KINI don't get spammed when the org cap
+      // is hit. The gauge falls back to its empty state and the
+      // rep can hit "Refresh" to retry if/when the cap resets.
       // eslint-disable-next-line no-console
-      console.error('[deal-detail] winProb failed', e);
-      toast.error(e?.message || 'Forecast failed');
+      console.warn('[deal-detail] winProb unavailable', e?.message || e);
     } finally { setWinBusy(false); }
   };
 

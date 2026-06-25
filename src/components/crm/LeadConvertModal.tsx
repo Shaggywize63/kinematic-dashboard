@@ -42,7 +42,13 @@ const emptyLine = (): LineItem => ({ rowId: `${Date.now()}-${Math.random().toStr
 
 export default function LeadConvertModal({ leadId, defaultDealName, open, onClose, onConverted }: Props) {
   const router = useRouter();
-  const [createAccount, setCreateAccount] = useState(true);
+  // Tata Tiscon flow: conversion creates a Deal (and a Contact for
+  // the lead) — the rep does not separately model an Account. The
+  // createAccount toggle was confusing reps into spawning duplicate
+  // partner records, so it's wired off-by-default and hidden from the
+  // modal. The backend still respects the flag if a future callsite
+  // explicitly opts in.
+  const [createAccount] = useState(false);
   const [createDeal, setCreateDeal] = useState(true);
   const [dealName, setDealName] = useState(defaultDealName || '');
   const [dealAmount, setDealAmount] = useState<string>('');
@@ -227,9 +233,6 @@ export default function LeadConvertModal({ leadId, defaultDealName, open, onClos
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 22, width: 640, maxWidth: '100%', maxHeight: '90vh', overflowY: 'auto' }}>
         <h3 style={{ margin: '0 0 14px', color: 'var(--text)' }}>Convert Lead</h3>
-        <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8, color: 'var(--text)', fontSize: 13 }}>
-          <input type="checkbox" checked={createAccount} onChange={(e) => setCreateAccount(e.target.checked)} /> Create Account
-        </label>
         <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, color: 'var(--text)', fontSize: 13 }}>
           <input type="checkbox" checked={createDeal} onChange={(e) => setCreateDeal(e.target.checked)} /> Create Deal
         </label>
