@@ -18,6 +18,12 @@ const CUSTOM_FIELD_ENTITY: Partial<Record<Entity, CustomField['entity_type']>> =
   contacts: 'contact',
   accounts: 'account',
   deals: 'deal',
+  // crm_activities carries `custom_fields` jsonb, so admin-defined
+  // activity fields (e.g. "Visit outcome", "First Site Visit?",
+  // "Distance travelled") auto-populate the report builder
+  // checklist alongside builtins — matches the user requirement
+  // that ANY field added via Settings → Custom Fields shows up here.
+  activities: 'activity',
 };
 
 // Translate the admin-side custom-field type vocabulary into the builder's
@@ -50,6 +56,10 @@ const ENTITY_FIELDS: Record<Entity, FieldDef[]> = {
     { key: 'state', label: 'State', type: 'text' },
     { key: 'country', label: 'Country', type: 'text' },
     { key: 'is_b2c', label: 'B2C', type: 'boolean' },
+    // Conversion tracking — useful for "leads converted this month"
+    // reports now that converted leads stay visible in the list.
+    { key: 'is_converted', label: 'Converted to Deal', type: 'boolean' },
+    { key: 'converted_at', label: 'Converted At', type: 'date' },
     { key: 'created_at', label: 'Created', type: 'date' },
   ],
   contacts: [

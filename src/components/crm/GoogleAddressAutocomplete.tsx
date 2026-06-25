@@ -44,6 +44,13 @@ export default function GoogleAddressAutocomplete({ onSelect }: { onSelect: (p: 
   const placesRef = useRef<any>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const tokenRef = useRef<any>(null);
+  // Browser-geo bias for the New Places API. We capture the rep's
+  // current latitude/longitude once on mount and feed it as
+  // `locationBias` so suggestions surface the *nearest* outlets/
+  // colonies first instead of the alphabetic top-of-India list. Reps
+  // who decline the permission still get useful results (the bias is
+  // optional — autocomplete just falls back to country-only ranking).
+  const biasRef = useRef<{ lat: number; lng: number } | null>(null);
 
   useEffect(() => {
     if (!KEY) return;
@@ -62,6 +69,17 @@ export default function GoogleAddressAutocomplete({ onSelect }: { onSelect: (p: 
         setErr('Could not load Google Places: ' + ((e as Error)?.message || 'unknown error') + '.');
       }
     })();
+
+    // Best-effort browser geolocation for the nearest-first bias. The
+    // user is asked only once (browser caches the prompt); we cache
+    // the fix for the lifetime of the component.
+    if (typeof navigator !== 'undefined' && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => { biasRef.current = { lat: pos.coords.latitude, lng: pos.coords.longitude }; },
+        () => { /* permission denied / timeout — fall through to no bias */ },
+        { enableHighAccuracy: false, maximumAge: 5 * 60_000, timeout: 4_000 },
+      );
+    }
   }, []);
 
   // Debounced suggestion fetch.
@@ -73,11 +91,25 @@ export default function GoogleAddressAutocomplete({ onSelect }: { onSelect: (p: 
     const timer = setTimeout(async () => {
       try {
         if (!tokenRef.current && places.AutocompleteSessionToken) tokenRef.current = new places.AutocompleteSessionToken();
-        const resp = await places.AutocompleteSuggestion.fetchAutocompleteSuggestions({
+        // Build the request. `locationBias` is the Google-recommended
+        // way to tell the New Places API "rank by proximity to this
+        // point" — we feed a ~50 km circle around the rep's current
+        // GPS fix so colonies/branches near their site jump to the
+        // top of the list. Falls back to country-only ranking when
+        // we couldn't get a fix.
+        const bias = biasRef.current;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const req: any = {
           input: q,
           includedRegionCodes: ['in'],
           sessionToken: tokenRef.current ?? undefined,
-        });
+        };
+        if (bias) {
+          req.locationBias = {
+            circle: { center: { latitude: bias.lat, longitude: bias.lng }, radius: 50_000 },
+          };
+        }
+        const resp = await places.AutocompleteSuggestion.fetchAutocompleteSuggestions(req);
         if (active) { setSuggestions(resp?.suggestions ?? []); setOpen(true); }
       } catch {
         if (active) setSuggestions([]);

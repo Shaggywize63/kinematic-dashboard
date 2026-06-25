@@ -77,6 +77,18 @@ function NewActivityPageInner() {
   const [subjectOptions, setSubjectOptions] = useState<Array<{ id: string; name: string }>>([]);
   const [body, setBody] = useState('');
   const [dueAt, setDueAt] = useState('');
+  // Visit kind. When the rep arrives here straight from a lead save
+  // (the most common Tata flow), they need a clear binary choice:
+  //   - 'now'       → log a completed visit RIGHT NOW. due_at stays
+  //                    empty; the existing submit branch stamps
+  //                    completed_at=now and status='completed'.
+  //   - 'scheduled' → schedule a future visit. Reveals the date
+  //                    picker; status='planned', due_at=picked date.
+  // Defaults to 'now' so the one-tap "I just visited this lead" case
+  // is zero extra clicks. Only surfaces when the activity type is
+  // meeting (where a visit lives) — call/email/note/task keep the
+  // legacy single date control.
+  const [visitKind, setVisitKind] = useState<'now' | 'scheduled'>('now');
   // Default the assignee to the signed-in user so the most common case
   // ("log something I just did") needs zero extra clicks.
   const [assignedTo, setAssignedTo] = useState<string>(() => {
@@ -313,10 +325,18 @@ function NewActivityPageInner() {
       status:       noSchedule && type !== 'task' ? 'completed' : 'planned',
       assigned_to: assignedTo || undefined,
       image_url: imageUrl || undefined,
-      // Send custom_fields only when the rep filled at least one in,
-      // so the backend validator doesn't run on an empty object on
-      // every save.
-      custom_fields: Object.keys(customFields).length > 0 ? customFields : undefined,
+      // Stamp visit_kind on meetings so the report builder + CSV
+      // export carry "Visit (completed)" vs "Visit (scheduled)" as
+      // a first-class filterable column. Backend stores it in
+      // crm_activities.custom_fields jsonb; the report builder
+      // auto-discovers it via CUSTOM_FIELD_ENTITY.activities.
+      custom_fields: (() => {
+        const cf: Record<string, unknown> = { ...customFields };
+        if (type === 'meeting') {
+          cf.visit_kind = visitKind === 'now' ? 'completed' : 'scheduled';
+        }
+        return Object.keys(cf).length > 0 ? cf : undefined;
+      })(),
     };
     if (entityType && entityId) {
       payload[`${entityType}_id`] = entityId;
@@ -435,16 +455,64 @@ function NewActivityPageInner() {
             </div>
           )}
         </Field>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginTop: 12 }}>
-          <Field label={`${type === 'task' ? 'Due Date & Time' : 'Scheduled At'} (optional)`}>
-            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-              <input type="datetime-local" value={dueAt} onChange={(e) => setDueAt(e.target.value)} style={input} />
-              {dueAt && (
-                <button type="button" onClick={() => setDueAt('')} title="Clear schedule — log it for right now" style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '6px 10px', borderRadius: 8, fontSize: 11, cursor: 'pointer' }}>Now</button>
-              )}
+        {/* Mark-as-visit / Schedule-visit segmented control. Surfaced
+            only for the meeting type since that's the activity verb
+            that maps to a site visit. Defaults to "Now" — the
+            common case is a rep saving a lead and immediately
+            logging the visit they just performed; the "Scheduled"
+            tab reveals the date picker for future commitments. */}
+        {type === 'meeting' && (
+          <div style={{ marginTop: 12 }}>
+            <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.6, marginBottom: 6 }}>Visit</div>
+            <div role="tablist" style={{ display: 'inline-flex', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 10, padding: 4, gap: 4 }}>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={visitKind === 'now'}
+                onClick={() => { setVisitKind('now'); setDueAt(''); }}
+                style={{
+                  background: visitKind === 'now' ? 'var(--primary)' : 'transparent',
+                  color: visitKind === 'now' ? '#fff' : 'var(--text)',
+                  border: 'none', padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                }}
+              >Mark as visit</button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={visitKind === 'scheduled'}
+                onClick={() => setVisitKind('scheduled')}
+                style={{
+                  background: visitKind === 'scheduled' ? 'var(--primary)' : 'transparent',
+                  color: visitKind === 'scheduled' ? '#fff' : 'var(--text)',
+                  border: 'none', padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                }}
+              >Schedule a visit</button>
             </div>
-            <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 4 }}>Leave blank to log it as happening right now.</div>
-          </Field>
+            <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 6 }}>
+              {visitKind === 'now'
+                ? 'Logs this visit as completed right now.'
+                : 'Pick the date and time when the visit will happen.'}
+            </div>
+          </div>
+        )}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginTop: 12 }}>
+          {/* Date picker hides when the rep chose "Mark as visit" for
+              a meeting — that flow is explicitly "log it now" and the
+              picker would just confuse the rep into thinking they
+              need to fill it. Shows for tasks (which always need a
+              due date), other activity types, and meetings that are
+              being scheduled. */}
+          {!(type === 'meeting' && visitKind === 'now') && (
+            <Field label={`${type === 'task' ? 'Due Date & Time' : 'Scheduled At'} (optional)`}>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <input type="datetime-local" value={dueAt} onChange={(e) => setDueAt(e.target.value)} style={input} />
+                {dueAt && (
+                  <button type="button" onClick={() => setDueAt('')} title="Clear schedule — log it for right now" style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '6px 10px', borderRadius: 8, fontSize: 11, cursor: 'pointer' }}>Now</button>
+                )}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 4 }}>Leave blank to log it as happening right now.</div>
+            </Field>
+          )}
           <Field label="Assign To">
             <UserSearchSelect
               options={users}
