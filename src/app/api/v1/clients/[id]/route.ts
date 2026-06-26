@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { corsHeaders } from '@/lib/cors';
-import { projectFromHeaders, serverSupabaseConfig } from '@/lib/serverProjects';
+import { projectFromHeaders, serverSupabaseConfig, DEFAULT_PROJECT } from '@/lib/serverProjects';
 
 const ALL_MODULES = [
   { id: 'analytics',       name: 'Analytics & Tracking' },
@@ -64,6 +64,7 @@ export async function PATCH(
         'Authorization': auth,
         'apikey': anonKey,
         'X-Org-Id': orgId,
+        ...(project !== DEFAULT_PROJECT ? { 'X-Kinematic-Project': project } : {}),
       },
       body,
     });

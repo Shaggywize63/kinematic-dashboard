@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { corsHeaders } from '@/lib/cors';
-import { projectFromHeaders, serverSupabaseConfig } from '@/lib/serverProjects';
+import { projectFromHeaders, serverSupabaseConfig, DEFAULT_PROJECT } from '@/lib/serverProjects';
 
 // Modules table is now seeded + maintained by SQL migrations
 // (see migration_module_packaging_and_client_entitlements.sql in the backend
@@ -41,13 +41,18 @@ export async function GET(req: NextRequest) {
   try {
     const auth  = req.headers.get('Authorization') ?? '';
     const orgId = req.headers.get('X-Org-Id') ?? '';
-    const { url, anonKey } = serverSupabaseConfig(projectFromHeaders(req.headers));
+    const project = projectFromHeaders(req.headers);
+    const { url, anonKey } = serverSupabaseConfig(project);
 
     const res = await fetch(`${url}/functions/v1/api-proxy/api/v1/clients`, {
       headers: {
         'Authorization': auth,
         'apikey': anonKey,
         'X-Org-Id': orgId,
+        // Forward the project so the edge function can tell Railway which
+        // Supabase project to validate the JWT against (else it defaults to
+        // Tata and rejects a Kinematic token with 401).
+        ...(project !== DEFAULT_PROJECT ? { 'X-Kinematic-Project': project } : {}),
       },
     });
 
@@ -77,6 +82,7 @@ export async function POST(req: NextRequest) {
         'Authorization': auth,
         'apikey': anonKey,
         'X-Org-Id': orgId,
+        ...(project !== DEFAULT_PROJECT ? { 'X-Kinematic-Project': project } : {}),
       },
       body,
     });
