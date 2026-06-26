@@ -3,16 +3,29 @@ import { useState, useEffect, useCallback } from 'react';
 import { Client } from '../../../types';
 import ConfirmModal from '../../../components/ConfirmModal';
 import { useAuth } from '../../../hooks/useAuth';
+import { getStoredProjectKey, DEFAULT_PROJECT } from '../../../lib/projects';
 
 // Uses the Next.js proxy routes (/api/v1/clients) which seed the modules table
 // before forwarding to the Supabase edge function, preventing FK constraint errors.
 async function clientsFetch(method: string, path: string, body?: unknown) {
   const token = typeof window !== 'undefined' ? localStorage.getItem('kinematic_token') : null;
+  // Forward the same tenant/project headers the main api client sends. Without
+  // X-Kinematic-Project the Next proxy route defaults to the Tata project and
+  // sends a Kinematic session's token to the wrong Supabase ("Failed to load
+  // clients"); X-Org-Id scopes the lookup the same way the rest of the app does.
+  let orgId: string | null = null;
+  try {
+    const raw = typeof window !== 'undefined' ? localStorage.getItem('kinematic_user') : null;
+    orgId = raw ? (JSON.parse(raw)?.org_id ?? null) : null;
+  } catch { /* ignore */ }
+  const project = getStoredProjectKey();
   const res = await fetch(path, {
     method,
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(orgId ? { 'X-Org-Id': orgId } : {}),
+      ...(project && project !== DEFAULT_PROJECT ? { 'X-Kinematic-Project': project } : {}),
     },
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
   });
