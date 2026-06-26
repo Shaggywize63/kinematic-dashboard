@@ -177,6 +177,12 @@ class ApiClient {
     return this.post(`/api/v1/clients/${clientId}/impersonate`, {});
   }
 
+  /** Super-admin "Login as client" via stored credentials: returns a real
+   * session for the client's account (backend POST /clients/:id/login-as). */
+  loginAsCredentials(clientId: string): Promise<any> {
+    return this.post(`/api/v1/clients/${clientId}/login-as`, {});
+  }
+
   private getUserEmail(): string | null {
     if (typeof window === 'undefined') return null;
     try {

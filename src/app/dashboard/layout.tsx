@@ -768,7 +768,24 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             {actingAs && (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '10px 16px', marginBottom: 16, background: '#7c3aed', color: '#fff', fontSize: 13, fontWeight: 600, borderRadius: 12 }}>
                 <span>Acting as client: <strong>{actingAs.name || 'Unknown'}</strong> — you are viewing their data.</span>
-                <button onClick={() => { setActingAs(null); window.location.href = '/dashboard/clients'; }} style={{ background: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.5)', color: '#fff', padding: '5px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>Exit client view</button>
+                <button onClick={() => {
+                  // Restore the saved super-admin session (token/refresh/user/project/client).
+                  try {
+                    const raw = localStorage.getItem('kinematic_su_session');
+                    if (raw) {
+                      const su = JSON.parse(raw);
+                      const set = (k: string, v: any) => { if (v) localStorage.setItem(k, v); else localStorage.removeItem(k); };
+                      set('kinematic_token', su.token);
+                      set('kinematic_refresh_token', su.refresh);
+                      set('kinematic_user', su.user);
+                      set('kinematic_supabase_project', su.project);
+                      set('kinematic_selected_client', su.client);
+                    }
+                  } catch { /* ignore */ }
+                  localStorage.removeItem('kinematic_su_session');
+                  setActingAs(null);
+                  window.location.href = '/dashboard/clients';
+                }} style={{ background: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.5)', color: '#fff', padding: '5px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>Exit client view</button>
               </div>
             )}
             {children}

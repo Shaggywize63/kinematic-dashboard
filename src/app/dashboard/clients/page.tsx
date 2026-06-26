@@ -5,7 +5,7 @@ import ConfirmModal from '../../../components/ConfirmModal';
 import { useAuth } from '../../../hooks/useAuth';
 import { ALL_MODULES, MODULE_GROUPS, MODULE_GROUP_LABELS, type ModuleGroup } from '../../../lib/modules';
 import api, { setActingAs } from '../../../lib/api';
-import { getStoredProjectKey, DEFAULT_PROJECT } from '../../../lib/projects';
+import { getStoredProjectKey, DEFAULT_PROJECT, setStoredProjectKey } from '../../../lib/projects';
 
 // Uses the Next.js proxy routes (/api/v1/clients) which seed the modules table
 // before forwarding to the Supabase edge function, preventing FK constraint errors.
@@ -105,22 +105,35 @@ export default function ClientManagement() {
   useEffect(() => { load(); }, [load]);
 
   const openAdd = () => { setEditing(null); setForm({ ...BLANK }); setFErr(''); setShowModal(true); };
-  // Super-admin "Login as client": mint an impersonation session token scoped
-  // to the client's org, pin the acting-as context, and reload into it. Falls
-  // back to header-only scoping if token minting isn't available. The acting-as
-  // banner (dashboard layout) offers a one-click Exit.
+  // Super-admin "Login as client": authenticate with the client's stored
+  // account credentials and swap into that real session (e.g. the live Tata
+  // account). The current super-admin session is saved so the banner's Exit
+  // can restore it. No manual credential entry.
   const loginAsClient = async (c: Client) => {
-    // Prefer the admin-set "Org ID" field; fall back to the client's own org.
-    const cc = c as { login_org_id?: string; org_id?: string };
-    const orgId = cc.login_org_id || cc.org_id;
     try {
-      const res: any = await api.impersonateClient(c.id);
+      const res: any = await api.loginAsCredentials(c.id);
       const d = res?.data ?? res;
-      setActingAs({ org_id: d?.org_id ?? orgId, client_id: c.id, name: c.name, token: d?.token });
-    } catch {
-      setActingAs({ org_id: orgId, client_id: c.id, name: c.name });
+      if (!d?.access_token) throw new Error('No session returned');
+      // Save the super-admin session for Exit/restore.
+      const su = {
+        token: localStorage.getItem('kinematic_token'),
+        refresh: localStorage.getItem('kinematic_refresh_token'),
+        user: localStorage.getItem('kinematic_user'),
+        project: localStorage.getItem('kinematic_supabase_project'),
+        client: localStorage.getItem('kinematic_selected_client'),
+      };
+      localStorage.setItem('kinematic_su_session', JSON.stringify(su));
+      // Swap to the client account's real session.
+      localStorage.setItem('kinematic_token', d.access_token);
+      if (d.refresh_token) localStorage.setItem('kinematic_refresh_token', d.refresh_token);
+      localStorage.removeItem('kinematic_user');            // re-fetched via /auth/me
+      localStorage.removeItem('kinematic_selected_client'); // avoid stale client scope
+      setStoredProjectKey(d.project || null);               // route to the account's project
+      setActingAs({ name: c.name });                        // banner only
+      window.location.href = '/dashboard';
+    } catch (e: any) {
+      alert(e?.response?.data?.error || e?.message || 'Login failed');
     }
-    window.location.href = '/dashboard';
   };
   const openEdit = (c: Client) => { 
     // Filter out any legacy module IDs that might exist in the database (e.g. master_data)
@@ -307,11 +320,6 @@ export default function ClientManagement() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
               <div><Label t="Email Address" /><input style={inp} placeholder="client@example.com" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} /></div>
               <div><Label t="Login Password" req={!editing} /><input type="password" style={inp} placeholder={editing ? "(Unchanged)" : "Create password"} value={form.password} onChange={e => setForm(p => ({ ...p, password: e.target.value }))} /></div>
-            </div>
-
-            <div style={{ marginBottom: 24 }}>
-              <Label t="Org ID" />
-              <input style={inp} placeholder="Optional — org UUID the Login button signs into (defaults to this client's org)" value={form.login_org_id} onChange={e => setForm(p => ({ ...p, login_org_id: e.target.value.trim() }))} />
             </div>
 
             <div style={{ marginBottom: 28 }}>
