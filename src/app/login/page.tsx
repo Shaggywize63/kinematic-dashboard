@@ -477,7 +477,10 @@ export default function LoginPage() {
 
             <p style={{ textAlign: 'center', fontSize: 12, color: PALETTE.inkDim, margin: '6px 0 0' }}>
               Forgot password?{' '}
-              <span style={{ color: PALETTE.red, cursor: 'pointer', fontWeight: 700 }}>Contact your administrator</span>
+              <a
+                href="/auth/forgot-password"
+                style={{ color: PALETTE.red, fontWeight: 700, textDecoration: 'none' }}
+              >Reset it</a>
             </p>
           </form>
         </div>

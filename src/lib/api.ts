@@ -448,6 +448,36 @@ class ApiClient {
     );
   }
 
+  /**
+   * Public — always resolves with {ok:true} regardless of whether the
+   * email is registered. The backend's anti-enumeration guard makes
+   * unknown addresses look identical to known ones. Used by the
+   * /auth/forgot-password page.
+   */
+  forgotPassword(email: string) {
+    return this.post<{
+      success: boolean;
+      data: { ok: true };
+    }>('/api/v1/auth/forgot-password', { email });
+  }
+
+  /**
+   * Public — verifies the Supabase recovery token + writes the new
+   * password + returns a fresh session so callers can saveSession()
+   * and land the user straight on the dashboard.
+   */
+  resetPassword(email: string, token: string, password: string) {
+    return this.post<{
+      success: boolean;
+      data: {
+        user: object;
+        access_token: string;
+        refresh_token?: string;
+        expires_at?: number;
+      };
+    }>('/api/v1/auth/reset-password', { email, token, password });
+  }
+
   getAnalyticsSummary(period: string) {
     return this.get(`/api/v1/analytics/summary?period=${period}`);
   }
