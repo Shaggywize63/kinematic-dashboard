@@ -21,6 +21,25 @@ export function resolveApiUrl(): string {
 
 const API_URL = resolveApiUrl();
 
+// Super-admin "Login as client": when set, every request is scoped to this
+// client's org + client_id (the backend honours X-Org-Id for super_admin).
+// Persisted in localStorage so it survives reloads; cleared on "Exit".
+export type ActingAs = { org_id?: string; client_id?: string; name?: string };
+export function getActingAs(): ActingAs | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem('kinematic_acting_as');
+    return raw ? (JSON.parse(raw) as ActingAs) : null;
+  } catch { return null; }
+}
+export function setActingAs(v: ActingAs | null) {
+  if (typeof window === 'undefined') return;
+  try {
+    if (v) window.localStorage.setItem('kinematic_acting_as', JSON.stringify(v));
+    else window.localStorage.removeItem('kinematic_acting_as');
+  } catch { /* ignore */ }
+}
+
 // In-memory GET cache + localStorage stale-while-revalidate + in-flight dedupe.
 // - Successful GETs are cached in memory for `GET_CACHE_TTL_MS` (60s)
 // - Successful GETs also persisted to localStorage so a fresh tab can paint
@@ -157,6 +176,9 @@ class ApiClient {
 
   private getOrgId(): string | null {
     if (typeof window === 'undefined') return null;
+    // When acting as a client, scope to that client's org.
+    const acting = getActingAs();
+    if (acting?.org_id) return acting.org_id;
     try {
       const raw = localStorage.getItem('kinematic_user');
       return raw ? JSON.parse(raw)?.org_id ?? null : null;
@@ -243,6 +265,9 @@ class ApiClient {
     // every backend call. The backend honours it for super_admin and other
     // org-level admins; client-level users have client_id pinned in their JWT
     // so the header is treated as advisory and ignored when it conflicts.
+    // Acting-as a client (super-admin Login) pins X-Client-Id to that client.
+    const actingClient = getActingAs()?.client_id;
+    if (actingClient && !headers['X-Client-Id']) headers['X-Client-Id'] = actingClient;
     if (!headers['X-Client-Id']) {
       try {
         const sel = typeof window !== 'undefined' ? window.localStorage.getItem('kinematic_selected_client') : null;

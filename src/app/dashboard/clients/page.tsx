@@ -4,6 +4,7 @@ import { Client } from '../../../types';
 import ConfirmModal from '../../../components/ConfirmModal';
 import { useAuth } from '../../../hooks/useAuth';
 import { ALL_MODULES, MODULE_GROUPS, MODULE_GROUP_LABELS, type ModuleGroup } from '../../../lib/modules';
+import { setActingAs } from '../../../lib/api';
 import { getStoredProjectKey, DEFAULT_PROJECT } from '../../../lib/projects';
 
 // Uses the Next.js proxy routes (/api/v1/clients) which seed the modules table
@@ -104,6 +105,12 @@ export default function ClientManagement() {
   useEffect(() => { load(); }, [load]);
 
   const openAdd = () => { setEditing(null); setForm({ ...BLANK }); setFErr(''); setShowModal(true); };
+  // Super-admin "Login as client": pin the acting-as context and reload into
+  // the client's org. The acting-as banner (dashboard layout) offers Exit.
+  const loginAsClient = (c: Client) => {
+    setActingAs({ org_id: (c as { org_id?: string }).org_id, client_id: c.id, name: c.name });
+    window.location.href = '/dashboard';
+  };
   const openEdit = (c: Client) => { 
     // Filter out any legacy module IDs that might exist in the database (e.g. master_data)
     // but are not part of the new 20-module granular architecture.
@@ -233,6 +240,12 @@ export default function ClientManagement() {
               </div>
             </div>
             <div style={{ display: 'flex', gap: 6 }}>
+              {user?.role === 'super_admin' && (c as { org_id?: string }).org_id && (
+                <button onClick={() => loginAsClient(c)} title="Login as this client" style={{ height: 32, padding: '0 12px', border: `1px solid ${C.blue}`, borderRadius: 10, background: 'rgba(62,158,255,0.1)', cursor: 'pointer', color: C.blue, fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4M10 17l5-5-5-5M15 12H3"/></svg>
+                  Login
+                </button>
+              )}
               <button onClick={() => openEdit(c)} style={{ width: 32, height: 32, border: `1px solid ${C.border}`, borderRadius: 10, background: 'transparent', cursor: 'pointer', color: C.gray, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                 onMouseEnter={e => { e.currentTarget.style.borderColor = C.blue; e.currentTarget.style.color = C.blue; }}
                 onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.gray; }}>

@@ -4,7 +4,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { getStoredUser, isSessionValid, clearSession, getDesignationLabel } from '../../lib/auth';
-import api from '../../lib/api';
+import api, { getActingAs, setActingAs } from '../../lib/api';
 import { ClientProvider, useClient } from '../../context/ClientContext';
 import { CityScopeProvider } from '../../context/CityScopeContext';
 import { IndustryScopeProvider } from '../../context/IndustryScopeContext';
@@ -72,6 +72,10 @@ function useIsMobile(breakpoint = 1024) {
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<any>(null);
+  // Super-admin "acting as client" context (set from Client Management → Login).
+  // Resolved after mount to avoid SSR hydration mismatch.
+  const [actingAs, setActingAsState] = useState<{ name?: string } | null>(null);
+  useEffect(() => { setActingAsState(getActingAs()); }, []);
   // Persist the desktop collapse preference so the rep gets the same
   // sidebar width on every reload. Mobile uses a hamburger drawer and
   // ignores this flag.
@@ -760,7 +764,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <GlobalClientFilter isPlatformAdmin={isPlatformAdmin} />
             </div>
           </header>
-          <div style={{ padding: isMobile ? 14 : 25, flex:1, minWidth:0 }}>{children}</div>
+          <div style={{ padding: isMobile ? 14 : 25, flex:1, minWidth:0 }}>
+            {actingAs && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '10px 16px', marginBottom: 16, background: '#7c3aed', color: '#fff', fontSize: 13, fontWeight: 600, borderRadius: 12 }}>
+                <span>Acting as client: <strong>{actingAs.name || 'Unknown'}</strong> — you are viewing their data.</span>
+                <button onClick={() => { setActingAs(null); window.location.href = '/dashboard/clients'; }} style={{ background: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.5)', color: '#fff', padding: '5px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>Exit client view</button>
+              </div>
+            )}
+            {children}
+          </div>
           <footer style={{ padding:15, borderTop:`1px solid ${C.border}`, textAlign:'center', fontSize:9, color:C.grayd }}>
             Kinematic Registry: STABLE-ENV | Interception Enabled
           </footer>
