@@ -5,37 +5,22 @@ import { projectFromHeaders, serverSupabaseConfig, DEFAULT_PROJECT } from '@/lib
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
-const ALL_MODULES = [
-  { id: 'analytics',       name: 'Analytics & Tracking' },
-  { id: 'live_tracking',   name: 'Live Tracking' },
-  { id: 'broadcast',       name: 'Broadcasts' },
-  { id: 'attendance',      name: 'Attendance' },
-  { id: 'orders',          name: 'Route Planning (Orders)' },
-  { id: 'work_activities', name: 'Work Activities' },
-  { id: 'users',           name: 'Manpower Management' },
-  { id: 'hr',              name: 'HR & Payroll' },
-  { id: 'visit_logs',      name: 'Visit Logs' },
-  { id: 'inventory',       name: 'Warehouse & Inventory' },
-  { id: 'skus',            name: "SKU's Management" },
-  { id: 'assets',          name: 'Asset Management' },
-  { id: 'grievances',      name: 'Grievance Management' },
-  { id: 'form_builder',    name: 'Form Builder' },
-  { id: 'cities',          name: 'City Management' },
-  { id: 'zones',           name: 'Zone Management' },
-  { id: 'stores',          name: 'Outlet Management' },
-  { id: 'activities',      name: 'Activity Management' },
-  { id: 'clients',         name: 'Client Management' },
-  { id: 'settings',        name: 'System Settings' },
-];
+import { ALL_MODULES as DASHBOARD_MODULES } from '@/lib/modules';
 
 async function seedModules(projectKey: string) {
   const { url: supabaseUrl, serviceKey } = serverSupabaseConfig(projectKey);
   if (!supabaseUrl || !serviceKey) return;
   try {
     const supabase = createClient(supabaseUrl, serviceKey);
+    const payload = DASHBOARD_MODULES.map(m => ({
+      id: m.id,
+      name: m.l,
+      package: m.package,
+      is_universal: !!m.universal,
+    }));
     await supabase
       .from('modules')
-      .upsert(ALL_MODULES, { onConflict: 'id', ignoreDuplicates: true });
+      .upsert(payload, { onConflict: 'id', ignoreDuplicates: true });
   } catch {
     // best-effort — do not block the request
   }

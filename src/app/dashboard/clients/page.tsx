@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Client } from '../../../types';
 import ConfirmModal from '../../../components/ConfirmModal';
 import { useAuth } from '../../../hooks/useAuth';
+import { ALL_MODULES, MODULE_GROUPS, MODULE_GROUP_LABELS, type ModuleGroup } from '../../../lib/modules';
 import { getStoredProjectKey, DEFAULT_PROJECT } from '../../../lib/projects';
 
 // Uses the Next.js proxy routes (/api/v1/clients) which seed the modules table
@@ -54,28 +55,15 @@ const C = {
   blueD: 'var(--blueD)',
 };
 
-const MODULES = [
-  { id: 'analytics',       label: 'Analytics & Tracking' },
-  { id: 'live_tracking',   label: 'Live Tracking' },
-  { id: 'broadcast',       label: 'Broadcasts' },
-  { id: 'attendance',      label: 'Attendance' },
-  { id: 'orders',          label: 'Route Planning (Orders)' },
-  { id: 'work_activities', label: 'Work Activities' },
-  { id: 'users',           label: 'Manpower Management' },
-  { id: 'hr',              label: 'HR & Payroll' },
-  { id: 'visit_logs',      label: 'Visit Logs' },
-  { id: 'inventory',       label: 'Warehouse & Inventory' },
-  { id: 'skus',            label: "SKU's Management" },
-  { id: 'assets',          label: 'Asset Management' },
-  { id: 'grievances',      label: 'Grievance Management' },
-  { id: 'form_builder',    label: 'Form Builder' },
-  { id: 'cities',          label: 'City Management' },
-  { id: 'zones',           label: 'Zone Management' },
-  { id: 'stores',          label: 'Outlet Management' },
-  { id: 'activities',      label: 'Activity Management' },
-  { id: 'clients',         label: 'Client Management' },
-  { id: 'settings',        label: 'System Settings' },
-];
+// Module access list is derived from the sidebar module catalog
+// (lib/modules.ts) so it is COMPLETE and stays in sync automatically — any
+// module added to the sidebar in future shows up here without touching this
+// file. Audit is super-admin-only and never granted to clients, so it is
+// excluded from the client access selector.
+const GRANTABLE_GROUPS: ModuleGroup[] = MODULE_GROUPS.filter(g => g !== 'Audit');
+const MODULES: { id: string; label: string; group: ModuleGroup }[] = ALL_MODULES
+  .filter(m => m.group !== 'Audit')
+  .map(m => ({ id: m.id, label: m.l, group: m.group }));
 
 const BLANK = { name: '', contact_person: '', email: '', phone: '', password: '', is_active: true, modules: [] as string[] };
 
@@ -298,15 +286,37 @@ export default function ClientManagement() {
 
             <div style={{ marginBottom: 28 }}>
               <Label t="Module Access Control" />
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, background: C.s3, borderRadius: 16, padding: 16, border: `1px solid ${C.border}` }}>
-                {MODULES.map(m => (
-                  <div key={m.id} onClick={() => toggleModule(m.id)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 8, cursor: 'pointer', background: form.modules.includes(m.id) ? 'rgba(62,158,255,0.1)' : 'transparent', border: `1px solid ${form.modules.includes(m.id) ? C.blue : 'transparent'}`, transition: 'all .15s' }}>
-                    <div style={{ width: 16, height: 16, borderRadius: 4, background: form.modules.includes(m.id) ? C.blue : C.s4, border: `1.5px solid ${form.modules.includes(m.id) ? C.blue : C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      {form.modules.includes(m.id) && <svg width={10} height={10} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={4}><path d="M20 6L9 17l-5-5"/></svg>}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 18, background: C.s3, borderRadius: 16, padding: 16, border: `1px solid ${C.border}` }}>
+                {GRANTABLE_GROUPS.map(group => {
+                  const groupModules = MODULES.filter(m => m.group === group);
+                  if (!groupModules.length) return null;
+                  const groupIds = groupModules.map(m => m.id);
+                  const allOn = groupIds.every(id => form.modules.includes(id));
+                  const toggleGroup = () => setForm(p => {
+                    const set = new Set(p.modules);
+                    if (allOn) groupIds.forEach(id => set.delete(id));
+                    else groupIds.forEach(id => set.add(id));
+                    return { ...p, modules: [...set] };
+                  });
+                  return (
+                    <div key={group}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                        <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.5, color: C.grayd }}>{MODULE_GROUP_LABELS[group]}</div>
+                        <span onClick={toggleGroup} style={{ fontSize: 11, fontWeight: 600, color: C.blue, cursor: 'pointer' }}>{allOn ? 'Clear' : 'Select all'}</span>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+                        {groupModules.map(m => (
+                          <div key={m.id} onClick={() => toggleModule(m.id)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 8, cursor: 'pointer', background: form.modules.includes(m.id) ? 'rgba(62,158,255,0.1)' : 'transparent', border: `1px solid ${form.modules.includes(m.id) ? C.blue : 'transparent'}`, transition: 'all .15s' }}>
+                            <div style={{ width: 16, height: 16, borderRadius: 4, background: form.modules.includes(m.id) ? C.blue : C.s4, border: `1.5px solid ${form.modules.includes(m.id) ? C.blue : C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              {form.modules.includes(m.id) && <svg width={10} height={10} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={4}><path d="M20 6L9 17l-5-5"/></svg>}
+                            </div>
+                            <span style={{ fontSize: 12, color: form.modules.includes(m.id) ? C.white : C.gray, fontWeight: form.modules.includes(m.id) ? 600 : 500 }}>{m.label}</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                    <span style={{ fontSize: 12, color: form.modules.includes(m.id) ? C.white : C.gray, fontWeight: form.modules.includes(m.id) ? 600 : 500 }}>{m.label}</span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 
