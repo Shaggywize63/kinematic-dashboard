@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { crmLeads, crmSettings, crmLeadSources, crmProducts, crmTargets, type MyTarget } from '../../../../../lib/crmApi';
 import api from '../../../../../lib/api';
+import { reverseGeocode } from '../../../../../lib/googleGeocode';
 import { useClient } from '../../../../../context/ClientContext';
 import type { BusinessType, LeadSource, Product } from '../../../../../types/crm';
 import LocationPicker from '../../../../../components/crm/LocationPicker';
@@ -112,13 +113,30 @@ export default function NewLeadPage() {
     setGeoError('');
 
     const accept = (pos: GeolocationPosition) => {
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
       setForm((f) => ({
         ...f,
-        latitude: pos.coords.latitude.toFixed(6),
-        longitude: pos.coords.longitude.toFixed(6),
+        latitude: lat.toFixed(6),
+        longitude: lng.toFixed(6),
       }));
       setGeoBusy(false);
       setGeoError('');
+      // Auto-populate the address line / city / state / postal code
+      // from the GPS fix. Only fills fields that are still blank so a
+      // value the rep already typed (or picked from autocomplete)
+      // wins over the geocode. Silent on failure — the autocomplete
+      // dropdown is the manual fallback.
+      void reverseGeocode(lat, lng).then((addr) => {
+        if (!addr) return;
+        setForm((f) => ({
+          ...f,
+          address_line1: f.address_line1 || addr.address_line1 || '',
+          city:          f.city          || addr.city          || '',
+          state:         f.state         || addr.state         || '',
+          postal_code:   f.postal_code   || addr.postal_code   || '',
+        }));
+      });
     };
 
     // Stage 2 — start the high-accuracy upgrade alongside Stage 1 so the GPS
