@@ -303,9 +303,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       // Email alerts + verified senders — the marketing-side email surface.
       // Templates live at the existing /crm/email-templates page; alerts
       // composes them with a verified From + scheduler.
-      { href: '/dashboard/crm/email-alerts',     label: 'Email Alerts',   icon: 'M4 4h16a2 2 0 012 2v12a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2z M22 6l-10 7L2 6 M12 13v7', module: 'crm_email' },
-      { href: '/dashboard/crm/email-templates',  label: 'Email Templates', icon: 'M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6 M16 13H8 M16 17H8 M10 9H8', module: 'crm_email' },
-      { href: '/dashboard/crm/email-senders',    label: 'Email Senders',  icon: 'M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 7a4 4 0 100-8 4 4 0 000 8z M20 8l2 2-4 4 M22 10l-4 4', module: 'crm_email' },
+      { href: '/dashboard/crm/email-alerts',     label: 'Email Alerts',   icon: 'M4 4h16a2 2 0 012 2v12a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2z M22 6l-10 7L2 6 M12 13v7', module: 'crm_email', hiddenForTata: true },
+      { href: '/dashboard/crm/email-templates',  label: 'Email Templates', icon: 'M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6 M16 13H8 M16 17H8 M10 9H8', module: 'crm_email', hiddenForTata: true },
+      { href: '/dashboard/crm/email-senders',    label: 'Email Senders',  icon: 'M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 7a4 4 0 100-8 4 4 0 000 8z M20 8l2 2-4 4 M22 10l-4 4', module: 'crm_email', hiddenForTata: true },
       { href: '/dashboard/crm/nurturing',        label: 'Nurturing',      icon: 'M13 2L3 14h9l-1 8 10-12h-9l1-8z', module: 'crm_dashboard', demoOnly: true },
       { href: '/dashboard/crm/reports',          label: 'Reports',        icon: 'M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6 M16 13H8 M16 17H8', module: 'crm_reports' },
       { href: '/dashboard/crm/settings',         label: 'Settings',       icon: ICON_SETTINGS, module: 'crm_settings' },
