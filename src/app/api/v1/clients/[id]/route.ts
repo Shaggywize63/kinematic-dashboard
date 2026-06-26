@@ -3,6 +3,8 @@ import { createClient } from '@supabase/supabase-js';
 import { corsHeaders } from '@/lib/cors';
 import { projectFromHeaders, serverSupabaseConfig, DEFAULT_PROJECT } from '@/lib/serverProjects';
 
+const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || '';
+
 const ALL_MODULES = [
   { id: 'analytics',       name: 'Analytics & Tracking' },
   { id: 'live_tracking',   name: 'Live Tracking' },
@@ -53,18 +55,25 @@ export async function PATCH(
     const orgId   = req.headers.get('X-Org-Id') ?? '';
     const body    = await req.text();
     const project = projectFromHeaders(req.headers);
-    const { url, anonKey } = serverSupabaseConfig(project);
 
     await seedModules(project);
 
-    const res = await fetch(`${url}/functions/v1/api-proxy/api/v1/clients/${id}`, {
+    // Non-default projects bypass the api-proxy edge function (which drops
+    // X-Kinematic-Project → backend defaults to Tata → 401); call the backend
+    // directly with the project header. Default (Tata) keeps the edge-fn path.
+    const useDirect = project !== DEFAULT_PROJECT && BACKEND_URL;
+    const target = useDirect
+      ? `${BACKEND_URL}/api/v1/clients/${id}`
+      : `${serverSupabaseConfig(project).url}/functions/v1/api-proxy/api/v1/clients/${id}`;
+    const res = await fetch(target, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': auth,
-        'apikey': anonKey,
         'X-Org-Id': orgId,
-        ...(project !== DEFAULT_PROJECT ? { 'X-Kinematic-Project': project } : {}),
+        ...(useDirect
+          ? { 'X-Kinematic-Project': project }
+          : { 'apikey': serverSupabaseConfig(project).anonKey }),
       },
       body,
     });

@@ -14,6 +14,48 @@ import { projectFromHeaders, serverSupabaseConfig, DEFAULT_PROJECT } from '@/lib
 // the backend, but the SQL migration is the source of truth.
 import { ALL_MODULES as DASHBOARD_MODULES } from '@/lib/modules';
 
+const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || '';
+
+// Route a /clients request to the backend.
+//
+// Non-default projects (e.g. Kinematic) bypass the per-project `api-proxy`
+// Supabase edge function: that function drops the X-Kinematic-Project header
+// when it forwards to Railway, so the backend validates the JWT against the
+// default (Tata) project and rejects a Kinematic token with 401. We instead
+// hit the backend directly with the project header — the exact path the rest
+// of the dashboard already uses. The default (Tata) project keeps the original
+// edge-function path byte-for-byte unchanged.
+function clientsUpstream(
+  project: string,
+  opts: { method: string; auth: string; orgId: string; body?: string; sub?: string },
+): Promise<Response> {
+  const sub = opts.sub ?? '';
+  const hasBody = opts.body !== undefined;
+  if (project !== DEFAULT_PROJECT && BACKEND_URL) {
+    return fetch(`${BACKEND_URL}/api/v1/clients${sub}`, {
+      method: opts.method,
+      headers: {
+        ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
+        'Authorization': opts.auth,
+        'X-Org-Id': opts.orgId,
+        'X-Kinematic-Project': project,
+      },
+      ...(hasBody ? { body: opts.body } : {}),
+    });
+  }
+  const { url, anonKey } = serverSupabaseConfig(project);
+  return fetch(`${url}/functions/v1/api-proxy/api/v1/clients${sub}`, {
+    method: opts.method,
+    headers: {
+      ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
+      'Authorization': opts.auth,
+      'apikey': anonKey,
+      'X-Org-Id': opts.orgId,
+    },
+    ...(hasBody ? { body: opts.body } : {}),
+  });
+}
+
 async function seedModules(projectKey: string) {
   const { url: supabaseUrl, serviceKey } = serverSupabaseConfig(projectKey);
   if (!supabaseUrl || !serviceKey) return;
@@ -42,19 +84,8 @@ export async function GET(req: NextRequest) {
     const auth  = req.headers.get('Authorization') ?? '';
     const orgId = req.headers.get('X-Org-Id') ?? '';
     const project = projectFromHeaders(req.headers);
-    const { url, anonKey } = serverSupabaseConfig(project);
 
-    const res = await fetch(`${url}/functions/v1/api-proxy/api/v1/clients`, {
-      headers: {
-        'Authorization': auth,
-        'apikey': anonKey,
-        'X-Org-Id': orgId,
-        // Forward the project so the edge function can tell Railway which
-        // Supabase project to validate the JWT against (else it defaults to
-        // Tata and rejects a Kinematic token with 401).
-        ...(project !== DEFAULT_PROJECT ? { 'X-Kinematic-Project': project } : {}),
-      },
-    });
+    const res = await clientsUpstream(project, { method: 'GET', auth, orgId });
 
     const data = await res.json();
     const cors = corsHeaders(req.headers.get('Origin'), 'GET, POST, OPTIONS');
@@ -71,21 +102,10 @@ export async function POST(req: NextRequest) {
     const orgId   = req.headers.get('X-Org-Id') ?? '';
     const body    = await req.text();
     const project = projectFromHeaders(req.headers);
-    const { url, anonKey } = serverSupabaseConfig(project);
 
     await seedModules(project);
 
-    const res = await fetch(`${url}/functions/v1/api-proxy/api/v1/clients`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': auth,
-        'apikey': anonKey,
-        'X-Org-Id': orgId,
-        ...(project !== DEFAULT_PROJECT ? { 'X-Kinematic-Project': project } : {}),
-      },
-      body,
-    });
+    const res = await clientsUpstream(project, { method: 'POST', auth, orgId, body });
 
     const data = await res.json();
     const cors = corsHeaders(req.headers.get('Origin'), 'GET, POST, OPTIONS');
