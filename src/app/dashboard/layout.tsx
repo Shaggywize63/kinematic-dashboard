@@ -168,7 +168,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   useEffect(() => { if (isMobile) setDrawerOpen(false); }, [pathname, isMobile]);
 
   const isPlatformAdmin = (() => {
-    if ((user as any)?.client_id) return false;
+    // Same camelCase/snake_case defence as tataActive below — a Tata
+    // sub_admin whose session returns `clientId` (not `client_id`)
+    // would otherwise be incorrectly treated as a platform admin
+    // and the role-gated nav (and the Tata hide list) would mis-apply.
+    if ((user as any)?.client_id || (user as any)?.clientId) return false;
     const role = (userRole || '').toLowerCase().trim().replace(/-/g, '_');
     const name = (user?.name || '').toLowerCase().trim();
     return ['super_admin', 'admin', 'main_admin', 'sub_admin', 'master_admin'].includes(role) ||
@@ -208,12 +212,37 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // mounted further down the tree, so we read the persisted picker
   // value off localStorage directly — same key the api client uses.
   const TATA_TISCON_CLIENT_ID = 'a1f67468-526e-4734-be3a-2cb132cc2804';
-  const userClientId = (user as any)?.client_id as string | undefined;
+  // Read client_id defensively: the /auth/me endpoint has historically
+  // returned both snake_case (`client_id`) and camelCase (`clientId`)
+  // depending on which controller path normalised the user record. If
+  // we only checked `client_id`, a logged-in Tata rep whose session
+  // happened to carry `clientId` would silently fall through to the
+  // generic nav (Contacts / Accounts / Email-* re-appearing) — exactly
+  // the bug Sagar reported on Hema's session.
+  const u = user as any;
+  const userClientId = (u?.client_id || u?.clientId) as string | undefined;
   const [pickerClientId, setPickerClientId] = useState<string | null>(null);
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try { setPickerClientId(localStorage.getItem('kinematic_selected_client')); }
     catch { /* ignore — storage disabled */ }
+  }, []);
+  // Re-read the picker on every window focus too — the API client
+  // store updates `kinematic_selected_client` synchronously, but if
+  // the rep switches tenants in another tab the layout would
+  // otherwise keep the stale value until a full reload.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const refresh = () => {
+      try { setPickerClientId(localStorage.getItem('kinematic_selected_client')); }
+      catch { /* ignore */ }
+    };
+    window.addEventListener('focus', refresh);
+    window.addEventListener('storage', refresh);
+    return () => {
+      window.removeEventListener('focus', refresh);
+      window.removeEventListener('storage', refresh);
+    };
   }, []);
   const tataActive = userClientId === TATA_TISCON_CLIENT_ID || pickerClientId === TATA_TISCON_CLIENT_ID;
 
