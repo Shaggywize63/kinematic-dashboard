@@ -66,7 +66,7 @@ const MODULES: { id: string; label: string; group: ModuleGroup }[] = ALL_MODULES
   .filter(m => m.group !== 'Audit')
   .map(m => ({ id: m.id, label: m.l, group: m.group }));
 
-const BLANK = { name: '', contact_person: '', email: '', phone: '', password: '', is_active: true, modules: [] as string[] };
+const BLANK = { name: '', contact_person: '', email: '', phone: '', password: '', is_active: true, modules: [] as string[], login_org_id: '' };
 
 const Spinner = () => <div style={{ width: 15, height: 15, border: '2.5px solid rgba(255,255,255,0.18)', borderTopColor: '#fff', borderRadius: '50%', animation: 'kspin .65s linear infinite', flexShrink: 0 }} />;
 const Label = ({ t, req }: { t: string; req?: boolean }) => <div style={{ fontSize: 11, fontWeight: 700, color: C.gray, letterSpacing: '0.7px', textTransform: 'uppercase', marginBottom: 7 }}>{t}{req && <span style={{ color: C.red }}> *</span>}</div>;
@@ -110,7 +110,9 @@ export default function ClientManagement() {
   // back to header-only scoping if token minting isn't available. The acting-as
   // banner (dashboard layout) offers a one-click Exit.
   const loginAsClient = async (c: Client) => {
-    const orgId = (c as { org_id?: string }).org_id;
+    // Prefer the admin-set "Org ID" field; fall back to the client's own org.
+    const cc = c as { login_org_id?: string; org_id?: string };
+    const orgId = cc.login_org_id || cc.org_id;
     try {
       const res: any = await api.impersonateClient(c.id);
       const d = res?.data ?? res;
@@ -130,10 +132,11 @@ export default function ClientManagement() {
       contact_person: c.contact_person || '', 
       email: c.email || '', 
       phone: c.phone || '', 
-      password: '', 
-      is_active: c.is_active, 
-      modules: validIds 
-    }); 
+      password: '',
+      is_active: c.is_active,
+      modules: validIds,
+      login_org_id: (c as { login_org_id?: string }).login_org_id || '',
+    });
     setFErr(''); 
     setShowModal(true); 
   };
@@ -304,6 +307,11 @@ export default function ClientManagement() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
               <div><Label t="Email Address" /><input style={inp} placeholder="client@example.com" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} /></div>
               <div><Label t="Login Password" req={!editing} /><input type="password" style={inp} placeholder={editing ? "(Unchanged)" : "Create password"} value={form.password} onChange={e => setForm(p => ({ ...p, password: e.target.value }))} /></div>
+            </div>
+
+            <div style={{ marginBottom: 24 }}>
+              <Label t="Org ID" />
+              <input style={inp} placeholder="Optional — org UUID the Login button signs into (defaults to this client's org)" value={form.login_org_id} onChange={e => setForm(p => ({ ...p, login_org_id: e.target.value.trim() }))} />
             </div>
 
             <div style={{ marginBottom: 28 }}>
