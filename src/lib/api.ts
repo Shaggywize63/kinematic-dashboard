@@ -24,7 +24,7 @@ const API_URL = resolveApiUrl();
 // Super-admin "Login as client": when set, every request is scoped to this
 // client's org + client_id (the backend honours X-Org-Id for super_admin).
 // Persisted in localStorage so it survives reloads; cleared on "Exit".
-export type ActingAs = { org_id?: string; client_id?: string; name?: string };
+export type ActingAs = { org_id?: string; client_id?: string; name?: string; token?: string };
 export function getActingAs(): ActingAs | null {
   if (typeof window === 'undefined') return null;
   try {
@@ -163,7 +163,18 @@ class ApiClient {
 
   private getToken(): string | null {
     if (typeof window === 'undefined') return null;
+    // "Login as client": the impersonation token (scoped to the client's org)
+    // takes over as the bearer for the whole session. The real token stays in
+    // localStorage untouched, so Exit restores it instantly.
+    const acting = getActingAs();
+    if (acting?.token) return acting.token;
     return localStorage.getItem('kinematic_token');
+  }
+
+  /** Super-admin "Login as client": mint an impersonation session token scoped
+   * to the client's org (backend POST /clients/:id/impersonate). */
+  impersonateClient(clientId: string): Promise<any> {
+    return this.post(`/api/v1/clients/${clientId}/impersonate`, {});
   }
 
   private getUserEmail(): string | null {

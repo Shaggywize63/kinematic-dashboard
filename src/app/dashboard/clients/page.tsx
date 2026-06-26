@@ -4,7 +4,7 @@ import { Client } from '../../../types';
 import ConfirmModal from '../../../components/ConfirmModal';
 import { useAuth } from '../../../hooks/useAuth';
 import { ALL_MODULES, MODULE_GROUPS, MODULE_GROUP_LABELS, type ModuleGroup } from '../../../lib/modules';
-import { setActingAs } from '../../../lib/api';
+import api, { setActingAs } from '../../../lib/api';
 import { getStoredProjectKey, DEFAULT_PROJECT } from '../../../lib/projects';
 
 // Uses the Next.js proxy routes (/api/v1/clients) which seed the modules table
@@ -105,10 +105,19 @@ export default function ClientManagement() {
   useEffect(() => { load(); }, [load]);
 
   const openAdd = () => { setEditing(null); setForm({ ...BLANK }); setFErr(''); setShowModal(true); };
-  // Super-admin "Login as client": pin the acting-as context and reload into
-  // the client's org. The acting-as banner (dashboard layout) offers Exit.
-  const loginAsClient = (c: Client) => {
-    setActingAs({ org_id: (c as { org_id?: string }).org_id, client_id: c.id, name: c.name });
+  // Super-admin "Login as client": mint an impersonation session token scoped
+  // to the client's org, pin the acting-as context, and reload into it. Falls
+  // back to header-only scoping if token minting isn't available. The acting-as
+  // banner (dashboard layout) offers a one-click Exit.
+  const loginAsClient = async (c: Client) => {
+    const orgId = (c as { org_id?: string }).org_id;
+    try {
+      const res: any = await api.impersonateClient(c.id);
+      const d = res?.data ?? res;
+      setActingAs({ org_id: d?.org_id ?? orgId, client_id: c.id, name: c.name, token: d?.token });
+    } catch {
+      setActingAs({ org_id: orgId, client_id: c.id, name: c.name });
+    }
     window.location.href = '/dashboard';
   };
   const openEdit = (c: Client) => { 
