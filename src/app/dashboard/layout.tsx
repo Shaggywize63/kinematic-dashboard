@@ -74,7 +74,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [user, setUser] = useState<any>(null);
   // Super-admin "acting as client" context (set from Client Management → Login).
   // Resolved after mount to avoid SSR hydration mismatch.
-  const [actingAs, setActingAsState] = useState<{ name?: string } | null>(null);
+  const [actingAs, setActingAsState] = useState<{ name?: string; modules?: string[] } | null>(null);
   useEffect(() => { setActingAsState(getActingAs()); }, []);
   // Persist the desktop collapse preference so the rep gets the same
   // sidebar width on every reload. Mobile uses a hamburger drawer and
@@ -268,8 +268,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const visibleAfterTata = visibleAfterDemo.filter((i) => !(i.hiddenForTata && tataActive));
     // Parent Kinematic tenant hide list (opt-in via `hiddenForKinematic`).
     const visibleAfterKinematic = visibleAfterTata.filter((i) => !(i.hiddenForKinematic && kinematicActive));
-    if (isPlatformAdmin) return visibleAfterKinematic;
-    return visibleAfterKinematic.filter(i => hasModule(i.module));
+    // While acting-as a client (super-admin "Login as"), restrict the nav to
+    // the modules granted to that client in Client Management — even though the
+    // impersonated account itself may be a full admin in its own project.
+    const actingModules = actingAs?.modules;
+    const scoped = Array.isArray(actingModules) && actingModules.length
+      ? visibleAfterKinematic.filter(i => !i.module || actingModules.includes(i.module))
+      : visibleAfterKinematic;
+    if (isPlatformAdmin) return scoped;
+    return scoped.filter(i => hasModule(i.module));
   };
 
   const isCrmOnlyClient =

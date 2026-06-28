@@ -126,11 +126,18 @@ export default function ClientManagement() {
       // Swap to the client account's real session.
       localStorage.setItem('kinematic_token', d.access_token);
       if (d.refresh_token) localStorage.setItem('kinematic_refresh_token', d.refresh_token);
-      localStorage.removeItem('kinematic_user');            // re-fetched via /auth/me
       localStorage.removeItem('kinematic_selected_client'); // avoid stale client scope
       setStoredProjectKey(d.project || null);               // route to the account's project
-      setActingAs({ name: c.name });                        // banner only
-      window.location.href = '/dashboard';
+      // Populate the impersonated account's profile NOW so the app is "logged
+      // in" — otherwise the layout sees no stored user and bounces to /login.
+      try {
+        const me: any = await api.get('/api/v1/auth/me');
+        const meUser = me?.data ?? me;
+        if (meUser) localStorage.setItem('kinematic_user', JSON.stringify(meUser));
+      } catch { /* layout will retry /auth/me */ }
+      // Banner + restrict the nav to the modules granted to this client.
+      setActingAs({ name: c.name, modules: (c as { modules?: string[] }).modules || [] });
+      window.location.href = '/dashboard/crm/leads';
     } catch (e: any) {
       alert(e?.response?.data?.error || e?.message || 'Login failed');
     }

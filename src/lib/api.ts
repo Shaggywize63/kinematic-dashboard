@@ -24,7 +24,7 @@ const API_URL = resolveApiUrl();
 // Super-admin "Login as client": when set, every request is scoped to this
 // client's org + client_id (the backend honours X-Org-Id for super_admin).
 // Persisted in localStorage so it survives reloads; cleared on "Exit".
-export type ActingAs = { org_id?: string; client_id?: string; name?: string; token?: string };
+export type ActingAs = { org_id?: string; client_id?: string; name?: string; token?: string; modules?: string[] };
 export function getActingAs(): ActingAs | null {
   if (typeof window === 'undefined') return null;
   try {
