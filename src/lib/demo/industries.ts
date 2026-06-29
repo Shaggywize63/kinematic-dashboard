@@ -12,8 +12,9 @@ export interface IndustryOption {
 }
 
 export const INDUSTRY_OPTIONS: IndustryOption[] = [
-  { value: '',          label: 'Generic (default)' },
-  { value: 'insurance', label: 'Insurance' },
+  { value: '',               label: 'Generic (default)' },
+  { value: 'insurance',      label: 'Insurance' },
+  { value: 'pharmaceutical', label: 'Pharmaceutical' },
 ];
 
 /** Known industry keys the backend will accept (generic is the implicit default). */
