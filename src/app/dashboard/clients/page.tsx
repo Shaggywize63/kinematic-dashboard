@@ -113,7 +113,6 @@ export default function ClientManagement() {
     try {
       const res: any = await api.loginAsCredentials(c.id);
       const d = res?.data ?? res;
-      if (!d?.access_token) throw new Error('No session returned');
       // Save the super-admin session for Exit/restore.
       const su = {
         token: localStorage.getItem('kinematic_token'),
@@ -123,7 +122,20 @@ export default function ClientManagement() {
         client: localStorage.getItem('kinematic_selected_client'),
       };
       localStorage.setItem('kinematic_su_session', JSON.stringify(su));
-      // Swap to the client account's real session.
+      const modules = (c as { modules?: string[] }).modules || [];
+
+      // Same-project client: no stored password — enter it by impersonating its
+      // org on the EXISTING super-admin session (no token swap, no creds).
+      if (d?.mode === 'impersonate' && d?.org_id) {
+        localStorage.removeItem('kinematic_selected_client');
+        if (d.project) setStoredProjectKey(d.project);
+        setActingAs({ org_id: d.org_id, client_id: d.client_id, name: c.name, modules });
+        window.location.href = '/dashboard/crm/leads';
+        return;
+      }
+
+      // Cross-project client: swap into the account's real returned session.
+      if (!d?.access_token) throw new Error('No session returned');
       localStorage.setItem('kinematic_token', d.access_token);
       if (d.refresh_token) localStorage.setItem('kinematic_refresh_token', d.refresh_token);
       localStorage.removeItem('kinematic_selected_client'); // avoid stale client scope
@@ -136,7 +148,7 @@ export default function ClientManagement() {
         if (meUser) localStorage.setItem('kinematic_user', JSON.stringify(meUser));
       } catch { /* layout will retry /auth/me */ }
       // Banner + restrict the nav to the modules granted to this client.
-      setActingAs({ name: c.name, modules: (c as { modules?: string[] }).modules || [] });
+      setActingAs({ name: c.name, modules });
       window.location.href = '/dashboard/crm/leads';
     } catch (e: any) {
       alert(e?.response?.data?.error || e?.message || 'Login failed');
