@@ -55,6 +55,8 @@ function NewActivityPageInner() {
   // "Meeting should be the first option". Old default was 'call'.
   const prefillType = searchParams.get('type') || 'meeting';
   const prefillSubject = searchParams.get('subject') || '';
+  const prefillBody = searchParams.get('body') || '';
+  const prefillDueAt = searchParams.get('due_at') || '';
   const prefillLeadId = searchParams.get('lead_id') || '';
   const prefillContactId = searchParams.get('contact_id') || '';
   const prefillDealId = searchParams.get('deal_id') || '';
@@ -75,8 +77,8 @@ function NewActivityPageInner() {
   // position=0). Free-text fallback stays so reps can still type a custom
   // subject if nothing in the list matches.
   const [subjectOptions, setSubjectOptions] = useState<Array<{ id: string; name: string }>>([]);
-  const [body, setBody] = useState('');
-  const [dueAt, setDueAt] = useState('');
+  const [body, setBody] = useState(prefillBody);
+  const [dueAt, setDueAt] = useState(prefillDueAt);
   // Visit composer state. The rep can do BOTH on one screen / one
   // save:
   //   - `markFirstVisit` → log a completed "First Site Visit"
