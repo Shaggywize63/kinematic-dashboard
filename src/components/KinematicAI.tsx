@@ -332,12 +332,16 @@ Be elite, professional, and data-driven. Use **bold** for key metrics. Proactive
         userOrgId = raw ? JSON.parse(raw)?.org_id ?? null : null;
       } catch {}
 
-      const endpoint = inCrm ? '/api/v1/crm/ai/chat' : '/api/v1/ai/chat';
+      let selCity: string | null = null;
+      try {
+        selCity = typeof window !== 'undefined' ? window.localStorage.getItem('kinematic_selected_city') : null;
+      } catch { /* ignore */ }
+
       const body: any = {
         messages: [...msgs.filter(m => !m.loading), um].slice(-6),
         system: sys(),
       };
-      if (inCrm) body.context = buildKiniContext(pathname || '', userOrgId);
+      if (inCrm) body.context = buildKiniContext(pathname || '', userOrgId, selCity);
 
       const headers: Record<string, string> = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
       if (userOrgId) headers['X-Org-Id'] = userOrgId;
@@ -349,9 +353,20 @@ Be elite, professional, and data-driven. Use **bold** for key metrics. Proactive
         }
       } catch { /* ignore */ }
 
-      const r = await fetch(`${process.env.NEXT_PUBLIC_API_URL}${endpoint}`, {
-        method: 'POST', headers, body: JSON.stringify(body),
-      });
+      // CRM chat targets the agentic v2 endpoint (cross-module tools, context
+      // block, planning loop). If the tenant flag is off the backend returns
+      // 403 KINI_V2_DISABLED — transparently fall back to the legacy v1 path.
+      // The same `context` object carries both v1 and v2 fields, so either
+      // endpoint reads what it needs.
+      const apiBase = process.env.NEXT_PUBLIC_API_URL;
+      const v2Endpoint = '/api/v1/kini/v2/chat';
+      const v1Endpoint = inCrm ? '/api/v1/crm/ai/chat' : '/api/v1/ai/chat';
+      const reqInit = { method: 'POST', headers, body: JSON.stringify(body) } as const;
+
+      let r = await fetch(`${apiBase}${inCrm ? v2Endpoint : v1Endpoint}`, reqInit);
+      if (inCrm && r.status === 403) {
+        r = await fetch(`${apiBase}${v1Endpoint}`, reqInit);
+      }
       const d = await r.json();
       // Quota-exceeded path: backend returns 429 with a friendly message
       // and the current usage view. Surface it as an assistant message so

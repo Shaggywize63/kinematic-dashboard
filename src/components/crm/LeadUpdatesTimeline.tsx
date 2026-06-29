@@ -1,7 +1,9 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { crmLeads, type LeadUpdate } from '../../lib/crmApi';
+import { crmLeads, crmAi, type LeadUpdate } from '../../lib/crmApi';
+import type { UpdateSuggestion } from '../../types/crm';
 import OwnerAvatar from './shared/OwnerAvatar';
 import MentionInput, { renderMentions } from '../messaging/MentionInput';
 
@@ -24,10 +26,13 @@ export default function LeadUpdatesTimeline({
   // on the in-memory lead row + to trigger an NBA recompute.
   onAdded?: () => void;
 }) {
+  const router = useRouter();
   const [items, setItems] = useState<LeadUpdate[]>([]);
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState('');
   const [saving, setSaving] = useState(false);
+  const [suggesting, setSuggesting] = useState(false);
+  const [suggestion, setSuggestion] = useState<UpdateSuggestion | null>(null);
 
   const reload = useCallback(async () => {
     if (!leadId) return;
@@ -76,6 +81,38 @@ export default function LeadUpdatesTimeline({
     }
   };
 
+  // ✨ Suggest — asks KINI to read the draft and propose the next CRM action
+  // (an activity to log, a follow-up to draft, quick next steps). Uses the
+  // lightweight /ai/suggest-from-update helper so it never touches the
+  // monthly KINI chat quota.
+  const suggest = async () => {
+    const text = draft.trim();
+    if (!text) return;
+    setSuggesting(true);
+    setSuggestion(null);
+    try {
+      const r = await crmAi.suggestFromUpdate({ lead_id: leadId, draft: text });
+      const s = r.data;
+      if (!s || (!s.activity && !s.followup && (s.next_actions?.length ?? 0) === 0)) {
+        toast.info('No suggestion for this update — try adding a bit more detail.');
+        return;
+      }
+      setSuggestion(s);
+    } catch (e: any) {
+      toast.error(e.message || 'Could not get a suggestion');
+    } finally {
+      setSuggesting(false);
+    }
+  };
+
+  // Every chip deep-links to the activity composer pre-filled, reusing the
+  // existing /activities/new query-param prefill (lead_id/type/subject/body/due_at).
+  const goToActivity = (params: Record<string, string | undefined>) => {
+    const qs = new URLSearchParams({ lead_id: leadId });
+    for (const [k, v] of Object.entries(params)) if (v) qs.set(k, v);
+    router.push(`/dashboard/crm/activities/new?${qs.toString()}`);
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -92,19 +129,54 @@ export default function LeadUpdatesTimeline({
           <div style={{ fontSize: 10, color: 'var(--text-dim)' }}>
             {draft.length}/2000 · stamps your name and time · @-mentioned teammates get notified
           </div>
-          <button
-            onClick={submit}
-            disabled={saving || !draft.trim()}
-            style={{
-              background: 'var(--primary)', border: 'none', color: '#fff',
-              padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700,
-              cursor: saving || !draft.trim() ? 'not-allowed' : 'pointer',
-              opacity: saving || !draft.trim() ? 0.5 : 1,
-            }}
-          >
-            {saving ? 'Saving…' : 'Add update'}
-          </button>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <button
+              onClick={suggest}
+              disabled={suggesting || !draft.trim()}
+              title="Ask KINI to suggest the next action for this update"
+              style={{
+                background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)',
+                padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+                cursor: suggesting || !draft.trim() ? 'not-allowed' : 'pointer',
+                opacity: suggesting || !draft.trim() ? 0.5 : 1,
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+              }}
+            >
+              <span>✨</span>{suggesting ? 'Thinking…' : 'Suggest'}
+            </button>
+            <button
+              onClick={submit}
+              disabled={saving || !draft.trim()}
+              style={{
+                background: 'var(--primary)', border: 'none', color: '#fff',
+                padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+                cursor: saving || !draft.trim() ? 'not-allowed' : 'pointer',
+                opacity: saving || !draft.trim() ? 0.5 : 1,
+              }}
+            >
+              {saving ? 'Saving…' : 'Add update'}
+            </button>
+          </div>
         </div>
+
+        {suggestion && (
+          <SuggestionPanel
+            s={suggestion}
+            onDismiss={() => setSuggestion(null)}
+            onActivity={() => goToActivity({
+              type: suggestion.activity!.type,
+              subject: suggestion.activity!.subject,
+              body: suggestion.activity!.body || undefined,
+              due_at: suggestion.activity!.due_at || undefined,
+            })}
+            onFollowup={() => goToActivity({
+              type: suggestion.followup!.channel,
+              subject: 'Follow-up',
+              body: suggestion.followup!.message,
+            })}
+            onNextAction={(label) => goToActivity({ type: 'task', subject: label })}
+          />
+        )}
       </div>
 
       {loading && (
@@ -122,6 +194,58 @@ export default function LeadUpdatesTimeline({
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// KINI's read of the typed update: a chip per suggested next step. Each chip
+// opens the activity composer pre-filled — the rep reviews + saves, nothing is
+// logged silently.
+function SuggestionPanel({
+  s, onDismiss, onActivity, onFollowup, onNextAction,
+}: {
+  s: UpdateSuggestion;
+  onDismiss: () => void;
+  onActivity: () => void;
+  onFollowup: () => void;
+  onNextAction: (label: string) => void;
+}) {
+  const chip: React.CSSProperties = {
+    border: '1px solid var(--border)', background: 'var(--s2)', color: 'var(--text)',
+    padding: '6px 12px', borderRadius: 16, fontSize: 12, fontWeight: 600,
+    cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6,
+  };
+  const typeLabel = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
+  return (
+    <div style={{
+      border: '1px solid var(--border)', background: 'var(--s3)', borderRadius: 10,
+      padding: 12, display: 'flex', flexDirection: 'column', gap: 10,
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', letterSpacing: 0.3 }}>
+          ✨ KINI suggests
+        </span>
+        <button onClick={onDismiss} title="Dismiss" style={{
+          background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 14,
+        }}>×</button>
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+        {s.activity && (
+          <button style={chip} onClick={onActivity} title={s.activity.body || ''}>
+            📋 Log {typeLabel(s.activity.type)}: {s.activity.subject}
+          </button>
+        )}
+        {s.followup && (
+          <button style={chip} onClick={onFollowup} title={s.followup.message}>
+            ✉️ Draft {typeLabel(s.followup.channel)} follow-up
+          </button>
+        )}
+        {s.next_actions.map((a, i) => (
+          <button key={i} style={chip} onClick={() => onNextAction(a)} title="Create as a task">
+            ✓ {a}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

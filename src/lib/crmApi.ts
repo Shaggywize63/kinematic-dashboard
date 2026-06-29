@@ -8,7 +8,7 @@ import type {
   AnalyticsSummary, FunnelPoint, PipelineValuePoint, WinRatePoint, ForecastPoint,
   TeamPerformanceRow, LeadTrackerPayload, TeamDailyCard,
   ActivityHeatPoint, SourceROIRow, ScoreDistributionPoint, StateCount,
-  KiniContext, KiniCard,
+  KiniContext, KiniCard, UpdateSuggestion,
   CrmSettings, BusinessType,
   CrmState, CrmCity,
   Product, ProductCategory, DealLineItem,
@@ -534,6 +534,10 @@ export const crmAi = {
     context?: KiniContext;
   }) =>
     api.post<Wrapped<{ text: string; cards?: KiniCard[] }>>(`${BASE}/ai/chat`, body),
+  // Inline ✨ Suggest on the lead-update box. Single-shot helper — does NOT
+  // count against the monthly KINI chat quota.
+  suggestFromUpdate: (body: { lead_id: string; draft: string }) =>
+    api.post<Wrapped<UpdateSuggestion>>(`${BASE}/ai/suggest-from-update`, body),
 };
 
 export const crmSettings = {

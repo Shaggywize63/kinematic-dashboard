@@ -504,6 +504,28 @@ export interface KiniContext {
   module: 'crm'; route: string;
   entity?: { type: string; id?: string } | null;
   org_id?: string | null;
+  // v2 agentic-chat fields (read by /api/v1/kini/v2/chat's buildContextBlock).
+  // The legacy v1 endpoint ignores these; both shapes ride on one object so a
+  // single context works whichever endpoint serves the turn.
+  screen?: string;
+  record_type?: string;
+  record_id?: string;
+  city?: string;
+}
+
+// Inline lead-update suggestion returned by POST /api/v1/crm/ai/suggest-from-update.
+export interface UpdateSuggestion {
+  activity: {
+    type: 'call' | 'meeting' | 'note' | 'task' | 'whatsapp';
+    subject: string;
+    body: string;
+    due_at: string | null;
+  } | null;
+  followup: {
+    channel: 'email' | 'whatsapp' | 'sms';
+    message: string;
+  } | null;
+  next_actions: string[];
 }
 
 // ---------- Phase 2: Products + WhatsApp ----------
