@@ -22,7 +22,7 @@ import {
   mockMobileHome,
 } from './demo/factoriesB';
 import { mockDealHistory, mockWinProbability, mockNextBestAction } from './demo/crmAiMocks';
-import { getActiveSeed, isInsuranceDemo } from './demo/activeSeed';
+import { getActiveSeed, isInsuranceDemo, isPharmaceuticalDemo } from './demo/activeSeed';
 
 // ── CRM org-hierarchy demo data (Settings → Hierarchy) ──────────────────
 // Without these handlers the demo's /crm/hierarchy/* GETs fall through to a
@@ -50,6 +50,24 @@ const GEN_HIER_LEVELS = [
   { id: 'hl-2', name: 'Regional Manager',level_order: 2, parent_level_id: 'hl-1', capabilities: {} },
   { id: 'hl-3', name: 'Area Manager',    level_order: 3, parent_level_id: 'hl-2', capabilities: {} },
   { id: 'hl-4', name: 'Field Executive', level_order: 4, parent_level_id: 'hl-3', capabilities: {} },
+];
+const PHARMA_HIER_LEVELS = [
+  { id: 'hl-1', name: 'Country Head',                level_order: 1, parent_level_id: null,  capabilities: {} },
+  { id: 'hl-2', name: 'National Sales Manager',      level_order: 2, parent_level_id: 'hl-1', capabilities: {} },
+  { id: 'hl-3', name: 'Zonal Sales Manager',         level_order: 3, parent_level_id: 'hl-2', capabilities: {} },
+  { id: 'hl-4', name: 'Regional Sales Manager',      level_order: 4, parent_level_id: 'hl-3', capabilities: {} },
+  { id: 'hl-5', name: 'Area Sales Manager',          level_order: 5, parent_level_id: 'hl-4', capabilities: {} },
+  { id: 'hl-6', name: 'Medical Representative (MR)', level_order: 6, parent_level_id: 'hl-5', capabilities: {} },
+];
+const PHARMA_HIER_MEMBERS = [
+  { id: 'fe-ch', name: 'Rajiv Malhotra', email: 'rajiv.malhotra@lilly.demo', role: 'super_admin', supervisor_id: null,    hierarchy_level_id: 'hl-1', client_id: null },
+  { id: 'fe-nm', name: 'Vikas Bansal',   email: 'vikas.bansal@lilly.demo',   role: 'admin',       supervisor_id: 'fe-ch', hierarchy_level_id: 'hl-2', client_id: null },
+  { id: 'fe-zm', name: 'Anita Desai',    email: 'anita.desai@lilly.demo',    role: 'admin',       supervisor_id: 'fe-nm', hierarchy_level_id: 'hl-3', client_id: null },
+  { id: 'fe4',   name: 'Sneha Rao',      email: 'sneha@demo.in',             role: 'supervisor',  supervisor_id: 'fe-zm', hierarchy_level_id: 'hl-4', client_id: null },
+  { id: 'fe3',   name: 'Rahul Verma',    email: 'rahul@demo.in',             role: 'executive',   supervisor_id: 'fe4',   hierarchy_level_id: 'hl-5', client_id: null },
+  { id: 'fe1',   name: 'Arjun Sharma',   email: 'arjun@demo.in',             role: 'executive',   supervisor_id: 'fe3',   hierarchy_level_id: 'hl-6', client_id: null },
+  { id: 'fe2',   name: 'Priya Patel',    email: 'priya@demo.in',             role: 'executive',   supervisor_id: 'fe3',   hierarchy_level_id: 'hl-6', client_id: null },
+  { id: 'fe5',   name: 'Amit Singh',     email: 'amit@demo.in',              role: 'executive',   supervisor_id: 'fe3',   hierarchy_level_id: 'hl-6', client_id: null },
 ];
 // ── Form builder demo forms ─────────────────────────────────────────────
 // /builder/forms had no demo handler → the Form Builder list came back empty.
@@ -82,6 +100,13 @@ const INS_BUILDER_FORMS = [
 const GEN_BUILDER_FORMS = [
   { id: 'audit-form-1', title: 'Daily Store Audit',  description: 'Shelf, stock and planogram compliance', status: 'published', version: 3, icon: '🏪', cover_color: '#3E9EFF', created_at: _bnow },
   { id: 'comp-form-1',  title: 'Competitor Tracking', description: 'Competitor pricing and promos',          status: 'published', version: 1, icon: '📊', cover_color: '#F7B538', created_at: _bnow },
+];
+const PHARMA_BUILDER_FORMS = [
+  { id: 'pharma-detail-1', title: 'HCP Detailing Form',          description: 'Detail visit summary, key messages and next-best action',    status: 'published', version: 2, icon: '🩺', cover_color: '#3E9EFF', created_at: _bnow },
+  { id: 'pharma-sample-1', title: 'Sample Drop Acknowledgement', description: 'Capture HCP signature for samples handed over',              status: 'published', version: 1, icon: '💊', cover_color: '#7B61FF', created_at: _bnow },
+  { id: 'pharma-cme-1',    title: 'CME Invitation RSVP',         description: 'Send + track CME / symposium invites',                       status: 'published', version: 1, icon: '📅', cover_color: '#28B463', created_at: _bnow },
+  { id: 'pharma-ae-1',     title: 'Adverse Event Report',        description: 'Pharmacovigilance — capture & escalate AE within 24h',        status: 'published', version: 1, icon: '⚠️',  cover_color: '#E0282C', created_at: _bnow },
+  { id: 'pharma-audit-1',  title: 'Pharmacy Stock Audit',        description: 'On-shelf availability of Eli Lilly SKUs',                     status: 'draft',     version: 1, icon: '🏬', cover_color: '#F7B538', created_at: _bnow },
 ];
 
 const GEN_HIER_MEMBERS = [
@@ -128,7 +153,7 @@ const GEN_ROLES = [
   { id: 'demo-role-4', org_id: 'demo-org-999', client_id: null, name: 'Area Manager',      description: 'Owns a beat / cluster — supervises 5-10 FEs.',           parent_id: 'demo-role-3', position: 3, color: '#F59E0B', permissions: ['crm.read', 'crm.leads.write'], permissions_write: [], assigned_cities: ['Bengaluru'], created_at: _rnow, updated_at: _rnow, user_count: 6 },
   { id: 'demo-role-5', org_id: 'demo-org-999', client_id: null, name: 'Field Executive',   description: 'On-ground rep — captures orders, runs visit plans.',     parent_id: 'demo-role-4', position: 4, color: '#10B981', permissions: ['crm.read', 'crm.leads.create', 'crm.activities.create'], permissions_write: [], assigned_cities: ['Delhi', 'Chennai'], created_at: _rnow, updated_at: _rnow, user_count: 24 },
 ];
-function buildRoleTree(roles: typeof INS_ROLES) {
+function buildRoleTree(roles: ReadonlyArray<{ id: string; parent_id: string | null; [k: string]: unknown }>) {
   const byId: Record<string, any> = {};
   roles.forEach((r) => { byId[r.id] = { ...r, children: [] }; });
   const roots: any[] = [];
@@ -143,6 +168,26 @@ const INS_ROLE_USERS: Record<string, Array<{ id: string; name: string; email: st
   'role-sm':    [{ id: 'fe3',   name: 'Rahul Verma',    email: 'rahul@demo.in',             role: 'executive' }],
   'role-adv':   [{ id: 'fe1', name: 'Arjun Sharma', email: 'arjun@demo.in', role: 'executive' }, { id: 'fe2', name: 'Priya Patel', email: 'priya@demo.in', role: 'executive' }, { id: 'fe5', name: 'Amit Singh', email: 'amit@demo.in', role: 'executive' }],
   'role-banca': [{ id: 'fe-banca', name: 'Sunita Menon', email: 'sunita.menon@policybazaar.demo', role: 'executive' }],
+};
+
+const PHARMA_ROLES = [
+  { id: 'role-ch',  org_id: 'demo-org-999', client_id: null, name: 'Country Head',                description: 'Heads Eli Lilly India operations.',                       parent_id: null,      position: 0, color: '#E0282C', permissions: ['*'],                              permissions_write: ['*'],            assigned_cities: [],                  created_at: _rnow, updated_at: _rnow, user_count: 1 },
+  { id: 'role-nsm', org_id: 'demo-org-999', client_id: null, name: 'National Sales Manager',      description: 'Owns the national sales org and forecasts.',              parent_id: 'role-ch', position: 1, color: '#3B82F6', permissions: ['crm.*', 'analytics.*'],            permissions_write: ['crm.*'],        assigned_cities: [],                  created_at: _rnow, updated_at: _rnow, user_count: 2 },
+  { id: 'role-zsm', org_id: 'demo-org-999', client_id: null, name: 'Zonal Sales Manager',         description: 'Owns a zone (West/South/North/East).',                    parent_id: 'role-nsm', position: 2, color: '#8B5CF6', permissions: ['crm.read', 'crm.deals.write'],     permissions_write: ['crm.deals.write'], assigned_cities: ['Mumbai', 'Pune'],  created_at: _rnow, updated_at: _rnow, user_count: 4 },
+  { id: 'role-rsm', org_id: 'demo-org-999', client_id: null, name: 'Regional Sales Manager',      description: 'Owns a region — supervises ASMs.',                        parent_id: 'role-zsm', position: 3, color: '#F59E0B', permissions: ['crm.read', 'crm.leads.write'],     permissions_write: ['crm.leads.write'], assigned_cities: ['Bengaluru'],     created_at: _rnow, updated_at: _rnow, user_count: 8 },
+  { id: 'role-asm', org_id: 'demo-org-999', client_id: null, name: 'Area Sales Manager',          description: 'Leads a team of MRs in a sub-region.',                    parent_id: 'role-rsm', position: 4, color: '#14B8A6', permissions: ['crm.read', 'crm.leads.write'],     permissions_write: [],               assigned_cities: ['Delhi'],          created_at: _rnow, updated_at: _rnow, user_count: 18 },
+  { id: 'role-mr',  org_id: 'demo-org-999', client_id: null, name: 'Medical Representative (MR)', description: 'On-ground MR — detailing, sampling, CME outreach to HCPs.',parent_id: 'role-asm', position: 5, color: '#10B981', permissions: ['crm.read', 'crm.leads.create', 'crm.activities.create'], permissions_write: [], assigned_cities: ['Chennai'], created_at: _rnow, updated_at: _rnow, user_count: 142 },
+  { id: 'role-kam', org_id: 'demo-org-999', client_id: null, name: 'Key Account Manager (Institutional)', description: 'Owns hospital chains and government tenders.', parent_id: 'role-zsm', position: 6, color: '#94A3B8', permissions: ['crm.deals.read', 'crm.deals.write'], permissions_write: ['crm.deals.write'], assigned_cities: [], created_at: _rnow, updated_at: _rnow, user_count: 6 },
+];
+
+const PHARMA_ROLE_USERS: Record<string, Array<{ id: string; name: string; email: string; role: string }>> = {
+  'role-ch':  [{ id: 'fe-ch', name: 'Rajiv Malhotra', email: 'rajiv.malhotra@lilly.demo', role: 'super_admin' }],
+  'role-nsm': [{ id: 'fe-nm', name: 'Vikas Bansal',   email: 'vikas.bansal@lilly.demo',   role: 'admin' }],
+  'role-zsm': [{ id: 'fe-zm', name: 'Anita Desai',    email: 'anita.desai@lilly.demo',    role: 'admin' }],
+  'role-rsm': [{ id: 'fe4',   name: 'Sneha Rao',      email: 'sneha@demo.in',             role: 'supervisor' }],
+  'role-asm': [{ id: 'fe3',   name: 'Rahul Verma',    email: 'rahul@demo.in',             role: 'executive' }],
+  'role-mr':  [{ id: 'fe1', name: 'Arjun Sharma', email: 'arjun@demo.in', role: 'executive' }, { id: 'fe2', name: 'Priya Patel', email: 'priya@demo.in', role: 'executive' }, { id: 'fe5', name: 'Amit Singh', email: 'amit@demo.in', role: 'executive' }],
+  'role-kam': [{ id: 'fe-kam', name: 'Sunita Menon', email: 'sunita.menon@apollopharmacy.demo', role: 'executive' }],
 };
 
 const DIST_BRANDS = [
@@ -784,11 +829,11 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
     if (path === '/forms/templates' || path === '/form-templates') return mockFormTemplates() as unknown as T;
     if (path === '/forms/submissions' || path === '/submissions')  return mockSubmissions() as unknown as T;
     if (path === '/forms/admin/submissions')                       return mockSubmissions() as unknown as T;
-    if (path === '/builder/forms')                                 return list(isInsuranceDemo() ? INS_BUILDER_FORMS : GEN_BUILDER_FORMS) as unknown as T;
+    if (path === '/builder/forms')                                 return list(isPharmaceuticalDemo() ? PHARMA_BUILDER_FORMS : isInsuranceDemo() ? INS_BUILDER_FORMS : GEN_BUILDER_FORMS) as unknown as T;
     {
       // Builder form detail + its pages/questions (so opening the KYC form in
       // the builder shows its fields). KYC_FORM carries _pages/_questions.
-      const forms = isInsuranceDemo() ? INS_BUILDER_FORMS : GEN_BUILDER_FORMS;
+      const forms = isPharmaceuticalDemo() ? PHARMA_BUILDER_FORMS : isInsuranceDemo() ? INS_BUILDER_FORMS : GEN_BUILDER_FORMS;
       const fPagesM = path.match(/^\/builder\/forms\/([^/]+)\/pages$/);
       if (fPagesM) { const f = forms.find((x: any) => x.id === fPagesM[1]) as any; return list((f?._pages) ?? []) as unknown as T; }
       const fQM = path.match(/^\/builder\/forms\/([^/]+)\/questions$/);
@@ -985,8 +1030,8 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
     // CRM org hierarchy (Settings → Hierarchy). Insurance shows a general
     // insurance org structure; generic shows a sales structure.
     if (path === '/crm/hierarchy/enabled')   return wrap({ enabled: true })                                       as unknown as T;
-    if (path === '/crm/hierarchy/levels')    return list(isInsuranceDemo() ? INS_HIER_LEVELS : GEN_HIER_LEVELS)   as unknown as T;
-    if (path === '/crm/hierarchy/members')   return list(isInsuranceDemo() ? INS_HIER_MEMBERS : GEN_HIER_MEMBERS) as unknown as T;
+    if (path === '/crm/hierarchy/levels')    return list(isPharmaceuticalDemo() ? PHARMA_HIER_LEVELS : isInsuranceDemo() ? INS_HIER_LEVELS : GEN_HIER_LEVELS)   as unknown as T;
+    if (path === '/crm/hierarchy/members')   return list(isPharmaceuticalDemo() ? PHARMA_HIER_MEMBERS : isInsuranceDemo() ? INS_HIER_MEMBERS : GEN_HIER_MEMBERS) as unknown as T;
 
     {
       const leadById = path.match(/^\/crm\/leads\/([^/]+)$/);
@@ -1204,14 +1249,17 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
 
     if (path === '/settings' || path === '/settings/org') return wrap({}) as unknown as T;
     if (path === '/roles') {
-      return (isInsuranceDemo() ? INS_ROLES : GEN_ROLES) as unknown as T;
+      return (isPharmaceuticalDemo() ? PHARMA_ROLES : isInsuranceDemo() ? INS_ROLES : GEN_ROLES) as unknown as T;
     }
     if (path === '/roles/tree') {
-      return buildRoleTree(isInsuranceDemo() ? INS_ROLES : GEN_ROLES) as unknown as T;
+      return buildRoleTree(isPharmaceuticalDemo() ? PHARMA_ROLES : isInsuranceDemo() ? INS_ROLES : GEN_ROLES) as unknown as T;
     }
     {
       const roleUsersM = path.match(/^\/roles\/([^/]+)\/users$/);
-      if (roleUsersM) return (INS_ROLE_USERS[roleUsersM[1]] ?? []) as unknown as T;
+      if (roleUsersM) {
+        const lookup = isPharmaceuticalDemo() ? PHARMA_ROLE_USERS : INS_ROLE_USERS;
+        return (lookup[roleUsersM[1]] ?? []) as unknown as T;
+      }
     }
     if (path === '/modules') return list([]) as unknown as T;
 

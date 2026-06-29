@@ -5,6 +5,8 @@
 // seedData.ts + factoriesA.ts + factoriesB.ts.
 // Insurance ("insurance") → the Aviva Life Insurance fixtures in
 // ./insurance/crm.ts + ./insurance/field.ts.
+// Pharmaceutical ("pharmaceutical") → the Eli Lilly fixtures in
+// ./pharmaceutical/crm.ts + ./pharmaceutical/field.ts.
 //
 // matchDemoMock destructures the returned bundle at call time so flipping the
 // header industry switcher changes responses without a rebuild. Names NOT in
@@ -16,14 +18,20 @@ import * as facA from './factoriesA';
 import * as facB from './factoriesB';
 import * as insCrm from './insurance/crm';
 import { INSURANCE_FIELD } from './insurance/field';
+import * as pharmaCrm from './pharmaceutical/crm';
+import { PHARMACEUTICAL_FIELD } from './pharmaceutical/field';
 import { getStoredIndustryScope } from '../../context/IndustryScopeContext';
 
 export function isInsuranceDemo(): boolean {
   return getStoredIndustryScope() === 'insurance';
 }
 
+export function isPharmaceuticalDemo(): boolean {
+  return getStoredIndustryScope() === 'pharmaceutical';
+}
+
 // The set of names matchDemoMock can swap per-vertical. Generic values come
-// from the existing modules; the insurance branch overrides the CRM + field
+// from the existing modules; each vertical branch overrides the CRM + field
 // fixtures it themes. ROUTE_PLANS is intentionally absent from generic (it is
 // a local const in demoMocks.ts) — matchDemoMock falls back to its own.
 function genericBundle(): Record<string, unknown> {
@@ -36,7 +44,6 @@ function genericBundle(): Record<string, unknown> {
     CRM_WA_TEMPLATES_SEED: seed.CRM_WA_TEMPLATES_SEED,
     readDemoCustomFields: seed.readDemoCustomFields,
     writeDemoCustomFields: seed.writeDemoCustomFields,
-    readDemoWaTemplates: seed.readDemoWaTemplates,
     CRM_SETTINGS: {}, // generic demo returned an empty settings blob
     // CRM analytics
     CRM_DASHBOARD_COMPLETE: seed.CRM_DASHBOARD_COMPLETE, CRM_DASHBOARD_SUMMARY: seed.CRM_DASHBOARD_SUMMARY,
@@ -65,34 +72,41 @@ function genericBundle(): Record<string, unknown> {
   };
 }
 
-export function getActiveSeed(): Record<string, any> {
-  const base = genericBundle();
-  if (!isInsuranceDemo()) return base;
+function applyCrmOverrides(base: Record<string, unknown>, c: typeof insCrm | typeof pharmaCrm): Record<string, unknown> {
   return {
     ...base,
-    // CRM overrides
-    CRM_LEADS: insCrm.CRM_LEADS, CRM_DEALS: insCrm.CRM_DEALS, CRM_ACCOUNTS: insCrm.CRM_ACCOUNTS,
-    CRM_CONTACTS: insCrm.CRM_CONTACTS, CRM_ACTIVITIES: insCrm.CRM_ACTIVITIES,
-    CRM_PIPELINES: insCrm.CRM_PIPELINES, CRM_SOURCES: insCrm.CRM_SOURCES,
-    CRM_TERRITORIES: insCrm.CRM_TERRITORIES, CRM_PRODUCTS: insCrm.CRM_PRODUCTS,
-    CRM_WA_TEMPLATES_SEED: insCrm.CRM_WA_TEMPLATES_SEED,
-    readDemoCustomFields: insCrm.readDemoCustomFields,
-    writeDemoCustomFields: insCrm.writeDemoCustomFields,
-    CRM_SETTINGS: insCrm.CRM_SETTINGS,
-    CRM_DASHBOARD_COMPLETE: insCrm.CRM_DASHBOARD_COMPLETE, CRM_DASHBOARD_SUMMARY: insCrm.CRM_DASHBOARD_SUMMARY,
-    CRM_PIPELINE_VALUE: insCrm.CRM_PIPELINE_VALUE, CRM_FUNNEL: insCrm.CRM_FUNNEL, CRM_WIN_RATE: insCrm.CRM_WIN_RATE,
-    CRM_SALES_CYCLE: insCrm.CRM_SALES_CYCLE, CRM_FORECAST: insCrm.CRM_FORECAST, CRM_HEATMAP: insCrm.CRM_HEATMAP,
-    CRM_LEAD_SOURCE_ROI: insCrm.CRM_LEAD_SOURCE_ROI, CRM_SCORE_DIST: insCrm.CRM_SCORE_DIST,
-    CRM_LEAD_VELOCITY: insCrm.CRM_LEAD_VELOCITY, CRM_TIME_TO_FIRST_TOUCH: insCrm.CRM_TIME_TO_FIRST_TOUCH,
-    CRM_STUCK_LEADS_KPI: insCrm.CRM_STUCK_LEADS_KPI, CRM_LOST_REASONS: insCrm.CRM_LOST_REASONS,
-    CRM_WON_REASONS: insCrm.CRM_WON_REASONS, CRM_DISQUAL_REASONS: insCrm.CRM_DISQUAL_REASONS,
-    CRM_STAGE_CONVERSION: insCrm.CRM_STAGE_CONVERSION, CRM_LEAD_AGING: insCrm.CRM_LEAD_AGING,
-    CRM_COHORT_CONVERSION: insCrm.CRM_COHORT_CONVERSION, CRM_ENGAGEMENT_COMPARISON: insCrm.CRM_ENGAGEMENT_COMPARISON,
-    CRM_DAYS_SINCE_TOUCH: insCrm.CRM_DAYS_SINCE_TOUCH, CRM_SCORE_BAND_CONVERSION: insCrm.CRM_SCORE_BAND_CONVERSION,
-    CRM_TERRITORY_CONVERSION: insCrm.CRM_TERRITORY_CONVERSION, CRM_TOUCHPOINTS_TO_RESPONSE: insCrm.CRM_TOUCHPOINTS_TO_RESPONSE,
-    CRM_LEADS_AT_RISK: insCrm.CRM_LEADS_AT_RISK,
-    CRM_ANALYTICS_LAYOUT: insCrm.CRM_ANALYTICS_LAYOUT, CRM_OVERVIEW_LAYOUT: insCrm.CRM_OVERVIEW_LAYOUT,
-    // Field-force overrides (incl. ROUTE_PLANS, absent from generic)
-    ...INSURANCE_FIELD,
+    CRM_LEADS: c.CRM_LEADS, CRM_DEALS: c.CRM_DEALS, CRM_ACCOUNTS: c.CRM_ACCOUNTS,
+    CRM_CONTACTS: c.CRM_CONTACTS, CRM_ACTIVITIES: c.CRM_ACTIVITIES,
+    CRM_PIPELINES: c.CRM_PIPELINES, CRM_SOURCES: c.CRM_SOURCES,
+    CRM_TERRITORIES: c.CRM_TERRITORIES, CRM_PRODUCTS: c.CRM_PRODUCTS,
+    CRM_WA_TEMPLATES_SEED: c.CRM_WA_TEMPLATES_SEED,
+    readDemoCustomFields: c.readDemoCustomFields,
+    writeDemoCustomFields: c.writeDemoCustomFields,
+    CRM_SETTINGS: c.CRM_SETTINGS,
+    CRM_DASHBOARD_COMPLETE: c.CRM_DASHBOARD_COMPLETE, CRM_DASHBOARD_SUMMARY: c.CRM_DASHBOARD_SUMMARY,
+    CRM_PIPELINE_VALUE: c.CRM_PIPELINE_VALUE, CRM_FUNNEL: c.CRM_FUNNEL, CRM_WIN_RATE: c.CRM_WIN_RATE,
+    CRM_SALES_CYCLE: c.CRM_SALES_CYCLE, CRM_FORECAST: c.CRM_FORECAST, CRM_HEATMAP: c.CRM_HEATMAP,
+    CRM_LEAD_SOURCE_ROI: c.CRM_LEAD_SOURCE_ROI, CRM_SCORE_DIST: c.CRM_SCORE_DIST,
+    CRM_LEAD_VELOCITY: c.CRM_LEAD_VELOCITY, CRM_TIME_TO_FIRST_TOUCH: c.CRM_TIME_TO_FIRST_TOUCH,
+    CRM_STUCK_LEADS_KPI: c.CRM_STUCK_LEADS_KPI, CRM_LOST_REASONS: c.CRM_LOST_REASONS,
+    CRM_WON_REASONS: c.CRM_WON_REASONS, CRM_DISQUAL_REASONS: c.CRM_DISQUAL_REASONS,
+    CRM_STAGE_CONVERSION: c.CRM_STAGE_CONVERSION, CRM_LEAD_AGING: c.CRM_LEAD_AGING,
+    CRM_COHORT_CONVERSION: c.CRM_COHORT_CONVERSION, CRM_ENGAGEMENT_COMPARISON: c.CRM_ENGAGEMENT_COMPARISON,
+    CRM_DAYS_SINCE_TOUCH: c.CRM_DAYS_SINCE_TOUCH, CRM_SCORE_BAND_CONVERSION: c.CRM_SCORE_BAND_CONVERSION,
+    CRM_TERRITORY_CONVERSION: c.CRM_TERRITORY_CONVERSION, CRM_TOUCHPOINTS_TO_RESPONSE: c.CRM_TOUCHPOINTS_TO_RESPONSE,
+    CRM_LEADS_AT_RISK: c.CRM_LEADS_AT_RISK,
+    CRM_ANALYTICS_LAYOUT: c.CRM_ANALYTICS_LAYOUT, CRM_OVERVIEW_LAYOUT: c.CRM_OVERVIEW_LAYOUT,
   };
+}
+
+export function getActiveSeed(): Record<string, any> {
+  const base = genericBundle();
+  const scope = getStoredIndustryScope();
+  if (scope === 'insurance') {
+    return { ...applyCrmOverrides(base, insCrm), ...INSURANCE_FIELD };
+  }
+  if (scope === 'pharmaceutical') {
+    return { ...applyCrmOverrides(base, pharmaCrm), ...PHARMACEUTICAL_FIELD };
+  }
+  return base;
 }
