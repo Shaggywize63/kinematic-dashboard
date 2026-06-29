@@ -216,9 +216,17 @@ class ApiClient {
     if (!refreshToken) return null;
     this.refreshInFlight = (async () => {
       try {
+        // Must carry the project header so /auth/refresh refreshes against the
+        // SAME Supabase project that issued the token. Without it the backend
+        // defaults to Tata and rejects a Kinematic refresh token, so the session
+        // can't extend and dies at access-token expiry ("expires very early").
+        const project = getStoredProjectKey();
         const res = await fetch(`${this.baseUrl}/api/v1/auth/refresh`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(project && project !== DEFAULT_PROJECT ? { 'X-Kinematic-Project': project } : {}),
+          },
           body: JSON.stringify({ refresh_token: refreshToken }),
         });
         if (!res.ok) return null;
