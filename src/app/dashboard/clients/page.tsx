@@ -95,10 +95,16 @@ export default function ClientManagement() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await clientsFetch('GET', '/api/v1/clients');
-      const d = Array.isArray(r?.data?.data) ? r.data.data : Array.isArray(r?.data) ? r.data : [];
+      // Use the shared api client (direct to backend, with project/org headers,
+      // acting-as token and 401-refresh) — the same proven path the rest of the
+      // dashboard uses. Avoids the fragile extra Next-proxy hop that caused
+      // "Failed to load clients".
+      const r: any = await api.get('/api/v1/clients', { noCache: true } as RequestInit);
+      const d = Array.isArray(r) ? r
+        : Array.isArray(r?.data) ? r.data
+        : Array.isArray(r?.data?.data) ? r.data.data : [];
       setClients(d); setErr('');
-    } catch (e: any) { setErr(e.message || 'Failed to load clients'); }
+    } catch (e: any) { setErr(e?.response?.data?.error || e?.message || 'Failed to load clients'); }
     finally { setLoading(false); }
   }, []);
 
@@ -186,8 +192,8 @@ export default function ClientManagement() {
     };
 
     try {
-      if (editing) await clientsFetch('PATCH', `/api/v1/clients/${editing.id}`, finalForm);
-      else await clientsFetch('POST', '/api/v1/clients', finalForm);
+      if (editing) await api.patch(`/api/v1/clients/${editing.id}`, finalForm);
+      else await api.post('/api/v1/clients', finalForm);
       setShowModal(false); load();
     } catch (e: any) { setFErr(e.response?.data?.error || e.message || 'Save failed'); }
     finally { setSaving(false); }
@@ -197,7 +203,7 @@ export default function ClientManagement() {
     if(!deleteConfirm.item) return;
     setDeleting(true);
     try {
-      await clientsFetch('DELETE', `/api/v1/clients/${deleteConfirm.item.id}`);
+      await api.delete(`/api/v1/clients/${deleteConfirm.item.id}`);
       setDeleteConfirm({show:false, item:null});
       load();
     } catch(e:any){
