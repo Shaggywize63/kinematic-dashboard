@@ -100,6 +100,11 @@ export const crmLeads = {
     api.get<Wrapped<LeadUpdate[]>>(`${BASE}/leads/${id}/updates${qs(params)}`),
   addUpdate: (id: string, body: { body: string }) =>
     api.post<Wrapped<LeadUpdate>>(`${BASE}/leads/${id}/updates`, body),
+  // Edit (author-only) / delete (author or admin) a single timeline entry.
+  editUpdate: (id: string, updateId: string, body: { body: string }) =>
+    api.patch<Wrapped<LeadUpdate>>(`${BASE}/leads/${id}/updates/${updateId}`, body),
+  deleteUpdate: (id: string, updateId: string) =>
+    api.delete<Wrapped<{ deleted: true }>>(`${BASE}/leads/${id}/updates/${updateId}`),
 };
 
 // Inline type for the lead Updates timeline — kept local since it's only

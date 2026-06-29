@@ -4,8 +4,12 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { crmLeads, crmAi, type LeadUpdate } from '../../lib/crmApi';
 import type { UpdateSuggestion } from '../../types/crm';
+import { getStoredUser } from '../../lib/auth';
 import OwnerAvatar from './shared/OwnerAvatar';
 import MentionInput, { renderMentions } from '../messaging/MentionInput';
+
+// Roles that may delete a teammate's update (mirrors the backend allow-list).
+const ADMIN_ROLES = new Set(['super_admin', 'admin', 'org_admin']);
 
 /**
  * Append-only timeline of free-form Updates for a lead.
@@ -33,6 +37,40 @@ export default function LeadUpdatesTimeline({
   const [saving, setSaving] = useState(false);
   const [suggesting, setSuggesting] = useState(false);
   const [suggestion, setSuggestion] = useState<UpdateSuggestion | null>(null);
+
+  // Current user — drives the per-row edit (author only) / delete (author or
+  // admin) gates. Read once; the stored user doesn't change within a session.
+  const me = getStoredUser();
+  const myId = me?.id ?? null;
+  const isAdmin = !!me?.role && ADMIN_ROLES.has(me.role);
+
+  // Persist an edited body and swap the row in place; the backend re-syncs
+  // the lead's latest_update, so notify the parent to refresh that column.
+  const editUpdate = async (updateId: string, body: string): Promise<boolean> => {
+    const text = body.trim();
+    if (!text) return false;
+    try {
+      const r = await crmLeads.editUpdate(leadId, updateId, { body: text });
+      setItems((prev) => prev.map((it) => (it.id === updateId ? r.data : it)));
+      toast.success('Update edited');
+      onAdded?.();
+      return true;
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to edit update');
+      return false;
+    }
+  };
+
+  const deleteUpdate = async (updateId: string) => {
+    try {
+      await crmLeads.deleteUpdate(leadId, updateId);
+      setItems((prev) => prev.filter((it) => it.id !== updateId));
+      toast.success('Update deleted');
+      onAdded?.();
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to delete update');
+    }
+  };
 
   const reload = useCallback(async () => {
     if (!leadId) return;
@@ -190,7 +228,14 @@ export default function LeadUpdatesTimeline({
       {!loading && items.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {items.map((u) => (
-            <UpdateRow key={u.id} u={u} />
+            <UpdateRow
+              key={u.id}
+              u={u}
+              canEdit={!!myId && u.author_id === myId}
+              canDelete={(!!myId && u.author_id === myId) || isAdmin}
+              onEdit={(body) => editUpdate(u.id, body)}
+              onDelete={() => deleteUpdate(u.id)}
+            />
           ))}
         </div>
       )}
@@ -250,8 +295,34 @@ function SuggestionPanel({
   );
 }
 
-function UpdateRow({ u }: { u: LeadUpdate }) {
+function UpdateRow({
+  u, canEdit, canDelete, onEdit, onDelete,
+}: {
+  u: LeadUpdate;
+  canEdit: boolean;
+  canDelete: boolean;
+  onEdit: (body: string) => Promise<boolean>;
+  onDelete: () => void | Promise<void>;
+}) {
   const who = u.author_name || 'Unknown';
+  const [editing, setEditing] = useState(false);
+  const [confirmDel, setConfirmDel] = useState(false);
+  const [editText, setEditText] = useState(u.body);
+  const [busy, setBusy] = useState(false);
+
+  const saveEdit = async () => {
+    if (!editText.trim() || busy) return;
+    setBusy(true);
+    const ok = await onEdit(editText);
+    setBusy(false);
+    if (ok) setEditing(false);
+  };
+
+  const linkBtn: React.CSSProperties = {
+    background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+    fontSize: 11, fontWeight: 600, color: 'var(--text-dim)',
+  };
+
   return (
     <div style={{
       display: 'flex', gap: 10, alignItems: 'flex-start',
@@ -265,10 +336,57 @@ function UpdateRow({ u }: { u: LeadUpdate }) {
           <span style={{ fontSize: 10, color: 'var(--text-dim)' }} title={new Date(u.created_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}>
             {formatRelative(u.created_at)}
           </span>
+          {/* Edit / delete affordances — only for the author (edit) or an
+              admin (delete). Pushed to the right of the meta row. */}
+          {!editing && (canEdit || canDelete) && (
+            <span style={{ marginLeft: 'auto', display: 'flex', gap: 10 }}>
+              {canEdit && (
+                <button style={linkBtn} onClick={() => { setEditText(u.body); setEditing(true); }}>Edit</button>
+              )}
+              {canDelete && !confirmDel && (
+                <button style={{ ...linkBtn, color: 'var(--danger, #D01E2C)' }} onClick={() => setConfirmDel(true)}>Delete</button>
+              )}
+              {canDelete && confirmDel && (
+                <>
+                  <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>Delete?</span>
+                  <button style={{ ...linkBtn, color: 'var(--danger, #D01E2C)' }} onClick={() => { setConfirmDel(false); void onDelete(); }}>Yes</button>
+                  <button style={linkBtn} onClick={() => setConfirmDel(false)}>No</button>
+                </>
+              )}
+            </span>
+          )}
         </div>
-        <div style={{ fontSize: 13, color: 'var(--text)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: 1.5 }}>
-          {renderMentions(u.body)}
-        </div>
+
+        {editing ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <MentionInput
+              value={editText}
+              onChange={setEditText}
+              rows={3}
+              maxLength={2000}
+              disabled={busy}
+            />
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button style={linkBtn} onClick={() => setEditing(false)} disabled={busy}>Cancel</button>
+              <button
+                onClick={saveEdit}
+                disabled={busy || !editText.trim()}
+                style={{
+                  background: 'var(--primary)', border: 'none', color: '#fff',
+                  padding: '4px 12px', borderRadius: 6, fontSize: 11, fontWeight: 700,
+                  cursor: busy || !editText.trim() ? 'not-allowed' : 'pointer',
+                  opacity: busy || !editText.trim() ? 0.5 : 1,
+                }}
+              >
+                {busy ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div style={{ fontSize: 13, color: 'var(--text)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: 1.5 }}>
+            {renderMentions(u.body)}
+          </div>
+        )}
       </div>
     </div>
   );
