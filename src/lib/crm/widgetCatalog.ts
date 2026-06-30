@@ -203,10 +203,10 @@ export const CUSTOM_DATASETS: CustomDataset[] = [
   { id: 'stuck_leads_top_owners', label: 'Stuck Leads — top owners',
     description: 'Reps with the most stuck (14d+) leads.',
     fields: [
-      { key: 'owner_id', label: 'Owner', type: 'string' },
-      { key: 'count',    label: 'Count', type: 'number' },
+      { key: 'owner', label: 'Owner', type: 'string' },
+      { key: 'count', label: 'Count', type: 'number' },
     ],
-    defaultX: 'owner_id', defaultY: 'count' },
+    defaultX: 'owner', defaultY: 'count' },
 ];
 
 export const datasetById = (id: string): CustomDataset | undefined =>
