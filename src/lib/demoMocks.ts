@@ -102,11 +102,81 @@ const GEN_BUILDER_FORMS = [
   { id: 'comp-form-1',  title: 'Competitor Tracking', description: 'Competitor pricing and promos',          status: 'published', version: 1, icon: '📊', cover_color: '#F7B538', created_at: _bnow },
 ];
 const PHARMA_BUILDER_FORMS = [
-  { id: 'pharma-detail-1', title: 'HCP Detailing Form',          description: 'Detail visit summary, key messages and next-best action',    status: 'published', version: 2, icon: '🩺', cover_color: '#3E9EFF', created_at: _bnow },
-  { id: 'pharma-sample-1', title: 'Sample Drop Acknowledgement', description: 'Capture HCP signature for samples handed over',              status: 'published', version: 1, icon: '💊', cover_color: '#7B61FF', created_at: _bnow },
-  { id: 'pharma-cme-1',    title: 'CME Invitation RSVP',         description: 'Send + track CME / symposium invites',                       status: 'published', version: 1, icon: '📅', cover_color: '#28B463', created_at: _bnow },
-  { id: 'pharma-ae-1',     title: 'Adverse Event Report',        description: 'Pharmacovigilance — capture & escalate AE within 24h',        status: 'published', version: 1, icon: '⚠️',  cover_color: '#E0282C', created_at: _bnow },
-  { id: 'pharma-audit-1',  title: 'Pharmacy Stock Audit',        description: 'On-shelf availability of Eli Lilly SKUs',                     status: 'draft',     version: 1, icon: '🏬', cover_color: '#F7B538', created_at: _bnow },
+  {
+    id: 'pharma-detail-1', title: 'HCP Detailing Form', description: 'Detail visit summary, key messages and next-best action',
+    status: 'published', version: 2, icon: '🩺', cover_color: '#3E9EFF', created_at: _bnow,
+    _pages: [
+      { id: 'pd-p1', form_id: 'pharma-detail-1', title: 'Visit & HCP',     description: 'Who you met and what you detailed', page_order: 1 },
+      { id: 'pd-p2', form_id: 'pharma-detail-1', title: 'Outcome & Proof',  description: 'Intent, next step and on-site proof', page_order: 2 },
+    ],
+    _questions: [
+      { id: 'pd-q1', form_id: 'pharma-detail-1', page_id: 'pd-p1', qtype: 'dropdown',   label: 'HCP Specialty',             is_required: true,  q_order: 1, options: ['Endocrinologist','Oncologist','Diabetologist','Cardiologist','General Physician'], validation: {}, logic: [], media_config: {} },
+      { id: 'pd-q2', form_id: 'pharma-detail-1', page_id: 'pd-p1', qtype: 'checkbox',    label: 'Products Detailed',        is_required: true,  q_order: 2, options: ['Mounjaro','Trulicity','Humalog','Verzenio','Olumiant','Emgality'], validation: {}, logic: [], media_config: {} },
+      { id: 'pd-q3', form_id: 'pharma-detail-1', page_id: 'pd-p1', qtype: 'long_text',   label: 'Key Message Delivered',     is_required: true,  q_order: 3, placeholder: 'e.g. A1c reduction + weight loss vs DPP-4i', options: [], validation: {}, logic: [], media_config: {} },
+      { id: 'pd-q4', form_id: 'pharma-detail-1', page_id: 'pd-p2', qtype: 'number',      label: 'Trial Rx Intent (0–10)',   is_required: true,  q_order: 1, options: [], validation: { min: 0, max: 10 }, logic: [], media_config: {} },
+      { id: 'pd-q5', form_id: 'pharma-detail-1', page_id: 'pd-p2', qtype: 'short_text',  label: 'Next Best Action',          is_required: false, q_order: 2, placeholder: 'e.g. Share SURMOUNT-1 reprint', options: [], validation: {}, logic: [], media_config: {} },
+      { id: 'pd-q6', form_id: 'pharma-detail-1', page_id: 'pd-p2', qtype: 'image',       label: 'MR Selfie at Clinic',       is_required: true,  q_order: 3, options: [], validation: {}, logic: [], media_config: { image_count: 1 } },
+      { id: 'pd-q7', form_id: 'pharma-detail-1', page_id: 'pd-p2', qtype: 'signature',   label: 'HCP Signature',             is_required: false, q_order: 4, options: [], validation: {}, logic: [], media_config: {} },
+    ],
+  },
+  {
+    id: 'pharma-sample-1', title: 'Sample Drop Acknowledgement', description: 'Capture HCP signature for samples handed over',
+    status: 'published', version: 1, icon: '💊', cover_color: '#7B61FF', created_at: _bnow,
+    _pages: [
+      { id: 'ps-p1', form_id: 'pharma-sample-1', title: 'Samples Handed Over', description: 'Product, quantity and acknowledgement', page_order: 1 },
+    ],
+    _questions: [
+      { id: 'ps-q1', form_id: 'pharma-sample-1', page_id: 'ps-p1', qtype: 'dropdown',  label: 'Product Sample',        is_required: true,  q_order: 1, options: ['Mounjaro','Trulicity','Verzenio','Olumiant','Emgality'], validation: {}, logic: [], media_config: {} },
+      { id: 'ps-q2', form_id: 'pharma-sample-1', page_id: 'ps-p1', qtype: 'number',    label: 'Units Dispensed',       is_required: true,  q_order: 2, options: [], validation: { min: 1 }, logic: [], media_config: {} },
+      { id: 'ps-q3', form_id: 'pharma-sample-1', page_id: 'ps-p1', qtype: 'short_text', label: 'Batch Number',         is_required: true,  q_order: 3, options: [], validation: {}, logic: [], media_config: {} },
+      { id: 'ps-q4', form_id: 'pharma-sample-1', page_id: 'ps-p1', qtype: 'image',     label: 'Sample Pack Photo',     is_required: false, q_order: 4, options: [], validation: {}, logic: [], media_config: { image_count: 1 } },
+      { id: 'ps-q5', form_id: 'pharma-sample-1', page_id: 'ps-p1', qtype: 'signature', label: 'HCP Signature',         is_required: true,  q_order: 5, options: [], validation: {}, logic: [], media_config: {} },
+    ],
+  },
+  {
+    id: 'pharma-cme-1', title: 'CME Invitation RSVP', description: 'Send + track CME / symposium invites',
+    status: 'published', version: 1, icon: '📅', cover_color: '#28B463', created_at: _bnow,
+    _pages: [
+      { id: 'pc-p1', form_id: 'pharma-cme-1', title: 'RSVP', description: 'Event and attendance', page_order: 1 },
+    ],
+    _questions: [
+      { id: 'pc-q1', form_id: 'pharma-cme-1', page_id: 'pc-p1', qtype: 'short_text', label: 'HCP Name',            is_required: true,  q_order: 1, options: [], validation: {}, logic: [], media_config: {} },
+      { id: 'pc-q2', form_id: 'pharma-cme-1', page_id: 'pc-p1', qtype: 'dropdown',   label: 'Event',               is_required: true,  q_order: 2, options: ['Diabetes Update 2026 — Mumbai','Oncology Forum — Bengaluru','Endocrine Masterclass — Delhi'], validation: {}, logic: [], media_config: {} },
+      { id: 'pc-q3', form_id: 'pharma-cme-1', page_id: 'pc-p1', qtype: 'dropdown',   label: 'Attendance',          is_required: true,  q_order: 3, options: ['Confirmed','Tentative','Declined'], validation: {}, logic: [], media_config: {} },
+      { id: 'pc-q4', form_id: 'pharma-cme-1', page_id: 'pc-p1', qtype: 'long_text',  label: 'Notes',               is_required: false, q_order: 4, options: [], validation: {}, logic: [], media_config: {} },
+    ],
+  },
+  {
+    id: 'pharma-ae-1', title: 'Adverse Event Report', description: 'Pharmacovigilance — capture & escalate AE within 24h',
+    status: 'published', version: 1, icon: '⚠️', cover_color: '#E0282C', created_at: _bnow,
+    _pages: [
+      { id: 'pa-p1', form_id: 'pharma-ae-1', title: 'Event', description: 'What happened', page_order: 1 },
+      { id: 'pa-p2', form_id: 'pharma-ae-1', title: 'Reporter', description: 'Reporter and sign-off', page_order: 2 },
+    ],
+    _questions: [
+      { id: 'pa-q1', form_id: 'pharma-ae-1', page_id: 'pa-p1', qtype: 'dropdown',   label: 'Suspect Product',        is_required: true,  q_order: 1, options: ['Mounjaro','Trulicity','Humalog','Verzenio','Olumiant','Emgality','Cyramza'], validation: {}, logic: [], media_config: {} },
+      { id: 'pa-q2', form_id: 'pharma-ae-1', page_id: 'pa-p1', qtype: 'long_text',  label: 'Event Description',      is_required: true,  q_order: 2, options: [], validation: {}, logic: [], media_config: {} },
+      { id: 'pa-q3', form_id: 'pharma-ae-1', page_id: 'pa-p1', qtype: 'dropdown',   label: 'Severity',               is_required: true,  q_order: 3, options: ['Mild','Moderate','Severe','Life-threatening'], validation: {}, logic: [], media_config: {} },
+      { id: 'pa-q4', form_id: 'pharma-ae-1', page_id: 'pa-p1', qtype: 'date',       label: 'Onset Date',             is_required: true,  q_order: 4, options: [], validation: {}, logic: [], media_config: {} },
+      { id: 'pa-q5', form_id: 'pharma-ae-1', page_id: 'pa-p2', qtype: 'short_text', label: 'Patient Initials',       is_required: true,  q_order: 1, options: [], validation: {}, logic: [], media_config: {} },
+      { id: 'pa-q6', form_id: 'pharma-ae-1', page_id: 'pa-p2', qtype: 'short_text', label: 'Reporting HCP',          is_required: true,  q_order: 2, options: [], validation: {}, logic: [], media_config: {} },
+      { id: 'pa-q7', form_id: 'pharma-ae-1', page_id: 'pa-p2', qtype: 'signature',  label: 'Reporter Signature',     is_required: true,  q_order: 3, options: [], validation: {}, logic: [], media_config: {} },
+    ],
+  },
+  {
+    id: 'pharma-audit-1', title: 'Pharmacy Stock Audit', description: 'On-shelf availability of Eli Lilly SKUs',
+    status: 'draft', version: 1, icon: '🏬', cover_color: '#F7B538', created_at: _bnow,
+    _pages: [
+      { id: 'pau-p1', form_id: 'pharma-audit-1', title: 'Shelf Check', description: 'On-shelf availability and expiry', page_order: 1 },
+    ],
+    _questions: [
+      { id: 'pau-q1', form_id: 'pharma-audit-1', page_id: 'pau-p1', qtype: 'short_text', label: 'Outlet / Pharmacy Name', is_required: true,  q_order: 1, options: [], validation: {}, logic: [], media_config: {} },
+      { id: 'pau-q2', form_id: 'pharma-audit-1', page_id: 'pau-p1', qtype: 'dropdown',   label: 'SKU Audited',            is_required: true,  q_order: 2, options: ['Mounjaro 5mg','Trulicity 1.5mg','Humalog 100IU','Verzenio 150mg','Emgality 120mg'], validation: {}, logic: [], media_config: {} },
+      { id: 'pau-q3', form_id: 'pharma-audit-1', page_id: 'pau-p1', qtype: 'number',     label: 'On-shelf Quantity',      is_required: true,  q_order: 3, options: [], validation: { min: 0 }, logic: [], media_config: {} },
+      { id: 'pau-q4', form_id: 'pharma-audit-1', page_id: 'pau-p1', qtype: 'dropdown',   label: 'Expiry Status',          is_required: true,  q_order: 4, options: ['OK (>6 months)','Near expiry (<3 months)','Expired'], validation: {}, logic: [], media_config: {} },
+      { id: 'pau-q5', form_id: 'pharma-audit-1', page_id: 'pau-p1', qtype: 'image',      label: 'Shelf Photo',            is_required: false, q_order: 5, options: [], validation: {}, logic: [], media_config: { image_count: 1 } },
+    ],
+  },
 ];
 
 const GEN_HIER_MEMBERS = [
