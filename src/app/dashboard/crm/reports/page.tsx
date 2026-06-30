@@ -14,6 +14,7 @@ type ReportEntry = {
 
 const REPORTS: ReportEntry[] = [
   { href: '/dashboard/crm/reports/builder', title: '🛠 Custom Report Builder', desc: 'Pick entity, fields, filters, grouping, and export to CSV.', highlight: true, championHidden: true },
+  { href: '/dashboard/crm/reports/schedules', title: '📧 Scheduled Digests', desc: 'Email any report to your team on a recurring daily / weekly / monthly schedule.', highlight: true, championHidden: true },
   { href: '/dashboard/crm/reports/team-performance', title: 'Team Performance', desc: 'Won volume, conversion rate, lead ageing and new leads per rep across your hierarchy subtree.' },
   { href: '/dashboard/crm/reports/lead-tracker', title: 'Lead Tracker', desc: 'Monthly new-lead bar chart plus today / week / month summaries for your team.', championHidden: true },
   { href: '/dashboard/crm/reports/team-daily', title: 'Team Daily Activity', desc: 'Per-rep attendance, visits achieved vs scheduled, and leads added — for any chosen day.', championHidden: true },
