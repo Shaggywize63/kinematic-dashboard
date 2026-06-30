@@ -20,6 +20,7 @@ import { crmAnalyticsExt, type WidgetInstance } from '../../../lib/crmAnalyticsE
 import { crmLeads } from '../../../lib/crmApi';
 import { widgetByType, datasetById, type ChartType, type WidgetMeta } from '../../../lib/crm/widgetCatalog';
 import TargetsLeaderboard from './TargetsLeaderboard';
+import { CHART_PALETTE } from '../../../lib/chartTheme';
 
 // leaflet.heat reaches for window.L on import, so the heatmap can only
 // load client-side. Dynamic-import with ssr:false keeps the analytics
@@ -29,7 +30,8 @@ const LeadsGeoHeatmap = dynamic(() => import('../charts/LeadsGeoHeatmap'), {
   loading: () => <div style={{ padding: 16, color: 'var(--text-secondary)' }}>Loading map…</div>,
 });
 
-const COLORS = ['#3B82F6', '#10B981', '#8B5CF6', '#F59E0B', '#EC4899', '#14B8A6', '#F97316', '#84CC16', '#06B6D4', '#E0282C'];
+// Share the kit palette so Lead Analytics matches every other chart surface.
+const COLORS = CHART_PALETTE;
 
 const ACCENT_BY_CATEGORY: Record<string, string> = {
   Velocity:   '#3B82F6',
@@ -395,12 +397,14 @@ function formatMinutesAsHM(mins: number | null | undefined): string {
 }
 
 const tooltipStyle: React.CSSProperties = {
-  background: 'var(--s2)',
+  background: 'color-mix(in srgb, var(--s2) 86%, transparent)',
+  backdropFilter: 'blur(8px)',
+  WebkitBackdropFilter: 'blur(8px)',
   border: '1px solid var(--border)',
-  borderRadius: 8,
-  padding: '8px 10px',
+  borderRadius: 10,
+  padding: '9px 11px',
   fontSize: 12,
-  boxShadow: '0 4px 14px rgba(0,0,0,0.25)',
+  boxShadow: '0 10px 28px rgba(0,0,0,0.38)',
 };
 
 function BarSeries({ data, keys, suffix, accent }: { data: any[]; keys: string[]; suffix?: string; accent?: string }) {
