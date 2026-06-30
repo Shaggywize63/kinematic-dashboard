@@ -1158,6 +1158,59 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
     if (path === '/crm/analytics/touchpoints-to-response')  return wrap(CRM_TOUCHPOINTS_TO_RESPONSE)as unknown as T;
     if (path === '/crm/analytics/leads-at-risk')            return wrap(CRM_LEADS_AT_RISK)          as unknown as T;
 
+    // ── Market Intelligence demo (steel / Tata Tiscon flavour) ──
+    if (path.startsWith('/crm/analytics/intel/')) {
+      const DEMO_INTEL_SHARE = [
+        { competitor_key: 'jindal panther', competitor: 'Jindal Panther', mentions: 28, we_winning: 9, we_losing: 19, lose_rate_pct: 67.9 },
+        { competitor_key: 'jsw neosteel', competitor: 'JSW Neosteel', mentions: 21, we_winning: 12, we_losing: 9, lose_rate_pct: 42.9 },
+        { competitor_key: 'sail', competitor: 'SAIL', mentions: 14, we_winning: 8, we_losing: 6, lose_rate_pct: 42.9 },
+        { competitor_key: 'kamdhenu', competitor: 'Kamdhenu', mentions: 9, we_winning: 6, we_losing: 3, lose_rate_pct: 33.3 },
+        { competitor_key: 'vizag', competitor: 'Vizag Steel', mentions: 6, we_winning: 5, we_losing: 1, lose_rate_pct: 16.7 },
+      ];
+      const DEMO_INTEL_PRICE = [
+        { competitor_key: 'jindal panther', competitor: 'Jindal Panther', avg_price_delta: -1.8, samples: 14 },
+        { competitor_key: 'jsw neosteel', competitor: 'JSW Neosteel', avg_price_delta: -0.6, samples: 11 },
+        { competitor_key: 'sail', competitor: 'SAIL', avg_price_delta: 0.9, samples: 7 },
+        { competitor_key: 'kamdhenu', competitor: 'Kamdhenu', avg_price_delta: -2.4, samples: 5 },
+      ];
+      const DEMO_INTEL_BREAKDOWN = [
+        { signal_type: 'price', count: 31 },
+        { signal_type: 'competitor_mention', count: 24 },
+        { signal_type: 'intent', count: 12 },
+        { signal_type: 'stockout', count: 7 },
+        { signal_type: 'timeline', count: 6 },
+        { signal_type: 'quality', count: 4 },
+      ];
+      const DEMO_INTEL_BYCITY = [
+        { city: 'Mumbai', mentions: 22, we_winning: 7, we_losing: 15 },
+        { city: 'Pune', mentions: 18, we_winning: 11, we_losing: 7 },
+        { city: 'Nagpur', mentions: 12, we_winning: 8, we_losing: 4 },
+        { city: 'Nashik', mentions: 9, we_winning: 6, we_losing: 3 },
+        { city: 'Thane', mentions: 7, we_winning: 3, we_losing: 4 },
+      ];
+      const DEMO_INTEL_TREND = [
+        { month: '2026-01', mentions: 9, we_losing: 5 },
+        { month: '2026-02', mentions: 12, we_losing: 6 },
+        { month: '2026-03', mentions: 15, we_losing: 7 },
+        { month: '2026-04', mentions: 14, we_losing: 9 },
+        { month: '2026-05', mentions: 18, we_losing: 8 },
+        { month: '2026-06', mentions: 20, we_losing: 11 },
+      ];
+      const DEMO_INTEL_FEED = [
+        { id: 'sig-1', created_at: '2026-06-28T09:12:00Z', signal_type: 'price', competitor_name: 'Jindal Panther', stance: 'we_losing', price_delta: -2, city: 'Mumbai', body: 'Contractor says Jindal quoted ₹2/kg less for 12mm at the Andheri site.', lead_id: null },
+        { id: 'sig-2', created_at: '2026-06-27T15:40:00Z', signal_type: 'stockout', competitor_name: null, stance: 'we_winning', price_delta: null, city: 'Pune', body: 'Dealer out of 16mm from JSW — customer switched the order to us.', lead_id: null },
+        { id: 'sig-3', created_at: '2026-06-27T11:05:00Z', signal_type: 'intent', competitor_name: 'SAIL', stance: 'we_losing', price_delta: null, city: 'Mumbai', body: 'Builder leaning to SAIL for the next two towers on credit terms.', lead_id: null },
+        { id: 'sig-4', created_at: '2026-06-26T18:20:00Z', signal_type: 'quality', competitor_name: 'Kamdhenu', stance: 'we_winning', price_delta: null, city: 'Nagpur', body: 'Mason prefers our rebar bendability over Kamdhenu after a site trial.', lead_id: null },
+        { id: 'sig-5', created_at: '2026-06-25T08:55:00Z', signal_type: 'timeline', competitor_name: null, stance: 'neutral', price_delta: null, city: 'Nashik', body: 'Purchase expected next month once slab work starts.', lead_id: null },
+      ];
+      if (path === '/crm/analytics/intel/competitor-share') return wrap(DEMO_INTEL_SHARE) as unknown as T;
+      if (path === '/crm/analytics/intel/competitor-price') return wrap(DEMO_INTEL_PRICE) as unknown as T;
+      if (path === '/crm/analytics/intel/signal-breakdown') return wrap(DEMO_INTEL_BREAKDOWN) as unknown as T;
+      if (path === '/crm/analytics/intel/by-city') return wrap(DEMO_INTEL_BYCITY) as unknown as T;
+      if (path === '/crm/analytics/intel/trend') return wrap(DEMO_INTEL_TREND) as unknown as T;
+      if (path === '/crm/analytics/intel/feed') return wrap(DEMO_INTEL_FEED) as unknown as T;
+    }
+
     if (path === '/crm/dashboard-layouts/analytics')        return wrap(CRM_ANALYTICS_LAYOUT)       as unknown as T;
     if (path === '/crm/dashboard-layouts/overview')         return wrap(CRM_OVERVIEW_LAYOUT)        as unknown as T;
     if (path === '/crm/dashboard-layouts/ffm')              return wrap(null)                       as unknown as T;

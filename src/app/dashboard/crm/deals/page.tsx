@@ -64,7 +64,7 @@ function DealsListPage() {
       const qs = new URLSearchParams();
       if (q) qs.set('q', q);
       if (status) qs.set('status', status);
-      if (view === 'kanban' && pipelineId) qs.set('pipeline_id', pipelineId);
+      if (pipelineId) qs.set('pipeline_id', pipelineId);
       const url = `${API_BASE_URL}/api/v1/crm/deals/export${qs.toString() ? `?${qs.toString()}` : ''}`;
       const token = getStoredToken();
       const headers: Record<string, string> = {};
@@ -101,6 +101,12 @@ function DealsListPage() {
   const [pagination, setPagination] = useState<Pagination | null>(null);
   const dealView = useViewPrefs('deals');
   const dealHidden = useMemo(() => new Set(dealView.prefs.hidden), [dealView.prefs.hidden]);
+  // The pipeline to fall back to when entering Kanban without an explicit pick —
+  // Kanban must render a concrete pipeline's stage columns.
+  const defaultPipelineId = useMemo(
+    () => pipelines.find((p) => p.is_default)?.id || pipelines[0]?.id || '',
+    [pipelines],
+  );
 
   // Sync URL when the user toggles view / picks pipeline so the link is
   // shareable and a browser refresh keeps the mode.
@@ -117,7 +123,10 @@ function DealsListPage() {
       const r = await crmPipelines.list();
       const list = r.data || [];
       setPipelines(list);
-      if (!pipelineId) {
+      // Only auto-pick a pipeline when starting in Kanban (it needs a concrete
+      // pipeline to render stage columns). List view defaults to "All pipelines"
+      // so it keeps showing every deal until the user opts into a filter.
+      if (!pipelineId && view === 'kanban') {
         const def = list.find((p) => p.is_default) || list[0];
         if (def) setPipelineId(def.id);
       }
@@ -140,6 +149,7 @@ function DealsListPage() {
         params.page = page;
         params.limit = pageSize;
         if (status) params.status = status;
+        if (pipelineId) params.pipeline_id = pipelineId;
       }
       const r = await crmDeals.list(params);
       setDeals(r.data || []);
@@ -248,7 +258,15 @@ function DealsListPage() {
               return (
                 <button
                   key={v}
-                  onClick={() => { setView(v); setSelected(new Set()); syncUrl(v, pipelineId); }}
+                  onClick={() => {
+                    // Kanban needs a concrete pipeline; if none is picked (List
+                    // default = "All"), fall back to the default pipeline.
+                    const nextPid = v === 'kanban' && !pipelineId ? defaultPipelineId : pipelineId;
+                    setView(v);
+                    if (nextPid !== pipelineId) setPipelineId(nextPid);
+                    setSelected(new Set());
+                    syncUrl(v, nextPid);
+                  }}
                   style={{
                     background: active ? 'var(--primary)' : 'transparent',
                     color: active ? '#fff' : 'var(--text-dim)',
@@ -261,12 +279,14 @@ function DealsListPage() {
             })}
           </div>
 
-          {/* Pipeline selector — only meaningful in kanban (filters by pipeline) */}
-          {view === 'kanban' && pipelines.length > 0 && (
+          {/* Pipeline selector — in Kanban it picks the board; in List it
+              filters the deals (with an "All pipelines" escape hatch). */}
+          {pipelines.length > 0 && (
             <select
               value={pipelineId}
               onChange={(e) => { setPipelineId(e.target.value); syncUrl(view, e.target.value); }}
               style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 }}>
+              {view === 'list' && <option value="">All pipelines</option>}
               {pipelines.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}{p.is_default ? ' (default)' : ''}
