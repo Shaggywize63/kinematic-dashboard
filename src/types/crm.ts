@@ -221,11 +221,13 @@ export interface LeadSource {
   is_active: boolean; created_at: string;
 }
 
+// Mirrors crm_lead_assignment_rules — the table assignOwner() actually reads.
 export interface AssignmentRule {
-  id: string; org_id: string; name: string; position: number; is_active: boolean;
-  match_field?: string | null; match_op?: string | null; match_value?: string | null;
-  assignee_user_id?: string | null; assignee_team_id?: string | null;
-  territory_id?: string | null; created_at: string;
+  id: string; org_id: string; name: string; priority: number; is_active: boolean;
+  criteria?: Record<string, unknown> | null;
+  assign_to_user_id?: string | null; assign_to_team_id?: string | null;
+  round_robin_pool?: string[] | null; pipeline_id?: string | null;
+  created_at: string; updated_at?: string;
 }
 
 export interface Territory {
