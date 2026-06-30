@@ -101,6 +101,9 @@ export default function LeadUpdatesTimeline({
       // the GET endpoint returns (newest first).
       setItems((prev) => [r.data, ...prev]);
       setDraft('');
+      // Drop any suggestion tied to the previous update so the panel doesn't
+      // show stale advice for an update that's no longer the latest.
+      setSuggestion(null);
       toast.success('Update added');
       onAdded?.();
     } catch (e: any) {
@@ -124,7 +127,9 @@ export default function LeadUpdatesTimeline({
   // lightweight /ai/suggest-from-update helper so it never touches the
   // monthly KINI chat quota.
   const suggest = async () => {
-    const text = draft.trim();
+    // Suggest only runs once an update has been logged, and reads the latest
+    // *submitted* update (newest-first, so items[0]) — never the live draft.
+    const text = items[0]?.body?.trim() || '';
     if (!text) return;
     setSuggesting(true);
     setSuggestion(null);
@@ -168,20 +173,22 @@ export default function LeadUpdatesTimeline({
             {draft.length}/2000 · stamps your name and time · @-mentioned teammates get notified
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <button
-              onClick={suggest}
-              disabled={suggesting || !draft.trim()}
-              title="Ask KINI to suggest the next action for this update"
-              style={{
-                background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)',
-                padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700,
-                cursor: suggesting || !draft.trim() ? 'not-allowed' : 'pointer',
-                opacity: suggesting || !draft.trim() ? 0.5 : 1,
-                display: 'inline-flex', alignItems: 'center', gap: 6,
-              }}
-            >
-              <span>✨</span>{suggesting ? 'Thinking…' : 'Suggest'}
-            </button>
+            {items.length > 0 && (
+              <button
+                onClick={suggest}
+                disabled={suggesting}
+                title="Ask KINI to suggest the next action for your latest update"
+                style={{
+                  background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)',
+                  padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+                  cursor: suggesting ? 'not-allowed' : 'pointer',
+                  opacity: suggesting ? 0.5 : 1,
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                }}
+              >
+                <span>✨</span>{suggesting ? 'Thinking…' : 'Suggest'}
+              </button>
+            )}
             <button
               onClick={submit}
               disabled={saving || !draft.trim()}
