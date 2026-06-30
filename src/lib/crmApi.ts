@@ -552,6 +552,34 @@ export const crmSettings = {
   seedDefaults: () => api.post<Wrapped<{ seeded: number }>>(`${BASE}/settings/seed-defaults`, {}),
 };
 
+// ── Scheduled report digests ─────────────────────────────────────────────────
+export type DigestFrequency = 'daily' | 'weekly' | 'monthly';
+export interface ReportSchedule {
+  id: string;
+  name: string;
+  report_key: string;
+  config?: Record<string, unknown> | null;
+  frequency: DigestFrequency;
+  send_hour: number;
+  day_of_week?: number | null;
+  day_of_month?: number | null;
+  to_emails: string[];
+  is_active: boolean;
+  last_run_at?: string | null;
+  next_run_at?: string | null;
+  created_at?: string;
+}
+export type ReportScheduleInput = Omit<ReportSchedule, 'id' | 'last_run_at' | 'next_run_at' | 'created_at'>;
+
+export const crmReportSchedules = {
+  catalog: () => api.get<Wrapped<Array<{ key: string; label: string }>>>(`${BASE}/report-schedules/catalog`),
+  list: () => api.get<Wrapped<ReportSchedule[]>>(`${BASE}/report-schedules`),
+  create: (body: Partial<ReportScheduleInput>) => api.post<Wrapped<ReportSchedule>>(`${BASE}/report-schedules`, body),
+  update: (id: string, body: Partial<ReportScheduleInput>) => api.patch<Wrapped<ReportSchedule>>(`${BASE}/report-schedules/${id}`, body),
+  remove: (id: string) => api.delete<Wrapped<{ success: true }>>(`${BASE}/report-schedules/${id}`),
+  runNow: (id: string) => api.post<Wrapped<{ sent: number; recipients: number }>>(`${BASE}/report-schedules/${id}/run-now`, {}),
+};
+
 // ── Lead-source integrations (admin) ─────────────────────────────────────────────
 // Note: integrations live at /api/v1/integrations (not under /crm) on
 // the backend because the public webhook ingestion routes need to be
