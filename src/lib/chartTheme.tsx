@@ -5,7 +5,7 @@
  * bars, glassy tooltip, and animated entrance from one place.
  */
 import { motion } from 'framer-motion';
-import type { ReactNode } from 'react';
+import type { ReactNode, CSSProperties } from 'react';
 import { formatINRCompact } from './formatCurrency';
 
 // Vibrant, high-contrast series palette (works on the dark CRM surfaces).
@@ -36,6 +36,17 @@ export function GradientDefs({ colors, top = 0.95, bottom = 0.25 }: { colors: st
     </defs>
   );
 }
+
+// Drop-in replacement for the old per-chart `contentStyle` object so every
+// recharts default tooltip gets the glassy blurred look in one swap.
+export const GLASS_TOOLTIP: CSSProperties = {
+  background: 'color-mix(in srgb, var(--s2) 86%, transparent)',
+  backdropFilter: 'blur(8px)',
+  WebkitBackdropFilter: 'blur(8px)',
+  border: '1px solid var(--border)',
+  borderRadius: 10,
+  boxShadow: '0 10px 28px rgba(0,0,0,0.38)',
+};
 
 export const CHART = {
   grid: { stroke: 'var(--border)', strokeDasharray: '4 4', vertical: false },

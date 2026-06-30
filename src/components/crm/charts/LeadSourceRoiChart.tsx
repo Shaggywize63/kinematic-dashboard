@@ -9,7 +9,7 @@ export default function LeadSourceRoiChart({ data }: { data: SourceROIRow[] }) {
         <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" />
         <XAxis dataKey="source" stroke="var(--text-dim)" fontSize={11} />
         <YAxis stroke="var(--text-dim)" fontSize={11} />
-        <Tooltip contentStyle={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 8 }} labelStyle={{ color: '#E01E2C', fontWeight: 700 }} itemStyle={{ color: '#E01E2C' }} />
+        <Tooltip contentStyle={{ background: 'color-mix(in srgb, var(--s2) 86%, transparent)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', border: '1px solid var(--border)', borderRadius: 10, boxShadow: '0 10px 28px rgba(0,0,0,0.38)' }} labelStyle={{ color: '#E01E2C', fontWeight: 700 }} itemStyle={{ color: '#E01E2C' }} />
         <Legend wrapperStyle={{ fontSize: 12 }} />
         <Bar dataKey="revenue" fill="#28B463" name="Revenue" />
         <Bar dataKey="cost" fill="#E01E2C" name="Cost" />

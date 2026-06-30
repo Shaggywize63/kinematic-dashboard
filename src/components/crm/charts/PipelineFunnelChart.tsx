@@ -1,6 +1,7 @@
 'use client';
 import { useMemo } from 'react';
 import type { FunnelPoint } from '../../../types/crm';
+import { CHART_PALETTE } from '../../../lib/chartTheme';
 
 // Custom funnel — Recharts' built-in <Funnel> doesn't surface drop-off rates
 // or stage-to-stage conversion, which is the most useful read on a CRM funnel.
@@ -8,7 +9,7 @@ import type { FunnelPoint } from '../../../types/crm';
 // count and the conversion-from-top%. Between adjacent stages we render a
 // chevron with the stage-to-stage retention rate so the bottleneck is obvious.
 
-const STAGE_COLORS = ['#3E9EFF', '#7B61FF', '#F7B538', '#FF6B35', '#28B463', '#E01E2C'];
+const STAGE_COLORS = CHART_PALETTE;
 
 export default function PipelineFunnelChart({ data }: { data: FunnelPoint[] }) {
   const stages = useMemo(() => data.filter((d) => d.count >= 0), [data]);
