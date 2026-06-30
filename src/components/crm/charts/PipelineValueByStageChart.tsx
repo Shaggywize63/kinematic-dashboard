@@ -2,25 +2,26 @@
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Cell } from 'recharts';
 import type { PipelineValuePoint } from '../../../types/crm';
 import { fmtValue, fmtValueCompact, type DashboardUnit } from '../../../lib/formatCurrency';
+import { CHART_PALETTE, GLASS_TOOLTIP, GradientDefs, grad, CHART } from '../../../lib/chartTheme';
 
-const COLORS = ['#7B61FF', '#00B4D8', '#28B463', '#F7B538', '#FF6B35', '#E01E2C'];
+const COLORS = CHART_PALETTE;
 
 export default function PipelineValueByStageChart({ data, unit = 'inr' }: { data: PipelineValuePoint[]; unit?: DashboardUnit }) {
   return (
     <ResponsiveContainer width="100%" height={320}>
-      <BarChart data={data} margin={{ top: 10, right: 20, left: 0, bottom: 10 }}>
-        <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" />
-        <XAxis dataKey="stage" stroke="var(--text-dim)" fontSize={11} />
-        <YAxis stroke="var(--text-dim)" fontSize={11} tickFormatter={(v) => fmtValueCompact(v, unit)} />
+      <BarChart data={data} margin={CHART.margin}>
+        <GradientDefs colors={COLORS} />
+        <CartesianGrid {...CHART.grid} />
+        <XAxis dataKey="stage" {...CHART.axis} />
+        <YAxis {...CHART.axis} tickFormatter={(v) => fmtValueCompact(v, unit)} />
         <Tooltip
-          contentStyle={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 8 }}
-          labelStyle={{ color: '#E01E2C', fontWeight: 700 }}
-          itemStyle={{ color: '#E01E2C' }}
+          contentStyle={GLASS_TOOLTIP}
+          cursor={{ fill: 'var(--s3)', opacity: 0.4 }}
           formatter={(v: any) => fmtValue(v, unit)}
         />
-        <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+        <Bar dataKey="value" radius={CHART.barRadius} {...CHART.animation}>
           {data.map((_, i) => (
-            <Cell key={i} fill={COLORS[i % COLORS.length]} />
+            <Cell key={i} fill={grad(COLORS[i % COLORS.length])} />
           ))}
         </Bar>
       </BarChart>

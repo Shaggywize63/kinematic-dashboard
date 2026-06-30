@@ -21,7 +21,7 @@ export default function ForecastChart({ data, unit = 'inr' }: { data: ForecastPo
         <XAxis dataKey="period" stroke="var(--text-dim)" fontSize={11} />
         <YAxis stroke="var(--text-dim)" fontSize={11} tickFormatter={(v) => fmtValueCompact(v, unit)} />
         <Tooltip
-          contentStyle={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 8 }}
+          contentStyle={{ background: 'color-mix(in srgb, var(--s2) 86%, transparent)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', border: '1px solid var(--border)', borderRadius: 10, boxShadow: '0 10px 28px rgba(0,0,0,0.38)' }}
           labelStyle={{ color: '#E01E2C', fontWeight: 700 }}
           itemStyle={{ color: '#E01E2C' }}
           formatter={(v: any) => fmtValue(v, unit)}
