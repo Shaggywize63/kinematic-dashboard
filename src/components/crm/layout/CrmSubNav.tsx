@@ -21,6 +21,7 @@ const LINKS: CrmLink[] = [
   // Overview is back to the legacy stat-card + fixed-chart surface.
   // championHidden: Consumer Champion FEs don't need the analytics tab.
   { href: '/dashboard/crm/leads/analytics', label: 'Lead Analytics', championHidden: true },
+  { href: '/dashboard/crm/market-intelligence', label: 'Market Intelligence', championHidden: true },
   // Contacts + Accounts removed from the CRM sub-nav — Tata's flow
   // goes lead → deal without those records. Re-add here when a tenant
   // that actually uses them needs the surface.
