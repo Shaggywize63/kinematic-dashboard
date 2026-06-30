@@ -21,25 +21,21 @@ import {
   type IntelCompetitorShare, type IntelCompetitorPrice, type IntelSignalBreakdown,
   type IntelByCity, type IntelTrendPoint, type IntelSignal,
 } from '../../../../lib/crmAnalyticsExtApi';
+import { ChartCard, ChartTooltip, GradientDefs, grad, CHART, CHART_PALETTE, CHART_SEMANTIC } from '../../../../lib/chartTheme';
 
-const BRAND = '#E01E2C';
-const PIE_COLORS = ['#E01E2C', '#2563EB', '#16A34A', '#D97706', '#7C3AED', '#0891B2', '#DB2777'];
+const BRAND = CHART_SEMANTIC.lost;
+const WIN = CHART_SEMANTIC.won;
+const PIE_COLORS = CHART_PALETTE;
 
 const SIGNAL_LABELS: Record<string, string> = {
   competitor_mention: 'Competitor', price: 'Price', stockout: 'Stock-out',
   timeline: 'Timeline', quality: 'Quality', intent: 'Intent', other: 'Other',
 };
 
+// Delegate to the shared animated, gradient-accented chart frame so every card
+// on this page picks up the new visual language + entrance animation.
 function Card({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
-  return (
-    <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div>
-        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{title}</div>
-        {subtitle && <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{subtitle}</div>}
-      </div>
-      {children}
-    </div>
-  );
+  return <ChartCard title={title} subtitle={subtitle}>{children}</ChartCard>;
 }
 
 function Kpi({ label, value, accent }: { label: string; value: string | number; accent?: boolean }) {
@@ -132,13 +128,14 @@ export default function MarketIntelligencePage() {
             <Card title="Competitor share of voice" subtitle="Mentions in the field, with where we're losing">
               <ResponsiveContainer width="100%" height={280}>
                 <BarChart data={share} layout="vertical" margin={{ left: 12 }}>
-                  <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                  <XAxis type="number" tick={{ fontSize: 11 }} />
-                  <YAxis type="category" dataKey="competitor" width={110} tick={{ fontSize: 11 }} />
-                  <Tooltip />
+                  <GradientDefs colors={[BRAND, WIN]} />
+                  <CartesianGrid {...CHART.grid} horizontal={false} />
+                  <XAxis type="number" {...CHART.axis} />
+                  <YAxis type="category" dataKey="competitor" width={110} {...CHART.axis} />
+                  <Tooltip content={<ChartTooltip />} cursor={{ fill: 'var(--s3)', opacity: 0.4 }} />
                   <Legend />
-                  <Bar dataKey="we_losing" name="We're losing" stackId="a" fill={BRAND} />
-                  <Bar dataKey="we_winning" name="We're winning" stackId="a" fill="#16A34A" />
+                  <Bar dataKey="we_losing" name="We're losing" stackId="a" fill={grad(BRAND)} {...CHART.animation} />
+                  <Bar dataKey="we_winning" name="We're winning" stackId="a" fill={grad(WIN)} radius={CHART.hBarRadius} {...CHART.animation} />
                 </BarChart>
               </ResponsiveContainer>
             </Card>
@@ -146,13 +143,14 @@ export default function MarketIntelligencePage() {
             <Card title="Price gap vs competitors" subtitle="Avg competitor price minus ours (negative = they're cheaper)">
               <ResponsiveContainer width="100%" height={280}>
                 <BarChart data={price} layout="vertical" margin={{ left: 12 }}>
-                  <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                  <XAxis type="number" tick={{ fontSize: 11 }} />
-                  <YAxis type="category" dataKey="competitor" width={110} tick={{ fontSize: 11 }} />
-                  <Tooltip />
-                  <Bar dataKey="avg_price_delta" name="Avg price delta">
+                  <GradientDefs colors={[BRAND, WIN]} />
+                  <CartesianGrid {...CHART.grid} horizontal={false} />
+                  <XAxis type="number" {...CHART.axis} />
+                  <YAxis type="category" dataKey="competitor" width={110} {...CHART.axis} />
+                  <Tooltip content={<ChartTooltip />} cursor={{ fill: 'var(--s3)', opacity: 0.4 }} />
+                  <Bar dataKey="avg_price_delta" name="Avg price delta" radius={CHART.hBarRadius} {...CHART.animation}>
                     {price.map((p, i) => (
-                      <Cell key={i} fill={p.avg_price_delta < 0 ? BRAND : '#16A34A'} />
+                      <Cell key={i} fill={p.avg_price_delta < 0 ? grad(BRAND) : grad(WIN)} />
                     ))}
                   </Bar>
                 </BarChart>
@@ -162,10 +160,10 @@ export default function MarketIntelligencePage() {
             <Card title="Signal mix" subtitle="What the field is telling us">
               <ResponsiveContainer width="100%" height={280}>
                 <PieChart>
-                  <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={90} label>
+                  <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={52} outerRadius={92} paddingAngle={3} stroke="var(--s2)" strokeWidth={2} {...CHART.animation}>
                     {pieData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                   </Pie>
-                  <Tooltip />
+                  <Tooltip content={<ChartTooltip />} />
                   <Legend />
                 </PieChart>
               </ResponsiveContainer>
@@ -174,13 +172,13 @@ export default function MarketIntelligencePage() {
             <Card title="Trend" subtitle="Monthly signals and competitive losses">
               <ResponsiveContainer width="100%" height={280}>
                 <LineChart data={trend}>
-                  <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                  <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} />
-                  <Tooltip />
+                  <CartesianGrid {...CHART.grid} />
+                  <XAxis dataKey="month" {...CHART.axis} />
+                  <YAxis {...CHART.axis} />
+                  <Tooltip content={<ChartTooltip />} />
                   <Legend />
-                  <Line type="monotone" dataKey="mentions" name="Signals" stroke="#2563EB" strokeWidth={2} dot={false} />
-                  <Line type="monotone" dataKey="we_losing" name="We're losing" stroke={BRAND} strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="mentions" name="Signals" stroke={CHART_SEMANTIC.primary} strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} {...CHART.animation} />
+                  <Line type="monotone" dataKey="we_losing" name="We're losing" stroke={BRAND} strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} {...CHART.animation} />
                 </LineChart>
               </ResponsiveContainer>
             </Card>

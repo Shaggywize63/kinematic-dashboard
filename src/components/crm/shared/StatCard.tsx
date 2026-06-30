@@ -1,5 +1,6 @@
 'use client';
 import React from 'react';
+import { motion } from 'framer-motion';
 
 interface StatCardProps {
   label: string;
@@ -30,7 +31,12 @@ export default function StatCard({
   const toneColor = deltaTone === 'up' ? 'var(--green)' : deltaTone === 'down' ? 'var(--primary)' : 'var(--text-dim)';
   const accent = deltaTone === 'up' ? 'var(--green, #10b981)' : deltaTone === 'down' ? 'var(--primary, #E01E2C)' : 'var(--primary, #E01E2C)';
   return (
-    <div
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: '-30px' }}
+      transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+      whileHover={{ y: -2 }}
       style={{
         position: 'relative',
         background: 'var(--s2)',
@@ -99,6 +105,6 @@ export default function StatCard({
           {hint && <span style={{ color: 'var(--text-dim)' }}>{hint}</span>}
         </div>
       )}
-    </div>
+    </motion.div>
   );
 }

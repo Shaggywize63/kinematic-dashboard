@@ -29,6 +29,7 @@
     "date-fns": "^3.6.0",
     "eslint": "^8.57.0",
     "eslint-config-next": "14.2.3",
+    "framer-motion": "^11.18.2",
     "leaflet": "^1.9.4",
     "leaflet.heat": "^0.2.0",
     "lucide-react": "^0.379.0",
