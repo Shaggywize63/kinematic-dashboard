@@ -25,7 +25,7 @@ const LINKS: CrmLink[] = [
   // goes lead → deal without those records. Re-add here when a tenant
   // that actually uses them needs the surface.
   { href: '/dashboard/crm/deals', label: 'Deals' },
-  { href: '/dashboard/crm/pipeline', label: 'Pipeline', kinematicHidden: true },
+  { href: '/dashboard/crm/pipeline', label: 'Pipeline' },
   { href: '/dashboard/crm/products', label: 'Products', kinematicHidden: true },
   // Tasks merged into Activities — tasks are now activities of type='task'.
   // /dashboard/crm/tasks redirects to /dashboard/crm/activities?type=task.
