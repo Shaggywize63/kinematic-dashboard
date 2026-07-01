@@ -388,6 +388,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { label: 'People & Support', package: 'people', items: [
       { href: '/dashboard/manpower-directory', label: 'Users',         icon: 'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 7a4 4 0 100-8 4 4 0 000 8z M23 21v-2a4 4 0 00-3-3.87 M16 3.13a4 4 0 010 7.75', module: 'users' },
       { href: '/dashboard/hr',                 label: 'HR & Recruitment', icon: 'M20 7H4a2 2 0 00-2 2v11a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16', module: 'hr' },
+      // Leave Management + Attendance Regularization. The top-level entry is
+      // universal (every rep applies for leave / sees their balances). The
+      // Approvals + Settings surfaces inside the module self-gate to manager /
+      // admin via useLeaveRoles, so they never render for a plain field rep.
+      { href: '/dashboard/leave',              label: 'Leave',         icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z M9 16l2 2 4-4', module: 'leave' },
       { href: '/dashboard/grievances',         label: 'Grievances',    icon: 'M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z M12 9v4 M12 17h.01', module: 'grievances' },
       { href: '/dashboard/visit-logs',         label: 'Visit Logs',    icon: 'M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z', module: 'visit_logs' },
       { href: '/dashboard/broadcast',          label: 'Broadcast',     icon: 'M12 19V5 M5 12l7-7 7 7', module: 'broadcast' },

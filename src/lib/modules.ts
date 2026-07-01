@@ -110,6 +110,7 @@ export const ALL_MODULES: ModuleEntry[] = [
   { id: 'broadcast',    l: 'Broadcast',     group: 'People', package: 'people', universal: true },
   { id: 'notifications', l: 'Notifications', group: 'People', package: 'people', universal: true },
   { id: 'hr',         l: 'HR & Payroll', group: 'People', package: 'people', universal: true },
+  { id: 'leave',      l: 'Leave',        group: 'People', package: 'people', universal: true },
   { id: 'grievances', l: 'Grievances',   group: 'People', package: 'people', universal: true },
   { id: 'reports',    l: 'Reports',      group: 'People', package: 'people', universal: true },
   { id: 'visit_logs', l: 'Visit Logs',   group: 'People', package: 'people', universal: true },
