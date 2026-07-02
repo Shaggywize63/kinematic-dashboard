@@ -5,6 +5,7 @@ import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { getStoredUser, isSessionValid, clearSession, getDesignationLabel } from '../../lib/auth';
 import api, { getActingAs, setActingAs } from '../../lib/api';
+import StagingBoot from './StagingBoot';
 import { ClientProvider, useClient } from '../../context/ClientContext';
 import { CityScopeProvider } from '../../context/CityScopeContext';
 import { IndustryScopeProvider } from '../../context/IndustryScopeContext';
@@ -452,6 +453,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <CityScopeProvider>
       <IndustryScopeProvider>
       <div style={{ display:'flex', minHeight:'100vh', background:C.bg, color:C.white }}>
+        <StagingBoot />
         {isMobile && drawerOpen && (
           <div onClick={() => setDrawerOpen(false)} style={{
             position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:998,

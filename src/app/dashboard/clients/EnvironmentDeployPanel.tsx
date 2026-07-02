@@ -1,6 +1,7 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
-import api from '../../../lib/api';
+import api, { setActingAs } from '../../../lib/api';
+import { getStoredProjectKey, DEFAULT_PROJECT } from '../../../lib/projects';
 
 type Pair = {
   project: string;
@@ -48,6 +49,25 @@ export default function EnvironmentDeployPanel() {
     } finally { setBusy(null); }
   };
 
+  // Enter a staging org to edit its config (super-admin impersonation via
+  // X-Org-Id). Only same-project staging orgs are reachable with the current
+  // session's token; cross-project ones need that project's session first.
+  const currentProject = (getStoredProjectKey() || DEFAULT_PROJECT);
+  const enterStaging = (p: Pair) => {
+    if (!window.confirm(`Enter "${p.staging_name}" to edit its config? You'll act on the staging org until you Exit.`)) return;
+    const su = {
+      token: localStorage.getItem('kinematic_token'),
+      refresh: localStorage.getItem('kinematic_refresh_token'),
+      user: localStorage.getItem('kinematic_user'),
+      project: localStorage.getItem('kinematic_supabase_project'),
+      client: localStorage.getItem('kinematic_selected_client'),
+    };
+    localStorage.setItem('kinematic_su_session', JSON.stringify(su));
+    localStorage.removeItem('kinematic_selected_client');
+    setActingAs({ org_id: p.staging_org_id, name: p.staging_name });
+    window.location.href = '/dashboard/crm/leads';
+  };
+
   if (!pairs.length) return null;
 
   return (
@@ -65,6 +85,12 @@ export default function EnvironmentDeployPanel() {
               </div>
               <div style={{ fontSize: 11, color: 'var(--textTert)' }}>project: {p.project}{msg[p.staging_org_id] ? ` · ${msg[p.staging_org_id]}` : ''}</div>
             </div>
+            {p.project === currentProject && (
+              <button onClick={() => enterStaging(p)} disabled={busy === p.staging_org_id}
+                style={{ padding: '7px 14px', borderRadius: 9, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                Enter
+              </button>
+            )}
             <button onClick={() => run(p, true)} disabled={busy === p.staging_org_id}
               style={{ padding: '7px 14px', borderRadius: 9, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
               Preview
