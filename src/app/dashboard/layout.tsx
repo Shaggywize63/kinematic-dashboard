@@ -804,7 +804,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               {/* Demo-only industry vertical switcher (renders null for
                   non-demo accounts). Sits next to the client filter. */}
               <IndustryScopePicker />
-              <GlobalClientFilter isPlatformAdmin={isPlatformAdmin} />
+              {/* Client filter is meaningless inside a staging org — hide it there. */}
+              {!actingAs?.staging && <GlobalClientFilter isPlatformAdmin={isPlatformAdmin} />}
             </div>
           </header>
           <div style={{ padding: isMobile ? 14 : 25, flex:1, minWidth:0 }}>
