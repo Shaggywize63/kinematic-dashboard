@@ -6,6 +6,7 @@ import dynamic from 'next/dynamic';
 import { getStoredUser, isSessionValid, clearSession, getDesignationLabel } from '../../lib/auth';
 import api, { getActingAs, setActingAs } from '../../lib/api';
 import StagingBoot from './StagingBoot';
+import StagingDeployModal from './StagingDeployModal';
 import { getStoredProjectKey } from '../../lib/projects';
 import { ClientProvider, useClient } from '../../context/ClientContext';
 import { CityScopeProvider } from '../../context/CityScopeContext';
@@ -77,27 +78,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // Super-admin "acting as client" context (set from Client Management → Login).
   // Resolved after mount to avoid SSR hydration mismatch.
   const [actingAs, setActingAsState] = useState<{ name?: string; modules?: string[]; staging?: boolean; project?: string; org_id?: string } | null>(null);
-  const [deploying, setDeploying] = useState(false);
-  const [deployMsg, setDeployMsg] = useState('');
+  const [showDeploy, setShowDeploy] = useState(false);
   useEffect(() => { setActingAsState(getActingAs()); }, []);
-  // Deploy the current staging org's config to its production org (only shown
-  // while acting inside a staging org).
-  const deployStaging = async () => {
-    // Resolve project/org with fallbacks so an older acting-as session (set
-    // before these fields existed) still works.
-    const project = actingAs?.project || getStoredProjectKey() || 'default';
-    const stagingOrgId = actingAs?.org_id;
-    if (!stagingOrgId) { setDeployMsg('Cannot resolve the staging org — Exit and re-enter staging, then try again.'); return; }
-    if (!window.confirm('Deploy this staging config to production? This updates production settings/field-overrides — no records are copied.')) return;
-    setDeploying(true); setDeployMsg('Deploying…');
-    try {
-      const r: any = await api.post('/api/v1/environments/promote', { project, staging_org_id: stagingOrgId, dry_run: false });
-      const res = (r?.data ?? r)?.result ?? {};
-      setDeployMsg(`Deployed to production ✓ — ${res.crm_settings_rows ?? 0} settings + ${res.org_settings_rows ?? 0} org-settings promoted.`);
-    } catch (e: any) {
-      setDeployMsg(`Deploy failed: ${e?.message || 'unknown error'}`);
-    } finally { setDeploying(false); }
-  };
+  const stagingProject = actingAs?.project || getStoredProjectKey() || 'default';
   // Persist the desktop collapse preference so the rep gets the same
   // sidebar width on every reload. Mobile uses a hamburger drawer and
   // ignores this flag.
@@ -475,6 +458,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <IndustryScopeProvider>
       <div style={{ display:'flex', minHeight:'100vh', background:C.bg, color:C.white }}>
         <StagingBoot />
+        {showDeploy && actingAs?.staging && actingAs.org_id && (
+          <StagingDeployModal project={stagingProject} stagingOrgId={actingAs.org_id} name={actingAs.name} onClose={() => setShowDeploy(false)} />
+        )}
         {isMobile && drawerOpen && (
           <div onClick={() => setDrawerOpen(false)} style={{
             position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:998,
@@ -819,13 +805,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             {actingAs && (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '10px 16px', marginBottom: 16, background: actingAs.staging ? '#B45309' : '#7c3aed', color: '#fff', fontSize: 13, fontWeight: 600, borderRadius: 12 }}>
                 <span>{actingAs.staging
-                  ? <>Editing <strong>{actingAs.name || 'Staging'}</strong> — {deployMsg || 'changes here can be deployed to production.'}</>
+                  ? <>Editing <strong>{actingAs.name || 'Staging'}</strong> — pick changes to deploy to production.</>
                   : <>Acting as client: <strong>{actingAs.name || 'Unknown'}</strong> — you are viewing their data.</>}</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 {actingAs.staging && (
-                  <button onClick={deployStaging} disabled={deploying}
-                    style={{ background: '#fff', border: 'none', color: '#B45309', padding: '5px 14px', borderRadius: 8, fontSize: 12, fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap', opacity: deploying ? 0.6 : 1 }}>
-                    {deploying ? 'Deploying…' : 'Deploy to Production'}
+                  <button onClick={() => setShowDeploy(true)}
+                    style={{ background: '#fff', border: 'none', color: '#B45309', padding: '5px 14px', borderRadius: 8, fontSize: 12, fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                    Deploy to Production
                   </button>
                 )}
                 <button onClick={() => {
