@@ -6,6 +6,7 @@ import dynamic from 'next/dynamic';
 import { getStoredUser, isSessionValid, clearSession, getDesignationLabel } from '../../lib/auth';
 import api, { getActingAs, setActingAs } from '../../lib/api';
 import StagingBoot from './StagingBoot';
+import { getStoredProjectKey } from '../../lib/projects';
 import { ClientProvider, useClient } from '../../context/ClientContext';
 import { CityScopeProvider } from '../../context/CityScopeContext';
 import { IndustryScopeProvider } from '../../context/IndustryScopeContext';
@@ -77,19 +78,25 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // Resolved after mount to avoid SSR hydration mismatch.
   const [actingAs, setActingAsState] = useState<{ name?: string; modules?: string[]; staging?: boolean; project?: string; org_id?: string } | null>(null);
   const [deploying, setDeploying] = useState(false);
+  const [deployMsg, setDeployMsg] = useState('');
   useEffect(() => { setActingAsState(getActingAs()); }, []);
   // Deploy the current staging org's config to its production org (only shown
   // while acting inside a staging org).
   const deployStaging = async () => {
-    if (!actingAs?.staging || !actingAs.project || !actingAs.org_id) return;
+    // Resolve project/org with fallbacks so an older acting-as session (set
+    // before these fields existed) still works.
+    const project = actingAs?.project || getStoredProjectKey() || 'default';
+    const stagingOrgId = actingAs?.org_id;
+    if (!stagingOrgId) { setDeployMsg('Cannot resolve the staging org — Exit and re-enter staging, then try again.'); return; }
     if (!window.confirm('Deploy this staging config to production? This updates production settings/field-overrides — no records are copied.')) return;
-    setDeploying(true);
+    setDeploying(true); setDeployMsg('Deploying…');
     try {
-      const r: any = await api.post('/api/v1/environments/promote', { project: actingAs.project, staging_org_id: actingAs.org_id, dry_run: false });
+      const r: any = await api.post('/api/v1/environments/promote', { project, staging_org_id: stagingOrgId, dry_run: false });
       const res = (r?.data ?? r)?.result ?? {};
-      alert(`Deployed to production ✓ — ${res.crm_settings_rows ?? 0} settings + ${res.org_settings_rows ?? 0} org-settings promoted.`);
-    } catch (e: any) { alert(e?.message || 'Deploy failed'); }
-    finally { setDeploying(false); }
+      setDeployMsg(`Deployed to production ✓ — ${res.crm_settings_rows ?? 0} settings + ${res.org_settings_rows ?? 0} org-settings promoted.`);
+    } catch (e: any) {
+      setDeployMsg(`Deploy failed: ${e?.message || 'unknown error'}`);
+    } finally { setDeploying(false); }
   };
   // Persist the desktop collapse preference so the rep gets the same
   // sidebar width on every reload. Mobile uses a hamburger drawer and
@@ -812,10 +819,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             {actingAs && (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '10px 16px', marginBottom: 16, background: actingAs.staging ? '#B45309' : '#7c3aed', color: '#fff', fontSize: 13, fontWeight: 600, borderRadius: 12 }}>
                 <span>{actingAs.staging
-                  ? <>Editing <strong>{actingAs.name || 'Staging'}</strong> — changes here can be deployed to production.</>
+                  ? <>Editing <strong>{actingAs.name || 'Staging'}</strong> — {deployMsg || 'changes here can be deployed to production.'}</>
                   : <>Acting as client: <strong>{actingAs.name || 'Unknown'}</strong> — you are viewing their data.</>}</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                {actingAs.staging && actingAs.project && actingAs.org_id && (
+                {actingAs.staging && (
                   <button onClick={deployStaging} disabled={deploying}
                     style={{ background: '#fff', border: 'none', color: '#B45309', padding: '5px 14px', borderRadius: 8, fontSize: 12, fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap', opacity: deploying ? 0.6 : 1 }}>
                     {deploying ? 'Deploying…' : 'Deploy to Production'}
