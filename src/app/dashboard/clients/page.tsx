@@ -260,7 +260,7 @@ export default function ClientManagement() {
 
       {/* Table */}
       <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 16, overflow: 'hidden' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr 1.5fr 150px 110px', padding: '12px 20px', borderBottom: `1px solid ${C.border}`, gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.3fr 1.3fr 140px 190px', padding: '12px 20px', borderBottom: `1px solid ${C.border}`, gap: 12 }}>
           {['Client Name', 'Contact Person', 'Email / Phone', 'Module Access', 'Actions'].map(h => (
             <div key={h} style={{ fontSize: 11, fontWeight: 700, color: C.grayd, letterSpacing: '0.8px', textTransform: 'uppercase' }}>{h}</div>
           ))}
@@ -278,7 +278,7 @@ export default function ClientManagement() {
           const expanded = expandedId === c.id;
           return (
           <div key={c.id} style={{ borderBottom: i < filtered.length - 1 ? `1px solid ${C.border}` : 'none' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr 1.5fr 150px 110px', padding: '16px 20px', gap: 12, alignItems: 'center' }}
+            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.3fr 1.3fr 140px 190px', padding: '16px 20px', gap: 12, alignItems: 'center' }}
               onMouseEnter={e => e.currentTarget.style.background = C.s3}
               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
             >
