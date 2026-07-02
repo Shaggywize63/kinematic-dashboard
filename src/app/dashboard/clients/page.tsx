@@ -5,6 +5,7 @@ import ConfirmModal from '../../../components/ConfirmModal';
 import { useAuth } from '../../../hooks/useAuth';
 import { ALL_MODULES, MODULE_GROUPS, MODULE_GROUP_LABELS, type ModuleGroup } from '../../../lib/modules';
 import api, { setActingAs } from '../../../lib/api';
+import EnvironmentDeployPanel from './EnvironmentDeployPanel';
 import { getStoredProjectKey, DEFAULT_PROJECT, setStoredProjectKey } from '../../../lib/projects';
 
 // Uses the Next.js proxy routes (/api/v1/clients) which seed the modules table
@@ -243,6 +244,9 @@ export default function ClientManagement() {
           </div>
         ))}
       </div>
+
+      {/* Staging → Production deploy (super-admin) */}
+      <EnvironmentDeployPanel />
 
       {/* Toolbar */}
       <div style={{ display: 'flex', gap: 12, marginBottom: 20, alignItems: 'center' }}>
