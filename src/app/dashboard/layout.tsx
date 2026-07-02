@@ -75,8 +75,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [user, setUser] = useState<any>(null);
   // Super-admin "acting as client" context (set from Client Management → Login).
   // Resolved after mount to avoid SSR hydration mismatch.
-  const [actingAs, setActingAsState] = useState<{ name?: string; modules?: string[] } | null>(null);
+  const [actingAs, setActingAsState] = useState<{ name?: string; modules?: string[]; staging?: boolean; project?: string; org_id?: string } | null>(null);
+  const [deploying, setDeploying] = useState(false);
   useEffect(() => { setActingAsState(getActingAs()); }, []);
+  // Deploy the current staging org's config to its production org (only shown
+  // while acting inside a staging org).
+  const deployStaging = async () => {
+    if (!actingAs?.staging || !actingAs.project || !actingAs.org_id) return;
+    if (!window.confirm('Deploy this staging config to production? This updates production settings/field-overrides — no records are copied.')) return;
+    setDeploying(true);
+    try {
+      const r: any = await api.post('/api/v1/environments/promote', { project: actingAs.project, staging_org_id: actingAs.org_id, dry_run: false });
+      const res = (r?.data ?? r)?.result ?? {};
+      alert(`Deployed to production ✓ — ${res.crm_settings_rows ?? 0} settings + ${res.org_settings_rows ?? 0} org-settings promoted.`);
+    } catch (e: any) { alert(e?.message || 'Deploy failed'); }
+    finally { setDeploying(false); }
+  };
   // Persist the desktop collapse preference so the rep gets the same
   // sidebar width on every reload. Mobile uses a hamburger drawer and
   // ignores this flag.
@@ -795,8 +809,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </header>
           <div style={{ padding: isMobile ? 14 : 25, flex:1, minWidth:0 }}>
             {actingAs && (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '10px 16px', marginBottom: 16, background: '#7c3aed', color: '#fff', fontSize: 13, fontWeight: 600, borderRadius: 12 }}>
-                <span>Acting as client: <strong>{actingAs.name || 'Unknown'}</strong> — you are viewing their data.</span>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '10px 16px', marginBottom: 16, background: actingAs.staging ? '#B45309' : '#7c3aed', color: '#fff', fontSize: 13, fontWeight: 600, borderRadius: 12 }}>
+                <span>{actingAs.staging
+                  ? <>Editing <strong>{actingAs.name || 'Staging'}</strong> — changes here can be deployed to production.</>
+                  : <>Acting as client: <strong>{actingAs.name || 'Unknown'}</strong> — you are viewing their data.</>}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {actingAs.staging && actingAs.project && actingAs.org_id && (
+                  <button onClick={deployStaging} disabled={deploying}
+                    style={{ background: '#fff', border: 'none', color: '#B45309', padding: '5px 14px', borderRadius: 8, fontSize: 12, fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap', opacity: deploying ? 0.6 : 1 }}>
+                    {deploying ? 'Deploying…' : 'Deploy to Production'}
+                  </button>
+                )}
                 <button onClick={() => {
                   // Restore the saved super-admin session (token/refresh/user/project/client).
                   try {
@@ -814,7 +837,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   localStorage.removeItem('kinematic_su_session');
                   setActingAs(null);
                   window.location.href = '/dashboard/clients';
-                }} style={{ background: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.5)', color: '#fff', padding: '5px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>Exit client view</button>
+                }} style={{ background: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.5)', color: '#fff', padding: '5px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>{actingAs.staging ? 'Exit staging' : 'Exit client view'}</button>
+                </div>
               </div>
             )}
             {children}

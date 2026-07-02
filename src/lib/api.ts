@@ -24,7 +24,7 @@ const API_URL = resolveApiUrl();
 // Super-admin "Login as client": when set, every request is scoped to this
 // client's org + client_id (the backend honours X-Org-Id for super_admin).
 // Persisted in localStorage so it survives reloads; cleared on "Exit".
-export type ActingAs = { org_id?: string; client_id?: string; name?: string; token?: string; modules?: string[] };
+export type ActingAs = { org_id?: string; client_id?: string; name?: string; token?: string; modules?: string[]; staging?: boolean; project?: string };
 export function getActingAs(): ActingAs | null {
   if (typeof window === 'undefined') return null;
   try {
@@ -179,8 +179,8 @@ class ApiClient {
 
   /** Super-admin "Login as client" via stored credentials: returns a real
    * session for the client's account (backend POST /clients/:id/login-as). */
-  loginAsCredentials(clientId: string): Promise<any> {
-    return this.post(`/api/v1/clients/${clientId}/login-as`, {});
+  loginAsCredentials(clientId: string, env: 'production' | 'staging' = 'production'): Promise<any> {
+    return this.post(`/api/v1/clients/${clientId}/login-as`, { env });
   }
 
   private getUserEmail(): string | null {

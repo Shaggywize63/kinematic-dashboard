@@ -5,7 +5,6 @@ import ConfirmModal from '../../../components/ConfirmModal';
 import { useAuth } from '../../../hooks/useAuth';
 import { ALL_MODULES, MODULE_GROUPS, MODULE_GROUP_LABELS, type ModuleGroup } from '../../../lib/modules';
 import api, { setActingAs } from '../../../lib/api';
-import EnvironmentDeployPanel from './EnvironmentDeployPanel';
 import { getStoredProjectKey, DEFAULT_PROJECT, setStoredProjectKey } from '../../../lib/projects';
 
 // Uses the Next.js proxy routes (/api/v1/clients) which seed the modules table
@@ -92,6 +91,7 @@ export default function ClientManagement() {
   const [fErr, setFErr] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState<{show:boolean; item:Client|null}>({show:false, item:null});
   const [deleting, setDeleting] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -116,9 +116,9 @@ export default function ClientManagement() {
   // account credentials and swap into that real session (e.g. the live Tata
   // account). The current super-admin session is saved so the banner's Exit
   // can restore it. No manual credential entry.
-  const loginAsClient = async (c: Client) => {
+  const loginAsClient = async (c: Client, env: 'production' | 'staging' = 'production') => {
     try {
-      const res: any = await api.loginAsCredentials(c.id);
+      const res: any = await api.loginAsCredentials(c.id, env);
       const d = res?.data ?? res;
       // Save the super-admin session for Exit/restore.
       const su = {
@@ -130,32 +130,33 @@ export default function ClientManagement() {
       };
       localStorage.setItem('kinematic_su_session', JSON.stringify(su));
       const modules = (c as { modules?: string[] }).modules || [];
+      const label = env === 'staging' ? `${c.name} (Staging)` : c.name;
+      const isStaging = !!d?.staging;
 
-      // Same-project client: no stored password — enter it by impersonating its
-      // org on the EXISTING super-admin session (no token swap, no creds).
+      // Same-project client: no stored password — enter it by impersonating the
+      // target (prod or staging) org on the EXISTING super-admin session.
       if (d?.mode === 'impersonate' && d?.org_id) {
         localStorage.removeItem('kinematic_selected_client');
         if (d.project) setStoredProjectKey(d.project);
-        setActingAs({ org_id: d.org_id, client_id: d.client_id, name: c.name, modules });
+        setActingAs({ org_id: d.org_id, client_id: d.client_id, name: label, modules, staging: isStaging, project: d.project });
         window.location.href = '/dashboard/crm/leads';
         return;
       }
 
-      // Cross-project client: swap into the account's real returned session.
+      // Cross-project client: swap into the account's real returned session, then
+      // scope to the target (prod or staging) org.
       if (!d?.access_token) throw new Error('No session returned');
       localStorage.setItem('kinematic_token', d.access_token);
       if (d.refresh_token) localStorage.setItem('kinematic_refresh_token', d.refresh_token);
       localStorage.removeItem('kinematic_selected_client'); // avoid stale client scope
       setStoredProjectKey(d.project || null);               // route to the account's project
-      // Populate the impersonated account's profile NOW so the app is "logged
-      // in" — otherwise the layout sees no stored user and bounces to /login.
       try {
         const me: any = await api.get('/api/v1/auth/me');
         const meUser = me?.data ?? me;
         if (meUser) localStorage.setItem('kinematic_user', JSON.stringify(meUser));
       } catch { /* layout will retry /auth/me */ }
-      // Banner + restrict the nav to the modules granted to this client.
-      setActingAs({ name: c.name, modules });
+      // Scope to the target org (prod vs staging) + banner + module restriction.
+      setActingAs({ org_id: d.org_id, name: label, modules, staging: isStaging, project: d.project });
       window.location.href = '/dashboard/crm/leads';
     } catch (e: any) {
       alert(e?.response?.data?.error || e?.message || 'Login failed');
@@ -245,9 +246,6 @@ export default function ClientManagement() {
         ))}
       </div>
 
-      {/* Staging → Production deploy (super-admin) */}
-      <EnvironmentDeployPanel />
-
       {/* Toolbar */}
       <div style={{ display: 'flex', gap: 12, marginBottom: 20, alignItems: 'center' }}>
         <div style={{ flex: 1, position: 'relative' }}>
@@ -275,51 +273,70 @@ export default function ClientManagement() {
           <div style={{ padding: 48, textAlign: 'center', color: C.grayd, fontSize: 13 }}>
             {search ? 'No clients match your search.' : 'No clients yet. Add your first client to enable multi-tenancy.'}
           </div>
-        ) : filtered.map((c, i) => (
-          <div key={c.id} style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr 1.5fr 150px 110px', padding: '16px 20px', borderBottom: i < filtered.length - 1 ? `1px solid ${C.border}` : 'none', gap: 12, alignItems: 'center' }}
-            onMouseEnter={e => e.currentTarget.style.background = C.s3}
-            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-          >
-            <div>
-              <div style={{ fontWeight: 700, fontSize: 15, color: C.white }}>{c.name}</div>
-              <div style={{ fontSize: 11, color: C.grayd, marginTop: 4 }}>ID: {c.id.split('-')[0]}...</div>
-            </div>
-            <div style={{ fontSize: 13, color: C.white }}>{c.contact_person || '—'}</div>
-            <div style={{ fontSize: 13, color: C.gray }}>
-              <div>{c.email || '—'}</div>
-              <div style={{ fontSize: 11, marginTop: 2 }}>{c.phone || ''}</div>
-            </div>
-            <div style={{ padding: '4px 8px', background: c.modules?.length ? 'rgba(62,158,255,0.1)' : 'transparent', border: `1px solid ${c.modules?.length ? 'rgba(62,158,255,0.2)' : 'transparent'}`, borderRadius: 8 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: c.modules?.length ? C.blue : C.grayd }}>{c.modules?.length || 0} Modules Assigned</div>
-              <div style={{ fontSize: 10, color: C.grayd, marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {c.modules?.map(m => MODULES.find(mod => mod.id === m)?.label).filter(Boolean).join(', ') || 'No access granted'}
+        ) : filtered.map((c, i) => {
+          const canLogin = user?.role === 'super_admin' && !!(c as { org_id?: string }).org_id;
+          const expanded = expandedId === c.id;
+          return (
+          <div key={c.id} style={{ borderBottom: i < filtered.length - 1 ? `1px solid ${C.border}` : 'none' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr 1.5fr 150px 110px', padding: '16px 20px', gap: 12, alignItems: 'center' }}
+              onMouseEnter={e => e.currentTarget.style.background = C.s3}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+            >
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 15, color: C.white }}>{c.name}</div>
+                <div style={{ fontSize: 11, color: C.grayd, marginTop: 4 }}>ID: {c.id.split('-')[0]}...</div>
+              </div>
+              <div style={{ fontSize: 13, color: C.white }}>{c.contact_person || '—'}</div>
+              <div style={{ fontSize: 13, color: C.gray }}>
+                <div>{c.email || '—'}</div>
+                <div style={{ fontSize: 11, marginTop: 2 }}>{c.phone || ''}</div>
+              </div>
+              <div style={{ padding: '4px 8px', background: c.modules?.length ? 'rgba(62,158,255,0.1)' : 'transparent', border: `1px solid ${c.modules?.length ? 'rgba(62,158,255,0.2)' : 'transparent'}`, borderRadius: 8 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: c.modules?.length ? C.blue : C.grayd }}>{c.modules?.length || 0} Modules Assigned</div>
+                <div style={{ fontSize: 10, color: C.grayd, marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {c.modules?.map(m => MODULES.find(mod => mod.id === m)?.label).filter(Boolean).join(', ') || 'No access granted'}
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {canLogin && (
+                  <button onClick={() => setExpandedId(expanded ? null : c.id)} title="Show environments" style={{ height: 32, padding: '0 12px', border: `1px solid ${C.blue}`, borderRadius: 10, background: 'rgba(62,158,255,0.1)', cursor: 'pointer', color: C.blue, fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    Envs {expanded ? '▴' : '▾'}
+                  </button>
+                )}
+                <button onClick={() => openEdit(c)} style={{ width: 32, height: 32, border: `1px solid ${C.border}`, borderRadius: 10, background: 'transparent', cursor: 'pointer', color: C.gray, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = C.blue; e.currentTarget.style.color = C.blue; }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.gray; }}>
+                  <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4z"/></svg>
+                </button>
+                <button onClick={() => openEdit(c)} title={c.is_active?'Deactivate':'Activate'} style={{ width: 32, height: 32, border: `1px solid ${C.border}`, borderRadius: 10, background: 'transparent', cursor: 'pointer', color: c.is_active ? C.green : C.gray, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                   <div style={{ width: 6, height: 6, borderRadius: '50%', background: c.is_active ? C.green : C.gray }} />
+                </button>
+                {user?.role !== 'client' && (
+                  <button onClick={() => setDeleteConfirm({show:true, item:c})} title="Delete Client" style={{ width: 32, height: 32, border: `1px solid ${C.border}`, borderRadius: 10, background: 'transparent', cursor:'pointer', color: C.gray, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = C.red; e.currentTarget.style.color = C.red; }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.gray; }}>
+                    <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+                  </button>
+                )}
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 6 }}>
-              {user?.role === 'super_admin' && (c as { org_id?: string }).org_id && (
-                <button onClick={() => loginAsClient(c)} title="Login as this client" style={{ height: 32, padding: '0 12px', border: `1px solid ${C.blue}`, borderRadius: 10, background: 'rgba(62,158,255,0.1)', cursor: 'pointer', color: C.blue, fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4M10 17l5-5-5-5M15 12H3"/></svg>
-                  Login
-                </button>
-              )}
-              <button onClick={() => openEdit(c)} style={{ width: 32, height: 32, border: `1px solid ${C.border}`, borderRadius: 10, background: 'transparent', cursor: 'pointer', color: C.gray, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = C.blue; e.currentTarget.style.color = C.blue; }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.gray; }}>
-                <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4z"/></svg>
-              </button>
-              <button onClick={() => openEdit(c)} title={c.is_active?'Deactivate':'Activate'} style={{ width: 32, height: 32, border: `1px solid ${C.border}`, borderRadius: 10, background: 'transparent', cursor: 'pointer', color: c.is_active ? C.green : C.gray, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                 <div style={{ width: 6, height: 6, borderRadius: '50%', background: c.is_active ? C.green : C.gray }} />
-              </button>
-              {user?.role !== 'client' && (
-                <button onClick={() => setDeleteConfirm({show:true, item:c})} title="Delete Client" style={{ width: 32, height: 32, border: `1px solid ${C.border}`, borderRadius: 10, background: 'transparent', cursor:'pointer', color: C.gray, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                  onMouseEnter={e => { e.currentTarget.style.borderColor = C.red; e.currentTarget.style.color = C.red; }}
-                  onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.gray; }}>
-                  <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
-                </button>
-              )}
-            </div>
+            {expanded && canLogin && (
+              <div style={{ padding: '0 20px 16px 20px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {(['production', 'staging'] as const).map(envK => (
+                  <div key={envK} style={{ display: 'flex', alignItems: 'center', gap: 12, background: C.s3, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px' }}>
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: envK === 'production' ? C.green : '#F5A623' }} />
+                    <div style={{ flex: 1, fontSize: 13, fontWeight: 700, color: C.white, textTransform: 'capitalize' }}>{envK} org</div>
+                    <button onClick={() => loginAsClient(c, envK)} title={`Login to ${envK}`} style={{ height: 30, padding: '0 14px', border: `1px solid ${C.blue}`, borderRadius: 9, background: 'rgba(62,158,255,0.1)', cursor: 'pointer', color: C.blue, fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4M10 17l5-5-5-5M15 12H3"/></svg>
+                      Login
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Modal */}
