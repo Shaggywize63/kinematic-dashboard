@@ -81,6 +81,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [showDeploy, setShowDeploy] = useState(false);
   useEffect(() => { setActingAsState(getActingAs()); }, []);
   const stagingProject = actingAs?.project || getStoredProjectKey() || 'default';
+  // Per-org UI flags (e.g. hide the global client filter). Re-fetched on mount;
+  // entering an org triggers a full reload so this reflects the current org.
+  const [hideClientFilter, setHideClientFilter] = useState(false);
+  useEffect(() => { (async () => {
+    try { const r: any = await api.get('/api/v1/org-settings/ui-flags'); const d = r?.data ?? r; setHideClientFilter(!!d?.hide_client_filter); }
+    catch { /* default: show */ }
+  })(); }, []);
   // Persist the desktop collapse preference so the rep gets the same
   // sidebar width on every reload. Mobile uses a hamburger drawer and
   // ignores this flag.
@@ -797,8 +804,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               {/* Demo-only industry vertical switcher (renders null for
                   non-demo accounts). Sits next to the client filter. */}
               <IndustryScopePicker />
-              {/* Client filter is meaningless inside a staging org — hide it there. */}
-              {!actingAs?.staging && <GlobalClientFilter isPlatformAdmin={isPlatformAdmin} />}
+              {/* Hidden inside a staging org, and for orgs that set ui.hide_client_filter. */}
+              {!actingAs?.staging && !hideClientFilter && <GlobalClientFilter isPlatformAdmin={isPlatformAdmin} />}
             </div>
           </header>
           <div style={{ padding: isMobile ? 14 : 25, flex:1, minWidth:0 }}>

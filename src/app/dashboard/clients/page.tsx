@@ -92,6 +92,7 @@ export default function ClientManagement() {
   const [deleteConfirm, setDeleteConfirm] = useState<{show:boolean; item:Client|null}>({show:false, item:null});
   const [deleting, setDeleting] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [loggingIn, setLoggingIn] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -117,6 +118,7 @@ export default function ClientManagement() {
   // account). The current super-admin session is saved so the banner's Exit
   // can restore it. No manual credential entry.
   const loginAsClient = async (c: Client, env: 'production' | 'staging' = 'production') => {
+    setLoggingIn(`${c.id}:${env}`);
     try {
       const res: any = await api.loginAsCredentials(c.id, env);
       const d = res?.data ?? res;
@@ -159,6 +161,7 @@ export default function ClientManagement() {
       setActingAs({ org_id: d.org_id, name: label, modules, staging: isStaging, project: d.project });
       window.location.href = '/dashboard/crm/leads';
     } catch (e: any) {
+      setLoggingIn(null);
       alert(e?.response?.data?.error || e?.message || 'Login failed');
     }
   };
@@ -326,10 +329,13 @@ export default function ClientManagement() {
                   <div key={envK} style={{ display: 'flex', alignItems: 'center', gap: 12, background: C.s3, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px' }}>
                     <div style={{ width: 8, height: 8, borderRadius: '50%', background: envK === 'production' ? C.green : '#F5A623' }} />
                     <div style={{ flex: 1, fontSize: 13, fontWeight: 700, color: C.white, textTransform: 'capitalize' }}>{envK} org</div>
-                    <button onClick={() => loginAsClient(c, envK)} title={`Login to ${envK}`} style={{ height: 30, padding: '0 14px', border: `1px solid ${C.blue}`, borderRadius: 9, background: 'rgba(62,158,255,0.1)', cursor: 'pointer', color: C.blue, fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4M10 17l5-5-5-5M15 12H3"/></svg>
-                      Login
+                    {(() => { const k = `${c.id}:${envK}`; const busy = loggingIn === k; return (
+                    <button onClick={() => loginAsClient(c, envK)} disabled={!!loggingIn} title={`Login to ${envK}`} style={{ height: 30, padding: '0 14px', border: `1px solid ${C.blue}`, borderRadius: 9, background: 'rgba(62,158,255,0.1)', cursor: loggingIn ? 'default' : 'pointer', color: C.blue, fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, opacity: (loggingIn && !busy) ? 0.5 : 1 }}>
+                      {busy
+                        ? <><svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ animation: 'kspin 0.7s linear infinite' }}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> Logging in…</>
+                        : <><svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4M10 17l5-5-5-5M15 12H3"/></svg> Login</>}
                     </button>
+                    ); })()}
                   </div>
                 ))}
               </div>
