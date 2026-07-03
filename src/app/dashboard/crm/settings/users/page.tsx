@@ -163,6 +163,7 @@ export default function CrmUsersPage() {
   const [editId, setEditId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [showBulk, setShowBulk] = useState(false);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkResult, setBulkResult] = useState<{ ok: number; failed: Array<{ name: string; error: string }> } | null>(null);
@@ -243,6 +244,9 @@ export default function CrmUsersPage() {
   }, [showAdd, editId]);
 
   const filtered = users.filter((u) => {
+    const active = u.is_active !== false;
+    if (statusFilter === 'active' && !active) return false;
+    if (statusFilter === 'inactive' && active) return false;
     if (!search.trim()) return true;
     const q = search.toLowerCase();
     return [u.name, u.email, u.mobile].some((v) => (v || '').toLowerCase().includes(q));
@@ -743,6 +747,16 @@ export default function CrmUsersPage() {
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, gap: 8, flexWrap: 'wrap' }}>
         <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name, email, mobile, role…" style={{ ...input, minWidth: 280 }} />
+        <div style={{ display: 'flex', gap: 4, background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 10, padding: 3 }}>
+          {(['all', 'active', 'inactive'] as const).map((k) => (
+            <button key={k} onClick={() => setStatusFilter(k)}
+              style={{ padding: '6px 14px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, textTransform: 'capitalize',
+                background: statusFilter === k ? 'var(--accent, #3E9EFF)' : 'transparent',
+                color: statusFilter === k ? '#fff' : 'var(--text-dim)' }}>
+              {k}
+            </button>
+          ))}
+        </div>
         <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>{filtered.length} of {users.length} users</span>
       </div>
 
