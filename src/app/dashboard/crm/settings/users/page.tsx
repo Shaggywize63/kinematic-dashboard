@@ -164,6 +164,18 @@ export default function CrmUsersPage() {
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  const [userLimit, setUserLimit] = useState<number | null>(null);
+  const [limitInput, setLimitInput] = useState('');
+  const [savingLimit, setSavingLimit] = useState(false);
+  const loadLimit = useCallback(async () => {
+    try {
+      const r: any = await api.get('/api/v1/org-settings/ui-flags', { noCache: true } as RequestInit);
+      const d = r?.data ?? r;
+      setUserLimit(d?.max_active_users ?? null);
+      setLimitInput(d?.max_active_users != null ? String(d.max_active_users) : '');
+    } catch { /* no limit surface */ }
+  }, []);
+  useEffect(() => { loadLimit(); }, [loadLimit]);
   const [showBulk, setShowBulk] = useState(false);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkResult, setBulkResult] = useState<{ ok: number; failed: Array<{ name: string; error: string }> } | null>(null);
@@ -251,6 +263,21 @@ export default function CrmUsersPage() {
     const q = search.toLowerCase();
     return [u.name, u.email, u.mobile].some((v) => (v || '').toLowerCase().includes(q));
   });
+
+  // Active-user cap surface (matches backend: staff domains are exempt).
+  const CAP_BYPASS_DOMAINS = ['kinematicapp.com', 'horizontechstudio.com', 'kinematic.com', 'kaiyotechnologylabs.com'];
+  const activeCapCount = users.filter((u) => u.is_active !== false && !CAP_BYPASS_DOMAINS.includes((u.email || '').split('@')[1]?.toLowerCase() || '')).length;
+  const atLimit = userLimit != null && activeCapCount >= userLimit;
+  const saveLimit = async () => {
+    setSavingLimit(true);
+    try {
+      const v = limitInput.trim() === '' ? null : parseInt(limitInput, 10);
+      const r: any = await api.patch('/api/v1/org-settings/user-limit', { value: v });
+      setUserLimit((r?.data ?? r)?.max_active_users ?? null);
+      toast.success('User limit updated');
+    } catch (e: any) { toast.error(e?.message || 'Failed to save limit'); }
+    finally { setSavingLimit(false); }
+  };
 
   const startCreate = () => { setEditId(null); setForm(blank); setShowAdd(true); };
   const startEdit = (u: UserRow) => {
@@ -490,7 +517,7 @@ export default function CrmUsersPage() {
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <Link href="/dashboard/crm/settings" style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, textDecoration: 'none' }}>← Back</Link>
           <button onClick={() => { setShowBulk((s) => !s); resetBulk(); }} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Bulk Upload</button>
-          <button onClick={startCreate} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>+ Add User</button>
+          <button onClick={startCreate} disabled={atLimit} title={atLimit ? `Active-user limit reached (${userLimit}). Deactivate a user first.` : ''} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: atLimit ? 'not-allowed' : 'pointer', opacity: atLimit ? 0.5 : 1 }}>+ Add User</button>
         </div>
       </div>
 
@@ -758,7 +785,22 @@ export default function CrmUsersPage() {
           ))}
         </div>
         <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>{filtered.length} of {users.length} users</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: atLimit ? '#E01E2C' : 'var(--text-dim)' }}>
+            Active cap: {activeCapCount}{userLimit != null ? ` / ${userLimit}` : ' (no limit)'}
+          </span>
+          <input value={limitInput} onChange={(e) => setLimitInput(e.target.value.replace(/[^0-9]/g, ''))} placeholder="—" title="Max active users (blank = no limit)"
+            style={{ ...input, width: 64, minWidth: 0, textAlign: 'center' }} />
+          <button onClick={saveLimit} disabled={savingLimit} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '7px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: savingLimit ? 0.6 : 1 }}>
+            {savingLimit ? 'Saving…' : 'Set limit'}
+          </button>
+        </div>
       </div>
+      {atLimit && (
+        <div style={{ fontSize: 12, color: '#E01E2C', marginBottom: 10, fontWeight: 600 }}>
+          Active-user limit reached — deactivate a user before adding another. (Staff domains are exempt and don&apos;t count.)
+        </div>
+      )}
 
       <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
