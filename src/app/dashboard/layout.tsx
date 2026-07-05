@@ -85,7 +85,27 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // entering an org triggers a full reload so this reflects the current org.
   const [hideClientFilter, setHideClientFilter] = useState(false);
   useEffect(() => { (async () => {
-    try { const r: any = await api.get('/api/v1/org-settings/ui-flags'); const d = r?.data ?? r; setHideClientFilter(!!d?.hide_client_filter); }
+    try {
+      const r: any = await api.get('/api/v1/org-settings/ui-flags');
+      const d = r?.data ?? r;
+      const hide = !!d?.hide_client_filter;
+      setHideClientFilter(hide);
+      if (typeof window !== 'undefined') {
+        if (hide) {
+          // The org hides the global client filter → no client scope should be
+          // sent. Persist a flag api.ts reads BEFORE attaching X-Client-Id, and
+          // drop any stale selection (+ its cached responses) so the admin sees
+          // the full org instead of whatever client was last picked.
+          window.localStorage.setItem('kinematic_hide_client_filter', '1');
+          if (window.localStorage.getItem('kinematic_selected_client')) {
+            window.localStorage.removeItem('kinematic_selected_client');
+            Object.keys(window.localStorage).filter((k) => k.startsWith('kapi:')).forEach((k) => window.localStorage.removeItem(k));
+          }
+        } else {
+          window.localStorage.removeItem('kinematic_hide_client_filter');
+        }
+      }
+    }
     catch { /* default: show */ }
   })(); }, []);
   // Persist the desktop collapse preference so the rep gets the same
