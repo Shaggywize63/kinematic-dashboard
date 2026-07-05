@@ -6,6 +6,7 @@ import { useAuth } from '../../../hooks/useAuth';
 import { ALL_MODULES, MODULE_GROUPS, MODULE_GROUP_LABELS, type ModuleGroup } from '../../../lib/modules';
 import api, { setActingAs } from '../../../lib/api';
 import { getStoredProjectKey, DEFAULT_PROJECT, setStoredProjectKey } from '../../../lib/projects';
+import { useTableSort, SortLabel } from '../../../lib/tableSort';
 
 // Uses the Next.js proxy routes (/api/v1/clients) which seed the modules table
 // before forwarding to the Supabase edge function, preventing FK constraint errors.
@@ -230,6 +231,32 @@ export default function ClientManagement() {
   const filtered = clients.filter(c => c.name.toLowerCase().includes(search.toLowerCase()) || (c.contact_person || '').toLowerCase().includes(search.toLowerCase()));
   const active = clients.filter(c => c.is_active).length;
 
+  // Type-aware column sorting for the client list (client-side; the full list
+  // is already loaded). Sorts by the mapped value per column key.
+  const clientVal = useCallback((c: Client, key: string): unknown => {
+    switch (key) {
+      case 'name': return c.name;
+      case 'contact_person': return c.contact_person;
+      case 'email': return c.email || c.phone;
+      case 'modules': return c.modules?.length || 0;
+      default: return (c as unknown as Record<string, unknown>)[key];
+    }
+  }, []);
+  const { sorted, sort, toggle } = useTableSort<Client>(filtered, clientVal, { key: 'name', dir: 'asc' });
+
+  // One-click activate / deactivate (optimistic; reverts on error). The backend
+  // PATCH /clients/:id already accepts { is_active }.
+  const toggleActive = async (c: Client) => {
+    const next = !c.is_active;
+    setClients(prev => prev.map(x => x.id === c.id ? { ...x, is_active: next } : x));
+    try {
+      await clientsFetch('PATCH', `/api/v1/clients/${c.id}`, { name: c.name, is_active: next });
+    } catch (e: any) {
+      setClients(prev => prev.map(x => x.id === c.id ? { ...x, is_active: !next } : x));
+      setErr(e?.response?.data?.error || e?.message || 'Failed to update client status');
+    }
+  };
+
   return (
     <div>
       <style>{`@keyframes kspin{to{transform:rotate(360deg)}}`}</style>
@@ -264,8 +291,18 @@ export default function ClientManagement() {
       {/* Table */}
       <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 16, overflow: 'hidden' }}>
         <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.3fr 1.3fr 140px 190px', padding: '12px 20px', borderBottom: `1px solid ${C.border}`, gap: 12 }}>
-          {['Client Name', 'Contact Person', 'Email / Phone', 'Module Access', 'Actions'].map(h => (
-            <div key={h} style={{ fontSize: 11, fontWeight: 700, color: C.grayd, letterSpacing: '0.8px', textTransform: 'uppercase' }}>{h}</div>
+          {([
+            { h: 'Client Name', k: 'name' },
+            { h: 'Contact Person', k: 'contact_person' },
+            { h: 'Email / Phone', k: 'email' },
+            { h: 'Module Access', k: 'modules' },
+            { h: 'Actions', k: null },
+          ] as { h: string; k: string | null }[]).map(col => (
+            <div key={col.h} style={{ fontSize: 11, fontWeight: 700, color: C.grayd, letterSpacing: '0.8px', textTransform: 'uppercase' }}>
+              {col.k
+                ? <SortLabel label={col.h} sortKey={col.k} sort={sort} onToggle={toggle} style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.8px', textTransform: 'uppercase' }} />
+                : col.h}
+            </div>
           ))}
         </div>
         {loading ? (
@@ -276,11 +313,11 @@ export default function ClientManagement() {
           <div style={{ padding: 48, textAlign: 'center', color: C.grayd, fontSize: 13 }}>
             {search ? 'No clients match your search.' : 'No clients yet. Add your first client to enable multi-tenancy.'}
           </div>
-        ) : filtered.map((c, i) => {
+        ) : sorted.map((c, i) => {
           const canLogin = user?.role === 'super_admin' && !!(c as { org_id?: string }).org_id;
           const expanded = expandedId === c.id;
           return (
-          <div key={c.id} style={{ borderBottom: i < filtered.length - 1 ? `1px solid ${C.border}` : 'none' }}>
+          <div key={c.id} style={{ borderBottom: i < sorted.length - 1 ? `1px solid ${C.border}` : 'none' }}>
             <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.3fr 1.3fr 140px 190px', padding: '16px 20px', gap: 12, alignItems: 'center' }}
               onMouseEnter={e => e.currentTarget.style.background = C.s3}
               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
@@ -311,8 +348,10 @@ export default function ClientManagement() {
                   onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.gray; }}>
                   <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4z"/></svg>
                 </button>
-                <button onClick={() => openEdit(c)} title={c.is_active?'Deactivate':'Activate'} style={{ width: 32, height: 32, border: `1px solid ${C.border}`, borderRadius: 10, background: 'transparent', cursor: 'pointer', color: c.is_active ? C.green : C.gray, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <button onClick={() => toggleActive(c)} title={c.is_active ? 'Active — click to deactivate' : 'Inactive — click to activate'}
+                  style={{ height: 32, padding: '0 10px', border: `1px solid ${c.is_active ? 'rgba(0,217,126,0.4)' : C.border}`, borderRadius: 10, background: c.is_active ? 'rgba(0,217,126,0.1)' : 'transparent', cursor: 'pointer', color: c.is_active ? C.green : C.gray, display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700 }}>
                    <div style={{ width: 6, height: 6, borderRadius: '50%', background: c.is_active ? C.green : C.gray }} />
+                   {c.is_active ? 'Active' : 'Inactive'}
                 </button>
                 {user?.role !== 'client' && (
                   <button onClick={() => setDeleteConfirm({show:true, item:c})} title="Delete Client" style={{ width: 32, height: 32, border: `1px solid ${C.border}`, borderRadius: 10, background: 'transparent', cursor:'pointer', color: C.gray, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
