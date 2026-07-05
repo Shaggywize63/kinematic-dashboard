@@ -1,9 +1,10 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import api from '../../../../lib/api';
 import { Card, PageHeader, Pill, Th, Td, Btn, inr } from '../../../../components/distribution/Atoms';
 import { INDIA_STATES, parseGstinClient, stateName } from '../../../../lib/india';
 import PrefetchLink from '../../../../components/PrefetchLink';
+import { useTableSort, SortLabel } from '../../../../lib/tableSort';
 
 interface DistForm {
   name: string;
@@ -110,6 +111,21 @@ export default function DistributorsPage() {
     } catch (e: any) { alert(`Could not reactivate: ${e.message}`); }
   };
 
+  // Type-aware, client-side column sorting for the distributor list.
+  const distVal = useCallback((d: any, key: string): unknown => {
+    switch (key) {
+      case 'name': return d.name;
+      case 'code': return d.code;
+      case 'gstin': return d.gstin;
+      case 'state': return d.state_code;
+      case 'class': return d.customer_class;
+      case 'credit_limit': return Number(d.credit_limit);
+      case 'status': return d.is_active;
+      default: return d[key];
+    }
+  }, []);
+  const { sorted, sort, toggle } = useTableSort<any>(items, distVal, { key: 'name', dir: 'asc' });
+
   return (
     <div>
       <PageHeader title="Distributors" subtitle="Stockists, distributors, wholesalers" right={<Btn onClick={() => setShowForm((s) => !s)}>{showForm ? 'Cancel' : '+ Add Distributor'}</Btn>} />
@@ -184,11 +200,18 @@ export default function DistributorsPage() {
       <Card>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead><tr>
-            <Th>Distributor</Th><Th>Code</Th><Th>GSTIN</Th><Th>State</Th><Th>Class</Th><Th style={{ textAlign: 'right' }}>Credit Limit</Th><Th>Status</Th><Th />
+            <Th><SortLabel label="Distributor" sortKey="name" sort={sort} onToggle={toggle} /></Th>
+            <Th><SortLabel label="Code" sortKey="code" sort={sort} onToggle={toggle} /></Th>
+            <Th><SortLabel label="GSTIN" sortKey="gstin" sort={sort} onToggle={toggle} /></Th>
+            <Th><SortLabel label="State" sortKey="state" sort={sort} onToggle={toggle} /></Th>
+            <Th><SortLabel label="Class" sortKey="class" sort={sort} onToggle={toggle} /></Th>
+            <Th style={{ textAlign: 'right' }}><SortLabel label="Credit Limit" sortKey="credit_limit" sort={sort} onToggle={toggle} align="right" /></Th>
+            <Th><SortLabel label="Status" sortKey="status" sort={sort} onToggle={toggle} /></Th>
+            <Th />
           </tr></thead>
           <tbody>
             {loading ? <tr><Td>Loading…</Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td></tr> :
-              items.map((d) => (
+              sorted.map((d) => (
                 <tr key={d.id}>
                   <Td style={{ fontWeight: 700 }}><PrefetchLink
                         href={`/dashboard/distribution/distributors/${d.id}`}

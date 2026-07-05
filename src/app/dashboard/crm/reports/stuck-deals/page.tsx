@@ -7,6 +7,7 @@ import api from '../../../../../lib/api';
 import type { Deal } from '../../../../../types/crm';
 import { downloadCsv } from '../../../../../lib/exportCsv';
 import { useReportCityKey } from '../../../../../components/crm/reports/ReportFilters';
+import { useTableSort, SortLabel } from '../../../../../lib/tableSort';
 
 // "Stuck deal" = open status (not won/lost) where the stage hasn't moved
 // in N days. Pulls crm_deals, filters client-side, sorts by oldest first.
@@ -24,6 +25,18 @@ interface DealRow extends Record<string, unknown> {
   days_stuck: number;
   last_activity_at: string | null;
 }
+
+// Raw underlying value per sortable column (numbers stay numeric).
+const stuckVal = (d: DealRow, key: string): unknown => {
+  switch (key) {
+    case 'name': return d.name;
+    case 'owner_name': return d.owner_name;
+    case 'stage_name': return d.stage_name;
+    case 'amount': return d.amount;
+    case 'days_stuck': return d.days_stuck;
+    default: return d[key];
+  }
+};
 
 export default function StuckDealsPage() {
   const [rows, setRows] = useState<DealRow[]>([]);
@@ -77,6 +90,9 @@ export default function StuckDealsPage() {
 
   const totalValue = useMemo(() => rows.reduce((s, r) => s + r.amount, 0), [rows]);
 
+  // Client-side column sorting; defaults to the effect's oldest-first order.
+  const { sorted, sort, toggle } = useTableSort<DealRow>(rows, stuckVal, { key: 'days_stuck', dir: 'desc' });
+
   return (
     <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, gap: 8, flexWrap: 'wrap' }}>
@@ -113,16 +129,16 @@ export default function StuckDealsPage() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr>
-                <th style={th}>Deal</th>
-                <th style={th}>Owner</th>
-                <th style={th}>Stage</th>
-                <th style={thNum}>Amount</th>
-                <th style={thNum}>Days Stuck</th>
+                <th style={th}><SortLabel label="Deal" sortKey="name" sort={sort} onToggle={toggle} /></th>
+                <th style={th}><SortLabel label="Owner" sortKey="owner_name" sort={sort} onToggle={toggle} /></th>
+                <th style={th}><SortLabel label="Stage" sortKey="stage_name" sort={sort} onToggle={toggle} /></th>
+                <th style={thNum}><SortLabel label="Amount" sortKey="amount" sort={sort} onToggle={toggle} align="right" /></th>
+                <th style={thNum}><SortLabel label="Days Stuck" sortKey="days_stuck" sort={sort} onToggle={toggle} align="right" /></th>
                 <th style={th}></th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((d) => (
+              {sorted.map((d) => (
                 <tr key={d.id}>
                   <td style={td}><Link href={`/dashboard/crm/deals/${d.id}`} style={{ color: 'var(--primary)', textDecoration: 'none', fontWeight: 600 }}>{d.name}</Link></td>
                   <td style={td}>{d.owner_name}</td>

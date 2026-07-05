@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import api from '../../../../lib/api';
+import { useTableSort, SortLabel } from '../../../../lib/tableSort';
 
 /**
  * Visit Coverage — universe (planned) vs covered (visited) outlets,
@@ -26,6 +27,19 @@ function pctColor(pct: number) {
   if (pct >= 50) return '#F59E0B';
   return '#EF4444';
 }
+
+// Type-aware column sorting reads the raw per-city value (gap and coverage are
+// derived so the comparator sorts numerically, not on the formatted string).
+const cityVal = (c: ByCity, key: string): unknown => {
+  switch (key) {
+    case 'city': return c.city;
+    case 'universe': return c.universe;
+    case 'covered': return c.covered;
+    case 'gap': return c.universe - c.covered;
+    case 'coverage': return c.universe > 0 ? c.covered / c.universe : 0;
+    default: return (c as unknown as Record<string, unknown>)[key];
+  }
+};
 
 export default function VisitCoverageReport() {
   const [data, setData] = useState<Payload | null>(null);
@@ -61,6 +75,8 @@ export default function VisitCoverageReport() {
     a.click();
     URL.revokeObjectURL(url);
   };
+
+  const { sorted, sort, toggle } = useTableSort<ByCity>(data?.by_city ?? [], cityVal, { key: 'city', dir: 'asc' });
 
   if (loading) return <div style={{ padding: 16, color: 'var(--text-dim)' }}>Loading coverage…</div>;
   if (error) return <div style={{ padding: 16, color: '#ef4444' }}>{error}</div>;
@@ -104,16 +120,16 @@ export default function VisitCoverageReport() {
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead style={{ background: 'var(--s3)', color: 'var(--text-dim)', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6 }}>
             <tr>
-              <Th>City</Th>
-              <Th align="right">Universe</Th>
-              <Th align="right">Covered</Th>
-              <Th align="right">Gap</Th>
-              <Th align="right">Coverage</Th>
+              <Th><SortLabel label="City" sortKey="city" sort={sort} onToggle={toggle} /></Th>
+              <Th align="right"><SortLabel label="Universe" sortKey="universe" sort={sort} onToggle={toggle} align="right" /></Th>
+              <Th align="right"><SortLabel label="Covered" sortKey="covered" sort={sort} onToggle={toggle} align="right" /></Th>
+              <Th align="right"><SortLabel label="Gap" sortKey="gap" sort={sort} onToggle={toggle} align="right" /></Th>
+              <Th align="right"><SortLabel label="Coverage" sortKey="coverage" sort={sort} onToggle={toggle} align="right" /></Th>
               <Th>Progress</Th>
             </tr>
           </thead>
           <tbody>
-            {(data.by_city ?? []).map((c) => {
+            {sorted.map((c) => {
               const pct = c.universe > 0 ? Math.round((c.covered / c.universe) * 100) : 0;
               const cityGap = c.universe - c.covered;
               return (

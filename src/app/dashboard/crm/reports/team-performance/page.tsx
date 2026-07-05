@@ -5,6 +5,13 @@ import { toast } from 'sonner';
 import { crmAnalytics } from '../../../../../lib/crmApi';
 import type { TeamPerformanceRow } from '../../../../../types/crm';
 import { useReportCityKey } from '../../../../../components/crm/reports/ReportFilters';
+import { useTableSort, SortLabel } from '../../../../../lib/tableSort';
+
+// Raw underlying value per sortable column — sort keys match the row field
+// names, so this passthrough yields numbers as numbers and the last-activity
+// ISO string for chronological sorting.
+const teamVal = (r: TeamPerformanceRow, key: string): unknown =>
+  (r as unknown as Record<string, unknown>)[key];
 
 /**
  * Team Performance — comprehensive per-rep KPI roll-up across the
@@ -58,6 +65,11 @@ export default function TeamPerformancePage() {
     return () => { cancelled = true; };
   }, [range.from, range.to, cityKey]);
 
+  // Client-side column sorting for the per-rep rows. The pinned Total row is
+  // rendered separately and stays out of the sorted set. No active column by
+  // default, so the backend order is preserved.
+  const { sorted, sort, toggle } = useTableSort<TeamPerformanceRow>(rows, teamVal);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <Header range={range} onChange={setRange} />
@@ -68,35 +80,35 @@ export default function TeamPerformancePage() {
             <thead>
               {/* Top header row — section grouping (Lead Funnel / Deals / Ops) */}
               <tr style={{ background: 'var(--s1)' }}>
-                <Th rowSpan={2} sticky>Rep</Th>
+                <Th rowSpan={2} sticky><SortLabel label="Rep" sortKey="name" sort={sort} onToggle={toggle} /></Th>
                 <Th colSpan={8} group="#3E9EFF">Lead Funnel</Th>
                 <Th colSpan={8} group="#10B981">Deal Performance</Th>
                 <Th colSpan={5} group="#F59E0B">Operational Health</Th>
               </tr>
               <tr style={{ background: 'var(--s2)' }}>
-                <Th align="right">Total Leads</Th>
-                <Th align="right">New Today</Th>
-                <Th align="right">New This Week</Th>
-                <Th align="right">New This Month</Th>
-                <Th align="right">New In Range</Th>
-                <Th align="right">Qualified</Th>
-                <Th align="right">Converted</Th>
-                <Th align="right">Lost</Th>
+                <Th align="right"><SortLabel label="Total Leads" sortKey="total_leads_owned" sort={sort} onToggle={toggle} align="right" /></Th>
+                <Th align="right"><SortLabel label="New Today" sortKey="new_leads_today" sort={sort} onToggle={toggle} align="right" /></Th>
+                <Th align="right"><SortLabel label="New This Week" sortKey="new_leads_week" sort={sort} onToggle={toggle} align="right" /></Th>
+                <Th align="right"><SortLabel label="New This Month" sortKey="new_leads_month" sort={sort} onToggle={toggle} align="right" /></Th>
+                <Th align="right"><SortLabel label="New In Range" sortKey="new_leads_period" sort={sort} onToggle={toggle} align="right" /></Th>
+                <Th align="right"><SortLabel label="Qualified" sortKey="qualified_count" sort={sort} onToggle={toggle} align="right" /></Th>
+                <Th align="right"><SortLabel label="Converted" sortKey="converted_count" sort={sort} onToggle={toggle} align="right" /></Th>
+                <Th align="right"><SortLabel label="Lost" sortKey="lost_leads_count" sort={sort} onToggle={toggle} align="right" /></Th>
 
-                <Th align="right">Won Count</Th>
-                <Th align="right">Won Value</Th>
-                <Th align="right">Lost Count</Th>
-                <Th align="right">Open</Th>
-                <Th align="right">Pipeline Value</Th>
-                <Th align="right">Conversion</Th>
-                <Th align="right">Avg Deal Size</Th>
-                <Th align="right">Sales Cycle (d)</Th>
+                <Th align="right"><SortLabel label="Won Count" sortKey="won_count" sort={sort} onToggle={toggle} align="right" /></Th>
+                <Th align="right"><SortLabel label="Won Value" sortKey="won_value" sort={sort} onToggle={toggle} align="right" /></Th>
+                <Th align="right"><SortLabel label="Lost Count" sortKey="lost_count" sort={sort} onToggle={toggle} align="right" /></Th>
+                <Th align="right"><SortLabel label="Open" sortKey="open_count" sort={sort} onToggle={toggle} align="right" /></Th>
+                <Th align="right"><SortLabel label="Pipeline Value" sortKey="open_pipeline_value" sort={sort} onToggle={toggle} align="right" /></Th>
+                <Th align="right"><SortLabel label="Conversion" sortKey="conversion_rate" sort={sort} onToggle={toggle} align="right" /></Th>
+                <Th align="right"><SortLabel label="Avg Deal Size" sortKey="avg_deal_size" sort={sort} onToggle={toggle} align="right" /></Th>
+                <Th align="right"><SortLabel label="Sales Cycle (d)" sortKey="avg_sales_cycle_days" sort={sort} onToggle={toggle} align="right" /></Th>
 
-                <Th align="right">Avg Ageing (d)</Th>
-                <Th align="right">Oldest Open (d)</Th>
-                <Th align="right">Activities Done</Th>
-                <Th align="right">Last Activity</Th>
-                <Th align="right">Avg Lead Score</Th>
+                <Th align="right"><SortLabel label="Avg Ageing (d)" sortKey="avg_ageing_days" sort={sort} onToggle={toggle} align="right" /></Th>
+                <Th align="right"><SortLabel label="Oldest Open (d)" sortKey="oldest_open_lead_days" sort={sort} onToggle={toggle} align="right" /></Th>
+                <Th align="right"><SortLabel label="Activities Done" sortKey="activities_completed_period" sort={sort} onToggle={toggle} align="right" /></Th>
+                <Th align="right"><SortLabel label="Last Activity" sortKey="last_activity_at" sort={sort} onToggle={toggle} align="right" /></Th>
+                <Th align="right"><SortLabel label="Avg Lead Score" sortKey="avg_lead_score" sort={sort} onToggle={toggle} align="right" /></Th>
               </tr>
             </thead>
             <tbody>
@@ -107,7 +119,7 @@ export default function TeamPerformancePage() {
               {!loading && rows.length === 0 && (
                 <tr><Td colSpan={22} center dim>No team data for the selected window.</Td></tr>
               )}
-              {rows.map((r) => <Row key={r.user_id ?? r.name} r={r} />)}
+              {sorted.map((r) => <Row key={r.user_id ?? r.name} r={r} />)}
             </tbody>
           </table>
         </div>

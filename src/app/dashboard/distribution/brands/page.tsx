@@ -1,8 +1,9 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import api from '../../../../lib/api';
 import { Card, PageHeader, Pill, Th, Td, Btn, fmtDate } from '../../../../components/distribution/Atoms';
 import { INDIA_STATES, parseGstinClient, stateName } from '../../../../lib/india';
+import { useTableSort, SortLabel } from '../../../../lib/tableSort';
 
 interface BrandForm {
   name: string;
@@ -108,6 +109,20 @@ export default function BrandsPage() {
     }
   };
 
+  // Type-aware, client-side column sorting for the brand list.
+  const brandVal = useCallback((b: any, key: string): unknown => {
+    switch (key) {
+      case 'name': return b.name;
+      case 'code': return b.code;
+      case 'gstin': return b.gstin;
+      case 'state': return b.state_code;
+      case 'status': return b.is_active;
+      case 'created': return b.created_at;
+      default: return b[key];
+    }
+  }, []);
+  const { sorted, sort, toggle } = useTableSort<any>(items, brandVal, { key: 'created', dir: 'desc' });
+
   return (
     <div>
       <PageHeader title="Brands" subtitle="Brand identities with GSTIN and place-of-supply" right={<Btn onClick={() => setShowForm((s) => !s)}>{showForm ? 'Cancel' : '+ Add Brand'}</Btn>} />
@@ -184,12 +199,18 @@ export default function BrandsPage() {
       <Card>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead><tr>
-            <Th>Brand</Th><Th>Code</Th><Th>GSTIN</Th><Th>State</Th><Th>Status</Th><Th>Created</Th><Th />
+            <Th><SortLabel label="Brand" sortKey="name" sort={sort} onToggle={toggle} /></Th>
+            <Th><SortLabel label="Code" sortKey="code" sort={sort} onToggle={toggle} /></Th>
+            <Th><SortLabel label="GSTIN" sortKey="gstin" sort={sort} onToggle={toggle} /></Th>
+            <Th><SortLabel label="State" sortKey="state" sort={sort} onToggle={toggle} /></Th>
+            <Th><SortLabel label="Status" sortKey="status" sort={sort} onToggle={toggle} /></Th>
+            <Th><SortLabel label="Created" sortKey="created" sort={sort} onToggle={toggle} /></Th>
+            <Th />
           </tr></thead>
           <tbody>
             {loading ? (
               <tr><Td>Loading…</Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td></tr>
-            ) : items.map((b) => (
+            ) : sorted.map((b) => (
               <tr key={b.id}>
                 <Td style={{ fontWeight: 700 }}>{b.name}</Td>
                 <Td style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12 }}>{b.code}</Td>

@@ -19,15 +19,16 @@
  * "Sync now" actions show a toast so reviewers can see the affordances
  * exist; persistence is deferred until the real backend lands.
  */
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import {
   DEMO_SEGMENTS, DEMO_SEQUENCES, DEMO_FUNNEL, DEMO_COSTS_LAST_30D,
   DEMO_TOP_CONVERSIONS, DEMO_CONSENT_FUNNEL,
-  type DemoSegment, type DemoSequence,
+  type DemoSegment, type DemoSequence, type DemoAttributedConversion,
 } from '../../../../lib/demo/nurturingSeed';
 import { getStoredUser } from '../../../../lib/auth';
+import { useTableSort, SortLabel } from '../../../../lib/tableSort';
 
 type Tab = 'overview' | 'segments' | 'sequences' | 'audiences' | 'attribution' | 'consent';
 
@@ -406,6 +407,18 @@ function SequenceDetail({ seq, onClose }: { seq: DemoSequence; onClose: () => vo
 // Audiences Tab — Meta CA + Google CM at a glance
 // ─────────────────────────────────────────────────────────────
 function AudiencesTab() {
+  // Type-aware client-side column sorting for the active-audiences table.
+  const segVal = useCallback((s: DemoSegment, key: string): unknown => {
+    switch (key) {
+      case 'segment': return s.name;
+      case 'members': return s.member_count;
+      case 'meta': return s.meta_audience.enabled ? s.meta_audience.matched : null;
+      case 'google': return s.google_audience.enabled ? s.google_audience.matched : null;
+      case 'last_sync': return s.meta_audience.last_sync_at || s.google_audience.last_sync_at;
+      default: return (s as unknown as Record<string, unknown>)[key];
+    }
+  }, []);
+  const { sorted, sort, toggle } = useTableSort<DemoSegment>(DEMO_SEGMENTS, segVal, { key: null, dir: 'asc' });
   return (
     <>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
@@ -420,15 +433,15 @@ function AudiencesTab() {
         <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ color: 'var(--text-dim)', fontSize: 11, textTransform: 'uppercase' }}>
-              <th style={{ ...th }}>Segment</th>
-              <th style={{ ...th, textAlign: 'right' }}>Members</th>
-              <th style={{ ...th, textAlign: 'right' }}>Meta matched</th>
-              <th style={{ ...th, textAlign: 'right' }}>Google matched</th>
-              <th style={{ ...th, textAlign: 'right' }}>Last sync</th>
+              <th style={{ ...th }}><SortLabel label="Segment" sortKey="segment" sort={sort} onToggle={toggle} /></th>
+              <th style={{ ...th, textAlign: 'right' }}><SortLabel label="Members" sortKey="members" sort={sort} onToggle={toggle} align="right" /></th>
+              <th style={{ ...th, textAlign: 'right' }}><SortLabel label="Meta matched" sortKey="meta" sort={sort} onToggle={toggle} align="right" /></th>
+              <th style={{ ...th, textAlign: 'right' }}><SortLabel label="Google matched" sortKey="google" sort={sort} onToggle={toggle} align="right" /></th>
+              <th style={{ ...th, textAlign: 'right' }}><SortLabel label="Last sync" sortKey="last_sync" sort={sort} onToggle={toggle} align="right" /></th>
             </tr>
           </thead>
           <tbody>
-            {DEMO_SEGMENTS.map((s) => (
+            {sorted.map((s) => (
               <tr key={s.id}>
                 <td style={td}><strong>{s.name}</strong></td>
                 <td style={{ ...td, textAlign: 'right' }}>{s.member_count.toLocaleString()}</td>
@@ -464,6 +477,21 @@ function AttributionTab() {
   const roi = totalSpend > 0 ? (revenue / totalSpend) : 0;
   const conv = DEMO_FUNNEL[DEMO_FUNNEL.length - 1].count;
   const cpa = conv > 0 ? Math.round(totalSpend / conv) : 0;
+
+  // Type-aware client-side column sorting for the top-conversions table (deal
+  // value / touches / days-to-close as raw numbers).
+  const convVal = useCallback((c: DemoAttributedConversion, key: string): unknown => {
+    switch (key) {
+      case 'lead': return c.lead_name;
+      case 'segment': return c.segment_name;
+      case 'sequence': return c.sequence_name;
+      case 'touches': return c.touches;
+      case 'deal': return c.deal_amount_inr;
+      case 'days': return c.time_to_close_days;
+      default: return (c as unknown as Record<string, unknown>)[key];
+    }
+  }, []);
+  const { sorted, sort, toggle } = useTableSort<DemoAttributedConversion>(DEMO_TOP_CONVERSIONS, convVal, { key: null, dir: 'asc' });
 
   return (
     <>
@@ -538,17 +566,17 @@ function AttributionTab() {
         <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ color: 'var(--text-dim)', fontSize: 11, textTransform: 'uppercase' }}>
-              <th style={th}>Lead</th>
-              <th style={th}>Segment</th>
-              <th style={th}>Sequence</th>
-              <th style={th}>Touches</th>
+              <th style={th}><SortLabel label="Lead" sortKey="lead" sort={sort} onToggle={toggle} /></th>
+              <th style={th}><SortLabel label="Segment" sortKey="segment" sort={sort} onToggle={toggle} /></th>
+              <th style={th}><SortLabel label="Sequence" sortKey="sequence" sort={sort} onToggle={toggle} /></th>
+              <th style={th}><SortLabel label="Touches" sortKey="touches" sort={sort} onToggle={toggle} /></th>
               <th style={th}>Channels</th>
-              <th style={{ ...th, textAlign: 'right' }}>Deal</th>
-              <th style={{ ...th, textAlign: 'right' }}>Days to close</th>
+              <th style={{ ...th, textAlign: 'right' }}><SortLabel label="Deal" sortKey="deal" sort={sort} onToggle={toggle} align="right" /></th>
+              <th style={{ ...th, textAlign: 'right' }}><SortLabel label="Days to close" sortKey="days" sort={sort} onToggle={toggle} align="right" /></th>
             </tr>
           </thead>
           <tbody>
-            {DEMO_TOP_CONVERSIONS.map((c, i) => (
+            {sorted.map((c, i) => (
               <tr key={i}>
                 <td style={td}><strong>{c.lead_name}</strong></td>
                 <td style={{ ...td, color: 'var(--text-dim)' }}>{c.segment_name}</td>
@@ -575,6 +603,17 @@ function AttributionTab() {
 // ─────────────────────────────────────────────────────────────
 function ConsentTab() {
   const c = DEMO_CONSENT_FUNNEL;
+  // Type-aware client-side column sorting for the opt-in-by-source table.
+  const srcVal = useCallback((s: { source: string; leads: number; granted_pct: number }, key: string): unknown => {
+    switch (key) {
+      case 'source': return s.source;
+      case 'leads': return s.leads;
+      case 'granted': return s.leads * s.granted_pct;
+      case 'rate': return s.granted_pct;
+      default: return (s as unknown as Record<string, unknown>)[key];
+    }
+  }, []);
+  const { sorted, sort, toggle } = useTableSort(c.capture_sources, srcVal, { key: null, dir: 'asc' });
   return (
     <>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, marginBottom: 14 }}>
@@ -589,14 +628,14 @@ function ConsentTab() {
         <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ color: 'var(--text-dim)', fontSize: 11, textTransform: 'uppercase' }}>
-              <th style={th}>Source</th>
-              <th style={{ ...th, textAlign: 'right' }}>Leads</th>
-              <th style={{ ...th, textAlign: 'right' }}>Granted</th>
-              <th style={th}>Opt-in rate</th>
+              <th style={th}><SortLabel label="Source" sortKey="source" sort={sort} onToggle={toggle} /></th>
+              <th style={{ ...th, textAlign: 'right' }}><SortLabel label="Leads" sortKey="leads" sort={sort} onToggle={toggle} align="right" /></th>
+              <th style={{ ...th, textAlign: 'right' }}><SortLabel label="Granted" sortKey="granted" sort={sort} onToggle={toggle} align="right" /></th>
+              <th style={th}><SortLabel label="Opt-in rate" sortKey="rate" sort={sort} onToggle={toggle} /></th>
             </tr>
           </thead>
           <tbody>
-            {c.capture_sources.map((s) => (
+            {sorted.map((s) => (
               <tr key={s.source}>
                 <td style={td}><strong>{s.source}</strong></td>
                 <td style={{ ...td, textAlign: 'right' }}>{s.leads.toLocaleString()}</td>

@@ -5,6 +5,7 @@ import { crmDeals, crmPipelines, crmStages } from '../../../../../lib/crmApi';
 import type { Deal, Pipeline, Stage } from '../../../../../types/crm';
 import { downloadCsv } from '../../../../../lib/exportCsv';
 import { useReportCityKey } from '../../../../../components/crm/reports/ReportFilters';
+import { useTableSort, SortLabel } from '../../../../../lib/tableSort';
 
 // Stage funnel = count of deals per stage in pipeline order, plus the
 // conversion ratio from each stage to the next. Strategic report — shows
@@ -20,6 +21,19 @@ interface StageRow extends Record<string, unknown> {
   pct_of_first: number;
   drop_from_prev_pct: number | null;
 }
+
+// Raw underlying value per sortable column (numbers stay numeric).
+const stageVal = (r: StageRow, key: string): unknown => {
+  switch (key) {
+    case 'stage_name': return r.stage_name;
+    case 'stage_type': return r.stage_type;
+    case 'count': return r.count;
+    case 'value': return r.value;
+    case 'pct_of_first': return r.pct_of_first;
+    case 'drop_from_prev_pct': return r.drop_from_prev_pct;
+    default: return r[key];
+  }
+};
 
 export default function StageFunnelPage() {
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
@@ -104,6 +118,10 @@ export default function StageFunnelPage() {
 
   const maxCount = useMemo(() => rows.reduce((m, r) => Math.max(m, r.count), 0), [rows]);
 
+  // Client-side column sorting for the detail table; the funnel bars above
+  // stay in pipeline (position) order. No active column by default.
+  const { sorted, sort, toggle } = useTableSort<StageRow>(rows, stageVal);
+
   return (
     <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, gap: 8, flexWrap: 'wrap' }}>
@@ -156,16 +174,16 @@ export default function StageFunnelPage() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr>
-                <th style={th}>Stage</th>
-                <th style={th}>Type</th>
-                <th style={thNum}>Deals</th>
-                <th style={thNum}>Total Value</th>
-                <th style={thNum}>% of First Stage</th>
-                <th style={thNum}>Drop from Prev</th>
+                <th style={th}><SortLabel label="Stage" sortKey="stage_name" sort={sort} onToggle={toggle} /></th>
+                <th style={th}><SortLabel label="Type" sortKey="stage_type" sort={sort} onToggle={toggle} /></th>
+                <th style={thNum}><SortLabel label="Deals" sortKey="count" sort={sort} onToggle={toggle} align="right" /></th>
+                <th style={thNum}><SortLabel label="Total Value" sortKey="value" sort={sort} onToggle={toggle} align="right" /></th>
+                <th style={thNum}><SortLabel label="% of First Stage" sortKey="pct_of_first" sort={sort} onToggle={toggle} align="right" /></th>
+                <th style={thNum}><SortLabel label="Drop from Prev" sortKey="drop_from_prev_pct" sort={sort} onToggle={toggle} align="right" /></th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
+              {sorted.map((r) => (
                 <tr key={r.stage_id}>
                   <td style={td}>{r.stage_name}</td>
                   <td style={td}><span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', padding: '2px 6px', borderRadius: 4, background: 'var(--s3)' }}>{r.stage_type}</span></td>

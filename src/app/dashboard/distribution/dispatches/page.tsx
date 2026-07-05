@@ -1,7 +1,8 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import api from '../../../../lib/api';
 import { Card, PageHeader, Pill, Th, Td, Btn, inr, fmtDate, statusColor } from '../../../../components/distribution/Atoms';
+import { useTableSort, SortLabel } from '../../../../lib/tableSort';
 
 export default function DispatchesPage() {
   const [items, setItems] = useState<any[]>([]);
@@ -15,6 +16,21 @@ export default function DispatchesPage() {
   const generate = async (id: string) => { await api.attachEwayBill(id, { generate: true }); await load(); };
   const markOut = async (id: string) => { try { await api.markDispatchOut(id); await load(); } catch (e: any) { alert(e.message); } };
 
+  // Type-aware, client-side column sorting for the dispatch list.
+  const dispatchVal = useCallback((d: any, key: string): unknown => {
+    switch (key) {
+      case 'dispatch_no': return d.dispatch_no;
+      case 'distributor': return d.distributor_id;
+      case 'vehicle': return d.vehicle_no;
+      case 'driver': return d.driver_name;
+      case 'eway': return d.eway_bill_no;
+      case 'status': return d.status;
+      case 'total': return Number(d.total_value);
+      default: return d[key];
+    }
+  }, []);
+  const { sorted, sort, toggle } = useTableSort<any>(items, dispatchVal, { key: 'dispatch_no', dir: 'asc' });
+
   return (
     <div>
       <PageHeader title="Dispatches" subtitle="Vehicle-level grouping with e-way bill control" />
@@ -22,11 +38,18 @@ export default function DispatchesPage() {
       <Card>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead><tr>
-            <Th>Dispatch #</Th><Th>Distributor</Th><Th>Vehicle</Th><Th>Driver</Th><Th>EWB</Th><Th>Status</Th><Th style={{ textAlign: 'right' }}>Total</Th><Th />
+            <Th><SortLabel label="Dispatch #" sortKey="dispatch_no" sort={sort} onToggle={toggle} /></Th>
+            <Th><SortLabel label="Distributor" sortKey="distributor" sort={sort} onToggle={toggle} /></Th>
+            <Th><SortLabel label="Vehicle" sortKey="vehicle" sort={sort} onToggle={toggle} /></Th>
+            <Th><SortLabel label="Driver" sortKey="driver" sort={sort} onToggle={toggle} /></Th>
+            <Th><SortLabel label="EWB" sortKey="eway" sort={sort} onToggle={toggle} /></Th>
+            <Th><SortLabel label="Status" sortKey="status" sort={sort} onToggle={toggle} /></Th>
+            <Th style={{ textAlign: 'right' }}><SortLabel label="Total" sortKey="total" sort={sort} onToggle={toggle} align="right" /></Th>
+            <Th />
           </tr></thead>
           <tbody>
             {loading ? <tr><Td>Loading…</Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td></tr> :
-              items.map((d) => (
+              sorted.map((d) => (
                 <tr key={d.id}>
                   <Td style={{ fontWeight: 700 }}>{d.dispatch_no}</Td>
                   <Td>{d.distributor_id?.slice(0, 8)}…</Td>

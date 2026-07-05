@@ -4,6 +4,7 @@ import { useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { verifiedSendersApi, type VerifiedSender } from '../../../../lib/emailAlertsApi';
 import { API_BASE_URL } from '../../../../lib/api';
+import { useTableSort, SortLabel } from '../../../../lib/tableSort';
 
 /**
  * Verified sender addresses for outbound email.
@@ -124,6 +125,19 @@ export default function EmailSendersPage() {
     }
   };
 
+  // Type-aware client-side column sorting for the senders list. Status sorts by
+  // verified_at (verified rows chronologically; pending — null — always last).
+  const senderVal = useCallback((r: VerifiedSender, key: string): unknown => {
+    switch (key) {
+      case 'email': return r.email;
+      case 'display_name': return r.display_name;
+      case 'status': return r.verified_at;
+      case 'added': return r.created_at;
+      default: return (r as unknown as Record<string, unknown>)[key];
+    }
+  }, []);
+  const { sorted, sort, toggle } = useTableSort<VerifiedSender>(rows, senderVal, { key: null, dir: 'asc' });
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div>
@@ -166,11 +180,15 @@ export default function EmailSendersPage() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ background: 'var(--s2)' }}>
-                <Th>Email</Th><Th>Display name</Th><Th>Status</Th><Th>Added</Th><Th>{' '}</Th>
+                <Th><SortLabel label="Email" sortKey="email" sort={sort} onToggle={toggle} /></Th>
+                <Th><SortLabel label="Display name" sortKey="display_name" sort={sort} onToggle={toggle} /></Th>
+                <Th><SortLabel label="Status" sortKey="status" sort={sort} onToggle={toggle} /></Th>
+                <Th><SortLabel label="Added" sortKey="added" sort={sort} onToggle={toggle} /></Th>
+                <Th>{' '}</Th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
+              {sorted.map((r) => (
                 <tr key={r.id} style={{ borderTop: '1px solid var(--border)' }}>
                   <Td>
                     <span style={{ fontWeight: 600 }}>{r.email}</span>

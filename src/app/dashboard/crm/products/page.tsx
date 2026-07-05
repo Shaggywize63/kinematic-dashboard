@@ -1,10 +1,11 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { crmProducts, crmProductCategories } from '../../../../lib/crmApi';
 import { formatINR } from '../../../../lib/formatCurrency';
 import type { Product, ProductCategory } from '../../../../types/crm';
+import { useTableSort, SortLabel } from '../../../../lib/tableSort';
 
 export default function ProductsListPage() {
   const [items, setItems] = useState<Product[]>([]);
@@ -44,6 +45,25 @@ export default function ProductsListPage() {
   const th: React.CSSProperties = { padding: '10px 14px', fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', textAlign: 'left', borderBottom: '1px solid var(--border)', background: 'var(--s2)', fontWeight: 700 };
   const catName = (id?: string | null) => cats.find((c) => c.id === id)?.name ?? '—';
 
+  // Type-aware client-side column sorting. Raw values per column (price, weight,
+  // price/tonne and tax as numbers; category by its resolved name; Active bool).
+  const productVal = useCallback((p: Product, key: string): unknown => {
+    const w = p.weight_kg ?? 0;
+    switch (key) {
+      case 'sku': return p.sku;
+      case 'name': return p.name;
+      case 'category': return cats.find((c) => c.id === p.category_id)?.name ?? '';
+      case 'price': return Number(p.price);
+      case 'weight': return w;
+      case 'per_tonne': return w > 0 ? Math.round((Number(p.price) / w) * 1000) : null;
+      case 'tax': return p.tax_rate_pct ?? 0;
+      case 'hsn': return p.hsn_code;
+      case 'active': return p.is_active;
+      default: return (p as unknown as Record<string, unknown>)[key];
+    }
+  }, [cats]);
+  const { sorted, sort, toggle } = useTableSort<Product>(items, productVal, { key: null, dir: 'asc' });
+
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 8, flexWrap: 'wrap' }}>
@@ -67,11 +87,22 @@ export default function ProductsListPage() {
       </div>
       <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead><tr><th style={th}>SKU</th><th style={th}>Name</th><th style={th}>Category</th><th style={th}>Price</th><th style={th}>Weight</th><th style={th}>Price/tonne</th><th style={th}>Tax %</th><th style={th}>HSN</th><th style={th}>Active</th><th style={{ ...th, textAlign: 'right' }}>Actions</th></tr></thead>
+          <thead><tr>
+            <th style={th}><SortLabel label="SKU" sortKey="sku" sort={sort} onToggle={toggle} /></th>
+            <th style={th}><SortLabel label="Name" sortKey="name" sort={sort} onToggle={toggle} /></th>
+            <th style={th}><SortLabel label="Category" sortKey="category" sort={sort} onToggle={toggle} /></th>
+            <th style={th}><SortLabel label="Price" sortKey="price" sort={sort} onToggle={toggle} /></th>
+            <th style={th}><SortLabel label="Weight" sortKey="weight" sort={sort} onToggle={toggle} /></th>
+            <th style={th}><SortLabel label="Price/tonne" sortKey="per_tonne" sort={sort} onToggle={toggle} /></th>
+            <th style={th}><SortLabel label="Tax %" sortKey="tax" sort={sort} onToggle={toggle} /></th>
+            <th style={th}><SortLabel label="HSN" sortKey="hsn" sort={sort} onToggle={toggle} /></th>
+            <th style={th}><SortLabel label="Active" sortKey="active" sort={sort} onToggle={toggle} /></th>
+            <th style={{ ...th, textAlign: 'right' }}>Actions</th>
+          </tr></thead>
           <tbody>
             {loading && <tr><td colSpan={10} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)' }}>Loading...</td></tr>}
             {!loading && items.length === 0 && <tr><td colSpan={10} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)' }}>No products yet.</td></tr>}
-            {items.map((p) => {
+            {sorted.map((p) => {
               const w = p.weight_kg ?? 0;
               const perTonne = w > 0 ? Math.round((Number(p.price) / w) * 1000) : null;
               return (

@@ -1,7 +1,8 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import api from '../../../../lib/api';
 import { Card, PageHeader, StatCard, Row, Pill, Th, Td, inr, fmtDate } from '../../../../components/distribution/Atoms';
+import { useTableSort, SortLabel } from '../../../../lib/tableSort';
 
 export default function LedgerPage() {
   const [outletId, setOutletId] = useState('');
@@ -21,6 +22,21 @@ export default function LedgerPage() {
     setLoading(false);
   };
   useEffect(() => { load(); }, []);
+
+  // Type-aware, client-side column sorting for the ledger entries.
+  const entryVal = useCallback((e: any, key: string): unknown => {
+    switch (key) {
+      case 'posted': return e.posted_at;
+      case 'type': return e.entry_type;
+      case 'reference': return e.ref_table;
+      case 'dr': return e.dr == null ? null : Number(e.dr);
+      case 'cr': return e.cr == null ? null : Number(e.cr);
+      case 'running': return e.running_balance == null ? null : Number(e.running_balance);
+      case 'notes': return e.notes;
+      default: return e[key];
+    }
+  }, []);
+  const { sorted, sort, toggle } = useTableSort<any>(entries, entryVal, { key: 'posted', dir: 'desc' });
 
   return (
     <div>
@@ -47,11 +63,17 @@ export default function LedgerPage() {
       <Card>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead><tr>
-            <Th>Posted</Th><Th>Type</Th><Th>Reference</Th><Th style={{ textAlign: 'right' }}>DR</Th><Th style={{ textAlign: 'right' }}>CR</Th><Th style={{ textAlign: 'right' }}>Running</Th><Th>Notes</Th>
+            <Th><SortLabel label="Posted" sortKey="posted" sort={sort} onToggle={toggle} /></Th>
+            <Th><SortLabel label="Type" sortKey="type" sort={sort} onToggle={toggle} /></Th>
+            <Th><SortLabel label="Reference" sortKey="reference" sort={sort} onToggle={toggle} /></Th>
+            <Th style={{ textAlign: 'right' }}><SortLabel label="DR" sortKey="dr" sort={sort} onToggle={toggle} align="right" /></Th>
+            <Th style={{ textAlign: 'right' }}><SortLabel label="CR" sortKey="cr" sort={sort} onToggle={toggle} align="right" /></Th>
+            <Th style={{ textAlign: 'right' }}><SortLabel label="Running" sortKey="running" sort={sort} onToggle={toggle} align="right" /></Th>
+            <Th><SortLabel label="Notes" sortKey="notes" sort={sort} onToggle={toggle} /></Th>
           </tr></thead>
           <tbody>
             {loading ? <tr><Td>Loading…</Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td></tr> :
-              entries.map((e) => (
+              sorted.map((e) => (
                 <tr key={e.id}>
                   <Td>{fmtDate(e.posted_at)}</Td>
                   <Td><Pill color={e.entry_type === 'invoice' ? 'amber' : e.entry_type === 'payment' ? 'green' : e.entry_type === 'credit_note' ? 'blue' : 'gray'}>{e.entry_type}</Pill></Td>

@@ -14,7 +14,7 @@
  * the sidebar entry mirrors that gate (see layout.tsx) so users without
  * permission don't see the link at all.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import api from '../../../../lib/api';
@@ -22,6 +22,7 @@ import {
   crmPeopleDirectory, crmPeopleDirectoryTypes,
   type PeopleDirectoryEntry, type PeopleDirectoryType,
 } from '../../../../lib/crmApi';
+import { useTableSort, SortLabel } from '../../../../lib/tableSort';
 
 // One row from /api/v1/crm/locations — the per-tenant city allow-list
 // managed under Settings → Locations. We only care about the city name
@@ -135,6 +136,22 @@ export default function PeopleDirectoryPage() {
     () => loading ? 'Loading…' : `${rows.length} ${rows.length === 1 ? 'person' : 'people'}`,
     [loading, rows.length],
   );
+
+  // Type-aware client-side column sorting for the directory table. "ID" sorts by
+  // the tenant-supplied `code`; "Name" by the combined first + last name.
+  const rowVal = useCallback((r: Row, key: string): unknown => {
+    switch (key) {
+      case 'id': return r.code;
+      case 'name': return [r.first_name, r.last_name].filter(Boolean).join(' ').trim();
+      case 'type': return r.type;
+      case 'mobile': return r.mobile;
+      case 'email': return r.email;
+      case 'city': return r.city;
+      case 'address': return r.address;
+      default: return (r as unknown as Record<string, unknown>)[key];
+    }
+  }, []);
+  const { sorted, sort, toggle } = useTableSort<Row>(rows, rowVal, { key: null, dir: 'asc' });
 
   const handleSave = async () => {
     if (!editing) return;
@@ -316,13 +333,13 @@ export default function PeopleDirectoryPage() {
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
             <tr style={{ background: 'var(--s3)', color: 'var(--text-dim)', textAlign: 'left' }}>
-              <th style={{ ...thStyle, width: 140 }}>ID</th>
-              <th style={thStyle}>Name</th>
-              <th style={thStyle}>Type</th>
-              <th style={thStyle}>Mobile</th>
-              <th style={thStyle}>Email</th>
-              <th style={thStyle}>City</th>
-              <th style={thStyle}>Address</th>
+              <th style={{ ...thStyle, width: 140 }}><SortLabel label="ID" sortKey="id" sort={sort} onToggle={toggle} /></th>
+              <th style={thStyle}><SortLabel label="Name" sortKey="name" sort={sort} onToggle={toggle} /></th>
+              <th style={thStyle}><SortLabel label="Type" sortKey="type" sort={sort} onToggle={toggle} /></th>
+              <th style={thStyle}><SortLabel label="Mobile" sortKey="mobile" sort={sort} onToggle={toggle} /></th>
+              <th style={thStyle}><SortLabel label="Email" sortKey="email" sort={sort} onToggle={toggle} /></th>
+              <th style={thStyle}><SortLabel label="City" sortKey="city" sort={sort} onToggle={toggle} /></th>
+              <th style={thStyle}><SortLabel label="Address" sortKey="address" sort={sort} onToggle={toggle} /></th>
               <th style={{ ...thStyle, width: 110, textAlign: 'right' }}></th>
             </tr>
           </thead>
@@ -336,7 +353,7 @@ export default function PeopleDirectoryPage() {
                 </td>
               </tr>
             )}
-            {rows.map((r) => {
+            {sorted.map((r) => {
               const fullName = [r.first_name, r.last_name].filter(Boolean).join(' ').trim();
               return (
                 <tr key={r.id} style={{ borderTop: '1px solid var(--border)' }}>
