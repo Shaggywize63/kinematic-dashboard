@@ -2,6 +2,21 @@
 import { useEffect, useState } from 'react';
 import api from '../../../../lib/api';
 import { Card, PageHeader, Pill, Th, Td, Btn, fmtDate } from '../../../../components/distribution/Atoms';
+import { useTableSort, SortLabel } from '../../../../lib/tableSort';
+
+// Type-aware column sorting for the price-list table (raw values per key).
+const priceListVal = (pl: any, key: string): unknown => {
+  switch (key) {
+    case 'name': return pl.name;
+    case 'customer_class': return pl.customer_class;
+    case 'region': return pl.region;
+    case 'version': return pl.version;
+    case 'valid_from': return pl.valid_from;
+    case 'is_active': return pl.is_active;
+    case 'item_count': return pl.item_count;
+    default: return pl[key];
+  }
+};
 
 export default function PriceListsPage() {
   const [items, setItems] = useState<any[]>([]);
@@ -9,6 +24,7 @@ export default function PriceListsPage() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: '', customer_class: 'GT', region: 'ALL' });
   const [busy, setBusy] = useState(false);
+  const { sorted, sort, toggle } = useTableSort<any>(items, priceListVal, { key: 'name', dir: 'asc' });
 
   const load = async () => {
     try { const r: any = await api.getPriceLists(); setItems(r?.data || r || []); } catch {} setLoading(false);
@@ -45,11 +61,18 @@ export default function PriceListsPage() {
       <Card>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead><tr>
-            <Th>Name</Th><Th>Class</Th><Th>Region</Th><Th>Version</Th><Th>Valid From</Th><Th>Status</Th><Th>Items</Th><Th />
+            <Th><SortLabel label="Name" sortKey="name" sort={sort} onToggle={toggle} /></Th>
+            <Th><SortLabel label="Class" sortKey="customer_class" sort={sort} onToggle={toggle} /></Th>
+            <Th><SortLabel label="Region" sortKey="region" sort={sort} onToggle={toggle} /></Th>
+            <Th><SortLabel label="Version" sortKey="version" sort={sort} onToggle={toggle} /></Th>
+            <Th><SortLabel label="Valid From" sortKey="valid_from" sort={sort} onToggle={toggle} /></Th>
+            <Th><SortLabel label="Status" sortKey="is_active" sort={sort} onToggle={toggle} /></Th>
+            <Th><SortLabel label="Items" sortKey="item_count" sort={sort} onToggle={toggle} /></Th>
+            <Th />
           </tr></thead>
           <tbody>
             {loading ? <tr><Td>Loading…</Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td></tr> :
-              items.map((pl) => (
+              sorted.map((pl) => (
                 <tr key={pl.id}>
                   <Td style={{ fontWeight: 700 }}><a href={`/dashboard/distribution/price-lists/${pl.id}`} style={{ color: 'var(--primary)' }}>{pl.name}</a></Td>
                   <Td>{pl.customer_class}</Td>

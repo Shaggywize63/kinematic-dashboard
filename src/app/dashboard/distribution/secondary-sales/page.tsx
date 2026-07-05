@@ -2,6 +2,21 @@
 import { useEffect, useState } from 'react';
 import api from '../../../../lib/api';
 import { Card, PageHeader, Pill, Th, Td, Btn, fmtDate } from '../../../../components/distribution/Atoms';
+import { useTableSort, SortLabel } from '../../../../lib/tableSort';
+
+// Type-aware column sorting for the secondary-sales table (raw values per key).
+const secondarySaleVal = (s: any, key: string): unknown => {
+  switch (key) {
+    case 'outlet_id': return s.outlet_id;
+    case 'sku_id': return s.sku_id;
+    case 'period': return s.period_start;
+    case 'qty': return s.qty;
+    case 'source': return s.source;
+    case 'captured': return s.created_at;
+    case 'notes': return s.notes;
+    default: return s[key];
+  }
+};
 
 export default function SecondarySalesPage() {
   const [items, setItems] = useState<any[]>([]);
@@ -9,6 +24,7 @@ export default function SecondarySalesPage() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ outlet_id: '', sku_id: '', qty: '', period_start: '', period_end: '', source: 'manual', notes: '' });
   const [busy, setBusy] = useState(false); const [err, setErr] = useState<string | null>(null);
+  const { sorted, sort, toggle } = useTableSort<any>(items, secondarySaleVal, { key: 'captured', dir: 'desc' });
 
   const load = async () => { try { const r: any = await api.getSecondarySales(); setItems(r?.data || r || []); } catch {} setLoading(false); };
   useEffect(() => { load(); }, []);
@@ -50,11 +66,17 @@ export default function SecondarySalesPage() {
       <Card>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead><tr>
-            <Th>Outlet</Th><Th>SKU</Th><Th>Period</Th><Th>Qty</Th><Th>Source</Th><Th>Captured</Th><Th>Notes</Th>
+            <Th><SortLabel label="Outlet" sortKey="outlet_id" sort={sort} onToggle={toggle} /></Th>
+            <Th><SortLabel label="SKU" sortKey="sku_id" sort={sort} onToggle={toggle} /></Th>
+            <Th><SortLabel label="Period" sortKey="period" sort={sort} onToggle={toggle} /></Th>
+            <Th><SortLabel label="Qty" sortKey="qty" sort={sort} onToggle={toggle} /></Th>
+            <Th><SortLabel label="Source" sortKey="source" sort={sort} onToggle={toggle} /></Th>
+            <Th><SortLabel label="Captured" sortKey="captured" sort={sort} onToggle={toggle} /></Th>
+            <Th><SortLabel label="Notes" sortKey="notes" sort={sort} onToggle={toggle} /></Th>
           </tr></thead>
           <tbody>
             {loading ? <tr><Td>Loading…</Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td></tr> :
-              items.map((s) => (
+              sorted.map((s) => (
                 <tr key={s.id}>
                   <Td>{s.outlet_id?.slice(0, 8)}…</Td>
                   <Td>{s.sku_id?.slice(0, 8)}…</Td>

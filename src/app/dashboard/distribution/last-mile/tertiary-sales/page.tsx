@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { toast } from 'sonner';
 import api from '../../../../../lib/api';
 import { Card, PageHeader, Pill, Th, Td, Btn, fmtDate } from '../../../../../components/distribution/Atoms';
+import { useTableSort, SortLabel } from '../../../../../lib/tableSort';
 
 /**
  * Retailer Sales (tertiary) — list + manual capture form for
@@ -51,6 +52,21 @@ const CAPTURE_COLORS: Record<string, 'green' | 'amber' | 'gray'> = {
   integration: 'gray',
 };
 
+// Type-aware column sorting for the tertiary-sales table (raw values per key).
+const tertiaryVal = (s: TertiarySale, key: string): unknown => {
+  switch (key) {
+    case 'sold': return s.sold_at;
+    case 'retailer': return s.retailer_id;
+    case 'sku': return s.sku_id;
+    case 'qty': return s.qty;
+    case 'value': return s.total;
+    case 'consumer': return s.consumer_name;
+    case 'vehicle': return s.vehicle_reg;
+    case 'captured': return s.captured_by;
+    default: return (s as unknown as Record<string, unknown>)[key];
+  }
+};
+
 export default function TertiarySalesPage() {
   const [items, setItems] = useState<TertiarySale[]>([]);
   const [loading, setLoading] = useState(true);
@@ -63,6 +79,7 @@ export default function TertiarySalesPage() {
     qty: '1', unit_price: '', discount: '',
     captured_by: 'fe_visit', referrer_id: '', notes: '',
   });
+  const { sorted, sort, toggle } = useTableSort<TertiarySale>(items, tertiaryVal, { key: 'sold', dir: 'desc' });
 
   const load = async () => {
     setLoading(true);
@@ -169,14 +186,14 @@ export default function TertiarySalesPage() {
       <Card>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead><tr>
-            <Th>Sold</Th>
-            <Th>Retailer</Th>
-            <Th>SKU</Th>
-            <Th>Qty</Th>
-            <Th>Value</Th>
-            <Th>Consumer</Th>
-            <Th>Vehicle</Th>
-            <Th>Captured</Th>
+            <Th><SortLabel label="Sold" sortKey="sold" sort={sort} onToggle={toggle} /></Th>
+            <Th><SortLabel label="Retailer" sortKey="retailer" sort={sort} onToggle={toggle} /></Th>
+            <Th><SortLabel label="SKU" sortKey="sku" sort={sort} onToggle={toggle} /></Th>
+            <Th><SortLabel label="Qty" sortKey="qty" sort={sort} onToggle={toggle} /></Th>
+            <Th><SortLabel label="Value" sortKey="value" sort={sort} onToggle={toggle} /></Th>
+            <Th><SortLabel label="Consumer" sortKey="consumer" sort={sort} onToggle={toggle} /></Th>
+            <Th><SortLabel label="Vehicle" sortKey="vehicle" sort={sort} onToggle={toggle} /></Th>
+            <Th><SortLabel label="Captured" sortKey="captured" sort={sort} onToggle={toggle} /></Th>
           </tr></thead>
           <tbody>
             {loading ? (
@@ -184,7 +201,7 @@ export default function TertiarySalesPage() {
             ) : items.length === 0 ? (
               <tr><Td colSpan={8 as any} style={{ textAlign: 'center', color: 'var(--text-dim)' }}>No tertiary sales captured yet.</Td></tr>
             ) : (
-              items.map((s) => (
+              sorted.map((s) => (
                 <tr key={s.id}>
                   <Td style={{ fontSize: 12, color: 'var(--text-dim)' }}>{fmtDate(s.sold_at)}</Td>
                   <Td style={{ fontFamily: 'ui-monospace, monospace', fontSize: 12 }}>{s.retailer_id ? `${s.retailer_id.slice(0, 8)}…` : '—'}</Td>

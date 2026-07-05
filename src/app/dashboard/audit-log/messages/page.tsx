@@ -8,6 +8,30 @@ import {
   type AuditThreadDetail,
 } from '../../../../lib/messagingApi';
 import { renderMentions } from '../../../../components/messaging/MentionInput';
+import { useTableSort, SortLabel } from '../../../../lib/tableSort';
+
+// Type-aware column sorting reads the raw audit-row value per column key.
+const msgVal = (m: AuditMessageRow, key: string): unknown => {
+  switch (key) {
+    case 'when': return m.created_at;
+    case 'org': return m.org_name;
+    case 'thread': return m.thread_title;
+    case 'sender': return m.sender_name;
+    case 'body': return m.body;
+    case 'lang': return m.language;
+    default: return (m as unknown as Record<string, unknown>)[key];
+  }
+};
+const mentionVal = (m: AuditMentionRow, key: string): unknown => {
+  switch (key) {
+    case 'when': return m.created_at;
+    case 'org': return m.org_name;
+    case 'source': return m.source_kind;
+    case 'mentioner': return m.mentioner_name;
+    case 'mentioned': return m.mentioned_name;
+    default: return (m as unknown as Record<string, unknown>)[key];
+  }
+};
 
 /**
  * Platform-admin only — every message and every mention across every
@@ -25,6 +49,9 @@ export default function MessageAuditPage() {
   const [tab, setTab] = useState<'messages' | 'mentions'>('messages');
   const [loading, setLoading] = useState(true);
   const [openThread, setOpenThread] = useState<AuditMessageRow | null>(null);
+
+  const { sorted: sortedMessages, sort: msgSort, toggle: msgToggle } = useTableSort<AuditMessageRow>(messages, msgVal, { key: 'when', dir: 'desc' });
+  const { sorted: sortedMentions, sort: mentionSort, toggle: mentionToggle } = useTableSort<AuditMentionRow>(mentions, mentionVal, { key: 'when', dir: 'desc' });
 
   useEffect(() => {
     setLoading(true);
@@ -60,11 +87,16 @@ export default function MessageAuditPage() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
             <thead>
               <tr style={{ background: 'var(--s2)' }}>
-                <Th>When</Th><Th>Organisation</Th><Th>Conversation</Th><Th>Sender</Th><Th>Body</Th><Th>Lang</Th>
+                <Th><SortLabel label="When" sortKey="when" sort={msgSort} onToggle={msgToggle} /></Th>
+                <Th><SortLabel label="Organisation" sortKey="org" sort={msgSort} onToggle={msgToggle} /></Th>
+                <Th><SortLabel label="Conversation" sortKey="thread" sort={msgSort} onToggle={msgToggle} /></Th>
+                <Th><SortLabel label="Sender" sortKey="sender" sort={msgSort} onToggle={msgToggle} /></Th>
+                <Th><SortLabel label="Body" sortKey="body" sort={msgSort} onToggle={msgToggle} /></Th>
+                <Th><SortLabel label="Lang" sortKey="lang" sort={msgSort} onToggle={msgToggle} /></Th>
               </tr>
             </thead>
             <tbody>
-              {messages.map((m) => (
+              {sortedMessages.map((m) => (
                 <tr
                   key={m.id}
                   onClick={() => setOpenThread(m)}
@@ -107,11 +139,15 @@ export default function MessageAuditPage() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
             <thead>
               <tr style={{ background: 'var(--s2)' }}>
-                <Th>When</Th><Th>Organisation</Th><Th>Source</Th><Th>Mentioner</Th><Th>Mentioned</Th>
+                <Th><SortLabel label="When" sortKey="when" sort={mentionSort} onToggle={mentionToggle} /></Th>
+                <Th><SortLabel label="Organisation" sortKey="org" sort={mentionSort} onToggle={mentionToggle} /></Th>
+                <Th><SortLabel label="Source" sortKey="source" sort={mentionSort} onToggle={mentionToggle} /></Th>
+                <Th><SortLabel label="Mentioner" sortKey="mentioner" sort={mentionSort} onToggle={mentionToggle} /></Th>
+                <Th><SortLabel label="Mentioned" sortKey="mentioned" sort={mentionSort} onToggle={mentionToggle} /></Th>
               </tr>
             </thead>
             <tbody>
-              {mentions.map((m) => (
+              {sortedMentions.map((m) => (
                 <tr key={m.id} style={{ borderTop: '1px solid var(--border)' }}>
                   <Td>{new Date(m.created_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}</Td>
                   <Td>{m.org_name || <Mono>{m.org_id.slice(0, 8)}</Mono>}</Td>

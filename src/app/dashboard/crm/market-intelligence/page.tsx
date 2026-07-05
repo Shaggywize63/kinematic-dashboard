@@ -9,7 +9,7 @@
  *
  * Subscribes to the global city scope + date range, so changing either refetches.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend,
   LineChart, Line, PieChart, Pie, Cell,
@@ -22,6 +22,7 @@ import {
   type IntelByCity, type IntelTrendPoint, type IntelSignal,
 } from '../../../../lib/crmAnalyticsExtApi';
 import { ChartCard, ChartTooltip, GradientDefs, grad, CHART, CHART_PALETTE, CHART_SEMANTIC } from '../../../../lib/chartTheme';
+import { useTableSort, SortLabel } from '../../../../lib/tableSort';
 
 const BRAND = CHART_SEMANTIC.lost;
 const WIN = CHART_SEMANTIC.won;
@@ -98,6 +99,18 @@ export default function MarketIntelligencePage() {
   );
 
   const hasAny = totals.mentions > 0 || feed.length > 0 || breakdown.length > 0;
+
+  // Type-aware client-side column sorting for the "By city" breakdown table.
+  const cityVal = useCallback((c: IntelByCity, key: string): unknown => {
+    switch (key) {
+      case 'city': return c.city;
+      case 'mentions': return c.mentions;
+      case 'winning': return c.we_winning;
+      case 'losing': return c.we_losing;
+      default: return (c as unknown as Record<string, unknown>)[key];
+    }
+  }, []);
+  const { sorted: sortedCities, sort: citySort, toggle: cityToggle } = useTableSort<IntelByCity>(byCity, cityVal, { key: null, dir: 'asc' });
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -189,14 +202,14 @@ export default function MarketIntelligencePage() {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                 <thead>
                   <tr style={{ color: 'var(--text-dim)', textAlign: 'left' }}>
-                    <th style={{ padding: '6px 8px' }}>City</th>
-                    <th style={{ padding: '6px 8px' }}>Signals</th>
-                    <th style={{ padding: '6px 8px' }}>Winning</th>
-                    <th style={{ padding: '6px 8px' }}>Losing</th>
+                    <th style={{ padding: '6px 8px' }}><SortLabel label="City" sortKey="city" sort={citySort} onToggle={cityToggle} /></th>
+                    <th style={{ padding: '6px 8px' }}><SortLabel label="Signals" sortKey="mentions" sort={citySort} onToggle={cityToggle} /></th>
+                    <th style={{ padding: '6px 8px' }}><SortLabel label="Winning" sortKey="winning" sort={citySort} onToggle={cityToggle} /></th>
+                    <th style={{ padding: '6px 8px' }}><SortLabel label="Losing" sortKey="losing" sort={citySort} onToggle={cityToggle} /></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {byCity.map((c) => (
+                  {sortedCities.map((c) => (
                     <tr key={c.city} style={{ borderTop: '1px solid var(--border)' }}>
                       <td style={{ padding: '6px 8px', color: 'var(--text)' }}>{c.city}</td>
                       <td style={{ padding: '6px 8px', color: 'var(--text)' }}>{c.mentions}</td>

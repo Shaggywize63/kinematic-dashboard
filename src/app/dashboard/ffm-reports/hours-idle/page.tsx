@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import api from '../../../../lib/api';
+import { useTableSort, SortLabel } from '../../../../lib/tableSort';
 
 /**
  * Hours & Idle Time — working hours by rep against an 8-hour shift,
@@ -35,6 +36,9 @@ interface Computed {
 }
 
 const SHIFT_HOURS = 8;
+
+// Type-aware column sorting reads the raw computed field per column key.
+const hoursVal = (r: Computed, key: string): unknown => (r as unknown as Record<string, unknown>)[key];
 
 function pctColor(pct: number) {
   if (pct >= 85) return '#10B981';
@@ -92,6 +96,10 @@ export default function HoursIdleReport() {
     URL.revokeObjectURL(url);
   };
 
+  // Initial sort mirrors the fetch's worst-utilisation-first ordering so the
+  // view is unchanged until the user clicks another column.
+  const { sorted, sort, toggle } = useTableSort<Computed>(rows, hoursVal, { key: 'utilisationPct', dir: 'asc' });
+
   if (loading) return <div style={{ padding: 16, color: 'var(--text-dim)' }}>Loading hours…</div>;
   if (error) return <div style={{ padding: 16, color: '#ef4444' }}>{error}</div>;
 
@@ -132,13 +140,16 @@ export default function HoursIdleReport() {
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead style={{ background: 'var(--s3)', color: 'var(--text-dim)', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6 }}>
             <tr>
-              <Th>Name</Th><Th>Emp ID</Th>
-              <Th align="right">Working</Th><Th align="right">Idle</Th>
-              <Th align="right">Utilisation</Th><Th>Progress</Th>
+              <Th><SortLabel label="Name" sortKey="name" sort={sort} onToggle={toggle} /></Th>
+              <Th><SortLabel label="Emp ID" sortKey="employeeId" sort={sort} onToggle={toggle} /></Th>
+              <Th align="right"><SortLabel label="Working" sortKey="hours" sort={sort} onToggle={toggle} align="right" /></Th>
+              <Th align="right"><SortLabel label="Idle" sortKey="idleHours" sort={sort} onToggle={toggle} align="right" /></Th>
+              <Th align="right"><SortLabel label="Utilisation" sortKey="utilisationPct" sort={sort} onToggle={toggle} align="right" /></Th>
+              <Th>Progress</Th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((r) => (
+            {sorted.map((r) => (
               <tr key={r.id} style={{ borderTop: '1px solid var(--border)' }}>
                 <Td>{r.name}</Td>
                 <Td><span style={{ fontFamily: 'ui-monospace, monospace', fontSize: 12, color: 'var(--text-dim)' }}>{r.employeeId}</span></Td>

@@ -6,6 +6,7 @@ import FieldTrackingCadencePicker from '../../../components/FieldTrackingCadence
 import { AuthUser } from '../../../types';
 import { getDesignationLabel } from '../../../lib/auth';
 import { ALL_MODULES, MODULE_GROUPS, MODULE_GROUP_LABELS } from '../../../lib/modules';
+import { useTableSort, SortLabel } from '../../../lib/tableSort';
 
 const C = {
   bg: 'var(--bg)', 
@@ -60,6 +61,28 @@ const ROLE_DEFAULTS: Record<string, string[]> = {
     'crm', 'crm_dashboard', 'crm_leads', 'crm_contacts', 'crm_accounts', 'crm_deals',
     'crm_pipeline', 'crm_products', 'crm_activities', 'crm_tasks', 'crm_whatsapp', 'crm_reports', 'crm_settings',
   ]
+};
+
+// Type-aware column sorting for the admin/user directory (role sorts by the
+// same designation label shown in the cell).
+const userVal = (u: AuthUser, key: string): unknown => {
+  switch (key) {
+    case 'name': return u.name;
+    case 'email': return u.email;
+    case 'role': return getDesignationLabel(u as any);
+    default: return (u as unknown as Record<string, unknown>)[key];
+  }
+};
+// Sorting for the clients table (modules sorts by count, status by active flag).
+const clientVal = (c: any, key: string): unknown => {
+  switch (key) {
+    case 'name': return c.name;
+    case 'contact': return c.contact_person;
+    case 'email': return c.email;
+    case 'modules': return (c.modules || []).length;
+    case 'status': return c.is_active !== false;
+    default: return c[key];
+  }
 };
 
 
@@ -378,11 +401,14 @@ export default function SettingsPage() {
     admin: C.red, sub_admin: C.blue, city_manager: C.green, 
     warehouse_manager: '#F59E0B', hr: '#D946EF', mis: '#06B6D4' 
   };
-  const roleLabels: Record<string, string> = { 
-    admin: 'Admin', sub_admin: 'Sub-Admin', city_manager: 'City Manager', 
+  const roleLabels: Record<string, string> = {
+    admin: 'Admin', sub_admin: 'Sub-Admin', city_manager: 'City Manager',
     warehouse_manager: 'Warehouse Manager', hr: 'HR', mis: 'MIS',
     client: 'Client'
   };
+
+  const { sorted: sortedUsers, sort: usersSort, toggle: usersToggle } = useTableSort<AuthUser>(users, userVal, { key: 'name', dir: 'asc' });
+  const { sorted: sortedClients, sort: clientsSort, toggle: clientsToggle } = useTableSort<any>(clients, clientVal, { key: 'name', dir: 'asc' });
 
   return (
     <div style={{ fontFamily: "'DM Sans', sans-serif", color: C.white, paddingBottom: 40 }}>
@@ -651,15 +677,15 @@ export default function SettingsPage() {
 
               <div style={{ border: `1px solid ${C.border}`, borderRadius: 16, overflow: 'hidden', background: C.s2 }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 2fr 1.2fr 100px', padding: '16px 24px', background: C.s3, borderBottom: `1px solid ${C.border}`, fontSize: 11, fontWeight: 700, color: C.gray, textTransform: 'uppercase', letterSpacing: '0.8px' }}>
-                  <div>Name & Employee ID</div>
-                  <div>Email & Mobile</div>
-                  <div>Role & Permissions</div>
+                  <div><SortLabel label="Name & Employee ID" sortKey="name" sort={usersSort} onToggle={usersToggle} /></div>
+                  <div><SortLabel label="Email & Mobile" sortKey="email" sort={usersSort} onToggle={usersToggle} /></div>
+                  <div><SortLabel label="Role & Permissions" sortKey="role" sort={usersSort} onToggle={usersToggle} /></div>
                   <div style={{ textAlign: 'right' }}>Actions</div>
                 </div>
                 {loading ? (
                   <div style={{ padding: 40, textAlign: 'center', color: C.gray }}>Loading administrators...</div>
-                ) : users.map((u, i) => (
-                  <div key={u.id} style={{ display: 'grid', gridTemplateColumns: '1.5fr 2fr 1.2fr 100px', padding: '18px 24px', borderBottom: i < users.length - 1 ? `1px solid ${C.border}` : 'none', alignItems: 'center', opacity: u.is_active ? 1 : 0.5 }}>
+                ) : sortedUsers.map((u, i) => (
+                  <div key={u.id} style={{ display: 'grid', gridTemplateColumns: '1.5fr 2fr 1.2fr 100px', padding: '18px 24px', borderBottom: i < sortedUsers.length - 1 ? `1px solid ${C.border}` : 'none', alignItems: 'center', opacity: u.is_active ? 1 : 0.5 }}>
                     <div>
                       <div style={{ fontSize: 14, fontWeight: 700, color: C.white }}>{u.name}</div>
                       <div style={{ fontSize: 12, color: C.gray, marginTop: 2 }}>{u.employee_id || 'ID: ' + u.id.slice(0, 8)}</div>
@@ -882,16 +908,16 @@ export default function SettingsPage() {
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead>
                       <tr style={{ background: C.s4, borderBottom: `1px solid ${C.border}` }}>
-                        <th style={{ textAlign: 'left', padding: '10px 16px', fontSize: 11, fontWeight: 700, color: C.gray, textTransform: 'uppercase', letterSpacing: 0.6 }}>Name</th>
-                        <th style={{ textAlign: 'left', padding: '10px 16px', fontSize: 11, fontWeight: 700, color: C.gray, textTransform: 'uppercase', letterSpacing: 0.6 }}>Contact</th>
-                        <th style={{ textAlign: 'left', padding: '10px 16px', fontSize: 11, fontWeight: 700, color: C.gray, textTransform: 'uppercase', letterSpacing: 0.6 }}>Email</th>
-                        <th style={{ textAlign: 'left', padding: '10px 16px', fontSize: 11, fontWeight: 700, color: C.gray, textTransform: 'uppercase', letterSpacing: 0.6 }}>Modules</th>
-                        <th style={{ textAlign: 'left', padding: '10px 16px', fontSize: 11, fontWeight: 700, color: C.gray, textTransform: 'uppercase', letterSpacing: 0.6 }}>Status</th>
+                        <th style={{ textAlign: 'left', padding: '10px 16px', fontSize: 11, fontWeight: 700, color: C.gray, textTransform: 'uppercase', letterSpacing: 0.6 }}><SortLabel label="Name" sortKey="name" sort={clientsSort} onToggle={clientsToggle} /></th>
+                        <th style={{ textAlign: 'left', padding: '10px 16px', fontSize: 11, fontWeight: 700, color: C.gray, textTransform: 'uppercase', letterSpacing: 0.6 }}><SortLabel label="Contact" sortKey="contact" sort={clientsSort} onToggle={clientsToggle} /></th>
+                        <th style={{ textAlign: 'left', padding: '10px 16px', fontSize: 11, fontWeight: 700, color: C.gray, textTransform: 'uppercase', letterSpacing: 0.6 }}><SortLabel label="Email" sortKey="email" sort={clientsSort} onToggle={clientsToggle} /></th>
+                        <th style={{ textAlign: 'left', padding: '10px 16px', fontSize: 11, fontWeight: 700, color: C.gray, textTransform: 'uppercase', letterSpacing: 0.6 }}><SortLabel label="Modules" sortKey="modules" sort={clientsSort} onToggle={clientsToggle} /></th>
+                        <th style={{ textAlign: 'left', padding: '10px 16px', fontSize: 11, fontWeight: 700, color: C.gray, textTransform: 'uppercase', letterSpacing: 0.6 }}><SortLabel label="Status" sortKey="status" sort={clientsSort} onToggle={clientsToggle} /></th>
                         <th style={{ padding: '10px 16px' }}></th>
                       </tr>
                     </thead>
                     <tbody>
-                      {clients.map((c: any) => (
+                      {sortedClients.map((c: any) => (
                         <tr key={c.id} style={{ borderBottom: `1px solid ${C.border}` }}>
                           <td style={{ padding: '12px 16px', fontSize: 13, color: C.white, fontWeight: 600 }}>{c.name}</td>
                           <td style={{ padding: '12px 16px', fontSize: 12, color: C.gray }}>{c.contact_person || '—'}</td>

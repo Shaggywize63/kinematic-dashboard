@@ -7,6 +7,7 @@ import api from '../../../../../lib/api';
 import type { Lead } from '../../../../../types/crm';
 import { downloadCsv } from '../../../../../lib/exportCsv';
 import { useReportCityKey } from '../../../../../components/crm/reports/ReportFilters';
+import { useTableSort, SortLabel } from '../../../../../lib/tableSort';
 
 // "Lead aging" = open lead (status not in converted/lost/unqualified)
 // sorted by how long since stage_changed_at. Tells the rep who to call
@@ -24,6 +25,18 @@ interface LeadRow extends Record<string, unknown> {
   source: string;
   days_old: number;
 }
+
+// Raw underlying value per sortable column (numbers stay numeric).
+const agingVal = (l: LeadRow, key: string): unknown => {
+  switch (key) {
+    case 'name': return l.name;
+    case 'owner_name': return l.owner_name;
+    case 'status': return l.status;
+    case 'score': return l.score;
+    case 'days_old': return l.days_old;
+    default: return l[key];
+  }
+};
 
 export default function LeadAgingPage() {
   const [rows, setRows] = useState<LeadRow[]>([]);
@@ -83,6 +96,9 @@ export default function LeadAgingPage() {
     return map;
   }, [rows]);
 
+  // Client-side column sorting; defaults to the effect's oldest-first order.
+  const { sorted, sort, toggle } = useTableSort<LeadRow>(rows, agingVal, { key: 'days_old', dir: 'desc' });
+
   return (
     <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, gap: 8, flexWrap: 'wrap' }}>
@@ -120,16 +136,16 @@ export default function LeadAgingPage() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr>
-                <th style={th}>Lead</th>
-                <th style={th}>Owner</th>
-                <th style={th}>Status</th>
-                <th style={thNum}>Score</th>
-                <th style={thNum}>Days Old</th>
+                <th style={th}><SortLabel label="Lead" sortKey="name" sort={sort} onToggle={toggle} /></th>
+                <th style={th}><SortLabel label="Owner" sortKey="owner_name" sort={sort} onToggle={toggle} /></th>
+                <th style={th}><SortLabel label="Status" sortKey="status" sort={sort} onToggle={toggle} /></th>
+                <th style={thNum}><SortLabel label="Score" sortKey="score" sort={sort} onToggle={toggle} align="right" /></th>
+                <th style={thNum}><SortLabel label="Days Old" sortKey="days_old" sort={sort} onToggle={toggle} align="right" /></th>
                 <th style={th}></th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((l) => (
+              {sorted.map((l) => (
                 <tr key={l.id}>
                   <td style={td}><Link href={`/dashboard/crm/leads/${l.id}`} style={{ color: 'var(--primary)', textDecoration: 'none', fontWeight: 600 }}>{l.name}</Link></td>
                   <td style={td}>{l.owner_name}</td>

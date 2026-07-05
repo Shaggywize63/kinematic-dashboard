@@ -2,6 +2,20 @@
 import { useEffect, useState } from 'react';
 import api from '../../../lib/api';
 import { Card, Row, StatCard, PageHeader, Pill, Th, Td, inr, fmtDate, statusColor } from '../../../components/distribution/Atoms';
+import { useTableSort, SortLabel } from '../../../lib/tableSort';
+
+// Type-aware column sorting for the recent-orders list (raw values per key).
+const orderVal = (o: any, key: string): unknown => {
+  switch (key) {
+    case 'order_no': return o.order_no;
+    case 'outlet': return o.outlet_id;
+    case 'salesman': return o.salesman_id;
+    case 'placed': return o.placed_at;
+    case 'status': return o.status;
+    case 'amount': return o.grand_total;
+    default: return o[key];
+  }
+};
 
 interface NavTile { href: string; label: string; sub: string; }
 const NAV_TILES: NavTile[] = [
@@ -48,6 +62,10 @@ export default function DistributionOverview() {
   const invoiced = orders.filter((o) => ['invoiced', 'partially_invoiced'].includes(o.status)).length;
   const activeDist = distributors.filter((d) => d.is_active !== false).length;
 
+  // Sort only the visible top-10 preview so it stays a "recent orders" widget.
+  const recentOrders = orders.slice(0, 10);
+  const { sorted, sort, toggle } = useTableSort<any>(recentOrders, orderVal, { key: 'placed', dir: 'desc' });
+
   return (
     <div>
       <PageHeader title="Distribution" subtitle="Order to outlet, one trail." />
@@ -84,10 +102,15 @@ export default function DistributionOverview() {
         {loading ? <div style={{ color: 'var(--text-dim)' }}>Loading…</div> : (
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead><tr>
-              <Th>Order #</Th><Th>Outlet</Th><Th>Salesman</Th><Th>Placed</Th><Th>Status</Th><Th style={{ textAlign: 'right' }}>Amount</Th>
+              <Th><SortLabel label="Order #" sortKey="order_no" sort={sort} onToggle={toggle} /></Th>
+              <Th><SortLabel label="Outlet" sortKey="outlet" sort={sort} onToggle={toggle} /></Th>
+              <Th><SortLabel label="Salesman" sortKey="salesman" sort={sort} onToggle={toggle} /></Th>
+              <Th><SortLabel label="Placed" sortKey="placed" sort={sort} onToggle={toggle} /></Th>
+              <Th><SortLabel label="Status" sortKey="status" sort={sort} onToggle={toggle} /></Th>
+              <Th style={{ textAlign: 'right' }}><SortLabel label="Amount" sortKey="amount" sort={sort} onToggle={toggle} align="right" /></Th>
             </tr></thead>
             <tbody>
-              {orders.slice(0, 10).map((o) => (
+              {sorted.map((o) => (
                 <tr key={o.id}>
                   <Td><a href={`/dashboard/distribution/orders/${o.id}`} style={{ color: 'var(--text)', fontWeight: 700 }}>{o.order_no}</a></Td>
                   <Td>{o.outlet_id?.slice(0, 8)}…</Td>

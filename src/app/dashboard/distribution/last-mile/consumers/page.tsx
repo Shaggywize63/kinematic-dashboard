@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { toast } from 'sonner';
 import api from '../../../../../lib/api';
 import { Card, PageHeader, Pill, Th, Td, Btn, fmtDate } from '../../../../../components/distribution/Atoms';
+import { useTableSort, SortLabel } from '../../../../../lib/tableSort';
 
 /**
  * Consumer Registry — list + manual-entry form for
@@ -43,6 +44,21 @@ const VIA_COLORS: Record<string, 'green' | 'amber' | 'gray'> = {
   cashback_form: 'amber', sms: 'gray', webform: 'gray',
 };
 
+// Type-aware column sorting for the registry table (raw values per key).
+const consumerVal = (r: ConsumerReg, key: string): unknown => {
+  switch (key) {
+    case 'consumer': return r.consumer_name;
+    case 'phone': return r.consumer_phone;
+    case 'vehicle': return r.vehicle_reg;
+    case 'serial': return r.serial_text;
+    case 'channel': return r.registered_via;
+    case 'cashback': return r.cashback_amount;
+    case 'lead': return r.lead_id;
+    case 'registered': return r.registered_at;
+    default: return (r as unknown as Record<string, unknown>)[key];
+  }
+};
+
 export default function ConsumerRegistryPage() {
   const [items, setItems] = useState<ConsumerReg[]>([]);
   const [loading, setLoading] = useState(true);
@@ -54,6 +70,7 @@ export default function ConsumerRegistryPage() {
     vehicle_reg: '', serial_text: '', sku_id: '', retailer_id: '',
     registered_via: 'whatsapp', cashback_amount: '',
   });
+  const { sorted, sort, toggle } = useTableSort<ConsumerReg>(items, consumerVal, { key: 'registered', dir: 'desc' });
 
   const load = async () => {
     setLoading(true);
@@ -156,14 +173,14 @@ export default function ConsumerRegistryPage() {
       <Card>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead><tr>
-            <Th>Consumer</Th>
-            <Th>Phone</Th>
-            <Th>Vehicle</Th>
-            <Th>Serial</Th>
-            <Th>Channel</Th>
-            <Th>Cashback</Th>
-            <Th>Lead</Th>
-            <Th>Registered</Th>
+            <Th><SortLabel label="Consumer" sortKey="consumer" sort={sort} onToggle={toggle} /></Th>
+            <Th><SortLabel label="Phone" sortKey="phone" sort={sort} onToggle={toggle} /></Th>
+            <Th><SortLabel label="Vehicle" sortKey="vehicle" sort={sort} onToggle={toggle} /></Th>
+            <Th><SortLabel label="Serial" sortKey="serial" sort={sort} onToggle={toggle} /></Th>
+            <Th><SortLabel label="Channel" sortKey="channel" sort={sort} onToggle={toggle} /></Th>
+            <Th><SortLabel label="Cashback" sortKey="cashback" sort={sort} onToggle={toggle} /></Th>
+            <Th><SortLabel label="Lead" sortKey="lead" sort={sort} onToggle={toggle} /></Th>
+            <Th><SortLabel label="Registered" sortKey="registered" sort={sort} onToggle={toggle} /></Th>
           </tr></thead>
           <tbody>
             {loading ? (
@@ -171,7 +188,7 @@ export default function ConsumerRegistryPage() {
             ) : items.length === 0 ? (
               <tr><Td colSpan={8 as any} style={{ textAlign: 'center', color: 'var(--text-dim)' }}>No registrations yet.</Td></tr>
             ) : (
-              items.map((r) => (
+              sorted.map((r) => (
                 <tr key={r.id}>
                   <Td>{r.consumer_name || <span style={{ color: 'var(--text-dim)' }}>—</span>}</Td>
                   <Td style={{ fontFamily: 'ui-monospace, monospace', fontSize: 12 }}>{r.consumer_phone}</Td>

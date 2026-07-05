@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import api from '../../../lib/api';
 import { useAuth } from '../../../hooks/useAuth';
 import { format } from 'date-fns';
+import { useTableSort, SortLabel } from '../../../lib/tableSort';
 
 const C = {
   red: '#E01E2C', 
@@ -36,6 +37,17 @@ interface SecurityAlert {
   };
 }
 
+// Type-aware column sorting reads the raw alert value per column key.
+const alertVal = (a: SecurityAlert, key: string): unknown => {
+  switch (key) {
+    case 'user': return a.user?.name;
+    case 'type': return a.type;
+    case 'action': return a.action;
+    case 'detected': return a.created_at;
+    default: return (a as unknown as Record<string, unknown>)[key];
+  }
+};
+
 export default function SecurityAlertsPage() {
   const [alerts, setAlerts] = useState<SecurityAlert[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,6 +55,7 @@ export default function SecurityAlertsPage() {
   const [total, setTotal] = useState(0);
   const { user } = useAuth();
   const limit = 15;
+  const { sorted, sort, toggle } = useTableSort<SecurityAlert>(alerts, alertVal, { key: 'detected', dir: 'desc' });
 
   const fetchAlerts = useCallback(async (p: number) => {
     setLoading(true);
@@ -82,11 +95,11 @@ export default function SecurityAlertsPage() {
           <table className="w-full text-left text-sm border-collapse">
             <thead>
               <tr className="bg-s3/50 border-b border-border text-gray-400 font-semibold uppercase text-[10px] tracking-wider">
-                <th className="px-6 py-4">Field Executive</th>
-                <th className="px-6 py-4">Violation Type</th>
-                <th className="px-6 py-4">Action Attempted</th>
+                <th className="px-6 py-4"><SortLabel label="Field Executive" sortKey="user" sort={sort} onToggle={toggle} /></th>
+                <th className="px-6 py-4"><SortLabel label="Violation Type" sortKey="type" sort={sort} onToggle={toggle} /></th>
+                <th className="px-6 py-4"><SortLabel label="Action Attempted" sortKey="action" sort={sort} onToggle={toggle} /></th>
                 <th className="px-6 py-4">Location</th>
-                <th className="px-6 py-4">Detected At</th>
+                <th className="px-6 py-4"><SortLabel label="Detected At" sortKey="detected" sort={sort} onToggle={toggle} /></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/50">
@@ -109,7 +122,7 @@ export default function SecurityAlertsPage() {
                   </td>
                 </tr>
               ) : (
-                alerts.map((alert) => (
+                sorted.map((alert) => (
                   <tr key={alert.id} className="hover:bg-white/[0.02] transition-colors">
                     <td className="px-6 py-4">
                       <div className="font-bold text-[var(--text)]">{alert.user?.name || 'Unknown User'}</div>

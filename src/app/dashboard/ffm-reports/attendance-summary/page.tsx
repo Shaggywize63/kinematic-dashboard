@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import api from '../../../../lib/api';
+import { useTableSort, SortLabel } from '../../../../lib/tableSort';
 
 /**
  * Attendance Summary — month-to-date attendance roll-up per rep.
@@ -44,6 +45,9 @@ interface Summary {
 const LATE_THRESHOLD_HOUR = 9; // 09:30
 const LATE_THRESHOLD_MINUTE = 30;
 const HALF_DAY_HOURS = 6;
+
+// Type-aware column sorting reads the raw summary field per column key.
+const attVal = (r: Summary, key: string): unknown => (r as unknown as Record<string, unknown>)[key];
 
 export default function AttendanceSummaryReport() {
   const [rows, setRows] = useState<Summary[]>([]);
@@ -105,6 +109,8 @@ export default function AttendanceSummaryReport() {
     URL.revokeObjectURL(url);
   };
 
+  const { sorted, sort, toggle } = useTableSort<Summary>(rows, attVal, { key: 'name', dir: 'asc' });
+
   if (loading) return <div style={{ padding: 16, color: 'var(--text-dim)' }}>Loading attendance…</div>;
   if (error) return <div style={{ padding: 16, color: '#ef4444' }}>{error}</div>;
 
@@ -143,14 +149,18 @@ export default function AttendanceSummaryReport() {
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead style={{ background: 'var(--s3)', color: 'var(--text-dim)', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6 }}>
             <tr>
-              <Th>Name</Th><Th>Emp ID</Th><Th align="right">Present</Th>
-              <Th align="right">Late</Th><Th align="right">Half day</Th>
-              <Th align="right">Absent</Th><Th align="right">Avg hrs</Th>
-              <Th align="right">Attendance</Th>
+              <Th><SortLabel label="Name" sortKey="name" sort={sort} onToggle={toggle} /></Th>
+              <Th><SortLabel label="Emp ID" sortKey="employeeId" sort={sort} onToggle={toggle} /></Th>
+              <Th align="right"><SortLabel label="Present" sortKey="present" sort={sort} onToggle={toggle} align="right" /></Th>
+              <Th align="right"><SortLabel label="Late" sortKey="late" sort={sort} onToggle={toggle} align="right" /></Th>
+              <Th align="right"><SortLabel label="Half day" sortKey="halfDay" sort={sort} onToggle={toggle} align="right" /></Th>
+              <Th align="right"><SortLabel label="Absent" sortKey="absent" sort={sort} onToggle={toggle} align="right" /></Th>
+              <Th align="right"><SortLabel label="Avg hrs" sortKey="avgHours" sort={sort} onToggle={toggle} align="right" /></Th>
+              <Th align="right"><SortLabel label="Attendance" sortKey="attendancePct" sort={sort} onToggle={toggle} align="right" /></Th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((r) => (
+            {sorted.map((r) => (
               <tr key={r.id} style={{ borderTop: '1px solid var(--border)' }}>
                 <Td>{r.name}</Td>
                 <Td><span style={{ fontFamily: 'ui-monospace, monospace', fontSize: 12, color: 'var(--text-dim)' }}>{r.employeeId}</span></Td>

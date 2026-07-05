@@ -6,6 +6,7 @@ import { emailAlertsApi, verifiedSendersApi, type EmailAlert, type VerifiedSende
 import { crmEmailTemplates } from '../../../../lib/crmApi';
 import type { EmailTemplate } from '../../../../types/crm';
 import HtmlEmailEditor from '../../../../components/crm/email/HtmlEmailEditor';
+import { useTableSort, SortLabel } from '../../../../lib/tableSort';
 
 /**
  * Email alerts inbox — list every planned/sent email, with a composer
@@ -49,6 +50,20 @@ export default function EmailAlertsPage() {
     catch (e: any) { toast.error(e?.message || 'Failed to send'); }
   };
 
+  // Type-aware client-side column sorting for the alerts list. Raw values per
+  // column (recipient count as a number; the effective date string for "When").
+  const alertVal = useCallback((r: EmailAlert, key: string): unknown => {
+    switch (key) {
+      case 'name': return r.name;
+      case 'from': return r.from_email;
+      case 'recipients': return r.recipients_total;
+      case 'status': return r.status;
+      case 'when': return r.status === 'scheduled' ? r.scheduled_at : r.sent_at;
+      default: return (r as unknown as Record<string, unknown>)[key];
+    }
+  }, []);
+  const { sorted, sort, toggle } = useTableSort<EmailAlert>(rows, alertVal, { key: null, dir: 'asc' });
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
@@ -74,11 +89,16 @@ export default function EmailAlertsPage() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ background: 'var(--s2)' }}>
-                <Th>Name</Th><Th>From</Th><Th>Recipients</Th><Th>Status</Th><Th>When</Th><Th>{' '}</Th>
+                <Th><SortLabel label="Name" sortKey="name" sort={sort} onToggle={toggle} /></Th>
+                <Th><SortLabel label="From" sortKey="from" sort={sort} onToggle={toggle} /></Th>
+                <Th><SortLabel label="Recipients" sortKey="recipients" sort={sort} onToggle={toggle} /></Th>
+                <Th><SortLabel label="Status" sortKey="status" sort={sort} onToggle={toggle} /></Th>
+                <Th><SortLabel label="When" sortKey="when" sort={sort} onToggle={toggle} /></Th>
+                <Th>{' '}</Th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
+              {sorted.map((r) => (
                 <tr key={r.id} style={{ borderTop: '1px solid var(--border)' }}>
                   <Td><b>{r.name}</b></Td>
                   <Td style={{ color: 'var(--text-dim)' }}>{r.from_email}</Td>

@@ -2,11 +2,29 @@
 import { useEffect, useState } from 'react';
 import api from '../../../../lib/api';
 import { Card, PageHeader, Pill, Th, Td, Btn, inr, fmtDate, statusColor } from '../../../../components/distribution/Atoms';
+import { useTableSort, SortLabel } from '../../../../lib/tableSort';
+
+// Type-aware column sorting for the returns table (raw values per key).
+const returnVal = (r: any, key: string): unknown => {
+  switch (key) {
+    case 'return_no': return r.return_no;
+    case 'outlet_id': return r.outlet_id;
+    case 'original_invoice_id': return r.original_invoice_id;
+    case 'reason_code': return r.reason_code;
+    case 'photos': return Array.isArray(r.photo_urls) ? r.photo_urls.length : 0;
+    case 'created_at': return r.created_at;
+    case 'requires_supervisor': return r.requires_supervisor;
+    case 'status': return r.status;
+    case 'total_value': return r.total_value;
+    default: return r[key];
+  }
+};
 
 export default function ReturnsPage() {
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState('');
+  const { sorted, sort, toggle } = useTableSort<any>(items, returnVal, { key: 'created_at', dir: 'desc' });
 
   const load = async () => {
     setLoading(true);
@@ -37,11 +55,20 @@ export default function ReturnsPage() {
       <Card>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead><tr>
-            <Th>Return #</Th><Th>Outlet</Th><Th>Invoice</Th><Th>Reason</Th><Th>Photos</Th><Th>Created</Th><Th>Supervisor</Th><Th>Status</Th><Th style={{ textAlign: 'right' }}>Value</Th><Th />
+            <Th><SortLabel label="Return #" sortKey="return_no" sort={sort} onToggle={toggle} /></Th>
+            <Th><SortLabel label="Outlet" sortKey="outlet_id" sort={sort} onToggle={toggle} /></Th>
+            <Th><SortLabel label="Invoice" sortKey="original_invoice_id" sort={sort} onToggle={toggle} /></Th>
+            <Th><SortLabel label="Reason" sortKey="reason_code" sort={sort} onToggle={toggle} /></Th>
+            <Th><SortLabel label="Photos" sortKey="photos" sort={sort} onToggle={toggle} /></Th>
+            <Th><SortLabel label="Created" sortKey="created_at" sort={sort} onToggle={toggle} /></Th>
+            <Th><SortLabel label="Supervisor" sortKey="requires_supervisor" sort={sort} onToggle={toggle} /></Th>
+            <Th><SortLabel label="Status" sortKey="status" sort={sort} onToggle={toggle} /></Th>
+            <Th style={{ textAlign: 'right' }}><SortLabel label="Value" sortKey="total_value" sort={sort} onToggle={toggle} align="right" /></Th>
+            <Th />
           </tr></thead>
           <tbody>
             {loading ? <tr><Td>Loading…</Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td></tr> :
-              items.map((r) => (
+              sorted.map((r) => (
                 <tr key={r.id}>
                   <Td style={{ fontWeight: 700 }}>{r.return_no}</Td>
                   <Td>{r.outlet_id?.slice(0, 8)}…</Td>

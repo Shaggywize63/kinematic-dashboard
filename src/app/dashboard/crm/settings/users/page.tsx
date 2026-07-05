@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { toast } from 'sonner';
 import api from '../../../../../lib/api';
 import { rolesApi, type OrgRole } from '../../../../../lib/rolesApi';
+import { useTableSort, SortLabel } from '../../../../../lib/tableSort';
 
 // CRM-scoped user management. Module permissions live on the role hierarchy
 // (org_roles.permissions / .permissions_write) — not redefined per-user — so
@@ -263,6 +264,27 @@ export default function CrmUsersPage() {
     const q = search.toLowerCase();
     return [u.name, u.email, u.mobile].some((v) => (v || '').toLowerCase().includes(q));
   });
+
+  // Raw underlying value per sortable column. Hierarchy resolves to the same
+  // role name the cell displays; Cities sorts by assignment count; Kini by
+  // usage; Status by the active flag.
+  const userVal = useCallback((u: UserRow, key: string): unknown => {
+    switch (key) {
+      case 'name': return u.name;
+      case 'email': return u.email;
+      case 'mobile': return u.mobile;
+      case 'role': {
+        const joined = (u as any)?.org_role?.name as string | undefined;
+        return joined || (u.org_role_id ? roles.find((r) => r.id === u.org_role_id)?.name : undefined);
+      }
+      case 'cities': return u.assigned_city_names?.length ?? u.assigned_cities?.length ?? 0;
+      case 'kini': return u.kini_used_this_month ?? 0;
+      case 'status': return u.is_active !== false;
+      default: return undefined;
+    }
+  }, [roles]);
+  // Client-side column sorting; defaults to the loaded/filtered order.
+  const { sorted, sort, toggle } = useTableSort<UserRow>(filtered, userVal);
 
   // Active-user cap surface (matches backend: staff domains are exempt).
   const CAP_BYPASS_DOMAINS = ['kinematicapp.com', 'horizontechstudio.com', 'kinematic.com', 'kaiyotechnologylabs.com'];
@@ -806,20 +828,20 @@ export default function CrmUsersPage() {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
-              <th style={th}>Name</th>
-              <th style={th}>Email</th>
-              <th style={th}>Mobile</th>
-              <th style={th}>Hierarchy</th>
-              <th style={th}>Cities</th>
-              <th style={th}>Kini AI</th>
-              <th style={th}>Status</th>
+              <th style={th}><SortLabel label="Name" sortKey="name" sort={sort} onToggle={toggle} /></th>
+              <th style={th}><SortLabel label="Email" sortKey="email" sort={sort} onToggle={toggle} /></th>
+              <th style={th}><SortLabel label="Mobile" sortKey="mobile" sort={sort} onToggle={toggle} /></th>
+              <th style={th}><SortLabel label="Hierarchy" sortKey="role" sort={sort} onToggle={toggle} /></th>
+              <th style={th}><SortLabel label="Cities" sortKey="cities" sort={sort} onToggle={toggle} /></th>
+              <th style={th}><SortLabel label="Kini AI" sortKey="kini" sort={sort} onToggle={toggle} /></th>
+              <th style={th}><SortLabel label="Status" sortKey="status" sort={sort} onToggle={toggle} /></th>
               <th style={{ ...th, textAlign: 'right' }}>Actions</th>
             </tr>
           </thead>
           <tbody>
             {loading && <tr><td colSpan={8} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)' }}>Loading users…</td></tr>}
             {!loading && filtered.length === 0 && <tr><td colSpan={8} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)' }}>No users yet — click <strong style={{ color: 'var(--text)' }}>+ Add User</strong> or <strong style={{ color: 'var(--text)' }}>Bulk Upload</strong>.</td></tr>}
-            {filtered.map((u) => {
+            {sorted.map((u) => {
               // Prefer the server-joined role name (getUsers in
               // misc.controller.ts now returns org_role.name alongside
               // each row). Fall back to looking up the locally-loaded

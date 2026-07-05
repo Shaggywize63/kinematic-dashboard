@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import api from '../../../lib/api';
 import { useAuth } from '../../../hooks/useAuth';
 import RecipientPicker from '../../../components/RecipientPicker';
+import { useTableSort, SortLabel } from '../../../lib/tableSort';
 
 const C = {
   red: '#E01E2C', 
@@ -25,6 +26,19 @@ interface User { id:string; name:string; role:string; city?:string; zones?:{name
 interface City { id:string; name:string; }
 interface Notif { id:string; title:string; body:string; priority:string; audience_summary:string; created_at:string; recipients_count:number; read_count:number; send_push?:boolean; }
 
+// Type-aware column sorting reads the raw broadcast value per column key
+// (read rate is derived so it compares as a numeric ratio, not a string).
+const notifVal = (h: Notif, key: string): unknown => {
+  switch (key) {
+    case 'title': return h.title;
+    case 'target': return h.audience_summary;
+    case 'type': return !!h.send_push;
+    case 'read': return h.recipients_count ? h.read_count / h.recipients_count : 0;
+    case 'sent': return h.created_at;
+    default: return (h as unknown as Record<string, unknown>)[key];
+  }
+};
+
 export default function NotificationsPage() {
   const [title,setTitle]=useState('');
   const [body,setBody]=useState('');
@@ -45,6 +59,7 @@ export default function NotificationsPage() {
   const [total,setTotal]=useState(0);
   const { user } = useAuth();
   const isPlatformAdmin = user?.role === 'super_admin' || user?.role === 'admin';
+  const { sorted, sort, toggle } = useTableSort<Notif>(history, notifVal, { key: 'sent', dir: 'desc' });
 
   const fetchAll = useCallback(async(p: number = 1)=>{
     try {
@@ -186,18 +201,18 @@ export default function NotificationsPage() {
         <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
           <thead>
             <tr style={{borderBottom:`1px solid ${C.border}`,textAlign:'left',color:C.gray}}>
-              <th style={{padding:'10px 12px'}}>NOTIFICATION</th>
-              <th style={{padding:'10px 12px'}}>TARGET</th>
-              <th style={{padding:'10px 12px'}}>TYPE</th>
-              <th style={{padding:'10px 12px'}}>READ RATE</th>
-              <th style={{padding:'10px 12px'}}>SENT AT</th>
+              <th style={{padding:'10px 12px'}}><SortLabel label="NOTIFICATION" sortKey="title" sort={sort} onToggle={toggle} /></th>
+              <th style={{padding:'10px 12px'}}><SortLabel label="TARGET" sortKey="target" sort={sort} onToggle={toggle} /></th>
+              <th style={{padding:'10px 12px'}}><SortLabel label="TYPE" sortKey="type" sort={sort} onToggle={toggle} /></th>
+              <th style={{padding:'10px 12px'}}><SortLabel label="READ RATE" sortKey="read" sort={sort} onToggle={toggle} /></th>
+              <th style={{padding:'10px 12px'}}><SortLabel label="SENT AT" sortKey="sent" sort={sort} onToggle={toggle} /></th>
               <th style={{padding:'10px 12px',textAlign:'right'}}>ACTIONS</th>
             </tr>
           </thead>
           <tbody>
             {history.length===0?(
               <tr><td colSpan={6} style={{textAlign:'center',padding:60,color:C.grayd}}>No notifications sent yet</td></tr>
-            ):history.map(h=>(
+            ):sorted.map(h=>(
               <tr key={h.id} style={{borderBottom:`1px solid ${C.border}`}}>
                 <td style={{padding:'14px 12px'}}><div style={{fontWeight:600}}>{h.title}</div><div style={{fontSize:12,color:C.gray}}>{h.body}</div></td>
                 <td style={{padding:'14px 12px'}}>{h.audience_summary}</td>

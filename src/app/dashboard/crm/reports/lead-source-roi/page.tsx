@@ -7,6 +7,20 @@ import LeadSourceRoiChart from '../../../../../components/crm/charts/LeadSourceR
 import { formatINR } from '../../../../../lib/formatCurrency';
 import { downloadCsv } from '../../../../../lib/exportCsv';
 import { useReportCityKey } from '../../../../../components/crm/reports/ReportFilters';
+import { useTableSort, SortLabel } from '../../../../../lib/tableSort';
+
+// Raw underlying value per sortable column (numbers stay numeric).
+const roiVal = (r: SourceROIRow, key: string): unknown => {
+  switch (key) {
+    case 'source': return r.source;
+    case 'leads': return r.leads;
+    case 'deals': return r.deals;
+    case 'revenue': return r.revenue;
+    case 'cost': return r.cost;
+    case 'roi': return r.roi;
+    default: return undefined;
+  }
+};
 
 export default function LeadSourceRoiPage() {
   const [data, setData] = useState<SourceROIRow[]>([]);
@@ -34,6 +48,9 @@ export default function LeadSourceRoiPage() {
     };
   });
 
+  // Client-side column sorting; defaults to the API order (no active column).
+  const { sorted, sort, toggle } = useTableSort<SourceROIRow>(rows, roiVal);
+
   return (
     <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, gap: 8, flexWrap: 'wrap' }}>
@@ -55,16 +72,16 @@ export default function LeadSourceRoiPage() {
             <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
-                  <th style={th}>Source</th>
-                  <th style={th}>Leads</th>
-                  <th style={th}>Deals</th>
-                  <th style={th}>Revenue</th>
-                  <th style={th}>Cost</th>
-                  <th style={th}>ROI</th>
+                  <th style={th}><SortLabel label="Source" sortKey="source" sort={sort} onToggle={toggle} /></th>
+                  <th style={th}><SortLabel label="Leads" sortKey="leads" sort={sort} onToggle={toggle} /></th>
+                  <th style={th}><SortLabel label="Deals" sortKey="deals" sort={sort} onToggle={toggle} /></th>
+                  <th style={th}><SortLabel label="Revenue" sortKey="revenue" sort={sort} onToggle={toggle} /></th>
+                  <th style={th}><SortLabel label="Cost" sortKey="cost" sort={sort} onToggle={toggle} /></th>
+                  <th style={th}><SortLabel label="ROI" sortKey="roi" sort={sort} onToggle={toggle} /></th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r) => (
+                {sorted.map((r) => (
                   <tr key={r.source}>
                     <td style={td}>{r.source}</td>
                     <td style={td}>{r.leads.toLocaleString()}</td>

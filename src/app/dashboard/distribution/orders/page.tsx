@@ -1,8 +1,9 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import api from '../../../../lib/api';
 import { Card, PageHeader, Pill, Th, Td, inr, fmtDate, statusColor } from '../../../../components/distribution/Atoms';
 import PrefetchLink from '../../../../components/PrefetchLink';
+import { useTableSort, SortLabel } from '../../../../lib/tableSort';
 
 const STATUSES = ['', 'placed', 'approved', 'invoiced', 'partially_invoiced', 'cancelled'];
 
@@ -23,6 +24,22 @@ export default function OrdersPage() {
 
   const filtered = items.filter((o) => !q || (o.order_no || '').toLowerCase().includes(q.toLowerCase()));
 
+  // Type-aware, client-side column sorting for the order list.
+  const orderVal = useCallback((o: any, key: string): unknown => {
+    switch (key) {
+      case 'order_no': return o.order_no;
+      case 'outlet': return o.outlet_name || o.outlet_id;
+      case 'distributor': return o.distributor_id;
+      case 'salesman': return o.salesman_id;
+      case 'placed': return o.placed_at;
+      case 'geofence': return o.geofence_passed;
+      case 'status': return o.status;
+      case 'amount': return Number(o.grand_total);
+      default: return o[key];
+    }
+  }, []);
+  const { sorted, sort, toggle } = useTableSort<any>(filtered, orderVal, { key: 'placed', dir: 'desc' });
+
   return (
     <div>
       <PageHeader title="Orders" subtitle="Captured by FE, dashboard or API" />
@@ -39,11 +56,18 @@ export default function OrdersPage() {
       <Card>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead><tr>
-            <Th>Order #</Th><Th>Outlet</Th><Th>Distributor</Th><Th>Salesman</Th><Th>Placed</Th><Th>Geofence</Th><Th>Status</Th><Th style={{ textAlign: 'right' }}>Amount</Th>
+            <Th><SortLabel label="Order #" sortKey="order_no" sort={sort} onToggle={toggle} /></Th>
+            <Th><SortLabel label="Outlet" sortKey="outlet" sort={sort} onToggle={toggle} /></Th>
+            <Th><SortLabel label="Distributor" sortKey="distributor" sort={sort} onToggle={toggle} /></Th>
+            <Th><SortLabel label="Salesman" sortKey="salesman" sort={sort} onToggle={toggle} /></Th>
+            <Th><SortLabel label="Placed" sortKey="placed" sort={sort} onToggle={toggle} /></Th>
+            <Th><SortLabel label="Geofence" sortKey="geofence" sort={sort} onToggle={toggle} /></Th>
+            <Th><SortLabel label="Status" sortKey="status" sort={sort} onToggle={toggle} /></Th>
+            <Th style={{ textAlign: 'right' }}><SortLabel label="Amount" sortKey="amount" sort={sort} onToggle={toggle} align="right" /></Th>
           </tr></thead>
           <tbody>
             {loading ? <tr><Td>Loading…</Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td></tr> :
-              filtered.map((o) => (
+              sorted.map((o) => (
                 <tr key={o.id}>
                   <Td><PrefetchLink
                         href={`/dashboard/distribution/orders/${o.id}`}

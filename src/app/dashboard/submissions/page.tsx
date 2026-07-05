@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../../../lib/api';
 import { extractImageUrls } from '../../../lib/utils';
+import { useTableSort, SortLabel } from '../../../lib/tableSort';
 
 const C = { red:'#E01E2C',green:'#00D97E',yellow:'#FFB800',blue:'#3E9EFF',purple:'#9B6EFF',gray:'#7A8BA0',grayd:'#2E445E',s2:'#131B2A',border:'#1E2D45',white:'#FFFFFF' };
 
@@ -28,6 +29,29 @@ interface PaginatedResult {
   page: number;
   limit: number;
 }
+
+// Type-aware column sorting reads the raw submission value per column key
+// (duration is derived to minutes so it compares numerically, not as text).
+const submissionVal = (s: Submission, key: string): unknown => {
+  switch (key) {
+    case 'user': return s.users?.name;
+    case 'outlet': return s.outlet_name;
+    case 'template': return s.form_templates?.name;
+    case 'activity': return s.activities?.name;
+    case 'tff': return s.is_converted;
+    case 'time': return s.submitted_at;
+    case 'duration': {
+      const dm = (s as unknown as { duration_minutes?: number }).duration_minutes;
+      if (dm != null) return Number(dm);
+      if (s.check_in_at && s.check_out_at) {
+        const diff = Math.floor((new Date(s.check_out_at).getTime() - new Date(s.check_in_at).getTime()) / 60000);
+        return diff > 0 ? diff : null;
+      }
+      return null;
+    }
+    default: return (s as unknown as Record<string, unknown>)[key];
+  }
+};
 
 export default function SubmissionsPage() {
   const [submissions, setSubmissions] = useState<Submission[]>([]);
@@ -78,6 +102,7 @@ export default function SubmissionsPage() {
 
   const tffCount = submissions.filter(s => s.is_converted).length;
   const nonTff = submissions.filter(s => !s.is_converted).length;
+  const { sorted, sort, toggle } = useTableSort<Submission>(submissions, submissionVal, { key: 'time', dir: 'desc' });
 
   const renderValue = (r: any) => {
     // Support both old and new backend metadata naming
@@ -176,13 +201,26 @@ export default function SubmissionsPage() {
             <table style={{ width:'100%', borderCollapse:'collapse' }}>
               <thead>
                 <tr style={{ borderBottom:`1px solid ${C.border}` }}>
-                  {['FE Name','Outlet','Template','Activity','TFF','Time','Duration','Details'].map(h => (
-                    <th key={h} style={{ padding:'10px 16px', textAlign:'left', fontSize:11, fontWeight:700, color:C.grayd, letterSpacing:'0.8px', textTransform:'uppercase' }}>{h}</th>
+                  {([
+                    { h: 'FE Name', k: 'user' },
+                    { h: 'Outlet', k: 'outlet' },
+                    { h: 'Template', k: 'template' },
+                    { h: 'Activity', k: 'activity' },
+                    { h: 'TFF', k: 'tff' },
+                    { h: 'Time', k: 'time' },
+                    { h: 'Duration', k: 'duration' },
+                    { h: 'Details', k: null },
+                  ] as { h: string; k: string | null }[]).map(col => (
+                    <th key={col.h} style={{ padding:'10px 16px', textAlign:'left', fontSize:11, fontWeight:700, color:C.grayd, letterSpacing:'0.8px', textTransform:'uppercase' }}>
+                      {col.k
+                        ? <SortLabel label={col.h} sortKey={col.k} sort={sort} onToggle={toggle} />
+                        : col.h}
+                    </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {submissions.map((s, i) => (
+                {sorted.map((s, i) => (
                   <tr key={i} style={{ borderBottom:`1px solid ${C.border}40` }}
                     onMouseEnter={e => (e.currentTarget.style.background = C.s2)}
                     onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>

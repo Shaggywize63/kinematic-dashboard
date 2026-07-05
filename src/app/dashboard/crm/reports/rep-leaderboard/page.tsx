@@ -6,6 +6,7 @@ import api from '../../../../../lib/api';
 import type { Deal } from '../../../../../types/crm';
 import { downloadCsv } from '../../../../../lib/exportCsv';
 import { useReportCityKey } from '../../../../../components/crm/reports/ReportFilters';
+import { useTableSort, SortLabel } from '../../../../../lib/tableSort';
 
 interface RepRow {
   user_id: string;
@@ -19,6 +20,21 @@ interface RepRow {
   avg_deal: number;
   avg_cycle_days: number | null;
 }
+
+// Raw underlying value per sortable column (numbers stay numeric).
+const repVal = (r: RepRow, key: string): unknown => {
+  switch (key) {
+    case 'name': return r.name;
+    case 'won': return r.won;
+    case 'lost': return r.lost;
+    case 'open': return r.open;
+    case 'win_rate': return r.win_rate;
+    case 'revenue': return r.revenue;
+    case 'avg_deal': return r.avg_deal;
+    case 'avg_cycle_days': return r.avg_cycle_days;
+    default: return undefined;
+  }
+};
 
 // Sales-rep leaderboard. Aggregates crm_deals on the client side: groups
 // by owner_id, computes won/lost/open counts, win rate, total won revenue,
@@ -97,6 +113,10 @@ export default function RepLeaderboardPage() {
     return out;
   }, [rows, sortBy]);
 
+  // Client-side column sorting layered on top of the "Sort by" dropdown order.
+  // No active column by default, so the dropdown order is preserved as-is.
+  const { sorted: view, sort, toggle } = useTableSort<RepRow>(sorted, repVal);
+
   const totals = useMemo(() => rows.reduce(
     (acc, r) => ({ won: acc.won + r.won, revenue: acc.revenue + r.revenue, open: acc.open + r.open }),
     { won: 0, revenue: 0, open: 0 },
@@ -134,18 +154,18 @@ export default function RepLeaderboardPage() {
             <thead>
               <tr>
                 <th style={th}>#</th>
-                <th style={th}>Rep</th>
-                <th style={thNum}>Won</th>
-                <th style={thNum}>Lost</th>
-                <th style={thNum}>Open</th>
-                <th style={thNum}>Win Rate</th>
-                <th style={thNum}>Revenue</th>
-                <th style={thNum}>Avg Deal</th>
-                <th style={thNum}>Avg Cycle</th>
+                <th style={th}><SortLabel label="Rep" sortKey="name" sort={sort} onToggle={toggle} /></th>
+                <th style={thNum}><SortLabel label="Won" sortKey="won" sort={sort} onToggle={toggle} align="right" /></th>
+                <th style={thNum}><SortLabel label="Lost" sortKey="lost" sort={sort} onToggle={toggle} align="right" /></th>
+                <th style={thNum}><SortLabel label="Open" sortKey="open" sort={sort} onToggle={toggle} align="right" /></th>
+                <th style={thNum}><SortLabel label="Win Rate" sortKey="win_rate" sort={sort} onToggle={toggle} align="right" /></th>
+                <th style={thNum}><SortLabel label="Revenue" sortKey="revenue" sort={sort} onToggle={toggle} align="right" /></th>
+                <th style={thNum}><SortLabel label="Avg Deal" sortKey="avg_deal" sort={sort} onToggle={toggle} align="right" /></th>
+                <th style={thNum}><SortLabel label="Avg Cycle" sortKey="avg_cycle_days" sort={sort} onToggle={toggle} align="right" /></th>
               </tr>
             </thead>
             <tbody>
-              {sorted.map((r, i) => (
+              {view.map((r, i) => (
                 <tr key={r.user_id}>
                   <td style={{ ...td, color: 'var(--text-dim)' }}>{i + 1}</td>
                   <td style={td}>{r.name}</td>

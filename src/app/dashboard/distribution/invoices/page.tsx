@@ -1,8 +1,9 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import api from '../../../../lib/api';
 import { Card, PageHeader, Pill, Th, Td, Btn, inr, fmtDate, statusColor } from '../../../../components/distribution/Atoms';
 import PrefetchLink from '../../../../components/PrefetchLink';
+import { useTableSort, SortLabel } from '../../../../lib/tableSort';
 
 export default function InvoicesPage() {
   const [items, setItems] = useState<any[]>([]);
@@ -21,6 +22,21 @@ export default function InvoicesPage() {
     try { await api.issueInvoice(orderId); setOrderId(''); await load(); } catch (e: any) { setErr(e.message); }
     setBusy(false);
   };
+
+  // Type-aware, client-side column sorting for the invoice list.
+  const invoiceVal = useCallback((inv: any, key: string): unknown => {
+    switch (key) {
+      case 'invoice_no': return inv.invoice_no;
+      case 'irn': return inv.irn;
+      case 'outlet': return inv.outlet_id;
+      case 'issued': return inv.issued_at;
+      case 'eway': return inv.eway_bill_no;
+      case 'status': return inv.status;
+      case 'amount': return Number(inv.grand_total);
+      default: return inv[key];
+    }
+  }, []);
+  const { sorted, sort, toggle } = useTableSort<any>(items, invoiceVal, { key: 'issued', dir: 'desc' });
 
   return (
     <div>
@@ -41,11 +57,18 @@ export default function InvoicesPage() {
       <Card>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead><tr>
-            <Th>Invoice #</Th><Th>IRN</Th><Th>Outlet</Th><Th>Issued</Th><Th>EWB</Th><Th>Status</Th><Th style={{ textAlign: 'right' }}>Amount</Th><Th />
+            <Th><SortLabel label="Invoice #" sortKey="invoice_no" sort={sort} onToggle={toggle} /></Th>
+            <Th><SortLabel label="IRN" sortKey="irn" sort={sort} onToggle={toggle} /></Th>
+            <Th><SortLabel label="Outlet" sortKey="outlet" sort={sort} onToggle={toggle} /></Th>
+            <Th><SortLabel label="Issued" sortKey="issued" sort={sort} onToggle={toggle} /></Th>
+            <Th><SortLabel label="EWB" sortKey="eway" sort={sort} onToggle={toggle} /></Th>
+            <Th><SortLabel label="Status" sortKey="status" sort={sort} onToggle={toggle} /></Th>
+            <Th style={{ textAlign: 'right' }}><SortLabel label="Amount" sortKey="amount" sort={sort} onToggle={toggle} align="right" /></Th>
+            <Th />
           </tr></thead>
           <tbody>
             {loading ? <tr><Td>Loading…</Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td></tr> :
-              items.map((inv) => (
+              sorted.map((inv) => (
                 <tr key={inv.id}>
                   <Td style={{ fontWeight: 700 }}><PrefetchLink
                         href={`/dashboard/distribution/invoices/${inv.id}`}

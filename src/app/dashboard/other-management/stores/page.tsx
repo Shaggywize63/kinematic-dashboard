@@ -6,6 +6,7 @@ import ClientSelect from '../../../../components/ClientSelect';
 import ConfirmModal from '../../../../components/ConfirmModal';
 import { useAuth } from '../../../../hooks/useAuth';
 import { useClient } from '../../../../context/ClientContext';
+import { useTableSort, SortLabel } from '../../../../lib/tableSort';
 
 const C = {
   bg: 'var(--bg)', 
@@ -284,6 +285,22 @@ export default function OutletManagementPage() {
 
   const activeCount   = safeOutlets.filter(o => o.is_active).length;
   const inactiveCount = safeOutlets.filter(o => !o.is_active).length;
+
+  // Type-aware column sorting for the outlet list — zone and client sort by the
+  // resolved human name (same value shown in the cell), not the raw id.
+  const outletVal = useCallback((o: Outlet, key: string): unknown => {
+    switch (key) {
+      case 'name': return o.name;
+      case 'store_type': return o.store_type;
+      case 'zone': return zones.find(z => z.id === o.zone_id)?.name;
+      case 'owner': return o.owner_name;
+      case 'store_code': return o.store_code;
+      case 'client': return clients.find(cl => cl.id?.toLowerCase().trim() === o.client_id?.toLowerCase().trim())?.name || o.client_id;
+      case 'status': return o.is_active;
+      default: return (o as unknown as Record<string, unknown>)[key];
+    }
+  }, [zones, clients]);
+  const { sorted, sort, toggle } = useTableSort<Outlet>(filtered, outletVal, { key: 'name', dir: 'asc' });
 
   /* ── Validate ── */
   const validate = () => {
@@ -603,18 +620,40 @@ export default function OutletManagementPage() {
             <div style={{ display:'grid', gridTemplateColumns:isPlatformAdmin ? '2fr 1fr 1fr 1fr 1fr 1fr 1fr 100px' : '2fr 1.2fr 1.2fr 1.2fr 1fr 1fr 100px',
               gap:8, padding:'10px 20px', borderBottom:`1px solid ${C.border}`,
               fontSize:10, color:C.grayd, fontWeight:700, letterSpacing:'0.7px', textTransform:'uppercase' }}>
-              {isPlatformAdmin ? (
-                ['Outlet','Type','Zone','Owner / Phone','Code','Client','Status','Actions'].map(h => <span key={h}>{h}</span>)
-              ) : (
-                ['Outlet','Type','Zone','Owner / Phone','Code','Status','Actions'].map(h => <span key={h}>{h}</span>)
-              )}
+              {(isPlatformAdmin
+                ? ([
+                    { h: 'Outlet', k: 'name' },
+                    { h: 'Type', k: 'store_type' },
+                    { h: 'Zone', k: 'zone' },
+                    { h: 'Owner / Phone', k: 'owner' },
+                    { h: 'Code', k: 'store_code' },
+                    { h: 'Client', k: 'client' },
+                    { h: 'Status', k: 'status' },
+                    { h: 'Actions', k: null },
+                  ] as { h: string; k: string | null }[])
+                : ([
+                    { h: 'Outlet', k: 'name' },
+                    { h: 'Type', k: 'store_type' },
+                    { h: 'Zone', k: 'zone' },
+                    { h: 'Owner / Phone', k: 'owner' },
+                    { h: 'Code', k: 'store_code' },
+                    { h: 'Status', k: 'status' },
+                    { h: 'Actions', k: null },
+                  ] as { h: string; k: string | null }[])
+              ).map(col => (
+                <span key={col.h}>
+                  {col.k
+                    ? <SortLabel label={col.h} sortKey={col.k} sort={sort} onToggle={toggle} />
+                    : col.h}
+                </span>
+              ))}
             </div>
             {/* Rows */}
-            {filtered.map((o, i) => (
+            {sorted.map((o, i) => (
               <div key={o.id} className="km-tr"
                 style={{ display:'grid', gridTemplateColumns:isPlatformAdmin ? '2fr 1fr 1fr 1fr 1fr 1fr 1fr 100px' : '2fr 1.2fr 1.2fr 1.2fr 1fr 1fr 100px',
                   gap:8, padding:'14px 20px', alignItems:'center',
-                  borderBottom: i < filtered.length - 1 ? `1px solid ${C.border}` : 'none',
+                  borderBottom: i < sorted.length - 1 ? `1px solid ${C.border}` : 'none',
                   transition:'background .13s' }}>
 
                 {/* Outlet name + address */}
