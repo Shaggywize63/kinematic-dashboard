@@ -295,7 +295,12 @@ class ApiClient {
     if (actingClient && !headers['X-Client-Id']) headers['X-Client-Id'] = actingClient;
     if (!headers['X-Client-Id']) {
       try {
-        const sel = typeof window !== 'undefined' ? window.localStorage.getItem('kinematic_selected_client') : null;
+        // Orgs that hide the global client filter (ui.hide_client_filter) must
+        // NOT carry a client scope — the picker is gone, so a previously-stored
+        // selection would otherwise keep silently scoping every request to one
+        // (possibly empty) client. Skip it entirely; the admin sees the full org.
+        const hideFilter = typeof window !== 'undefined' && window.localStorage.getItem('kinematic_hide_client_filter') === '1';
+        const sel = (!hideFilter && typeof window !== 'undefined') ? window.localStorage.getItem('kinematic_selected_client') : null;
         if (sel && isUUID(sel)) headers['X-Client-Id'] = sel;
       } catch { /* ignore */ }
     }
