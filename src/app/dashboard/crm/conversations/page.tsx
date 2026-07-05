@@ -16,6 +16,7 @@ import {
   type ConversationInsights,
   type DiarSegment,
 } from '../../../../lib/conversationsApi';
+import ConversationAnalyticsView from '../../../../components/crm/conversations/ConversationAnalyticsView';
 
 // ── Inline style tokens (mirror the Leave module's _ui.tsx) ──────────────────
 const card: React.CSSProperties = {
@@ -68,6 +69,7 @@ export default function ConversationAnalysisPage() {
   const [search, setSearch] = useState('');
 
   const [openId, setOpenId] = useState<string | null>(null);
+  const [tab, setTab] = useState<'recordings' | 'analytics'>('recordings');
 
   // Load the list. Champion filter (user_id) is applied server-side so the
   // backend narrows to that recorder; it is in the dependency array below so
@@ -138,17 +140,34 @@ export default function ConversationAnalysisPage() {
         </div>
       </div>
 
+      {/* Tab toggle — Recordings list vs aggregated Analytics */}
+      <div style={{ display: 'inline-flex', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden', marginBottom: 16 }}>
+        {(['recordings', 'analytics'] as const).map((tv) => (
+          <button
+            key={tv}
+            onClick={() => setTab(tv)}
+            style={{
+              background: tab === tv ? 'var(--s3)' : 'transparent',
+              color: tab === tv ? 'var(--text)' : 'var(--text-dim)',
+              border: 'none', padding: '8px 18px', fontSize: 13, fontWeight: tab === tv ? 800 : 600, cursor: 'pointer',
+            }}
+          >{tv === 'recordings' ? 'Recordings' : 'Analytics'}</button>
+        ))}
+      </div>
+
       {/* Filters */}
       <div style={{ ...card, padding: 14, marginBottom: 16, display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-        <div style={{ flex: '1 1 220px', minWidth: 180 }}>
-          <label style={label}>Search</label>
-          <input
-            style={input}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Lead, champion or summary…"
-          />
-        </div>
+        {tab === 'recordings' && (
+          <div style={{ flex: '1 1 220px', minWidth: 180 }}>
+            <label style={label}>Search</label>
+            <input
+              style={input}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Lead, champion or summary…"
+            />
+          </div>
+        )}
         <div style={{ flex: '0 1 220px', minWidth: 180 }}>
           <label style={label}>Consumer Champion</label>
           <select value={championId} onChange={(e) => setChampionId(e.target.value)} style={input as React.CSSProperties}>
@@ -169,7 +188,10 @@ export default function ConversationAnalysisPage() {
         )}
       </div>
 
-      {/* List */}
+      {/* Analytics tab renders the aggregated charts in place of the list */}
+      {tab === 'analytics' ? (
+        <ConversationAnalyticsView championId={championId} city={selectedCity} compact={isCompact} />
+      ) : (
       <div style={card}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, gap: 8 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
@@ -263,6 +285,7 @@ export default function ConversationAnalysisPage() {
           </div>
         )}
       </div>
+      )}
 
       {openId && (
         <ConversationDrawer id={openId} isCompact={isCompact} onClose={() => setOpenId(null)} />

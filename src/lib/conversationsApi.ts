@@ -130,6 +130,35 @@ export interface ListConversationsParams {
   status?: ConversationStatus;
 }
 
+// Aggregated insight analytics for the manager charts (all server-computed from
+// real analyzed calls — empty series come back empty, never fabricated).
+export interface ConversationAnalytics {
+  window_days: number;
+  totals: {
+    total: number; analyzed: number; reps: number; leads: number;
+    avg_intent_score: number | null; avg_talk_pct: number | null;
+    risk_calls: number; commitment_calls: number;
+  };
+  intent_stages: Array<{ key: string; count: number }>;
+  sentiment: Array<{ key: 'positive' | 'neutral' | 'negative'; count: number }>;
+  trajectory: Array<{ key: 'improved' | 'flat' | 'declined'; count: number }>;
+  objections: Array<{ type: string; count: number; well: number; partially: number; poor: number }>;
+  handling: { well: number; partially: number; poor: number };
+  competitors: Array<{ name: string; count: number }>;
+  timeline: Array<{ date: string; count: number; avg_score: number | null }>;
+  reps: Array<{
+    user_id: string; name: string; calls: number;
+    avg_intent_score: number | null; avg_talk_pct: number | null;
+    positive: number; neutral: number; negative: number;
+  }>;
+}
+
+export interface AnalyticsParams {
+  user_id?: string;
+  city?: string;
+  days?: number;
+}
+
 // ── API surface ──────────────────────────────────────────────────────────────
 
 export const conversationsApi = {
@@ -143,6 +172,11 @@ export const conversationsApi = {
   // Lead-scoped list — compact history for a single lead's detail page.
   forLead: (leadId: string) =>
     api.get<Wrapped<ConversationRow[]>>(`${BASE}/leads/${leadId}/conversations`),
+
+  // Aggregated insight analytics for the manager "Analytics" tab. `city` is
+  // auto-appended by the global city scope; pass user_id / days to filter.
+  analytics: (params?: AnalyticsParams) =>
+    api.get<Wrapped<ConversationAnalytics>>(`${BASE}/conversations/analytics${qs({ ...params })}`),
 };
 
 // Convenience wrappers mirroring the task's named contract.
