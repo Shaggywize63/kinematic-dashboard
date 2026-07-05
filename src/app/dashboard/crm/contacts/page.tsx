@@ -14,6 +14,9 @@ export default function ContactsListPage() {
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState('');
   const [isB2C, setIsB2C] = useState(false);
+  // Server-side sort. Empty key = backend default order (created_at). A header
+  // click sets a real crm_contacts column and refetches.
+  const [sort, setSort] = useState<{ key: string; order: 'asc' | 'desc' }>({ key: '', order: 'asc' });
   const view = useViewPrefs('contacts');
   const hiddenSet = useMemo(() => new Set(view.prefs.hidden), [view.prefs.hidden]);
   // Global CRM date range (header picker). City scope is handled by the
@@ -26,13 +29,14 @@ export default function ContactsListPage() {
       const params: Record<string, string> = {};
       if (range.from) params.from = range.from;
       if (range.to) params.to = range.to;
+      if (sort.key) { params.sort = sort.key; params.order = sort.order; }
       const r = await crmContacts.list(params);
       setContacts(r.data || []);
     }
     catch (e: any) { toast.error(e.message || 'Failed to load'); } finally { setLoading(false); }
   };
 
-  useEffect(() => { reload(); /* eslint-disable-next-line */ }, [range.from, range.to]);
+  useEffect(() => { reload(); /* eslint-disable-next-line */ }, [range.from, range.to, sort.key, sort.order]);
 
   useEffect(() => {
     crmSettings.get().then((r) => {
@@ -73,6 +77,8 @@ export default function ContactsListPage() {
         isB2C={isB2C}
         hiddenColumns={hiddenSet}
         viewMode={view.prefs.mode}
+        sort={sort}
+        onSort={(key) => setSort((s) => s.key === key ? { key, order: s.order === 'asc' ? 'desc' : 'asc' } : { key, order: 'asc' })}
         onAssign={async (contactId, userId) => {
           await crmContacts.update(contactId, { owner_id: userId } as any);
           toast.success(userId ? 'Contact reassigned' : 'Contact unassigned');

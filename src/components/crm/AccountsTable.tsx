@@ -8,6 +8,41 @@ interface Props {
   loading?: boolean;
   hiddenColumns?: Set<string>;
   viewMode?: 'table' | 'cards';
+  // Server-side sort. `sort.key` is a real crm_accounts column; `onSort(key)`
+  // asks the parent to toggle/switch and refetch. Undefined = non-sortable UI.
+  sort?: { key: string; order: 'asc' | 'desc' };
+  onSort?: (key: string) => void;
+}
+
+// Clickable, server-side-sort header. Sorting happens on the backend via
+// onSort → parent refetch; this only renders label + asc/desc/idle arrow.
+function SortTh({ label, sortKey, sort, onSort, thStyle, align = 'left' }: {
+  label: string;
+  sortKey: string;
+  sort?: { key: string; order: 'asc' | 'desc' };
+  onSort?: (key: string) => void;
+  thStyle: React.CSSProperties;
+  align?: 'left' | 'right';
+}) {
+  const th: React.CSSProperties = { ...thStyle, textAlign: align };
+  if (!onSort) return <th style={th}>{label}</th>;
+  const active = !!sort && sort.key === sortKey;
+  const arrow = active ? (sort!.order === 'asc' ? '▲' : '▼') : '⇅';
+  return (
+    <th style={th}>
+      <span
+        role="button"
+        tabIndex={0}
+        onClick={() => onSort(sortKey)}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSort(sortKey); } }}
+        title="Sort"
+        style={{ display: 'inline-flex', alignItems: 'center', gap: 5, cursor: 'pointer', userSelect: 'none', color: active ? 'var(--primary)' : 'inherit', justifyContent: align === 'right' ? 'flex-end' : 'flex-start' }}
+      >
+        {label}
+        <span aria-hidden style={{ fontSize: 9, lineHeight: 1, opacity: active ? 1 : 0.4 }}>{arrow}</span>
+      </span>
+    </th>
+  );
 }
 
 export const ACCOUNT_COLUMNS = [
@@ -18,7 +53,7 @@ export const ACCOUNT_COLUMNS = [
   { key: 'owner', label: 'Owner' },
 ] as const;
 
-export default function AccountsTable({ accounts, loading, hiddenColumns, viewMode = 'table' }: Props) {
+export default function AccountsTable({ accounts, loading, hiddenColumns, viewMode = 'table', sort, onSort }: Props) {
   const td: React.CSSProperties = { padding: '12px 14px', fontSize: 13, color: 'var(--text)', borderBottom: '1px solid var(--border)' };
   const th: React.CSSProperties = { padding: '10px 14px', fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', textAlign: 'left', borderBottom: '1px solid var(--border)', background: 'var(--s2)', fontWeight: 700, letterSpacing: 0.6 };
   const hidden = hiddenColumns ?? new Set<string>();
@@ -34,10 +69,12 @@ export default function AccountsTable({ accounts, loading, hiddenColumns, viewMo
         <table className={tableClass} style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
-              <th style={th}>Name</th>
-              {!hidden.has('industry')  && <th style={th}>Industry</th>}
-              {!hidden.has('revenue')   && <th style={th}>Revenue</th>}
-              {!hidden.has('employees') && <th style={th}>Employees</th>}
+              <SortTh label="Name" sortKey="name" sort={sort} onSort={onSort} thStyle={th} />
+              {!hidden.has('industry')  && <SortTh label="Industry" sortKey="industry" sort={sort} onSort={onSort} thStyle={th} />}
+              {/* Revenue column → real column annual_revenue. */}
+              {!hidden.has('revenue')   && <SortTh label="Revenue" sortKey="annual_revenue" sort={sort} onSort={onSort} thStyle={th} />}
+              {!hidden.has('employees') && <SortTh label="Employees" sortKey="employees" sort={sort} onSort={onSort} thStyle={th} />}
+              {/* Owner shows owner_name (stamped, not a real column) → non-sortable. */}
               {!hidden.has('owner')     && <th style={th}>Owner</th>}
             </tr>
           </thead>
