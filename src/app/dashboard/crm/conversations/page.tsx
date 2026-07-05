@@ -411,6 +411,44 @@ function ConversationDrawer({ id, isCompact, onClose }: { id: string; isCompact:
   );
 }
 
+// Recordings are stored with a non-standard `audio/m4a` mimetype, which Chrome's
+// <audio> element refuses to play. We fetch the signed URL and re-wrap the bytes
+// in a Blob typed `audio/mp4` (the correct AAC-in-MP4 type) so it plays inline.
+// If the cross-origin fetch is ever blocked we fall back to the direct URL, and
+// an "open / download" link is always offered as a guaranteed escape hatch.
+function AudioPlayer({ url }: { url: string }) {
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    let created: string | null = null;
+    setBlobUrl(null);
+    (async () => {
+      try {
+        const res = await fetch(url);
+        if (!res.ok) return;
+        const buf = await res.arrayBuffer();
+        created = URL.createObjectURL(new Blob([buf], { type: 'audio/mp4' }));
+        if (alive) setBlobUrl(created);
+      } catch { /* CORS/network — fall back to the direct src below */ }
+    })();
+    return () => { alive = false; if (created) URL.revokeObjectURL(created); };
+  }, [url]);
+
+  return (
+    <div>
+      <SectionTitle>Recording</SectionTitle>
+      {/* key forces a reload once the re-typed blob is ready */}
+      {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+      <audio key={blobUrl || url} src={blobUrl || url} controls preload="metadata" style={{ width: '100%' }} />
+      <div style={{ marginTop: 6 }}>
+        <a href={url} target="_blank" rel="noreferrer" style={{ fontSize: 11.5, color: 'var(--text-dim)', textDecoration: 'underline' }}>
+          Open / download recording
+        </a>
+      </div>
+    </div>
+  );
+}
+
 function DrawerBody({ detail }: { detail: ConversationDetail }) {
   const complete = detail.status === 'complete';
   const insights = detail.insights || null;
@@ -418,13 +456,7 @@ function DrawerBody({ detail }: { detail: ConversationDetail }) {
   return (
     <>
       {/* Audio player */}
-      {detail.audio_url && (
-        <div>
-          <SectionTitle>Recording</SectionTitle>
-          {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-          <audio src={detail.audio_url} controls style={{ width: '100%' }} />
-        </div>
-      )}
+      {detail.audio_url && <AudioPlayer url={detail.audio_url} />}
 
       {/* Non-complete state — surface processing / failed instead of insights. */}
       {!complete && (
