@@ -17,6 +17,7 @@ import {
   type DiarSegment,
 } from '../../../../lib/conversationsApi';
 import ConversationAnalyticsView from '../../../../components/crm/conversations/ConversationAnalyticsView';
+import { useTableSort, SortLabel } from '../../../../lib/tableSort';
 
 // ── Inline style tokens (mirror the Leave module's _ui.tsx) ──────────────────
 const card: React.CSSProperties = {
@@ -128,6 +129,21 @@ export default function ConversationAnalysisPage() {
     });
   }, [rows, search, selectedCity]);
 
+  // Type-aware column sorting for the recordings table (client-side).
+  const recVal = useCallback((r: ConversationRow, key: string): unknown => {
+    switch (key) {
+      case 'champion': return r.champion_name;
+      case 'lead': return r.lead_name;
+      case 'date': return r.created_at;
+      case 'intent': return r.intent_score;
+      case 'sentiment': return r.sentiment;
+      case 'status': return r.status;
+      case 'summary': return r.summary;
+      default: return (r as unknown as Record<string, unknown>)[key];
+    }
+  }, []);
+  const { sorted, sort, toggle } = useTableSort<ConversationRow>(filtered, recVal, { key: 'date', dir: 'desc' });
+
   return (
     <div>
       {/* Header */}
@@ -220,7 +236,7 @@ export default function ConversationAnalysisPage() {
         ) : isCompact ? (
           // Stacked cards on narrow screens
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {filtered.map((r) => (
+            {sorted.map((r) => (
               <ConversationCardRow key={r.id} row={r} onOpen={() => setOpenId(r.id)} />
             ))}
           </div>
@@ -229,17 +245,17 @@ export default function ConversationAnalysisPage() {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
                 <tr style={{ textAlign: 'left', color: 'var(--text-dim)', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                  <th style={thStyle}>Consumer Champion</th>
-                  <th style={thStyle}>Lead</th>
-                  <th style={thStyle}>Date</th>
-                  <th style={thStyle}>Intent</th>
-                  <th style={thStyle}>Sentiment</th>
-                  <th style={thStyle}>Status</th>
-                  <th style={thStyle}>Summary</th>
+                  <th style={thStyle}><SortLabel label="Consumer Champion" sortKey="champion" sort={sort} onToggle={toggle} /></th>
+                  <th style={thStyle}><SortLabel label="Lead" sortKey="lead" sort={sort} onToggle={toggle} /></th>
+                  <th style={thStyle}><SortLabel label="Date" sortKey="date" sort={sort} onToggle={toggle} /></th>
+                  <th style={thStyle}><SortLabel label="Intent" sortKey="intent" sort={sort} onToggle={toggle} /></th>
+                  <th style={thStyle}><SortLabel label="Sentiment" sortKey="sentiment" sort={sort} onToggle={toggle} /></th>
+                  <th style={thStyle}><SortLabel label="Status" sortKey="status" sort={sort} onToggle={toggle} /></th>
+                  <th style={thStyle}><SortLabel label="Summary" sortKey="summary" sort={sort} onToggle={toggle} /></th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((r) => {
+                {sorted.map((r) => {
                   const sm = statusMeta(r.status);
                   const sc = sentimentColor(r.sentiment);
                   const ic = intentColor(r.intent_score);
