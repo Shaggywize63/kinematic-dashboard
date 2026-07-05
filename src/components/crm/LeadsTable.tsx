@@ -17,6 +17,44 @@ interface Props {
   onAssign?: (leadId: string, userId: string | null) => Promise<void>;
   hiddenColumns?: Set<string>;
   viewMode?: 'table' | 'cards';
+  // Server-side sort. `sort.key` is the backend sort key (see the
+  // column→key mapping in the header); `onSort(key)` asks the parent to
+  // toggle/switch the active sort and refetch. Undefined = non-sortable UI.
+  sort?: { key: string; order: 'asc' | 'desc' };
+  onSort?: (key: string) => void;
+}
+
+// Clickable, server-side-sort table header. The actual sorting happens on
+// the backend via onSort → parent refetch; this only renders the label +
+// asc/desc/idle affordance. Non-sortable columns pass no onSort and render
+// a plain <th>.
+function SortTh({ label, sortKey, sort, onSort, thStyle, align = 'left' }: {
+  label: string;
+  sortKey: string;
+  sort?: { key: string; order: 'asc' | 'desc' };
+  onSort?: (key: string) => void;
+  thStyle: React.CSSProperties;
+  align?: 'left' | 'right';
+}) {
+  const th: React.CSSProperties = { ...thStyle, textAlign: align };
+  if (!onSort) return <th style={th}>{label}</th>;
+  const active = !!sort && sort.key === sortKey;
+  const arrow = active ? (sort!.order === 'asc' ? '▲' : '▼') : '⇅';
+  return (
+    <th style={th}>
+      <span
+        role="button"
+        tabIndex={0}
+        onClick={() => onSort(sortKey)}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSort(sortKey); } }}
+        title="Sort"
+        style={{ display: 'inline-flex', alignItems: 'center', gap: 5, cursor: 'pointer', userSelect: 'none', color: active ? 'var(--primary)' : 'inherit', justifyContent: align === 'right' ? 'flex-end' : 'flex-start' }}
+      >
+        {label}
+        <span aria-hidden style={{ fontSize: 9, lineHeight: 1, opacity: active ? 1 : 0.4 }}>{arrow}</span>
+      </span>
+    </th>
+  );
 }
 
 // Column keys are stable identifiers used by the View Customizer to
@@ -41,7 +79,7 @@ export const LEAD_COLUMNS = [
   { key: 'action', label: 'Action' },
 ] as const;
 
-export default function LeadsTable({ leads, selected, onToggle, onToggleAll, loading, isB2C = false, onAssign, hiddenColumns, viewMode = 'table' }: Props) {
+export default function LeadsTable({ leads, selected, onToggle, onToggleAll, loading, isB2C = false, onAssign, hiddenColumns, viewMode = 'table', sort, onSort }: Props) {
   const [scorePopup, setScorePopup] = useState<Lead | null>(null);
   const allSelected = leads.length > 0 && leads.every((l) => selected.has(l.id));
   const tdStyle: React.CSSProperties = { padding: '12px 14px', fontSize: 13, color: 'var(--text)', borderBottom: '1px solid var(--border)' };
@@ -78,16 +116,17 @@ export default function LeadsTable({ leads, selected, onToggle, onToggleAll, loa
                 <th style={{ ...thStyle, width: 40 }}>
                   <input type="checkbox" checked={allSelected} onChange={onToggleAll} />
                 </th>
-                <th style={thStyle}>Name</th>
-                {showCompany && <th style={thStyle}>Company</th>}
+                <SortTh label="Name" sortKey="name" sort={sort} onSort={onSort} thStyle={thStyle} />
+                {showCompany && <SortTh label="Company" sortKey="company" sort={sort} onSort={onSort} thStyle={thStyle} />}
                 {isVisible('phone') && <th style={thStyle}>Phone</th>}
-                {isVisible('status') && <th style={thStyle}>Status</th>}
-                {isVisible('score') && <th style={thStyle}>Score</th>}
+                {isVisible('status') && <SortTh label="Status" sortKey="status" sort={sort} onSort={onSort} thStyle={thStyle} />}
+                {isVisible('score') && <SortTh label="Score" sortKey="score" sort={sort} onSort={onSort} thStyle={thStyle} />}
                 {isVisible('latest_update') && <th style={thStyle}>Latest Update</th>}
                 {isVisible('source') && <th style={thStyle}>Source</th>}
                 {isVisible('owner') && <th style={thStyle}>Owner</th>}
                 {isVisible('created_by') && <th style={thStyle}>Uploaded By</th>}
-                {isVisible('created_at') && <th style={thStyle}>Uploaded On</th>}
+                {/* created_at column → backend sort key 'created' (leads whitelist maps created→created_at). */}
+                {isVisible('created_at') && <SortTh label="Uploaded On" sortKey="created" sort={sort} onSort={onSort} thStyle={thStyle} />}
                 {isVisible('action') && <th style={{ ...thStyle, textAlign: 'right' }}>Action</th>}
               </tr>
             </thead>

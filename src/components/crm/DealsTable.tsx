@@ -15,6 +15,41 @@ interface Props {
   onToggleAll?: () => void;
   hiddenColumns?: Set<string>;
   viewMode?: 'table' | 'cards';
+  // Server-side sort. `sort.key` is a real crm_deals column; `onSort(key)`
+  // asks the parent to toggle/switch and refetch. Undefined = non-sortable UI.
+  sort?: { key: string; order: 'asc' | 'desc' };
+  onSort?: (key: string) => void;
+}
+
+// Clickable, server-side-sort header. Sorting happens on the backend via
+// onSort → parent refetch; this only renders label + asc/desc/idle arrow.
+function SortTh({ label, sortKey, sort, onSort, thStyle, align = 'left' }: {
+  label: string;
+  sortKey: string;
+  sort?: { key: string; order: 'asc' | 'desc' };
+  onSort?: (key: string) => void;
+  thStyle: React.CSSProperties;
+  align?: 'left' | 'right';
+}) {
+  const th: React.CSSProperties = { ...thStyle, textAlign: align };
+  if (!onSort) return <th style={th}>{label}</th>;
+  const active = !!sort && sort.key === sortKey;
+  const arrow = active ? (sort!.order === 'asc' ? '▲' : '▼') : '⇅';
+  return (
+    <th style={th}>
+      <span
+        role="button"
+        tabIndex={0}
+        onClick={() => onSort(sortKey)}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSort(sortKey); } }}
+        title="Sort"
+        style={{ display: 'inline-flex', alignItems: 'center', gap: 5, cursor: 'pointer', userSelect: 'none', color: active ? 'var(--primary)' : 'inherit', justifyContent: align === 'right' ? 'flex-end' : 'flex-start' }}
+      >
+        {label}
+        <span aria-hidden style={{ fontSize: 9, lineHeight: 1, opacity: active ? 1 : 0.4 }}>{arrow}</span>
+      </span>
+    </th>
+  );
 }
 
 export const DEAL_COLUMNS = [
@@ -26,7 +61,7 @@ export const DEAL_COLUMNS = [
   { key: 'owner', label: 'Owner' },
 ] as const;
 
-export default function DealsTable({ deals, loading, onAssign, onDelete, selected, onToggle, onToggleAll, hiddenColumns, viewMode = 'table' }: Props) {
+export default function DealsTable({ deals, loading, onAssign, onDelete, selected, onToggle, onToggleAll, hiddenColumns, viewMode = 'table', sort, onSort }: Props) {
   const td: React.CSSProperties = { padding: '12px 14px', fontSize: 13, color: 'var(--text)', borderBottom: '1px solid var(--border)' };
   const th: React.CSSProperties = { padding: '10px 14px', fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', textAlign: 'left', borderBottom: '1px solid var(--border)', background: 'var(--s2)', fontWeight: 700, letterSpacing: 0.6 };
   const showSelection = !!onToggle && !!selected;
@@ -54,11 +89,15 @@ export default function DealsTable({ deals, loading, onAssign, onDelete, selecte
                   <input type="checkbox" checked={allSelected} onChange={onToggleAll} />
                 </th>
               )}
-              <th style={th}>Name</th>
-              {!hidden.has('amount')     && <th style={th}>Amount</th>}
+              <SortTh label="Name" sortKey="name" sort={sort} onSort={onSort} thStyle={th} />
+              {!hidden.has('amount')     && <SortTh label="Amount" sortKey="amount" sort={sort} onSort={onSort} thStyle={th} />}
+              {/* Stage renders via a join (crm_deal_stages.name); the deals row
+                  has only stage_id (a UUID), so it's left non-sortable. */}
               {!hidden.has('stage')      && <th style={th}>Stage</th>}
-              {!hidden.has('status')     && <th style={th}>Status</th>}
-              {!hidden.has('close_date') && <th style={th}>Close Date</th>}
+              {!hidden.has('status')     && <SortTh label="Status" sortKey="status" sort={sort} onSort={onSort} thStyle={th} />}
+              {/* Close Date column → real column expected_close_date. */}
+              {!hidden.has('close_date') && <SortTh label="Close Date" sortKey="expected_close_date" sort={sort} onSort={onSort} thStyle={th} />}
+              {/* Owner shows owner_name (stamped, not a real column) → non-sortable. */}
               {!hidden.has('owner')      && <th style={th}>Owner</th>}
               {showActions               && <th style={{ ...th, textAlign: 'right' }}>Action</th>}
             </tr>

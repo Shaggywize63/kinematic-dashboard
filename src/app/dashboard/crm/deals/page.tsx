@@ -99,6 +99,9 @@ function DealsListPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<number>(DEAL_DEFAULT_PAGE_SIZE);
   const [pagination, setPagination] = useState<Pagination | null>(null);
+  // Server-side sort for the list view. Empty key = backend default order
+  // (expected_close_date). A header click sets a real crm_deals column.
+  const [sort, setSort] = useState<{ key: string; order: 'asc' | 'desc' }>({ key: '', order: 'asc' });
   const dealView = useViewPrefs('deals');
   const dealHidden = useMemo(() => new Set(dealView.prefs.hidden), [dealView.prefs.hidden]);
   // The pipeline to fall back to when entering Kanban without an explicit pick —
@@ -150,6 +153,8 @@ function DealsListPage() {
         params.limit = pageSize;
         if (status) params.status = status;
         if (pipelineId) params.pipeline_id = pipelineId;
+        // Server-side sort — only in list view; kanban keeps its own order.
+        if (sort.key) { params.sort = sort.key; params.order = sort.order; }
       }
       const r = await crmDeals.list(params);
       setDeals(r.data || []);
@@ -174,13 +179,13 @@ function DealsListPage() {
   useEffect(() => { loadPipelines(); /* eslint-disable-next-line */ }, []);
   useEffect(() => { reload(); /* eslint-disable-next-line */ }, [
     range.from, range.to, view, pipelineId,
-    page, pageSize, status,
+    page, pageSize, status, sort.key, sort.order,
   ]);
 
   // Reset to page 1 whenever the server-side filter set changes,
   // otherwise a stricter filter while on page 5 lands on an empty page.
   useEffect(() => { setPage(1); /* eslint-disable-next-line */ }, [
-    range.from, range.to, status, pageSize, view,
+    range.from, range.to, status, pageSize, view, sort.key, sort.order,
   ]);
 
   useEffect(() => {
@@ -373,6 +378,8 @@ function DealsListPage() {
             loading={loading}
             hiddenColumns={dealHidden}
             viewMode={dealView.prefs.mode}
+            sort={sort}
+            onSort={(key) => setSort((s) => s.key === key ? { key, order: s.order === 'asc' ? 'desc' : 'asc' } : { key, order: 'asc' })}
             onAssign={async (dealId, userId) => {
               await crmDeals.update(dealId, { owner_id: userId } as any);
               toast.success(userId ? 'Deal reassigned' : 'Deal unassigned');

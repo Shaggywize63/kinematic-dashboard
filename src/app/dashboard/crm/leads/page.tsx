@@ -544,6 +544,11 @@ export default function LeadsListPage() {
         isB2C={isB2C}
         hiddenColumns={hiddenSet}
         viewMode={view.prefs.mode}
+        sort={sort}
+        // Header click: switch to this column asc, or flip asc↔desc if it's
+        // already the active sort. Feeds the same server-side `sort` state the
+        // "Sort by" dropdown uses, so both stay in lock-step and refetch.
+        onSort={(key) => setSort((s) => s.key === key ? { key, order: s.order === 'asc' ? 'desc' : 'asc' } : { key, order: 'asc' })}
         onAssign={async (leadId, userId) => {
           await crmLeads.update(leadId, { owner_id: userId } as any);
           toast.success(userId ? 'Lead reassigned' : 'Lead unassigned');

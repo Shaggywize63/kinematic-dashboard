@@ -13,6 +13,9 @@ export default function AccountsListPage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState('');
+  // Server-side sort. Empty key = backend default order (created_at). A header
+  // click sets a real crm_accounts column and refetches.
+  const [sort, setSort] = useState<{ key: string; order: 'asc' | 'desc' }>({ key: '', order: 'asc' });
   const view = useViewPrefs('accounts');
   const hiddenSet = useMemo(() => new Set(view.prefs.hidden), [view.prefs.hidden]);
   // Global CRM date range (header). City scope is handled by the layout remount.
@@ -25,13 +28,14 @@ export default function AccountsListPage() {
         const params: Record<string, string> = {};
         if (range.from) params.from = range.from;
         if (range.to) params.to = range.to;
+        if (sort.key) { params.sort = sort.key; params.order = sort.order; }
         const r = await crmAccounts.list(params);
         setAccounts(r.data || []);
       }
       catch (e: any) { toast.error(e.message || 'Failed to load'); } finally { setLoading(false); }
     })();
     /* eslint-disable-next-line */
-  }, [range.from, range.to]);
+  }, [range.from, range.to, sort.key, sort.order]);
 
   const filtered = accounts.filter((a) => !q || `${a.name} ${a.industry || ''}`.toLowerCase().includes(q.toLowerCase()));
 
@@ -57,7 +61,14 @@ export default function AccountsListPage() {
           <Link href="/dashboard/crm/accounts/new" style={{ background: 'var(--primary)', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700 }}>+ New Account</Link>
         </div>
       </div>
-      <AccountsTable accounts={filtered} loading={loading} hiddenColumns={hiddenSet} viewMode={view.prefs.mode} />
+      <AccountsTable
+        accounts={filtered}
+        loading={loading}
+        hiddenColumns={hiddenSet}
+        viewMode={view.prefs.mode}
+        sort={sort}
+        onSort={(key) => setSort((s) => s.key === key ? { key, order: s.order === 'asc' ? 'desc' : 'asc' } : { key, order: 'asc' })}
+      />
     </div>
   );
 }
