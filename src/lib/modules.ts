@@ -69,6 +69,7 @@ export const ALL_MODULES: ModuleEntry[] = [
   { id: 'crm_pipeline',       l: 'Pipeline',         group: 'CRM', package: 'crm' },
   { id: 'crm_products',       l: 'CRM Products',     group: 'CRM', package: 'crm' },
   { id: 'crm_activities',     l: 'CRM Activities',   group: 'CRM', package: 'crm' },
+  { id: 'crm_conversation_intel', l: 'Conversation Analysis', group: 'CRM', package: 'crm' },
   { id: 'crm_tasks',          l: 'CRM Tasks',        group: 'CRM', package: 'crm' },
   { id: 'crm_whatsapp',       l: 'CRM WhatsApp',     group: 'CRM', package: 'crm' },
   { id: 'crm_email',          l: 'CRM Email',        group: 'CRM', package: 'crm' },

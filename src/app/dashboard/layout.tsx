@@ -364,6 +364,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       { href: '/dashboard/crm/pipeline',         label: 'Pipeline',       icon: 'M3 5h6v14H3z M9 9h6v6H9z M15 5h6v14h-6z', module: 'crm_pipeline' },
       { href: '/dashboard/crm/products',         label: 'Products',       icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4', module: 'crm_products', hiddenForKinematic: true },
       { href: '/dashboard/crm/activities',       label: 'Activities',     icon: 'M22 11.08V12a10 10 0 11-5.93-9.14 M22 4L12 14.01l-3-3', module: 'crm_activities' },
+      // Conversation Analysis — managers review consented calls recorded by
+      // Consumer Champions on mobile (transcript + diarization + AI insights).
+      // Lives in the CRM group so it shows for CRM-only tenants (Tata) with no
+      // crmVisible flag needed; gated by the crm_conversation_intel entitlement.
+      { href: '/dashboard/crm/conversations',    label: 'Conversation Analysis', icon: 'M12 2a3 3 0 00-3 3v7a3 3 0 006 0V5a3 3 0 00-3-3z M19 10v2a7 7 0 01-14 0v-2 M12 19v3 M8 22h8', module: 'crm_conversation_intel' },
       { href: '/dashboard/crm/whatsapp',         label: 'WhatsApp',       icon: ICON_WHATSAPP, module: 'crm_whatsapp' },
       // Email alerts + verified senders — the marketing-side email surface.
       // Templates live at the existing /crm/email-templates page; alerts
