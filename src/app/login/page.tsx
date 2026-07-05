@@ -1,10 +1,11 @@
 'use client';
 import { useState, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 import api, { API_BASE_URL } from '../../lib/api';
 import * as demo from '../../lib/demoMocks';
-import { saveSession, landingRouteFor } from '../../lib/auth';
-import { resolveProjectForEmail, setStoredProjectKey } from '../../lib/projects';
+import { saveSession, landingRouteFor, detectIdentitySwitch, recordLoginIdentity } from '../../lib/auth';
+import { resolveProjectForEmail, setStoredProjectKey, DEFAULT_PROJECT } from '../../lib/projects';
 
 /**
  * Login page — light-themed marketing surface + sign-in form.
@@ -139,8 +140,9 @@ export default function LoginPage() {
     // store it BEFORE login, so api.login() stamps the X-Kinematic-Project
     // header and the backend authenticates against the correct project. Always
     // resolves (defaults on failure), so this never blocks login.
+    let project = DEFAULT_PROJECT;
     try {
-      const project = await resolveProjectForEmail(API_BASE_URL, email);
+      project = await resolveProjectForEmail(API_BASE_URL, email);
       setStoredProjectKey(project);
     } catch { setStoredProjectKey(null); }
 
@@ -153,7 +155,7 @@ export default function LoginPage() {
         const res = await api.login(email, password) as {
           success: boolean;
           data: {
-            user: { id: string; name: string; role: string; org_id: string; permissions: string[] };
+            user: { id: string; name: string; email: string; role: string; org_id: string; client_id?: string | null; permissions: string[] };
             access_token: string;
             refresh_token?: string;
             expires_at: number;
@@ -167,6 +169,12 @@ export default function LoginPage() {
             refresh_token: res.data.refresh_token,
             expires_at: res.data.expires_at ?? Math.floor(Date.now() / 1000) + 86400,
           });
+          // Warn if this browser was last signed in as a DIFFERENT account/org —
+          // catches acting under the wrong session before anything gets created
+          // under it (see detectIdentitySwitch for the motivating incident).
+          const switchWarning = detectIdentitySwitch(user, project);
+          if (switchWarning) toast.warning(switchWarning, { duration: 15000 });
+          recordLoginIdentity(user, project);
           router.push(landingRouteFor(user));
         }
         setLoading(false);

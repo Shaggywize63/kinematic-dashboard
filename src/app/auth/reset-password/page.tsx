@@ -13,8 +13,10 @@
 import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { toast } from 'sonner';
 import api from '../../../lib/api';
-import { saveSession, landingRouteFor } from '../../../lib/auth';
+import { saveSession, landingRouteFor, detectIdentitySwitch, recordLoginIdentity } from '../../../lib/auth';
+import { getStoredProjectKey } from '../../../lib/projects';
 import type { AuthUser } from '../../../types';
 
 const PALETTE = {
@@ -77,6 +79,12 @@ function ResetPasswordInner() {
         expires_at: data.expires_at ?? 0,
         user: data.user,
       });
+      // Same account-switch guard as the login page — a reset link can be
+      // opened in a browser that was last signed in as a different account.
+      const project = getStoredProjectKey();
+      const switchWarning = detectIdentitySwitch(data.user, project);
+      if (switchWarning) toast.warning(switchWarning, { duration: 15000 });
+      recordLoginIdentity(data.user, project);
       router.replace(landingRouteFor(data.user));
     } catch (e: unknown) {
       setError((e as Error).message || 'Reset failed. The link may have expired — request a new one.');
