@@ -5,6 +5,65 @@ const TOKEN_KEY = 'kinematic_token';
 const REFRESH_KEY = 'kinematic_refresh_token';
 const USER_KEY  = 'kinematic_user';
 const EXPIRY_KEY = 'kinematic_expiry';
+// Deliberately NOT cleared by clearSession() (logout) — this key exists
+// specifically to survive across logout/login so the NEXT login (possibly a
+// different account) can be compared against the LAST one that used this
+// browser. See detectIdentitySwitch().
+const LAST_IDENTITY_KEY = 'kinematic_last_identity';
+
+interface LastIdentity {
+  email: string;
+  orgId: string;
+  clientId: string | null;
+  project: string;
+}
+
+type IdentityLike = Pick<AuthUser, 'email' | 'org_id'> & { client_id?: string | null };
+
+/**
+ * Compares the account that just logged in against whichever account last
+ * logged in on THIS browser, and returns a human-readable warning if they
+ * differ (null if this is the first login ever, or a re-login as the same
+ * account). Call recordLoginIdentity() right after — regardless of the
+ * result — so the next login has something to compare against.
+ *
+ * Exists to catch a recurring class of mistake in this multi-project setup:
+ * believing you're acting as one account/org while the browser is actually
+ * authenticated as a different, similarly-named one (e.g. s@kinematicapp.com
+ * vs s@kinematic.com) — anything created under the wrong identity silently
+ * lands in the wrong org/project and the mistake isn't noticed until later.
+ */
+export function detectIdentitySwitch(user: IdentityLike, project: string): string | null {
+  if (typeof window === 'undefined') return null;
+  let prev: LastIdentity | null = null;
+  try {
+    const raw = localStorage.getItem(LAST_IDENTITY_KEY);
+    prev = raw ? JSON.parse(raw) : null;
+  } catch { prev = null; }
+  if (!prev) return null;
+
+  const email = (user.email || '').toLowerCase().trim();
+  const orgId = user.org_id || '';
+  const clientId = user.client_id ?? null;
+  const switched = prev.email !== email || prev.orgId !== orgId || prev.clientId !== clientId || prev.project !== project;
+  if (!switched) return null;
+
+  return `Switched sessions: now signed in as ${email || 'a different account'} — this browser was last signed in as ${prev.email}. If that wasn't intentional: sign out now and log back in with ${prev.email}, so anything you create lands in the right org.`;
+}
+
+/** Persist the account that just logged in, for the next detectIdentitySwitch() call. */
+export function recordLoginIdentity(user: IdentityLike, project: string) {
+  if (typeof window === 'undefined') return;
+  try {
+    const identity: LastIdentity = {
+      email: (user.email || '').toLowerCase().trim(),
+      orgId: user.org_id || '',
+      clientId: user.client_id ?? null,
+      project,
+    };
+    localStorage.setItem(LAST_IDENTITY_KEY, JSON.stringify(identity));
+  } catch { /* ignore */ }
+}
 
 export function saveSession(session: AuthSession) {
   localStorage.setItem(TOKEN_KEY, session.access_token);
