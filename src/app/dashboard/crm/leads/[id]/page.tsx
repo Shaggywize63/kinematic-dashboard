@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { crmLeads, crmAi } from '../../../../../lib/crmApi';
 import api from '../../../../../lib/api';
+import { conversationsApi, statusMeta, sentimentColor, intentColor, fmtDateTime, type ConversationRow } from '../../../../../lib/conversationsApi';
 import type { Lead, Activity, Deal, LeadScore, NextBestAction } from '../../../../../types/crm';
 import LeadScoreBreakdown from '../../../../../components/crm/LeadScoreBreakdown';
 import NextBestActionCard from '../../../../../components/crm/NextBestActionCard';
@@ -72,6 +73,10 @@ export default function LeadDetailPage() {
   const [nbaLoading, setNbaLoading] = useState(false);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [deals, setDeals] = useState<Deal[]>([]);
+  // Conversation Analysis — compact history of recorded/consented calls for
+  // this lead. Loaded independently (its own endpoint) so it never blocks the
+  // core lead/activities/deals load; failures are swallowed (module may be off).
+  const [conversations, setConversations] = useState<ConversationRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [scoring, setScoring] = useState(false);
   const [convertOpen, setConvertOpen] = useState(false);
@@ -109,6 +114,17 @@ export default function LeadDetailPage() {
   };
 
   useEffect(() => { reload(); /* eslint-disable-next-line */ }, [id]);
+
+  // Lead-scoped conversations (secondary — module may not be granted, so a
+  // failure just leaves the section hidden).
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+    conversationsApi.forLead(id)
+      .then((r) => { if (!cancelled) setConversations(r.data || []); })
+      .catch(() => { if (!cancelled) setConversations([]); });
+    return () => { cancelled = true; };
+  }, [id]);
 
   useEffect(() => {
     if (!assignOpen) return;
@@ -389,6 +405,42 @@ export default function LeadDetailPage() {
                   <div style={{ color: 'var(--text)', fontWeight: 700, whiteSpace: 'nowrap' }}>{formatINR(d.amount || 0)}</div>
                 </Link>
               ))}
+            </div>
+          </Card>
+        )}
+
+        {conversations.length > 0 && (
+          <Card title={`Conversations (${conversations.length})`}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {conversations.map((c) => {
+                const sm = statusMeta(c.status);
+                const sc = sentimentColor(c.sentiment);
+                const ic = intentColor(c.intent_score);
+                return (
+                  <Link key={c.id} href="/dashboard/crm/conversations" style={rowLink}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ color: 'var(--text)', fontWeight: 600 }}>
+                        {c.champion_name || 'Consumer Champion'}
+                        <span style={{ fontWeight: 500, color: 'var(--text-dim)', fontSize: 11, marginLeft: 8 }}>{fmtDateTime(c.created_at)}</span>
+                      </div>
+                      {c.summary && (
+                        <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.summary}</div>
+                      )}
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
+                        {(c.intent || c.intent_score != null) && (
+                          <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 7px', borderRadius: 999, background: ic.bg, color: ic.fg, textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                            {c.intent || 'Intent'}{c.intent_score != null ? ` · ${c.intent_score}` : ''}
+                          </span>
+                        )}
+                        {c.sentiment && (
+                          <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 7px', borderRadius: 999, background: sc.bg, color: sc.fg, textTransform: 'uppercase', letterSpacing: 0.4 }}>{c.sentiment}</span>
+                        )}
+                        <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 7px', borderRadius: 999, background: sm.bg, color: sm.fg, textTransform: 'uppercase', letterSpacing: 0.4 }}>{sm.label}</span>
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
             </div>
           </Card>
         )}
