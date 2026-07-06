@@ -35,6 +35,7 @@ export default function ClientScopeField({
   const [user] = useState(() => getStoredUser());
   const [clients, setClients] = useState<ClientLite[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [errored, setErrored] = useState(false);
 
   const role = (user?.role ?? '').toLowerCase();
   const isPlatformAdmin = PLATFORM_ROLES.has(role);
@@ -60,6 +61,7 @@ export default function ClientScopeField({
         setClients(list);
         setLoaded(true);
       } catch {
+        setErrored(true);
         setLoaded(true);
       }
     })();
@@ -95,6 +97,21 @@ export default function ClientScopeField({
       </div>
     );
   }
+
+  // Single-tenant org: the client list loaded successfully but is empty — no
+  // client records own this org, so there is nothing to scope to. Don't force a
+  // selection; the record is created org-scoped (client_id null). We only skip
+  // on a SUCCESSFUL empty load — on a fetch error we keep the selector so a real
+  // multi-tenant org never silently loses client scope during an outage.
+  if (loaded && !errored && clients.length === 0) {
+    return (
+      <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 14 }}>
+        Single-tenant organisation — this record is scoped to the whole org.
+      </div>
+    );
+  }
+  // Avoid flashing a required control before the client list has loaded.
+  if (!loaded) return null;
 
   // No picker: force the admin to pick a client for this record.
   return (
