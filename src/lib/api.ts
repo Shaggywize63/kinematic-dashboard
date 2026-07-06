@@ -183,6 +183,23 @@ class ApiClient {
     return this.post(`/api/v1/clients/${clientId}/login-as`, { env });
   }
 
+  /** Is automated per-client project provisioning available on this deployment?
+   * Drives whether the "dedicated project" toggle is shown. */
+  provisionPreflight(): Promise<{ ok: boolean; reason?: string }> {
+    return this.get(`/api/v1/clients/provision/preflight`);
+  }
+
+  /** Automated onboarding: create a dedicated Supabase project (separate DB) +
+   * org + admin user for a new client and link it into the control plane.
+   * The optional idempotency key makes a retried submit a safe no-op. */
+  provisionClient(payload: {
+    name: string; contact_person?: string; phone?: string; email?: string;
+    password?: string; modules?: string[]; region?: string;
+  }, idempotencyKey?: string): Promise<any> {
+    return this.post(`/api/v1/clients/provision`, payload,
+      idempotencyKey ? { headers: { 'Idempotency-Key': idempotencyKey } } : undefined);
+  }
+
   private getUserEmail(): string | null {
     if (typeof window === 'undefined') return null;
     try {

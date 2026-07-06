@@ -94,6 +94,11 @@ export default function ClientManagement() {
   const [deleting, setDeleting] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [loggingIn, setLoggingIn] = useState<string | null>(null);
+  // Automated onboarding: is a dedicated Supabase project (separate DB) per
+  // client available on this deployment? Drives the create-form toggle.
+  const [provisionAvail, setProvisionAvail] = useState<{ ok: boolean; reason?: string } | null>(null);
+  const [provisionMode, setProvisionMode] = useState(false);
+  const [provisionResult, setProvisionResult] = useState<{ projectRef: string; adminEmail: string; adminPassword?: string; projectUrl: string } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -113,7 +118,15 @@ export default function ClientManagement() {
 
   useEffect(() => { load(); }, [load]);
 
-  const openAdd = () => { setEditing(null); setForm({ ...BLANK }); setFErr(''); setShowModal(true); };
+  // One-shot: does this deployment support provisioning a dedicated project per
+  // client? (super-admin only; a plain 403/400 just leaves the toggle hidden.)
+  useEffect(() => {
+    let alive = true;
+    api.provisionPreflight().then(r => { if (alive) setProvisionAvail(r); }).catch(() => { if (alive) setProvisionAvail({ ok: false }); });
+    return () => { alive = false; };
+  }, []);
+
+  const openAdd = () => { setEditing(null); setForm({ ...BLANK }); setFErr(''); setProvisionMode(false); setProvisionResult(null); setShowModal(true); };
   // Super-admin "Login as client": authenticate with the client's stored
   // account credentials and swap into that real session (e.g. the live Tata
   // account). The current super-admin session is saved so the banner's Exit
@@ -198,6 +211,26 @@ export default function ClientManagement() {
     };
 
     try {
+      if (!editing && provisionMode) {
+        // Automated onboarding: create a dedicated Supabase project (separate
+        // DB) + org + admin user, and link it into the control plane. Slow
+        // (project spin-up ~1–2 min) so keep the modal open until it returns.
+        // Idempotency key = name+timestamp so a retry after a network blip
+        // doesn't create a second billable project.
+        const idem = `${finalForm.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '')}-${Date.now()}`;
+        const res: any = await api.provisionClient({
+          name: finalForm.name.trim(),
+          contact_person: finalForm.contact_person,
+          phone: finalForm.phone,
+          email: finalForm.email || undefined,
+          password: finalForm.password || undefined,
+          modules: finalForm.modules,
+        }, idem);
+        const r = res?.data ?? res;
+        setProvisionResult({ projectRef: r.projectRef, adminEmail: r.adminEmail, adminPassword: r.adminPassword, projectUrl: r.projectUrl });
+        load();
+        return; // keep modal open to show the generated credentials
+      }
       if (editing) await api.patch(`/api/v1/clients/${editing.id}`, finalForm);
       else await api.post('/api/v1/clients', finalForm);
       setShowModal(false); load();
@@ -405,6 +438,34 @@ export default function ClientManagement() {
               <input style={inp} placeholder="e.g. Horizonn Studio" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} />
             </div>
 
+            {/* Automated onboarding toggle — creates a dedicated Supabase
+                project (separate DB) for true isolation, just like Tata. Only
+                shown when the deployment is configured for it. */}
+            {!editing && provisionAvail?.ok && !provisionResult && (
+              <div onClick={() => setProvisionMode(v => !v)} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '12px 14px', marginBottom: 20, borderRadius: 12, cursor: 'pointer', background: provisionMode ? 'rgba(62,158,255,0.1)' : C.s3, border: `1px solid ${provisionMode ? C.blue : C.border}` }}>
+                <div style={{ width: 18, height: 18, marginTop: 1, borderRadius: 5, flexShrink: 0, background: provisionMode ? C.blue : C.s4, border: `1.5px solid ${provisionMode ? C.blue : C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {provisionMode && <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={4}><path d="M20 6L9 17l-5-5"/></svg>}
+                </div>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: provisionMode ? C.white : C.gray }}>Provision a dedicated project &amp; database</div>
+                  <div style={{ fontSize: 11, color: C.grayd, marginTop: 3 }}>Creates a brand-new Supabase project (separate DB, ~$10/mo), loads the schema, and sets up the client&apos;s org + a <code>test@{(form.name.trim().toLowerCase().replace(/[^a-z0-9]+/g,'') || 'client')}.com</code> admin login. Takes ~1–2 minutes.</div>
+                </div>
+              </div>
+            )}
+
+            {/* Provisioning result — the generated admin credentials. Shown
+                once; the password is not recoverable afterwards. */}
+            {provisionResult && (
+              <div style={{ background: 'rgba(46,204,113,0.08)', border: '1px solid rgba(46,204,113,0.3)', borderRadius: 12, padding: '16px 18px', marginBottom: 20 }}>
+                <div style={{ fontSize: 14, fontWeight: 800, color: '#2ecc71', marginBottom: 10 }}>✓ Client provisioned</div>
+                <div style={{ fontSize: 12, color: C.gray, lineHeight: 1.9 }}>
+                  <div>Project ref: <b style={{ color: C.white }}>{provisionResult.projectRef}</b></div>
+                  <div>Admin email: <b style={{ color: C.white }}>{provisionResult.adminEmail}</b></div>
+                  {provisionResult.adminPassword && <div>Admin password: <b style={{ color: C.white, fontFamily: 'monospace' }}>{provisionResult.adminPassword}</b> <span style={{ color: C.grayd }}>(save it now — shown once)</span></div>}
+                </div>
+              </div>
+            )}
+
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
               <div><Label t="Contact Person" /><input style={inp} placeholder="Name" value={form.contact_person} onChange={e => setForm(p => ({ ...p, contact_person: e.target.value }))} /></div>
               <div><Label t="Phone" /><input style={inp} placeholder="+91..." value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))} /></div>
@@ -459,12 +520,18 @@ export default function ClientManagement() {
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: 12 }}>
-              <button onClick={() => setShowModal(false)} style={{ flex: 1, padding: '13px', border: `1px solid ${C.border}`, borderRadius: 12, background: 'transparent', color: C.gray, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Cancel</button>
-              <button onClick={save} disabled={saving} style={{ flex: 1, padding: '13px', border: 'none', borderRadius: 12, background: C.red, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: "'DM Sans', sans-serif", boxShadow: `0 8px 20px ${C.redB}`, opacity: saving ? 0.7 : 1 }}>
-                {saving ? <Spinner /> : editing ? 'Update Client' : 'Create Client'}
-              </button>
-            </div>
+            {provisionResult ? (
+              <div style={{ display: 'flex', gap: 12 }}>
+                <button onClick={() => setShowModal(false)} style={{ flex: 1, padding: '13px', border: 'none', borderRadius: 12, background: C.blue, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Done</button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', gap: 12 }}>
+                <button onClick={() => setShowModal(false)} disabled={saving} style={{ flex: 1, padding: '13px', border: `1px solid ${C.border}`, borderRadius: 12, background: 'transparent', color: C.gray, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", opacity: saving ? 0.6 : 1 }}>Cancel</button>
+                <button onClick={save} disabled={saving} style={{ flex: 1, padding: '13px', border: 'none', borderRadius: 12, background: C.red, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: "'DM Sans', sans-serif", boxShadow: `0 8px 20px ${C.redB}`, opacity: saving ? 0.7 : 1 }}>
+                  {saving ? <><Spinner />{provisionMode && !editing ? 'Provisioning… (~1–2 min)' : ''}</> : editing ? 'Update Client' : provisionMode ? 'Provision Project' : 'Create Client'}
+                </button>
+              </div>
+            )}
           </div>
         </Overlay>
       )}
