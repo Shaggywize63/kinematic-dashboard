@@ -67,7 +67,7 @@ const MODULES: { id: string; label: string; group: ModuleGroup }[] = ALL_MODULES
   .filter(m => m.group !== 'Audit')
   .map(m => ({ id: m.id, label: m.l, group: m.group }));
 
-const BLANK = { name: '', contact_person: '', email: '', phone: '', password: '', is_active: true, modules: [] as string[], login_org_id: '', data_project_key: '', data_client_id: '' };
+const BLANK = { name: '', contact_person: '', email: '', phone: '', password: '', is_active: true, modules: [] as string[], login_org_id: '', data_project_key: '', data_client_id: '', max_active_users: '' as number | '' };
 
 const Spinner = () => <div style={{ width: 15, height: 15, border: '2.5px solid rgba(255,255,255,0.18)', borderTopColor: '#fff', borderRadius: '50%', animation: 'kspin .65s linear infinite', flexShrink: 0 }} />;
 const Label = ({ t, req }: { t: string; req?: boolean }) => <div style={{ fontSize: 11, fontWeight: 700, color: C.gray, letterSpacing: '0.7px', textTransform: 'uppercase', marginBottom: 7 }}>{t}{req && <span style={{ color: C.red }}> *</span>}</div>;
@@ -195,9 +195,11 @@ export default function ClientManagement() {
       login_org_id: (c as { login_org_id?: string }).login_org_id || '',
       data_project_key: (c as { data_project_key?: string }).data_project_key || '',
       data_client_id: (c as { data_client_id?: string }).data_client_id || '',
+      max_active_users: (c as { max_active_users?: number | null }).max_active_users ?? '',
     });
-    setFErr(''); 
-    setShowModal(true); 
+    setFErr('');
+    setProvisionMode(false); setProvisionResult(null);
+    setShowModal(true);
   };
 
   const save = async () => {
@@ -482,6 +484,24 @@ export default function ClientManagement() {
             </div>
             <div style={{ fontSize: 11, color: C.grayd, marginBottom: 24 }}>
               Set these to control another org&apos;s module ceiling from here. Checked modules become the maximum available in that org; unchecking decommissions a module there. Leave blank for a same-project client.
+            </div>
+
+            <div style={{ marginBottom: 24 }}>
+              <Label t="Max Active Users (optional)" />
+              <input
+                type="number" min={1} style={{ ...inp, maxWidth: 220 }}
+                placeholder="No limit"
+                value={form.max_active_users === '' ? '' : String(form.max_active_users)}
+                onChange={e => {
+                  const v = e.target.value.trim();
+                  setForm(p => ({ ...p, max_active_users: v === '' ? '' : Math.max(0, parseInt(v, 10) || 0) }));
+                }}
+              />
+              <div style={{ fontSize: 11, color: C.grayd, marginTop: 6 }}>
+                Caps how many <b>active</b> users this client&apos;s org can have. New/activated users
+                beyond the limit are blocked. Blank = no limit. Staff domains (kinematicapp.com,
+                horizontechstudio.com, kinematic.com, kaiyotechnologylabs.com) don&apos;t count toward it.
+              </div>
             </div>
 
             <div style={{ marginBottom: 28 }}>
