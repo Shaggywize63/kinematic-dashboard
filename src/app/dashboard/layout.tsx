@@ -283,6 +283,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     };
   }, []);
   const tataActive = userClientId === TATA_TISCON_CLIENT_ID || pickerClientId === TATA_TISCON_CLIENT_ID;
+  // The Kaiyo/TATA production org (internally "Horizon", org id
+  // 00000000-…-0001). Its only real client is TATA Tiscon (a1f67468), but
+  // the org also has a super-admin and a login "client" account that carry
+  // a NULL client_id and so slip past the client-scoped `tataActive` check
+  // above. Gating on the org id too ensures `hiddenForTata` items are
+  // removed for the WHOLE org, not just its client-pinned reps.
+  const KAIYO_TATA_ORG_ID = '00000000-0000-0000-0000-000000000001';
+  const userOrgId = (u?.org_id || u?.orgId) as string | undefined;
+  const tataOrgActive = userOrgId === KAIYO_TATA_ORG_ID || (actingAs as any)?.org_id === KAIYO_TATA_ORG_ID;
+  // Combined driver for the tenant hide list: bound client, super-admin
+  // picker, OR membership in the Kaiyo/TATA org.
+  const tataHideActive = tataActive || tataOrgActive;
   // Parent Kinematic tenant — trims CRM surfaces it doesn't use. Same
   // bound-client-OR-picker logic as Tata above.
   const KINEMATIC_CLIENT_ID = '7ecd47d7-9268-4ea2-a8ce-384978c13667';
@@ -297,7 +309,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       (i) => !i.demoOnly || user?.email === 'demo@kinematic.com'
     );
     // Tenant-specific hide list. Each item can opt-in via `hiddenForTata`.
-    const visibleAfterTata = visibleAfterDemo.filter((i) => !(i.hiddenForTata && tataActive));
+    // Driven by client OR org membership so the whole Kaiyo/TATA org is covered.
+    const visibleAfterTata = visibleAfterDemo.filter((i) => !(i.hiddenForTata && tataHideActive));
     // Parent Kinematic tenant hide list (opt-in via `hiddenForKinematic`).
     const visibleAfterKinematic = visibleAfterTata.filter((i) => !(i.hiddenForKinematic && kinematicActive));
     // While acting-as a client (super-admin "Login as"), restrict the nav to
@@ -386,9 +399,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       { href: '/dashboard/crm/activities',       label: 'Activities',     icon: 'M22 11.08V12a10 10 0 11-5.93-9.14 M22 4L12 14.01l-3-3', module: 'crm_activities' },
       // Conversation Analysis — managers review consented calls recorded by
       // Consumer Champions on mobile (transcript + diarization + AI insights).
-      // Lives in the CRM group so it shows for CRM-only tenants (Tata) with no
-      // crmVisible flag needed; gated by the crm_conversation_intel entitlement.
-      { href: '/dashboard/crm/conversations',    label: 'Conversation Analysis', icon: 'M12 2a3 3 0 00-3 3v7a3 3 0 006 0V5a3 3 0 00-3-3z M19 10v2a7 7 0 01-14 0v-2 M12 19v3 M8 22h8', module: 'crm_conversation_intel' },
+      // Gated by the crm_conversation_intel entitlement AND hidden for the
+      // Kaiyo/TATA org (they don't use conversation analysis on the dashboard).
+      { href: '/dashboard/crm/conversations',    label: 'Conversation Analysis', icon: 'M12 2a3 3 0 00-3 3v7a3 3 0 006 0V5a3 3 0 00-3-3z M19 10v2a7 7 0 01-14 0v-2 M12 19v3 M8 22h8', module: 'crm_conversation_intel', hiddenForTata: true },
       { href: '/dashboard/crm/whatsapp',         label: 'WhatsApp',       icon: ICON_WHATSAPP, module: 'crm_whatsapp' },
       // Email alerts + verified senders — the marketing-side email surface.
       // Templates live at the existing /crm/email-templates page; alerts
@@ -433,7 +446,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       // universal (every rep applies for leave / sees their balances). The
       // Approvals + Settings surfaces inside the module self-gate to manager /
       // admin via useLeaveRoles, so they never render for a plain field rep.
-      { href: '/dashboard/leave',              label: 'Leave',         icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z M9 16l2 2 4-4', module: 'leave', crmVisible: true },
+      // `leave` is a universal module so it can't be revoked via entitlement —
+      // `hiddenForTata` is the mechanism that removes it for the Kaiyo/TATA org
+      // (keep `crmVisible` so every OTHER CRM-only tenant still sees Leave).
+      { href: '/dashboard/leave',              label: 'Leave',         icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z M9 16l2 2 4-4', module: 'leave', crmVisible: true, hiddenForTata: true },
       { href: '/dashboard/grievances',         label: 'Grievances',    icon: 'M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z M12 9v4 M12 17h.01', module: 'grievances' },
       { href: '/dashboard/visit-logs',         label: 'Visit Logs',    icon: 'M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z', module: 'visit_logs' },
       { href: '/dashboard/broadcast',          label: 'Broadcast',     icon: 'M12 19V5 M5 12l7-7 7 7', module: 'broadcast' },

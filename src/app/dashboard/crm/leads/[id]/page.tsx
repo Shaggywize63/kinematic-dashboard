@@ -23,6 +23,7 @@ import ScoreBoostSuggestions from '../../../../../components/crm/ScoreBoostSugge
 import { formatINR } from '../../../../../lib/formatCurrency';
 import { useAuth } from '../../../../../hooks/useAuth';
 import { isConsumerChampion, isTataTiscanActive } from '../../../../../lib/clientFeatures';
+import { isHorizonOrg } from '../../../../../lib/crmFeatureGates';
 
 type UserOption = { id: string; name: string };
 
@@ -59,6 +60,11 @@ export default function LeadDetailPage() {
   // separate accounts book.
   const isChampion = isConsumerChampion(user as any);
   const isTataActive = isTataTiscanActive(user as any);
+  // Conversation Analysis is removed from the dashboard for the Kaiyo/TATA
+  // org — hide the per-lead Conversations card (and skip its fetch) for them.
+  // Org-inclusive so the org's null-client_id admin / login accounts are
+  // covered too, not just the client-pinned reps.
+  const hideConversations = isTataActive || isHorizonOrg((user as any)?.org_id);
   const [tataConverting, setTataConverting] = useState(false);
   const id = params?.id as string;
   const [lead, setLead] = useState<LifecycleLead | null>(null);
@@ -119,12 +125,13 @@ export default function LeadDetailPage() {
   // failure just leaves the section hidden).
   useEffect(() => {
     if (!id) return;
+    if (hideConversations) { setConversations([]); return; }
     let cancelled = false;
     conversationsApi.forLead(id)
       .then((r) => { if (!cancelled) setConversations(r.data || []); })
       .catch(() => { if (!cancelled) setConversations([]); });
     return () => { cancelled = true; };
-  }, [id]);
+  }, [id, hideConversations]);
 
   useEffect(() => {
     if (!assignOpen) return;
@@ -409,7 +416,7 @@ export default function LeadDetailPage() {
           </Card>
         )}
 
-        {conversations.length > 0 && (
+        {!hideConversations && conversations.length > 0 && (
           <Card title={`Conversations (${conversations.length})`}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {conversations.map((c) => {
