@@ -452,6 +452,12 @@ function AddLocationModal({ onClose, onSaved }: { onClose: () => void; onSaved: 
 function BulkImportModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
+  // Upload progress (0..1) + a final summary so the admin sees a real bar
+  // filling as rows go up and a clear "done" state, not just a spinner.
+  const [progress, setProgress] = useState(0);
+  const [processed, setProcessed] = useState(0);
+  const [totalRows, setTotalRows] = useState(0);
+  const [summary, setSummary] = useState<{ inserted: number; skipped: number; errors: number } | null>(null);
 
   const parse = (raw: string) => {
     const lines = raw.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
@@ -468,17 +474,35 @@ function BulkImportModal({ onClose, onDone }: { onClose: () => void; onDone: () 
   const submit = async () => {
     const rows = parse(text);
     if (!rows.length) { toast.error('No valid rows. Each line needs at least State,City.'); return; }
-    setBusy(true);
+    setBusy(true); setSummary(null); setProgress(0); setProcessed(0); setTotalRows(rows.length);
+    // Send in chunks so a large paste shows steady progress (and never trips
+    // request-size / timeout limits). The backend import is idempotent, so
+    // later chunks safely skip anything an earlier chunk already added.
+    const CHUNK = 200;
+    let inserted = 0, skipped = 0, errCount = 0;
+    const allErrors: string[] = [];
     try {
-      const r = await api.post<{ success?: boolean; data?: { inserted: number; skipped: number; errors: string[] } } | { inserted: number; skipped: number; errors: string[] }>('/api/v1/crm/locations/bulk-import', { rows });
-      const result = ((r as any).data ?? r) as { inserted: number; skipped: number; errors: string[] };
-      toast.success(`Imported ${result.inserted}, skipped ${result.skipped} dupes${result.errors.length ? `, ${result.errors.length} errors` : ''}`);
-      if (result.errors.length) console.warn('Bulk import errors:', result.errors);
+      for (let i = 0; i < rows.length; i += CHUNK) {
+        const slice = rows.slice(i, i + CHUNK);
+        const r = await api.post<{ success?: boolean; data?: { inserted: number; skipped: number; errors: string[] } } | { inserted: number; skipped: number; errors: string[] }>('/api/v1/crm/locations/bulk-import', { rows: slice });
+        const result = ((r as any).data ?? r) as { inserted: number; skipped: number; errors: string[] };
+        inserted += result.inserted || 0;
+        skipped  += result.skipped  || 0;
+        errCount += result.errors?.length || 0;
+        if (result.errors?.length) allErrors.push(...result.errors);
+        const done = Math.min(rows.length, i + slice.length);
+        setProcessed(done);
+        setProgress(done / rows.length);
+      }
+      setSummary({ inserted, skipped, errors: errCount });
+      toast.success(`Imported ${inserted}, skipped ${skipped} dupes${errCount ? `, ${errCount} errors` : ''}`);
+      if (allErrors.length) console.warn('Bulk import errors:', allErrors);
       onDone();
     } catch (e: any) { toast.error(e.message || 'Import failed'); }
     finally { setBusy(false); }
   };
 
+  const pct = Math.round(progress * 100);
   return (
     <Modal onClose={onClose} title="Bulk import locations">
       <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 8 }}>
@@ -487,13 +511,26 @@ function BulkImportModal({ onClose, onDone }: { onClose: () => void; onDone: () 
       </div>
       <textarea
         value={text} onChange={(e) => setText(e.target.value)}
-        style={{ ...inputStyle, minHeight: 220, fontFamily: 'ui-monospace, monospace' }}
+        disabled={busy}
+        style={{ ...inputStyle, minHeight: 220, fontFamily: 'ui-monospace, monospace', opacity: busy ? 0.6 : 1 }}
         placeholder={`Maharashtra,Mumbai,Mumbai Suburban,Andheri West\nMaharashtra,Pune,Pune,Koregaon Park\nKarnataka,Bengaluru,Bengaluru Urban,Indiranagar`}
         autoFocus
       />
+      {(busy || summary) && (
+        <div style={{ marginTop: 12 }}>
+          <div style={{ height: 8, background: 'var(--s3)', borderRadius: 999, overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: `${summary ? 100 : pct}%`, background: 'var(--primary)', transition: 'width .25s ease' }} />
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 6 }}>
+            {busy
+              ? `Uploading… ${pct}% (${processed.toLocaleString('en-IN')}/${totalRows.toLocaleString('en-IN')} rows)`
+              : `Done — imported ${summary?.inserted.toLocaleString('en-IN')}, skipped ${summary?.skipped.toLocaleString('en-IN')} duplicate${summary?.skipped === 1 ? '' : 's'}${summary && summary.errors ? `, ${summary.errors} error${summary.errors === 1 ? '' : 's'}` : ''}.`}
+          </div>
+        </div>
+      )}
       <ModalActions>
-        <button style={btnSec} onClick={onClose}>Cancel</button>
-        <button style={btn}    onClick={submit} disabled={busy}>{busy ? 'Importing…' : 'Import'}</button>
+        <button style={btnSec} onClick={onClose}>{summary ? 'Close' : 'Cancel'}</button>
+        <button style={btn}    onClick={submit} disabled={busy || !!summary}>{busy ? `Importing… ${pct}%` : (summary ? 'Imported' : 'Import')}</button>
       </ModalActions>
     </Modal>
   );
