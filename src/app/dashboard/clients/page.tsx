@@ -67,6 +67,22 @@ const MODULES: { id: string; label: string; group: ModuleGroup }[] = ALL_MODULES
   .filter(m => m.group !== 'Audit')
   .map(m => ({ id: m.id, label: m.l, group: m.group }));
 
+// Modules that are intentionally OFF by default when a new client is onboarded.
+// The customer only gets them switched on when they explicitly ask. These are:
+// Conversation Analysis (crm_conversation_intel), People Directory
+// (crm_people_directory), Market Intelligence (crm_lead_analytics) and Email
+// (crm_email). Existing clients are unaffected — this only seeds the "Add client"
+// form default.
+const NEW_CLIENT_EXCLUDED_MODULES = ['crm_conversation_intel', 'crm_people_directory', 'crm_lead_analytics', 'crm_email'];
+// A brand-new client starts with the standard CRM working set pre-selected
+// (every CRM module except the excluded four above) rather than a blank grant.
+// Derived from the module catalog so any CRM module added later is included
+// automatically, and a non-empty grant means the nav never falls open to
+// "show everything" for a freshly-created client.
+const NEW_CLIENT_DEFAULT_MODULES = ALL_MODULES
+  .filter(m => m.group === 'CRM' && !NEW_CLIENT_EXCLUDED_MODULES.includes(m.id))
+  .map(m => m.id);
+
 const BLANK = { name: '', contact_person: '', email: '', phone: '', password: '', is_active: true, modules: [] as string[], login_org_id: '', data_project_key: '', data_client_id: '', max_active_users: '' as number | '' };
 
 const Spinner = () => <div style={{ width: 15, height: 15, border: '2.5px solid rgba(255,255,255,0.18)', borderTopColor: '#fff', borderRadius: '50%', animation: 'kspin .65s linear infinite', flexShrink: 0 }} />;
@@ -126,7 +142,7 @@ export default function ClientManagement() {
     return () => { alive = false; };
   }, []);
 
-  const openAdd = () => { setEditing(null); setForm({ ...BLANK }); setFErr(''); setProvisionMode(false); setProvisionResult(null); setShowModal(true); };
+  const openAdd = () => { setEditing(null); setForm({ ...BLANK, modules: [...NEW_CLIENT_DEFAULT_MODULES] }); setFErr(''); setProvisionMode(false); setProvisionResult(null); setShowModal(true); };
   // Super-admin "Login as client": authenticate with the client's stored
   // account credentials and swap into that real session (e.g. the live Tata
   // account). The current super-admin session is saved so the banner's Exit
