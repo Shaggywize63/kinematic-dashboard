@@ -334,10 +334,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (items.length === 0) return false;
     if (!pkg) return true;
     if (isPlatformAdmin) return true;
-    // CRM-only clients hide every non-CRM section — EXCEPT when a universal
-    // item flagged `crmVisible` (e.g. Leave) survives. The item list is
-    // pre-filtered to just those items for these clients (see navGroups), so a
-    // non-empty list here means the section carries a must-show universal.
+    // CRM-only clients hide every non-CRM section. A universal item may opt
+    // back in via `crmVisible`, but NOTHING is flagged `crmVisible` today (Leave
+    // used to be, and was removed so People & Support disappears entirely for
+    // these tenants), so this currently resolves to `false` for every non-CRM
+    // package — i.e. a CRM-only client sees only the CRM section. The hook is
+    // kept so a future must-show universal can be re-surfaced without new logic.
     if (isCrmOnlyClient && pkg !== 'crm') return items.some((i: any) => i.crmVisible);
     if (['business', 'system', 'people', 'audit'].includes(pkg)) return true;
     if (enabledPackages.length === 0) return true;
@@ -446,10 +448,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       // universal (every rep applies for leave / sees their balances). The
       // Approvals + Settings surfaces inside the module self-gate to manager /
       // admin via useLeaveRoles, so they never render for a plain field rep.
-      // `leave` is a universal module so it can't be revoked via entitlement —
-      // `hiddenForTata` is the mechanism that removes it for the Kaiyo/TATA org
-      // (keep `crmVisible` so every OTHER CRM-only tenant still sees Leave).
-      { href: '/dashboard/leave',              label: 'Leave',         icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z M9 16l2 2 4-4', module: 'leave', crmVisible: true, hiddenForTata: true },
+      // `leave` is a universal module so it can't be revoked via entitlement.
+      // The entire People & Support section is now hidden for CRM-only clients
+      // (BMW, SRS, and every new lean-CRM tenant), so Leave carries NO
+      // `crmVisible` — it must not survive into a CRM-only tenant's nav. Full
+      // field-force tenants still see it; `hiddenForTata` removes it for the
+      // Kaiyo/TATA org among those.
+      { href: '/dashboard/leave',              label: 'Leave',         icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z M9 16l2 2 4-4', module: 'leave', hiddenForTata: true },
       { href: '/dashboard/grievances',         label: 'Grievances',    icon: 'M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z M12 9v4 M12 17h.01', module: 'grievances' },
       { href: '/dashboard/visit-logs',         label: 'Visit Logs',    icon: 'M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z', module: 'visit_logs' },
       { href: '/dashboard/broadcast',          label: 'Broadcast',     icon: 'M12 19V5 M5 12l7-7 7 7', module: 'broadcast' },
@@ -475,10 +480,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const navGroups = !navReady ? [] : rawNavGroups
     .map(g => {
       let items = filterNav(g.items);
-      // A CRM-only client hides non-CRM sections wholesale. Keep only the
-      // universal items explicitly flagged `crmVisible` (Leave) so field reps
-      // on a CRM-only tenant (e.g. Tata Tiscon) can still reach them — without
-      // surfacing the rest of the People/System/Business sections.
+      // A CRM-only client hides non-CRM sections wholesale. Only universal
+      // items flagged `crmVisible` would survive — but none are flagged today
+      // (Leave's flag was removed so People & Support no longer leaks into
+      // CRM-only tenants like BMW / SRS), so this filters every non-CRM section
+      // down to an empty list, and sectionVisible then drops it entirely.
       if (isCrmOnlyClient && g.package && g.package !== 'crm') {
         items = items.filter((i: any) => i.crmVisible);
       }
