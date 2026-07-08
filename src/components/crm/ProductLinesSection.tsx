@@ -2,6 +2,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { crmProducts } from '../../lib/crmApi';
 import type { Product } from '../../types/crm';
+import { useAuth } from '../../hooks/useAuth';
+import { isTataTiscanActive } from '../../lib/clientFeatures';
 
 /**
  * Multi-row "Products of Interest" editor for the lead form. Renders the
@@ -57,6 +59,12 @@ function asNumber(v: unknown): number {
 }
 
 export default function ProductLinesSection({ values, onChange }: Props) {
+  const { user } = useAuth();
+  // Weight-based pricing (amount = price ÷ weight × tonne/kg factor) is bespoke
+  // for Tata Tiscon, whose TMT bar is sold by the tonne. Every other tenant
+  // prices simply as price × quantity, so the Tonne/Kg selector and the
+  // weight formula are hidden for them.
+  const weightPricing = isTataTiscanActive(user as any);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   // Narrow-viewport flag — the row reflows to a stacked layout on
@@ -95,12 +103,18 @@ export default function ProductLinesSection({ values, onChange }: Props) {
     const p = productMap.get(id);
     if (!p) return 0;
     const price = asNumber(p.price);
-    const weight = asNumber(p.weight_kg);
     const qty = asNumber(line.quantity);
-    if (price <= 0 || weight <= 0 || qty <= 0) return 0;
-    const unit = String(line.measuring_unit ?? '').trim().toLowerCase();
-    const factor = unit === 'tonne' ? 1000 : 1;
-    return round2((price / weight) * (qty * factor));
+    if (weightPricing) {
+      // Tata Tiscon: sold by weight — amount = (price ÷ weight_kg) × qty × unit factor.
+      const weight = asNumber(p.weight_kg);
+      if (price <= 0 || weight <= 0 || qty <= 0) return 0;
+      const unit = String(line.measuring_unit ?? '').trim().toLowerCase();
+      const factor = unit === 'tonne' ? 1000 : 1;
+      return round2((price / weight) * (qty * factor));
+    }
+    // Everyone else: simple amount = price × quantity.
+    if (price <= 0 || qty <= 0) return 0;
+    return round2(price * qty);
   };
 
   // Current row list — pulled from `product_lines` if present, otherwise
@@ -177,7 +191,7 @@ export default function ProductLinesSection({ values, onChange }: Props) {
         <div>
           <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>Products of Interest</div>
           <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2 }}>
-            Pick a product and quantity; the estimated amount calculates automatically from price ÷ weight × quantity.
+            Pick a product and quantity; the estimated amount calculates automatically from {weightPricing ? 'price ÷ weight × quantity' : 'price × quantity'}.
           </div>
         </div>
         {total > 0 && (
@@ -195,7 +209,9 @@ export default function ProductLinesSection({ values, onChange }: Props) {
             // Phones: stack each field on its own line. Desktop: four
             // columns + a remove button. Grid template chosen so the
             // wider Product column doesn't squeeze the smaller numerics.
-            gridTemplateColumns: narrow ? '1fr' : 'minmax(180px, 2fr) minmax(90px, 1fr) minmax(110px, 1fr) minmax(130px, 1.2fr) 32px',
+            gridTemplateColumns: narrow ? '1fr' : (weightPricing
+              ? 'minmax(180px, 2fr) minmax(90px, 1fr) minmax(110px, 1fr) minmax(130px, 1.2fr) 32px'
+              : 'minmax(180px, 2fr) minmax(90px, 1fr) minmax(130px, 1.2fr) 32px'),
             gap: 10,
             alignItems: 'end',
             marginBottom: idx === lines.length - 1 ? 4 : 10,
@@ -231,18 +247,20 @@ export default function ProductLinesSection({ values, onChange }: Props) {
               style={inputStyle}
             />
           </div>
-          <div>
-            {(idx === 0 || narrow) && <label style={labelStyle}>Measuring Unit</label>}
-            <select
-              value={line.measuring_unit ?? ''}
-              onChange={(e) => updateLine(idx, { measuring_unit: e.target.value || null })}
-              style={inputStyle}
-            >
-              <option value="">—</option>
-              <option value="Kg">Kg</option>
-              <option value="Tonne">Tonne</option>
-            </select>
-          </div>
+          {weightPricing && (
+            <div>
+              {(idx === 0 || narrow) && <label style={labelStyle}>Measuring Unit</label>}
+              <select
+                value={line.measuring_unit ?? ''}
+                onChange={(e) => updateLine(idx, { measuring_unit: e.target.value || null })}
+                style={inputStyle}
+              >
+                <option value="">—</option>
+                <option value="Kg">Kg</option>
+                <option value="Tonne">Tonne</option>
+              </select>
+            </div>
+          )}
           <div>
             {(idx === 0 || narrow) && <label style={labelStyle}>Estimated Amount</label>}
             <input
