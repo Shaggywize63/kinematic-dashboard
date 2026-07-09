@@ -9,7 +9,6 @@ import { useClient } from '../../../../../context/ClientContext';
 import type { BusinessType, LeadSource, Product } from '../../../../../types/crm';
 import LocationPicker from '../../../../../components/crm/LocationPicker';
 import CustomFieldsSection from '../../../../../components/crm/CustomFieldsSection';
-import ProductLinesSection from '../../../../../components/crm/ProductLinesSection';
 import GoogleAddressAutocomplete from '../../../../../components/crm/GoogleAddressAutocomplete';
 import UserSearchSelect, { type UserOption } from '../../../../../components/crm/shared/UserSearchSelect';
 import AlternateMobiles from '../../../../../components/crm/AlternateMobiles';
@@ -700,19 +699,9 @@ export default function NewLeadPage() {
         </>
       )}
 
-      {/* Multi-row product picker — drives product_lines and mirrors row 0
-          onto the legacy product_interested / quantity / measuring_unit /
-          estimated_amount keys for back-compat. Rendered once at the form
-          level (outside the B2B / B2C branches) so it appears regardless
-          of lead type, in a single dedicated card. */}
-      {isTata && (
-        <Section title="Products of Interest">
-          <ProductLinesSection
-            values={form.custom_fields}
-            onChange={(cf) => setForm({ ...form, custom_fields: cf })}
-          />
-        </Section>
-      )}
+      {/* Products of Interest is captured in the Convert dialog (deal_product_lines)
+          for Kaiyo/Tata, not on the lead form — the rep picks products when the
+          lead becomes a deal, so the picker no longer renders here. */}
 
       <Section title="Pin Location (required)">
         <div id="lead-field-location" style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 10 }}>
