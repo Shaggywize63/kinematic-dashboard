@@ -405,6 +405,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       // Kaiyo/TATA org (they don't use conversation analysis on the dashboard).
       { href: '/dashboard/crm/conversations',    label: 'Conversation Analysis', icon: 'M12 2a3 3 0 00-3 3v7a3 3 0 006 0V5a3 3 0 00-3-3z M19 10v2a7 7 0 01-14 0v-2 M12 19v3 M8 22h8', module: 'crm_conversation_intel', hiddenForTata: true },
       { href: '/dashboard/crm/whatsapp',         label: 'WhatsApp',       icon: ICON_WHATSAPP, module: 'crm_whatsapp' },
+      // KINI website-chatbot conversations from kinematicapp.com + the leads
+      // they capture. Kinematic-tenant surface (chats are stored under the
+      // Kinematic org), so hidden for the Kaiyo/TATA org. Uses the always-on
+      // crm_dashboard entitlement so it isn't gated behind a separate module.
+      { href: '/dashboard/crm/website-chats',    label: 'Website Chats',  icon: 'M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z M8 9h8 M8 13h5', module: 'crm_dashboard', hiddenForTata: true },
       // Email alerts + verified senders — the marketing-side email surface.
       // Templates live at the existing /crm/email-templates page; alerts
       // composes them with a verified From + scheduler.
