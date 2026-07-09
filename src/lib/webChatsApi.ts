@@ -68,8 +68,15 @@ export interface WebChatListResult {
 }
 
 export const webChatsApi = {
-  list(params?: { limit?: number; offset?: number; search?: string }): Promise<WebChatListResult> {
-    return api.get<WebChatListResult>(`${BASE}${qs(params)}`);
+  async list(params?: { limit?: number; offset?: number; search?: string }): Promise<WebChatListResult> {
+    // Normalise defensively: during a backend rollout (or if the endpoint ever
+    // returns an unexpected shape) `rows` could be absent — always hand callers
+    // a real array so `rows.length` / `rows.map` can't throw.
+    const res = await api.get<Partial<WebChatListResult>>(`${BASE}${qs(params)}`);
+    return {
+      rows: Array.isArray(res?.rows) ? res.rows : [],
+      total: typeof res?.total === 'number' ? res.total : 0,
+    };
   },
   get(id: string): Promise<WebChatDetail> {
     return api.get<WebChatDetail>(`${BASE}/${id}`);
