@@ -8,7 +8,6 @@ import type { BusinessType, Lead, LeadStatus, LeadSource } from '../../types/crm
 import Modal from './shared/Modal';
 import LocationPicker from './LocationPicker';
 import CustomFieldsSection from './CustomFieldsSection';
-import ProductLinesSection from './ProductLinesSection';
 import AlternateMobiles from './AlternateMobiles';
 import UserSearchSelect, { type UserOption } from './shared/UserSearchSelect';
 import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '../../lib/crmFieldOverrides';
@@ -390,12 +389,7 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
             onChange={(cf) => setForm({ ...form, custom_fields: cf })}
           />
         </Grid>
-        {isTata && (
-          <ProductLinesSection
-            values={form.custom_fields}
-            onChange={(cf) => setForm({ ...form, custom_fields: cf })}
-          />
-        )}
+        {/* Products of Interest moved to the Convert dialog for Kaiyo/Tata. */}
 
         {/* Notes + Tags — previously only renderable on the detail page;
             reps had to copy/paste back into a separate edit flow to change
