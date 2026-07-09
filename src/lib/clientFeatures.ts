@@ -59,6 +59,23 @@ export function isTataTiscanActive(user: AnyUser): boolean {
   return activeClientId(user) === TATA_TISCON_CLIENT_ID;
 }
 
+/**
+ * The SRS / Tata field report (Reports → "SRS Lead Report") is an
+ * operational export for exactly two org roles: the Area Sales Officer
+ * (sees only their own leads) and the CRM Admin (sees the whole tenant,
+ * i.e. Hema). The backend enforces the same role gate and 403s anyone
+ * else — this helper only decides whether to render the tile / page, so
+ * the two must stay in sync with SRS_REPORT_ROLES in the backend's
+ * crm.routes.ts.
+ */
+export const SRS_REPORT_ROLES = ['area sales officer', 'crm admin'];
+
+export function canDownloadSrsReport(user: AnyUser): boolean {
+  if (!isTataTiscanActive(user)) return false;
+  const role = (user?.org_role?.name ?? user?.org_role_name ?? '').toString().trim().toLowerCase();
+  return SRS_REPORT_ROLES.includes(role);
+}
+
 /** True when the active tenant (bound client_id or super-admin picker) is
  * the parent Kinematic tenant. */
 export function isKinematicActive(user: AnyUser): boolean {
