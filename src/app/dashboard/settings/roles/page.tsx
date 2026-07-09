@@ -10,6 +10,15 @@ import { ALL_MODULES, MODULE_GROUPS, MODULE_GROUP_LABELS } from '../../../../lib
 
 const PRESET_COLORS = ['#6366f1', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#64748b'];
 
+// Always-on infrastructure groups — platform plumbing, not per-client product
+// modules — so they're not offered as role-assignable toggles in the picker.
+const HIDDEN_MODULE_GROUPS: string[] = ['Business', 'System', 'People'];
+// Module ids inside those groups. The bulk buttons (All R/W / All Read /
+// Clear) preserve any existing grant for these so a click can't silently
+// revoke a role's Settings / Manpower / etc. access that isn't shown.
+const HIDDEN_MODULE_IDS: string[] = ALL_MODULES.filter((m) => HIDDEN_MODULE_GROUPS.includes(m.group)).map((m) => m.id);
+const keepHidden = (perms: string[]): string[] => perms.filter((p) => HIDDEN_MODULE_IDS.includes(p));
+
 export default function RolesPage() {
   const [tree, setTree] = useState<OrgRoleNode[]>([]);
   const [flat, setFlat] = useState<OrgRole[]>([]);
@@ -128,12 +137,19 @@ export default function RolesPage() {
     return () => { cancelled = true; };
   }, [ownClientId, selectedClientId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Universal modules (Business / System / People) are always available to
-  // every client, so they stay in the picker regardless of the entitlement.
+  // The always-on infrastructure groups (Business, System Management,
+  // People & Support) are not role-assignable in the picker — they're
+  // platform plumbing, not per-client product modules. Excluded here so the
+  // "Module access" list shows only the sellable product surface the client
+  // actually has (Field Force / CRM / Distribution), filtered to entitlement.
+  // Existing role grants for these groups are untouched — they stay in the
+  // role's saved permissions; we just stop offering them as toggles.
   const visibleModules = useMemo(
-    () => (clientModuleIds == null
-      ? ALL_MODULES
-      : ALL_MODULES.filter((m) => m.universal || clientModuleIds.includes(m.id))),
+    () => ALL_MODULES.filter((m) => {
+      if (HIDDEN_MODULE_GROUPS.includes(m.group)) return false;
+      if (clientModuleIds == null) return true;      // org level → full (remaining) catalogue
+      return clientModuleIds.includes(m.id);         // scoped → only entitled modules
+    }),
     [clientModuleIds],
   );
 
@@ -549,9 +565,9 @@ function EditPanel({
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
           <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.5 }}>Module access</div>
           <div style={{ display: 'flex', gap: 6 }}>
-            <button type="button" onClick={() => setEditing({ ...editing, permissions: modules.map((m) => m.id), permissions_write: modules.map((m) => m.id) })} style={tinyBtn}>All R/W</button>
-            <button type="button" onClick={() => setEditing({ ...editing, permissions: modules.map((m) => m.id), permissions_write: [] })} style={tinyBtn}>All Read</button>
-            <button type="button" onClick={() => setEditing({ ...editing, permissions: [], permissions_write: [] })} style={tinyBtn}>Clear</button>
+            <button type="button" onClick={() => setEditing({ ...editing, permissions: Array.from(new Set([...keepHidden(editing.permissions), ...modules.map((m) => m.id)])), permissions_write: Array.from(new Set([...keepHidden(editing.permissions_write), ...modules.map((m) => m.id)])) })} style={tinyBtn}>All R/W</button>
+            <button type="button" onClick={() => setEditing({ ...editing, permissions: Array.from(new Set([...keepHidden(editing.permissions), ...modules.map((m) => m.id)])), permissions_write: keepHidden(editing.permissions_write) })} style={tinyBtn}>All Read</button>
+            <button type="button" onClick={() => setEditing({ ...editing, permissions: keepHidden(editing.permissions), permissions_write: keepHidden(editing.permissions_write) })} style={tinyBtn}>Clear</button>
           </div>
         </div>
         <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 8 }}>
