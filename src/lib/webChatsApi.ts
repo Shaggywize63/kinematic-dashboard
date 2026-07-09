@@ -77,16 +77,28 @@ export const webChatsApi = {
     // stale-while-revalidate backed by localStorage, so a page that first
     // loaded while the table was empty would keep showing that stale empty
     // list (revalidating only in the background). Always fetch fresh.
-    const res = await api.get<Partial<WebChatListResult>>(`${BASE}${qs(params)}`, { noCache: true } as RequestInit);
+    const raw = await api.get<unknown>(`${BASE}${qs(params)}`, { noCache: true } as RequestInit);
+    const p = unwrap(raw) as Partial<WebChatListResult> | undefined;
     return {
-      rows: Array.isArray(res?.rows) ? res.rows : [],
-      total: typeof res?.total === 'number' ? res.total : 0,
+      rows: Array.isArray(p?.rows) ? p!.rows! : [],
+      total: typeof p?.total === 'number' ? p!.total! : 0,
     };
   },
-  get(id: string): Promise<WebChatDetail> {
-    return api.get<WebChatDetail>(`${BASE}/${id}`, { noCache: true } as RequestInit);
+  async get(id: string): Promise<WebChatDetail> {
+    const raw = await api.get<unknown>(`${BASE}/${id}`, { noCache: true } as RequestInit);
+    return unwrap(raw) as WebChatDetail;
   },
 };
+
+// The CRM API router wraps every response as `{ success: true, data: <body> }`.
+// Unwrap that envelope (tolerating an already-unwrapped body) so callers get
+// the real payload regardless of shape.
+function unwrap(raw: unknown): unknown {
+  if (raw && typeof raw === 'object' && 'data' in (raw as Record<string, unknown>) && 'success' in (raw as Record<string, unknown>)) {
+    return (raw as { data: unknown }).data;
+  }
+  return raw;
+}
 
 // ── Display helpers ─────────────────────────────────────────────────────────
 

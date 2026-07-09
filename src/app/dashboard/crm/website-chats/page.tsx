@@ -75,11 +75,6 @@ export default function WebsiteChatsPage() {
     return () => { if (searchTimer.current) clearTimeout(searchTimer.current); };
   }, [search, load]);
 
-  // Light auto-refresh so new conversations appear without a manual reload.
-  useEffect(() => {
-    const t = setInterval(() => load(search), 20000);
-    return () => clearInterval(t);
-  }, [load, search]);
 
   // Load transcript when a row is selected.
   useEffect(() => {

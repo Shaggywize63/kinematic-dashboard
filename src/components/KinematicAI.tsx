@@ -10,6 +10,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { usePathname } from 'next/navigation';
 import { isCrmRoute, buildKiniContext } from '../lib/kiniCrmContext';
+import KiniMascot from './crm/KiniMascot';
 import DealListCard from './crm/kini/DealListCard';
 import LeadListCard from './crm/kini/LeadListCard';
 import DraftEmailCard from './crm/kini/DraftEmailCard';
@@ -457,15 +458,17 @@ Be elite, professional, and data-driven. Use **bold** for key metrics. Proactive
           width: isMobile ? 56 : 60,
           height: isMobile ? 56 : 60,
           borderRadius: isMobile ? 20 : 22,
-          background: open ? C.s3 : `linear-gradient(135deg, ${C.red}, #FF4D4D)`, color: '#fff',
+          background: open ? `linear-gradient(135deg, ${C.red}, #FF4D4D)` : '#fff', color: '#fff',
           display: open && isMobile ? 'none' : 'flex',
           alignItems: 'center', justifyContent: 'center',
-          boxShadow: open ? 'none' : '0 10px 30px rgba(224,30,44,0.4)',
+          boxShadow: open ? 'none' : '0 10px 30px rgba(224,30,44,0.35)',
           cursor: 'pointer', border: 'none',
           animation: !open ? 'km-ai-pulse 2s infinite' : 'none',
           transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
         }}>
-        <span style={{ fontSize: 22, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))' }}>{open ? '✕' : '✦'}</span>
+        {open
+          ? <span style={{ fontSize: 22, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))' }}>✕</span>
+          : <span style={{ display: 'flex', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))' }}><KiniMascot size={isMobile ? 40 : 44} /></span>}
       </button>
 
       {open && (
@@ -485,7 +488,7 @@ Be elite, professional, and data-driven. Use **bold** for key metrics. Proactive
                 background: 'rgba(255,255,255,0.18)', backdropFilter: 'blur(8px)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 18, flexShrink: 0,
-              }}>✦</div>
+              }}><KiniMascot size={28} /></div>
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontWeight: 900, fontSize: 15, fontFamily: 'var(--font-manrope, inherit)', display: 'flex', alignItems: 'center', gap: 6 }}>
                   Kini AI {inCrm && <span style={{ fontSize: 9, background: 'rgba(255,255,255,0.18)', padding: '2px 8px', borderRadius: 999, fontWeight: 800, letterSpacing: 0.6 }}>CRM</span>}
