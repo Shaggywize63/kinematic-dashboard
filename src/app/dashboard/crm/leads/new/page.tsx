@@ -37,6 +37,10 @@ function isFirstSiteVisit(cf: Record<string, unknown> | null | undefined): boole
 
 // Tata Tiscon is consumer-only — never offer the B2B lead option.
 const TATA_TISCON_CLIENT_ID = 'a1f67468-526e-4734-be3a-2cb132cc2804';
+// The parent Kinematic tenant runs an inside-sales CRM, not a field-force
+// one — GPS lead-tagging is irrelevant there, so location capture is hidden
+// and never required for it.
+const KINEMATIC_CLIENT_ID = '7ecd47d7-9268-4ea2-a8ce-384978c13667';
 
 type Form = {
   first_name: string; last_name: string; email: string; phone: string;
@@ -163,9 +167,6 @@ export default function NewLeadPage() {
       { enableHighAccuracy: false, timeout: 15_000, maximumAge: 60_000 },
     );
   };
-  // Auto-request location on first load — coordinates are mandatory.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { captureLocation(); }, []);
   const [businessType, setBusinessType] = useState<BusinessType>('both');
   // Today's lead target for the signed-in rep — shown as a ticker while
   // entering leads (null = no target / not loaded → ticker hidden).
@@ -182,6 +183,14 @@ export default function NewLeadPage() {
     } catch { return null; }
   }, []);
   const isTata = (form.client_id || userClientId || selectedClientId) === TATA_TISCON_CLIENT_ID;
+  // Kinematic's own inside-sales CRM doesn't geo-tag leads — skip the GPS
+  // capture entirely (auto-request, the Pin Location card, and the mandatory
+  // check below all key off this).
+  const isKinematic = (form.client_id || userClientId || selectedClientId) === KINEMATIC_CLIENT_ID;
+  // Auto-request location on first load — coordinates are mandatory, except
+  // for Kinematic where location capture is disabled.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (!isKinematic) captureLocation(); }, [isKinematic]);
   // Force B2C for Tata (the toggle is hidden, so the default must not stay B2B).
   useEffect(() => {
     if (isTata) setForm((f) => (f.is_b2c ? f : { ...f, is_b2c: true }));
@@ -394,7 +403,8 @@ export default function NewLeadPage() {
       return;
     }
     // Location is mandatory and auto-captured — block submit until we have it.
-    if (!form.latitude || !form.longitude) {
+    // Kinematic's inside-sales CRM doesn't geo-tag leads, so it's exempt.
+    if (!isKinematic && (!form.latitude || !form.longitude)) {
       captureLocation();
       fail('lead-field-location', 'Location is required. Allow location access, then tap “Use my current location”.');
       return;
@@ -703,6 +713,7 @@ export default function NewLeadPage() {
           for Kaiyo/Tata, not on the lead form — the rep picks products when the
           lead becomes a deal, so the picker no longer renders here. */}
 
+      {!isKinematic && (
       <Section title="Pin Location (required)">
         <div id="lead-field-location" style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 10 }}>
           The lead is geo-tagged with your current location. This is captured automatically and is required to add a lead.
@@ -739,6 +750,7 @@ export default function NewLeadPage() {
           </div>
         )}
       </Section>
+      )}
 
       {/* Tata Tiscon: tick to atomically spawn a completed `site_visit`
           activity tied to the new lead. Default on because most adds
@@ -775,7 +787,7 @@ export default function NewLeadPage() {
 
       <div style={{ display: 'flex', gap: 8, marginTop: 18, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
         <button type="button" onClick={() => router.back()} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 16px', borderRadius: 8, cursor: 'pointer' }}>Cancel</button>
-        <button type="submit" disabled={busy || !form.latitude || !form.longitude} title={!form.latitude || !form.longitude ? 'Capture your location to enable' : undefined} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 18px', borderRadius: 8, fontWeight: 700, cursor: (busy || !form.latitude || !form.longitude) ? 'not-allowed' : 'pointer', opacity: (busy || !form.latitude || !form.longitude) ? 0.6 : 1 }}>{busy ? 'Saving...' : 'Create Lead'}</button>
+        <button type="submit" disabled={busy || (!isKinematic && (!form.latitude || !form.longitude))} title={!isKinematic && (!form.latitude || !form.longitude) ? 'Capture your location to enable' : undefined} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 18px', borderRadius: 8, fontWeight: 700, cursor: (busy || (!isKinematic && (!form.latitude || !form.longitude))) ? 'not-allowed' : 'pointer', opacity: (busy || (!isKinematic && (!form.latitude || !form.longitude))) ? 0.6 : 1 }}>{busy ? 'Saving...' : 'Create Lead'}</button>
       </div>
     </form>
   );

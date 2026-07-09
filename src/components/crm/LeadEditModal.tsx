@@ -16,6 +16,7 @@ import { useAuth } from '../../hooks/useAuth';
 interface Props { lead: Lead; open: boolean; onClose: () => void; onSaved: (updated: Lead) => void; }
 
 const TATA_TISCON_CLIENT_ID = 'a1f67468-526e-4734-be3a-2cb132cc2804';
+const KINEMATIC_CLIENT_ID = '7ecd47d7-9268-4ea2-a8ce-384978c13667';
 
 // True when ANY custom field on the lead matches the "first site visit"
 // shape and carries a truthy value. Admins name the field differently
@@ -46,6 +47,11 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
   const isTata =
     (lead as Lead & { client_id?: string | null }).client_id === TATA_TISCON_CLIENT_ID
     || user?.client_id === TATA_TISCON_CLIENT_ID;
+  // Kinematic's own inside-sales CRM doesn't geo-tag leads — hide the
+  // coordinate capture entirely (matches the lead-create form).
+  const isKinematic =
+    (lead as Lead & { client_id?: string | null }).client_id === KINEMATIC_CLIENT_ID
+    || user?.client_id === KINEMATIC_CLIENT_ID;
   const [logAsSiteVisit, setLogAsSiteVisit] = useState(false);
   const [form, setForm] = useState(() => seed(lead));
   const [busy, setBusy] = useState(false);
@@ -461,6 +467,7 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
           </label>
         </div>
 
+        {!isKinematic && <>
         <SL>Pin Location (map)</SL>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
           <button type="button" onClick={captureLocation} disabled={geoBusy} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 12.5, fontWeight: 600, cursor: geoBusy ? 'wait' : 'pointer', opacity: geoBusy ? 0.6 : 1, whiteSpace: 'nowrap' }}>📍 {geoBusy ? 'Locating…' : 'Use current location'}</button>
@@ -472,6 +479,7 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
           <F label="Latitude" value={form.latitude} onChange={(v) => setForm({ ...form, latitude: v })} />
           <F label="Longitude" value={form.longitude} onChange={(v) => setForm({ ...form, longitude: v })} />
         </Grid>
+        </>}
         </>
       ); })()}
     </Modal>
