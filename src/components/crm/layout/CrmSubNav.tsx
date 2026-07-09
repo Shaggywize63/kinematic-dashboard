@@ -32,6 +32,9 @@ const LINKS: CrmLink[] = [
   // /dashboard/crm/tasks redirects to /dashboard/crm/activities?type=task.
   { href: '/dashboard/crm/activities', label: 'Activities' },
   { href: '/dashboard/crm/whatsapp', label: 'WhatsApp' },
+  // KINI website-chatbot conversations + the leads they capture. An
+  // admin/marketing surface, so hidden from frontline Consumer Champions.
+  { href: '/dashboard/crm/website-chats', label: 'Website Chats', championHidden: true },
   { href: '/dashboard/crm/reports', label: 'Reports' },
   { href: '/dashboard/crm/settings', label: 'Settings' },
   // Help & lifecycle — same screen as iOS / Android so reps get the same
