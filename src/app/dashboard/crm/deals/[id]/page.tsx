@@ -820,7 +820,10 @@ function DealProductsCard({ deal }: { deal: Deal }) {
       }
     })();
     return () => { cancelled = true; };
-  }, [leadId]);
+    // Re-read the linked lead's basket whenever the deal is updated (e.g. the
+    // rep corrected a product in the edit modal, which writes back to the
+    // lead) so the card reflects the fix without a full page reload.
+  }, [leadId, deal.updated_at]);
 
   // Mark the row dirty whenever the rep edits a value so the Save
   // button can light up; explicit save replaces the previous
