@@ -99,6 +99,44 @@ export default function RolesPage() {
       .catch(() => setCities([]));
   }, [selectedClientId, ownClientId]);
 
+  // The module catalogue in the role editor is filtered to what THIS client is
+  // entitled to, so an admin can't grant a role access to a module the client
+  // never bought — e.g. a Field-Force-only client (BMW) shouldn't see CRM /
+  // Distribution modules in the picker. `null` = show everything (super-admin
+  // at org level, or unknown entitlement → fail open so nobody gets locked out).
+  const [clientModuleIds, setClientModuleIds] = useState<string[] | null>(null);
+  useEffect(() => {
+    // Client-level admin: their own resolved entitlement (client_modules +
+    // universal) already rides on the stored user — no fetch needed.
+    if (ownClientId) {
+      const em = (storedUser as any)?.enabled_modules;
+      setClientModuleIds(Array.isArray(em) && em.length > 0 ? em : null);
+      return;
+    }
+    // Super-admin: filter to the picked client's assigned modules. No client
+    // picked (viewing the org's own roles) → show the full catalogue.
+    if (!selectedClientId) { setClientModuleIds(null); return; }
+    let cancelled = false;
+    api.get<any>('/api/v1/clients', { noCache: true } as RequestInit)
+      .then((res: any) => {
+        const list = Array.isArray(res) ? res : (res?.data ?? []);
+        const c = list.find((x: any) => x.id === selectedClientId || x.client_id === selectedClientId);
+        const mods = c?.modules;
+        if (!cancelled) setClientModuleIds(Array.isArray(mods) && mods.length > 0 ? mods : null);
+      })
+      .catch(() => { if (!cancelled) setClientModuleIds(null); });
+    return () => { cancelled = true; };
+  }, [ownClientId, selectedClientId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Universal modules (Business / System / People) are always available to
+  // every client, so they stay in the picker regardless of the entitlement.
+  const visibleModules = useMemo(
+    () => (clientModuleIds == null
+      ? ALL_MODULES
+      : ALL_MODULES.filter((m) => m.universal || clientModuleIds.includes(m.id))),
+    [clientModuleIds],
+  );
+
   // Look up the active client's display name for the scope banner.
   useEffect(() => {
     const targetId = isClientLevel ? (storedUser as any)?.client_id : selectedClientId;
@@ -275,6 +313,7 @@ export default function RolesPage() {
                 setEditing={setEditing}
                 flat={flat}
                 cities={cities}
+                modules={visibleModules}
                 onSave={save}
                 onCancel={() => setEditing(null)}
                 saving={saving}
@@ -417,12 +456,15 @@ function RoleNode({
 }
 
 function EditPanel({
-  editing, setEditing, flat, cities, onSave, onCancel, saving,
+  editing, setEditing, flat, cities, modules, onSave, onCancel, saving,
 }: {
   editing: { id: string | null; name: string; description: string; parent_id: string | null; color: string; permissions: string[]; permissions_write: string[]; assigned_cities: string[] };
   setEditing: (e: any) => void;
   flat: OrgRole[];
   cities: string[];
+  // Module catalogue to offer — already filtered to the active client's
+  // entitlement by the parent (universal modules always included).
+  modules: typeof ALL_MODULES;
   onSave: () => void;
   onCancel: () => void;
   saving: boolean;
@@ -507,8 +549,8 @@ function EditPanel({
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
           <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.5 }}>Module access</div>
           <div style={{ display: 'flex', gap: 6 }}>
-            <button type="button" onClick={() => setEditing({ ...editing, permissions: ALL_MODULES.map((m) => m.id), permissions_write: ALL_MODULES.map((m) => m.id) })} style={tinyBtn}>All R/W</button>
-            <button type="button" onClick={() => setEditing({ ...editing, permissions: ALL_MODULES.map((m) => m.id), permissions_write: [] })} style={tinyBtn}>All Read</button>
+            <button type="button" onClick={() => setEditing({ ...editing, permissions: modules.map((m) => m.id), permissions_write: modules.map((m) => m.id) })} style={tinyBtn}>All R/W</button>
+            <button type="button" onClick={() => setEditing({ ...editing, permissions: modules.map((m) => m.id), permissions_write: [] })} style={tinyBtn}>All Read</button>
             <button type="button" onClick={() => setEditing({ ...editing, permissions: [], permissions_write: [] })} style={tinyBtn}>Clear</button>
           </div>
         </div>
@@ -523,7 +565,10 @@ function EditPanel({
             <span style={{ textAlign: 'center' }}>W</span>
           </div>
           {MODULE_GROUPS.map((group) => {
-            const items = ALL_MODULES.filter((m) => m.group === group);
+            const items = modules.filter((m) => m.group === group);
+            // A group with no entitled modules for this client is hidden
+            // entirely (e.g. CRM / Distribution for a Field-Force-only client).
+            if (items.length === 0) return null;
             const allRead = items.every((m) => editing.permissions.includes(m.id));
             const allWrite = items.every((m) => editing.permissions_write.includes(m.id));
             return (
