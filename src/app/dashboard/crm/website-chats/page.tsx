@@ -9,6 +9,7 @@ import {
   type WebChatRow,
   type WebChatDetail,
 } from '../../../../lib/webChatsApi';
+import KiniMascot from '../../../../components/crm/KiniMascot';
 
 // Inline style tokens (mirror the CRM Conversations page).
 const card: React.CSSProperties = {
@@ -74,6 +75,12 @@ export default function WebsiteChatsPage() {
     return () => { if (searchTimer.current) clearTimeout(searchTimer.current); };
   }, [search, load]);
 
+  // Light auto-refresh so new conversations appear without a manual reload.
+  useEffect(() => {
+    const t = setInterval(() => load(search), 20000);
+    return () => clearInterval(t);
+  }, [load, search]);
+
   // Load transcript when a row is selected.
   useEffect(() => {
     if (!selectedId) { setDetail(null); return; }
@@ -91,12 +98,27 @@ export default function WebsiteChatsPage() {
 
   return (
     <div style={{ padding: isCompact ? 12 : 20 }}>
-      <div style={{ marginBottom: 14 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', margin: 0 }}>Website Chats</h1>
-        <p style={{ fontSize: 13, color: 'var(--text-dim)', margin: '4px 0 0' }}>
-          Conversations from KINI, the chatbot on kinematicapp.com — what visitors asked, how KINI replied,
-          and the leads it captured.
-        </p>
+      <div style={{ marginBottom: 14, display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+        <KiniMascot size={46} />
+        <div style={{ flex: 1 }}>
+          <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', margin: 0 }}>Website Chats</h1>
+          <p style={{ fontSize: 13, color: 'var(--text-dim)', margin: '4px 0 0' }}>
+            Conversations from KINI, the chatbot on kinematicapp.com — what visitors asked, how KINI replied,
+            and the leads it captured.
+          </p>
+        </div>
+        <button
+          onClick={() => load(search)}
+          disabled={loading}
+          style={{
+            border: '1px solid var(--border)', background: 'var(--s2)', color: 'var(--text)',
+            borderRadius: 9, padding: '7px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
+          }}
+        >
+          <span style={{ display: 'inline-block', transform: loading ? 'rotate(360deg)' : 'none', transition: 'transform .6s' }}>↻</span>
+          Refresh
+        </button>
       </div>
 
       <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start', flexDirection: isCompact ? 'column' : 'row' }}>
@@ -115,7 +137,8 @@ export default function WebsiteChatsPage() {
           </div>
           <div style={{ maxHeight: isCompact ? 320 : '68vh', overflowY: 'auto' }}>
             {!loading && rows.length === 0 && (
-              <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-dim)', fontSize: 13 }}>
+              <div style={{ padding: '28px 24px', textAlign: 'center', color: 'var(--text-dim)', fontSize: 13, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+                <KiniMascot size={56} />
                 No website chats yet. They’ll appear here as visitors talk to KINI.
               </div>
             )}
