@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { useAuth } from '../../../../hooks/useAuth';
-import { isConsumerChampion } from '../../../../lib/clientFeatures';
+import { isConsumerChampion, canDownloadSrsReport } from '../../../../lib/clientFeatures';
 
 type ReportEntry = {
   href: string;
@@ -10,9 +10,13 @@ type ReportEntry = {
   highlight?: boolean;
   /** When true, this report is hidden for Consumer Champion users. */
   championHidden?: boolean;
+  /** When true, this report only shows for SRS/Tata Area Sales Officer +
+   *  CRM Admin roles (see canDownloadSrsReport). Everyone else never sees it. */
+  srsOnly?: boolean;
 };
 
 const REPORTS: ReportEntry[] = [
+  { href: '/dashboard/crm/reports/srs-lead-report', title: '📋 SRS Lead Report', desc: 'The SRS field format — lead, site and converted-deal detail in one CSV. Download your leads (or the whole tenant, if CRM Admin).', highlight: true, srsOnly: true },
   { href: '/dashboard/crm/reports/builder', title: '🛠 Custom Report Builder', desc: 'Pick entity, fields, filters, grouping, and export to CSV.', highlight: true, championHidden: true },
   { href: '/dashboard/crm/reports/schedules', title: '📧 Scheduled Digests', desc: 'Email any report to your team on a recurring daily / weekly / monthly schedule.', highlight: true, championHidden: true },
   { href: '/dashboard/crm/reports/team-performance', title: 'Team Performance', desc: 'Won volume, conversion rate, lead ageing and new leads per rep across your hierarchy subtree.' },
@@ -43,15 +47,21 @@ const CHAMPION_HREFS = new Set([
 export default function ReportsIndex() {
   const { user } = useAuth();
   const champion = isConsumerChampion(user as any);
+  const srs = canDownloadSrsReport(user as any);
 
   // `championHidden: true` means "hide this for Champion users" — so
   // non-Champion users see EVERY report (including the ones flagged
   // championHidden). The earlier filter inverted that and was hiding
   // the Custom Report Builder + most reports from non-Champions,
   // which is the opposite of what the flag is for.
-  const visible = champion
+  //
+  // `srsOnly: true` is the inverse gate — the SRS Lead Report only
+  // appears for SRS/Tata Area Sales Officer + CRM Admin roles, and is
+  // hidden from everyone else (including non-Champions).
+  const visible = (champion
     ? REPORTS.filter((r) => CHAMPION_HREFS.has(r.href))
-    : REPORTS;
+    : REPORTS
+  ).filter((r) => !r.srsOnly || srs);
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12 }}>
