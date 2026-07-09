@@ -49,6 +49,7 @@ export interface WebChatRow {
 export interface WebChatDetail extends WebChatRow {
   team_size: string | null;
   city: string | null;
+  preferred_time: string | null;
   page_url: string | null;
   referrer_url: string | null;
   landing_page: string | null;
@@ -72,14 +73,18 @@ export const webChatsApi = {
     // Normalise defensively: during a backend rollout (or if the endpoint ever
     // returns an unexpected shape) `rows` could be absent — always hand callers
     // a real array so `rows.length` / `rows.map` can't throw.
-    const res = await api.get<Partial<WebChatListResult>>(`${BASE}${qs(params)}`);
+    // noCache: this is a live admin view. The default GET path is
+    // stale-while-revalidate backed by localStorage, so a page that first
+    // loaded while the table was empty would keep showing that stale empty
+    // list (revalidating only in the background). Always fetch fresh.
+    const res = await api.get<Partial<WebChatListResult>>(`${BASE}${qs(params)}`, { noCache: true } as RequestInit);
     return {
       rows: Array.isArray(res?.rows) ? res.rows : [],
       total: typeof res?.total === 'number' ? res.total : 0,
     };
   },
   get(id: string): Promise<WebChatDetail> {
-    return api.get<WebChatDetail>(`${BASE}/${id}`);
+    return api.get<WebChatDetail>(`${BASE}/${id}`, { noCache: true } as RequestInit);
   },
 };
 

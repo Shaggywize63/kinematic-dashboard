@@ -172,6 +172,7 @@ export default function WebsiteChatsPage() {
                     {detail.visitor_company && <span>🏢 {detail.visitor_company}</span>}
                     {detail.team_size && <span>👥 {detail.team_size}</span>}
                     {detail.city && <span>📍 {detail.city}</span>}
+                    {detail.preferred_time && <span>🗓 {detail.preferred_time}</span>}
                   </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
