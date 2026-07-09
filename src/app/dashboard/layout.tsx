@@ -51,6 +51,24 @@ const C = {
   green: 'var(--green)', blue: 'var(--accent)',
 };
 
+// Per-section accent colours for the sidebar icon tiles. Each nav group gets a
+// distinct hue so the sidebar reads as colourful/grouped instead of a wall of
+// pale grey glyphs. A few marquee items override with their own colour.
+const NAV_GROUP_ACCENT: Record<string, string> = {
+  field_force:  '#3B82F6', // blue
+  crm:          '#8B5CF6', // violet
+  distribution: '#F59E0B', // amber
+  business:     '#14B8A6', // teal
+  people:       '#10B981', // green
+};
+const NAV_ITEM_ACCENT: Record<string, string> = {
+  '/dashboard/crm/website-chats': '#D01E2C', // KINI brand red
+  '/dashboard/crm/whatsapp':      '#25D366', // WhatsApp green
+};
+function navAccent(pkg: string | undefined, href: string): string {
+  return NAV_ITEM_ACCENT[href] || NAV_GROUP_ACCENT[pkg || ''] || '#3B82F6';
+}
+
 function Icon({ d, size = 18 }: { d: string; size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -657,6 +675,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     user has collapsed that section. */}
                 {((collapsed && !isMobile) || !collapsedSections[g.label]) && g.items.map((i:any) => {
                   const active = isActive(i.href);
+                  const accent = navAccent(g.package, i.href);
                   return (
                     <Link key={i.href} href={i.href} style={{ textDecoration:'none' }}>
                       <div
@@ -670,7 +689,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                           borderRadius:8,
                           gap:12,
                           color: active ? C.white : C.gray,
-                          background: active ? C.redD : 'transparent',
+                          background: active ? `${accent}1f` : 'transparent',
                           cursor:'pointer',
                           justifyContent: collapsed && !isMobile ? 'center' : 'flex-start',
                           transition:'background .15s, color .15s',
@@ -688,11 +707,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                             top:6, bottom:6,
                             width:3,
                             borderRadius:3,
-                            background:C.red,
+                            background:accent,
                           }} />
                         )}
-                        <span style={{ color: active ? C.red : 'inherit', display:'flex', alignItems:'center' }}>
-                          <Icon d={i.icon} size={18} />
+                        <span style={{
+                          display:'flex', alignItems:'center', justifyContent:'center',
+                          width:30, height:30, borderRadius:9, flexShrink:0,
+                          background: active ? accent : `${accent}22`,
+                          color: active ? '#fff' : accent,
+                          boxShadow: active ? `0 2px 8px ${accent}55` : 'none',
+                          transition:'background .15s, color .15s, box-shadow .15s',
+                        }}>
+                          <Icon d={i.icon} size={17} />
                         </span>
                         {(isMobile || !collapsed) && (
                           <span style={{ fontSize:13.5, fontWeight: active ? 600 : 500, whiteSpace:'nowrap' }}>{i.label}</span>
