@@ -157,6 +157,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   useEffect(() => {
     const u = getStoredUser();
     if (!u || !isSessionValid()) { clearSession(); router.push('/login'); return; }
+    // Force a password change before the app is usable. Redirect fast off the
+    // cached flag; the /auth/me refresh below re-checks for sessions that
+    // pre-date the flag (existing users flagged by the backfill).
+    if ((u as any).must_change_password) { router.replace('/set-password'); return; }
     setUser(u);
     if (typeof window !== 'undefined') {
       setToken(localStorage.getItem('kinematic_token') || '');
@@ -173,6 +177,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           try {
             localStorage.setItem('kinematic_user', JSON.stringify(next));
           } catch { /* ignore */ }
+          // Existing users flagged by the backfill won't have the flag on
+          // their cached profile — catch it here on the fresh /me and force
+          // the set-password screen.
+          if (next.must_change_password) { router.replace('/set-password'); return; }
           setUser(next);
         }
       } catch { /* keep cached user */ }

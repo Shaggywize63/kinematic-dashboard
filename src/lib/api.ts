@@ -550,6 +550,29 @@ class ApiClient {
     }>('/api/v1/auth/reset-password', { email, token, password });
   }
 
+  /**
+   * Authenticated — sets a new password for the signed-in user and clears
+   * the server's must_change_password flag. Powers the forced "set a new
+   * password on first login" screen.
+   */
+  changePassword(newPassword: string) {
+    return this.post<{ success: boolean; data: { ok: true } }>(
+      '/api/v1/auth/change-password',
+      { new_password: newPassword },
+    );
+  }
+
+  /**
+   * Admin — emails a one-time password-recovery link to a user so they can
+   * reset their own password. (Backend POST /users/:id/send-password-reset.)
+   */
+  sendUserPasswordReset(userId: string) {
+    return this.post<{ success: boolean; data: { message: string } }>(
+      `/api/v1/users/${userId}/send-password-reset`,
+      {},
+    );
+  }
+
   getAnalyticsSummary(period: string) {
     return this.get(`/api/v1/analytics/summary?period=${period}`);
   }

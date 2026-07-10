@@ -382,6 +382,17 @@ export default function CrmUsersPage() {
     } catch (e: any) { toast.error(e.message || 'Update failed'); }
   };
 
+  // Email the user a one-time password-recovery link so they can reset their
+  // own password (backend /users/:id/send-password-reset).
+  const sendReset = async (u: UserRow) => {
+    if (!u.email) { toast.error('This user has no email on file'); return; }
+    if (!confirm(`Send a password reset email to ${u.email}?`)) return;
+    try {
+      await api.sendUserPasswordReset(u.id);
+      toast.success(`Reset email sent to ${u.email}`);
+    } catch (e: any) { toast.error(e.message || 'Could not send reset email'); }
+  };
+
   // Bulk upload — accepts the template above. Each data row becomes a
   // sequential POST to /api/v1/users (we don't fan out so failures keep
   // their per-row context for the result table). Hierarchy role is
@@ -906,6 +917,7 @@ export default function CrmUsersPage() {
                   </td>
                   <td style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap' }}>
                     <button onClick={() => startEdit(u)} style={btnSmall}>Edit</button>{' '}
+                    <button onClick={() => sendReset(u)} style={btnSmall} title="Email this user a password reset link">Reset email</button>{' '}
                     <button onClick={() => toggleActive(u)} style={btnSmall}>{u.is_active === false ? 'Reactivate' : 'Deactivate'}</button>
                   </td>
                 </tr>
