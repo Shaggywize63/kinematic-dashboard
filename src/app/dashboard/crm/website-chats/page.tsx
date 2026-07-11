@@ -1,7 +1,9 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { useAuth } from '../../../../hooks/useAuth';
 import {
   webChatsApi,
   webChatStatusMeta,
@@ -41,7 +43,24 @@ function StatusChip({ status }: { status: string }) {
   );
 }
 
+/**
+ * Website Chats is the Kinematic platform's own website-funnel surface, so
+ * it's restricted to the Kinematic super admin. The nav entries are already
+ * hidden for everyone else; this guard blocks a direct-URL / bookmark hit
+ * from a client-admin (e.g. BMW) by bouncing them back to the CRM dashboard.
+ */
 export default function WebsiteChatsPage() {
+  const router = useRouter();
+  const { user, loading } = useAuth();
+  const isSuperAdmin = ((user?.role as string) || '').toLowerCase().replace(/-/g, '_') === 'super_admin';
+  useEffect(() => {
+    if (!loading && !isSuperAdmin) router.replace('/dashboard/crm/dashboard');
+  }, [loading, isSuperAdmin, router]);
+  if (loading || !isSuperAdmin) return null;
+  return <WebsiteChatsPageInner />;
+}
+
+function WebsiteChatsPageInner() {
   const isCompact = useIsCompact();
   const [rows, setRows] = useState<WebChatRow[]>([]);
   const [total, setTotal] = useState(0);

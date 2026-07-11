@@ -13,6 +13,8 @@ type CrmLink = {
   tataTisconHidden?: boolean;
   /** Hidden for the parent Kinematic tenant */
   kinematicHidden?: boolean;
+  /** Visible ONLY to the Kinematic super admin (role super_admin). */
+  superAdminOnly?: boolean;
 };
 const LINKS: CrmLink[] = [
   { href: '/dashboard/crm/dashboard', label: 'Dashboard' },
@@ -32,9 +34,10 @@ const LINKS: CrmLink[] = [
   // /dashboard/crm/tasks redirects to /dashboard/crm/activities?type=task.
   { href: '/dashboard/crm/activities', label: 'Activities' },
   { href: '/dashboard/crm/whatsapp', label: 'WhatsApp' },
-  // KINI website-chatbot conversations + the leads they capture. An
-  // admin/marketing surface, so hidden from frontline Consumer Champions.
-  { href: '/dashboard/crm/website-chats', label: 'Website Chats', championHidden: true },
+  // KINI website-chatbot conversations + the leads they capture. This is the
+  // Kinematic platform's own website funnel, so it's visible only to the
+  // Kinematic super admin — not client tenants or their admins.
+  { href: '/dashboard/crm/website-chats', label: 'Website Chats', superAdminOnly: true },
   { href: '/dashboard/crm/reports', label: 'Reports' },
   { href: '/dashboard/crm/settings', label: 'Settings' },
   // Help & lifecycle — same screen as iOS / Android so reps get the same
@@ -47,6 +50,7 @@ export default function CrmSubNav() {
   const { user } = useAuth();
   const champion = isConsumerChampion(user as any);
   const tataTiscon = isTataTiscon(user as any);
+  const superAdmin = ((user as any)?.role || '').toLowerCase().replace(/-/g, '_') === 'super_admin';
   // Resolve the Kinematic tenant after mount — isKinematicActive reads the
   // super-admin client picker off localStorage, which isn't available during
   // SSR. Starting false keeps server/client markup in sync (no hydration
@@ -54,6 +58,7 @@ export default function CrmSubNav() {
   const [kinematic, setKinematic] = useState(false);
   useEffect(() => { setKinematic(isKinematicActive(user as any)); }, [user]);
   const visibleLinks = LINKS.filter((l) => {
+    if (l.superAdminOnly && !superAdmin) return false;
     if (l.championHidden && champion) return false;
     if (l.tataTisconHidden && tataTiscon) return false;
     if (l.kinematicHidden && kinematic) return false;
