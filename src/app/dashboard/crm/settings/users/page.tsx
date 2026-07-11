@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { toast } from 'sonner';
 import api from '../../../../../lib/api';
 import { rolesApi, type OrgRole } from '../../../../../lib/rolesApi';
+import { getStoredUser } from '../../../../../lib/auth';
 import { useTableSort, SortLabel } from '../../../../../lib/tableSort';
 
 // CRM-scoped user management. Module permissions live on the role hierarchy
@@ -380,6 +381,22 @@ export default function CrmUsersPage() {
       await api.patch(`/api/v1/users/${u.id}`, { is_active: !(u.is_active !== false) });
       reload();
     } catch (e: any) { toast.error(e.message || 'Update failed'); }
+  };
+
+  // Only admins / super-admins may delete (matches the backend requireRole).
+  const canDelete = ['admin', 'super_admin'].includes(
+    (getStoredUser()?.role || '').toLowerCase().replace(/-/g, '_')
+  );
+
+  // Soft-delete: removes the user from the directory and blocks sign-in. Their
+  // owned leads / activities are preserved (not a hard delete).
+  const deleteUser = async (u: UserRow) => {
+    if (!confirm(`Delete ${u.name || u.email || 'this user'}?\n\nThey'll be removed from the directory and can no longer sign in. Their leads and activities are kept.`)) return;
+    try {
+      await api.deleteUser(u.id);
+      toast.success('User deleted');
+      reload();
+    } catch (e: any) { toast.error(e.message || 'Could not delete user'); }
   };
 
   // Email the user a one-time password-recovery link so they can reset their
@@ -919,6 +936,9 @@ export default function CrmUsersPage() {
                     <button onClick={() => startEdit(u)} style={btnSmall}>Edit</button>{' '}
                     <button onClick={() => sendReset(u)} style={btnSmall} title="Email this user a password reset link">Reset email</button>{' '}
                     <button onClick={() => toggleActive(u)} style={btnSmall}>{u.is_active === false ? 'Reactivate' : 'Deactivate'}</button>
+                    {canDelete && <>{' '}
+                      <button onClick={() => deleteUser(u)} style={{ ...btnSmall, color: '#e5484d', borderColor: '#e5484d' }} title="Remove this user from the directory">Delete</button>
+                    </>}
                   </td>
                 </tr>
               );

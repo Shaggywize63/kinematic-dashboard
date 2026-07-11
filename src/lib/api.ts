@@ -613,6 +613,11 @@ class ApiClient {
     return this.patch(`/api/v1/users/${id}`, data);
   }
 
+  // Soft-delete a user (removes from the directory + blocks sign-in). Admins only.
+  deleteUser(id: string) {
+    return this.delete(`/api/v1/users/${id}`);
+  }
+
   getAttendanceTeam(params?: Record<string, string>) {
     return this.get(`/api/v1/attendance/team${this.sanitizeParams(params)}`);
   }
