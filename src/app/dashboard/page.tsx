@@ -404,9 +404,13 @@ export default function DashboardPage() {
     const u = getStoredUser() as { role?: string; permissions?: string[] } | null;
     if (!u) return;
     const role = (u.role || '').toLowerCase().replace(/-/g, '_');
-    const isAdmin = ['super_admin', 'admin', 'main_admin', 'platform_admin'].includes(role);
-    const hasAnalytics = Array.isArray(u.permissions) && u.permissions.includes('analytics');
-    if (!isAdmin && !hasAnalytics) router.replace(landingRouteFor(u as any));
+    // Bounce anyone whose home ISN'T this field-force overview back to it.
+    // Covers CRM-only clients and their client-admins (whose /analytics calls
+    // 403 here and render a broken field-force shell) as well as non-admins
+    // without the analytics module. The platform super admin is the only
+    // account that always belongs here.
+    const dest = landingRouteFor(u as any);
+    if (role !== 'super_admin' && dest !== '/dashboard') router.replace(dest);
   }, [router]);
 
   const today = new Date().toISOString().split('T')[0];
