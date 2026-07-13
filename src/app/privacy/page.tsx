@@ -22,6 +22,12 @@ export const metadata: Metadata = {
   title: 'Privacy Policy — Kinematic',
   description:
     'How Kaiyo Technology Labs collects, uses, shares and protects personal data through the Kinematic CRM / field-force platform, and the rights you have under GDPR and India’s DPDP Act, 2023.',
+  // The authoritative public copy lives on the marketing domain. This
+  // dashboard is customer-only, so its copy is a working in-app / fallback
+  // mirror only: canonical points at the public URL and it is noindexed so
+  // it never competes for SEO or creates duplicate content.
+  alternates: { canonical: 'https://kinematicapp.com/privacy' },
+  robots: { index: false, follow: true },
 };
 
 // Static legal content — safe to pre-render at build time.
