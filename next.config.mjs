@@ -21,6 +21,14 @@ const SUPABASE_HOST = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/\/+$
 const KINEMATIC_SUPABASE_HOST = (process.env.NEXT_PUBLIC_KINEMATIC_SUPABASE_URL || '').replace(/\/+$/, '');
 const API_HOST      = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/+$/, '');
 
+// Supabase Realtime uses a WebSocket to the same project host. Allowlist the
+// exact wss:// origins instead of a blanket `wss:` scheme-wildcard (which,
+// together with a trailing `https:`, let an injected script exfiltrate to ANY
+// host — defeating the whole point of connect-src). SECURITY_AUDIT_2026-07.md W-3.
+const toWss = (h) => (h ? h.replace(/^https:\/\//, 'wss://') : '');
+const SUPABASE_WSS = toWss(SUPABASE_HOST);
+const KINEMATIC_SUPABASE_WSS = toWss(KINEMATIC_SUPABASE_HOST);
+
 // Google Maps JS (address autocomplete on the lead form) loads its script from
 // maps.googleapis.com, pulls map/marker assets from maps.gstatic.com, and makes
 // Places XHRs to maps.googleapis.com — all three must be allowlisted or the CSP
@@ -39,7 +47,7 @@ const csp = [
   `style-src 'self' 'unsafe-inline' ${GOOGLE_FONTS_CSS}`,
   `img-src 'self' data: blob: https:`,
   `font-src 'self' data: ${GOOGLE_FONTS_FILES}`,
-  `connect-src 'self' ${SUPABASE_HOST} ${KINEMATIC_SUPABASE_HOST} ${API_HOST} https://api.anthropic.com ${GOOGLE_MAPS} wss: https:`.replace(/\s+/g, ' ').trim(),
+  `connect-src 'self' ${SUPABASE_HOST} ${KINEMATIC_SUPABASE_HOST} ${API_HOST} https://api.anthropic.com ${GOOGLE_MAPS} ${SUPABASE_WSS} ${KINEMATIC_SUPABASE_WSS}`.replace(/\s+/g, ' ').trim(),
   `frame-ancestors 'none'`,
   `frame-src 'self'`,
   `object-src 'none'`,
