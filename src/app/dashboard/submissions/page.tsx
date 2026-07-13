@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import api from '../../../lib/api';
+import SignedImage from '@/components/shared/SignedImage';
 import { extractImageUrls } from '../../../lib/utils';
 import { useTableSort, SortLabel } from '../../../lib/tableSort';
 
@@ -117,7 +118,7 @@ export default function SubmissionsPage() {
       return (
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '4px' }}>
           {urls.map((url, i) => (
-            <img key={i} src={url} alt="Submission" style={{ maxWidth: '100%', maxHeight: '120px', borderRadius: 12, border: `1px solid ${C.border}`, cursor: 'pointer' }} 
+            <SignedImage key={i} src={url} alt="Submission" style={{ maxWidth: '100%', maxHeight: '120px', borderRadius: 12, border: `1px solid ${C.border}`, cursor: 'pointer' }} 
                  onClick={() => window.open(url, '_blank')} />
           ))}
         </div>
@@ -129,7 +130,7 @@ export default function SubmissionsPage() {
       return (
         <div style={{ marginTop: 8, background: '#fff', borderRadius: 8, padding: 4, display: 'flex', gap: '8px' }}>
           {urls.map((url, i) => (
-            <img key={i} src={url} alt="Signature" style={{ maxWidth: '100%', height: 60, objectFit: 'contain' }} />
+            <SignedImage key={i} src={url} alt="Signature" style={{ maxWidth: '100%', height: 60, objectFit: 'contain' }} />
           ))}
         </div>
       );

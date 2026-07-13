@@ -1,5 +1,6 @@
 'use client';
 import { Suspense, useEffect, useMemo, useState } from 'react';
+import SignedImage from '@/components/shared/SignedImage';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
@@ -694,7 +695,7 @@ function ActivitiesPageInner() {
                         /* Photo attached to this activity. Click → full-size in a new tab. */
                         /* eslint-disable-next-line @next/next/no-img-element */
                         <a href={a.image_url} target="_blank" rel="noreferrer" style={{ display: 'inline-block', marginTop: 6, marginBottom: 6 }}>
-                          <img src={a.image_url} alt="Activity photo" style={{ maxWidth: 220, maxHeight: 160, borderRadius: 8, border: '1px solid var(--border)', objectFit: 'cover', display: 'block' }} />
+                          <SignedImage src={a.image_url} alt="Activity photo" style={{ maxWidth: 220, maxHeight: 160, borderRadius: 8, border: '1px solid var(--border)', objectFit: 'cover', display: 'block' }} />
                         </a>
                       )}
                       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>

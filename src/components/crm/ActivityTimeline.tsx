@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import SignedImage from '@/components/shared/SignedImage';
 import { toast } from 'sonner';
 import type { Activity } from '../../types/crm';
 import { format, formatDistanceToNow } from 'date-fns';
@@ -100,7 +101,7 @@ export default function ActivityTimeline({ activities, onChange }: Props) {
                        text shown — the image IS the visible affordance. */
                     /* eslint-disable-next-line @next/next/no-img-element */
                     <a href={a.image_url} target="_blank" rel="noreferrer" style={{ display: 'inline-block', marginTop: 8 }}>
-                      <img src={a.image_url} alt="Activity photo" style={{ maxWidth: 240, maxHeight: 180, borderRadius: 8, border: '1px solid var(--border)', objectFit: 'cover', display: 'block' }} />
+                      <SignedImage src={a.image_url} alt="Activity photo" style={{ maxWidth: 240, maxHeight: 180, borderRadius: 8, border: '1px solid var(--border)', objectFit: 'cover', display: 'block' }} />
                     </a>
                   )}
                   {a.owner_name && <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 4 }}>by {a.owner_name}</div>}

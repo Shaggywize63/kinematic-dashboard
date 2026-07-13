@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import { parseISO, isValid } from 'date-fns';
 import api from '../../../lib/api';
+import SignedImage from '@/components/shared/SignedImage';
 import ConfirmModal from '../../../components/ConfirmModal';
 import { useAuth } from '../../../hooks/useAuth';
 import { useClient } from '../../../context/ClientContext';
@@ -841,7 +842,7 @@ function AttendanceContent() {
         </div>
         {form.checkin_selfie_url && (
           <div style={{ marginBottom: 10, position: 'relative' }}>
-            <img src={form.checkin_selfie_url} alt="Check-in selfie preview"
+            <SignedImage src={form.checkin_selfie_url} alt="Check-in selfie preview"
               style={{ width: '100%', maxHeight: 140, objectFit: 'cover', borderRadius: 8, border: `1px solid ${C.green}40` }}
               onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
             <button onClick={() => setF('checkin_selfie_url', '')}
@@ -890,7 +891,7 @@ function AttendanceContent() {
         </div>
         {form.checkout_selfie_url && (
           <div style={{ marginBottom: 10, position: 'relative' }}>
-            <img src={form.checkout_selfie_url} alt="Check-out selfie preview"
+            <SignedImage src={form.checkout_selfie_url} alt="Check-out selfie preview"
               style={{ width: '100%', maxHeight: 140, objectFit: 'cover', borderRadius: 8, border: `1px solid ${C.blue}40` }}
               onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
             <button onClick={() => setF('checkout_selfie_url', '')}
@@ -1155,7 +1156,7 @@ function AttendanceContent() {
                     <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                       {r.checkin_selfie_url ? (
                         <div style={{ position: 'relative' }}>
-                          <img src={r.checkin_selfie_url} alt="In" style={{ width: 40, height: 40, borderRadius: 8, objectFit: 'cover', border: `1px solid ${C.green}40` }} />
+                          <SignedImage src={r.checkin_selfie_url} alt="In" style={{ width: 40, height: 40, borderRadius: 8, objectFit: 'cover', border: `1px solid ${C.green}40` }} />
                           <a href={r.checkin_selfie_url} target="_blank" rel="noreferrer" 
                              style={{ position: 'absolute', bottom: -2, right: -2, background: C.s3, border: `1px solid ${C.border}`, borderRadius: '50%', width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, textDecoration: 'none' }}>
                             👁️
@@ -1165,7 +1166,7 @@ function AttendanceContent() {
                       
                       {r.checkout_selfie_url ? (
                         <div style={{ position: 'relative' }}>
-                          <img src={r.checkout_selfie_url} alt="Out" style={{ width: 40, height: 40, borderRadius: 8, objectFit: 'cover', border: `1px solid ${C.blue}40` }} />
+                          <SignedImage src={r.checkout_selfie_url} alt="Out" style={{ width: 40, height: 40, borderRadius: 8, objectFit: 'cover', border: `1px solid ${C.blue}40` }} />
                           <a href={r.checkout_selfie_url} target="_blank" rel="noreferrer" 
                              style={{ position: 'absolute', bottom: -2, right: -2, background: C.s3, border: `1px solid ${C.border}`, borderRadius: '50%', width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, textDecoration: 'none' }}>
                             👁️
@@ -1337,7 +1338,7 @@ function AttendanceContent() {
                   <div>
                     <div style={{ fontSize: 10, color: C.grayd, marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Check-in Selfie</div>
                     <a href={detail.checkin_selfie_url} target="_blank" rel="noreferrer">
-                      <img src={detail.checkin_selfie_url} alt="Check-in selfie"
+                      <SignedImage src={detail.checkin_selfie_url} alt="Check-in selfie"
                         style={{ width: '100%', height: 110, objectFit: 'cover', borderRadius: 10, border: `1px solid rgba(0,217,126,0.25)`, display: 'block' }}
                         onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                     </a>
@@ -1347,7 +1348,7 @@ function AttendanceContent() {
                   <div>
                     <div style={{ fontSize: 10, color: C.grayd, marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Check-out Selfie</div>
                     <a href={detail.checkout_selfie_url} target="_blank" rel="noreferrer">
-                      <img src={detail.checkout_selfie_url} alt="Check-out selfie"
+                      <SignedImage src={detail.checkout_selfie_url} alt="Check-out selfie"
                         style={{ width: '100%', height: 110, objectFit: 'cover', borderRadius: 10, border: `1px solid rgba(62,158,255,0.25)`, display: 'block' }}
                         onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                     </a>
