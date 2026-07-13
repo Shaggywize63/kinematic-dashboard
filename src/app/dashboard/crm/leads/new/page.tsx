@@ -35,8 +35,11 @@ function isFirstSiteVisit(cf: Record<string, unknown> | null | undefined): boole
   });
 }
 
-// Tata Tiscon is consumer-only — never offer the B2B lead option.
+// Tata Tiscon is consumer-only — never offer the B2B lead option. BMW is
+// folded in as the second steel-dealer tenant and is likewise strictly B2C.
 const TATA_TISCON_CLIENT_ID = 'a1f67468-526e-4734-be3a-2cb132cc2804';
+const BMW_CLIENT_ID = '2ee5e03a-3a56-41c9-aaa0-16468920f871';
+const STEEL_DEALER_CLIENT_IDS = [TATA_TISCON_CLIENT_ID, BMW_CLIENT_ID];
 // The parent Kinematic tenant runs an inside-sales CRM, not a field-force
 // one — GPS lead-tagging is irrelevant there, so location capture is hidden
 // and never required for it.
@@ -182,7 +185,7 @@ export default function NewLeadPage() {
       return raw ? (JSON.parse(raw)?.client_id ?? null) : null;
     } catch { return null; }
   }, []);
-  const isTata = (form.client_id || userClientId || selectedClientId) === TATA_TISCON_CLIENT_ID;
+  const isTata = STEEL_DEALER_CLIENT_IDS.includes((form.client_id || userClientId || selectedClientId) ?? '');
   // Kinematic's own inside-sales CRM doesn't geo-tag leads — skip the GPS
   // capture entirely (auto-request, the Pin Location card, and the mandatory
   // check below all key off this).

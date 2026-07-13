@@ -15,9 +15,21 @@
 
 export const TATA_TISCON_CLIENT_ID = 'a1f67468-526e-4734-be3a-2cb132cc2804';
 
+/** BMW — the second steel-dealer-style tenant. Shares Tata's bespoke
+ * behaviours (tonne/kg deal pricing, product-basket at convert, the SRS
+ * lead-report CSV export) but keeps its own navigation. */
+export const BMW_CLIENT_ID = '2ee5e03a-3a56-41c9-aaa0-16468920f871';
+
 /** The parent Kinematic tenant. Used to trim CRM surfaces Kinematic
  * doesn't use (Pipeline, Products, People Directory, leads-on-map). */
 export const KINEMATIC_CLIENT_ID = '7ecd47d7-9268-4ea2-a8ce-384978c13667';
+
+/** Tenants that run the steel-dealer feature set (weight-based deal
+ * pricing, product-basket capture at convert, SRS lead report). Tata
+ * Tiscon was the original; BMW is folded in as the second one. Gate
+ * every steel-dealer-specific surface on membership in this set rather
+ * than a bare `=== TATA_TISCON_CLIENT_ID` so both tenants stay in sync. */
+const STEEL_DEALER_CLIENT_IDS = [TATA_TISCON_CLIENT_ID, BMW_CLIENT_ID];
 
 type AnyUser = {
   client_id?: string | null;
@@ -26,7 +38,7 @@ type AnyUser = {
 } | null | undefined;
 
 export function isTataTiscon(user: AnyUser): boolean {
-  return (user?.client_id ?? null) === TATA_TISCON_CLIENT_ID;
+  return STEEL_DEALER_CLIENT_IDS.includes(user?.client_id ?? '');
 }
 
 /**
@@ -56,7 +68,7 @@ export function activeClientId(user: AnyUser): string | null {
 }
 
 export function isTataTiscanActive(user: AnyUser): boolean {
-  return activeClientId(user) === TATA_TISCON_CLIENT_ID;
+  return STEEL_DEALER_CLIENT_IDS.includes(activeClientId(user) ?? '');
 }
 
 /**
@@ -70,6 +82,9 @@ export function isTataTiscanActive(user: AnyUser): boolean {
  */
 export const SRS_REPORT_ROLES = ['area sales officer', 'crm admin'];
 
+// BMW is included as the second steel-dealer tenant: isTataTiscanActive now
+// matches BMW's client id too, and BMW's admin carries the "CRM Admin"
+// org_role (in SRS_REPORT_ROLES), so this gate lets BMW download the report.
 export function canDownloadSrsReport(user: AnyUser): boolean {
   if (!isTataTiscanActive(user)) return false;
   const role = (user?.org_role?.name ?? user?.org_role_name ?? '').toString().trim().toLowerCase();

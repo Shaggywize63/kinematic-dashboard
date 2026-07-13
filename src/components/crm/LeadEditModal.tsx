@@ -16,6 +16,10 @@ import { useAuth } from '../../hooks/useAuth';
 interface Props { lead: Lead; open: boolean; onClose: () => void; onSaved: (updated: Lead) => void; }
 
 const TATA_TISCON_CLIENT_ID = 'a1f67468-526e-4734-be3a-2cb132cc2804';
+// BMW — the second steel-dealer tenant; shares Tata's consumer-only flow
+// and the "Also log as Site Visit" affordance.
+const BMW_CLIENT_ID = '2ee5e03a-3a56-41c9-aaa0-16468920f871';
+const STEEL_DEALER_CLIENT_IDS = [TATA_TISCON_CLIENT_ID, BMW_CLIENT_ID];
 const KINEMATIC_CLIENT_ID = '7ecd47d7-9268-4ea2-a8ce-384978c13667';
 
 // True when ANY custom field on the lead matches the "first site visit"
@@ -45,8 +49,8 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
   // Tata Tiscon affordance — mirror the create form. Lets the rep log a
   // follow-up site visit while editing without bouncing to Activities.
   const isTata =
-    (lead as Lead & { client_id?: string | null }).client_id === TATA_TISCON_CLIENT_ID
-    || user?.client_id === TATA_TISCON_CLIENT_ID;
+    STEEL_DEALER_CLIENT_IDS.includes((lead as Lead & { client_id?: string | null }).client_id ?? '')
+    || STEEL_DEALER_CLIENT_IDS.includes(user?.client_id ?? '');
   // Kinematic's own inside-sales CRM doesn't geo-tag leads — hide the
   // coordinate capture entirely (matches the lead-create form).
   const isKinematic =
