@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
+import SignedImage from '@/components/shared/SignedImage';
 import { crmCustomFields, crmLookup, crmProducts } from '../../lib/crmApi';
 import type { CustomField, Lead, Product } from '../../types/crm';
 import { evaluateClientFormula } from './CustomFieldsSection';
@@ -521,7 +522,7 @@ function formatCustomValue(v: unknown, type: CustomField['field_type']): React.R
     </a>
   );
   if (type === 'image') return (
-    <img src={String(v)} alt="" style={{ maxWidth: 120, maxHeight: 80, borderRadius: 6, border: '1px solid var(--border)' }} />
+    <SignedImage src={String(v)} alt="" style={{ maxWidth: 120, maxHeight: 80, borderRadius: 6, border: '1px solid var(--border)' }} />
   );
   if (type === 'lookup') {
     const obj = v as { label?: string; id?: string };

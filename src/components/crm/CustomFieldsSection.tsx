@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
+import SignedImage from '@/components/shared/SignedImage';
 import { toast } from 'sonner';
 import { crmCustomFields, crmLookup, type LookupHit } from '../../lib/crmApi';
 import api from '../../lib/api';
@@ -433,7 +434,7 @@ function FileUploader({ field, value, onChange }: { field: CustomField; value: u
           <>
             {isImage ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={url} alt={field.label} style={{ maxWidth: 120, maxHeight: 80, borderRadius: 6, border: '1px solid var(--border)' }} />
+              <SignedImage src={url} alt={field.label} style={{ maxWidth: 120, maxHeight: 80, borderRadius: 6, border: '1px solid var(--border)' }} />
             ) : (
               <a href={url} target="_blank" rel="noreferrer" style={{ color: 'var(--primary)', fontSize: 12, textDecoration: 'underline' }}>
                 View attached file ↗
