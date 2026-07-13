@@ -22,10 +22,13 @@ interface Props {
 //   - Multiple product line items — pick several products, enter
 //     pieces (preferred) or kg per row; the modal auto-computes the
 //     row subtotal and the deal total.
-// Bespoke for Tata Tiscon (TMT bar sold by metric tonne); no other
-// client sells by mass so the line-item section is gated to that
-// client_id to keep the form clean for everyone else.
+// Bespoke for the steel-dealer tenants (Tata Tiscon's TMT bar sold by
+// metric tonne, and BMW folded in as the second such tenant); no other
+// client sells by mass so the line-item section is gated to those
+// client_ids to keep the form clean for everyone else.
 const TATA_TISCON_CLIENT_ID = 'a1f67468-526e-4734-be3a-2cb132cc2804';
+const BMW_CLIENT_ID = '2ee5e03a-3a56-41c9-aaa0-16468920f871';
+const STEEL_DEALER_CLIENT_IDS = [TATA_TISCON_CLIENT_ID, BMW_CLIENT_ID];
 
 type LineItem = {
   // Stable per-row id so React keys + remove() don't trip over
@@ -91,7 +94,7 @@ export default function LeadConvertModal({ leadId, defaultDealName, open, onClos
       return raw ? (JSON.parse(raw)?.client_id ?? null) : null;
     } catch { return null; }
   }, []);
-  const allowWeight = userClientId === TATA_TISCON_CLIENT_ID || selectedClientId === TATA_TISCON_CLIENT_ID;
+  const allowWeight = STEEL_DEALER_CLIENT_IDS.includes(userClientId ?? '') || STEEL_DEALER_CLIENT_IDS.includes(selectedClientId ?? '');
 
   // Lazy-load weight-based products only when the modal opens AND the
   // weight UI is in scope (no point fetching for non-Tata clients).
