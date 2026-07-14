@@ -355,7 +355,7 @@ export default function LoginPage() {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
             <img
-              src="https://kinematicapp.com/assets/logo.png"
+              src="/logo-mark.svg"
               alt="Kinematic"
               style={{ height: 40, width: 'auto', objectFit: 'contain', display: 'block' }}
             />
