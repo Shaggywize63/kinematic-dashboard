@@ -22,7 +22,7 @@ export default function LogoSpinner({ size = 48, label, overlay = false }: Props
   const inner = (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
       <img
-        src="/logo-mark.svg"
+        src="https://kinematicapp.com/assets/logo.png"
         alt="Loading"
         style={{
           height: size,

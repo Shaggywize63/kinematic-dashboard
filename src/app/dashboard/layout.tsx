@@ -577,7 +577,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           }}>
             <div style={{ display:'flex', alignItems:'center', gap:12, minWidth:0 }}>
               <img
-                src="/logo-mark.svg"
+                src="https://kinematicapp.com/assets/logo.png"
                 alt="K"
                 style={{ height: 28, width: 'auto', objectFit: 'contain', flexShrink: 0, display: 'block' }}
               />
