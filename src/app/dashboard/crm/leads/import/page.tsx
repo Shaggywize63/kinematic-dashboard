@@ -1,20 +1,95 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { crmImport } from '../../../../../lib/crmApi';
-import type { ImportJob } from '../../../../../types/crm';
+import { crmImport, crmSettings, crmCustomFields } from '../../../../../lib/crmApi';
+import { extractFieldOverrides, buildFieldHelpers, type FieldOverrides } from '../../../../../lib/crmFieldOverrides';
+import type { ImportJob, CustomField } from '../../../../../types/crm';
 
-const LEAD_FIELDS = ['first_name', 'last_name', 'email', 'phone', 'company', 'title', 'status', 'source', 'owner_email'];
+type TargetField = { key: string; label: string; group: 'Built-in' | 'Custom fields' };
 
-const TEMPLATE_ROWS = [
-  'first_name,last_name,email,phone,company,title,status,source,owner_email',
-  'Jane,Doe,jane@acme.com,9999900000,Acme Corp,VP Sales,new,Website,rep@company.com',
-  'John,Smith,john@globex.com,8888800000,Globex Inc,Manager,new,Referral,',
+// Every built-in lead field the New Lead form can submit, with its import
+// mapping key + default label. `scope` mirrors the form's B2B/B2C split;
+// `gated` fields respect the client's field-override hide/relabel config.
+// `overrideKey` is the key the override gate uses when it differs from the
+// import key (owner_email → owner_id, source → source_id). The import service
+// resolves owner_email → owner_id and source → source_id at commit time.
+const BUILTIN_FIELDS: Array<{ key: string; label: string; scope?: 'b2b' | 'b2c'; gated?: boolean; overrideKey?: string }> = [
+  { key: 'first_name', label: 'First Name', gated: true },
+  { key: 'last_name', label: 'Last Name', gated: true },
+  { key: 'email', label: 'Email', gated: true },
+  { key: 'phone', label: 'Primary Mobile', gated: true },
+  { key: 'alternate_mobiles', label: 'Alternate Mobiles' },
+  { key: 'status', label: 'Status', gated: true },
+  { key: 'source', label: 'Source', gated: true, overrideKey: 'source_id' },
+  { key: 'owner_email', label: 'Assign To (owner email)', gated: true, overrideKey: 'owner_id' },
+  { key: 'owner_name', label: 'Assign To (owner name)', gated: true, overrideKey: 'owner_id' },
+  { key: 'company', label: 'Company', scope: 'b2b', gated: true },
+  { key: 'title', label: 'Job Title', scope: 'b2b', gated: true },
+  { key: 'industry', label: 'Industry', scope: 'b2b', gated: true },
+  { key: 'date_of_birth', label: 'Date of Birth', scope: 'b2c', gated: true },
+  { key: 'gender', label: 'Gender', scope: 'b2c', gated: true },
+  { key: 'preferred_contact_method', label: 'Preferred Channel', scope: 'b2c', gated: true },
+  { key: 'address_line1', label: 'Address Line 1', scope: 'b2c', gated: true },
+  { key: 'address_line2', label: 'Address Line 2', scope: 'b2c', gated: true },
+  { key: 'city', label: 'City', gated: true },
+  { key: 'state', label: 'State' },
+  { key: 'postal_code', label: 'Postal Code', scope: 'b2c', gated: true },
+  { key: 'country', label: 'Country', scope: 'b2c', gated: true },
+  { key: 'district', label: 'District' },
+  { key: 'block', label: 'Block' },
+  { key: 'marketing_consent', label: 'Marketing Consent', scope: 'b2c', gated: true },
+  { key: 'whatsapp_consent', label: 'WhatsApp Consent', scope: 'b2c', gated: true },
+  { key: 'notes', label: 'Notes' },
+  { key: 'tags', label: 'Tags' },
+  { key: 'is_b2c', label: 'Is Consumer (B2C)' },
+  { key: 'latitude', label: 'Latitude' },
+  { key: 'longitude', label: 'Longitude' },
 ];
 
-function downloadTemplate() {
-  const csv = TEMPLATE_ROWS.join('\n');
+// Product-line custom fields the form manages via its own section — not import targets.
+const PRODUCT_LINE_KEYS = new Set(['product_interested', 'quantity', 'measuring_unit', 'estimated_amount']);
+
+// Build the import mapping targets = visible built-in fields (respecting the
+// client's field overrides across both B2B and B2C scopes, since a CSV can hold
+// either) + the client's lead custom fields. Passing overrides=null (before
+// settings load) leaves all built-ins visible.
+function computeTargets(overrides: FieldOverrides | null, customs: CustomField[]): TargetField[] {
+  const b2b = buildFieldHelpers(overrides ?? undefined, 'lead', 'b2b');
+  const b2c = buildFieldHelpers(overrides ?? undefined, 'lead', 'b2c');
+  const builtins: TargetField[] = [];
+  for (const f of BUILTIN_FIELDS) {
+    const gk = f.overrideKey ?? f.key;
+    let visible = true;
+    let label = f.label;
+    if (f.gated && overrides) {
+      if (f.scope === 'b2b') { visible = !b2b.isHidden(gk); label = b2b.labelFor(gk, f.label); }
+      else if (f.scope === 'b2c') { visible = !b2c.isHidden(gk); label = b2c.labelFor(gk, f.label); }
+      else {
+        const vb = !b2b.isHidden(gk);
+        const vc = !b2c.isHidden(gk);
+        visible = vb || vc;
+        label = (vb ? b2b : b2c).labelFor(gk, f.label);
+      }
+    }
+    if (visible) builtins.push({ key: f.key, label, group: 'Built-in' });
+  }
+  const custom: TargetField[] = customs
+    .filter((c) => c.entity_type === 'lead' && !c.hidden && c.field_type !== 'formula' && !PRODUCT_LINE_KEYS.has(c.field_key))
+    .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
+    .map((c) => ({ key: `custom_fields.${c.field_key}`, label: c.label || c.field_key, group: 'Custom fields' as const }));
+  return [...builtins, ...custom];
+}
+
+function downloadTemplate(targets: TargetField[]) {
+  const keys = targets.map((t) => t.key);
+  const sampleMap: Record<string, string> = {
+    first_name: 'Jane', last_name: 'Doe', email: 'jane@acme.com', phone: '9999900000',
+    company: 'Acme Corp', title: 'VP Sales', status: 'new', source: 'Website',
+    owner_email: 'rep@company.com', city: 'Patna', state: 'Bihar',
+  };
+  const sample = keys.map((k) => sampleMap[k] ?? '');
+  const csv = [keys.join(','), sample.join(',')].join('\n');
   const blob = new Blob([csv], { type: 'text/csv' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -41,6 +116,24 @@ export default function LeadImportPage() {
   const [sample, setSample] = useState<Array<Record<string, unknown>>>([]);
   const [summary, setSummary] = useState<CommitSummary | null>(null);
   const [busy, setBusy] = useState(false);
+  // Mapping targets = visible built-in fields + this client's lead custom fields,
+  // loaded from the same config the New Lead form uses so import maps everything.
+  const [targetFields, setTargetFields] = useState<TargetField[]>(() => computeTargets(null, []));
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const [s, cf] = await Promise.all([crmSettings.get(), crmCustomFields.list()]);
+        const overrides = extractFieldOverrides((s as { data?: unknown })?.data ?? s);
+        const customs = (((cf as { data?: CustomField[] })?.data) ?? []) as CustomField[];
+        if (alive) setTargetFields(computeTargets(overrides, customs));
+      } catch {
+        /* keep the default built-in list if settings/custom-fields fail to load */
+      }
+    })();
+    return () => { alive = false; };
+  }, []);
 
   const upload = async (file: File) => {
     setBusy(true);
@@ -74,14 +167,29 @@ export default function LeadImportPage() {
         // import service then resolves owner_email → owner_id at run
         // time). NEVER fold into the lead's own email/phone columns.
         owneremail: 'owner_email', rep_email: 'owner_email', sales_email: 'owner_email',
-        assigned_to: 'owner_email', assigned_to_email: 'owner_email',
-        owner_mail: 'owner_email',
+        assigned_to_email: 'owner_email', owner_mail: 'owner_email',
+        // Owner by NAME — resolves to owner_id server-side just like owner_email.
+        owner: 'owner_name', ownername: 'owner_name', assigned_to: 'owner_name',
+        assigned_to_name: 'owner_name', rep_name: 'owner_name', sales_rep: 'owner_name',
+        salesperson: 'owner_name', sales_person: 'owner_name', account_owner: 'owner_name',
       };
+      // Header (normalised) → target key, built from the live target list so
+      // built-in AND custom fields auto-map. Match on the target key, its label,
+      // or (for custom fields) the bare field_key after the custom_fields. prefix.
+      const keyByNorm = new Map<string, string>();
+      const normKey = (v: string) => v.toLowerCase().replace(/[\s-]/g, '_');
+      for (const t of targetFields) {
+        keyByNorm.set(normKey(t.key), t.key);
+        keyByNorm.set(normKey(t.label), t.key);
+        if (t.key.startsWith('custom_fields.')) {
+          keyByNorm.set(normKey(t.key.slice('custom_fields.'.length)), t.key);
+        }
+      }
       const auto: Record<string, string> = {};
       cols.forEach((c) => {
-        const norm = c.toLowerCase().replace(/[\s-]/g, '_');
-        if (LEAD_FIELDS.includes(norm)) {
-          auto[c] = norm;
+        const norm = normKey(c);
+        if (keyByNorm.has(norm)) {
+          auto[c] = keyByNorm.get(norm)!;
         } else if (SYNONYMS[norm]) {
           auto[c] = SYNONYMS[norm];
         }
@@ -162,7 +270,7 @@ export default function LeadImportPage() {
     <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 24, maxWidth: 900 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
         <h2 style={{ margin: 0, color: 'var(--text)', fontSize: 18 }}>Import Leads</h2>
-        <button onClick={downloadTemplate} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+        <button onClick={() => downloadTemplate(targetFields)} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
           ⬇ Download Template CSV
         </button>
       </div>
@@ -206,7 +314,15 @@ export default function LeadImportPage() {
                 <span style={{ color: 'var(--text-dim)' }}>→</span>
                 <select value={mapping[h] || ''} onChange={(e) => setMapping({ ...mapping, [h]: e.target.value })} style={{ flex: 1, background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px 10px', borderRadius: 6, fontSize: 13 }}>
                   <option value="">(skip)</option>
-                  {LEAD_FIELDS.map((f) => <option key={f} value={f}>{f}</option>)}
+                  {(['Built-in', 'Custom fields'] as const).map((grp) => {
+                    const items = targetFields.filter((t) => t.group === grp);
+                    if (items.length === 0) return null;
+                    return (
+                      <optgroup key={grp} label={grp}>
+                        {items.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
+                      </optgroup>
+                    );
+                  })}
                 </select>
               </div>
             ))}
