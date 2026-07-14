@@ -23,6 +23,7 @@ const BUILTIN_FIELDS: Array<{ key: string; label: string; scope?: 'b2b' | 'b2c';
   { key: 'status', label: 'Status', gated: true },
   { key: 'source', label: 'Source', gated: true, overrideKey: 'source_id' },
   { key: 'owner_email', label: 'Assign To (owner email)', gated: true, overrideKey: 'owner_id' },
+  { key: 'owner_name', label: 'Assign To (owner name)', gated: true, overrideKey: 'owner_id' },
   { key: 'company', label: 'Company', scope: 'b2b', gated: true },
   { key: 'title', label: 'Job Title', scope: 'b2b', gated: true },
   { key: 'industry', label: 'Industry', scope: 'b2b', gated: true },
@@ -166,8 +167,11 @@ export default function LeadImportPage() {
         // import service then resolves owner_email → owner_id at run
         // time). NEVER fold into the lead's own email/phone columns.
         owneremail: 'owner_email', rep_email: 'owner_email', sales_email: 'owner_email',
-        assigned_to: 'owner_email', assigned_to_email: 'owner_email',
-        owner_mail: 'owner_email',
+        assigned_to_email: 'owner_email', owner_mail: 'owner_email',
+        // Owner by NAME — resolves to owner_id server-side just like owner_email.
+        owner: 'owner_name', ownername: 'owner_name', assigned_to: 'owner_name',
+        assigned_to_name: 'owner_name', rep_name: 'owner_name', sales_rep: 'owner_name',
+        salesperson: 'owner_name', sales_person: 'owner_name', account_owner: 'owner_name',
       };
       // Header (normalised) → target key, built from the live target list so
       // built-in AND custom fields auto-map. Match on the target key, its label,

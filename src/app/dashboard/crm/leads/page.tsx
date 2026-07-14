@@ -10,7 +10,6 @@ import type { Lead, LeadSource } from '../../../../types/crm';
 import LeadsTable, { LEAD_COLUMNS } from '../../../../components/crm/LeadsTable';
 import LeadFilters, { type LeadFiltersValue } from '../../../../components/crm/LeadFilters';
 import ViewCustomizer from '../../../../components/crm/shared/ViewCustomizer';
-import BulkCoordinatesModal from '../../../../components/crm/BulkCoordinatesModal';
 import { useViewPrefs } from '../../../../lib/crmViewPrefs';
 
 type UserOption = { id: string; name: string };
@@ -25,9 +24,9 @@ const DEFAULT_PAGE_SIZE = 50;
  * dashboard uses a `narrow` / `isCompact` JS flag for responsiveness
  * instead of CSS media queries (because every style on this page is
  * inline). Breakpoint matches "phone or smaller" — at 640 px the
- * 5-button toolbar row (ViewCustomizer · Export · Import · Coordinates
- * · + New Lead) wraps onto 4+ lines and the New Lead CTA can end up
- * below the page header where reps don't see it.
+ * toolbar row (ViewCustomizer · Export · Import · + New Lead) wraps
+ * onto multiple lines and the New Lead CTA can end up below the page
+ * header where reps don't see it.
  */
 function useIsCompact(breakpoint = 640): boolean {
   const [v, setV] = useState(false);
@@ -59,7 +58,6 @@ export default function LeadsListPage() {
   // tenant size + custom-field hydration). Reps were reporting "export is
   // broken" when really the request just took 25s with no visible feedback.
   const [exportElapsed, setExportElapsed] = useState(0);
-  const [showCoordsModal, setShowCoordsModal] = useState(false);
   // Disables the bulk-delete button + selection while the soft-delete
   // loop is running so a user can't double-click or change selection
   // mid-flight. Mirrors the same flag on the deals list page.
@@ -505,12 +503,6 @@ export default function LeadsListPage() {
             </span>
           </button>
           <Link href="/dashboard/crm/leads/import" style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600 }}>Import</Link>
-          <button
-            type="button"
-            onClick={() => setShowCoordsModal(true)}
-            title="Bulk-upload latitude/longitude for existing leads"
-            style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
-          >📍 Coordinates</button>
           <Link href="/dashboard/crm/leads/new" style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700 }}>+ New Lead</Link>
         </div>
       </div>
@@ -534,7 +526,6 @@ export default function LeadsListPage() {
           <option value="status:asc">Status</option>
         </select>
       </div>
-      <BulkCoordinatesModal open={showCoordsModal} onClose={() => setShowCoordsModal(false)} onDone={() => reload()} />
       <LeadsTable
         leads={filtered}
         selected={selected}
