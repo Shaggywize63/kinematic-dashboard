@@ -120,6 +120,7 @@ export default function PeopleDirectoryImportPage() {
   });
   const [onDuplicate, setOnDuplicate] = useState<'skip' | 'update'>('skip');
   const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [result, setResult] = useState<{ added: number; updated: number; skipped: number; total: number } | null>(null);
 
   const handleFile = async (file: File) => {
@@ -172,14 +173,36 @@ export default function PeopleDirectoryImportPage() {
   const commit = async () => {
     if (!mappedRows.length) { toast.error('No rows to import after mapping.'); return; }
     setBusy(true);
+    // Chunk the upload. The /bulk-import handler dedups each row with a few
+    // sequential DB probes, so a single ~1000-row POST can outlast the gateway
+    // timeout and surface in the browser as a generic "Load failed" fetch
+    // error. Sending smaller batches keeps every request well under the
+    // timeout and lets us drive a real progress bar. Counts are accumulated
+    // across batches so the final result is still one honest total.
+    const CHUNK = 100;
+    const totals = { added: 0, updated: 0, skipped: 0, total: 0 };
+    setProgress({ done: 0, total: mappedRows.length });
     try {
-      const r = await crmPeopleDirectory.bulkImport({ rows: mappedRows, on_duplicate: onDuplicate });
-      setResult(r.data as any);
-      toast.success(`Imported: ${r.data?.added ?? 0} added, ${r.data?.updated ?? 0} updated, ${r.data?.skipped ?? 0} skipped`);
+      for (let i = 0; i < mappedRows.length; i += CHUNK) {
+        const slice = mappedRows.slice(i, i + CHUNK);
+        const r = await crmPeopleDirectory.bulkImport({ rows: slice, on_duplicate: onDuplicate });
+        const d = (r.data as any) || {};
+        totals.added   += d.added   ?? 0;
+        totals.updated += d.updated ?? 0;
+        totals.skipped += d.skipped ?? 0;
+        totals.total   += d.total   ?? slice.length;
+        setProgress({ done: Math.min(i + CHUNK, mappedRows.length), total: mappedRows.length });
+      }
+      setResult({ ...totals });
+      toast.success(`Imported: ${totals.added} added, ${totals.updated} updated, ${totals.skipped} skipped`);
     } catch (err: any) {
-      toast.error(err?.message || 'Import failed');
+      // Surface partial progress so a mid-way failure isn't read as
+      // "nothing imported".
+      const done = totals.added + totals.updated + totals.skipped;
+      toast.error(`${err?.message || 'Import failed'}${done ? ` — ${done} of ${mappedRows.length} row(s) processed before the error` : ''}`);
     } finally {
       setBusy(false);
+      setProgress(null);
     }
   };
 
@@ -297,6 +320,17 @@ export default function PeopleDirectoryImportPage() {
             </div>
           </div>
           <Preview rows={mappedRows.slice(0, 5)} />
+          {busy && progress && progress.total > 0 && (
+            <div style={{ marginTop: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-dim)', marginBottom: 6 }}>
+                <span>Importing…</span>
+                <span>{progress.done} / {progress.total} ({Math.round((progress.done / progress.total) * 100)}%)</span>
+              </div>
+              <div style={{ height: 8, borderRadius: 999, background: 'var(--s1)', border: '1px solid var(--border)', overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${Math.round((progress.done / progress.total) * 100)}%`, background: 'var(--primary)', transition: 'width 0.25s ease' }} />
+              </div>
+            </div>
+          )}
           <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 16 }}>
             <button onClick={() => setStep(2)} style={btnSecondary} disabled={busy}>← Back</button>
             <button onClick={commit} style={btnPrimary} disabled={busy}>{busy ? 'Importing…' : `Import ${mappedRows.length} row${mappedRows.length === 1 ? '' : 's'}`}</button>
