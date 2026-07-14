@@ -237,7 +237,11 @@ export default function CrmUsersPage() {
         // drift.
         const raw = (c.value as any)?.data ?? c.value ?? [];
         const list = Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : [];
-        setCities(list.filter((x: any) => x?.id && x?.name) as CityRow[]);
+        // Render the Assigned Cities picker alphabetically by name (the API
+        // returns them in insertion order, which put a couple out of place).
+        const sorted = (list.filter((x: any) => x?.id && x?.name) as CityRow[])
+          .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+        setCities(sorted);
       }
     } catch (e: any) {
       toast.error(e.message || 'Failed to load users');
