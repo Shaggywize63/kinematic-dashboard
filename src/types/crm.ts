@@ -156,6 +156,12 @@ export interface Deal {
   ai_win_probability?: number | null;
   ai_win_confidence?: number | null;
   tags?: string[] | null;
+  // Stamped by the deals list + detail endpoints (not real columns):
+  // dealer_name is resolved server-side; lead_name / lead_phone come
+  // from the linked source lead.
+  dealer_name?: string | null;
+  lead_name?: string | null;
+  lead_phone?: string | null;
   // Admin-defined custom fields plus the bespoke keys other surfaces
   // read/write (next_action_type / next_action_at / volume_kg /
   // line_items / closed_quantities). Backend PATCH merges partial objects.

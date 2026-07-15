@@ -2,8 +2,8 @@
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { crmDeals, crmPipelines, crmProducts, crmAccounts, crmContacts } from '../../../../../lib/crmApi';
-import type { Account, Contact, Pipeline, Product } from '../../../../../types/crm';
+import { crmDeals, crmPipelines, crmProducts, crmAccounts, crmContacts, crmLeads } from '../../../../../lib/crmApi';
+import type { Account, Contact, Lead, Pipeline, Product } from '../../../../../types/crm';
 import ClientScopeField from '../../../../../components/ClientScopeField';
 import CustomFieldsSection from '../../../../../components/crm/CustomFieldsSection';
 import { useAuth } from '../../../../../hooks/useAuth';
@@ -46,6 +46,14 @@ function NewDealPageInner() {
   // becomes the row's custom_fields jsonb (same pattern as the lead form).
   const [customFields, setCustomFields] = useState<Record<string, unknown>>({});
   const [busy, setBusy] = useState(false);
+  // Optional Source Lead picker — debounced typeahead over the leads list
+  // (server-side q= matches name/email/phone; converted leads stay in the
+  // response by default, which is the point: it lets a rep create an
+  // ADDITIONAL deal for a lead that already converted once).
+  const [leadQuery, setLeadQuery] = useState('');
+  const [leadOptions, setLeadOptions] = useState<LeadPick[]>([]);
+  const [leadSearching, setLeadSearching] = useState(false);
+  const [selectedLead, setSelectedLead] = useState<LeadPick | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -64,6 +72,48 @@ function NewDealPageInner() {
       } catch (e: any) { toast.error(e.message || 'Failed to load pipelines'); }
     })();
   }, [initialPipelineId]);
+
+  // Resolve the ?lead_id= deep link into a visible chip so the rep can see
+  // (and clear) the preselected source lead instead of a silent hidden id.
+  useEffect(() => {
+    if (!initialLeadId) return;
+    let cancelled = false;
+    crmLeads.get(initialLeadId)
+      .then((r) => { if (!cancelled && r?.data) setSelectedLead(toLeadPick(r.data)); })
+      .catch(() => { /* keep the raw id in form.lead_id — chip just won't show */ });
+    return () => { cancelled = true; };
+  }, [initialLeadId]);
+
+  // Debounced lead search — mirrors the activities page's lead picker.
+  useEffect(() => {
+    const q = leadQuery.trim();
+    if (!q) { setLeadOptions([]); return; }
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      setLeadSearching(true);
+      try {
+        const r = await crmLeads.list({ q, limit: 25 });
+        if (cancelled) return;
+        setLeadOptions((r.data || []).map(toLeadPick));
+      } catch {
+        if (!cancelled) setLeadOptions([]);
+      } finally {
+        if (!cancelled) setLeadSearching(false);
+      }
+    }, 250);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [leadQuery]);
+
+  const pickLead = (l: LeadPick) => {
+    setSelectedLead(l);
+    setForm((f) => ({ ...f, lead_id: l.id }));
+    setLeadQuery('');
+    setLeadOptions([]);
+  };
+  const clearLead = () => {
+    setSelectedLead(null);
+    setForm((f) => ({ ...f, lead_id: '' }));
+  };
 
   // Horizon-only: pull accounts + contacts so reps can attach the deal to
   // a company + primary contact at create-time. Tata Tiscon keeps the
@@ -135,11 +185,13 @@ function NewDealPageInner() {
         stage_id: form.stage_id || undefined,
         expected_close_date: form.expected_close_date || null,
         client_id: form.client_id || undefined,
-        // Standard CRM relationships — only sent for Horizon users.
-        // Tata Tiscon's form doesn't expose the pickers so these stay null.
+        // Account / contact links — only sent for Horizon users.
+        // Tata Tiscon's form doesn't expose those pickers so they stay null.
         account_id: showLinks && form.account_id ? form.account_id : undefined,
         primary_contact_id: showLinks && form.primary_contact_id ? form.primary_contact_id : undefined,
-        lead_id: showLinks && form.lead_id ? form.lead_id : undefined,
+        // Source lead — every tenant can attach one via the picker below,
+        // enabling additional deals for a lead that already converted.
+        lead_id: form.lead_id || undefined,
         custom_fields: Object.keys(customFields).length > 0 ? customFields : undefined,
       } as any);
       toast.success('Deal created');
@@ -188,6 +240,59 @@ function NewDealPageInner() {
         {/* Expected close date is required — without it the Forecast
             and Sales-cycle reports show nothing. */}
         <Field label="Expected Close Date *"><input type="date" value={form.expected_close_date} onChange={(e) => setForm({ ...form, expected_close_date: e.target.value })} required style={input} /></Field>
+        {/* Optional source lead — search by name / phone and pick one to
+            stamp lead_id on the new deal. Lets a rep create a SECOND deal
+            for a lead whose conversion already produced one. */}
+        <Field label="Source Lead (optional)">
+          {selectedLead ? (
+            <div style={{ ...input, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {selectedLead.name}{selectedLead.phone ? ` · ${selectedLead.phone}` : ''}
+              </span>
+              <button
+                type="button"
+                onClick={clearLead}
+                title="Remove the source lead"
+                style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 0 }}
+              >×</button>
+            </div>
+          ) : (
+            <div style={{ position: 'relative' }}>
+              <input
+                value={leadQuery}
+                onChange={(e) => setLeadQuery(e.target.value)}
+                placeholder="Search leads by name / phone…"
+                style={{ ...input, width: '100%', boxSizing: 'border-box' }}
+              />
+              {leadQuery.trim() !== '' && (
+                <div style={{
+                  position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 20, marginTop: 4,
+                  background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 8,
+                  maxHeight: 220, overflowY: 'auto', boxShadow: '0 8px 24px rgba(0,0,0,0.25)',
+                }}>
+                  {leadSearching && <div style={{ padding: '8px 12px', fontSize: 12, color: 'var(--text-dim)' }}>Searching…</div>}
+                  {!leadSearching && leadOptions.length === 0 && (
+                    <div style={{ padding: '8px 12px', fontSize: 12, color: 'var(--text-dim)' }}>No leads match.</div>
+                  )}
+                  {!leadSearching && leadOptions.map((l) => (
+                    <button
+                      key={l.id}
+                      type="button"
+                      onClick={() => pickLead(l)}
+                      style={{
+                        display: 'block', width: '100%', textAlign: 'left', background: 'transparent',
+                        border: 'none', borderBottom: '1px solid var(--border)', color: 'var(--text)',
+                        padding: '8px 12px', fontSize: 13, cursor: 'pointer',
+                      }}
+                    >
+                      {l.name}{l.phone ? <span style={{ color: 'var(--text-dim)' }}> · {l.phone}</span> : null}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </Field>
         {showLinks && (
           <>
             <Field label="Account">
@@ -227,6 +332,16 @@ function NewDealPageInner() {
       </div>
     </form>
   );
+}
+
+// Minimal row for the Source Lead picker — name + phone is what the rep
+// recognises a customer by in the field.
+type LeadPick = { id: string; name: string; phone: string };
+
+function toLeadPick(l: Lead): LeadPick {
+  const name = [l.first_name, l.last_name].filter(Boolean).join(' ').trim()
+    || l.full_name || l.email || l.phone || `Lead ${String(l.id).slice(0, 8)}`;
+  return { id: l.id, name, phone: l.phone || '' };
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {

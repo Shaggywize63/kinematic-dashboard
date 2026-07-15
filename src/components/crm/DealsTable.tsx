@@ -54,12 +54,24 @@ function SortTh({ label, sortKey, sort, onSort, thStyle, align = 'left' }: {
 
 export const DEAL_COLUMNS = [
   { key: 'name', label: 'Name', locked: true },
+  { key: 'dealer', label: 'Dealer' },
   { key: 'amount', label: 'Amount' },
+  { key: 'volume_kg', label: 'Volume (kg)' },
   { key: 'stage', label: 'Stage' },
   { key: 'status', label: 'Status' },
   { key: 'close_date', label: 'Close Date' },
   { key: 'owner', label: 'Owner' },
 ] as const;
+
+// Cell value for the Volume (kg) column — reads the cached
+// custom_fields.volume_kg the backend stamps on each deal row. Blank
+// (not '—') when absent so non-tonnage tenants get a quiet column.
+function volumeKgCell(d: Deal): string {
+  const v = d.custom_fields?.volume_kg;
+  if (v == null || v === '') return '';
+  const n = typeof v === 'number' ? v : Number(v);
+  return Number.isFinite(n) ? n.toLocaleString('en-IN') : '';
+}
 
 export default function DealsTable({ deals, loading, onAssign, onDelete, selected, onToggle, onToggleAll, hiddenColumns, viewMode = 'table', sort, onSort }: Props) {
   const td: React.CSSProperties = { padding: '12px 14px', fontSize: 13, color: 'var(--text)', borderBottom: '1px solid var(--border)' };
@@ -71,7 +83,9 @@ export default function DealsTable({ deals, loading, onAssign, onDelete, selecte
   const tableClass = `responsive-cards${viewMode === 'cards' ? ' cards-view' : ''}`;
 
   let colCount = (showSelection ? 1 : 0) + 1; // name always
+  if (!hidden.has('dealer'))     colCount += 1;
   if (!hidden.has('amount'))     colCount += 1;
+  if (!hidden.has('volume_kg'))  colCount += 1;
   if (!hidden.has('stage'))      colCount += 1;
   if (!hidden.has('status'))     colCount += 1;
   if (!hidden.has('close_date')) colCount += 1;
@@ -90,7 +104,11 @@ export default function DealsTable({ deals, loading, onAssign, onDelete, selecte
                 </th>
               )}
               <SortTh label="Name" sortKey="name" sort={sort} onSort={onSort} thStyle={th} />
+              {/* Dealer shows dealer_name (stamped, not a real column) → non-sortable. */}
+              {!hidden.has('dealer')     && <th style={th}>Dealer</th>}
               {!hidden.has('amount')     && <SortTh label="Amount" sortKey="amount" sort={sort} onSort={onSort} thStyle={th} />}
+              {/* Volume lives inside the custom_fields jsonb → non-sortable. */}
+              {!hidden.has('volume_kg')  && <th style={th}>Volume (kg)</th>}
               {/* Stage renders via a join (crm_deal_stages.name); the deals row
                   has only stage_id (a UUID), so it's left non-sortable. */}
               {!hidden.has('stage')      && <th style={th}>Stage</th>}
@@ -113,7 +131,9 @@ export default function DealsTable({ deals, loading, onAssign, onDelete, selecte
                   </td>
                 )}
                 <td style={td} data-label="Name"><Link href={`/dashboard/crm/deals/${d.id}`} className="km-entity-link" title="Open deal detail">{d.name}</Link></td>
+                {!hidden.has('dealer')     && <td style={td} data-label="Dealer">{d.dealer_name ?? '—'}</td>}
                 {!hidden.has('amount')     && <td style={td} data-label="Amount">{formatINR(d.amount)}</td>}
+                {!hidden.has('volume_kg')  && <td style={td} data-label="Volume (kg)">{volumeKgCell(d)}</td>}
                 {!hidden.has('stage')      && <td style={td} data-label="Stage"><StageBadge name={d.stage_name} won={d.status === 'won'} lost={d.status === 'lost'} /></td>}
                 {!hidden.has('status')     && <td style={td} data-label="Status"><span style={{ textTransform: 'capitalize' }}>{d.status}</span></td>}
                 {!hidden.has('close_date') && (
