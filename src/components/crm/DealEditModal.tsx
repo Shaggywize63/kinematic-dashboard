@@ -5,7 +5,7 @@ import { crmDeals, crmLeads } from '../../lib/crmApi';
 import type { Deal, Stage } from '../../types/crm';
 import { useAuth } from '../../hooks/useAuth';
 import { isTataTiscanActive } from '../../lib/clientFeatures';
-import ProductLinesSection from './ProductLinesSection';
+import ProductLinesSection, { PRODUCT_LINE_KEYS } from './ProductLinesSection';
 import CustomFieldsSection from './CustomFieldsSection';
 import Modal from './shared/Modal';
 
@@ -27,10 +27,11 @@ const NEXT_ACTIONS: Array<{ slug: string; label: string }> = [
 
 export default function DealEditModal({ deal, stages, open, onClose, onSaved }: Props) {
   const { user } = useAuth();
-  // Products of Interest is bespoke to the Tata / Kaiyo tenant, captured on
-  // the lead + carried into the deal at convert. Only that tenant sees the
-  // basket editor here (to fix a mis-entered product post-conversion).
-  const showProducts = isTataTiscanActive(user as any) && !!deal.lead_id;
+  // Products of Interest is bespoke to the steel-dealer tenants (Tata / BMW),
+  // captured on the lead + carried onto the deal at convert. The editor now
+  // edits the DEAL's OWN basket, so it renders even for deals with no linked
+  // lead (e.g. an additional deal created straight from the deal form).
+  const showProducts = isTataTiscanActive(user as any);
 
   const [form, setForm] = useState(() => seed(deal));
   // Admin-defined custom fields (entity=deal) — seeded from the deal's
@@ -39,16 +40,29 @@ export default function DealEditModal({ deal, stages, open, onClose, onSaved }: 
   // the backend PATCH merges custom_fields server-side so this is safe.
   const [customFields, setCustomFields] = useState<Record<string, unknown>>(() => seedCustomFields(deal));
   const [busy, setBusy] = useState(false);
-  // The linked lead's custom_fields — the source of truth the deal-detail
-  // Products card, deal sizing, and the SRS report all read. We edit it here
-  // so a correction propagates everywhere without a second write path.
+  // The deal's OWN basket (custom_fields.product_lines + the legacy mirror
+  // keys) — what the Products editor binds to. Kept separate from
+  // `customFields` so a lead-seeded fallback (below) can't leak into the
+  // PATCH unless the rep actually edits the rows.
+  const [linesCf, setLinesCf] = useState<Record<string, unknown>>(() => seedBasket(deal.custom_fields));
+  const [linesDirty, setLinesDirty] = useState(false);
+  // The linked lead's custom_fields — still fetched so the edited basket can
+  // be mirrored back onto the lead (the SRS report + deal-detail Products
+  // card read the lead's basket) and so legacy deals that predate the
+  // deal-side copy can seed the editor from the lead.
   const [leadCf, setLeadCf] = useState<Record<string, unknown>>({});
-  const [leadDirty, setLeadDirty] = useState(false);
   const [leadLoading, setLeadLoading] = useState(false);
 
-  useEffect(() => { if (open) { setForm(seed(deal)); setCustomFields(seedCustomFields(deal)); setLeadDirty(false); } }, [open, deal]);
+  useEffect(() => {
+    if (open) {
+      setForm(seed(deal));
+      setCustomFields(seedCustomFields(deal));
+      setLinesCf(seedBasket(deal.custom_fields));
+      setLinesDirty(false);
+    }
+  }, [open, deal]);
 
-  // Load the linked lead's basket when the modal opens for a Tata deal.
+  // Load the linked lead's basket when the modal opens for a linked deal.
   useEffect(() => {
     if (!open || !showProducts || !deal.lead_id) return;
     let cancelled = false;
@@ -58,6 +72,11 @@ export default function DealEditModal({ deal, stages, open, onClose, onSaved }: 
         if (cancelled) return;
         const cf = ((r.data as { custom_fields?: Record<string, unknown> | null })?.custom_fields ?? {}) as Record<string, unknown>;
         setLeadCf({ ...cf });
+        // Legacy fallback: deals converted before product_lines were stamped
+        // on the deal row have an empty deal basket — seed the editor from
+        // the lead's basket (not marked dirty) so the rep still sees the
+        // captured products instead of a blank row.
+        setLinesCf((cur) => (hasBasket(cur) ? cur : seedBasket(cf)));
       })
       .catch(() => { if (!cancelled) toast.error('Could not load the linked lead’s products'); })
       .finally(() => { if (!cancelled) setLeadLoading(false); });
@@ -74,21 +93,30 @@ export default function DealEditModal({ deal, stages, open, onClose, onSaved }: 
       const followUp: Record<string, unknown> = (form.nextActionType && form.nextActionAt)
         ? { next_action_type: form.nextActionType, next_action_at: form.nextActionAt }
         : { next_action_type: null, next_action_at: null };
+      // Edited basket → the deal's OWN custom_fields: product_lines (+ the
+      // legacy mirror keys the section maintains) plus the recomputed
+      // volume_kg cache. Only rides along when the rep touched the rows so
+      // an unrelated edit can't clobber a stamped volume_kg. Note: the deal
+      // `amount` is deliberately NOT derived from these lines — it stays
+      // whatever the rep typed in the Amount field.
+      const basket: Record<string, unknown> = (showProducts && linesDirty)
+        ? { ...linesCf, volume_kg: computeVolumeKg(linesCf.product_lines) }
+        : {};
       const r = await crmDeals.update(deal.id, {
         name: form.name,
         amount: form.amount ? Number(form.amount) : 0,
         stage_id: form.stage_id,
         probability: form.probability ? Number(form.probability) / 100 : null,
         expected_close_date: form.expected_close_date || null,
-        // Follow-up keys win over any stale copies in the edited map so
-        // clearing a follow-up still sends the nulls.
-        custom_fields: { ...customFields, ...followUp },
+        // Basket + follow-up keys win over any stale copies in the edited
+        // map so clearing a follow-up still sends the nulls.
+        custom_fields: { ...customFields, ...basket, ...followUp },
       } as unknown as Partial<Deal>);
-      // Persist the corrected basket back onto the linked lead (only if the
-      // rep actually touched it) so the deal-detail Products card + report
-      // pick it up on reload.
-      if (showProducts && leadDirty && deal.lead_id) {
-        await crmLeads.update(deal.lead_id, { custom_fields: leadCf } as never);
+      // Mirror the corrected basket back onto the linked lead (only if the
+      // rep actually touched it) so the deal-detail Products card + SRS
+      // report pick it up on reload. Skipped for lead-less deals.
+      if (showProducts && linesDirty && deal.lead_id) {
+        await crmLeads.update(deal.lead_id, { custom_fields: { ...leadCf, ...linesCf } } as never);
       }
       toast.success('Deal updated'); onSaved(r.data); onClose();
     } catch (e: any) { toast.error(e.message || 'Update failed'); } finally { setBusy(false); }
@@ -119,14 +147,14 @@ export default function DealEditModal({ deal, stages, open, onClose, onSaved }: 
         </Grid>
       </div>
 
-      {/* Products of Interest — Tata/Kaiyo only. Edits the linked lead's
-          basket so a mis-entered product can be corrected after the deal
-          was created. */}
+      {/* Products of Interest — steel-dealer tenants only. Edits the DEAL's
+          own basket (custom_fields.product_lines); on save the same lines
+          are mirrored back to the linked lead, when one exists. */}
       {showProducts && (
         <div style={{ marginTop: 16 }}>
           {leadLoading
             ? <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>Loading products…</div>
-            : <ProductLinesSection values={leadCf} onChange={(cf) => { setLeadCf(cf); setLeadDirty(true); }} />}
+            : <ProductLinesSection values={linesCf} onChange={(cf) => { setLinesCf(cf); setLinesDirty(true); }} />}
         </div>
       )}
 
@@ -165,6 +193,44 @@ function seedCustomFields(d: Deal): Record<string, unknown> {
   return (d.custom_fields && typeof d.custom_fields === 'object')
     ? { ...(d.custom_fields as Record<string, unknown>) }
     : {};
+}
+
+// The keys ProductLinesSection reads/writes: the product_lines array plus
+// the four legacy single-field mirrors it keeps in sync for old readers.
+const BASKET_KEYS = ['product_lines', ...PRODUCT_LINE_KEYS] as const;
+
+// Just the basket slice of a custom_fields map — what the Products editor
+// binds to, so the rest of the deal's cf can't be touched by row edits.
+function seedBasket(cf: Record<string, unknown> | null | undefined): Record<string, unknown> {
+  const src = (cf && typeof cf === 'object') ? cf : {};
+  const out: Record<string, unknown> = {};
+  for (const k of BASKET_KEYS) {
+    if (src[k] !== undefined) out[k] = src[k];
+  }
+  return out;
+}
+
+// True when the map already carries a usable basket — a non-empty
+// product_lines array or the legacy single-product keys.
+function hasBasket(cf: Record<string, unknown>): boolean {
+  const lines = cf.product_lines;
+  if (Array.isArray(lines) && lines.some((l) => !!(l as { product_id?: unknown })?.product_id)) return true;
+  return cf.product_interested != null || cf.quantity != null;
+}
+
+// Cached tonnage for the deal row: sum(quantity × unit factor) across the
+// lines, where tonne → 1000 kg and anything else counts as kg. Rounded to
+// 2dp — same convention the convert flow and the detail-page hero use.
+function computeVolumeKg(lines: unknown): number {
+  if (!Array.isArray(lines)) return 0;
+  let kg = 0;
+  for (const l of lines as Array<Record<string, unknown>>) {
+    const qty = typeof l?.quantity === 'number' ? l.quantity : Number(l?.quantity ?? 0);
+    if (!Number.isFinite(qty) || qty <= 0) continue;
+    const unit = String(l?.measuring_unit ?? '').trim().toLowerCase();
+    kg += qty * (unit === 'tonne' ? 1000 : 1);
+  }
+  return Math.round(kg * 100) / 100;
 }
 
 function seed(d: Deal) {

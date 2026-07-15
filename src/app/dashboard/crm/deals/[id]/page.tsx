@@ -412,7 +412,17 @@ export default function DealDetailPage() {
                       {deal.account_name || 'View account'}
                     </Link>
                   ) : 'No account'}
-                  {deal.lead_id && (<><span> · </span><Link href={`/dashboard/crm/leads/${deal.lead_id}`} style={{ color: 'var(--primary)' }}>From lead</Link></>)}
+                  {/* Source lead — the backend stamps lead_name / lead_phone on the
+                      deal so reps can call the customer without opening the lead. */}
+                  {deal.lead_id && (
+                    <>
+                      <span> · </span>
+                      <Link href={`/dashboard/crm/leads/${deal.lead_id}`} style={{ color: 'var(--primary)' }}>
+                        {deal.lead_name ? `Lead: ${deal.lead_name}` : 'From lead'}
+                      </Link>
+                      {deal.lead_phone && <span> · {deal.lead_phone}</span>}
+                    </>
+                  )}
                   {pipeline && (<><span> · </span><span title="Current pipeline">📋 {pipeline.name}</span></>)}
                 </div>
               </div>
@@ -490,11 +500,16 @@ export default function DealDetailPage() {
               );
             })()}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 14, fontSize: 13 }}>
+              {/* Dealer is stamped server-side on the deal row — surfaced here
+                  so reps see it in the summary, not only in the custom-fields
+                  card further down. Hidden when the tenant doesn't stamp it. */}
+              {deal.dealer_name && <Field label="Dealer" value={deal.dealer_name} />}
               <Field label="Stage" value={deal.stage_name} />
               <Field label="Status" value={deal.status} />
               <Field label="Probability" value={`${Math.round((Number(deal.probability) || 0) * 100)}%`} />
               <Field label="Close Date" value={fmtIst(deal.expected_close_date).date} />
               <Field label="Owner" value={deal.owner_name} />
+              {deal.lead_phone && <Field label="Lead Phone" value={deal.lead_phone} />}
             </div>
           </div>
 
