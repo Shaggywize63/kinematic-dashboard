@@ -5,6 +5,7 @@ import { crmAccounts } from '../../lib/crmApi';
 import { CRM_INDUSTRIES } from '../../lib/crmIndustries';
 import type { Account } from '../../types/crm';
 import Modal from './shared/Modal';
+import CustomFieldsSection from './CustomFieldsSection';
 
 interface Props {
   account: Account;
@@ -15,8 +16,12 @@ interface Props {
 
 export default function AccountEditModal({ account, open, onClose, onSaved }: Props) {
   const [form, setForm] = useState(() => seed(account));
+  // Admin-defined custom fields (entity=account) — seeded from the row's
+  // existing custom_fields; the backend PATCH merges server-side so sending
+  // the whole edited map back is safe.
+  const [customFields, setCustomFields] = useState<Record<string, unknown>>(() => seedCustomFields(account));
   const [busy, setBusy] = useState(false);
-  useEffect(() => { if (open) setForm(seed(account)); }, [open, account]);
+  useEffect(() => { if (open) { setForm(seed(account)); setCustomFields(seedCustomFields(account)); } }, [open, account]);
 
   const submit = async () => {
     if (!form.name.trim()) { toast.error('Name is required'); return; }
@@ -28,6 +33,7 @@ export default function AccountEditModal({ account, open, onClose, onSaved }: Pr
         annual_revenue: form.annual_revenue ? Number(form.annual_revenue) : null,
         employees: form.employees ? Number(form.employees) : null,
         description: form.description || null,
+        custom_fields: customFields,
       });
       toast.success('Account updated'); onSaved(r.data); onClose();
     } catch (e: any) { toast.error(e.message || 'Update failed'); } finally { setBusy(false); }
@@ -48,8 +54,27 @@ export default function AccountEditModal({ account, open, onClose, onSaved }: Pr
         <span style={lbl}>Description</span>
         <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={4} style={{ ...input, width: '100%', marginTop: 4, resize: 'vertical', fontFamily: 'inherit' }} />
       </div>
+      {/* Admin-defined custom fields render type-aware — same pattern as
+          LeadEditModal. Backend PATCH merges custom_fields server-side. */}
+      <div style={{ marginTop: 14 }}>
+        <Grid>
+          <CustomFieldsSection
+            entity="account"
+            values={customFields}
+            onChange={setCustomFields}
+          />
+        </Grid>
+      </div>
     </Modal>
   );
+}
+
+// Copy of the account's custom_fields map (exclude nothing) so edits don't
+// mutate the prop object. Backend merge semantics make partials safe.
+function seedCustomFields(a: Account): Record<string, unknown> {
+  return (a.custom_fields && typeof a.custom_fields === 'object')
+    ? { ...(a.custom_fields as Record<string, unknown>) }
+    : {};
 }
 
 function seed(a: Account) { return { name: a.name || '', industry: a.industry || '', website: a.website || '', phone: a.phone || '', annual_revenue: a.annual_revenue ? String(a.annual_revenue) : '', employees: a.employees ? String(a.employees) : '', description: a.description || '' }; }

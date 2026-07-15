@@ -8,6 +8,7 @@ import type { Account, Contact, Deal, Activity, Note } from '../../../../../type
 import AccountSummaryCard from '../../../../../components/crm/AccountSummaryCard';
 import ActivityTimeline from '../../../../../components/crm/ActivityTimeline';
 import AccountEditModal from '../../../../../components/crm/AccountEditModal';
+import CustomFieldsDetailCard from '../../../../../components/crm/CustomFieldsDetailCard';
 import CallButton from '../../../../../components/crm/shared/CallButton';
 import { formatINR } from '../../../../../lib/formatCurrency';
 import Breadcrumbs from '../../../../../components/crm/shared/Breadcrumbs';
@@ -115,6 +116,10 @@ export default function AccountDetailPage() {
         </div>
 
         {a.description && (<Card title="About"><div style={{ fontSize: 13, color: 'var(--text)' }}>{a.description}</div></Card>)}
+
+        {/* Read-only admin-defined custom fields — renders nothing when
+            the account has no stored values. */}
+        <CustomFieldsDetailCard entity="account" customFields={a.custom_fields} />
 
         <Card title={`Contacts (${contacts.length})`}>
           {contacts.length === 0 ? (

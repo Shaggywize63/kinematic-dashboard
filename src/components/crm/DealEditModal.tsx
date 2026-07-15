@@ -6,6 +6,7 @@ import type { Deal, Stage } from '../../types/crm';
 import { useAuth } from '../../hooks/useAuth';
 import { isTataTiscanActive } from '../../lib/clientFeatures';
 import ProductLinesSection from './ProductLinesSection';
+import CustomFieldsSection from './CustomFieldsSection';
 import Modal from './shared/Modal';
 
 interface Props { deal: Deal; stages: Stage[]; open: boolean; onClose: () => void; onSaved: (updated: Deal) => void; }
@@ -32,6 +33,11 @@ export default function DealEditModal({ deal, stages, open, onClose, onSaved }: 
   const showProducts = isTataTiscanActive(user as any) && !!deal.lead_id;
 
   const [form, setForm] = useState(() => seed(deal));
+  // Admin-defined custom fields (entity=deal) — seeded from the deal's
+  // existing custom_fields so reps can edit values after creation. The
+  // whole map (including bespoke keys like closed_quantities) rides along;
+  // the backend PATCH merges custom_fields server-side so this is safe.
+  const [customFields, setCustomFields] = useState<Record<string, unknown>>(() => seedCustomFields(deal));
   const [busy, setBusy] = useState(false);
   // The linked lead's custom_fields — the source of truth the deal-detail
   // Products card, deal sizing, and the SRS report all read. We edit it here
@@ -40,7 +46,7 @@ export default function DealEditModal({ deal, stages, open, onClose, onSaved }: 
   const [leadDirty, setLeadDirty] = useState(false);
   const [leadLoading, setLeadLoading] = useState(false);
 
-  useEffect(() => { if (open) { setForm(seed(deal)); setLeadDirty(false); } }, [open, deal]);
+  useEffect(() => { if (open) { setForm(seed(deal)); setCustomFields(seedCustomFields(deal)); setLeadDirty(false); } }, [open, deal]);
 
   // Load the linked lead's basket when the modal opens for a Tata deal.
   useEffect(() => {
@@ -74,7 +80,9 @@ export default function DealEditModal({ deal, stages, open, onClose, onSaved }: 
         stage_id: form.stage_id,
         probability: form.probability ? Number(form.probability) / 100 : null,
         expected_close_date: form.expected_close_date || null,
-        custom_fields: followUp,
+        // Follow-up keys win over any stale copies in the edited map so
+        // clearing a follow-up still sends the nulls.
+        custom_fields: { ...customFields, ...followUp },
       } as unknown as Partial<Deal>);
       // Persist the corrected basket back onto the linked lead (only if the
       // rep actually touched it) so the deal-detail Products card + report
@@ -96,6 +104,20 @@ export default function DealEditModal({ deal, stages, open, onClose, onSaved }: 
         <F label="Probability (%)" type="number" value={form.probability} onChange={(v) => setForm({ ...form, probability: v })} />
         <F label="Expected Close" type="date" value={form.expected_close_date} onChange={(v) => setForm({ ...form, expected_close_date: v })} />
       </Grid>
+
+      {/* Admin-defined custom fields (e.g. dealer, site type) render
+          type-aware — same pattern as LeadEditModal. Was previously absent
+          from the deal edit modal entirely so reps couldn't change
+          custom-field values after creation. */}
+      <div style={{ marginTop: 14 }}>
+        <Grid>
+          <CustomFieldsSection
+            entity="deal"
+            values={customFields}
+            onChange={setCustomFields}
+          />
+        </Grid>
+      </div>
 
       {/* Products of Interest — Tata/Kaiyo only. Edits the linked lead's
           basket so a mis-entered product can be corrected after the deal
@@ -135,6 +157,14 @@ export default function DealEditModal({ deal, stages, open, onClose, onSaved }: 
       )}
     </Modal>
   );
+}
+
+// Copy of the deal's custom_fields map (exclude nothing) so edits don't
+// mutate the prop object. Backend merge semantics make partials safe.
+function seedCustomFields(d: Deal): Record<string, unknown> {
+  return (d.custom_fields && typeof d.custom_fields === 'object')
+    ? { ...(d.custom_fields as Record<string, unknown>) }
+    : {};
 }
 
 function seed(d: Deal) {

@@ -11,6 +11,7 @@ import CallButton from '../../../../../components/crm/shared/CallButton';
 import ActivityTimeline from '../../../../../components/crm/ActivityTimeline';
 import Breadcrumbs from '../../../../../components/crm/shared/Breadcrumbs';
 import ContactEditModal from '../../../../../components/crm/ContactEditModal';
+import CustomFieldsDetailCard from '../../../../../components/crm/CustomFieldsDetailCard';
 import { formatINR } from '../../../../../lib/formatCurrency';
 
 export default function ContactDetailPage() {
@@ -110,6 +111,10 @@ export default function ContactDetailPage() {
             </div>
           </Card>
         )}
+
+        {/* Read-only admin-defined custom fields — renders nothing when
+            the contact has no stored values. */}
+        <CustomFieldsDetailCard entity="contact" customFields={c.custom_fields} />
 
         <Card title={`Deals (${deals.length})`}>
           {deals.length === 0 ? (

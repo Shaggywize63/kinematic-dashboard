@@ -6,6 +6,7 @@ import { crmContacts, crmSettings, crmAccounts } from '../../../../../lib/crmApi
 import type { Account, BusinessType } from '../../../../../types/crm';
 import LocationPicker from '../../../../../components/crm/LocationPicker';
 import AlternateMobiles from '../../../../../components/crm/AlternateMobiles';
+import CustomFieldsSection from '../../../../../components/crm/CustomFieldsSection';
 import { useAuth } from '../../../../../hooks/useAuth';
 import { isHorizonOrg } from '../../../../../lib/crmFeatureGates';
 
@@ -35,6 +36,9 @@ export default function NewContactPage() {
   const { user } = useAuth();
   const showAccountLink = isHorizonOrg(user?.org_id);
   const [form, setForm] = useState<Form>(empty);
+  // Admin-defined custom fields (entity=contact) — bound as one map that
+  // becomes the row's custom_fields jsonb (same pattern as the lead form).
+  const [customFields, setCustomFields] = useState<Record<string, unknown>>({});
   const [busy, setBusy] = useState(false);
   const [businessType, setBusinessType] = useState<BusinessType>('both');
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -93,6 +97,7 @@ export default function NewContactPage() {
           marketing_consent: form.marketing_consent, whatsapp_consent: form.whatsapp_consent,
         });
       }
+      if (Object.keys(customFields).length > 0) payload.custom_fields = customFields;
       const r = await crmContacts.create(payload);
       toast.success('Contact created');
       router.push(`/dashboard/crm/contacts/${r.data.id}`);
@@ -201,6 +206,13 @@ export default function NewContactPage() {
                 </select>
               </label>
             )}
+            {/* Custom fields render inline inside this grid so admin-defined
+                fields look like part of the form (same as the lead form). */}
+            <CustomFieldsSection
+              entity="contact"
+              values={customFields}
+              onChange={setCustomFields}
+            />
           </div>
         </Section>
       ) : (
@@ -218,6 +230,14 @@ export default function NewContactPage() {
               {text('address_line1', 'Address Line 1')}{text('address_line2', 'Address Line 2')}
               <LocationPicker stateValue={form.state} cityValue={form.city} onChange={({ state, city }) => setForm({ ...form, state, city })} />
               {text('postal_code', 'Postal Code')}{text('country', 'Country')}
+              {/* Custom fields are inlined into the B2C Address grid for the
+                  same reason they're in the B2B grid above — they read as
+                  part of the form, not a footnote. */}
+              <CustomFieldsSection
+                entity="contact"
+                values={customFields}
+                onChange={setCustomFields}
+              />
             </div>
           </Section>
           <Section title="Consent">

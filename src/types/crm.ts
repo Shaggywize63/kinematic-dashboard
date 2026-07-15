@@ -87,6 +87,9 @@ export interface Contact extends B2CFields {
   last_purchase_at?: string | null;
   referral_source?: string | null;
   tags?: string[] | null;
+  // Admin-defined custom fields (crm_custom_fields defs) stored on the
+  // row's custom_fields jsonb. Backend PATCH merges partial objects.
+  custom_fields?: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
 }
@@ -107,6 +110,9 @@ export interface Account {
   description?: string | null;
   tags?: string[] | null;
   ai_summary?: string | null;
+  // Admin-defined custom fields (crm_custom_fields defs) stored on the
+  // row's custom_fields jsonb. Backend PATCH merges partial objects.
+  custom_fields?: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
 }
@@ -150,6 +156,10 @@ export interface Deal {
   ai_win_probability?: number | null;
   ai_win_confidence?: number | null;
   tags?: string[] | null;
+  // Admin-defined custom fields plus the bespoke keys other surfaces
+  // read/write (next_action_type / next_action_at / volume_kg /
+  // line_items / closed_quantities). Backend PATCH merges partial objects.
+  custom_fields?: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
 }
