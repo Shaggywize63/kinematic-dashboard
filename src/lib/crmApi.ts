@@ -142,8 +142,17 @@ export const crmDeals = {
   ...crud<Deal>(`${BASE}/deals`),
   moveStage: (id: string, body: { stage_id: string; reason?: string }) =>
     api.post<Wrapped<Deal>>(`${BASE}/deals/${id}/move-stage`, body),
-  win: (id: string, body?: { close_date?: string; reason?: string }) =>
-    api.post<Wrapped<Deal>>(`${BASE}/deals/${id}/win`, body || {}),
+  // Win contract (POST /deals/:id/win):
+  //   actual_close_date — optional YYYY-MM-DD, backend defaults to today.
+  //   amount            — the closed (won) value. Omit it and the backend
+  //                       computes the value from custom_fields.closed_quantities
+  //                       (SRS product flow), falling back to the deal's amount.
+  //   create_balance_deal — when the won amount is a partial close (< deal
+  //                       amount) the backend spawns an open "<name> (Balance)"
+  //                       deal for the remainder and returns it additively as
+  //                       `balance_deal` on the response.
+  win: (id: string, body?: { actual_close_date?: string; reason?: string; amount?: number; create_balance_deal?: boolean }) =>
+    api.post<Wrapped<Deal & { balance_deal?: Deal }>>(`${BASE}/deals/${id}/win`, body || {}),
   lose: (id: string, body?: { reason?: string; competitor?: string }) =>
     api.post<Wrapped<Deal>>(`${BASE}/deals/${id}/lose`, body || {}),
   setWinProbability: (id: string, body: { probability: number }) =>

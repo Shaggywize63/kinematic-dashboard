@@ -162,8 +162,38 @@ export default function DealDetailPage() {
   const [closeOutcome, setCloseOutcome] = useState<'won' | 'lost'>('won');
   const [closeReason, setCloseReason] = useState('');
   const [closeLostOther, setCloseLostOther] = useState('');
+  // Won-branch fields: the closed (won) amount, prefilled with the deal's
+  // current amount. Cleared entirely = "omit amount", letting the backend
+  // compute the closed value from custom_fields.closed_quantities. When the
+  // entered amount is a partial close (< deal amount) the checkbox controls
+  // whether the backend spawns an open "(Balance)" deal for the remainder.
+  const [closeAmount, setCloseAmount] = useState('');
+  const [closeCreateBalance, setCloseCreateBalance] = useState(true);
   const [closing, setClosing] = useState(false);
   const [reopening, setReopening] = useState(false);
+
+  // Remainder for a partial close — only meaningful when the rep typed a
+  // positive amount strictly below the deal's amount (mirrors the backend's
+  // isPartial rule: originalAmount > 0 && wonAmount > 0 && remainder > 0).
+  const closeRemainder = useMemo(() => {
+    const dealAmt = Number(deal?.amount) || 0;
+    const t = closeAmount.trim();
+    if (t === '') return 0;
+    const amt = Number(t);
+    if (!Number.isFinite(amt) || amt <= 0 || dealAmt <= 0 || amt >= dealAmt) return 0;
+    return Math.round((dealAmt - amt) * 100) / 100;
+  }, [deal, closeAmount]);
+
+  // Single entry point for the Close Deal modal so every open site resets
+  // the reason fields and re-prefills the closed amount from the deal.
+  const openCloseModal = (outcome: 'won' | 'lost') => {
+    setCloseOutcome(outcome);
+    setCloseReason('');
+    setCloseLostOther('');
+    setCloseAmount(deal?.amount != null ? String(deal.amount) : '');
+    setCloseCreateBalance(true);
+    setCloseOpen(true);
+  };
 
   const reload = async () => {
     if (!id) return;
@@ -207,11 +237,11 @@ export default function DealDetailPage() {
       const target = (pipeline.stages || []).find((s) => s?.id === stageId);
       if (!target) { toast.error('Stage not found in this pipeline'); return; }
       if (target.stage_type === 'won') {
-        setCloseOutcome('won'); setCloseReason(''); setCloseLostOther(''); setCloseOpen(true);
+        openCloseModal('won');
         return;
       }
       if (target.stage_type === 'lost') {
-        setCloseOutcome('lost'); setCloseReason(''); setCloseLostOther(''); setCloseOpen(true);
+        openCloseModal('lost');
         return;
       }
       setStageMoving(true);
@@ -272,12 +302,38 @@ export default function DealDetailPage() {
   const closeDeal = async () => {
     if (!deal) return;
     if (!closeReason) { toast.error('Pick a reason from the dropdown'); return; }
+    const finalReason = closeReason === 'Other' ? (closeLostOther.trim() || 'Other') : closeReason;
+    // Validate the closed amount before flipping the busy flag. Blank is
+    // valid — it means "omit amount" so the backend computes the closed
+    // value from closed_quantities (falling back to the deal's amount).
+    let wonAmount: number | undefined;
+    if (closeOutcome === 'won') {
+      const t = closeAmount.trim();
+      if (t !== '') {
+        const amt = Number(t);
+        if (!Number.isFinite(amt) || amt < 0) { toast.error('Enter a valid closed amount'); return; }
+        wonAmount = amt;
+      }
+    }
     setClosing(true);
     try {
-      const finalReason = closeReason === 'Other' ? (closeLostOther.trim() || 'Other') : closeReason;
       if (closeOutcome === 'won') {
-        await crmDeals.win(deal.id, { reason: finalReason });
+        const body: { reason?: string; amount?: number; create_balance_deal?: boolean } = { reason: finalReason };
+        if (wonAmount !== undefined) {
+          body.amount = wonAmount;
+          // Only send the flag when this is actually a partial close —
+          // the backend ignores it otherwise, but keeping the body minimal
+          // makes the audit trail unambiguous.
+          if (closeRemainder > 0) body.create_balance_deal = closeCreateBalance;
+        }
+        const r = await crmDeals.win(deal.id, body);
         toast.success('Deal closed as Won 🎉');
+        const bd = r?.data?.balance_deal;
+        if (bd?.id) {
+          toast.success(`Balance deal created: ${bd.name || 'Balance deal'}`, {
+            action: { label: 'Open', onClick: () => router.push(`/dashboard/crm/deals/${bd.id}`) },
+          });
+        }
       } else {
         await crmDeals.lose(deal.id, { reason: finalReason });
         toast.success('Deal closed as Lost');
@@ -433,7 +489,7 @@ export default function DealDetailPage() {
                 </button>
                 <button onClick={() => setEditOpen(true)} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>Edit</button>
                 {deal.status === 'open' && (
-                  <button onClick={() => { setCloseOutcome('won'); setCloseOpen(true); }} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>Close Deal</button>
+                  <button onClick={() => openCloseModal('won')} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>Close Deal</button>
                 )}
                 {deal.status !== 'open' && (
                   <button onClick={reopenDeal} disabled={reopening} style={{ background: 'var(--s3)', border: '1px solid var(--primary)', color: 'var(--primary)', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: reopening ? 'not-allowed' : 'pointer', opacity: reopening ? 0.6 : 1 }}>{reopening ? 'Re-opening...' : 'Re-open Deal'}</button>
@@ -458,6 +514,17 @@ export default function DealDetailPage() {
               // Weight prefers deal.custom_fields.volume_kg, falls back to
               // recomputing from product_lines (1 kg / 1000 tonne).
               const cf = ((deal as Deal & { custom_fields?: Record<string, unknown> | null }).custom_fields ?? {}) as Record<string, unknown>;
+              // Partial-close markers stamped by the backend win flow:
+              //   original_amount — the deal's pre-win amount when the won
+              //     figure was lower ("Won ₹X of ₹Y").
+              //   balance_deal_id — the open "(Balance)" deal spawned for
+              //     the remainder.
+              //   balance_of — set on the balance deal itself, pointing back
+              //     at the parent (won) deal.
+              const originalAmount = Number(cf.original_amount);
+              const hasOriginal = Number.isFinite(originalAmount) && originalAmount > 0;
+              const balanceDealId = typeof cf.balance_deal_id === 'string' && cf.balance_deal_id ? cf.balance_deal_id : null;
+              const balanceOf = typeof cf.balance_of === 'string' && cf.balance_of ? cf.balance_of : null;
               let kg = 0;
               const cached = cf.volume_kg;
               const cachedNum = typeof cached === 'number' ? cached : Number(cached);
@@ -484,6 +551,23 @@ export default function DealDetailPage() {
                     <div style={{ fontSize: 30, color: 'var(--text)', fontWeight: 800, lineHeight: 1.1, marginTop: 4 }}>
                       {formatINR(Number(deal.amount) || 0)}
                     </div>
+                    {hasOriginal && (
+                      <div style={{ fontSize: 12, color: 'var(--text-dim)', fontWeight: 600, marginTop: 6, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <span>Won ₹{(Number(deal.amount) || 0).toLocaleString('en-IN')} of ₹{originalAmount.toLocaleString('en-IN')}</span>
+                        {balanceDealId && (
+                          <Link href={`/dashboard/crm/deals/${balanceDealId}`} style={{ color: 'var(--primary)', fontWeight: 700 }}>
+                            Balance deal →
+                          </Link>
+                        )}
+                      </div>
+                    )}
+                    {balanceOf && (
+                      <div style={{ fontSize: 12, fontWeight: 600, marginTop: 6 }}>
+                        <Link href={`/dashboard/crm/deals/${balanceOf}`} style={{ color: 'var(--primary)', fontWeight: 700 }}>
+                          Balance of →
+                        </Link>
+                      </div>
+                    )}
                   </div>
                   {kg > 0 && (
                     <>
@@ -564,7 +648,7 @@ export default function DealDetailPage() {
             <CustomFieldsDetailCard
               entity="deal"
               customFields={deal.custom_fields}
-              skipKeys={['product_lines', 'line_items', 'volume_kg', 'closed_quantities', 'next_action_type', 'next_action_at']}
+              skipKeys={['product_lines', 'line_items', 'volume_kg', 'closed_quantities', 'next_action_type', 'next_action_at', 'original_amount', 'balance_deal_id', 'balance_of']}
             />
           </SafeRender>
 
@@ -708,7 +792,36 @@ export default function DealDetailPage() {
               </div>
             ) : (
               <div style={{ marginBottom: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>Win Reason <span style={{ color: '#ef4444' }}>*</span></span>
+                <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>Closed Amount (₹)</span>
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={closeAmount}
+                  onChange={(e) => setCloseAmount(e.target.value)}
+                  placeholder="Leave blank to compute from closed quantities"
+                  style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 }}
+                />
+                <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>
+                  Deal amount: ₹{(Number(deal.amount) || 0).toLocaleString('en-IN')}. Keep it equal for a full close, or clear it to let the system compute the closed value from closed quantities.
+                </span>
+                {closeRemainder > 0 && (
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 12, color: 'var(--text)', cursor: 'pointer', background: 'rgba(16,185,129,0.06)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px' }}>
+                    <input
+                      type="checkbox"
+                      checked={closeCreateBalance}
+                      onChange={(e) => setCloseCreateBalance(e.target.checked)}
+                      style={{ marginTop: 2 }}
+                    />
+                    <span>
+                      Create balance deal for the remaining ₹{closeRemainder.toLocaleString('en-IN')}
+                      <span style={{ display: 'block', fontSize: 11, color: 'var(--text-dim)', marginTop: 2 }}>
+                        Partial close — an open deal &ldquo;{dealName} (Balance)&rdquo; will be created for the remainder on the same lead and pipeline.
+                      </span>
+                    </span>
+                  </label>
+                )}
+                <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, marginTop: 4 }}>Win Reason <span style={{ color: '#ef4444' }}>*</span></span>
                 <select value={closeReason} onChange={(e) => { setCloseReason(e.target.value); setCloseLostOther(''); }} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 }}>
                   <option value="">— Select a reason —</option>
                   {WON_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}

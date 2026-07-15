@@ -402,6 +402,34 @@ export default function LeadDetailPage() {
 
         {deals.length > 0 && (
           <Card title={`Deals (${deals.length})`}>
+            {/* Rollup strip — Total / Won / Balance across this lead's deals.
+                Won deals carry their won amount (the win flow overwrites
+                `amount` with the closed figure), and open deals — including
+                the "(Balance)" deals spawned by partial closes — ARE the
+                outstanding balance, so summing plain `amount` per status is
+                exactly the split we want. */}
+            {(() => {
+              const sum = (rows: Deal[]) => rows.reduce((s, d) => s + (Number(d.amount) || 0), 0);
+              const total = sum(deals);
+              const won = sum(deals.filter((d) => d.status === 'won'));
+              const balance = sum(deals.filter((d) => d.status === 'open'));
+              const fmt = (n: number) => `₹${n.toLocaleString('en-IN')}`;
+              const cell = (label: string, value: number, color?: string) => (
+                <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 5 }}>
+                  <span style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.5 }}>{label}</span>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: color || 'var(--text)', whiteSpace: 'nowrap' }}>{fmt(value)}</span>
+                </span>
+              );
+              return (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', marginBottom: 10 }}>
+                  {cell('Total', total)}
+                  <span style={{ color: 'var(--text-dim)' }}>·</span>
+                  {cell('Won', won, '#10b981')}
+                  <span style={{ color: 'var(--text-dim)' }}>·</span>
+                  {cell('Balance', balance, '#f59e0b')}
+                </div>
+              );
+            })()}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {deals.map((d) => (
                 <Link key={d.id} href={`/dashboard/crm/deals/${d.id}`} style={rowLink}>
