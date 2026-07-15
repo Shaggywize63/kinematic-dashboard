@@ -13,19 +13,17 @@ import {
   type ReportRange,
 } from '../../../../../components/crm/reports/ReportFilters';
 
-// The 20 columns the SRS Tiscon team's "Format" spreadsheet defines. Shown
-// here as a preview so a rep knows exactly what the CSV contains before they
-// download it — the backend (/api/v1/crm/leads/export-srs-report) is the
-// source of truth for the actual column order.
+// The columns the SRS Tiscon team's day-wise "Format" defines. Shown here as a
+// preview so a rep knows exactly what the CSV contains before they download it
+// — the backend (/api/v1/crm/activities/export-daywise-report) is the source
+// of truth for the actual column order.
 const COLUMNS = [
-  'Lead Name', 'Phone Number', 'Address', 'Block', 'City', 'Pincode',
-  'Occupation', 'Area sq ft', 'Construction Stage', 'Lead Source',
-  'Dealer Name', 'Brand', 'Creation Date', 'Latest Activity Date',
-  'Total Visits', 'Total Calls', 'Estimated Qty', 'Deal Tonnage',
-  'Deal Amount', 'Owner Name',
+  'Owner Name', 'Hierarchy', 'City', 'Total Activity', 'Unique Lead',
+  'Lead Visit', 'Lead Call', 'Dealer Visit', 'Other Visit', 'Deals',
+  'Tonnage (MT)', 'Date',
 ];
 
-export default function SrsLeadReportPage() {
+export default function DaywiseReportPage() {
   const { user } = useAuth();
   const cityKey = useReportCityKey();
   const [range, setRange] = useState<ReportRange>(() => defaultReportRange(90));
@@ -37,7 +35,7 @@ export default function SrsLeadReportPage() {
   if (!canDownloadSrsReport(user as any)) {
     return (
       <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 24 }}>
-        <h3 style={{ color: 'var(--text)', margin: 0 }}>SRS Lead Report</h3>
+        <h3 style={{ color: 'var(--text)', margin: 0 }}>Overall Day-Wise Report</h3>
         <p style={{ fontSize: 13, color: 'var(--text-dim)', marginTop: 8 }}>
           This report is available to the Area Sales Officer and CRM Admin roles only.
         </p>
@@ -57,7 +55,7 @@ export default function SrsLeadReportPage() {
       // appended manually.
       if (cityKey)    qs.set('city', cityKey);
 
-      const url = `${API_BASE_URL}/api/v1/crm/leads/export-srs-report${qs.toString() ? `?${qs.toString()}` : ''}`;
+      const url = `${API_BASE_URL}/api/v1/crm/activities/export-daywise-report${qs.toString() ? `?${qs.toString()}` : ''}`;
       const token = getStoredToken();
       // Forward Authorization AND X-Client-Id — the raw fetch skips api.ts's
       // interceptors, so without X-Client-Id a super-admin's picker selection
@@ -84,12 +82,12 @@ export default function SrsLeadReportPage() {
       const objUrl = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = objUrl;
-      a.download = `srs-lead-report-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.download = `daywise-report-${new Date().toISOString().slice(0, 10)}.csv`;
       document.body.appendChild(a);
       a.click();
       a.remove();
       URL.revokeObjectURL(objUrl);
-      toast.success('SRS lead report downloaded');
+      toast.success('Day-wise report downloaded');
     } catch (e: any) {
       toast.error(e.message || 'Download failed');
     } finally {
@@ -101,11 +99,12 @@ export default function SrsLeadReportPage() {
     <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
         <div>
-          <h3 style={{ color: 'var(--text)', margin: 0 }}>SRS Lead Report</h3>
+          <h3 style={{ color: 'var(--text)', margin: 0 }}>Overall Day-Wise Report</h3>
           <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4, maxWidth: 560 }}>
-            The SRS field format — lead, site and converted-deal detail in one CSV. An Area Sales Officer
-            downloads their own leads; a CRM Admin downloads the whole tenant. Optionally narrow by a
-            creation-date range below; the global city filter is applied automatically.
+            A per-rep, per-day rollup — activity split (lead visits, calls, dealer and other visits),
+            unique leads touched, deals closed and tonnage — with a grand-total row across the range.
+            An Area Sales Officer sees their own days; a CRM Admin sees the whole tenant. Narrow by an
+            activity-date range below; the global city filter is applied automatically.
           </div>
         </div>
         <Link href="/dashboard/crm/reports" style={{ color: 'var(--primary)', fontSize: 13, textDecoration: 'none', whiteSpace: 'nowrap' }}>← Back to Reports</Link>
