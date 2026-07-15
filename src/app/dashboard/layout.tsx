@@ -4,7 +4,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { getStoredUser, isSessionValid, clearSession, getDesignationLabel } from '../../lib/auth';
-import api, { getActingAs, setActingAs } from '../../lib/api';
+import api, { getActingAs, setActingAs, getImpersonateUser, setImpersonateUser } from '../../lib/api';
 import StagingBoot from './StagingBoot';
 import StagingDeployModal from './StagingDeployModal';
 import { getStoredProjectKey } from '../../lib/projects';
@@ -98,6 +98,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [actingAs, setActingAsState] = useState<{ name?: string; modules?: string[]; staging?: boolean; project?: string; org_id?: string } | null>(null);
   const [showDeploy, setShowDeploy] = useState(false);
   useEffect(() => { setActingAsState(getActingAs()); }, []);
+  // Master-admin user impersonation ("Viewing as <user>"). Resolved after mount
+  // to avoid SSR hydration mismatch. Drives the fixed top banner below.
+  const [impersonate, setImpersonateState] = useState<{ id: string; name?: string; email?: string } | null>(null);
+  useEffect(() => { setImpersonateState(getImpersonateUser()); }, []);
   const stagingProject = actingAs?.project || getStoredProjectKey() || 'default';
   // Per-org UI flags (e.g. hide the global client filter). Re-fetched on mount;
   // entering an org triggers a full reload so this reflects the current org.
@@ -538,11 +542,42 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
 
 
+  // Master-admin impersonation banner height. Pushes the whole shell (fixed
+  // sidebar + main column) down so the fixed bar never overlaps content.
+  const impBannerH = impersonate ? 44 : 0;
+  const exitImpersonation = () => {
+    setImpersonateUser(null); // clears impersonate + acting-as + GET caches
+    window.location.reload();
+  };
+
   return (
     <ClientProvider>
       <CityScopeProvider>
       <IndustryScopeProvider>
-      <div style={{ display:'flex', minHeight:'100vh', background:C.bg, color:C.white }}>
+      {impersonate && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, height: impBannerH,
+          zIndex: 1000, background: '#EA580C', color: '#fff',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14,
+          padding: '0 16px', fontSize: 13, fontWeight: 700,
+          boxShadow: '0 2px 12px rgba(0,0,0,0.35)',
+        }}>
+          <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            👤 Viewing as <strong>{impersonate.name || 'user'}</strong>
+            {impersonate.email ? <> ({impersonate.email})</> : null}
+          </span>
+          <button
+            onClick={exitImpersonation}
+            style={{
+              background: '#fff', color: '#EA580C', border: 'none', borderRadius: 8,
+              padding: '5px 14px', fontSize: 12, fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap',
+            }}
+          >
+            Exit impersonation
+          </button>
+        </div>
+      )}
+      <div style={{ display:'flex', minHeight:'100vh', background:C.bg, color:C.white, paddingTop: impBannerH }}>
         <StagingBoot />
         {showDeploy && actingAs?.staging && actingAs.org_id && (
           <StagingDeployModal project={stagingProject} stagingOrgId={actingAs.org_id} name={actingAs.name} onClose={() => setShowDeploy(false)} />
@@ -557,7 +592,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           width: isMobile ? drawerW : sideW,
           background:C.side,
           borderRight:`1px solid ${C.border}`,
-          position:'fixed', top:0, left:0, bottom:0,
+          position:'fixed', top: impBannerH, left:0, bottom:0,
           display:'flex', flexDirection:'column',
           transition:'transform .25s ease, width .2s ease',
           transform: sidebarVisible ? 'translateX(0)' : `translateX(-${drawerW}px)`,
@@ -896,7 +931,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </div>
           </header>
           <div style={{ padding: isMobile ? 14 : 25, flex:1, minWidth:0 }}>
-            {actingAs && (
+            {/* Impersonation sets acting-as under the hood to scope org/client,
+                so suppress the "Acting as client" banner while impersonating —
+                the fixed top "Viewing as" banner owns that state (and its Exit). */}
+            {actingAs && !impersonate && (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '10px 16px', marginBottom: 16, background: actingAs.staging ? '#B45309' : '#7c3aed', color: '#fff', fontSize: 13, fontWeight: 600, borderRadius: 12 }}>
                 <span>{actingAs.staging
                   ? <>Editing <strong>{actingAs.name || 'Staging'}</strong> — pick changes to deploy to production.</>

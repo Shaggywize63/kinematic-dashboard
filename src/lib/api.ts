@@ -40,6 +40,39 @@ export function setActingAs(v: ActingAs | null) {
   } catch { /* ignore */ }
 }
 
+// Master-admin user impersonation ("Viewing as <user>"): when set, every API
+// request carries `X-Impersonate-User-Id` so the backend swaps the effective
+// user to the target — /auth/me (and everything else) then returns the TARGET
+// user, so the whole dashboard reflects them. The backend gates this to the
+// REAL caller being the master admin (s@kinematicapp.com); a non-master sending
+// the header is simply ignored. Persisted in localStorage so it survives
+// reloads; cleared on "Exit impersonation".
+export type ImpersonateUser = { id: string; name?: string; email?: string; org_id?: string; client_id?: string };
+export function getImpersonateUser(): ImpersonateUser | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem('kinematic_impersonate_user');
+    return raw ? (JSON.parse(raw) as ImpersonateUser) : null;
+  } catch { return null; }
+}
+export function setImpersonateUser(v: ImpersonateUser | null) {
+  if (typeof window === 'undefined') return;
+  try {
+    if (v) {
+      window.localStorage.setItem('kinematic_impersonate_user', JSON.stringify(v));
+      // Route X-Org-Id / X-Client-Id to the target's org so cross-tenant reads
+      // resolve against the right project scope — mirrors "Login as client".
+      setActingAs({ org_id: v.org_id, client_id: v.client_id ?? undefined, name: v.name });
+    } else {
+      window.localStorage.removeItem('kinematic_impersonate_user');
+      // Exiting impersonation also drops the org/client scoping it set.
+      setActingAs(null);
+    }
+  } catch { /* ignore */ }
+  // The previous identity's cached GETs must not leak across the switch.
+  api.clearCache();
+}
+
 // In-memory GET cache + localStorage stale-while-revalidate + in-flight dedupe.
 // - Successful GETs are cached in memory for `GET_CACHE_TTL_MS` (60s)
 // - Successful GETs also persisted to localStorage so a fresh tab can paint
@@ -289,6 +322,13 @@ class ApiClient {
       ...(options.headers as Record<string, string>),
     };
     if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    // Master-admin impersonation: forward the target user id. The backend only
+    // honours it when the REAL caller is the master admin; ignored otherwise.
+    const impersonate = getImpersonateUser();
+    if (impersonate?.id && !headers['X-Impersonate-User-Id']) {
+      headers['X-Impersonate-User-Id'] = impersonate.id;
+    }
 
     const orgId = this.getOrgId();
     if (orgId && !headers['X-Org-Id']) headers['X-Org-Id'] = orgId;
@@ -593,6 +633,8 @@ class ApiClient {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (token) headers['Authorization'] = `Bearer ${token}`;
     if (orgId) headers['X-Org-Id'] = orgId;
+    const imp = getImpersonateUser();
+    if (imp?.id) headers['X-Impersonate-User-Id'] = imp.id;
     const qs = this.sanitizeParams(params);
     return fetch(`${base}/api/v1/analytics/live-locations${qs}`, { headers, cache: 'no-store' })
       .then(async res => {
@@ -641,6 +683,8 @@ class ApiClient {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (token) headers['Authorization'] = `Bearer ${token}`;
     if (orgId) headers['X-Org-Id'] = orgId;
+    const imp = getImpersonateUser();
+    if (imp?.id) headers['X-Impersonate-User-Id'] = imp.id;
     return fetch(`${base}/api/v1/forms/admin/submissions${qs}`, { headers })
       .then(async res => {
         if (res.status === 401) throw new Error('Unauthorized');
