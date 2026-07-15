@@ -4,10 +4,14 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { crmAccounts } from '../../../../../lib/crmApi';
 import { CRM_INDUSTRIES } from '../../../../../lib/crmIndustries';
+import CustomFieldsSection from '../../../../../components/crm/CustomFieldsSection';
 
 export default function NewAccountPage() {
   const router = useRouter();
   const [form, setForm] = useState({ name: '', industry: '', website: '', phone: '', annual_revenue: '', employees: '' });
+  // Admin-defined custom fields (entity=account) — bound as one map that
+  // becomes the row's custom_fields jsonb (same pattern as the lead form).
+  const [customFields, setCustomFields] = useState<Record<string, unknown>>({});
   const [busy, setBusy] = useState(false);
 
   const submit = async (e: React.FormEvent) => {
@@ -21,6 +25,7 @@ export default function NewAccountPage() {
         phone: form.phone || null,
         annual_revenue: form.annual_revenue ? Number(form.annual_revenue) : null,
         employees: form.employees ? Number(form.employees) : null,
+        custom_fields: Object.keys(customFields).length > 0 ? customFields : undefined,
       });
       toast.success('Account created');
       router.push(`/dashboard/crm/accounts/${r.data.id}`);
@@ -52,6 +57,13 @@ export default function NewAccountPage() {
       <h2 style={{ marginTop: 0, fontSize: 18, color: 'var(--text)' }}>New Account</h2>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
         {fld('name', 'Name')}{industryFld}{fld('website', 'Website')}{fld('phone', 'Phone')}{fld('annual_revenue', 'Annual Revenue', 'number')}{fld('employees', 'Employees', 'number')}
+        {/* Custom fields render inline inside this grid so admin-defined
+            fields look like part of the form (same as the lead form). */}
+        <CustomFieldsSection
+          entity="account"
+          values={customFields}
+          onChange={setCustomFields}
+        />
       </div>
       <div style={{ display: 'flex', gap: 8, marginTop: 18, justifyContent: 'flex-end' }}>
         <button type="button" onClick={() => router.back()} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 16px', borderRadius: 8, cursor: 'pointer' }}>Cancel</button>

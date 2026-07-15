@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { crmDeals, crmPipelines, crmProducts, crmAccounts, crmContacts } from '../../../../../lib/crmApi';
 import type { Account, Contact, Pipeline, Product } from '../../../../../types/crm';
 import ClientScopeField from '../../../../../components/ClientScopeField';
+import CustomFieldsSection from '../../../../../components/crm/CustomFieldsSection';
 import { useAuth } from '../../../../../hooks/useAuth';
 import { isHorizonOrg } from '../../../../../lib/crmFeatureGates';
 
@@ -41,6 +42,9 @@ function NewDealPageInner() {
     client_id: '',
     account_id: initialAccountId, primary_contact_id: initialContactId, lead_id: initialLeadId,
   });
+  // Admin-defined custom fields (entity=deal) — bound as one map that
+  // becomes the row's custom_fields jsonb (same pattern as the lead form).
+  const [customFields, setCustomFields] = useState<Record<string, unknown>>({});
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -136,6 +140,7 @@ function NewDealPageInner() {
         account_id: showLinks && form.account_id ? form.account_id : undefined,
         primary_contact_id: showLinks && form.primary_contact_id ? form.primary_contact_id : undefined,
         lead_id: showLinks && form.lead_id ? form.lead_id : undefined,
+        custom_fields: Object.keys(customFields).length > 0 ? customFields : undefined,
       } as any);
       toast.success('Deal created');
       router.push(`/dashboard/crm/deals/${r.data.id}`);
@@ -199,6 +204,15 @@ function NewDealPageInner() {
             </Field>
           </>
         )}
+        {/* Custom fields render inline inside this grid so admin-defined
+            fields look like part of the form, not a tacked-on extension.
+            CustomFieldsSection yields raw <label> children with no wrapper
+            of its own. */}
+        <CustomFieldsSection
+          entity="deal"
+          values={customFields}
+          onChange={setCustomFields}
+        />
       </div>
 
       {selectedProduct && pricePerKg > 0 && (

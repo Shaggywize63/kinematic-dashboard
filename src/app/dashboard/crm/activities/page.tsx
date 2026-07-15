@@ -9,6 +9,7 @@ import api, { API_BASE_URL } from '../../../../lib/api';
 import type { Activity } from '../../../../types/crm';
 import { getStoredUser, canAccess, getStoredToken } from '../../../../lib/auth';
 import UserSearchSelect, { type UserOption } from '../../../../components/crm/shared/UserSearchSelect';
+import CustomFieldsSection from '../../../../components/crm/CustomFieldsSection';
 import { ActivityTypeIcon, activityTypeEmoji } from '../../../../components/crm/shared/ActivityTypeIcon';
 import GoogleCalendarBanner from '../../../../components/crm/GoogleCalendarBanner';
 import ViewCustomizer from '../../../../components/crm/shared/ViewCustomizer';
@@ -1142,6 +1143,13 @@ function EditActivityModal({ activity, onClose, onSaved }: { activity: Activity;
   const [outcome, setOutcome] = useState(activity.outcome || '');
   const [dueAt, setDueAt] = useState(activity.due_at ? toLocalDateTime(activity.due_at) : '');
   const [type, setType] = useState<string>(activity.type);
+  // Admin-defined custom fields (entity=activity) — seeded from the row's
+  // existing custom_fields; the backend PATCH merges server-side so sending
+  // the whole edited map back is safe.
+  const [customFields, setCustomFields] = useState<Record<string, unknown>>(() => {
+    const cf = (activity as Activity & { custom_fields?: Record<string, unknown> | null }).custom_fields;
+    return (cf && typeof cf === 'object') ? { ...cf } : {};
+  });
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
@@ -1154,6 +1162,7 @@ function EditActivityModal({ activity, onClose, onSaved }: { activity: Activity;
         description: description.trim() || null,
         outcome: outcome.trim() || null,
         due_at: dueAt ? new Date(dueAt).toISOString() : null,
+        custom_fields: customFields,
       };
       await crmActivities.update(activity.id, payload as any);
       toast.success('Activity updated');
@@ -1193,6 +1202,14 @@ function EditActivityModal({ activity, onClose, onSaved }: { activity: Activity;
         </Field>
         <Field label="Outcome (optional)"><input value={outcome} onChange={(e) => setOutcome(e.target.value)} style={editInput} /></Field>
         <Field label="Due / scheduled for"><input type="datetime-local" value={dueAt} onChange={(e) => setDueAt(e.target.value)} style={editInput} /></Field>
+        {/* Admin-defined activity custom fields. CustomFieldsSection yields
+            raw <label> children (or nothing when no defs exist), so they
+            stack with the modal's other fields via the parent flex gap. */}
+        <CustomFieldsSection
+          entity="activity"
+          values={customFields}
+          onChange={setCustomFields}
+        />
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginTop: 6 }}>
           {/* Delete is destructive and sits on the opposite side from
               the primary Save action so a slip-of-the-thumb doesn't

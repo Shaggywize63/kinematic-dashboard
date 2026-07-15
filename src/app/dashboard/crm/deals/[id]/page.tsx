@@ -12,6 +12,7 @@ import NextBestActionCard from '../../../../../components/crm/NextBestActionCard
 import CallButton from '../../../../../components/crm/shared/CallButton';
 import ActivityTimeline from '../../../../../components/crm/ActivityTimeline';
 import DealEditModal from '../../../../../components/crm/DealEditModal';
+import CustomFieldsDetailCard from '../../../../../components/crm/CustomFieldsDetailCard';
 import AddToPipelineModal from '../../../../../components/crm/AddToPipelineModal';
 import LogoSpinner from '../../../../../components/shared/LogoSpinner';
 import { formatINR, formatKg, type DashboardUnit } from '../../../../../lib/formatCurrency';
@@ -539,6 +540,17 @@ export default function DealDetailPage() {
 
           <SafeRender label="products">
             <DealProductsCard deal={deal} />
+          </SafeRender>
+
+          {/* Read-only admin-defined custom fields. The keys this page
+              already renders specially (Products / Weight hero / follow-up)
+              are skipped so they don't double-render. */}
+          <SafeRender label="custom fields">
+            <CustomFieldsDetailCard
+              entity="deal"
+              customFields={deal.custom_fields}
+              skipKeys={['product_lines', 'line_items', 'volume_kg', 'closed_quantities', 'next_action_type', 'next_action_at']}
+            />
           </SafeRender>
 
           <SafeRender label="activities">

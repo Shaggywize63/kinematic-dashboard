@@ -5,15 +5,20 @@ import { crmContacts, crmSettings } from '../../lib/crmApi';
 import type { BusinessType, Contact } from '../../types/crm';
 import Modal from './shared/Modal';
 import LocationPicker from './LocationPicker';
+import CustomFieldsSection from './CustomFieldsSection';
 
 interface Props { contact: Contact; open: boolean; onClose: () => void; onSaved: (updated: Contact) => void; }
 
 export default function ContactEditModal({ contact, open, onClose, onSaved }: Props) {
   const [form, setForm] = useState(() => seed(contact));
+  // Admin-defined custom fields (entity=contact) — seeded from the row's
+  // existing custom_fields; the backend PATCH merges server-side so sending
+  // the whole edited map back is safe.
+  const [customFields, setCustomFields] = useState<Record<string, unknown>>(() => seedCustomFields(contact));
   const [busy, setBusy] = useState(false);
   const [businessType, setBusinessType] = useState<BusinessType>('both');
 
-  useEffect(() => { if (open) setForm(seed(contact)); }, [open, contact]);
+  useEffect(() => { if (open) { setForm(seed(contact)); setCustomFields(seedCustomFields(contact)); } }, [open, contact]);
   // Mirror LeadEditModal: read org's B2B/B2C mode on open and pin
   // is_b2c for single-mode orgs so the toggle can't take the form into
   // an invalid combination.
@@ -39,6 +44,7 @@ export default function ContactEditModal({ contact, open, onClose, onSaved }: Pr
       const body: Record<string, unknown> = { first_name: form.first_name || null, last_name: form.last_name || null, email: form.email || null, phone: form.phone || null, mobile: form.mobile || null, is_b2c: form.is_b2c };
       if (!form.is_b2c) { body.title = form.title || null; body.department = form.department || null; }
       else { Object.assign(body, { date_of_birth: form.date_of_birth || null, gender: form.gender || null, address_line1: form.address_line1 || null, city: form.city || null, state: form.state || null, postal_code: form.postal_code || null, country: form.country || null, preferred_contact_method: form.preferred_contact_method || null, loyalty_tier: form.loyalty_tier || null, referral_source: form.referral_source || null, marketing_consent: form.marketing_consent, whatsapp_consent: form.whatsapp_consent }); }
+      body.custom_fields = customFields;
       const r = await crmContacts.update(contact.id, body);
       toast.success('Contact updated'); onSaved(r.data); onClose();
     } catch (e: any) { toast.error(e.message || 'Update failed'); } finally { setBusy(false); }
@@ -82,8 +88,28 @@ export default function ContactEditModal({ contact, open, onClose, onSaved }: Pr
         <CB checked={form.whatsapp_consent} onChange={(v) => setForm({ ...form, whatsapp_consent: v })}>Customer agreed to WhatsApp contact</CB>
         </>
       )}
+
+      {/* Admin-defined custom fields render type-aware: date opens a
+          calendar, select shows a dropdown, etc. Same pattern as
+          LeadEditModal's "Additional details" block. */}
+      <SL>Additional details</SL>
+      <Grid>
+        <CustomFieldsSection
+          entity="contact"
+          values={customFields}
+          onChange={setCustomFields}
+        />
+      </Grid>
     </Modal>
   );
+}
+
+// Copy of the contact's custom_fields map (exclude nothing) so edits don't
+// mutate the prop object. Backend merge semantics make partials safe.
+function seedCustomFields(c: Contact): Record<string, unknown> {
+  return (c.custom_fields && typeof c.custom_fields === 'object')
+    ? { ...(c.custom_fields as Record<string, unknown>) }
+    : {};
 }
 
 function seed(c: Contact) { return { first_name: c.first_name || '', last_name: c.last_name || '', email: c.email || '', phone: c.phone || '', mobile: c.mobile || '', title: c.title || '', department: c.department || '', is_b2c: !!c.is_b2c, date_of_birth: c.date_of_birth || '', gender: c.gender || '', address_line1: c.address_line1 || '', city: c.city || '', state: c.state || '', postal_code: c.postal_code || '', country: c.country || 'India', preferred_contact_method: c.preferred_contact_method || '', loyalty_tier: c.loyalty_tier || '', referral_source: c.referral_source || '', marketing_consent: !!c.marketing_consent, whatsapp_consent: !!c.whatsapp_consent }; }
