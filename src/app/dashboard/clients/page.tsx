@@ -7,6 +7,7 @@ import { ALL_MODULES, MODULE_GROUPS, MODULE_GROUP_LABELS, type ModuleGroup } fro
 import api, { setActingAs } from '../../../lib/api';
 import { getStoredProjectKey, DEFAULT_PROJECT, setStoredProjectKey } from '../../../lib/projects';
 import { useTableSort, SortLabel } from '../../../lib/tableSort';
+import ImpersonationControl from '../../../components/ImpersonationControl';
 
 // Uses the Next.js proxy routes (/api/v1/clients) which seed the modules table
 // before forwarding to the Supabase edge function, preventing FK constraint errors.
@@ -333,6 +334,9 @@ export default function ClientManagement() {
           <svg style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: C.gray }} width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
           <input style={{ ...inp, paddingLeft: 38 }} placeholder="Search clients..." value={search} onChange={e => setSearch(e.target.value)} />
         </div>
+        {/* Master-admin only: impersonate any user (self-gates to null for
+            everyone else). Sits next to "Login as client" (per-row Envs). */}
+        <ImpersonationControl />
         <button onClick={openAdd} style={{ background: C.red, color: '#fff', border: 'none', borderRadius: 11, padding: '10px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
           <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><path d="M12 5v14M5 12h14"/></svg>
           Add Client
