@@ -3,6 +3,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, AreaChart, Area,
 } from 'recharts';
+import { GLASS_TOOLTIP } from '../../lib/chartTheme';
 
 /**
  * TFF area chart. Pulled into its own client component so the analytics
@@ -22,7 +23,6 @@ export default function TffAreaChart({ trends }: { trends: TffPoint[] }) {
   const green   = 'var(--green)';
   const grayd   = 'var(--text-dim)';
   const border  = 'var(--border)';
-  const s2      = 'var(--s2)';
 
   return (
     <div style={{ height: 240, width: '100%' }}>
@@ -38,8 +38,8 @@ export default function TffAreaChart({ trends }: { trends: TffPoint[] }) {
           <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: grayd, fontSize: 10 }} dy={10} />
           <YAxis axisLine={false} tickLine={false} tick={{ fill: grayd, fontSize: 10 }} />
           <Tooltip
-            contentStyle={{ background: s2, border: `1px solid ${border}`, borderRadius: 12, fontSize: 12 }}
-            itemStyle={{ fontSize: 11, fontWeight: 700 }}
+            contentStyle={{ ...GLASS_TOOLTIP, fontSize: 12 }}
+            itemStyle={{ fontSize: 11, fontWeight: 700, color: 'var(--text)' }}
           />
           <Area type="monotone" dataKey="tff" stroke={green} fillOpacity={1} fill="url(#colTff)" strokeWidth={2} name="TFF" />
         </AreaChart>

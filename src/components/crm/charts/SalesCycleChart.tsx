@@ -1,15 +1,16 @@
 'use client';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
+import { CHART, seriesColor, GLASS_TOOLTIP } from '../../../lib/chartTheme';
 
 export default function SalesCycleChart({ data }: { data: Array<{ stage: string; avg_days: number }> }) {
   return (
     <ResponsiveContainer width="100%" height={300}>
-      <LineChart data={data} margin={{ top: 10, right: 20, left: 0, bottom: 10 }}>
-        <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" />
-        <XAxis dataKey="stage" stroke="var(--text-dim)" fontSize={11} />
-        <YAxis stroke="var(--text-dim)" fontSize={11} unit="d" />
-        <Tooltip contentStyle={{ background: 'color-mix(in srgb, var(--s2) 86%, transparent)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', border: '1px solid var(--border)', borderRadius: 10, boxShadow: '0 10px 28px rgba(0,0,0,0.38)' }} labelStyle={{ color: '#E01E2C', fontWeight: 700 }} itemStyle={{ color: '#E01E2C' }} />
-        <Line type="monotone" dataKey="avg_days" stroke="#00B4D8" strokeWidth={2} dot={{ r: 4 }} />
+      <LineChart data={data} margin={CHART.margin}>
+        <CartesianGrid {...CHART.grid} />
+        <XAxis dataKey="stage" {...CHART.axis} />
+        <YAxis {...CHART.axis} unit="d" />
+        <Tooltip contentStyle={GLASS_TOOLTIP} labelStyle={{ color: 'var(--text)', fontWeight: 700 }} itemStyle={{ color: 'var(--text-dim)' }} />
+        <Line type="monotone" dataKey="avg_days" stroke={seriesColor(4)} strokeWidth={2} dot={{ r: 4 }} />
       </LineChart>
     </ResponsiveContainer>
   );
