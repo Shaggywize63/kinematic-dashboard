@@ -9,6 +9,7 @@ import {
   defaultReportRange,
   type ReportRange,
 } from './ReportFilters';
+import ReportCharts from './ReportCharts';
 
 type RunData = { columns: string[]; rows: Array<Array<string | number | null>>; count: number };
 
@@ -170,6 +171,9 @@ export default function ReportRunner({
       {error && (
         <div style={{ color: 'var(--primary)', fontSize: 13, marginBottom: 12 }}>{error}</div>
       )}
+
+      {/* Auto-derived charts (donut / bars / trend) — brand chart kit. */}
+      {data && data.rows.length > 0 && <ReportCharts data={data} />}
 
       {/* Summary strip. */}
       {summary && (
