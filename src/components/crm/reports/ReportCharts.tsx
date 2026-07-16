@@ -4,8 +4,15 @@ import {
   PieChart, Pie, AreaChart, Area, Tooltip, Legend, LabelList,
 } from 'recharts';
 import {
-  CHART, CHART_PALETTE, seriesColor, gradId, grad, GradientDefs, ChartCard, ChartTooltip,
+  CHART, CHART_PALETTE, seriesColor, ChartCard, ChartTooltip,
 } from '../../../lib/chartTheme';
+
+// Gradient id unique to THIS component's area chart. The shared chartTheme
+// grad() ids are reused by every chart, and when several charts render on one
+// page (donut + bars + area here) those duplicate SVG ids collide — which made
+// all but the first bar paint with an unresolved `url(#…)` and vanish. Bars and
+// donut now use solid brand fills; only the area keeps a (locally-scoped) gradient.
+const RC_AREA_GRAD = 'rc-report-area-grad';
 
 /**
  * Auto-derived analytics for ANY report — no per-report config, so every
@@ -94,7 +101,6 @@ export default function ReportCharts({ data }: { data: Data }) {
 
   if (!donut && metricBars.length === 0 && !series) return null;
 
-  const donutColors = donut ? donut.slices.map((_, i) => seriesColor(i)) : [];
   const areaColor = CHART_PALETTE[0];
 
   return (
@@ -106,14 +112,13 @@ export default function ReportCharts({ data }: { data: Data }) {
         <ChartCard title={donut.title} subtitle="Share of records">
           <ResponsiveContainer width="100%" height={240}>
             <PieChart>
-              <GradientDefs colors={donutColors} top={0.98} bottom={0.55} />
               <Pie
                 data={donut.slices} dataKey="value" nameKey="name"
                 innerRadius={52} outerRadius={82} paddingAngle={2}
                 stroke="var(--s2)" strokeWidth={2}
                 isAnimationActive animationDuration={700}
               >
-                {donut.slices.map((_, i) => <Cell key={i} fill={grad(seriesColor(i))} />)}
+                {donut.slices.map((_, i) => <Cell key={i} fill={seriesColor(i)} />)}
               </Pie>
               <Tooltip content={<ChartTooltip />} />
               <Legend
@@ -128,14 +133,13 @@ export default function ReportCharts({ data }: { data: Data }) {
       {metricBars.length > 0 && (
         <ChartCard title="Totals" subtitle="Summed across the period">
           <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={metricBars} margin={CHART.margin}>
-              <GradientDefs colors={metricBars.map((_, i) => seriesColor(i))} />
+            <BarChart data={metricBars} margin={{ ...CHART.margin, top: 22 }} barCategoryGap="22%">
               <CartesianGrid {...CHART.grid} />
               <XAxis dataKey="name" {...CHART.axis} interval={0} angle={-18} textAnchor="end" height={54} />
               <YAxis {...CHART.axis} width={44} />
               <Tooltip cursor={{ fill: 'var(--border)', opacity: 0.25 }} content={<ChartTooltip />} />
-              <Bar dataKey="value" radius={CHART.barRadius} {...CHART.animation}>
-                {metricBars.map((_, i) => <Cell key={i} fill={grad(seriesColor(i))} />)}
+              <Bar dataKey="value" radius={CHART.barRadius} maxBarSize={64} {...CHART.animation}>
+                {metricBars.map((_, i) => <Cell key={i} fill={seriesColor(i)} />)}
                 <LabelList dataKey="value" position="top" style={{ fill: 'var(--text-dim)', fontSize: 10, fontWeight: 700 }} formatter={(v: number) => v.toLocaleString('en-IN')} />
               </Bar>
             </BarChart>
@@ -148,7 +152,7 @@ export default function ReportCharts({ data }: { data: Data }) {
           <ResponsiveContainer width="100%" height={240}>
             <AreaChart data={series} margin={CHART.margin}>
               <defs>
-                <linearGradient id={gradId(areaColor)} x1="0" y1="0" x2="0" y2="1">
+                <linearGradient id={RC_AREA_GRAD} x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor={areaColor} stopOpacity={0.5} />
                   <stop offset="100%" stopColor={areaColor} stopOpacity={0.04} />
                 </linearGradient>
@@ -157,7 +161,7 @@ export default function ReportCharts({ data }: { data: Data }) {
               <XAxis dataKey="date" {...CHART.axis} tickFormatter={(d: string) => d.slice(5)} minTickGap={18} />
               <YAxis {...CHART.axis} width={36} allowDecimals={false} />
               <Tooltip content={<ChartTooltip />} />
-              <Area type="monotone" dataKey="value" stroke={areaColor} strokeWidth={2} fill={`url(#${gradId(areaColor)})`} {...CHART.animation} />
+              <Area type="monotone" dataKey="value" stroke={areaColor} strokeWidth={2} fill={`url(#${RC_AREA_GRAD})`} {...CHART.animation} />
             </AreaChart>
           </ResponsiveContainer>
         </ChartCard>
