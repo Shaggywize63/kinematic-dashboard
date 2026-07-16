@@ -12,6 +12,7 @@ import {
   ResponsiveContainer, BarChart, Bar, LineChart, Line, AreaChart, Area,
   PieChart, Pie, Cell, XAxis, YAxis, Tooltip, Legend, CartesianGrid,
 } from 'recharts';
+import { CHART_PALETTE, GLASS_TOOLTIP } from '../../../lib/chartTheme';
 import {
   Plus, Edit3, Save, X, BarChart3, LineChart as LineIcon, Activity, Layers,
   AlertTriangle, MoreVertical, Inbox, Users, Truck, Award, Wand2,
@@ -43,7 +44,9 @@ const ACCENT_BY_CATEGORY: Record<string, string> = {
   Risk:         '#E0282C',
   Growth:       '#10B981',
 };
-const COLORS = ['#3B82F6', '#10B981', '#8B5CF6', '#F59E0B', '#EC4899', '#14B8A6', '#F97316', '#84CC16', '#06B6D4', '#E0282C'];
+// Palette + tooltip come from the shared chart kit so field-force analytics
+// match the rest of the dashboard's brand chart language.
+const COLORS = CHART_PALETTE;
 
 const CATEGORY_ICONS: Record<string, React.ElementType> = {
   Coverage:     Users,
@@ -729,7 +732,7 @@ function chartLabel(c: ChartType): string {
 // Inline chart helpers (kept local so FFM doesn't depend on CRM analytics).
 // ─────────────────────────────────────────────────────────────────────────
 
-const tooltipStyle: React.CSSProperties = { background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px', fontSize: 12, boxShadow: '0 4px 14px rgba(0,0,0,0.25)' };
+const tooltipStyle: React.CSSProperties = { ...GLASS_TOOLTIP, padding: '8px 10px', fontSize: 12 };
 
 function BarSeries({ data, suffix, accent }: { data: Array<{ name: string; value: number }>; suffix?: string; accent?: string }) {
   const gid = `bg-${Math.random().toString(36).slice(2, 8)}`;
