@@ -4,7 +4,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { getStoredUser, isSessionValid, clearSession, getDesignationLabel } from '../../lib/auth';
-import api, { getActingAs, setActingAs, getImpersonateUser, setImpersonateUser } from '../../lib/api';
+import api, { getActingAs, setActingAs, getImpersonateUser, stopImpersonation } from '../../lib/api';
 import StagingBoot from './StagingBoot';
 import StagingDeployModal from './StagingDeployModal';
 import { getStoredProjectKey } from '../../lib/projects';
@@ -546,7 +546,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // sidebar + main column) down so the fixed bar never overlaps content.
   const impBannerH = impersonate ? 44 : 0;
   const exitImpersonation = () => {
-    setImpersonateUser(null); // clears impersonate + acting-as + GET caches
+    stopImpersonation(); // drops minted token + acting-as, restores the master's project, clears caches
     window.location.reload();
   };
 

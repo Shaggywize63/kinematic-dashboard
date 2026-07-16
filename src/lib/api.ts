@@ -1,6 +1,6 @@
 import * as demo from './demoMocks';
 import { isUUID } from './utils';
-import { getStoredProjectKey, DEFAULT_PROJECT } from './projects';
+import { getStoredProjectKey, setStoredProjectKey, DEFAULT_PROJECT } from './projects';
 
 export function resolveApiUrl(): string {
   const url = process.env.NEXT_PUBLIC_API_URL;
@@ -47,7 +47,7 @@ export function setActingAs(v: ActingAs | null) {
 // REAL caller being the master admin (s@kinematicapp.com); a non-master sending
 // the header is simply ignored. Persisted in localStorage so it survives
 // reloads; cleared on "Exit impersonation".
-export type ImpersonateUser = { id: string; name?: string; email?: string; org_id?: string; client_id?: string };
+export type ImpersonateUser = { id: string; name?: string; email?: string; org_id?: string; client_id?: string; project?: string };
 export function getImpersonateUser(): ImpersonateUser | null {
   if (typeof window === 'undefined') return null;
   try {
@@ -55,21 +55,58 @@ export function getImpersonateUser(): ImpersonateUser | null {
     return raw ? (JSON.parse(raw) as ImpersonateUser) : null;
   } catch { return null; }
 }
+// Low-level persistence of the "who am I viewing as" record (drives the banner).
+// Prefer startImpersonation / stopImpersonation, which also swap the session
+// token + project so cross-project targets (e.g. an SRS user in the `default`
+// project) resolve their real, role-scoped dashboard.
 export function setImpersonateUser(v: ImpersonateUser | null) {
   if (typeof window === 'undefined') return;
   try {
-    if (v) {
-      window.localStorage.setItem('kinematic_impersonate_user', JSON.stringify(v));
-      // Route X-Org-Id / X-Client-Id to the target's org so cross-tenant reads
-      // resolve against the right project scope — mirrors "Login as client".
-      setActingAs({ org_id: v.org_id, client_id: v.client_id ?? undefined, name: v.name });
-    } else {
-      window.localStorage.removeItem('kinematic_impersonate_user');
-      // Exiting impersonation also drops the org/client scoping it set.
-      setActingAs(null);
-    }
+    if (v) window.localStorage.setItem('kinematic_impersonate_user', JSON.stringify(v));
+    else window.localStorage.removeItem('kinematic_impersonate_user');
   } catch { /* ignore */ }
-  // The previous identity's cached GETs must not leak across the switch.
+}
+
+// Backup of the master admin's OWN project key, so Exit restores their session
+// to the right Supabase project (they live in `kinematic`, but they may have
+// just been viewing an SRS user in `default`).
+const IMPERSONATE_PREV_PROJECT = 'kinematic_impersonate_prev_project';
+
+/**
+ * Begin a master-admin impersonation session from a minted target token.
+ * The token (signed with the TARGET's project key, `sub` = target user) becomes
+ * the bearer, the session routes to the target's Supabase project, and
+ * X-Org-Id/X-Client-Id scope to the target's org — so the whole dashboard loads
+ * as that user. Caller should reload immediately after.
+ */
+export function startImpersonation(payload: { token: string; project?: string | null; user: ImpersonateUser }) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(IMPERSONATE_PREV_PROJECT, getStoredProjectKey() ?? '');
+    setStoredProjectKey(payload.project ?? null);
+    setActingAs({
+      token: payload.token,
+      org_id: payload.user.org_id,
+      client_id: payload.user.client_id ?? undefined,
+      name: payload.user.name,
+      project: payload.project ?? undefined,
+    });
+    setImpersonateUser({ ...payload.user, project: payload.project ?? undefined });
+  } catch { /* ignore */ }
+  api.clearCache();
+}
+
+/** End impersonation: drop the minted token/scope and restore the master
+ *  admin's own project. Caller should reload immediately after. */
+export function stopImpersonation() {
+  if (typeof window === 'undefined') return;
+  try {
+    const prev = window.localStorage.getItem(IMPERSONATE_PREV_PROJECT);
+    setActingAs(null);
+    setImpersonateUser(null);
+    setStoredProjectKey(prev && prev.length ? prev : null);
+    window.localStorage.removeItem(IMPERSONATE_PREV_PROJECT);
+  } catch { /* ignore */ }
   api.clearCache();
 }
 
