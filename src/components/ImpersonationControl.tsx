@@ -84,8 +84,11 @@ export default function ImpersonationControl() {
         project: d.project ?? u.project,
         user: d.user ?? { id: u.id, name: u.name, email: u.email, org_id: u.org_id, client_id: u.client_id },
       });
-      // Full reload so /auth/me + every page re-resolves as the target user.
-      window.location.reload();
+      // Full navigation to the dashboard root (not a reload, which would keep
+      // the master on the Clients page). /dashboard re-resolves as the target
+      // user and its own redirect sends them to their proper home
+      // (e.g. /dashboard/crm/dashboard for a CRM rep).
+      window.location.href = '/dashboard';
     } catch (e: any) {
       setErr(e?.message || 'Could not start impersonation');
       setStarting(null);
