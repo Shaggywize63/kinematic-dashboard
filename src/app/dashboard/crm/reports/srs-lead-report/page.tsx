@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { toast } from 'sonner';
 import { useAuth } from '../../../../../hooks/useAuth';
 import { API_BASE_URL } from '../../../../../lib/api';
-import { getStoredToken } from '../../../../../lib/auth';
+import { reportFetchHeaders } from '../../../../../lib/reportAuth';
 import { canDownloadSrsReport } from '../../../../../lib/clientFeatures';
 import {
   useReportCityKey,
@@ -58,18 +58,10 @@ export default function SrsLeadReportPage() {
       if (cityKey)    qs.set('city', cityKey);
 
       const url = `${API_BASE_URL}/api/v1/crm/leads/export-srs-report${qs.toString() ? `?${qs.toString()}` : ''}`;
-      const token = getStoredToken();
-      // Forward Authorization AND X-Client-Id — the raw fetch skips api.ts's
-      // interceptors, so without X-Client-Id a super-admin's picker selection
-      // would be ignored.
-      const headers: Record<string, string> = {};
-      if (token) headers.Authorization = `Bearer ${token}`;
-      try {
-        const sel = window.localStorage.getItem('kinematic_selected_client');
-        if (sel && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sel)) {
-          headers['X-Client-Id'] = sel;
-        }
-      } catch { /* ignore */ }
+      // Impersonation- and project-aware headers (mirrors api.ts). Using the
+      // raw stored token while impersonating a user in another Supabase
+      // project was the cause of "Invalid or expired token" here.
+      const headers = reportFetchHeaders();
 
       const res = await fetch(url, { headers });
       if (!res.ok) {
