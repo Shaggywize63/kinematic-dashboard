@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import api, { setImpersonateUser } from '../lib/api';
+import api, { startImpersonation } from '../lib/api';
 import Modal from './crm/shared/Modal';
 
 // Only the Kinematic master admin may impersonate. Everyone else never sees
@@ -18,6 +18,10 @@ type SearchUser = {
   org_id?: string;
   client_id?: string;
   org_role_name?: string;
+  // Which Supabase project the user lives in (e.g. `default` = SRS/Tata,
+  // `kinematic` = BMW / Kinematic org). Passed to /impersonate/start so the
+  // backend mints a token signed with that project's key.
+  project?: string;
 };
 
 /**
@@ -66,17 +70,26 @@ export default function ImpersonationControl() {
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [q, open]);
 
-  const start = useCallback((u: SearchUser) => {
+  const start = useCallback(async (u: SearchUser) => {
     setStarting(u.id);
-    setImpersonateUser({
-      id: u.id,
-      name: u.name,
-      email: u.email,
-      org_id: u.org_id,
-      client_id: u.client_id,
-    });
-    // Full reload so /auth/me + every page re-resolves as the target user.
-    window.location.reload();
+    setErr('');
+    try {
+      // Mint a session token for the target in THEIR project, then swap the
+      // bearer + project so the whole dashboard loads as that user.
+      const r: any = await api.post('/api/v1/auth/impersonate/start', { user_id: u.id, project: u.project });
+      const d = r?.data ?? r;
+      if (!d?.token) throw new Error('Could not start impersonation (no session token returned).');
+      startImpersonation({
+        token: d.token,
+        project: d.project ?? u.project,
+        user: d.user ?? { id: u.id, name: u.name, email: u.email, org_id: u.org_id, client_id: u.client_id },
+      });
+      // Full reload so /auth/me + every page re-resolves as the target user.
+      window.location.reload();
+    } catch (e: any) {
+      setErr(e?.message || 'Could not start impersonation');
+      setStarting(null);
+    }
   }, []);
 
   if (!isMaster) return null;
