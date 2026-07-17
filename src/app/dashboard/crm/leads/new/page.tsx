@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { crmLeads, crmSettings, crmLeadSources, crmProducts, crmTargets, type MyTarget } from '../../../../../lib/crmApi';
@@ -227,6 +227,18 @@ export default function NewLeadPage() {
     () => buildFieldHelpers(fieldOverrides, 'lead', form.is_b2c ? 'b2c' : 'b2b'),
     [fieldOverrides, form.is_b2c],
   );
+  // Business fields (company/title/industry) live on the B2B branch by
+  // default. An admin can opt them onto B2C forms by explicitly un-hiding
+  // the field in Settings → Custom Fields (which persists `hidden: false`).
+  // Default-visible (no override at all) does NOT pull them onto B2C, so
+  // tenants that never touched these keep the B2B-only behaviour untouched.
+  const explicitlyShownOnB2C = useCallback((k: string): boolean => {
+    const uni = fieldOverrides[`lead.${k}`];
+    const b2c = fieldOverrides[`lead.${k}@b2c`];
+    const merged = { ...(uni ?? {}), ...(b2c ?? {}) };
+    return merged.hidden === false;
+  }, [fieldOverrides]);
+  const anyBizOnB2C = explicitlyShownOnB2C('company') || explicitlyShownOnB2C('title') || explicitlyShownOnB2C('industry');
   const [sources, setSources] = useState<LeadSource[]>([]);
   const [users, setUsers] = useState<UserOpt[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -454,9 +466,13 @@ export default function NewLeadPage() {
         custom_fields: Object.keys(form.custom_fields).length > 0 ? form.custom_fields : undefined,
         photo_url: photoUrl || undefined,
       };
-      if (!form.is_b2c) {
+      // Business fields persist on B2B always, and on B2C when an admin has
+      // explicitly un-hidden them (so the value the rep typed actually saves).
+      const bizOnB2C = form.is_b2c && anyBizOnB2C;
+      if (!form.is_b2c || bizOnB2C) {
         Object.assign(payload, { company: form.company || undefined, title: form.title || undefined, industry: form.industry || undefined });
-      } else {
+      }
+      if (form.is_b2c) {
         Object.assign(payload, {
           date_of_birth: form.date_of_birth || undefined, gender: form.gender || undefined,
           address_line1: form.address_line1 || undefined, address_line2: form.address_line2 || undefined,
@@ -681,6 +697,18 @@ export default function NewLeadPage() {
         </>
       ) : (
         <>
+          {/* Business Details on a B2C lead — only when an admin explicitly
+              un-hid company/title/industry (Settings → Custom Fields writes
+              hidden:false). Keeps the B2B-only default for untouched tenants. */}
+          {anyBizOnB2C && (
+            <Section title="Business Details">
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
+                {explicitlyShownOnB2C('company')  && text('company', 'Company')}
+                {explicitlyShownOnB2C('title')    && text('title', 'Job Title')}
+                {explicitlyShownOnB2C('industry') && text('industry', 'Industry')}
+              </div>
+            </Section>
+          )}
           <Section title="Customer Details">
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
               {text('date_of_birth', 'Date of Birth', { type: 'date' })}

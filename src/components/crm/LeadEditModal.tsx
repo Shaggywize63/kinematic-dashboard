@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { crmLeads, crmSettings, crmLeadSources } from '../../lib/crmApi';
@@ -93,6 +93,17 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
     () => buildFieldHelpers(fieldOverrides, 'lead', form.is_b2c ? 'b2c' : 'b2b'),
     [fieldOverrides, form.is_b2c],
   );
+  // Business fields (company/title/industry) live on the B2B branch by
+  // default. An admin can opt them onto B2C forms by explicitly un-hiding
+  // the field in Settings → Custom Fields (which persists `hidden: false`).
+  // Default-visible (no override at all) does NOT pull them onto B2C, so
+  // tenants that never touched these keep the B2B-only behaviour untouched.
+  const explicitlyShownOnB2C = useCallback((k: string): boolean => {
+    const uni = fieldOverrides[`lead.${k}`];
+    const b2c = fieldOverrides[`lead.${k}@b2c`];
+    const merged = { ...(uni ?? {}), ...(b2c ?? {}) };
+    return merged.hidden === false;
+  }, [fieldOverrides]);
 
   useEffect(() => { if (open) setForm(seed(lead)); }, [open, lead]);
   // Fetch org's B2B/B2C mode AND the active lead sources on first open. The
@@ -214,8 +225,11 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
         // Tags — CSV → string[]. Empty array deletes all existing tags.
         tags: form.tags_input.split(',').map((t) => t.trim()).filter(Boolean),
       };
-      if (!form.is_b2c) { Object.assign(body, { company: form.company || null, title: form.title || null, industry: form.industry || null }); }
-      else { Object.assign(body, { date_of_birth: form.date_of_birth || null, gender: form.gender || null, address_line1: form.address_line1 || null, city: form.city || null, state: form.state || null, postal_code: form.postal_code || null, country: form.country || null, preferred_contact_method: form.preferred_contact_method || null, marketing_consent: form.marketing_consent, whatsapp_consent: form.whatsapp_consent }); }
+      // Business fields persist on B2B always, and on B2C when an admin has
+      // explicitly un-hidden them (so the value the rep typed actually saves).
+      const bizOnB2C = form.is_b2c && (explicitlyShownOnB2C('company') || explicitlyShownOnB2C('title') || explicitlyShownOnB2C('industry'));
+      if (!form.is_b2c || bizOnB2C) { Object.assign(body, { company: form.company || null, title: form.title || null, industry: form.industry || null }); }
+      if (form.is_b2c) { Object.assign(body, { date_of_birth: form.date_of_birth || null, gender: form.gender || null, address_line1: form.address_line1 || null, city: form.city || null, state: form.state || null, postal_code: form.postal_code || null, country: form.country || null, preferred_contact_method: form.preferred_contact_method || null, marketing_consent: form.marketing_consent, whatsapp_consent: form.whatsapp_consent }); }
       // Tata: backend reads this flag and spawns a fresh site_visit
       // activity tied to the lead. Reset the toggle each save so the
       // rep doesn't accidentally create duplicate visits on next edit.
@@ -268,6 +282,7 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
       {(() => { const show = (k: string, node: React.ReactNode) => fields.isHidden(k) ? null : node;
                 const lbl  = (k: string, d: string) => fields.labelFor(k, d);
                 const req  = (k: string, d: boolean) => fields.requiredFor(k, d);
+                const anyBizOnB2C = explicitlyShownOnB2C('company') || explicitlyShownOnB2C('title') || explicitlyShownOnB2C('industry');
       return (
         <>
         <SL>Personal</SL><Grid>
@@ -358,7 +373,18 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
             </Grid></>
           )
         ) : (
-          <><SL>Customer Details</SL><Grid>
+          <>
+          {/* Business Details on a B2C lead — only when an admin explicitly
+              un-hid company/title/industry (Settings → Custom Fields writes
+              hidden:false). Keeps the B2B-only default for untouched tenants. */}
+          {anyBizOnB2C && (
+            <><SL>Business Details</SL><Grid>
+              {explicitlyShownOnB2C('company')  && show('company',  <F label={lbl('company',  'Company')}   required={req('company', false)} value={form.company}  onChange={(v) => setForm({ ...form, company:  v })} />)}
+              {explicitlyShownOnB2C('title')    && show('title',    <F label={lbl('title',    'Job Title')} required={req('title', false)}   value={form.title}    onChange={(v) => setForm({ ...form, title:    v })} />)}
+              {explicitlyShownOnB2C('industry') && show('industry', <F label={lbl('industry', 'Industry')}  required={req('industry', false)} value={form.industry} onChange={(v) => setForm({ ...form, industry: v })} />)}
+            </Grid></>
+          )}
+          <SL>Customer Details</SL><Grid>
             {show('date_of_birth', <F label={lbl('date_of_birth', 'Date of Birth')} type="date" value={form.date_of_birth} onChange={(v) => setForm({ ...form, date_of_birth: v })} />)}
             {show('gender', <SF label={lbl('gender', 'Gender')} value={form.gender} options={[{ value: '', label: '—' }, { value: 'male', label: 'Male' }, { value: 'female', label: 'Female' }, { value: 'other', label: 'Other' }, { value: 'prefer_not_to_say', label: 'Prefer not to say' }]} onChange={(v) => setForm({ ...form, gender: v })} />)}
             {show('preferred_contact_method', <SF label={lbl('preferred_contact_method', 'Preferred Channel')} value={form.preferred_contact_method} options={[{ value: '', label: '—' }, { value: 'email', label: 'Email' }, { value: 'phone', label: 'Phone' }, { value: 'whatsapp', label: 'WhatsApp' }, { value: 'sms', label: 'SMS' }]} onChange={(v) => setForm({ ...form, preferred_contact_method: v })} />)}
