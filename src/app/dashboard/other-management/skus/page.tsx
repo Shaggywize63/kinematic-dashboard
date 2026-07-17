@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import api from '../../../../lib/api';
+import { usePagination } from '../../../../components/shared/Pagination';
 import ClientSelect from '../../../../components/ClientSelect';
 import ConfirmModal from '../../../../components/ConfirmModal';
 import { useAuth } from '../../../../hooks/useAuth';
@@ -114,6 +115,7 @@ export default function SKUManagement() {
     (s.sku_code.toLowerCase().includes(search.toLowerCase()) || s.name.toLowerCase().includes(search.toLowerCase()) || (s.category||'').toLowerCase().includes(search.toLowerCase())) &&
     (!filterCat || s.category === filterCat)
   );
+  const { pageItems: pagedSkus, bar } = usePagination(filtered);
   const active = skus.filter(s=>s.is_active).length;
 
   return (
@@ -158,7 +160,7 @@ export default function SKUManagement() {
         {loading ? <div style={{padding:40,textAlign:'center'}}><Spinner/></div>
         : err ? <div style={{padding:40,textAlign:'center',color:C.red,fontSize:13}}>{err}</div>
         : filtered.length===0 ? <div style={{padding:48,textAlign:'center',color:C.grayd,fontSize:13}}>{search||filterCat?"No SKUs match.":"No SKUs yet. Add your first product."}</div>
-        : filtered.map((s,i)=>(
+        : pagedSkus.map((s,i)=>(
           <div key={s.id} style={{display:'grid',gridTemplateColumns:'110px 1fr 1fr 80px 90px 90px 80px',padding:'14px 20px',borderBottom:i<filtered.length-1?`1px solid ${C.border}`:'none',gap:12,alignItems:'center'}}
             onMouseEnter={e=>e.currentTarget.style.background=C.s3}
             onMouseLeave={e=>e.currentTarget.style.background='transparent'}
@@ -205,6 +207,7 @@ export default function SKUManagement() {
           </div>
         ))}
       </div>
+      {bar}
 
       {/* Modal */}
       {showModal && (

@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import api from '../../../../lib/api';
+import { usePagination } from '../../../../components/shared/Pagination';
 import CitySelect from '../../../../components/CitySelect';
 import ClientSelect from '../../../../components/ClientSelect';
 import ConfirmModal from '../../../../components/ConfirmModal';
@@ -132,6 +133,7 @@ export default function ZoneManagement() {
 
   const sf = (v:string)=>setForm(p=>({...p,...JSON.parse(v)}));
   const filtered = zones.filter(z => z.name.toLowerCase().includes(search.toLowerCase()) || (z.city||'').toLowerCase().includes(search.toLowerCase()));
+  const { pageItems: pagedZones, bar } = usePagination(filtered);
   const active = zones.filter(z=>z.is_active).length;
 
   return (
@@ -176,7 +178,7 @@ export default function ZoneManagement() {
         {loading ? <div style={{padding:40,textAlign:'center'}}><Spinner/></div>
         : err ? <div style={{padding:40,textAlign:'center',color:C.red,fontSize:13}}>{err}</div>
         : filtered.length===0 ? <div style={{padding:48,textAlign:'center',color:C.grayd,fontSize:13}}>{search?'No zones match.':'No zones yet.'}</div>
-        : filtered.map((z,i)=>(
+        : pagedZones.map((z,i)=>(
           <div key={z.id} style={{display:'grid',gridTemplateColumns:isPlatformAdmin?'1fr 1fr 1fr 140px 100px 90px 80px':'1fr 1fr 1fr 140px 90px 80px',padding:'14px 20px',borderBottom:i<filtered.length-1?`1px solid ${C.border}`:'none',gap:12,alignItems:'center'}}
             onMouseEnter={e=>e.currentTarget.style.background=C.s3}
             onMouseLeave={e=>e.currentTarget.style.background='transparent'}
@@ -228,6 +230,7 @@ export default function ZoneManagement() {
           </div>
         ))}
       </div>
+      {bar}
 
       {/* Modal */}
       {showModal && (

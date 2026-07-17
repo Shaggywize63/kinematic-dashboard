@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import api from '../../../../lib/api';
+import { usePagination } from '../../../../components/shared/Pagination';
 import ClientSelect from '../../../../components/ClientSelect';
 import { useAuth } from '../../../../hooks/useAuth';
 
@@ -105,6 +106,7 @@ export default function AssetManagement() {
     (a.name.toLowerCase().includes(search.toLowerCase()) || (a.asset_code||'').toLowerCase().includes(search.toLowerCase()) || (a.category||'').toLowerCase().includes(search.toLowerCase())) &&
     (!filterCat || a.category === filterCat)
   );
+  const { pageItems: pagedAssets, bar } = usePagination(filtered);
   const totalQty = assets.reduce((s,a)=>s+a.quantity,0);
   const active = assets.filter(a=>a.is_active).length;
 
@@ -150,7 +152,7 @@ export default function AssetManagement() {
         {loading ? <div style={{padding:40,textAlign:'center'}}><Spinner/></div>
         : err ? <div style={{padding:40,textAlign:'center',color:C.red,fontSize:13}}>{err}</div>
         : filtered.length===0 ? <div style={{padding:48,textAlign:'center',color:C.grayd,fontSize:13}}>{search||filterCat?'No assets match.':'No assets yet. Add your first asset.'}</div>
-        : filtered.map((a,i)=>(
+        : pagedAssets.map((a,i)=>(
           <div key={a.id} style={{display:'grid',gridTemplateColumns:'100px 1fr 1fr 100px 80px 90px 80px',padding:'14px 20px',borderBottom:i<filtered.length-1?`1px solid ${C.border}`:'none',gap:12,alignItems:'center'}}
             onMouseEnter={e=>e.currentTarget.style.background=C.s3}
             onMouseLeave={e=>e.currentTarget.style.background='transparent'}
@@ -194,6 +196,7 @@ export default function AssetManagement() {
           </div>
         ))}
       </div>
+      {bar}
 
       {/* Modal */}
       {showModal && (

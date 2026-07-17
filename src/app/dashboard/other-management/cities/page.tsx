@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import api from '../../../../lib/api';
+import { usePagination } from '../../../../components/shared/Pagination';
 import ClientSelect from '../../../../components/ClientSelect';
 import ConfirmModal from '../../../../components/ConfirmModal';
 import { useAuth } from '../../../../hooks/useAuth';
@@ -133,6 +134,7 @@ export default function CityManagement() {
   };
 
   const filtered = cities.filter(c => c.name.toLowerCase().includes(search.toLowerCase()) || (c.state||'').toLowerCase().includes(search.toLowerCase()));
+  const { pageItems: pagedCities, bar } = usePagination(filtered);
   const active = cities.filter(c=>c.is_active).length;
 
   return (
@@ -182,7 +184,7 @@ export default function CityManagement() {
           <div style={{padding:48,textAlign:'center',color:C.grayd,fontSize:13}}>
             {search ? 'No cities match your search.' : 'No cities yet. Add your first city.'}
           </div>
-        ) : filtered.map((c,i)=>(
+        ) : pagedCities.map((c,i)=>(
           <div key={c.id} style={{display:'grid',gridTemplateColumns:isPlatformAdmin?'1fr 1fr 1fr 1fr 100px 80px':'1fr 1fr 1fr 100px 80px',padding:'14px 20px',borderBottom:i<filtered.length-1?`1px solid ${C.border}`:'none',gap:12,alignItems:'center'}}
             onMouseEnter={e=>e.currentTarget.style.background=C.s3}
             onMouseLeave={e=>e.currentTarget.style.background='transparent'}
@@ -234,6 +236,7 @@ export default function CityManagement() {
           </div>
         ))}
       </div>
+      {bar}
 
       {/* Modal */}
       {showModal && (
