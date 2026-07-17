@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { crmAccounts } from '../../../../lib/crmApi';
 import type { Account } from '../../../../types/crm';
 import AccountsTable, { ACCOUNT_COLUMNS } from '../../../../components/crm/AccountsTable';
+import { usePagination } from '../../../../components/shared/Pagination';
 import ViewCustomizer from '../../../../components/crm/shared/ViewCustomizer';
 import { useViewPrefs } from '../../../../lib/crmViewPrefs';
 import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
@@ -38,6 +39,7 @@ export default function AccountsListPage() {
   }, [range.from, range.to, sort.key, sort.order]);
 
   const filtered = accounts.filter((a) => !q || `${a.name} ${a.industry || ''}`.toLowerCase().includes(q.toLowerCase()));
+  const { pageItems: pagedAccounts, bar } = usePagination(filtered);
 
   return (
     <div>
@@ -62,13 +64,14 @@ export default function AccountsListPage() {
         </div>
       </div>
       <AccountsTable
-        accounts={filtered}
+        accounts={pagedAccounts}
         loading={loading}
         hiddenColumns={hiddenSet}
         viewMode={view.prefs.mode}
         sort={sort}
         onSort={(key) => setSort((s) => s.key === key ? { key, order: s.order === 'asc' ? 'desc' : 'asc' } : { key, order: 'asc' })}
       />
+      {bar}
     </div>
   );
 }

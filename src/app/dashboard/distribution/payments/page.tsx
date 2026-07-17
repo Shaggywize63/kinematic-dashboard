@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import api from '../../../../lib/api';
 import { Card, PageHeader, Pill, Th, Td, inr, fmtDate, statusColor } from '../../../../components/distribution/Atoms';
 import { useTableSort, SortLabel } from '../../../../lib/tableSort';
+import { usePagination } from '../../../../components/shared/Pagination';
 
 const MODES = ['', 'cash', 'upi', 'cheque', 'credit_adjustment'];
 
@@ -36,6 +37,7 @@ export default function PaymentsPage() {
     }
   }, []);
   const { sorted, sort, toggle } = useTableSort<any>(items, paymentVal, { key: 'received', dir: 'desc' });
+  const { pageItems: pagedPayments, bar } = usePagination(sorted);
 
   return (
     <div>
@@ -65,7 +67,7 @@ export default function PaymentsPage() {
           </tr></thead>
           <tbody>
             {loading ? <tr><Td>Loading…</Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td></tr> :
-              sorted.map((p) => (
+              pagedPayments.map((p) => (
                 <tr key={p.id}>
                   <Td style={{ fontWeight: 700 }}>{p.payment_no}</Td>
                   <Td><a href={`/dashboard/distribution/ledger?outlet_id=${p.outlet_id}`} style={{ color: 'var(--primary)' }}>{p.outlet_id?.slice(0, 8)}…</a></Td>
@@ -79,6 +81,7 @@ export default function PaymentsPage() {
           </tbody>
         </table>
       </Card>
+      {bar}
     </div>
   );
 }

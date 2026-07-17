@@ -23,6 +23,7 @@ import {
   type PeopleDirectoryEntry, type PeopleDirectoryType,
 } from '../../../../lib/crmApi';
 import { useTableSort, SortLabel } from '../../../../lib/tableSort';
+import { usePagination } from '../../../../components/shared/Pagination';
 
 // One row from /api/v1/crm/locations — the per-tenant city allow-list
 // managed under Settings → Locations. We only care about the city name
@@ -152,6 +153,7 @@ export default function PeopleDirectoryPage() {
     }
   }, []);
   const { sorted, sort, toggle } = useTableSort<Row>(rows, rowVal, { key: null, dir: 'asc' });
+  const { pageItems: pagedPeople, bar } = usePagination(sorted);
 
   const handleSave = async () => {
     if (!editing) return;
@@ -353,7 +355,7 @@ export default function PeopleDirectoryPage() {
                 </td>
               </tr>
             )}
-            {sorted.map((r) => {
+            {pagedPeople.map((r) => {
               const fullName = [r.first_name, r.last_name].filter(Boolean).join(' ').trim();
               return (
                 <tr key={r.id} style={{ borderTop: '1px solid var(--border)' }}>
@@ -380,6 +382,7 @@ export default function PeopleDirectoryPage() {
           </tbody>
         </table>
       </div>
+      {bar}
 
       {editing && (
         <Modal onClose={() => setEditing(null)} title={editing.id ? 'Edit person' : 'Add person'}>

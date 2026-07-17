@@ -4,6 +4,7 @@ import api from '../../../../lib/api';
 import { Card, PageHeader, Pill, Th, Td, inr, fmtDate, statusColor } from '../../../../components/distribution/Atoms';
 import PrefetchLink from '../../../../components/PrefetchLink';
 import { useTableSort, SortLabel } from '../../../../lib/tableSort';
+import { usePagination } from '../../../../components/shared/Pagination';
 
 const STATUSES = ['', 'placed', 'approved', 'invoiced', 'partially_invoiced', 'cancelled'];
 
@@ -39,6 +40,7 @@ export default function OrdersPage() {
     }
   }, []);
   const { sorted, sort, toggle } = useTableSort<any>(filtered, orderVal, { key: 'placed', dir: 'desc' });
+  const { pageItems: pagedOrders, bar } = usePagination(sorted);
 
   return (
     <div>
@@ -67,7 +69,7 @@ export default function OrdersPage() {
           </tr></thead>
           <tbody>
             {loading ? <tr><Td>Loading…</Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td></tr> :
-              sorted.map((o) => (
+              pagedOrders.map((o) => (
                 <tr key={o.id}>
                   <Td><PrefetchLink
                         href={`/dashboard/distribution/orders/${o.id}`}
@@ -86,6 +88,7 @@ export default function OrdersPage() {
           </tbody>
         </table>
       </Card>
+      {bar}
     </div>
   );
 }
