@@ -4,6 +4,7 @@ import api from '../../../../lib/api';
 import { Card, PageHeader, Pill, Th, Td, Btn, inr, fmtDate, statusColor } from '../../../../components/distribution/Atoms';
 import PrefetchLink from '../../../../components/PrefetchLink';
 import { useTableSort, SortLabel } from '../../../../lib/tableSort';
+import { usePagination } from '../../../../components/shared/Pagination';
 
 export default function InvoicesPage() {
   const [items, setItems] = useState<any[]>([]);
@@ -37,6 +38,7 @@ export default function InvoicesPage() {
     }
   }, []);
   const { sorted, sort, toggle } = useTableSort<any>(items, invoiceVal, { key: 'issued', dir: 'desc' });
+  const { pageItems: pagedInvoices, bar } = usePagination(sorted);
 
   return (
     <div>
@@ -68,7 +70,7 @@ export default function InvoicesPage() {
           </tr></thead>
           <tbody>
             {loading ? <tr><Td>Loading…</Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td></tr> :
-              sorted.map((inv) => (
+              pagedInvoices.map((inv) => (
                 <tr key={inv.id}>
                   <Td style={{ fontWeight: 700 }}><PrefetchLink
                         href={`/dashboard/distribution/invoices/${inv.id}`}
@@ -89,6 +91,7 @@ export default function InvoicesPage() {
           </tbody>
         </table>
       </Card>
+      {bar}
     </div>
   );
 }

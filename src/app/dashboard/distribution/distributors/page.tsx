@@ -5,6 +5,7 @@ import { Card, PageHeader, Pill, Th, Td, Btn, inr } from '../../../../components
 import { INDIA_STATES, parseGstinClient, stateName } from '../../../../lib/india';
 import PrefetchLink from '../../../../components/PrefetchLink';
 import { useTableSort, SortLabel } from '../../../../lib/tableSort';
+import { usePagination } from '../../../../components/shared/Pagination';
 
 interface DistForm {
   name: string;
@@ -125,6 +126,7 @@ export default function DistributorsPage() {
     }
   }, []);
   const { sorted, sort, toggle } = useTableSort<any>(items, distVal, { key: 'name', dir: 'asc' });
+  const { pageItems: pagedDistributors, bar } = usePagination(sorted);
 
   return (
     <div>
@@ -211,7 +213,7 @@ export default function DistributorsPage() {
           </tr></thead>
           <tbody>
             {loading ? <tr><Td>Loading…</Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td></tr> :
-              sorted.map((d) => (
+              pagedDistributors.map((d) => (
                 <tr key={d.id}>
                   <Td style={{ fontWeight: 700 }}><PrefetchLink
                         href={`/dashboard/distribution/distributors/${d.id}`}
@@ -233,6 +235,7 @@ export default function DistributorsPage() {
           </tbody>
         </table>
       </Card>
+      {bar}
     </div>
   );
 }
