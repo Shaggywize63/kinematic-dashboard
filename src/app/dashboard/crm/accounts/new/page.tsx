@@ -1,10 +1,11 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { crmAccounts } from '../../../../../lib/crmApi';
+import { crmAccounts, crmSettings } from '../../../../../lib/crmApi';
 import { CRM_INDUSTRIES } from '../../../../../lib/crmIndustries';
 import CustomFieldsSection from '../../../../../components/crm/CustomFieldsSection';
+import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '../../../../../lib/crmFieldOverrides';
 
 export default function NewAccountPage() {
   const router = useRouter();
@@ -13,6 +14,14 @@ export default function NewAccountPage() {
   // becomes the row's custom_fields jsonb (same pattern as the lead form).
   const [customFields, setCustomFields] = useState<Record<string, unknown>>({});
   const [busy, setBusy] = useState(false);
+  // Built-in field overrides (hide / relabel / require) for account columns.
+  const [fieldOverrides, setFieldOverrides] = useState<FieldOverrides>({});
+  const fields = useMemo(() => buildFieldHelpers(fieldOverrides, 'account'), [fieldOverrides]);
+  useEffect(() => {
+    crmSettings.get()
+      .then((s) => setFieldOverrides(extractFieldOverrides(s.data)))
+      .catch(() => { /* keep defaults — every field renders */ });
+  }, []);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,16 +44,23 @@ export default function NewAccountPage() {
   const inputStyle: React.CSSProperties = { background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 };
   const labelStyle: React.CSSProperties = { fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 };
 
-  const fld = (k: keyof typeof form, label: string, type = 'text') => (
+  // fld() consults the admin's field-override map: hidden ⇒ omit, label
+  // override ⇒ new label, required override ⇒ asterisk + required attr.
+  const fld = (k: keyof typeof form, label: string, type = 'text') => {
+    if (fields.isHidden(k)) return null;
+    const effLabel = fields.labelFor(k, label);
+    const effRequired = fields.requiredFor(k, false);
+    return (
     <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <span style={labelStyle}>{label}</span>
-      <input type={type} value={form[k]} onChange={(e) => setForm({ ...form, [k]: e.target.value })} style={inputStyle} />
+      <span style={labelStyle}>{effLabel}{effRequired && <span style={{ color: '#ef4444', marginLeft: 3 }}>*</span>}</span>
+      <input type={type} value={form[k]} onChange={(e) => setForm({ ...form, [k]: e.target.value })} required={effRequired} style={inputStyle} />
     </label>
-  );
+    );
+  };
 
-  const industryFld = (
+  const industryFld = fields.isHidden('industry') ? null : (
     <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <span style={labelStyle}>Industry</span>
+      <span style={labelStyle}>{fields.labelFor('industry', 'Industry')}</span>
       <select value={form.industry} onChange={(e) => setForm({ ...form, industry: e.target.value })} style={inputStyle}>
         <option value="">Select industry…</option>
         {CRM_INDUSTRIES.map((i) => <option key={i} value={i}>{i}</option>)}

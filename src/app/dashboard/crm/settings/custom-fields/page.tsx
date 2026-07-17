@@ -186,10 +186,13 @@ const BUILTIN_FIELDS: Record<string, BuiltinField[]> = {
     { key: 'do_not_contact', label: 'Do Not Contact', type: 'boolean' },
   ],
   account: [
+    // Key MUST match the real account column the form gates on: the
+    // website column is `website` (not `domain`).
     { key: 'name', label: 'Account Name', type: 'text', required: true },
-    { key: 'domain', label: 'Website / Domain', type: 'text' },
+    { key: 'website', label: 'Website', type: 'text' },
     { key: 'industry', label: 'Industry', type: 'text' },
     { key: 'annual_revenue', label: 'Annual Revenue', type: 'number' },
+    { key: 'employees', label: 'Employees', type: 'number' },
     { key: 'phone', label: 'Phone', type: 'text' },
     { key: 'email', label: 'Email', type: 'text' },
     { key: 'city', label: 'City', type: 'text' },
@@ -199,7 +202,10 @@ const BUILTIN_FIELDS: Record<string, BuiltinField[]> = {
     { key: 'tags', label: 'Tags', type: 'multiselect' },
   ],
   deal: [
-    { key: 'title', label: 'Deal Title', type: 'text', required: true },
+    // Keys MUST match the real deal columns the forms gate on
+    // (crmFieldOverrides `deal.<key>`): the deal name column is `name`
+    // (not `title`) and the create form's picker is `primary_contact_id`.
+    { key: 'name', label: 'Deal Name', type: 'text', required: true },
     { key: 'amount', label: 'Amount', type: 'number' },
     { key: 'currency', label: 'Currency', type: 'select' },
     { key: 'stage_id', label: 'Stage', type: 'select', required: true },
@@ -207,7 +213,7 @@ const BUILTIN_FIELDS: Record<string, BuiltinField[]> = {
     { key: 'expected_close_date', label: 'Expected Close Date', type: 'date' },
     { key: 'probability', label: 'Win Probability %', type: 'number' },
     { key: 'owner_id', label: 'Assigned To', type: 'select' },
-    { key: 'contact_id', label: 'Primary Contact', type: 'select' },
+    { key: 'primary_contact_id', label: 'Primary Contact', type: 'select' },
     { key: 'account_id', label: 'Account', type: 'select' },
     { key: 'lost_reason', label: 'Lost Reason', type: 'text' },
     { key: 'lead_id', label: 'Source Lead', type: 'select' },

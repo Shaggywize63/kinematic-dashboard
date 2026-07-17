@@ -1,11 +1,12 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { crmAccounts } from '../../lib/crmApi';
+import { crmAccounts, crmSettings } from '../../lib/crmApi';
 import { CRM_INDUSTRIES } from '../../lib/crmIndustries';
 import type { Account } from '../../types/crm';
 import Modal from './shared/Modal';
 import CustomFieldsSection from './CustomFieldsSection';
+import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '../../lib/crmFieldOverrides';
 
 interface Props {
   account: Account;
@@ -21,10 +22,20 @@ export default function AccountEditModal({ account, open, onClose, onSaved }: Pr
   // the whole edited map back is safe.
   const [customFields, setCustomFields] = useState<Record<string, unknown>>(() => seedCustomFields(account));
   const [busy, setBusy] = useState(false);
+  // Built-in field overrides (hide / relabel / require) for account columns.
+  // Accounts aren't B2B/B2C-scoped.
+  const [fieldOverrides, setFieldOverrides] = useState<FieldOverrides>({});
+  const fields = useMemo(() => buildFieldHelpers(fieldOverrides, 'account'), [fieldOverrides]);
   useEffect(() => { if (open) { setForm(seed(account)); setCustomFields(seedCustomFields(account)); } }, [open, account]);
+  useEffect(() => {
+    if (!open) return;
+    crmSettings.get()
+      .then((s) => setFieldOverrides(extractFieldOverrides(s.data)))
+      .catch(() => { /* keep defaults — every field renders */ });
+  }, [open]);
 
   const submit = async () => {
-    if (!form.name.trim()) { toast.error('Name is required'); return; }
+    if (fields.requiredFor('name', true) && !form.name.trim()) { toast.error('Name is required'); return; }
     setBusy(true);
     try {
       const r = await crmAccounts.update(account.id, {
@@ -43,12 +54,12 @@ export default function AccountEditModal({ account, open, onClose, onSaved }: Pr
     <Modal open={open} onClose={onClose} title="Edit Account"
       footer={<><button type="button" onClick={onClose} style={btn.secondary}>Cancel</button><button type="button" disabled={busy} onClick={submit} style={btn.primary(busy)}>{busy ? 'Saving…' : 'Save changes'}</button></>}>
       <Grid>
-        <Field label="Name *" value={form.name} onChange={(v) => setForm({ ...form, name: v })} />
-        <IndustryField value={form.industry} onChange={(v) => setForm({ ...form, industry: v })} />
-        <Field label="Website" value={form.website} onChange={(v) => setForm({ ...form, website: v })} />
-        <Field label="Phone" value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />
-        <Field label="Annual Revenue (₹)" type="number" value={form.annual_revenue} onChange={(v) => setForm({ ...form, annual_revenue: v })} />
-        <Field label="Employees" type="number" value={form.employees} onChange={(v) => setForm({ ...form, employees: v })} />
+        {!fields.isHidden('name') && <Field label={fields.labelFor('name', 'Name') + (fields.requiredFor('name', true) ? ' *' : '')} value={form.name} onChange={(v) => setForm({ ...form, name: v })} />}
+        {!fields.isHidden('industry') && <IndustryField label={fields.labelFor('industry', 'Industry')} value={form.industry} onChange={(v) => setForm({ ...form, industry: v })} />}
+        {!fields.isHidden('website') && <Field label={fields.labelFor('website', 'Website')} value={form.website} onChange={(v) => setForm({ ...form, website: v })} />}
+        {!fields.isHidden('phone') && <Field label={fields.labelFor('phone', 'Phone')} value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />}
+        {!fields.isHidden('annual_revenue') && <Field label={fields.labelFor('annual_revenue', 'Annual Revenue (₹)')} type="number" value={form.annual_revenue} onChange={(v) => setForm({ ...form, annual_revenue: v })} />}
+        {!fields.isHidden('employees') && <Field label={fields.labelFor('employees', 'Employees')} type="number" value={form.employees} onChange={(v) => setForm({ ...form, employees: v })} />}
       </Grid>
       <div style={{ marginTop: 14 }}>
         <span style={lbl}>Description</span>
@@ -80,11 +91,11 @@ function seedCustomFields(a: Account): Record<string, unknown> {
 function seed(a: Account) { return { name: a.name || '', industry: a.industry || '', website: a.website || '', phone: a.phone || '', annual_revenue: a.annual_revenue ? String(a.annual_revenue) : '', employees: a.employees ? String(a.employees) : '', description: a.description || '' }; }
 function Grid({ children }: { children: React.ReactNode }) { return <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>{children}</div>; }
 function Field(p: { label: string; value: string; onChange: (v: string) => void; type?: string }) { return <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}><span style={lbl}>{p.label}</span><input type={p.type || 'text'} value={p.value} onChange={(e) => p.onChange(e.target.value)} style={input} /></label>; }
-function IndustryField(p: { value: string; onChange: (v: string) => void }) {
+function IndustryField(p: { value: string; onChange: (v: string) => void; label?: string }) {
   const hasLegacy = p.value && !CRM_INDUSTRIES.includes(p.value);
   return (
     <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <span style={lbl}>Industry</span>
+      <span style={lbl}>{p.label ?? 'Industry'}</span>
       <select value={p.value} onChange={(e) => p.onChange(e.target.value)} style={input}>
         <option value="">Select industry…</option>
         {hasLegacy && <option value={p.value}>{p.value}</option>}

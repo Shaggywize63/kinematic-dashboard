@@ -1,10 +1,11 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { crmDeals } from '../../lib/crmApi';
+import { crmDeals, crmSettings } from '../../lib/crmApi';
 import type { Deal, Stage } from '../../types/crm';
 import CustomFieldsSection from './CustomFieldsSection';
 import Modal from './shared/Modal';
+import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '../../lib/crmFieldOverrides';
 
 interface Props { deal: Deal; stages: Stage[]; open: boolean; onClose: () => void; onSaved: (updated: Deal) => void; }
 
@@ -30,6 +31,10 @@ export default function DealEditModal({ deal, stages, open, onClose, onSaved }: 
   // the backend PATCH merges custom_fields server-side so this is safe.
   const [customFields, setCustomFields] = useState<Record<string, unknown>>(() => seedCustomFields(deal));
   const [busy, setBusy] = useState(false);
+  // Built-in field overrides (hide / relabel / require) for deal columns,
+  // configured under Settings → Custom Fields. Deals aren't B2B/B2C-scoped.
+  const [fieldOverrides, setFieldOverrides] = useState<FieldOverrides>({});
+  const fields = useMemo(() => buildFieldHelpers(fieldOverrides, 'deal'), [fieldOverrides]);
 
   useEffect(() => {
     if (open) {
@@ -38,8 +43,17 @@ export default function DealEditModal({ deal, stages, open, onClose, onSaved }: 
     }
   }, [open, deal]);
 
+  // Load the override map once the modal opens. Kept separate from the
+  // seed effect so re-opening for a different deal doesn't refetch.
+  useEffect(() => {
+    if (!open) return;
+    crmSettings.get()
+      .then((s) => setFieldOverrides(extractFieldOverrides(s.data)))
+      .catch(() => { /* keep defaults — every field renders */ });
+  }, [open]);
+
   const submit = async () => {
-    if (!form.name.trim()) { toast.error('Deal name is required'); return; }
+    if (fields.requiredFor('name', true) && !form.name.trim()) { toast.error('Deal name is required'); return; }
     setBusy(true);
     try {
       // Follow-up → deal.custom_fields { next_action_type, next_action_at }.
@@ -69,16 +83,18 @@ export default function DealEditModal({ deal, stages, open, onClose, onSaved }: 
     <Modal open={open} onClose={onClose} title="Edit Deal"
       footer={<><button type="button" onClick={onClose} style={btn.secondary}>Cancel</button><button type="button" disabled={busy} onClick={submit} style={btn.primary(busy)}>{busy ? 'Saving…' : 'Save changes'}</button></>}>
       <Grid>
-        <F label="Name *" value={form.name} onChange={(v) => setForm({ ...form, name: v })} />
+        {!fields.isHidden('name') && <F label={fields.labelFor('name', 'Name') + (fields.requiredFor('name', true) ? ' *' : '')} value={form.name} onChange={(v) => setForm({ ...form, name: v })} />}
         {/* Amount is fixed once the deal exists — market prices change but a
             created deal's value must not. Shown for reference, not editable. */}
-        <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <span style={lbl}>Amount (₹) — fixed at creation</span>
-          <input type="text" value={form.amount ? `₹${Number(form.amount).toLocaleString('en-IN')}` : '—'} readOnly disabled style={{ ...inp, opacity: 0.65, cursor: 'not-allowed' }} />
-        </label>
-        <SF label="Stage" value={form.stage_id} options={[{ value: '', label: '—' }, ...stages.map((s) => ({ value: s.id, label: s.name }))]} onChange={(v) => setForm({ ...form, stage_id: v })} />
-        <F label="Probability (%)" type="number" value={form.probability} onChange={(v) => setForm({ ...form, probability: v })} />
-        <F label="Expected Close" type="date" value={form.expected_close_date} onChange={(v) => setForm({ ...form, expected_close_date: v })} />
+        {!fields.isHidden('amount') && (
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span style={lbl}>{fields.labelFor('amount', 'Amount (₹)')} — fixed at creation</span>
+            <input type="text" value={form.amount ? `₹${Number(form.amount).toLocaleString('en-IN')}` : '—'} readOnly disabled style={{ ...inp, opacity: 0.65, cursor: 'not-allowed' }} />
+          </label>
+        )}
+        {!fields.isHidden('stage_id') && <SF label={fields.labelFor('stage_id', 'Stage')} value={form.stage_id} options={[{ value: '', label: '—' }, ...stages.map((s) => ({ value: s.id, label: s.name }))]} onChange={(v) => setForm({ ...form, stage_id: v })} />}
+        {!fields.isHidden('probability') && <F label={fields.labelFor('probability', 'Probability (%)')} type="number" value={form.probability} onChange={(v) => setForm({ ...form, probability: v })} />}
+        {!fields.isHidden('expected_close_date') && <F label={fields.labelFor('expected_close_date', 'Expected Close')} type="date" value={form.expected_close_date} onChange={(v) => setForm({ ...form, expected_close_date: v })} />}
       </Grid>
 
       {/* Admin-defined custom fields (e.g. dealer, site type) render
