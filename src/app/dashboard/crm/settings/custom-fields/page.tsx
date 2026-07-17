@@ -253,7 +253,8 @@ export default function CustomFieldsPage() {
   // Early-rollout gate: the KINI form builder is only shown to the master
   // admin (s@kinematicapp.com) for now. The backend enforces the same limit,
   // so this is a UI convenience, not the security boundary.
-  const kiniBuilderEnabled = (getStoredUser()?.email || '').toLowerCase() === 's@kinematicapp.com';
+  const isMasterAdmin = (getStoredUser()?.email || '').toLowerCase() === 's@kinematicapp.com';
+  const kiniBuilderEnabled = isMasterAdmin;
 
   const [entity, setEntity] = useState<CustomField['entity_type']>('lead');
   const [fieldKey, setFieldKey] = useState('');
@@ -720,7 +721,7 @@ export default function CustomFieldsPage() {
       <div className="kini-hero" style={{ borderRadius: 16, padding: 20,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap',
         boxShadow: '0 14px 34px -12px rgba(224,30,44,0.6)', position: 'relative', overflow: 'hidden',
-        background: 'linear-gradient(120deg, #E5202B, #FF6B57, #E01E2C, #B3121B)', backgroundSize: '300% 300%',
+        background: 'linear-gradient(120deg, #E5202B, #C4141D, #E01E2C, #B3121B)', backgroundSize: '300% 300%',
         animation: 'kiniHeroFlow 9s ease infinite' }}>
         {/* Injected keyframes for the dynamic gradient + floaters + hover (inline can't do @keyframes or :hover). */}
         <style>{`
@@ -757,7 +758,7 @@ export default function CustomFieldsPage() {
             </div>
           </div>
         </div>
-        <button className="kini-hero-btn" onClick={() => setShowBuilder(true)} style={{ background: '#fff', color: 'var(--primary)', border: 'none',
+        <button className="kini-hero-btn" onClick={() => setShowBuilder(true)} style={{ background: '#fff', color: 'var(--k-red)', border: 'none',
           padding: '10px 18px', borderRadius: 11, fontWeight: 800, cursor: 'pointer', fontSize: 13, whiteSpace: 'nowrap',
           boxShadow: '0 4px 14px rgba(0,0,0,0.18)', position: 'relative', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
           <KiniMascot size={22} /> Generate with KINI
@@ -869,7 +870,7 @@ export default function CustomFieldsPage() {
             <input type="checkbox" checked={required} onChange={(e) => setRequired(e.target.checked)} /> Required
           </label>
         </div>
-        {roles.length > 0 && (
+        {!isMasterAdmin && roles.length > 0 && (
           <div style={{ marginBottom: 12 }}>
             <div style={{ fontSize: 12, color: 'var(--text-dim)', fontWeight: 600, marginBottom: 6 }}>
               Show to roles <span style={{ fontWeight: 400 }}>(none selected = everyone)</span>
@@ -1342,7 +1343,7 @@ export default function CustomFieldsPage() {
               </span>
             </label>
 
-            {roles.length > 0 && (
+            {!isMasterAdmin && roles.length > 0 && (
               <div style={{ marginBottom: 16 }}>
                 <div style={{ fontSize: 12, color: 'var(--text-dim)', fontWeight: 600, marginBottom: 6 }}>
                   Show to roles <span style={{ fontWeight: 400 }}>(none = everyone)</span>

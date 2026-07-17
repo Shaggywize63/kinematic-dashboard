@@ -201,7 +201,7 @@ export default function KiniFormBuilder({
       await onAccept(payload);
       setDone(payload.length);
       import('canvas-confetti').then(({ default: confetti }) => {
-        confetti({ particleCount: 130, spread: 80, origin: { y: 0.5 }, colors: ['#E5202B', '#FF6B57', '#F7B538', '#10b981', '#FFFFFF'] });
+        confetti({ particleCount: 130, spread: 80, origin: { y: 0.5 }, colors: ['#E5202B', '#C4141D', '#F0303A', '#B3121B', '#FFFFFF'] });
       }).catch(() => { /* decorative */ });
       window.setTimeout(onClose, 1400);
     } catch (e: any) {
@@ -262,7 +262,7 @@ export default function KiniFormBuilder({
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <motion.div
                     animate={{
-                      background: state === 'todo' ? 'var(--s3)' : 'var(--primary)',
+                      background: state === 'todo' ? 'var(--s3)' : 'var(--k-red)',
                       color: state === 'todo' ? 'var(--text-dim)' : '#fff',
                       scale: state === 'active' ? 1.06 : 1,
                     }}
@@ -380,7 +380,7 @@ export default function KiniFormBuilder({
                           return (
                             <motion.button key={s} type="button" whileTap={{ scale: 0.95 }}
                               onClick={() => setAnswers((a) => ({ ...a, [q.id]: a[q.id] ? `${a[q.id]}, ${s}` : s }))}
-                              style={{ ...suggestChip, borderStyle: on ? 'solid' : 'dashed', color: on ? 'var(--primary)' : 'var(--text-dim)', borderColor: on ? 'var(--primary)' : 'var(--border)' }}>
+                              style={{ ...suggestChip, borderStyle: on ? 'solid' : 'dashed', color: on ? 'var(--k-red)' : 'var(--text-dim)', borderColor: on ? 'var(--k-red)' : 'var(--border)' }}>
                               {on ? '✓ ' : '+ '}{s}
                             </motion.button>
                           );
@@ -399,7 +399,7 @@ export default function KiniFormBuilder({
             ) : (
               /* STEP 3 */
               <motion.div key="preview" style={col} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.28 }}>
-                <div style={{ ...infoCard, borderLeft: '3px solid var(--primary)' }}>
+                <div style={{ ...infoCard, borderLeft: '3px solid var(--k-red)' }}>
                   <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>{formTitle || 'Proposed form'}</div>
                   {genSummary && <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 3 }}>{genSummary}</div>}
                   <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 8 }}>
@@ -412,7 +412,7 @@ export default function KiniFormBuilder({
                     {fields.map((f, idx) => {
                       const meta = TYPE_META[f.field_type];
                       const Icon = meta?.icon || TypeIcon;
-                      const accent = meta?.accent || 'var(--primary)';
+                      const accent = meta?.accent || 'var(--k-red)';
                       return (
                         <motion.div
                           key={f.uid} layout
@@ -432,7 +432,7 @@ export default function KiniFormBuilder({
                               {EDITABLE_TYPES.map((t) => <option key={t} value={t}>{TYPE_META[t]?.label || t}</option>)}
                             </select>
                             <button type="button" onClick={() => patch(f.uid, { required: !f.required })} style={{ ...switchWrap, justifyContent: 'flex-start' }}>
-                              <span style={{ ...switchTrack, background: f.required ? 'var(--primary)' : 'var(--border)' }}>
+                              <span style={{ ...switchTrack, background: f.required ? 'var(--k-red)' : 'var(--border)' }}>
                                 <motion.span layout style={switchThumb} animate={{ x: f.required ? 16 : 0 }} transition={{ type: 'spring', stiffness: 500, damping: 30 }} />
                               </span>
                               <span style={{ fontSize: 12, color: 'var(--text)' }}>Required</span>
@@ -510,14 +510,14 @@ const EXAMPLES: Array<{ label: string; text: string }> = [
 // ── styles (inline, matching the dashboard's CSS-var convention) ────────────
 const overlay: React.CSSProperties = { position: 'fixed', inset: 0, background: 'rgba(10,10,16,0.62)', backdropFilter: 'blur(3px)', zIndex: 1000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '4vh 16px', overflowY: 'auto' };
 const panel: React.CSSProperties = { background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 18, width: '100%', maxWidth: 780, boxShadow: '0 30px 80px rgba(0,0,0,0.45)', overflow: 'hidden' };
-const header: React.CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 20px', background: 'linear-gradient(120deg, #FF5A4E 0%, #E5202B 52%, #B3121B 120%)', position: 'relative', overflow: 'hidden' };
+const header: React.CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 20px', background: 'linear-gradient(120deg, #E5202B 0%, #C4141D 55%, #B3121B 120%)', position: 'relative', overflow: 'hidden' };
 const shine: React.CSSProperties = { position: 'absolute', top: 0, bottom: 0, width: 80, background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.25), transparent)', transform: 'skewX(-20deg)' };
 const orb: React.CSSProperties = { width: 44, height: 44, borderRadius: 13, background: 'rgba(255,255,255,0.95)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 4px 12px rgba(0,0,0,0.2)' };
 const closeBtn: React.CSSProperties = { background: 'rgba(255,255,255,0.16)', border: 'none', color: '#fff', width: 34, height: 34, borderRadius: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', flexShrink: 0 };
 const rail: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, padding: '14px 22px 4px' };
 const railDot: React.CSSProperties = { width: 24, height: 24, borderRadius: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, flexShrink: 0 };
 const railLine: React.CSSProperties = { flex: 1, height: 2, background: 'var(--border)', margin: '0 8px', borderRadius: 2, position: 'relative', overflow: 'hidden' };
-const railFill: React.CSSProperties = { position: 'absolute', left: 0, top: 0, bottom: 0, background: 'var(--primary)', borderRadius: 2 };
+const railFill: React.CSSProperties = { position: 'absolute', left: 0, top: 0, bottom: 0, background: 'var(--k-red)', borderRadius: 2 };
 const body: React.CSSProperties = { padding: 20, maxHeight: '68vh', overflowY: 'auto' };
 const col: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 13 };
 const centerCol: React.CSSProperties = { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '38px 12px' };
@@ -526,7 +526,7 @@ const input: React.CSSProperties = { background: 'var(--s3)', border: '1px solid
 const textarea: React.CSSProperties = { ...input, width: '100%', resize: 'vertical', lineHeight: 1.55, fontFamily: 'inherit' };
 const labelInput: React.CSSProperties = { flex: 1, background: 'transparent', border: '1px solid transparent', color: 'var(--text)', padding: '6px 8px', borderRadius: 8, fontSize: 13.5, fontWeight: 700, outline: 'none' };
 const keyInput: React.CSSProperties = { ...input, fontFamily: 'ui-monospace, SFMono-Regular, monospace', fontSize: 12 };
-const btnPrimary: React.CSSProperties = { background: 'var(--primary)', border: 'none', color: '#fff', padding: '9px 16px', borderRadius: 10, fontWeight: 800, cursor: 'pointer', fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 7 };
+const btnPrimary: React.CSSProperties = { background: 'var(--k-red)', border: 'none', color: '#fff', padding: '9px 16px', borderRadius: 10, fontWeight: 800, cursor: 'pointer', fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 7 };
 const btnGhost: React.CSSProperties = { background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', padding: '9px 14px', borderRadius: 10, cursor: 'pointer', fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 6 };
 const chip: React.CSSProperties = { padding: '7px 13px', borderRadius: 999, fontSize: 12, cursor: 'pointer', border: '1px solid var(--border)', background: 'var(--s3)', color: 'var(--text)', fontWeight: 600 };
 const suggestChip: React.CSSProperties = { padding: '4px 11px', borderRadius: 999, fontSize: 11, cursor: 'pointer', border: '1px dashed var(--border)', background: 'transparent', color: 'var(--text-dim)', fontWeight: 600 };
@@ -542,5 +542,5 @@ const optionChip: React.CSSProperties = { display: 'inline-flex', alignItems: 'c
 const optionX: React.CSSProperties = { background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: 0 };
 const thinkOrb: React.CSSProperties = { width: 68, height: 68, borderRadius: 22, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 6px 18px rgba(0,0,0,0.16)' };
 const shimmerTrack: React.CSSProperties = { width: 200, height: 5, borderRadius: 999, background: 'var(--s3)', overflow: 'hidden', marginTop: 6, position: 'relative' };
-const shimmerBar: React.CSSProperties = { position: 'absolute', top: 0, bottom: 0, width: '45%', borderRadius: 999, background: 'linear-gradient(90deg, transparent, var(--primary), transparent)' };
+const shimmerBar: React.CSSProperties = { position: 'absolute', top: 0, bottom: 0, width: '45%', borderRadius: 999, background: 'linear-gradient(90deg, transparent, var(--k-red), transparent)' };
 const successRing: React.CSSProperties = { width: 78, height: 78, borderRadius: 999, background: 'rgba(16,185,129,0.14)', display: 'flex', alignItems: 'center', justifyContent: 'center' };
