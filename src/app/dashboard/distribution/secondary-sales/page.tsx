@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import api from '../../../../lib/api';
 import { Card, PageHeader, Pill, Th, Td, Btn, fmtDate } from '../../../../components/distribution/Atoms';
 import { useTableSort, SortLabel } from '../../../../lib/tableSort';
+import { usePagination } from '../../../../components/shared/Pagination';
 
 // Type-aware column sorting for the secondary-sales table (raw values per key).
 const secondarySaleVal = (s: any, key: string): unknown => {
@@ -25,6 +26,7 @@ export default function SecondarySalesPage() {
   const [form, setForm] = useState({ outlet_id: '', sku_id: '', qty: '', period_start: '', period_end: '', source: 'manual', notes: '' });
   const [busy, setBusy] = useState(false); const [err, setErr] = useState<string | null>(null);
   const { sorted, sort, toggle } = useTableSort<any>(items, secondarySaleVal, { key: 'captured', dir: 'desc' });
+  const { pageItems: pagedSecondary, bar } = usePagination(sorted);
 
   const load = async () => { try { const r: any = await api.getSecondarySales(); setItems(r?.data || r || []); } catch {} setLoading(false); };
   useEffect(() => { load(); }, []);
@@ -76,7 +78,7 @@ export default function SecondarySalesPage() {
           </tr></thead>
           <tbody>
             {loading ? <tr><Td>Loading…</Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td></tr> :
-              sorted.map((s) => (
+              pagedSecondary.map((s) => (
                 <tr key={s.id}>
                   <Td>{s.outlet_id?.slice(0, 8)}…</Td>
                   <Td>{s.sku_id?.slice(0, 8)}…</Td>
@@ -91,6 +93,7 @@ export default function SecondarySalesPage() {
           </tbody>
         </table>
       </Card>
+      {bar}
     </div>
   );
 }

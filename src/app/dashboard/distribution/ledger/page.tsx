@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import api from '../../../../lib/api';
 import { Card, PageHeader, StatCard, Row, Pill, Th, Td, inr, fmtDate } from '../../../../components/distribution/Atoms';
 import { useTableSort, SortLabel } from '../../../../lib/tableSort';
+import { usePagination } from '../../../../components/shared/Pagination';
 
 export default function LedgerPage() {
   const [outletId, setOutletId] = useState('');
@@ -37,6 +38,7 @@ export default function LedgerPage() {
     }
   }, []);
   const { sorted, sort, toggle } = useTableSort<any>(entries, entryVal, { key: 'posted', dir: 'desc' });
+  const { pageItems: pagedLedger, bar } = usePagination(sorted);
 
   return (
     <div>
@@ -73,7 +75,7 @@ export default function LedgerPage() {
           </tr></thead>
           <tbody>
             {loading ? <tr><Td>Loading…</Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td></tr> :
-              sorted.map((e) => (
+              pagedLedger.map((e) => (
                 <tr key={e.id}>
                   <Td>{fmtDate(e.posted_at)}</Td>
                   <Td><Pill color={e.entry_type === 'invoice' ? 'amber' : e.entry_type === 'payment' ? 'green' : e.entry_type === 'credit_note' ? 'blue' : 'gray'}>{e.entry_type}</Pill></Td>
@@ -98,6 +100,7 @@ export default function LedgerPage() {
           </tbody>
         </table>
       </Card>
+      {bar}
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import api from '../../../../lib/api';
 import { Card, PageHeader, Pill, Th, Td, Btn, fmtDate } from '../../../../components/distribution/Atoms';
 import { useTableSort, SortLabel } from '../../../../lib/tableSort';
+import { usePagination } from '../../../../components/shared/Pagination';
 
 const TYPES = ['QPS', 'SLAB_DISCOUNT', 'BXGY', 'VALUE_DISCOUNT'];
 
@@ -32,6 +33,7 @@ export default function SchemesPage() {
   });
   const [busy, setBusy] = useState(false); const [err, setErr] = useState<string | null>(null);
   const { sorted, sort, toggle } = useTableSort<any>(items, schemeVal, { key: 'code', dir: 'asc' });
+  const { pageItems: pagedSchemes, bar } = usePagination(sorted);
 
   const load = async () => { try { const r: any = await api.getSchemes(); setItems(r?.data || r || []); } catch {} setLoading(false); };
   useEffect(() => { load(); }, []);
@@ -94,7 +96,7 @@ export default function SchemesPage() {
           </tr></thead>
           <tbody>
             {loading ? <tr><Td>Loading…</Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td></tr> :
-              sorted.map((s) => (
+              pagedSchemes.map((s) => (
                 <tr key={s.id}>
                   <Td style={{ fontWeight: 700, fontFamily: 'JetBrains Mono, monospace' }}><a href={`/dashboard/distribution/schemes/${s.id}`} style={{ color: 'var(--primary)' }}>{s.code}</a></Td>
                   <Td><a href={`/dashboard/distribution/schemes/${s.id}`} style={{ color: 'var(--text)' }}>{s.name}</a></Td>
@@ -110,6 +112,7 @@ export default function SchemesPage() {
           </tbody>
         </table>
       </Card>
+      {bar}
     </div>
   );
 }

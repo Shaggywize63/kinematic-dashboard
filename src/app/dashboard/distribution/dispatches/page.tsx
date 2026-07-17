@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import api from '../../../../lib/api';
 import { Card, PageHeader, Pill, Th, Td, Btn, inr, fmtDate, statusColor } from '../../../../components/distribution/Atoms';
 import { useTableSort, SortLabel } from '../../../../lib/tableSort';
+import { usePagination } from '../../../../components/shared/Pagination';
 
 export default function DispatchesPage() {
   const [items, setItems] = useState<any[]>([]);
@@ -30,6 +31,7 @@ export default function DispatchesPage() {
     }
   }, []);
   const { sorted, sort, toggle } = useTableSort<any>(items, dispatchVal, { key: 'dispatch_no', dir: 'asc' });
+  const { pageItems: pagedDispatches, bar } = usePagination(sorted);
 
   return (
     <div>
@@ -49,7 +51,7 @@ export default function DispatchesPage() {
           </tr></thead>
           <tbody>
             {loading ? <tr><Td>Loading…</Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td></tr> :
-              sorted.map((d) => (
+              pagedDispatches.map((d) => (
                 <tr key={d.id}>
                   <Td style={{ fontWeight: 700 }}>{d.dispatch_no}</Td>
                   <Td>{d.distributor_id?.slice(0, 8)}…</Td>
@@ -72,6 +74,7 @@ export default function DispatchesPage() {
           </tbody>
         </table>
       </Card>
+      {bar}
     </div>
   );
 }

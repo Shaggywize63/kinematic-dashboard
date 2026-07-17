@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import api from '../../../../lib/api';
 import { Card, PageHeader, Pill, Th, Td, Btn, inr, fmtDate, statusColor } from '../../../../components/distribution/Atoms';
 import { useTableSort, SortLabel } from '../../../../lib/tableSort';
+import { usePagination } from '../../../../components/shared/Pagination';
 
 // Type-aware column sorting for the returns table (raw values per key).
 const returnVal = (r: any, key: string): unknown => {
@@ -25,6 +26,7 @@ export default function ReturnsPage() {
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState('');
   const { sorted, sort, toggle } = useTableSort<any>(items, returnVal, { key: 'created_at', dir: 'desc' });
+  const { pageItems: pagedReturns, bar } = usePagination(sorted);
 
   const load = async () => {
     setLoading(true);
@@ -68,7 +70,7 @@ export default function ReturnsPage() {
           </tr></thead>
           <tbody>
             {loading ? <tr><Td>Loading…</Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td></tr> :
-              sorted.map((r) => (
+              pagedReturns.map((r) => (
                 <tr key={r.id}>
                   <Td style={{ fontWeight: 700 }}>{r.return_no}</Td>
                   <Td>{r.outlet_id?.slice(0, 8)}…</Td>
@@ -93,6 +95,7 @@ export default function ReturnsPage() {
           </tbody>
         </table>
       </Card>
+      {bar}
     </div>
   );
 }
