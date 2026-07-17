@@ -711,20 +711,23 @@ export default function CustomFieldsPage() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       {/* KINI AI form builder — generate a comprehensive field set from a
           plain-English brief, then review + add. */}
-      <div style={{ background: 'linear-gradient(135deg, var(--primary), #7c3aed)', borderRadius: 14, padding: 18,
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ fontSize: 26 }}>✨</div>
+      <div style={{ background: 'linear-gradient(120deg, #7B61FF 0%, var(--primary) 65%, #E01E2C 125%)', borderRadius: 16, padding: 20,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap',
+        boxShadow: '0 12px 30px -12px rgba(123,97,255,0.55)', position: 'relative', overflow: 'hidden' }}>
+        <div aria-hidden style={{ position: 'absolute', top: -40, right: -10, fontSize: 150, opacity: 0.12, lineHeight: 1, pointerEvents: 'none' }}>✨</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, position: 'relative' }}>
+          <div style={{ width: 44, height: 44, borderRadius: 12, background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, flexShrink: 0 }}>✨</div>
           <div>
-            <div style={{ fontSize: 14, fontWeight: 800, color: '#fff' }}>Build the {entity} form with KINI AI</div>
-            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.9)', maxWidth: 620, lineHeight: 1.5 }}>
+            <div style={{ fontSize: 15, fontWeight: 800, color: '#fff', letterSpacing: 0.2 }}>Build the {entity} form with KINI AI</div>
+            <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.92)', maxWidth: 640, lineHeight: 1.5, marginTop: 2 }}>
               Describe your business in plain English — KINI asks a few clarifying questions, then designs a
               comprehensive set of custom fields you can review and edit before adding.
             </div>
           </div>
         </div>
         <button onClick={() => setShowBuilder(true)} style={{ background: '#fff', color: 'var(--primary)', border: 'none',
-          padding: '10px 18px', borderRadius: 10, fontWeight: 800, cursor: 'pointer', fontSize: 13, whiteSpace: 'nowrap' }}>
+          padding: '11px 20px', borderRadius: 11, fontWeight: 800, cursor: 'pointer', fontSize: 13, whiteSpace: 'nowrap',
+          boxShadow: '0 4px 14px rgba(0,0,0,0.18)', position: 'relative' }}>
           ✨ Generate with KINI
         </button>
       </div>
