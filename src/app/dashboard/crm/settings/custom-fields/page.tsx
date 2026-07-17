@@ -6,6 +6,7 @@ import api from '../../../../../lib/api';
 import type { CustomField } from '../../../../../types/crm';
 import { getStoredUser, canAccess } from '../../../../../lib/auth';
 import KiniFormBuilder from './KiniFormBuilder';
+import KiniMascot from './KiniMascot';
 
 const ENTITIES: Array<CustomField['entity_type']> = ['lead', 'contact', 'account', 'deal', 'activity'];
 // Full set of supported input types. Render-side hooks (form renderer
@@ -711,12 +712,38 @@ export default function CustomFieldsPage() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       {/* KINI AI form builder — generate a comprehensive field set from a
           plain-English brief, then review + add. */}
-      <div style={{ background: 'linear-gradient(120deg, #7B61FF 0%, var(--primary) 65%, #E01E2C 125%)', borderRadius: 16, padding: 20,
+      <div className="kini-hero" style={{ borderRadius: 16, padding: 20,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap',
-        boxShadow: '0 12px 30px -12px rgba(123,97,255,0.55)', position: 'relative', overflow: 'hidden' }}>
-        <div aria-hidden style={{ position: 'absolute', top: -40, right: -10, fontSize: 150, opacity: 0.12, lineHeight: 1, pointerEvents: 'none' }}>✨</div>
+        boxShadow: '0 14px 34px -12px rgba(123,97,255,0.6)', position: 'relative', overflow: 'hidden',
+        background: 'linear-gradient(120deg, #7B61FF, #3E9EFF, #E01E2C, #7B61FF)', backgroundSize: '300% 300%',
+        animation: 'kiniHeroFlow 9s ease infinite' }}>
+        {/* Injected keyframes for the dynamic gradient + floaters + hover (inline can't do @keyframes or :hover). */}
+        <style>{`
+          @keyframes kiniHeroFlow{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+          @keyframes kiniHeroFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-9px)}}
+          @keyframes kiniHeroTwinkle{0%,100%{opacity:.2;transform:scale(1)}50%{opacity:.7;transform:scale(1.4)}}
+          @keyframes kiniHeroShine{0%{transform:translateX(-140%) skewX(-18deg)}60%,100%{transform:translateX(360%) skewX(-18deg)}}
+          .kini-hero-orb{animation:kiniHeroFloat 4s ease-in-out infinite}
+          .kini-hero-btn{transition:transform .16s ease, box-shadow .16s ease}
+          .kini-hero-btn:hover{transform:translateY(-2px) scale(1.02);box-shadow:0 10px 24px rgba(0,0,0,.28)}
+          .kini-hero-btn:active{transform:translateY(0) scale(.99)}
+        `}</style>
+        {/* Moving light sweep */}
+        <div aria-hidden style={{ position: 'absolute', top: 0, bottom: 0, width: 90, pointerEvents: 'none',
+          background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.28), transparent)',
+          animation: 'kiniHeroShine 6s ease-in-out infinite' }} />
+        {/* Floating twinkle dots */}
+        {[{ top: 14, left: '46%', s: 6, d: '0s' }, { top: 60, left: '62%', s: 4, d: '1.1s' }, { top: 26, left: '78%', s: 5, d: '0.5s' }, { bottom: 16, left: '88%', s: 7, d: '1.6s' }].map((p, i) => (
+          <span key={i} aria-hidden style={{ position: 'absolute', top: (p as any).top, bottom: (p as any).bottom, left: p.left,
+            width: p.s, height: p.s, borderRadius: 999, background: '#fff', pointerEvents: 'none',
+            animation: `kiniHeroTwinkle 2.6s ease-in-out ${p.d} infinite` }} />
+        ))}
+
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, position: 'relative' }}>
-          <div style={{ width: 44, height: 44, borderRadius: 12, background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, flexShrink: 0 }}>✨</div>
+          <div className="kini-hero-orb" style={{ width: 52, height: 52, borderRadius: 14, background: 'rgba(255,255,255,0.22)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, backdropFilter: 'blur(2px)' }}>
+            <KiniMascot size={40} />
+          </div>
           <div>
             <div style={{ fontSize: 15, fontWeight: 800, color: '#fff', letterSpacing: 0.2 }}>Build the {entity} form with KINI AI</div>
             <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.92)', maxWidth: 640, lineHeight: 1.5, marginTop: 2 }}>
@@ -725,10 +752,10 @@ export default function CustomFieldsPage() {
             </div>
           </div>
         </div>
-        <button onClick={() => setShowBuilder(true)} style={{ background: '#fff', color: 'var(--primary)', border: 'none',
-          padding: '11px 20px', borderRadius: 11, fontWeight: 800, cursor: 'pointer', fontSize: 13, whiteSpace: 'nowrap',
-          boxShadow: '0 4px 14px rgba(0,0,0,0.18)', position: 'relative' }}>
-          ✨ Generate with KINI
+        <button className="kini-hero-btn" onClick={() => setShowBuilder(true)} style={{ background: '#fff', color: 'var(--primary)', border: 'none',
+          padding: '10px 18px', borderRadius: 11, fontWeight: 800, cursor: 'pointer', fontSize: 13, whiteSpace: 'nowrap',
+          boxShadow: '0 4px 14px rgba(0,0,0,0.18)', position: 'relative', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+          <KiniMascot size={22} /> Generate with KINI
         </button>
       </div>
 

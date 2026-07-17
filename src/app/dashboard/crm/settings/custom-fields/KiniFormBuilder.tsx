@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { crmLeadFormAI, type KiniClarifyingQuestion, type KiniProposedField } from '../../../../../lib/crmApi';
 import type { CustomField } from '../../../../../types/crm';
+import KiniMascot from './KiniMascot';
 
 type FieldType = CustomField['field_type'];
 
@@ -233,10 +234,10 @@ export default function KiniFormBuilder({
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, position: 'relative' }}>
             <motion.div
               style={orb}
-              animate={{ scale: [1, 1.08, 1], rotate: [0, 6, -6, 0] }}
+              animate={{ scale: [1, 1.05, 1] }}
               transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
             >
-              <Sparkles size={20} color="#fff" />
+              <KiniMascot size={34} />
             </motion.div>
             <div>
               <div style={{ fontSize: 15, fontWeight: 800, color: '#fff', letterSpacing: 0.2 }}>
@@ -298,8 +299,8 @@ export default function KiniFormBuilder({
             ) : loading ? (
               /* THINKING */
               <motion.div key={`load-${loading}`} style={centerCol} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                <motion.div style={thinkOrb} animate={{ scale: [1, 1.12, 1], boxShadow: ['0 0 0 0 rgba(123,97,255,0.5)', '0 0 0 18px rgba(123,97,255,0)', '0 0 0 0 rgba(123,97,255,0)'] }} transition={{ duration: 1.8, repeat: Infinity }}>
-                  <Sparkles size={26} color="#fff" />
+                <motion.div style={thinkOrb} animate={{ scale: [1, 1.1, 1], boxShadow: ['0 0 0 0 rgba(123,97,255,0.5)', '0 0 0 18px rgba(123,97,255,0)', '0 0 0 0 rgba(123,97,255,0)'] }} transition={{ duration: 1.8, repeat: Infinity }}>
+                  <KiniMascot size={46} />
                 </motion.div>
                 <div style={{ height: 22, marginTop: 18, overflow: 'hidden', position: 'relative', width: '100%', textAlign: 'center' }}>
                   <AnimatePresence mode="wait">
@@ -492,6 +493,18 @@ const EXAMPLES: Array<{ label: string; text: string }> = [
   { label: '🏥 Dental clinic', text: 'We run a dental clinic. For every new patient enquiry I need their reason for visit, preferred appointment time, insurance provider, whether they were referred, and any existing dental conditions.' },
   { label: '🚗 Car dealership', text: 'I run a car dealership. For each lead I want the model of interest, budget, whether they have a vehicle to exchange, financing needs, and their expected purchase date.' },
   { label: '☀️ Solar installer', text: 'Rooftop solar installer. Capture property type, average monthly electricity bill, roof area, shading, whether they own the property, preferred timeline, and financing interest.' },
+  { label: '🎓 Coaching / EdTech', text: 'We run a test-prep coaching institute. For each enquiry capture the course of interest, target exam and year, current grade/level, preferred batch timing (online/offline), the student’s city, and parent contact.' },
+  { label: '💪 Gym / fitness', text: 'I run a fitness studio. For each lead capture their fitness goal, preferred membership plan, prior gym experience, any medical conditions, preferred workout timing, and how they heard about us.' },
+  { label: '🛡️ Insurance advisor', text: 'I’m an insurance advisor. For each prospect capture the policy type of interest (term/health/motor/ULIP), age, annual income band, number of dependents, existing cover, and preferred premium budget.' },
+  { label: '🛋️ Interior design', text: 'Interior design firm. For each enquiry capture property type, carpet area, rooms to design, design style preference, budget range, possession/move-in date, and whether it’s a rented or owned home.' },
+  { label: '🎉 Event planning', text: 'We plan weddings and events. Capture event type, expected guest count, event date, venue status (booked/not), city, estimated budget, and the services needed (decor, catering, photography).' },
+  { label: '✈️ Travel agency', text: 'Travel agency. For each enquiry capture destination, travel type (leisure/business/honeymoon), number of travellers, tentative dates, duration, budget per person, and whether visa assistance is needed.' },
+  { label: '💻 B2B SaaS', text: 'We sell a B2B software product. For each lead capture company size, industry, role/designation, the problem they’re trying to solve, current tool in use, team size to onboard, and expected go-live timeline.' },
+  { label: '🏭 Manufacturing', text: 'Industrial equipment manufacturer. For each enquiry capture the product/category of interest, required quantity, application/use-case, expected delivery timeline, whether they need customisation, and GST/company details.' },
+  { label: '💍 Jewellery retail', text: 'Jewellery showroom. For each enquiry capture the occasion, product category (gold/diamond/silver), metal purity preference, budget range, preferred visit date, and whether it’s for an exchange.' },
+  { label: '📸 Photography', text: 'Wedding photography studio. For each enquiry capture the event type, event date(s), city/venue, package of interest, number of events to cover, deliverables wanted (album/video/drone), and budget.' },
+  { label: '🚚 Logistics', text: 'Logistics and freight company. For each enquiry capture shipment type, origin and destination cities, cargo weight/volume, frequency (one-time/recurring), preferred mode (road/air/sea), and required delivery timeline.' },
+  { label: '🌾 Agriculture', text: 'Agri-inputs dealer. For each farmer enquiry capture crop type, land area (acres), product category of interest (seeds/fertiliser/pesticide), season, irrigation type, and preferred delivery village/block.' },
 ];
 
 // ── styles (inline, matching the dashboard's CSS-var convention) ────────────
