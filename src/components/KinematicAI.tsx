@@ -15,6 +15,22 @@ import DealListCard from './crm/kini/DealListCard';
 import LeadListCard from './crm/kini/LeadListCard';
 import DraftEmailCard from './crm/kini/DraftEmailCard';
 import SummaryCard from './crm/kini/SummaryCard';
+import { getStoredProjectKey, DEFAULT_PROJECT } from '../lib/projects';
+
+// KINI's chat + live-ops calls use raw fetch (they need the raw Response for the
+// v2→v1 (403) fallback and 429 handling), so they must replicate the api
+// client's multi-project header. WITHOUT X-Kinematic-Project the backend
+// verifies the bearer token against the DEFAULT (Tata) project and 401s any
+// user on another project (e.g. the Kinematic tenant) — which silently broke
+// KINI for them. Mirror api.ts: send the header for non-default projects only.
+function kiniAuthHeaders(token: string): Record<string, string> {
+  const h: Record<string, string> = { Authorization: `Bearer ${token}` };
+  try {
+    const project = getStoredProjectKey();
+    if (project && project !== DEFAULT_PROJECT) h['X-Kinematic-Project'] = project;
+  } catch { /* ignore */ }
+  return h;
+}
 
 // All colours come from CSS vars so the panel adapts to whichever theme
 // is active (dark by default, [data-theme="light"] flips them).
@@ -229,7 +245,7 @@ export default function KinematicAI({ token }: { token: string }) {
 
   const fetchLive = useCallback(async () => {
     try {
-      const hdrs = { Authorization: `Bearer ${token}` };
+      const hdrs = kiniAuthHeaders(token);
       const [a, l, s, w] = await Promise.allSettled([
         fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/analytics/attendance/summary`, { headers: hdrs }).then(r => r.json()),
         fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/live-tracking/locations`, { headers: hdrs }).then(r => r.json()),
@@ -253,7 +269,7 @@ export default function KinematicAI({ token }: { token: string }) {
   useEffect(() => {
     if (!open) return;
     fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/crm/ai/usage`, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: kiniAuthHeaders(token),
     }).then(r => r.json()).then(d => {
       const u = d?.data ?? d;
       if (u && typeof u.used === 'number') setUsage(u);
@@ -344,7 +360,7 @@ Be elite, professional, and data-driven. Use **bold** for key metrics. Proactive
       };
       if (inCrm) body.context = buildKiniContext(pathname || '', userOrgId, selCity);
 
-      const headers: Record<string, string> = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
+      const headers: Record<string, string> = { 'Content-Type': 'application/json', ...kiniAuthHeaders(token) };
       if (userOrgId) headers['X-Org-Id'] = userOrgId;
 
       try {
