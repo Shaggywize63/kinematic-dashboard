@@ -8,6 +8,7 @@ import { getStoredToken } from '../../../../lib/auth';
 import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
 import type { Lead, LeadSource } from '../../../../types/crm';
 import LeadsTable, { LEAD_COLUMNS } from '../../../../components/crm/LeadsTable';
+import LeadEditModal from '../../../../components/crm/LeadEditModal';
 import LeadFilters, { type LeadFiltersValue } from '../../../../components/crm/LeadFilters';
 import ViewCustomizer from '../../../../components/crm/shared/ViewCustomizer';
 import { useViewPrefs } from '../../../../lib/crmViewPrefs';
@@ -48,6 +49,9 @@ export default function LeadsListPage() {
   const [debouncedQ, setDebouncedQ] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
+  // Inline edit — the lead currently open in the edit modal, launched from
+  // the row's Edit button so a rep can edit one record without leaving the list.
+  const [editingLead, setEditingLead] = useState<Lead | null>(null);
   const [users, setUsers] = useState<UserOption[]>([]);
   const [showAssignMenu, setShowAssignMenu] = useState(false);
   const [usersLoading, setUsersLoading] = useState(false);
@@ -545,6 +549,7 @@ export default function LeadsListPage() {
           toast.success(userId ? 'Lead reassigned' : 'Lead unassigned');
           reload();
         }}
+        onEdit={setEditingLead}
       />
       <PaginationBar
         pagination={pagination}
@@ -585,6 +590,17 @@ export default function LeadsListPage() {
         >
           +
         </Link>
+      )}
+
+      {/* Inline edit modal — reuses the same override-aware LeadEditModal the
+          detail page uses. On save we refetch so the list reflects the edit. */}
+      {editingLead && (
+        <LeadEditModal
+          lead={editingLead}
+          open={!!editingLead}
+          onClose={() => setEditingLead(null)}
+          onSaved={() => { setEditingLead(null); reload(); }}
+        />
       )}
     </div>
   );

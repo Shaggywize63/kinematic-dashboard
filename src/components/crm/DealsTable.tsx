@@ -10,6 +10,8 @@ interface Props {
   loading?: boolean;
   onAssign?: (dealId: string, userId: string | null) => Promise<void>;
   onDelete?: (dealId: string) => void | Promise<void>;
+  // Inline edit: open the edit modal for one deal straight from the list.
+  onEdit?: (deal: Deal) => void;
   selected?: Set<string>;
   onToggle?: (id: string) => void;
   onToggleAll?: () => void;
@@ -73,11 +75,11 @@ function volumeKgCell(d: Deal): string {
   return Number.isFinite(n) ? n.toLocaleString('en-IN') : '';
 }
 
-export default function DealsTable({ deals, loading, onAssign, onDelete, selected, onToggle, onToggleAll, hiddenColumns, viewMode = 'table', sort, onSort }: Props) {
+export default function DealsTable({ deals, loading, onAssign, onDelete, onEdit, selected, onToggle, onToggleAll, hiddenColumns, viewMode = 'table', sort, onSort }: Props) {
   const td: React.CSSProperties = { padding: '12px 14px', fontSize: 13, color: 'var(--text)', borderBottom: '1px solid var(--border)' };
   const th: React.CSSProperties = { padding: '10px 14px', fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', textAlign: 'left', borderBottom: '1px solid var(--border)', background: 'var(--s2)', fontWeight: 700, letterSpacing: 0.6 };
   const showSelection = !!onToggle && !!selected;
-  const showActions = !!onDelete;
+  const showActions = !!onDelete || !!onEdit;
   const allSelected = showSelection && deals.length > 0 && deals.every((d) => selected!.has(d.id));
   const hidden = hiddenColumns ?? new Set<string>();
   const tableClass = `responsive-cards${viewMode === 'cards' ? ' cards-view' : ''}`;
@@ -166,15 +168,32 @@ export default function DealsTable({ deals, loading, onAssign, onDelete, selecte
                 )}
                 {showActions && (
                   <td style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap' }} data-label="Action">
-                    <button
-                      type="button"
-                      onClick={() => onDelete!(d.id)}
-                      title="Delete this deal"
-                      aria-label={`Delete ${d.name}`}
-                      style={{ background: 'transparent', border: '1px solid #ef4444', color: '#ef4444', padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
-                    >
-                      🗑 Delete
-                    </button>
+                    <div style={{ display: 'inline-flex', gap: 6, alignItems: 'center', justifyContent: 'flex-end' }}>
+                      {/* Inline edit — opens the edit modal in place so a rep
+                          can fix one deal without leaving the list. */}
+                      {onEdit && (
+                        <button
+                          type="button"
+                          onClick={() => onEdit(d)}
+                          title="Edit this deal"
+                          aria-label={`Edit ${d.name}`}
+                          style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+                        >
+                          Edit
+                        </button>
+                      )}
+                      {onDelete && (
+                        <button
+                          type="button"
+                          onClick={() => onDelete(d.id)}
+                          title="Delete this deal"
+                          aria-label={`Delete ${d.name}`}
+                          style={{ background: 'transparent', border: '1px solid #ef4444', color: '#ef4444', padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+                        >
+                          🗑 Delete
+                        </button>
+                      )}
+                    </div>
                   </td>
                 )}
               </tr>

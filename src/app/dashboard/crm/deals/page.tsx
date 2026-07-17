@@ -8,6 +8,7 @@ import { crmDeals, crmPipelines, type Pagination } from '../../../../lib/crmApi'
 import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
 import type { Deal, Pipeline } from '../../../../types/crm';
 import DealsTable, { DEAL_COLUMNS } from '../../../../components/crm/DealsTable';
+import DealEditModal from '../../../../components/crm/DealEditModal';
 import ViewCustomizer from '../../../../components/crm/shared/ViewCustomizer';
 import { useViewPrefs } from '../../../../lib/crmViewPrefs';
 import { getStoredUser, canAccess, getStoredToken, userHasModule } from '../../../../lib/auth';
@@ -50,6 +51,9 @@ function DealsListPage() {
   const [q, setQ] = useState('');
   const [status, setStatus] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  // Inline edit — the deal currently open in the edit modal, launched from
+  // the row's Edit button so a rep can edit one deal without leaving the list.
+  const [editingDeal, setEditingDeal] = useState<Deal | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -388,6 +392,7 @@ function DealsListPage() {
             selected={selected}
             onToggle={toggle}
             onToggleAll={toggleAll}
+            onEdit={setEditingDeal}
             onDelete={async (id) => {
               if (!window.confirm('Delete this deal? It will be soft-deleted and can be restored from the database if needed.')) return;
               try {
@@ -408,6 +413,19 @@ function DealsListPage() {
             loading={loading}
           />
         </>
+      )}
+
+      {/* Inline edit modal — reuses the same override-aware DealEditModal the
+          detail page uses. Stages come from the active pipeline. On save we
+          refetch so the list reflects the edit. */}
+      {editingDeal && (
+        <DealEditModal
+          deal={editingDeal}
+          stages={stages}
+          open={!!editingDeal}
+          onClose={() => setEditingDeal(null)}
+          onSaved={() => { setEditingDeal(null); reload(); }}
+        />
       )}
     </div>
   );
