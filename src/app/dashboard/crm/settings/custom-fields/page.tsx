@@ -714,8 +714,8 @@ export default function CustomFieldsPage() {
           plain-English brief, then review + add. */}
       <div className="kini-hero" style={{ borderRadius: 16, padding: 20,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap',
-        boxShadow: '0 14px 34px -12px rgba(123,97,255,0.6)', position: 'relative', overflow: 'hidden',
-        background: 'linear-gradient(120deg, #7B61FF, #3E9EFF, #E01E2C, #7B61FF)', backgroundSize: '300% 300%',
+        boxShadow: '0 14px 34px -12px rgba(224,30,44,0.6)', position: 'relative', overflow: 'hidden',
+        background: 'linear-gradient(120deg, #E5202B, #FF6B57, #E01E2C, #B3121B)', backgroundSize: '300% 300%',
         animation: 'kiniHeroFlow 9s ease infinite' }}>
         {/* Injected keyframes for the dynamic gradient + floaters + hover (inline can't do @keyframes or :hover). */}
         <style>{`
@@ -740,9 +740,9 @@ export default function CustomFieldsPage() {
         ))}
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, position: 'relative' }}>
-          <div className="kini-hero-orb" style={{ width: 52, height: 52, borderRadius: 14, background: 'rgba(255,255,255,0.22)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, backdropFilter: 'blur(2px)' }}>
-            <KiniMascot size={40} />
+          <div className="kini-hero-orb" style={{ width: 54, height: 54, borderRadius: 15, background: 'rgba(255,255,255,0.95)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 6px 16px rgba(0,0,0,0.2)' }}>
+            <KiniMascot size={42} />
           </div>
           <div>
             <div style={{ fontSize: 15, fontWeight: 800, color: '#fff', letterSpacing: 0.2 }}>Build the {entity} form with KINI AI</div>

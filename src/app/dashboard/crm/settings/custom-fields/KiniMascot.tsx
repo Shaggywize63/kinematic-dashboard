@@ -2,10 +2,12 @@
 import React from 'react';
 
 /**
- * KINI — the friendly AI mascot. A self-contained SVG (no image asset) with
- * built-in SMIL animation: a gentle bob, occasional blink, and a twinkling
- * antenna sparkle. Reads well on both light surfaces (the white button) and
- * the gradient banner. Pass `animate={false}` for a static render.
+ * KINI — the official Kinematic AI mascot, drawn as a self-contained SVG (no
+ * image asset) so it stays crisp at any size and can animate. A red robot with
+ * a cream face, glossy eyes, pink cheeks, side ear-pods and a "K" antenna
+ * badge. Built-in SMIL animation: a gentle bob + an occasional blink.
+ * Colours are fixed (brand red) so it looks identical on every surface.
+ * Pass `animate={false}` for a static render.
  */
 export default function KiniMascot({
   size = 24,
@@ -16,29 +18,29 @@ export default function KiniMascot({
   animate?: boolean;
   style?: React.CSSProperties;
 }) {
-  // useId → colon-free, so the gradient url(#…) refs stay valid.
   const uid = React.useId().replace(/:/g, '');
-  const head = `k${uid}head`;
-  const screen = `k${uid}screen`;
+  const headG = `k${uid}head`;
+
+  const RED = '#E5202B';
+  const RED_DARK = '#D11B24';
+  const CREAM = '#F7F2EC';
+  const INK = '#17191F';
+  const PINK = '#F4A6B4';
 
   return (
     <svg
       width={size}
       height={size}
-      viewBox="0 0 48 54"
+      viewBox="0 0 100 100"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden="true"
       style={style}
     >
       <defs>
-        <linearGradient id={head} x1="8" y1="14" x2="40" y2="46" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#8B7BFF" />
-          <stop offset="100%" stopColor="#3E9EFF" />
-        </linearGradient>
-        <linearGradient id={screen} x1="24" y1="19" x2="24" y2="40" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#141737" />
-          <stop offset="100%" stopColor="#232a5c" />
+        <linearGradient id={headG} x1="50" y1="35" x2="50" y2="95" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#EC2A33" />
+          <stop offset="100%" stopColor={RED} />
         </linearGradient>
       </defs>
 
@@ -47,7 +49,7 @@ export default function KiniMascot({
           <animateTransform
             attributeName="transform"
             type="translate"
-            values="0 0; 0 -1.6; 0 0"
+            values="0 0; 0 -1.8; 0 0"
             keyTimes="0; 0.5; 1"
             dur="3s"
             calcMode="spline"
@@ -56,36 +58,52 @@ export default function KiniMascot({
           />
         )}
 
-        {/* Antenna */}
-        <line x1="24" y1="7" x2="24" y2="16" stroke="#8B7BFF" strokeWidth="2.4" strokeLinecap="round" />
-        {/* Sparkle */}
-        <path d="M24 1.5 L25.5 5 L29 6.5 L25.5 8 L24 11.5 L22.5 8 L19 6.5 L22.5 5 Z" fill="#FFD84D">
-          {animate && <animate attributeName="opacity" values="0.45; 1; 0.45" dur="2s" repeatCount="indefinite" />}
-        </path>
+        {/* Antenna stem */}
+        <line x1="50" y1="24" x2="50" y2="38" stroke={RED} strokeWidth="3" strokeLinecap="round" />
+        {/* Antenna badge — cream disc, red ring + "K" */}
+        <circle cx="50" cy="14" r="11" fill={CREAM} stroke={RED} strokeWidth="2.4" />
+        <g stroke={RED} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" fill="none">
+          <path d="M46 9 L46 19" />
+          <path d="M46 14.2 L52 9" />
+          <path d="M46 14.2 L52 19" />
+        </g>
 
-        {/* Ear pods */}
-        <rect x="3.5" y="24" width="5" height="12" rx="2.5" fill="#6E5EF0" />
-        <rect x="39.5" y="24" width="5" height="12" rx="2.5" fill="#6E5EF0" />
+        {/* Ear pods (behind head) */}
+        <rect x="10" y="58" width="9" height="20" rx="4.5" fill={RED_DARK} />
+        <rect x="81" y="58" width="9" height="20" rx="4.5" fill={RED_DARK} />
 
         {/* Head */}
-        <rect x="8" y="14" width="32" height="32" rx="11" fill={`url(#${head})`} />
+        <rect x="17" y="35" width="66" height="60" rx="20" fill={`url(#${headG})`} />
+        {/* Glossy highlight */}
+        <ellipse cx="36" cy="50" rx="14" ry="8" fill="#ffffff" opacity="0.22" transform="rotate(-22 36 50)" />
+
         {/* Face screen */}
-        <rect x="12" y="19" width="24" height="21" rx="8" fill={`url(#${screen})`} />
+        <rect x="28" y="45" width="44" height="38" rx="14" fill={CREAM} />
 
         {/* Eyes */}
-        <ellipse cx="20" cy="28.5" rx="2.6" ry="3.4" fill="#5FE0FF">
+        <ellipse cx="41" cy="62" rx="5.6" ry="6.9" fill={INK}>
           {animate && (
-            <animate attributeName="ry" values="3.4; 3.4; 0.5; 3.4" keyTimes="0; 0.9; 0.95; 1" dur="4.2s" repeatCount="indefinite" />
+            <animate attributeName="ry" values="6.9; 6.9; 0.6; 6.9" keyTimes="0; 0.9; 0.95; 1" dur="4.2s" repeatCount="indefinite" />
           )}
         </ellipse>
-        <ellipse cx="28" cy="28.5" rx="2.6" ry="3.4" fill="#5FE0FF">
+        <ellipse cx="59" cy="62" rx="5.6" ry="6.9" fill={INK}>
           {animate && (
-            <animate attributeName="ry" values="3.4; 3.4; 0.5; 3.4" keyTimes="0; 0.9; 0.95; 1" dur="4.2s" repeatCount="indefinite" />
+            <animate attributeName="ry" values="6.9; 6.9; 0.6; 6.9" keyTimes="0; 0.9; 0.95; 1" dur="4.2s" repeatCount="indefinite" />
           )}
         </ellipse>
+        {/* Eye glints */}
+        <circle cx="38.6" cy="59" r="1.9" fill="#ffffff" />
+        <circle cx="56.6" cy="59" r="1.9" fill="#ffffff" />
+
+        {/* Cheeks */}
+        <circle cx="33.5" cy="69" r="4.2" fill={PINK} opacity="0.9" />
+        <circle cx="66.5" cy="69" r="4.2" fill={PINK} opacity="0.9" />
 
         {/* Smile */}
-        <path d="M20 34.5 Q24 37.5 28 34.5" stroke="#5FE0FF" strokeWidth="1.8" strokeLinecap="round" fill="none" />
+        <path d="M42 71.5 Q50 80 58 71.5" stroke={INK} strokeWidth="3" strokeLinecap="round" fill="none" />
+
+        {/* Speaker / mouth slot */}
+        <rect x="38" y="88" width="24" height="3.6" rx="1.8" fill={RED_DARK} />
       </g>
     </svg>
   );
