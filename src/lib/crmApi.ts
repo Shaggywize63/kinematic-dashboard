@@ -308,6 +308,36 @@ export const crmTerritories = crud<Territory>(`${BASE}/territories`);
 export const crmAutomations = crud<Automation>(`${BASE}/automations`);
 export const crmCustomFields = crud<CustomField>(`${BASE}/custom-fields`);
 
+// KINI AI lead-form builder — generates a comprehensive custom-field set from
+// a plain-English problem statement (Settings → Custom Fields). Two steps:
+// clarifying questions, then the proposed fields; the UI previews + edits the
+// fields and creates each via crmCustomFields.create.
+export type KiniClarifyingQuestion = {
+  id: string;
+  kind: 'generic' | 'industry';
+  question: string;
+  help?: string;
+  suggestions?: string[];
+};
+export type KiniProposedField = {
+  field_key: string;
+  label: string;
+  field_type: CustomField['field_type'];
+  required?: boolean;
+  options?: string[];
+  help?: string;
+};
+export const crmLeadFormAI = {
+  questions: (body: { problem_statement: string; entity_type?: string }) =>
+    api.post<Wrapped<{ industry: string; summary: string; questions: KiniClarifyingQuestion[] }>>(
+      `${BASE}/ai/lead-form/questions`, body,
+    ),
+  generate: (body: { problem_statement: string; entity_type?: string; answers: { question: string; answer: string }[] }) =>
+    api.post<Wrapped<{ formTitle: string; summary: string; fields: KiniProposedField[] }>>(
+      `${BASE}/ai/lead-form/generate`, body,
+    ),
+};
+
 // People Directory — per-client address book sitting alongside contacts.
 // Same CRUD shape as the other CRM lookups, plus /bulk-import + /export
 // + an adjacent /people-directory-types catalog the admin can extend
