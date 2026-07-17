@@ -1,11 +1,12 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { crmContacts, crmSettings } from '../../lib/crmApi';
 import type { BusinessType, Contact } from '../../types/crm';
 import Modal from './shared/Modal';
 import LocationPicker from './LocationPicker';
 import CustomFieldsSection from './CustomFieldsSection';
+import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '../../lib/crmFieldOverrides';
 
 interface Props { contact: Contact; open: boolean; onClose: () => void; onSaved: (updated: Contact) => void; }
 
@@ -17,6 +18,13 @@ export default function ContactEditModal({ contact, open, onClose, onSaved }: Pr
   const [customFields, setCustomFields] = useState<Record<string, unknown>>(() => seedCustomFields(contact));
   const [busy, setBusy] = useState(false);
   const [businessType, setBusinessType] = useState<BusinessType>('both');
+  // Built-in field overrides (hide / relabel / require) for contact columns,
+  // scoped by the contact's B2B/B2C mode like the lead form.
+  const [fieldOverrides, setFieldOverrides] = useState<FieldOverrides>({});
+  const fields = useMemo(
+    () => buildFieldHelpers(fieldOverrides, 'contact', form.is_b2c ? 'b2c' : 'b2b'),
+    [fieldOverrides, form.is_b2c],
+  );
 
   useEffect(() => { if (open) { setForm(seed(contact)); setCustomFields(seedCustomFields(contact)); } }, [open, contact]);
   // Mirror LeadEditModal: read org's B2B/B2C mode on open and pin
@@ -31,6 +39,7 @@ export default function ContactEditModal({ contact, open, onClose, onSaved }: Pr
         const t: BusinessType = r.data?.business_type ?? 'both';
         if (cancelled) return;
         setBusinessType(t);
+        setFieldOverrides(extractFieldOverrides(r.data));
         if (t === 'b2b') setForm((f) => ({ ...f, is_b2c: false }));
         if (t === 'b2c') setForm((f) => ({ ...f, is_b2c: true }));
       } catch { /* default to 'both' */ }
@@ -63,13 +72,13 @@ export default function ContactEditModal({ contact, open, onClose, onSaved }: Pr
         </div>
       )}
       <SL>Personal</SL><Grid>
-        <F label="First Name" required value={form.first_name} onChange={(v) => setForm({ ...form, first_name: v })} />
-        <F label="Last Name" value={form.last_name} onChange={(v) => setForm({ ...form, last_name: v })} />
-        <F label="Email" type="email" required={!form.is_b2c} value={form.email} onChange={(v) => setForm({ ...form, email: v })} />
-        <F label="Phone" required={form.is_b2c} value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />
+        {!fields.isHidden('first_name') && <F label={fields.labelFor('first_name', 'First Name')} required={fields.requiredFor('first_name', true)} value={form.first_name} onChange={(v) => setForm({ ...form, first_name: v })} />}
+        {!fields.isHidden('last_name') && <F label={fields.labelFor('last_name', 'Last Name')} required={fields.requiredFor('last_name', false)} value={form.last_name} onChange={(v) => setForm({ ...form, last_name: v })} />}
+        {!fields.isHidden('email') && <F label={fields.labelFor('email', 'Email')} type="email" required={fields.requiredFor('email', !form.is_b2c)} value={form.email} onChange={(v) => setForm({ ...form, email: v })} />}
+        {!fields.isHidden('phone') && <F label={fields.labelFor('phone', 'Phone')} required={fields.requiredFor('phone', form.is_b2c)} value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />}
         <F label="Mobile" value={form.mobile} onChange={(v) => setForm({ ...form, mobile: v })} />
       </Grid>
-      {!form.is_b2c ? (<><SL>Work</SL><Grid><F label="Job Title" value={form.title} onChange={(v) => setForm({ ...form, title: v })} /><F label="Department" value={form.department} onChange={(v) => setForm({ ...form, department: v })} /></Grid></>) : (
+      {!form.is_b2c ? (<><SL>Work</SL><Grid>{!fields.isHidden('title') && <F label={fields.labelFor('title', 'Job Title')} required={fields.requiredFor('title', false)} value={form.title} onChange={(v) => setForm({ ...form, title: v })} />}{!fields.isHidden('department') && <F label={fields.labelFor('department', 'Department')} required={fields.requiredFor('department', false)} value={form.department} onChange={(v) => setForm({ ...form, department: v })} />}</Grid></>) : (
         <><SL>Customer Details</SL><Grid>
           <F label="Date of Birth" type="date" value={form.date_of_birth} onChange={(v) => setForm({ ...form, date_of_birth: v })} />
           <SF label="Gender" value={form.gender} options={[{ value: '', label: '—' }, { value: 'male', label: 'Male' }, { value: 'female', label: 'Female' }, { value: 'other', label: 'Other' }, { value: 'prefer_not_to_say', label: 'Prefer not to say' }]} onChange={(v) => setForm({ ...form, gender: v })} />
@@ -79,13 +88,15 @@ export default function ContactEditModal({ contact, open, onClose, onSaved }: Pr
         </Grid>
         <SL>Address</SL><Grid>
           <F label="Address Line 1" value={form.address_line1} onChange={(v) => setForm({ ...form, address_line1: v })} />
-          <LocationPicker stateValue={form.state} cityValue={form.city} onChange={({ state, city }) => setForm({ ...form, state, city })} />
+          {!fields.isHidden('city') && (
+            <LocationPicker stateValue={form.state} cityValue={form.city} onChange={({ state, city }) => setForm({ ...form, state, city })} />
+          )}
           <F label="Postal Code" value={form.postal_code} onChange={(v) => setForm({ ...form, postal_code: v })} />
-          <F label="Country" value={form.country} onChange={(v) => setForm({ ...form, country: v })} />
+          {!fields.isHidden('country') && <F label={fields.labelFor('country', 'Country')} value={form.country} onChange={(v) => setForm({ ...form, country: v })} />}
         </Grid>
-        <SL>Consent</SL>
-        <CB checked={form.marketing_consent} onChange={(v) => setForm({ ...form, marketing_consent: v })}>Customer agreed to marketing communications</CB>
-        <CB checked={form.whatsapp_consent} onChange={(v) => setForm({ ...form, whatsapp_consent: v })}>Customer agreed to WhatsApp contact</CB>
+        {(!fields.isHidden('marketing_consent') || !fields.isHidden('whatsapp_consent')) && <SL>Consent</SL>}
+        {!fields.isHidden('marketing_consent') && <CB checked={form.marketing_consent} onChange={(v) => setForm({ ...form, marketing_consent: v })}>{fields.labelFor('marketing_consent', 'Customer agreed to marketing communications')}</CB>}
+        {!fields.isHidden('whatsapp_consent') && <CB checked={form.whatsapp_consent} onChange={(v) => setForm({ ...form, whatsapp_consent: v })}>{fields.labelFor('whatsapp_consent', 'Customer agreed to WhatsApp contact')}</CB>}
         </>
       )}
 

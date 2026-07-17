@@ -2,12 +2,13 @@
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { crmDeals, crmPipelines, crmProducts, crmAccounts, crmContacts, crmLeads } from '../../../../../lib/crmApi';
+import { crmDeals, crmPipelines, crmProducts, crmAccounts, crmContacts, crmLeads, crmSettings } from '../../../../../lib/crmApi';
 import type { Account, Contact, Lead, Pipeline, Product } from '../../../../../types/crm';
 import ClientScopeField from '../../../../../components/ClientScopeField';
 import CustomFieldsSection from '../../../../../components/crm/CustomFieldsSection';
 import { useAuth } from '../../../../../hooks/useAuth';
 import { isHorizonOrg } from '../../../../../lib/crmFeatureGates';
+import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '../../../../../lib/crmFieldOverrides';
 
 // useSearchParams() forces a Suspense boundary on Next 14. The inner
 // component reads ?pipeline_id= so the Pipeline page's "+ New Deal" CTA
@@ -46,6 +47,16 @@ function NewDealPageInner() {
   // becomes the row's custom_fields jsonb (same pattern as the lead form).
   const [customFields, setCustomFields] = useState<Record<string, unknown>>({});
   const [busy, setBusy] = useState(false);
+  // Built-in field overrides (hide / relabel / require) for deal columns,
+  // configured under Settings → Custom Fields. Deals aren't B2B/B2C-scoped
+  // so no scope is passed. Empty until the settings round-trip resolves.
+  const [fieldOverrides, setFieldOverrides] = useState<FieldOverrides>({});
+  const fields = useMemo(() => buildFieldHelpers(fieldOverrides, 'deal'), [fieldOverrides]);
+  useEffect(() => {
+    crmSettings.get()
+      .then((s) => setFieldOverrides(extractFieldOverrides(s.data)))
+      .catch(() => { /* keep defaults — every field renders */ });
+  }, []);
   // Optional Source Lead picker — debounced typeahead over the leads list
   // (server-side q= matches name/email/phone; converted leads stay in the
   // response by default, which is the point: it lets a rep create an
@@ -211,7 +222,7 @@ function NewDealPageInner() {
       <h2 style={{ marginTop: 0, fontSize: 18, color: 'var(--text)' }}>New Deal</h2>
       <ClientScopeField value={form.client_id} onChange={(id) => setForm({ ...form, client_id: id })} />
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
-        <Field label="Name"><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required style={input} /></Field>
+        {!fields.isHidden('name') && <Field label={fields.labelFor('name', 'Name')}><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required={fields.requiredFor('name', true)} style={input} /></Field>}
 
         <Field label="Product (optional)">
           <select value={form.product_id} onChange={(e) => onProductChange(e.target.value)} style={input}>
@@ -225,8 +236,9 @@ function NewDealPageInner() {
           </Field>
         )}
 
-        <Field label="Amount (INR)"><input type="number" step="0.01" value={form.amount} onChange={(e) => onAmountChange(e.target.value)} style={input} /></Field>
-        <Field label="Pipeline">
+        {!fields.isHidden('amount') && <Field label={fields.labelFor('amount', 'Amount (INR)')}><input type="number" step="0.01" value={form.amount} onChange={(e) => onAmountChange(e.target.value)} style={input} /></Field>}
+        {!fields.isHidden('pipeline_id') && (
+        <Field label={fields.labelFor('pipeline_id', 'Pipeline')}>
           {singlePipeline ? (
             <div style={{ ...input, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6 }}>
               {currentPipeline?.name || 'Default pipeline'}
@@ -236,14 +248,16 @@ function NewDealPageInner() {
             <select value={form.pipeline_id} onChange={(e) => { const p = pipelines.find((pp) => pp.id === e.target.value); setForm({ ...form, pipeline_id: e.target.value, stage_id: p?.stages?.[0]?.id || '' }); }} style={input}>{pipelines.map((p) => <option key={p.id} value={p.id}>{p.name}{p.is_default ? ' (default)' : ''}</option>)}</select>
           )}
         </Field>
-        <Field label="Stage"><select value={form.stage_id} onChange={(e) => setForm({ ...form, stage_id: e.target.value })} style={input}>{stages.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>
+        )}
+        {!fields.isHidden('stage_id') && <Field label={fields.labelFor('stage_id', 'Stage')}><select value={form.stage_id} onChange={(e) => setForm({ ...form, stage_id: e.target.value })} style={input}>{stages.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>}
         {/* Expected close date is required — without it the Forecast
             and Sales-cycle reports show nothing. */}
-        <Field label="Expected Close Date *"><input type="date" value={form.expected_close_date} onChange={(e) => setForm({ ...form, expected_close_date: e.target.value })} required style={input} /></Field>
+        {!fields.isHidden('expected_close_date') && <Field label={fields.labelFor('expected_close_date', 'Expected Close Date') + (fields.requiredFor('expected_close_date', true) ? ' *' : '')}><input type="date" value={form.expected_close_date} onChange={(e) => setForm({ ...form, expected_close_date: e.target.value })} required={fields.requiredFor('expected_close_date', true)} style={input} /></Field>}
         {/* Optional source lead — search by name / phone and pick one to
             stamp lead_id on the new deal. Lets a rep create a SECOND deal
             for a lead whose conversion already produced one. */}
-        <Field label="Source Lead (optional)">
+        {!fields.isHidden('lead_id') && (
+        <Field label={fields.labelFor('lead_id', 'Source Lead (optional)')}>
           {selectedLead ? (
             <div style={{ ...input, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -293,20 +307,25 @@ function NewDealPageInner() {
             </div>
           )}
         </Field>
+        )}
         {showLinks && (
           <>
-            <Field label="Account">
+            {!fields.isHidden('account_id') && (
+            <Field label={fields.labelFor('account_id', 'Account')}>
               <select value={form.account_id} onChange={(e) => setForm({ ...form, account_id: e.target.value, primary_contact_id: '' })} style={input}>
                 <option value="">— No account —</option>
                 {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
               </select>
             </Field>
-            <Field label="Primary Contact">
+            )}
+            {!fields.isHidden('primary_contact_id') && (
+            <Field label={fields.labelFor('primary_contact_id', 'Primary Contact')}>
               <select value={form.primary_contact_id} onChange={(e) => setForm({ ...form, primary_contact_id: e.target.value })} style={input} disabled={!form.account_id}>
                 <option value="">{form.account_id ? '— No primary contact —' : 'Pick account first'}</option>
                 {contacts.map((c) => <option key={c.id} value={c.id}>{[c.first_name, c.last_name].filter(Boolean).join(' ') || c.email || 'Unnamed'}</option>)}
               </select>
             </Field>
+            )}
           </>
         )}
         {/* Custom fields render inline inside this grid so admin-defined

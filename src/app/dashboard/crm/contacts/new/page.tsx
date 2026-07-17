@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { crmContacts, crmSettings, crmAccounts } from '../../../../../lib/crmApi';
@@ -9,6 +9,7 @@ import AlternateMobiles from '../../../../../components/crm/AlternateMobiles';
 import CustomFieldsSection from '../../../../../components/crm/CustomFieldsSection';
 import { useAuth } from '../../../../../hooks/useAuth';
 import { isHorizonOrg } from '../../../../../lib/crmFeatureGates';
+import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '../../../../../lib/crmFieldOverrides';
 
 type Form = {
   first_name: string; last_name: string; email: string; phone: string; title: string;
@@ -42,6 +43,13 @@ export default function NewContactPage() {
   const [busy, setBusy] = useState(false);
   const [businessType, setBusinessType] = useState<BusinessType>('both');
   const [accounts, setAccounts] = useState<Account[]>([]);
+  // Built-in field overrides (hide / relabel / require) for contact columns,
+  // scoped by the contact's B2B/B2C mode like the lead form.
+  const [fieldOverrides, setFieldOverrides] = useState<FieldOverrides>({});
+  const fields = useMemo(
+    () => buildFieldHelpers(fieldOverrides, 'contact', form.is_b2c ? 'b2c' : 'b2b'),
+    [fieldOverrides, form.is_b2c],
+  );
 
   useEffect(() => {
     (async () => {
@@ -49,6 +57,7 @@ export default function NewContactPage() {
         const r = await crmSettings.get();
         const t = r.data?.business_type ?? 'both';
         setBusinessType(t);
+        setFieldOverrides(extractFieldOverrides(r.data));
         if (t === 'b2b') setForm((f) => ({ ...f, is_b2c: false }));
       } catch { /* default */ }
     })();
@@ -68,8 +77,9 @@ export default function NewContactPage() {
     }
     // City is required on EVERY contact (B2C and B2B alike) — the CRM
     // enforces per-user city scope on reads, so a contact with no city
-    // would leak across territories. Mirrors the lead create rule.
-    if (!form.city || !form.city.trim()) {
+    // would leak across territories. Mirrors the lead create rule. Skipped
+    // only when an admin has explicitly hidden the city field.
+    if (!fields.isHidden('city') && (!form.city || !form.city.trim())) {
       return toast.error('City is required — pick one from the city dropdown.');
     }
     setBusy(true);
@@ -107,10 +117,18 @@ export default function NewContactPage() {
   // `text()` builds a labelled <input>. When `opts.phone` is true the input
   // accepts numeric input only (no letters), caps the value at 10 digits,
   // and shows the phone keypad on mobile.
-  const text = (k: keyof Form, label: string, opts: { type?: string; required?: boolean; phone?: boolean } = {}) => (
+  // text() / select() consult the admin's field-override map: hidden ⇒
+  // omit the field, label override ⇒ new label, required override ⇒ flip
+  // the asterisk + browser-level required attr. Non-override keys (e.g.
+  // address_line1) fall through to the passed defaults untouched.
+  const text = (k: keyof Form, label: string, opts: { type?: string; required?: boolean; phone?: boolean } = {}) => {
+    if (fields.isHidden(k as string)) return null;
+    const effLabel = fields.labelFor(k as string, label);
+    const effRequired = fields.requiredFor(k as string, !!opts.required);
+    return (
     <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
       <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>
-        {label}{opts.required && <span style={{ color: '#ef4444', marginLeft: 3 }}>*</span>}
+        {effLabel}{effRequired && <span style={{ color: '#ef4444', marginLeft: 3 }}>*</span>}
       </span>
       <input
         type={opts.phone ? 'tel' : (opts.type || 'text')}
@@ -124,20 +142,25 @@ export default function NewContactPage() {
           const v = opts.phone ? e.target.value.replace(/\D/g, '').slice(0, 10) : e.target.value;
           setForm({ ...form, [k]: v });
         }}
-        required={opts.required}
+        required={effRequired}
         style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 }}
       />
     </label>
-  );
-  const select = (k: keyof Form, label: string, options: Array<{ value: string; label: string }>) => (
+    );
+  };
+  const select = (k: keyof Form, label: string, options: Array<{ value: string; label: string }>) => {
+    if (fields.isHidden(k as string)) return null;
+    const effLabel = fields.labelFor(k as string, label);
+    return (
     <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>{label}</span>
+      <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>{effLabel}</span>
       <select value={form[k] as string} onChange={(e) => setForm({ ...form, [k]: e.target.value })} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 }}>
         <option value="">—</option>
         {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
     </label>
-  );
+    );
+  };
 
   const showToggle = businessType === 'both';
 
@@ -174,12 +197,12 @@ export default function NewContactPage() {
           filter on reads needs every contact to have one. The B2C branch
           below renders the full address section with the same picker, so
           this lighter version only shows for B2B. */}
-      {!form.is_b2c && (
+      {!form.is_b2c && !fields.isHidden('city') && (
         <Section title="Location">
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
             <div>
               <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>
-                City <span style={{ color: '#ef4444' }}>*</span>
+                {fields.labelFor('city', 'City')} {fields.requiredFor('city', true) && <span style={{ color: '#ef4444' }}>*</span>}
               </span>
               <div style={{ marginTop: 4 }}>
                 <LocationPicker stateValue={form.state} cityValue={form.city} onChange={({ state, city }) => setForm({ ...form, state, city })} />
@@ -193,9 +216,9 @@ export default function NewContactPage() {
         <Section title="Work">
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
             {text('title', 'Job Title')}
-            {showAccountLink && (
+            {showAccountLink && !fields.isHidden('account_id') && (
               <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>Account</span>
+                <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>{fields.labelFor('account_id', 'Account')}</span>
                 <select
                   value={form.account_id}
                   onChange={(e) => setForm({ ...form, account_id: e.target.value })}
@@ -228,7 +251,9 @@ export default function NewContactPage() {
           <Section title="Address">
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
               {text('address_line1', 'Address Line 1')}{text('address_line2', 'Address Line 2')}
-              <LocationPicker stateValue={form.state} cityValue={form.city} onChange={({ state, city }) => setForm({ ...form, state, city })} />
+              {!fields.isHidden('city') && (
+                <LocationPicker stateValue={form.state} cityValue={form.city} onChange={({ state, city }) => setForm({ ...form, state, city })} />
+              )}
               {text('postal_code', 'Postal Code')}{text('country', 'Country')}
               {/* Custom fields are inlined into the B2C Address grid for the
                   same reason they're in the B2B grid above — they read as
@@ -240,12 +265,14 @@ export default function NewContactPage() {
               />
             </div>
           </Section>
+          {(!fields.isHidden('marketing_consent') || !fields.isHidden('whatsapp_consent')) && (
           <Section title="Consent">
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13, color: 'var(--text)' }}>
-              <label style={{ display: 'flex', gap: 8, alignItems: 'center', cursor: 'pointer' }}><input type="checkbox" checked={form.marketing_consent} onChange={(e) => setForm({ ...form, marketing_consent: e.target.checked })} />Customer agreed to receive marketing communications</label>
-              <label style={{ display: 'flex', gap: 8, alignItems: 'center', cursor: 'pointer' }}><input type="checkbox" checked={form.whatsapp_consent} onChange={(e) => setForm({ ...form, whatsapp_consent: e.target.checked })} />Customer agreed to be contacted via WhatsApp</label>
+              {!fields.isHidden('marketing_consent') && <label style={{ display: 'flex', gap: 8, alignItems: 'center', cursor: 'pointer' }}><input type="checkbox" checked={form.marketing_consent} onChange={(e) => setForm({ ...form, marketing_consent: e.target.checked })} />{fields.labelFor('marketing_consent', 'Customer agreed to receive marketing communications')}</label>}
+              {!fields.isHidden('whatsapp_consent') && <label style={{ display: 'flex', gap: 8, alignItems: 'center', cursor: 'pointer' }}><input type="checkbox" checked={form.whatsapp_consent} onChange={(e) => setForm({ ...form, whatsapp_consent: e.target.checked })} />{fields.labelFor('whatsapp_consent', 'Customer agreed to be contacted via WhatsApp')}</label>}
             </div>
           </Section>
+          )}
         </>
       )}
 
