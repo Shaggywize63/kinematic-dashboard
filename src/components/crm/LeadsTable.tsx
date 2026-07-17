@@ -22,6 +22,9 @@ interface Props {
   // toggle/switch the active sort and refetch. Undefined = non-sortable UI.
   sort?: { key: string; order: 'asc' | 'desc' };
   onSort?: (key: string) => void;
+  // Inline edit: open the edit modal for a single row straight from the
+  // list, so a rep can fix one lead without opening its detail page.
+  onEdit?: (lead: Lead) => void;
 }
 
 // Clickable, server-side-sort table header. The actual sorting happens on
@@ -79,7 +82,7 @@ export const LEAD_COLUMNS = [
   { key: 'action', label: 'Action' },
 ] as const;
 
-export default function LeadsTable({ leads, selected, onToggle, onToggleAll, loading, isB2C = false, onAssign, hiddenColumns, viewMode = 'table', sort, onSort }: Props) {
+export default function LeadsTable({ leads, selected, onToggle, onToggleAll, loading, isB2C = false, onAssign, hiddenColumns, viewMode = 'table', sort, onSort, onEdit }: Props) {
   const [scorePopup, setScorePopup] = useState<Lead | null>(null);
   const allSelected = leads.length > 0 && leads.every((l) => selected.has(l.id));
   const tdStyle: React.CSSProperties = { padding: '12px 14px', fontSize: 13, color: 'var(--text)', borderBottom: '1px solid var(--border)' };
@@ -145,6 +148,7 @@ export default function LeadsTable({ leads, selected, onToggle, onToggleAll, loa
                   onToggle={onToggle}
                   onScoreClick={setScorePopup}
                   onAssign={onAssign}
+                  onEdit={onEdit}
                   isB2C={isB2C}
                   tdStyle={tdStyle}
                   hidden={hidden}
@@ -166,12 +170,13 @@ interface LeadRowProps {
   onToggle: (id: string) => void;
   onScoreClick: (lead: Lead) => void;
   onAssign?: (leadId: string, userId: string | null) => Promise<void>;
+  onEdit?: (lead: Lead) => void;
   isB2C: boolean;
   tdStyle: React.CSSProperties;
   hidden: Set<string>;
 }
 
-const LeadRow = memo(function LeadRow({ lead: l, isSelected, onToggle, onScoreClick, onAssign, isB2C, tdStyle, hidden }: LeadRowProps) {
+const LeadRow = memo(function LeadRow({ lead: l, isSelected, onToggle, onScoreClick, onAssign, onEdit, isB2C, tdStyle, hidden }: LeadRowProps) {
   const fullName = l.full_name || `${l.first_name || ''} ${l.last_name || ''}`.trim() || '—';
   const handleToggle = useCallback(() => onToggle(l.id), [onToggle, l.id]);
   const handleScore  = useCallback(() => onScoreClick(l), [onScoreClick, l]);
@@ -222,11 +227,25 @@ const LeadRow = memo(function LeadRow({ lead: l, isSelected, onToggle, onScoreCl
       )}
       {!hidden.has('action') && (
         <td style={{ ...tdStyle, textAlign: 'right', whiteSpace: 'nowrap' }} data-label="Action">
-          {l.status === 'converted' ? (
-            <span style={{ fontSize: 11, color: '#10b981', fontWeight: 700 }}>✓ Converted</span>
-          ) : (
-            <Link href={`/dashboard/crm/leads/${l.id}?convert=1`} style={{ background: 'var(--primary)', color: '#fff', padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, textDecoration: 'none' }} title="Convert this lead to a deal">→ Deal</Link>
-          )}
+          <div style={{ display: 'inline-flex', gap: 6, alignItems: 'center', justifyContent: 'flex-end' }}>
+            {/* Inline edit — opens the edit modal in place so a rep can fix a
+                single record without navigating into its detail page. */}
+            {onEdit && (
+              <button
+                type="button"
+                onClick={() => onEdit(l)}
+                title="Edit this lead"
+                style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+              >
+                Edit
+              </button>
+            )}
+            {l.status === 'converted' ? (
+              <span style={{ fontSize: 11, color: '#10b981', fontWeight: 700 }}>✓ Converted</span>
+            ) : (
+              <Link href={`/dashboard/crm/leads/${l.id}?convert=1`} style={{ background: 'var(--primary)', color: '#fff', padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, textDecoration: 'none' }} title="Convert this lead to a deal">→ Deal</Link>
+            )}
+          </div>
         </td>
       )}
     </tr>
