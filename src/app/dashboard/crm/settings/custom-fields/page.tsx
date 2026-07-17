@@ -250,6 +250,10 @@ export default function CustomFieldsPage() {
   const [savingCustom, setSavingCustom] = useState(false);
   // KINI AI form-builder modal (Settings → Custom Fields).
   const [showBuilder, setShowBuilder] = useState(false);
+  // Early-rollout gate: the KINI form builder is only shown to the master
+  // admin (s@kinematicapp.com) for now. The backend enforces the same limit,
+  // so this is a UI convenience, not the security boundary.
+  const kiniBuilderEnabled = (getStoredUser()?.email || '').toLowerCase() === 's@kinematicapp.com';
 
   const [entity, setEntity] = useState<CustomField['entity_type']>('lead');
   const [fieldKey, setFieldKey] = useState('');
@@ -711,7 +715,8 @@ export default function CustomFieldsPage() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       {/* KINI AI form builder — generate a comprehensive field set from a
-          plain-English brief, then review + add. */}
+          plain-English brief, then review + add. Master-admin-only for now. */}
+      {kiniBuilderEnabled && (<>
       <div className="kini-hero" style={{ borderRadius: 16, padding: 20,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap',
         boxShadow: '0 14px 34px -12px rgba(224,30,44,0.6)', position: 'relative', overflow: 'hidden',
@@ -767,6 +772,7 @@ export default function CustomFieldsPage() {
           onAccept={acceptBuilderFields}
         />
       )}
+      </>)}
 
       {/* Create form */}
       <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
