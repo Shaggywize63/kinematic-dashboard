@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { crmContacts, crmSettings } from '../../../../lib/crmApi';
 import type { Contact } from '../../../../types/crm';
 import ContactsTable, { CONTACT_COLUMNS } from '../../../../components/crm/ContactsTable';
+import { usePagination } from '../../../../components/shared/Pagination';
 import ViewCustomizer from '../../../../components/crm/shared/ViewCustomizer';
 import { useViewPrefs } from '../../../../lib/crmViewPrefs';
 import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
@@ -45,6 +46,7 @@ export default function ContactsListPage() {
   }, []);
 
   const filtered = contacts.filter((c) => !q || `${c.full_name || ''} ${c.email || ''} ${c.account_name || ''}`.toLowerCase().includes(q.toLowerCase()));
+  const { pageItems: pagedContacts, bar } = usePagination(filtered);
 
   return (
     <div>
@@ -72,7 +74,7 @@ export default function ContactsListPage() {
         </div>
       </div>
       <ContactsTable
-        contacts={filtered}
+        contacts={pagedContacts}
         loading={loading}
         isB2C={isB2C}
         hiddenColumns={hiddenSet}
@@ -85,6 +87,7 @@ export default function ContactsListPage() {
           reload();
         }}
       />
+      {bar}
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { crmProducts, crmProductCategories } from '../../../../lib/crmApi';
 import { formatINR } from '../../../../lib/formatCurrency';
 import type { Product, ProductCategory } from '../../../../types/crm';
 import { useTableSort, SortLabel } from '../../../../lib/tableSort';
+import { usePagination } from '../../../../components/shared/Pagination';
 
 export default function ProductsListPage() {
   const [items, setItems] = useState<Product[]>([]);
@@ -63,6 +64,7 @@ export default function ProductsListPage() {
     }
   }, [cats]);
   const { sorted, sort, toggle } = useTableSort<Product>(items, productVal, { key: null, dir: 'asc' });
+  const { pageItems: pagedProducts, bar } = usePagination(sorted);
 
   return (
     <div>
@@ -102,7 +104,7 @@ export default function ProductsListPage() {
           <tbody>
             {loading && <tr><td colSpan={10} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)' }}>Loading...</td></tr>}
             {!loading && items.length === 0 && <tr><td colSpan={10} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)' }}>No products yet.</td></tr>}
-            {sorted.map((p) => {
+            {pagedProducts.map((p) => {
               const w = p.weight_kg ?? 0;
               const perTonne = w > 0 ? Math.round((Number(p.price) / w) * 1000) : null;
               return (
@@ -126,6 +128,7 @@ export default function ProductsListPage() {
           </tbody>
         </table>
       </div>
+      {bar}
     </div>
   );
 }
