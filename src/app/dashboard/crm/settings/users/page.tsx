@@ -6,6 +6,7 @@ import api from '../../../../../lib/api';
 import { rolesApi, type OrgRole } from '../../../../../lib/rolesApi';
 import { getStoredUser } from '../../../../../lib/auth';
 import { useTableSort, SortLabel } from '../../../../../lib/tableSort';
+import { usePagination } from '../../../../../components/shared/Pagination';
 
 // CRM-scoped user management. Module permissions live on the role hierarchy
 // (org_roles.permissions / .permissions_write) — not redefined per-user — so
@@ -290,6 +291,7 @@ export default function CrmUsersPage() {
   }, [roles]);
   // Client-side column sorting; defaults to the loaded/filtered order.
   const { sorted, sort, toggle } = useTableSort<UserRow>(filtered, userVal);
+  const { pageItems: pagedUsers, bar } = usePagination(sorted);
 
   // Active-user cap surface (matches backend: staff domains are exempt).
   const CAP_BYPASS_DOMAINS = ['kinematicapp.com', 'horizontechstudio.com', 'kinematic.com', 'kaiyotechnologylabs.com'];
@@ -873,7 +875,7 @@ export default function CrmUsersPage() {
           <tbody>
             {loading && <tr><td colSpan={8} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)' }}>Loading users…</td></tr>}
             {!loading && filtered.length === 0 && <tr><td colSpan={8} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)' }}>No users yet — click <strong style={{ color: 'var(--text)' }}>+ Add User</strong> or <strong style={{ color: 'var(--text)' }}>Bulk Upload</strong>.</td></tr>}
-            {sorted.map((u) => {
+            {pagedUsers.map((u) => {
               // Prefer the server-joined role name (getUsers in
               // misc.controller.ts now returns org_role.name alongside
               // each row). Fall back to looking up the locally-loaded
@@ -950,6 +952,7 @@ export default function CrmUsersPage() {
           </tbody>
         </table>
       </div>
+      {bar}
     </div>
   );
 }

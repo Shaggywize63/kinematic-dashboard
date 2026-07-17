@@ -4,6 +4,7 @@ import api from '../../../../lib/api';
 import { Card, PageHeader, Pill, Th, Td, Btn, fmtDate } from '../../../../components/distribution/Atoms';
 import { INDIA_STATES, parseGstinClient, stateName } from '../../../../lib/india';
 import { useTableSort, SortLabel } from '../../../../lib/tableSort';
+import { usePagination } from '../../../../components/shared/Pagination';
 
 interface BrandForm {
   name: string;
@@ -122,6 +123,7 @@ export default function BrandsPage() {
     }
   }, []);
   const { sorted, sort, toggle } = useTableSort<any>(items, brandVal, { key: 'created', dir: 'desc' });
+  const { pageItems: pagedBrands, bar } = usePagination(sorted);
 
   return (
     <div>
@@ -210,7 +212,7 @@ export default function BrandsPage() {
           <tbody>
             {loading ? (
               <tr><Td>Loading…</Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td><Td><span /></Td></tr>
-            ) : sorted.map((b) => (
+            ) : pagedBrands.map((b) => (
               <tr key={b.id}>
                 <Td style={{ fontWeight: 700 }}>{b.name}</Td>
                 <Td style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12 }}>{b.code}</Td>
@@ -229,6 +231,7 @@ export default function BrandsPage() {
           </tbody>
         </table>
       </Card>
+      {bar}
     </div>
   );
 }
