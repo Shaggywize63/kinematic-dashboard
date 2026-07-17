@@ -18,19 +18,19 @@ type FieldType = CustomField['field_type'];
 // Per-type presentation — icon + soft accent used across the type picker and
 // the preview field cards so each field reads at a glance.
 const TYPE_META: Partial<Record<FieldType, { icon: LucideIcon; label: string; accent: string }>> = {
-  text:        { icon: TypeIcon,   label: 'Text',         accent: '#3E9EFF' },
-  longtext:    { icon: AlignLeft,  label: 'Long text',    accent: '#3E9EFF' },
+  text:        { icon: TypeIcon,   label: 'Text',         accent: '#E5202B' },
+  longtext:    { icon: AlignLeft,  label: 'Long text',    accent: '#E5202B' },
   number:      { icon: Hash,       label: 'Number',       accent: '#10b981' },
   currency:    { icon: IndianRupee, label: 'Currency',    accent: '#10b981' },
-  boolean:     { icon: ToggleLeft, label: 'Yes / no',     accent: '#7B61FF' },
-  date:        { icon: Calendar,   label: 'Date',         accent: '#14b8a6' },
-  datetime:    { icon: Clock,      label: 'Date & time',  accent: '#14b8a6' },
+  boolean:     { icon: ToggleLeft, label: 'Yes / no',     accent: '#E5202B' },
+  date:        { icon: Calendar,   label: 'Date',         accent: '#F59E0B' },
+  datetime:    { icon: Clock,      label: 'Date & time',  accent: '#F59E0B' },
   select:      { icon: List,       label: 'Dropdown',     accent: '#F7B538' },
   multiselect: { icon: ListChecks, label: 'Multi-select', accent: '#F7B538' },
   radio:       { icon: CircleDot,  label: 'Radio',        accent: '#F7B538' },
-  url:         { icon: Link2,      label: 'URL',          accent: '#06b6d4' },
-  email:       { icon: Mail,       label: 'Email',        accent: '#06b6d4' },
-  phone:       { icon: Phone,      label: 'Phone',        accent: '#06b6d4' },
+  url:         { icon: Link2,      label: 'URL',          accent: '#6B7280' },
+  email:       { icon: Mail,       label: 'Email',        accent: '#6B7280' },
+  phone:       { icon: Phone,      label: 'Phone',        accent: '#6B7280' },
 };
 const EDITABLE_TYPES: FieldType[] = [
   'text', 'longtext', 'number', 'currency', 'boolean', 'date', 'datetime',
@@ -201,7 +201,7 @@ export default function KiniFormBuilder({
       await onAccept(payload);
       setDone(payload.length);
       import('canvas-confetti').then(({ default: confetti }) => {
-        confetti({ particleCount: 130, spread: 80, origin: { y: 0.5 }, colors: ['#7B61FF', '#3E9EFF', '#10b981', '#F7B538', '#E01E2C'] });
+        confetti({ particleCount: 130, spread: 80, origin: { y: 0.5 }, colors: ['#E5202B', '#FF6B57', '#F7B538', '#10b981', '#FFFFFF'] });
       }).catch(() => { /* decorative */ });
       window.setTimeout(onClose, 1400);
     } catch (e: any) {
@@ -299,7 +299,7 @@ export default function KiniFormBuilder({
             ) : loading ? (
               /* THINKING */
               <motion.div key={`load-${loading}`} style={centerCol} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                <motion.div style={thinkOrb} animate={{ scale: [1, 1.1, 1], boxShadow: ['0 0 0 0 rgba(123,97,255,0.5)', '0 0 0 18px rgba(123,97,255,0)', '0 0 0 0 rgba(123,97,255,0)'] }} transition={{ duration: 1.8, repeat: Infinity }}>
+                <motion.div style={thinkOrb} animate={{ scale: [1, 1.1, 1], boxShadow: ['0 0 0 0 rgba(229,32,43,0.5)', '0 0 0 18px rgba(229,32,43,0)', '0 0 0 0 rgba(229,32,43,0)'] }} transition={{ duration: 1.8, repeat: Infinity }}>
                   <KiniMascot size={46} />
                 </motion.div>
                 <div style={{ height: 22, marginTop: 18, overflow: 'hidden', position: 'relative', width: '100%', textAlign: 'center' }}>
@@ -353,7 +353,7 @@ export default function KiniFormBuilder({
               <motion.div key="clarify" style={col} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.28 }}>
                 {(industry || promptSummary) && (
                   <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} style={{ ...infoCard, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                    <div style={{ ...iconChip, background: 'rgba(123,97,255,0.15)' }}><Lightbulb size={15} color="#7B61FF" /></div>
+                    <div style={{ ...iconChip, background: 'rgba(229,32,43,0.14)' }}><Lightbulb size={15} color="#E5202B" /></div>
                     <div>
                       {industry && <div style={{ fontSize: 12.5, color: 'var(--text)' }}><strong>Detected industry:</strong> {industry}</div>}
                       {promptSummary && <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>{promptSummary}</div>}
@@ -367,7 +367,7 @@ export default function KiniFormBuilder({
                   <motion.div key={q.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 * i }} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                       <span>{q.question}</span>
-                      <span style={{ ...kindTag, background: q.kind === 'industry' ? 'rgba(123,97,255,0.15)' : 'rgba(62,158,255,0.15)', color: q.kind === 'industry' ? '#7B61FF' : '#3E9EFF' }}>
+                      <span style={{ ...kindTag, background: q.kind === 'industry' ? 'rgba(229,32,43,0.14)' : 'rgba(107,114,128,0.16)', color: q.kind === 'industry' ? '#E5202B' : '#6B7280' }}>
                         {q.kind}
                       </span>
                     </div>
@@ -510,9 +510,9 @@ const EXAMPLES: Array<{ label: string; text: string }> = [
 // ── styles (inline, matching the dashboard's CSS-var convention) ────────────
 const overlay: React.CSSProperties = { position: 'fixed', inset: 0, background: 'rgba(10,10,16,0.62)', backdropFilter: 'blur(3px)', zIndex: 1000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '4vh 16px', overflowY: 'auto' };
 const panel: React.CSSProperties = { background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 18, width: '100%', maxWidth: 780, boxShadow: '0 30px 80px rgba(0,0,0,0.45)', overflow: 'hidden' };
-const header: React.CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 20px', background: 'linear-gradient(120deg, #7B61FF 0%, var(--primary) 60%, #E01E2C 120%)', position: 'relative', overflow: 'hidden' };
+const header: React.CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 20px', background: 'linear-gradient(120deg, #FF5A4E 0%, #E5202B 52%, #B3121B 120%)', position: 'relative', overflow: 'hidden' };
 const shine: React.CSSProperties = { position: 'absolute', top: 0, bottom: 0, width: 80, background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.25), transparent)', transform: 'skewX(-20deg)' };
-const orb: React.CSSProperties = { width: 42, height: 42, borderRadius: 12, background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 };
+const orb: React.CSSProperties = { width: 44, height: 44, borderRadius: 13, background: 'rgba(255,255,255,0.95)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 4px 12px rgba(0,0,0,0.2)' };
 const closeBtn: React.CSSProperties = { background: 'rgba(255,255,255,0.16)', border: 'none', color: '#fff', width: 34, height: 34, borderRadius: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', flexShrink: 0 };
 const rail: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, padding: '14px 22px 4px' };
 const railDot: React.CSSProperties = { width: 24, height: 24, borderRadius: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, flexShrink: 0 };
@@ -540,7 +540,7 @@ const switchTrack: React.CSSProperties = { width: 34, height: 18, borderRadius: 
 const switchThumb: React.CSSProperties = { width: 14, height: 14, borderRadius: 999, background: '#fff', display: 'block', boxShadow: '0 1px 2px rgba(0,0,0,0.3)' };
 const optionChip: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 6px 3px 10px', borderRadius: 999, fontSize: 12, background: 'var(--s2)', border: '1px solid var(--border)', color: 'var(--text)', fontWeight: 600 };
 const optionX: React.CSSProperties = { background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: 0 };
-const thinkOrb: React.CSSProperties = { width: 64, height: 64, borderRadius: 20, background: 'linear-gradient(135deg, #7B61FF, var(--primary))', display: 'flex', alignItems: 'center', justifyContent: 'center' };
+const thinkOrb: React.CSSProperties = { width: 68, height: 68, borderRadius: 22, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 6px 18px rgba(0,0,0,0.16)' };
 const shimmerTrack: React.CSSProperties = { width: 200, height: 5, borderRadius: 999, background: 'var(--s3)', overflow: 'hidden', marginTop: 6, position: 'relative' };
 const shimmerBar: React.CSSProperties = { position: 'absolute', top: 0, bottom: 0, width: '45%', borderRadius: 999, background: 'linear-gradient(90deg, transparent, var(--primary), transparent)' };
 const successRing: React.CSSProperties = { width: 78, height: 78, borderRadius: 999, background: 'rgba(16,185,129,0.14)', display: 'flex', alignItems: 'center', justifyContent: 'center' };
