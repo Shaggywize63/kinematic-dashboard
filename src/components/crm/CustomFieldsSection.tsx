@@ -411,17 +411,45 @@ function FileUploader({ field, value, onChange }: { field: CustomField; value: u
     }
   };
 
+  // Camera config tokens the admin saved on an image field (Settings →
+  // Custom Fields). Stored in the def's `options` string array so no schema
+  // change was needed and old mobile builds (which never read options for
+  // image fields) are unaffected:
+  //   'camera_only' → hide the gallery picker, capture must come from camera
+  //   'front'       → prefer the front camera (default: back)
+  // The `capture` attribute drives this on mobile web ('user' = front,
+  // 'environment' = back); desktop browsers ignore it and show a file dialog.
+  const defOpts = field.options ?? [];
+  const cameraOnly = isImage && defOpts.includes('camera_only');
+  const captureFacing = defOpts.includes('front') ? 'user' : 'environment';
+
+  const pickerLabelStyle = (disabled: boolean): React.CSSProperties => ({
+    display: 'inline-flex', alignItems: 'center', gap: 6,
+    background: 'var(--s3)', border: '1px dashed var(--border)',
+    borderRadius: 8, padding: '8px 14px', fontSize: 13, fontWeight: 600,
+    cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.6 : 1,
+    color: 'var(--text)',
+  });
+
   return (
     <Wrap field={field} fullWidth>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        <label style={{
-          display: 'inline-flex', alignItems: 'center', gap: 6,
-          background: 'var(--s3)', border: '1px dashed var(--border)',
-          borderRadius: 8, padding: '8px 14px', fontSize: 13, fontWeight: 600,
-          cursor: uploading ? 'not-allowed' : 'pointer', opacity: uploading ? 0.6 : 1,
-          color: 'var(--text)',
-        }}>
-          {uploading ? '⏳ Uploading…' : (isImage ? '📷 Upload Image' : '📎 Upload File')}
+        {isImage && (
+          <label style={pickerLabelStyle(uploading)}>
+            {uploading ? '⏳ Uploading…' : '📸 Take Photo'}
+            <input
+              type="file"
+              accept="image/*"
+              capture={captureFacing}
+              disabled={uploading}
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f); }}
+              style={{ display: 'none' }}
+            />
+          </label>
+        )}
+        {!(isImage && cameraOnly) && (
+        <label style={pickerLabelStyle(uploading)}>
+          {uploading ? '⏳ Uploading…' : (isImage ? '🖼 Choose from Gallery' : '📎 Upload File')}
           <input
             type="file"
             accept={isImage ? 'image/*' : undefined}
@@ -430,6 +458,7 @@ function FileUploader({ field, value, onChange }: { field: CustomField; value: u
             style={{ display: 'none' }}
           />
         </label>
+        )}
         {url && (
           <>
             {isImage ? (
