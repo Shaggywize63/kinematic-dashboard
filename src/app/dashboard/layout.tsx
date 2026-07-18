@@ -5,6 +5,7 @@ import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { getStoredUser, isSessionValid, clearSession, getDesignationLabel } from '../../lib/auth';
 import api, { getActingAs, setActingAs, getImpersonateUser, stopImpersonation } from '../../lib/api';
+import LogoMark from '../../components/shared/LogoMark';
 import StagingBoot from './StagingBoot';
 import StagingDeployModal from './StagingDeployModal';
 import { getStoredProjectKey } from '../../lib/projects';
@@ -611,11 +612,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             gap:12,
           }}>
             <div style={{ display:'flex', alignItems:'center', gap:12, minWidth:0 }}>
-              <img
-                src="https://kinematicapp.com/assets/logo.png"
-                alt="Kinematic"
-                style={{ height: 28, width: 'auto', objectFit: 'contain', flexShrink: 0, display: 'block' }}
-              />
+              <LogoMark size={28} />
               {(isMobile || !collapsed) && (
                 <span style={{ fontWeight:800, fontSize:18, letterSpacing:'-0.5px', whiteSpace:'nowrap' }}>Kinematic</span>
               )}

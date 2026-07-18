@@ -18,6 +18,7 @@ import OwnerAvatar from '../../../../../components/crm/shared/OwnerAvatar';
 import WhatsAppButton from '../../../../../components/crm/shared/WhatsAppButton';
 import CallButton from '../../../../../components/crm/shared/CallButton';
 import LeadEditModal from '../../../../../components/crm/LeadEditModal';
+import InlineEditText from '../../../../../components/crm/InlineEditText';
 import LeadDetailsPanel from '../../../../../components/crm/LeadDetailsPanel';
 import ScoreBoostSuggestions from '../../../../../components/crm/ScoreBoostSuggestions';
 import { formatINR } from '../../../../../lib/formatCurrency';
@@ -272,7 +273,27 @@ export default function LeadDetailPage() {
             <OwnerAvatar name={fullName} size={52} />
             <div style={{ flex: '1 1 200px', minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', wordBreak: 'break-word' }}>{fullName}</div>
+                {/* Inline per-field edit — change just the name in place
+                    (no full edit popup). Saves first/last only. */}
+                <InlineEditText
+                  value={fullName}
+                  ariaLabel="Edit name"
+                  displayStyle={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', wordBreak: 'break-word' }}
+                  inputStyle={{ fontSize: 20, fontWeight: 800, minWidth: 200 }}
+                  onSave={async (next) => {
+                    const parts = next.split(/\s+/).filter(Boolean);
+                    const first = parts.shift() || next.trim();
+                    const last = parts.join(' ');
+                    try {
+                      const r = await crmLeads.update(lead.id, { first_name: first, last_name: last } as any);
+                      setLead({ ...(r.data as any), full_name: `${first} ${last}`.trim() } as LifecycleLead);
+                      toast.success('Name updated');
+                    } catch (e: any) {
+                      toast.error(e?.message || 'Update failed');
+                      throw e; // keep the inline editor open so the rep can retry
+                    }
+                  }}
+                />
                 <Badge tone={isB2C ? 'consumer' : 'business'}>{isB2C ? 'B2C' : 'B2B'}</Badge>
                 {isConverted && <Badge tone="success">Converted</Badge>}
                 {isUnqualified && <Badge tone="warning">Unqualified</Badge>}
