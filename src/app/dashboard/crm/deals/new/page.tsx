@@ -8,6 +8,8 @@ import ClientScopeField from '../../../../../components/ClientScopeField';
 import CustomFieldsSection from '../../../../../components/crm/CustomFieldsSection';
 import { useAuth } from '../../../../../hooks/useAuth';
 import { isHorizonOrg } from '../../../../../lib/crmFeatureGates';
+import { isTataTiscanActive } from '../../../../../lib/clientFeatures';
+import ProductLinesSection from '../../../../../components/crm/ProductLinesSection';
 import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '../../../../../lib/crmFieldOverrides';
 
 // useSearchParams() forces a Suspense boundary on Next 14. The inner
@@ -213,6 +215,19 @@ function NewDealPageInner() {
   const currentPipeline = pipelines.find((p) => p.id === form.pipeline_id);
   const stages = currentPipeline?.stages || [];
   const selectedProduct = products.find((p) => p.id === form.product_id);
+  // Steel-dealer tenants (Tata/SRS + BMW) build deals from a multi-product
+  // basket instead of the single product + volume pair: each line is
+  // {product, qty, unit (Kg/Tonne/Piece), amount}, the lines persist into
+  // custom_fields.product_lines (same shape lead-convert writes, so the deal
+  // detail's products card renders them), and the basket total auto-fills
+  // the Amount field.
+  const steelDealer = isTataTiscanActive(user as any);
+  const basketTotal = typeof customFields.estimated_amount === 'number' ? customFields.estimated_amount : null;
+  useEffect(() => {
+    if (!steelDealer || basketTotal == null) return;
+    setForm((f) => ({ ...f, amount: String(basketTotal) }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [steelDealer, basketTotal]);
   // Single-pipeline clients see a static label instead of a dropdown of
   // one option — auto-assigned via the form's default pipeline pick.
   const singlePipeline = pipelines.length === 1;
@@ -224,16 +239,20 @@ function NewDealPageInner() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
         {!fields.isHidden('name') && <Field label={fields.labelFor('name', 'Name')}><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required={fields.requiredFor('name', true)} style={input} /></Field>}
 
-        <Field label="Product (optional)">
-          <select value={form.product_id} onChange={(e) => onProductChange(e.target.value)} style={input}>
-            <option value="">— None —</option>
-            {products.map((p) => <option key={p.id} value={p.id}>{p.name} (₹{Number(p.price).toFixed(0)}/unit · {p.weight_kg} kg)</option>)}
-          </select>
-        </Field>
-        {selectedProduct && (
-          <Field label="Volume (kg)">
-            <input type="number" step="0.01" value={form.volume_kg} onChange={(e) => onVolumeChange(e.target.value)} placeholder="e.g. 12500" style={input} />
-          </Field>
+        {!steelDealer && (
+          <>
+            <Field label="Product (optional)">
+              <select value={form.product_id} onChange={(e) => onProductChange(e.target.value)} style={input}>
+                <option value="">— None —</option>
+                {products.map((p) => <option key={p.id} value={p.id}>{p.name} (₹{Number(p.price).toFixed(0)}/unit · {p.weight_kg} kg)</option>)}
+              </select>
+            </Field>
+            {selectedProduct && (
+              <Field label="Volume (kg)">
+                <input type="number" step="0.01" value={form.volume_kg} onChange={(e) => onVolumeChange(e.target.value)} placeholder="e.g. 12500" style={input} />
+              </Field>
+            )}
+          </>
         )}
 
         {!fields.isHidden('amount') && <Field label={fields.labelFor('amount', 'Amount (INR)')}><input type="number" step="0.01" value={form.amount} onChange={(e) => onAmountChange(e.target.value)} style={input} /></Field>}
@@ -338,6 +357,15 @@ function NewDealPageInner() {
           onChange={setCustomFields}
         />
       </div>
+
+      {/* Steel-dealer multi-product basket — writes product_lines (+ the
+          legacy single-field mirrors) into the same customFields map the
+          create body persists, and its total auto-fills Amount above. */}
+      {steelDealer && (
+        <div style={{ marginTop: 14 }}>
+          <ProductLinesSection values={customFields} onChange={setCustomFields} />
+        </div>
+      )}
 
       {selectedProduct && pricePerKg > 0 && (
         <div style={{ marginTop: 12, padding: '8px 12px', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 11, color: 'var(--text-dim)' }}>

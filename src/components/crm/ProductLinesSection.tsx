@@ -105,10 +105,17 @@ export default function ProductLinesSection({ values, onChange }: Props) {
     const price = asNumber(p.price);
     const qty = asNumber(line.quantity);
     if (weightPricing) {
-      // Tata Tiscon: sold by weight — amount = (price ÷ weight_kg) × qty × unit factor.
+      const unit = String(line.measuring_unit ?? '').trim().toLowerCase();
+      // Per-piece pricing — product.price IS the price of one piece (one TMT
+      // bar), so no weight conversion: amount = price × pieces. Requested for
+      // SRS + BMW alongside the Kg/Tonne weight units.
+      if (unit === 'piece' || unit === 'pieces') {
+        if (price <= 0 || qty <= 0) return 0;
+        return round2(price * qty);
+      }
+      // Sold by weight — amount = (price ÷ weight_kg) × qty × unit factor.
       const weight = asNumber(p.weight_kg);
       if (price <= 0 || weight <= 0 || qty <= 0) return 0;
-      const unit = String(line.measuring_unit ?? '').trim().toLowerCase();
       const factor = unit === 'tonne' ? 1000 : 1;
       return round2((price / weight) * (qty * factor));
     }
@@ -258,6 +265,7 @@ export default function ProductLinesSection({ values, onChange }: Props) {
                 <option value="">—</option>
                 <option value="Kg">Kg</option>
                 <option value="Tonne">Tonne</option>
+                <option value="Piece">Piece</option>
               </select>
             </div>
           )}
