@@ -1,16 +1,28 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { crmAccounts } from '../../../../../lib/crmApi';
+import { crmAccounts, crmSettings } from '../../../../../lib/crmApi';
+import { CRM_INDUSTRIES } from '../../../../../lib/crmIndustries';
+import CustomFieldsSection from '../../../../../components/crm/CustomFieldsSection';
+import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '../../../../../lib/crmFieldOverrides';
 
 export default function NewAccountPage() {
   const router = useRouter();
   const [form, setForm] = useState({ name: '', industry: '', website: '', phone: '', annual_revenue: '', employees: '' });
+  const [customFields, setCustomFields] = useState<Record<string, unknown>>({});
   const [busy, setBusy] = useState(false);
+  const [fieldOverrides, setFieldOverrides] = useState<FieldOverrides>({});
+  const fields = useMemo(() => buildFieldHelpers(fieldOverrides, 'account'), [fieldOverrides]);
+  useEffect(() => {
+    crmSettings.get()
+      .then((s) => setFieldOverrides(extractFieldOverrides(s.data)))
+      .catch(() => { /* keep defaults — every field renders */ });
+  }, []);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!form.name.trim()) { toast.error('Account name is required'); return; }
     setBusy(true);
     try {
       const r = await crmAccounts.create({
@@ -20,16 +32,35 @@ export default function NewAccountPage() {
         phone: form.phone || null,
         annual_revenue: form.annual_revenue ? Number(form.annual_revenue) : null,
         employees: form.employees ? Number(form.employees) : null,
+        custom_fields: Object.keys(customFields).length > 0 ? customFields : undefined,
       });
       toast.success('Account created');
       router.push(`/dashboard/crm/accounts/${r.data.id}`);
     } catch (err: any) { toast.error(err.message || 'Create failed'); setBusy(false); }
   };
 
-  const fld = (k: keyof typeof form, label: string, type = 'text') => (
+  const inputStyle: React.CSSProperties = { background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 };
+  const labelStyle: React.CSSProperties = { fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 };
+
+  const fld = (k: keyof typeof form, label: string, type = 'text', defaultRequired = false) => {
+    if (fields.isHidden(k)) return null;
+    const effLabel = fields.labelFor(k, label);
+    const effRequired = fields.requiredFor(k, defaultRequired);
+    return (
+      <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <span style={labelStyle}>{effLabel}{effRequired && <span style={{ color: '#ef4444', marginLeft: 3 }}>*</span>}</span>
+        <input type={type} value={form[k]} onChange={(e) => setForm({ ...form, [k]: e.target.value })} required={effRequired} style={inputStyle} />
+      </label>
+    );
+  };
+
+  const industryFld = fields.isHidden('industry') ? null : (
     <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>{label}</span>
-      <input type={type} value={form[k]} onChange={(e) => setForm({ ...form, [k]: e.target.value })} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 }} />
+      <span style={labelStyle}>{fields.labelFor('industry', 'Industry')}</span>
+      <select value={form.industry} onChange={(e) => setForm({ ...form, industry: e.target.value })} style={inputStyle}>
+        <option value="">Select industry…</option>
+        {CRM_INDUSTRIES.map((i) => <option key={i} value={i}>{i}</option>)}
+      </select>
     </label>
   );
 
@@ -37,7 +68,12 @@ export default function NewAccountPage() {
     <form onSubmit={submit} style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 24, maxWidth: 720 }}>
       <h2 style={{ marginTop: 0, fontSize: 18, color: 'var(--text)' }}>New Account</h2>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
-        {fld('name', 'Name')}{fld('industry', 'Industry')}{fld('website', 'Website')}{fld('phone', 'Phone')}{fld('annual_revenue', 'Annual Revenue', 'number')}{fld('employees', 'Employees', 'number')}
+        {fld('name', 'Name', 'text', true)}{industryFld}{fld('website', 'Website')}{fld('phone', 'Phone')}{fld('annual_revenue', 'Annual Revenue', 'number')}{fld('employees', 'Employees', 'number')}
+        <CustomFieldsSection
+          entity="account"
+          values={customFields}
+          onChange={setCustomFields}
+        />
       </div>
       <div style={{ display: 'flex', gap: 8, marginTop: 18, justifyContent: 'flex-end' }}>
         <button type="button" onClick={() => router.back()} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 16px', borderRadius: 8, cursor: 'pointer' }}>Cancel</button>
