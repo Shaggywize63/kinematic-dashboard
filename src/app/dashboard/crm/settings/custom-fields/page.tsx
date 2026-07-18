@@ -44,7 +44,7 @@ const TYPE_LABELS: Record<CustomField['field_type'], string> = {
   url:         'URL',
   email:       'Email',
   phone:       'Phone (10-digit)',
-  image:       'Image upload',
+  image:       'Photo / Camera',
   file:        'File upload',
   lookup:      'Linked record (lookup)',
   formula:     'Formula (computed)',
@@ -252,6 +252,10 @@ export default function CustomFieldsPage() {
     org_role_ids: string[];
     targetTable: string;
     lookupFilter: LookupClause[];
+    // Photo/Camera-only config, persisted as tokens in `options`
+    // ('camera_only', 'front') — see the create form's captureSource note.
+    captureSource: 'both' | 'camera';
+    cameraFacing: 'back' | 'front';
   } | null>(null);
   const [savingCustom, setSavingCustom] = useState(false);
   // KINI AI form-builder modal (Settings → Custom Fields).
@@ -283,6 +287,13 @@ export default function CustomFieldsPage() {
   // Formula-only state — the expression itself. Validated cursorily on
   // submit (non-empty); the backend zod schema caps the length at 500.
   const [formula, setFormula] = useState<string>('');
+  // Photo/Camera-only state. Persisted as string tokens inside the def's
+  // `options` array ('camera_only', 'front') — no schema change, and old
+  // mobile builds ignore options on image fields, so this is safe to ship
+  // server-first. Mobile + web renderers read the same tokens, so the
+  // admin's choice drives every platform without an app release.
+  const [captureSource, setCaptureSource] = useState<'both' | 'camera'>('both');
+  const [cameraFacing, setCameraFacing] = useState<'back' | 'front'>('back');
   const [filter, setFilter] = useState<'all' | CustomField['entity_type']>('lead');
   // Hierarchy roles a new field is shown to (empty = all roles). Loaded from
   // the org's roles so each role can have its own custom fields.
@@ -375,6 +386,13 @@ export default function CustomFieldsPage() {
       position: items.filter((i) => i.entity_type === entity).length,
     };
     if (parsedOptions !== undefined) payload.options = parsedOptions;
+    if (fieldType === 'image') {
+      // Camera config tokens — see the captureSource/cameraFacing state note.
+      const tokens: string[] = [];
+      if (captureSource === 'camera') tokens.push('camera_only');
+      if (cameraFacing === 'front') tokens.push('front');
+      payload.options = tokens;
+    }
     if (pickedRoles.length > 0) payload.org_role_ids = pickedRoles;
     if (fieldType === 'lookup') {
       payload.target_table = targetTable;
@@ -497,6 +515,9 @@ export default function CustomFieldsPage() {
       lookupFilter: Array.isArray(cf.lookup_filter)
         ? cf.lookup_filter.map((c) => ({ field: String(c.field), op: String(c.op), value: c.value == null ? '' : String(c.value) }))
         : [],
+      // Photo/Camera config round-trips through the options tokens.
+      captureSource: Array.isArray(cf.options) && cf.options.includes('camera_only') ? 'camera' : 'both',
+      cameraFacing: Array.isArray(cf.options) && cf.options.includes('front') ? 'front' : 'back',
     });
   };
 
@@ -534,6 +555,15 @@ export default function CustomFieldsPage() {
         field_type: editingCustom.field_type,
       };
       if (parsed !== undefined) body.options = parsed;
+      else if (editingCustom.field_type === 'image') {
+        // Photo/Camera fields carry their config as options tokens — write
+        // them instead of wiping, or the admin's camera choice would be lost
+        // on every unrelated edit (label, required, …).
+        const tokens: string[] = [];
+        if (editingCustom.captureSource === 'camera') tokens.push('camera_only');
+        if (editingCustom.cameraFacing === 'front') tokens.push('front');
+        body.options = tokens;
+      }
       else if (!needsOptions) body.options = null; // wipe when no longer needed
       body.org_role_ids = editingCustom.org_role_ids.length ? editingCustom.org_role_ids : null;
       // Lookup config — wipe both columns when the type is no longer
@@ -799,6 +829,27 @@ export default function CustomFieldsPage() {
         </div>
         {TYPES_REQUIRING_OPTIONS.has(fieldType) && (
           <input value={optionsRaw} onChange={(e) => setOptionsRaw(e.target.value)} placeholder="Comma-separated options (e.g. Hot, Warm, Cold)" style={{ ...input, width: '100%', marginBottom: 8 }} />
+        )}
+        {fieldType === 'image' && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 8, marginBottom: 8 }}>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, color: 'var(--text-dim)', fontWeight: 600 }}>
+              Photo source
+              <select value={captureSource} onChange={(e) => setCaptureSource(e.target.value as 'both' | 'camera')} style={input}>
+                <option value="both">Camera or gallery</option>
+                <option value="camera">Camera only (no gallery)</option>
+              </select>
+            </label>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, color: 'var(--text-dim)', fontWeight: 600 }}>
+              Camera
+              <select value={cameraFacing} onChange={(e) => setCameraFacing(e.target.value as 'back' | 'front')} style={input}>
+                <option value="back">Back camera</option>
+                <option value="front">Front camera</option>
+              </select>
+            </label>
+            <div style={{ fontSize: 11, color: 'var(--text-dim)', alignSelf: 'end', paddingBottom: 6 }}>
+              Applies on mobile apps and mobile web. Desktop browsers show a file dialog.
+            </div>
+          </div>
         )}
         {fieldType === 'lookup' && (
           <LookupConfig
@@ -1331,6 +1382,32 @@ export default function CustomFieldsPage() {
                 onFilterChange={(f) => setEditingCustom({ ...editingCustom, lookupFilter: f })}
                 targets={lookupTargets}
               />
+            )}
+            {editingCustom.field_type === 'image' && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
+                <div>
+                  <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, marginBottom: 4 }}>Photo source</div>
+                  <select
+                    value={editingCustom.captureSource}
+                    onChange={(e) => setEditingCustom({ ...editingCustom, captureSource: e.target.value as 'both' | 'camera' })}
+                    style={{ width: '100%', background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13, boxSizing: 'border-box' }}
+                  >
+                    <option value="both">Camera or gallery</option>
+                    <option value="camera">Camera only (no gallery)</option>
+                  </select>
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, marginBottom: 4 }}>Camera</div>
+                  <select
+                    value={editingCustom.cameraFacing}
+                    onChange={(e) => setEditingCustom({ ...editingCustom, cameraFacing: e.target.value as 'back' | 'front' })}
+                    style={{ width: '100%', background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13, boxSizing: 'border-box' }}
+                  >
+                    <option value="back">Back camera</option>
+                    <option value="front">Front camera</option>
+                  </select>
+                </div>
+              </div>
             )}
 
             <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, color: 'var(--text)', marginBottom: 10 }}>
