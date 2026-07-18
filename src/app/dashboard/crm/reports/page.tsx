@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { useAuth } from '../../../../hooks/useAuth';
-import { isConsumerChampion, canDownloadSrsReport } from '../../../../lib/clientFeatures';
+import { isConsumerChampion, canDownloadSrsReport, leadReportLabel } from '../../../../lib/clientFeatures';
 
 type ReportEntry = {
   href: string;
@@ -51,6 +51,11 @@ export default function ReportsIndex() {
   const { user } = useAuth();
   const champion = isConsumerChampion(user as any);
   const srs = canDownloadSrsReport(user as any);
+  // The field lead-report tile is named for the tenant (BMW sees "BMW Lead
+  // Report"); the CSV format is identical. Keep in sync with the report page.
+  const SRS_REPORT_HREF = '/dashboard/crm/reports/srs-lead-report';
+  const reportTitleFor = (r: ReportEntry) =>
+    r.href === SRS_REPORT_HREF ? `📋 ${leadReportLabel(user as any)}` : r.title;
 
   // `championHidden: true` means "hide this for Champion users" — so
   // non-Champion users see EVERY report (including the ones flagged
@@ -80,7 +85,7 @@ export default function ReportsIndex() {
             textDecoration: 'none',
           }}
         >
-          <div style={{ fontSize: 14, fontWeight: 700, color: r.highlight ? '#fff' : 'var(--text)', marginBottom: 6 }}>{r.title}</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: r.highlight ? '#fff' : 'var(--text)', marginBottom: 6 }}>{reportTitleFor(r)}</div>
           <div style={{ fontSize: 12, color: r.highlight ? 'rgba(255,255,255,0.85)' : 'var(--text-dim)' }}>{r.desc}</div>
         </Link>
       ))}

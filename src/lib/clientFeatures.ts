@@ -91,6 +91,21 @@ export function canDownloadSrsReport(user: AnyUser): boolean {
   return SRS_REPORT_ROLES.includes(role);
 }
 
+/** True when the active tenant is BMW. */
+export function isBmwActive(user: AnyUser): boolean {
+  return activeClientId(user) === BMW_CLIENT_ID;
+}
+
+/**
+ * Client-aware label for the field lead report. The CSV format is shared,
+ * but BMW should see it named for their own tenant ("BMW Lead Report")
+ * rather than the SRS wording. Every render site (Reports tile + the report
+ * page heading) routes its title through this so the two stay in sync.
+ */
+export function leadReportLabel(user: AnyUser): string {
+  return isBmwActive(user) ? 'BMW Lead Report' : 'SRS Lead Report';
+}
+
 /** True when the active tenant (bound client_id or super-admin picker) is
  * the parent Kinematic tenant. */
 export function isKinematicActive(user: AnyUser): boolean {
