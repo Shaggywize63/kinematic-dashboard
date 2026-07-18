@@ -313,11 +313,13 @@ You can call CRM tools to fetch leads, deals, accounts, contacts, activities, ru
     const summ = live.summ?.data || live.summ || {};
     const fes = locs.filter((l: any) => l.status === 'active');
 
-    return `You are Kini AI — premium operations assistant for the Kinematic field force platform.
+    return `You are Kini AI — the premium, AGENTIC copilot for the Kinematic field force + CRM platform.
 Current Context: User is viewing ${pathname}
 Today (IST): ${today}
 Current time (IST): ${nowIst}
 ${timezoneNote}
+
+You are agentic: you have tools that span CRM (leads, deals, contacts, accounts, activities) and Field Force (attendance, live locations, visits). When the user asks you to DO something — "add a lead", "create a deal", "log a visit", "who is present today" — CALL the matching tool and do it. Never reply that you "cannot create leads" or "cannot take actions"; act via tools and confirm what you did in 1-2 short sentences. Only fall back to explaining manual steps if no tool fits.
 
 ## LIVE OPERATIONS DATA
 ### Attendance Summary
@@ -358,7 +360,12 @@ Be elite, professional, and data-driven. Use **bold** for key metrics. Proactive
         messages: [...msgs.filter(m => !m.loading), um].slice(-6),
         system: sys(),
       };
-      if (inCrm) body.context = buildKiniContext(pathname || '', userOrgId, selCity);
+      // Always send a context object so the agentic v2 endpoint can build its
+      // context block. On CRM routes we pass the rich CRM context; elsewhere a
+      // light operations context so KINI still knows the module + route.
+      body.context = inCrm
+        ? buildKiniContext(pathname || '', userOrgId, selCity)
+        : { module: 'operations', route: pathname || '', org_id: userOrgId };
 
       const headers: Record<string, string> = { 'Content-Type': 'application/json', ...kiniAuthHeaders(token) };
       if (userOrgId) headers['X-Org-Id'] = userOrgId;
@@ -370,18 +377,21 @@ Be elite, professional, and data-driven. Use **bold** for key metrics. Proactive
         }
       } catch { /* ignore */ }
 
-      // CRM chat targets the agentic v2 endpoint (cross-module tools, context
-      // block, planning loop). If the tenant flag is off the backend returns
-      // 403 KINI_V2_DISABLED — transparently fall back to the legacy v1 path.
-      // The same `context` object carries both v1 and v2 fields, so either
-      // endpoint reads what it needs.
+      // KINI is agentic everywhere now — always target the cross-module v2
+      // endpoint (CRM + Field Force tools, context block, planning loop),
+      // regardless of the current route. That's what lets "add a lead",
+      // "log a visit", "who's present today" work from ANY page, by voice or
+      // text — not just on CRM screens. If the tenant's v2 flag is off the
+      // backend returns 403 KINI_V2_DISABLED and we transparently fall back to
+      // the legacy agentic CRM chat on CRM routes, or the ops assistant
+      // elsewhere. The same `context` object carries both v1 and v2 fields.
       const apiBase = process.env.NEXT_PUBLIC_API_URL;
       const v2Endpoint = '/api/v1/kini/v2/chat';
       const v1Endpoint = inCrm ? '/api/v1/crm/ai/chat' : '/api/v1/ai/chat';
       const reqInit = { method: 'POST', headers, body: JSON.stringify(body) } as const;
 
-      let r = await fetch(`${apiBase}${inCrm ? v2Endpoint : v1Endpoint}`, reqInit);
-      if (inCrm && r.status === 403) {
+      let r = await fetch(`${apiBase}${v2Endpoint}`, reqInit);
+      if (r.status === 403) {
         r = await fetch(`${apiBase}${v1Endpoint}`, reqInit);
       }
       const d = await r.json();
