@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { crmDeals, crmPipelines, crmAi, crmLineItems, crmLeads, crmProducts } from '../../../../../lib/crmApi';
+import InlineEditText from '../../../../../components/crm/InlineEditText';
 import type { Deal, Pipeline, DealHistoryEntry, DealContact, Activity, NextBestAction, WinProbability, DealLineItem, Lead, Product } from '../../../../../types/crm';
 import DealStageProgress from '../../../../../components/crm/DealStageProgress';
 import WinProbabilityGauge from '../../../../../components/crm/WinProbabilityGauge';
@@ -461,7 +462,25 @@ export default function DealDetailPage() {
           <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 22 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14, gap: 12, flexWrap: 'wrap' }}>
               <div style={{ flex: '1 1 220px', minWidth: 0 }}>
-                <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', wordBreak: 'break-word' }}>{dealName}</div>
+                {/* Inline per-field edit — rename the deal in place, no popup. */}
+                <InlineEditText
+                  value={deal.name || ''}
+                  placeholder="Untitled deal"
+                  ariaLabel="Edit deal name"
+                  displayStyle={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', wordBreak: 'break-word' }}
+                  inputStyle={{ fontSize: 20, fontWeight: 800, minWidth: 200 }}
+                  onSave={async (next) => {
+                    if (!next.trim()) { toast.error('Deal name is required'); throw new Error('empty'); }
+                    try {
+                      const r = await crmDeals.update(deal.id, { name: next.trim() } as any);
+                      setDeal(r.data);
+                      toast.success('Deal name updated');
+                    } catch (e: any) {
+                      toast.error(e?.message || 'Update failed');
+                      throw e;
+                    }
+                  }}
+                />
                 <div style={{ fontSize: 13, color: 'var(--text-dim)' }}>
                   {deal.account_id ? (
                     <Link href={`/dashboard/crm/accounts/${deal.account_id}`} style={{ color: 'var(--primary)' }}>
