@@ -6,6 +6,7 @@ import LeadScoreBadge from './LeadScoreBadge';
 import { breakdownFactors, llmAdjustmentOf } from '../../lib/crm/scoreFactors';
 import OwnerAvatar from './shared/OwnerAvatar';
 import InlineOwnerAssign from './shared/InlineOwnerAssign';
+import LogoSpinner from '../shared/LogoSpinner';
 
 interface Props {
   leads: Lead[];
@@ -135,7 +136,7 @@ export default function LeadsTable({ leads, selected, onToggle, onToggleAll, loa
             </thead>
             <tbody>
               {loading && (
-                <tr><td colSpan={colCount} style={{ ...tdStyle, textAlign: 'center', color: 'var(--text-dim)' }} data-label="">Loading leads...</td></tr>
+                <tr><td colSpan={colCount} style={{ ...tdStyle, textAlign: 'center' }} data-label=""><div style={{ display: 'flex', justifyContent: 'center', padding: '24px 0' }}><LogoSpinner size={38} label="Loading leads…" /></div></td></tr>
               )}
               {!loading && leads.length === 0 && (
                 <tr><td colSpan={colCount} style={{ ...tdStyle, textAlign: 'center', color: 'var(--text-dim)' }} data-label="">No leads found.</td></tr>
@@ -187,7 +188,22 @@ const LeadRow = memo(function LeadRow({ lead: l, isSelected, onToggle, onScoreCl
     <tr>
       <td style={tdStyle} data-label=""><input type="checkbox" checked={isSelected} onChange={handleToggle} /></td>
       <td style={tdStyle} data-label="Name">
-        <Link href={`/dashboard/crm/leads/${l.id}`} className="km-entity-link" title="Open lead detail">{fullName}</Link>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Link href={`/dashboard/crm/leads/${l.id}`} className="km-entity-link" title="Open lead detail">{fullName}</Link>
+          {/* Always-visible inline-edit pencil so the edit affordance is
+              discoverable without scrolling to the Action column. */}
+          {onEdit && (
+            <button
+              type="button"
+              onClick={() => onEdit(l)}
+              title="Edit this lead"
+              aria-label="Edit lead"
+              style={{ background: 'transparent', border: 'none', padding: 2, cursor: 'pointer', color: 'var(--primary)', lineHeight: 0, flexShrink: 0, opacity: 0.8 }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+            </button>
+          )}
+        </div>
         {l.title && <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{l.title}</div>}
       </td>
       {showCompany && <td style={tdStyle} data-label="Company">{l.company || '—'}</td>}

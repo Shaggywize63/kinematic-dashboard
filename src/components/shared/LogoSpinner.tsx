@@ -21,8 +21,12 @@ interface Props {
 export default function LogoSpinner({ size = 48, label, overlay = false }: Props) {
   const inner = (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+      {/* Keyframe injected inline — this codebase has no global CSS file, so
+          animations are defined next to where they're used (same pattern the
+          KINI banner uses). Without this the logo sat static. */}
+      <style>{`@keyframes logoPulse{0%,100%{transform:scale(1);opacity:.82}50%{transform:scale(1.14);opacity:1}}`}</style>
       <img
-        src="https://kinematicapp.com/assets/logo.png"
+        src="/logo-mark.png"
         alt="Loading"
         style={{
           height: size,

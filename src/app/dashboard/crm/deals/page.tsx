@@ -12,6 +12,7 @@ import DealEditModal from '../../../../components/crm/DealEditModal';
 import ViewCustomizer from '../../../../components/crm/shared/ViewCustomizer';
 import { useViewPrefs } from '../../../../lib/crmViewPrefs';
 import { getStoredUser, canAccess, getStoredToken, userHasModule } from '../../../../lib/auth';
+import { isKinematicActive } from '../../../../lib/clientFeatures';
 import { API_BASE_URL } from '../../../../lib/api';
 
 const DEAL_PAGE_SIZE_OPTIONS = [25, 50, 100, 200] as const;
@@ -105,7 +106,11 @@ function DealsListPage() {
   const [pagination, setPagination] = useState<Pagination | null>(null);
   // Server-side sort for the list view. Empty key = backend default order
   // (expected_close_date). A header click sets a real crm_deals column.
-  const [sort, setSort] = useState<{ key: string; order: 'asc' | 'desc' }>({ key: '', order: 'asc' });
+  // Kinematic tenant defaults deals to "Date added (newest)" (created_at desc);
+  // other clients keep the backend default order (expected close ascending).
+  const [sort, setSort] = useState<{ key: string; order: 'asc' | 'desc' }>(() =>
+    isKinematicActive(getStoredUser()) ? { key: 'created', order: 'desc' } : { key: '', order: 'asc' },
+  );
   const dealView = useViewPrefs('deals');
   const dealHidden = useMemo(() => new Set(dealView.prefs.hidden), [dealView.prefs.hidden]);
   // The pipeline to fall back to when entering Kanban without an explicit pick —
