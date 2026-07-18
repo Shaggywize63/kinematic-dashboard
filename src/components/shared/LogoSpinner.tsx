@@ -1,6 +1,6 @@
 'use client';
 import React from 'react';
-import LogoMark from './LogoMark';
+import BrandLogo from './BrandLogo';
 
 interface Props {
   size?: number;
@@ -10,12 +10,13 @@ interface Props {
 }
 
 /**
- * Kinematic-branded loading spinner. Renders the theme-aware LogoMark (so the
- * small circles are dark in light mode / white in dark mode) with a soft pulse.
- * Drop it anywhere a network round-trip is waiting on a response.
+ * Kinematic-branded loading spinner. Renders the official brand mark (the real
+ * /public artwork, theme-aware) with a soft pulse. Drop it anywhere a network
+ * round-trip is waiting on a response.
  *
  * Pass `overlay` to render a semi-transparent backdrop — useful when placing it
- * absolutely on top of a section that's about to update.
+ * absolutely on top of a section that's about to update. The overlay is always
+ * dark, so the mark forces its white-dot (dark-surface) variant there.
  */
 export default function LogoSpinner({ size = 48, label, overlay = false }: Props) {
   const inner = (
@@ -23,15 +24,13 @@ export default function LogoSpinner({ size = 48, label, overlay = false }: Props
       {/* Keyframe injected inline so the pulse works wherever the spinner is
           used. Without this the logo sat static. */}
       <style>{`@keyframes logoPulse{0%,100%{transform:scale(1);opacity:.82}50%{transform:scale(1.14);opacity:1}}`}</style>
-      <LogoMark
+      <BrandLogo
         size={size}
         title="Loading"
+        forceDark={overlay}
         style={{
           animation: 'logoPulse 1.2s ease-in-out infinite',
           filter: 'drop-shadow(0 4px 12px rgba(208,30,44,0.35))',
-          // The overlay backdrop is always dark, so keep the small circles
-          // white there regardless of theme; inline usage follows the theme.
-          ...(overlay ? { color: '#fff' } : {}),
         }}
       />
       {label && (

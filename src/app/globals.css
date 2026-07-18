@@ -69,6 +69,18 @@
 }
 
 /*
+ * Brand-logo theme swap (see components/shared/BrandLogo.tsx). The mark
+ * ships as two transparent PNGs — a black-dot variant for light surfaces and
+ * a white-dot variant for dark ones. The default theme is dark (:root), so
+ * the white-dot mark shows by default; `<html data-theme="light">` flips to
+ * the black-dot mark. Pure CSS keeps the swap flash-free.
+ */
+.brand-logo-light { display: none; }
+.brand-logo-dark  { display: block; }
+[data-theme="light"] .brand-logo-light { display: block; }
+[data-theme="light"] .brand-logo-dark  { display: none; }
+
+/*
  * Mobile responsiveness sweep for the CRM area. Most pages use inline
  * flex/grid styles tuned for desktop — these rules act as guard-rails at
  * narrow widths so nothing leaks off-screen.

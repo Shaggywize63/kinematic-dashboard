@@ -62,6 +62,24 @@ account form, the PR MUST include three things:
 2. `labelFor(key, default)` for the label so admins can relabel it.
 3. `requiredFor(key, defaultRequired)` for required-marker support.
 
+## Brand logo — use the real artwork, never hand-render
+
+The official Kinematic mark lives in `public/` as PNG artwork. **Always render
+the mark from these files — never re-draw it as inline SVG/circles.** Hand-
+rendering has repeatedly shifted the geometry and swapped the dot colours.
+
+- Source uploads: `public/light.png` (black dots, for light surfaces) and
+  `public/dark.png` (white dots, transparent, for dark surfaces).
+- UI-optimised, transparent, 256px derivatives actually referenced by the app:
+  `public/logo-k-light.png` and `public/logo-k-dark.png`.
+- Render via `components/shared/BrandLogo.tsx` — theme-aware (black dots in
+  light mode, white dots in dark), pure-CSS swap keyed off `<html data-theme>`
+  (`.brand-logo-light` / `.brand-logo-dark` in `globals.css`). Pass
+  `forceDark` on always-dark backdrops (e.g. the loading overlay).
+- `LogoSpinner` uses `BrandLogo`, so the loader shows the real mark too.
+- If the brand art changes, replace `light.png` / `dark.png`, regenerate the
+  `logo-k-*.png` derivatives (transparent, ~256px), and everything follows.
+
 ## Build / check
 - `npx tsc --noEmit` — a pre-existing `baseUrl` deprecation warning is expected;
   treat only other errors as failures.
