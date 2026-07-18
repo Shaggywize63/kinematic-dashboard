@@ -22,18 +22,21 @@ interface Props {
  * globals.css) so there's no theme-flash.
  */
 export default function BrandLogo({ size = 28, style, title = 'Kinematic', forceDark = false }: Props) {
+  // NOTE: do NOT set `display` here. The theme swap hides the inactive variant
+  // via the `.brand-logo-light` / `.brand-logo-dark` CSS classes, and an inline
+  // `display` would override that class rule — leaving BOTH marks visible.
   const img: React.CSSProperties = {
     width: size,
     height: size,
     objectFit: 'contain',
-    display: 'block',
     userSelect: 'none',
     pointerEvents: 'none',
   };
 
   if (forceDark) {
+    // Single image, no swap — safe to force it block.
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src="/logo-k-dark.png" alt={title} title={title} width={size} height={size} style={{ ...img, ...style }} />;
+    return <img src="/logo-k-dark.png" alt={title} title={title} width={size} height={size} style={{ ...img, display: 'block', ...style }} />;
   }
 
   return (
