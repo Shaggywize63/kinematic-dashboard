@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 
 interface Props {
-  /** Current value shown when idle and seeded into the input on edit. */
+  /** Current value shown when idle and (unless `editValue` is set) seeded into the input on edit. */
   value: string;
   /** Persist the new value (PATCH one field). Throw to keep the editor open. */
   onSave: (next: string) => Promise<void>;
@@ -10,8 +10,16 @@ interface Props {
   inputStyle?: React.CSSProperties;
   placeholder?: string;
   ariaLabel?: string;
-  /** Input type (text / email / tel …). */
+  /** Input type (text / email / tel / number / date …). */
   type?: string;
+  /**
+   * Seed for the input when it differs from the idle display — e.g. show a
+   * formatted date ("Jul 18, 2026") but edit the ISO value ("2026-07-18"),
+   * or show "75%" but edit "75".
+   */
+  editValue?: string;
+  /** Suffix shown only in the idle display (e.g. "%"). Not part of the editable value. */
+  displaySuffix?: string;
 }
 
 /**
@@ -21,16 +29,19 @@ interface Props {
  */
 export default function InlineEditText({
   value, onSave, displayStyle, inputStyle, placeholder, ariaLabel, type = 'text',
+  editValue, displaySuffix,
 }: Props) {
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(value);
+  const [draft, setDraft] = useState(editValue ?? value);
   const [busy, setBusy] = useState(false);
 
-  const start = () => { setDraft(value ?? ''); setEditing(true); };
-  const cancel = () => { setEditing(false); setDraft(value ?? ''); };
+  // What seeds the input when editing starts (may differ from the idle display).
+  const seed = editValue ?? value;
+  const start = () => { setDraft(seed ?? ''); setEditing(true); };
+  const cancel = () => { setEditing(false); setDraft(seed ?? ''); };
   const commit = async () => {
     const next = draft.trim();
-    if (next === (value ?? '').trim()) { setEditing(false); return; }
+    if (next === (seed ?? '').trim()) { setEditing(false); return; }
     setBusy(true);
     try {
       await onSave(next);
@@ -68,7 +79,7 @@ export default function InlineEditText({
 
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-      <span style={displayStyle} onDoubleClick={start}>{value || placeholder || '—'}</span>
+      <span style={displayStyle} onDoubleClick={start}>{value ? `${value}${displaySuffix ?? ''}` : (placeholder || '—')}</span>
       <button
         type="button"
         onClick={start}

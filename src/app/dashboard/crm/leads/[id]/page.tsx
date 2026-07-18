@@ -392,8 +392,37 @@ export default function LeadDetailPage() {
             </div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 14, fontSize: 13 }}>
-            <Field label="Email" value={lead.email} />
-            <PhoneField phone={lead.phone} prefill={waPrefill} leadId={lead.id} displayName={fullName} />
+            <Field
+              label="Email"
+              value={lead.email}
+              type="email"
+              onSave={async (next) => {
+                try {
+                  const r = await crmLeads.update(lead.id, { email: next || null } as any);
+                  setLead(r.data as LifecycleLead);
+                  toast.success('Email updated');
+                } catch (e: any) {
+                  toast.error(e?.message || 'Update failed');
+                  throw e; // keep the inline editor open so the rep can retry
+                }
+              }}
+            />
+            <PhoneField
+              phone={lead.phone}
+              prefill={waPrefill}
+              leadId={lead.id}
+              displayName={fullName}
+              onSave={async (next) => {
+                try {
+                  const r = await crmLeads.update(lead.id, { phone: next || null } as any);
+                  setLead(r.data as LifecycleLead);
+                  toast.success('Phone updated');
+                } catch (e: any) {
+                  toast.error(e?.message || 'Update failed');
+                  throw e; // keep the inline editor open so the rep can retry
+                }
+              }}
+            />
             <Field label="Status" value={lead.status} />
             <Field label="Source" value={lead.source_name} />
             <Field label="Owner" value={lead.owner_name || 'Unassigned'} />
@@ -419,7 +448,19 @@ export default function LeadDetailPage() {
             grouped by Contact / Business / Personal / Address /
             Lifecycle / Custom Fields / Consent / System, and hides
             any group with no populated values. */}
-        <LeadDetailsPanel lead={lead} />
+        <LeadDetailsPanel
+          lead={lead}
+          onPatch={async (patch) => {
+            try {
+              const r = await crmLeads.update(lead.id, patch as any);
+              setLead(r.data as LifecycleLead);
+              toast.success('Updated');
+            } catch (e: any) {
+              toast.error(e?.message || 'Update failed');
+              throw e; // keep the inline editor open so the rep can retry
+            }
+          }}
+        />
 
         {deals.length > 0 && (
           <Card title={`Deals (${deals.length})`}>
@@ -578,21 +619,43 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
   );
 }
 
-function Field({ label, value }: { label: string; value?: string | null }) {
+function Field({ label, value, onSave, type }: { label: string; value?: string | null; onSave?: (next: string) => Promise<void>; type?: string }) {
   return (
     <div style={{ minWidth: 0 }}>
       <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.6 }}>{label}</div>
-      <div style={{ color: 'var(--text)', marginTop: 2, wordBreak: 'break-word' }}>{value || '—'}</div>
+      {onSave ? (
+        <div style={{ marginTop: 2 }}>
+          <InlineEditText
+            value={value || ''}
+            type={type}
+            ariaLabel={`Edit ${label}`}
+            onSave={onSave}
+            displayStyle={{ color: 'var(--text)', wordBreak: 'break-word' }}
+          />
+        </div>
+      ) : (
+        <div style={{ color: 'var(--text)', marginTop: 2, wordBreak: 'break-word' }}>{value || '—'}</div>
+      )}
     </div>
   );
 }
 
-function PhoneField({ phone, prefill, leadId, displayName }: { phone?: string | null; prefill: string; leadId: string; displayName: string }) {
+function PhoneField({ phone, prefill, leadId, displayName, onSave }: { phone?: string | null; prefill: string; leadId: string; displayName: string; onSave?: (next: string) => Promise<void> }) {
   return (
     <div style={{ minWidth: 0 }}>
       <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.6 }}>Phone</div>
       <div style={{ color: 'var(--text)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-        <span style={{ wordBreak: 'break-word' }}>{phone || '—'}</span>
+        {onSave ? (
+          <InlineEditText
+            value={phone || ''}
+            type="tel"
+            ariaLabel="Edit phone"
+            onSave={onSave}
+            displayStyle={{ color: 'var(--text)', wordBreak: 'break-word' }}
+          />
+        ) : (
+          <span style={{ wordBreak: 'break-word' }}>{phone || '—'}</span>
+        )}
         <CallButton phone={phone} prefillSubject={`Call with ${displayName}`} leadId={leadId} size="sm" />
         <WhatsAppButton phone={phone} prefillText={prefill} size="sm" />
       </div>
