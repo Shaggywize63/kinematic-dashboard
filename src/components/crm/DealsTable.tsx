@@ -3,6 +3,7 @@ import Link from 'next/link';
 import type { Deal } from '../../types/crm';
 import StageBadge from './shared/StageBadge';
 import InlineOwnerAssign from './shared/InlineOwnerAssign';
+import LogoSpinner from '../shared/LogoSpinner';
 import { formatINR } from '../../lib/formatCurrency';
 
 interface Props {
@@ -123,7 +124,7 @@ export default function DealsTable({ deals, loading, onAssign, onDelete, onEdit,
             </tr>
           </thead>
           <tbody>
-            {loading && <tr><td colSpan={colCount} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)' }} data-label="">Loading...</td></tr>}
+            {loading && <tr><td colSpan={colCount} style={{ ...td, textAlign: 'center' }} data-label=""><div style={{ display: 'flex', justifyContent: 'center', padding: '24px 0' }}><LogoSpinner size={38} label="Loading deals…" /></div></td></tr>}
             {!loading && deals.length === 0 && <tr><td colSpan={colCount} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)' }} data-label="">No deals.</td></tr>}
             {deals.map((d) => (
               <tr key={d.id}>
@@ -132,7 +133,24 @@ export default function DealsTable({ deals, loading, onAssign, onDelete, onEdit,
                     <input type="checkbox" checked={selected!.has(d.id)} onChange={() => onToggle!(d.id)} />
                   </td>
                 )}
-                <td style={td} data-label="Name"><Link href={`/dashboard/crm/deals/${d.id}`} className="km-entity-link" title="Open deal detail">{d.name}</Link></td>
+                <td style={td} data-label="Name">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Link href={`/dashboard/crm/deals/${d.id}`} className="km-entity-link" title="Open deal detail">{d.name}</Link>
+                    {/* Always-visible inline-edit pencil so editing is
+                        discoverable without scrolling to the Action column. */}
+                    {onEdit && (
+                      <button
+                        type="button"
+                        onClick={() => onEdit(d)}
+                        title="Edit this deal"
+                        aria-label="Edit deal"
+                        style={{ background: 'transparent', border: 'none', padding: 2, cursor: 'pointer', color: 'var(--primary)', lineHeight: 0, flexShrink: 0, opacity: 0.8 }}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+                      </button>
+                    )}
+                  </div>
+                </td>
                 {!hidden.has('dealer')     && <td style={td} data-label="Dealer">{d.dealer_name ?? '—'}</td>}
                 {!hidden.has('amount')     && <td style={td} data-label="Amount">{formatINR(d.amount)}</td>}
                 {!hidden.has('volume_kg')  && <td style={td} data-label="Volume (kg)">{volumeKgCell(d)}</td>}
