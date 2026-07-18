@@ -609,8 +609,40 @@ export default function DealDetailPage() {
               {deal.dealer_name && <Field label="Dealer" value={deal.dealer_name} />}
               <Field label="Stage" value={deal.stage_name} />
               <Field label="Status" value={deal.status} />
-              <Field label="Probability" value={`${Math.round((Number(deal.probability) || 0) * 100)}%`} />
-              <Field label="Close Date" value={fmtIst(deal.expected_close_date).date} />
+              <Field
+                label="Probability"
+                value={`${Math.round((Number(deal.probability) || 0) * 100)}`}
+                editValue={`${Math.round((Number(deal.probability) || 0) * 100)}`}
+                displaySuffix="%"
+                type="number"
+                onSave={async (next) => {
+                  const pct = Math.max(0, Math.min(100, Math.round(Number(next) || 0)));
+                  try {
+                    const r = await crmDeals.update(deal.id, { probability: pct / 100 } as any);
+                    setDeal(r.data);
+                    toast.success('Probability updated');
+                  } catch (e: any) {
+                    toast.error(e?.message || 'Update failed');
+                    throw e; // keep the inline editor open so the rep can retry
+                  }
+                }}
+              />
+              <Field
+                label="Close Date"
+                value={fmtIst(deal.expected_close_date).date}
+                editValue={deal.expected_close_date ? new Date(deal.expected_close_date).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }) : ''}
+                type="date"
+                onSave={async (next) => {
+                  try {
+                    const r = await crmDeals.update(deal.id, { expected_close_date: next || null } as any);
+                    setDeal(r.data);
+                    toast.success('Close date updated');
+                  } catch (e: any) {
+                    toast.error(e?.message || 'Update failed');
+                    throw e; // keep the inline editor open so the rep can retry
+                  }
+                }}
+              />
               <Field label="Owner" value={deal.owner_name} />
               {deal.lead_phone && <Field label="Lead Phone" value={deal.lead_phone} />}
             </div>
@@ -1441,11 +1473,34 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
   );
 }
 
-function Field({ label, value, trailing }: { label: string; value?: string | null; trailing?: React.ReactNode }) {
+function Field({ label, value, trailing, onSave, type, editValue, displaySuffix }: {
+  label: string;
+  value?: string | null;
+  trailing?: React.ReactNode;
+  /** When set, the value renders as a click-to-edit field (PATCH one column). */
+  onSave?: (next: string) => Promise<void>;
+  type?: string;
+  editValue?: string;
+  displaySuffix?: string;
+}) {
   return (
     <div style={{ minWidth: 0 }}>
       <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>{label}</div>
-      <div style={{ color: 'var(--text)', marginTop: 2, wordBreak: 'break-word' }}>{value || '—'}</div>
+      {onSave ? (
+        <div style={{ marginTop: 2 }}>
+          <InlineEditText
+            value={value || ''}
+            editValue={editValue}
+            displaySuffix={displaySuffix}
+            type={type}
+            ariaLabel={`Edit ${label}`}
+            onSave={onSave}
+            displayStyle={{ color: 'var(--text)', wordBreak: 'break-word' }}
+          />
+        </div>
+      ) : (
+        <div style={{ color: 'var(--text)', marginTop: 2, wordBreak: 'break-word' }}>{value || '—'}</div>
+      )}
       {trailing}
     </div>
   );

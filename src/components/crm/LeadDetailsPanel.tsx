@@ -5,13 +5,24 @@ import { crmCustomFields, crmLookup, crmProducts } from '../../lib/crmApi';
 import type { CustomField, Lead, Product } from '../../types/crm';
 import { evaluateClientFormula } from './CustomFieldsSection';
 import { PRODUCT_LINE_KEYS } from './ProductLinesSection';
+import InlineEditText from './InlineEditText';
 
 interface LeadWithCustomFields extends Lead {
   custom_fields?: Record<string, unknown> | null;
   source_name?: string | null;
 }
 
-interface Props { lead: LeadWithCustomFields; }
+interface Props {
+  lead: LeadWithCustomFields;
+  /**
+   * Persist a single built-in field in place (PATCH one column). When
+   * provided, the populated Company / Job Title / City values render as
+   * click-to-edit fields instead of read-only text. Throw to keep the
+   * editor open. Empty fields stay read-only — add them via the full
+   * Edit popup so we don't force otherwise-hidden sections open.
+   */
+  onPatch?: (patch: Partial<LeadWithCustomFields>) => Promise<void>;
+}
 
 // Accent colours per section — cycles through CSS vars so both light + dark themes work.
 const SECTION_ACCENTS = [
@@ -25,8 +36,28 @@ const SECTION_ACCENTS = [
   '#f97316',
 ];
 
-export default function LeadDetailsPanel({ lead }: Props) {
+export default function LeadDetailsPanel({ lead, onPatch }: Props) {
   const isB2C = !!lead.is_b2c;
+
+  // Render an existing built-in value as a click-to-edit field when the
+  // parent wired `onPatch`; otherwise plain text. Empty values return
+  // null so the section-hide behaviour is preserved.
+  const editable = (
+    column: keyof LeadWithCustomFields,
+    value: string | null | undefined,
+    ariaLabel: string,
+  ): React.ReactNode => {
+    if (!value) return null;
+    if (!onPatch) return value;
+    return (
+      <InlineEditText
+        value={value}
+        ariaLabel={ariaLabel}
+        onSave={(next) => onPatch({ [column]: next || null } as Partial<LeadWithCustomFields>)}
+        displayStyle={{ fontSize: 13, color: 'var(--text)', wordBreak: 'break-word' }}
+      />
+    );
+  };
   const [customDefs, setCustomDefs] = useState<CustomField[]>([]);
   // Products catalogue — used to resolve lookup field UUIDs to display
   // names (e.g. product_interested) AND to render the multi-row
@@ -129,8 +160,8 @@ export default function LeadDetailsPanel({ lead }: Props) {
   ];
 
   const businessItems: Array<[string, React.ReactNode]> = [
-    ['Company',   lead.company || null],
-    ['Job Title', lead.title || null],
+    ['Company',   editable('company', lead.company, 'Edit company')],
+    ['Job Title', editable('title', lead.title, 'Edit job title')],
     ['Industry',  lead.industry || null],
   ];
 
@@ -142,7 +173,7 @@ export default function LeadDetailsPanel({ lead }: Props) {
   const addressItems: Array<[string, React.ReactNode]> = [
     ['Line 1',      lead.address_line1 || null],
     ['Line 2',      lead.address_line2 || null],
-    ['City',        lead.city || null],
+    ['City',        editable('city', lead.city, 'Edit city')],
     ['State',       lead.state || null],
     ['Postal Code', lead.postal_code || null],
     ['Country',     lead.country || null],
