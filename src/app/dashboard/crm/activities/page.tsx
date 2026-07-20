@@ -272,7 +272,7 @@ function ActivitiesPageInner() {
     const admin = !!(user && canAccess(user.role, ['sub_admin']));
     if (admin) setIsAdmin(true);
     if (admin) {
-      (api.getUsers({ limit: '500' }) as Promise<any>)
+      (api.getUsers({ limit: '500', scope: 'assignable' }) as Promise<any>)
         .then((u) => {
           const list: UserOption[] = (u.data || u || []).map((x: any) => ({
             id: x.id, name: x.name || x.full_name || x.email || 'User',

@@ -103,7 +103,7 @@ export default function ConversationAnalysisPage() {
     let cancelled = false;
     (async () => {
       try {
-        const r = (await api.getUsers()) as { data?: unknown[] } | unknown[];
+        const r = (await api.getUsers({ scope: 'assignable' })) as { data?: unknown[] } | unknown[];
         const arr = (Array.isArray(r) ? r : (r as { data?: unknown[] })?.data) || [];
         const list: UserOption[] = (arr as Array<Record<string, unknown>>).map((u) => ({
           id: String(u.id),

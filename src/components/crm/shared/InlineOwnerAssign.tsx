@@ -27,7 +27,7 @@ export default function InlineOwnerAssign({ currentOwnerId, currentOwnerName, on
     if (!open) return;
     if (users.length > 0) return;
     setLoading(true);
-    (api.getUsers({ limit: '500' }) as Promise<any>)
+    (api.getUsers({ limit: '500', scope: 'assignable' }) as Promise<any>)
       .then((r) => {
         const list: UserOption[] = (r.data || r || []).map((u: any) => ({
           id: u.id,
