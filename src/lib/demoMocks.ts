@@ -23,6 +23,16 @@ import {
 } from './demo/factoriesB';
 import { mockDealHistory, mockWinProbability, mockNextBestAction } from './demo/crmAiMocks';
 import { getActiveSeed, isInsuranceDemo, isPharmaceuticalDemo } from './demo/activeSeed';
+import {
+  mockLocationTrail, buildDemoConversations, demoConversationDetail,
+  demoConversationAnalytics, mockLeadTracker, mockTeamPerformance,
+  mockTeamDaily, mockSuggestFromUpdate,
+} from './demo/demoExtrasSeed';
+import type { ConversationRow } from './conversationsApi';
+
+// Conversation rows must be stable across list → detail navigation, but the
+// active vertical can change at runtime — cache per seed identity.
+const __convoCache = new Map<string, ConversationRow[]>();
 
 // ── CRM org-hierarchy demo data (Settings → Hierarchy) ──────────────────
 // Without these handlers the demo's /crm/hierarchy/* GETs fall through to a
@@ -1003,6 +1013,39 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
     // id and a single lead object comes back, crashing the map's .map()).
     if (path === '/crm/leads/geo') return list(CRM_LEADS) as unknown as T;
 
+    // ── Demo extras: report analytics, live trails, conversation intel ──
+    if (path === '/crm/analytics/lead-tracker')     return wrap(mockLeadTracker(CRM_LEADS)) as unknown as T;
+    if (path === '/crm/analytics/team-performance') return wrap(mockTeamPerformance(mockUsers().data)) as unknown as T;
+    if (path === '/crm/analytics/team-daily') {
+      const anchors = new Map<string, { lat: number; lng: number; address?: string }>();
+      for (const l of mockLocations().data.locations) anchors.set(l.id, { lat: l.lat, lng: l.lng, address: l.address });
+      return wrap(mockTeamDaily(mockUsers().data, anchors)) as unknown as T;
+    }
+    {
+      const trailM = path.match(/^\/users\/([^/]+)\/location-trail$/);
+      if (trailM) {
+        const fe = mockLocations().data.locations.find((l: { id: string }) => l.id === trailM[1]);
+        return mockLocationTrail(trailM[1], fe ? { lat: fe.lat, lng: fe.lng } : undefined, query.get('date') || undefined) as unknown as T;
+      }
+    }
+    {
+      const seedKey = `${CRM_LEADS[0]?.id ?? 'none'}:${CRM_LEADS.length}`;
+      let convos = __convoCache.get(seedKey);
+      if (!convos) { convos = buildDemoConversations(CRM_LEADS, mockUsers().data); __convoCache.set(seedKey, convos); }
+      if (path === '/crm/conversations/analytics') return wrap(demoConversationAnalytics(convos)) as unknown as T;
+      if (path === '/crm/conversations') {
+        const uid = query.get('user_id');
+        return wrap(uid ? convos.filter(c => c.user_id === uid) : convos) as unknown as T;
+      }
+      const convoM = path.match(/^\/crm\/conversations\/([^/]+)$/);
+      if (convoM) {
+        const row = convos.find(c => c.id === convoM[1]) || convos[0];
+        return wrap(demoConversationDetail(row)) as unknown as T;
+      }
+      const leadConvoM = path.match(/^\/crm\/leads\/([^/]+)\/conversations$/);
+      if (leadConvoM) return wrap(convos.filter(c => c.lead_id === leadConvoM[1])) as unknown as T;
+    }
+
     if (path === '/crm/leads') {
       // Apply the demo-side equivalent of the server filters so the
       // total + page slice line up with what the UI actually shows.
@@ -1470,8 +1513,36 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
     if (m === 'POST') {
       const winM = path.match(/^\/crm\/ai\/win-probability\/([^/]+)$/);
       if (winM) return mockWinProbability(winM[1]) as unknown as T;
-      const nbaM = path.match(/^\/crm\/ai\/next-best-action\/([^/]+)$/);
+      // Matches BOTH the deal route (/next-best-action/:dealId) and the lead
+      // route (/next-best-action/lead/:leadId) — the lead variant previously
+      // fell through to the network and errored in the demo account.
+      const nbaM = path.match(/^\/crm\/ai\/next-best-action\/(?:lead\/)?([^/]+)$/);
       if (nbaM) return mockNextBestAction(nbaM[1]) as unknown as T;
+      // Inline ✨ Suggest on the lead-update box.
+      if (path === '/crm/ai/suggest-from-update') {
+        const leadId = String((bodyObj as { lead_id?: string }).lead_id || '');
+        const lead = __seed.CRM_LEADS.find((l: { id: string }) => l.id === leadId);
+        const leadName = lead ? `${(lead as { first_name?: string }).first_name ?? ''} ${(lead as { last_name?: string }).last_name ?? ''}`.trim() : undefined;
+        return mockSuggestFromUpdate(leadName, String((bodyObj as { draft?: string }).draft || '')) as unknown as T;
+      }
+      // Re-score a lead — return a stable, plausible score payload.
+      const scoreM = path.match(/^\/crm\/ai\/score-lead\/([^/]+)$/);
+      if (scoreM) {
+        const lead = __seed.CRM_LEADS.find((l: { id: string }) => l.id === scoreM[1]) as { score?: number; score_grade?: string } | undefined;
+        const score = lead?.score ?? 68;
+        return wrap({
+          lead_id: scoreM[1], score,
+          grade: (lead?.score_grade ?? (score >= 80 ? 'A' : score >= 60 ? 'B' : score >= 40 ? 'C' : 'D')),
+          confidence: 0.86,
+          factors: [
+            { key: 'recency', label: 'Recent activity', points: 22, detail: 'Contacted in the last 48 hours' },
+            { key: 'stage', label: 'Construction stage', points: 18, detail: 'Slab stage — active buying window' },
+            { key: 'engagement', label: 'Engagement', points: 15, detail: 'Replied on WhatsApp, accepted a visit' },
+            { key: 'budget', label: 'Budget signal', points: 13, detail: 'Quantity discussed on last call' },
+          ],
+          generated_at: new Date().toISOString(),
+        }) as unknown as T;
+      }
     }
     // Last-mile (Phase 1) writes — echo the body back as a saved row.
     // Consumer registration also fakes the tertiary_sale + lead spawn so

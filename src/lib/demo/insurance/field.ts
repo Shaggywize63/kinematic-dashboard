@@ -114,23 +114,23 @@ const mockLocations = () => ({
 const mockUsers = () => ({
   success: true,
   data: [
-    { id: 'fe1', name: 'Arjun Sharma', employee_id: 'AV-001', email: 'arjun@demo.in', mobile: '9000000001', role: 'executive', city: 'Bengaluru', is_active: true,
+    { id: 'fe1', name: 'Arjun Sharma', employee_id: 'AV-001', email: 'arjun@demo.in', mobile: '9000000001', role: 'executive', city: 'Bengaluru', is_active: true, zones: { name: 'Bengaluru North Branch' },
       org_role_id: 'demo-role-adv',  org_role: { id: 'demo-role-adv',  name: 'Advisor' },
       assigned_cities: ['demo-city-bangalore'], assigned_city_names: ['Bengaluru'],
       kini_used_this_month: 4, kini_monthly_cap: 20, permissions: [] },
-    { id: 'fe2', name: 'Priya Patel',  employee_id: 'AV-002', email: 'priya@demo.in', mobile: '9000000002', role: 'executive', city: 'Mumbai',    is_active: true,
+    { id: 'fe2', name: 'Priya Patel',  employee_id: 'AV-002', email: 'priya@demo.in', mobile: '9000000002', role: 'executive', city: 'Mumbai',    is_active: true, zones: { name: 'Mumbai West Branch' },
       org_role_id: 'demo-role-adv',  org_role: { id: 'demo-role-adv',  name: 'Advisor' },
       assigned_cities: ['demo-city-mumbai'], assigned_city_names: ['Mumbai'],
       kini_used_this_month: 11, kini_monthly_cap: 20, permissions: [] },
-    { id: 'fe3', name: 'Rahul Verma',  employee_id: 'AV-003', email: 'rahul@demo.in', mobile: '9000000003', role: 'executive', city: 'Delhi',     is_active: true,
+    { id: 'fe3', name: 'Rahul Verma',  employee_id: 'AV-003', email: 'rahul@demo.in', mobile: '9000000003', role: 'executive', city: 'Delhi',     is_active: true, zones: { name: 'Delhi Central Branch' },
       org_role_id: 'demo-role-sm',   org_role: { id: 'demo-role-sm',   name: 'Sales Manager' },
       assigned_cities: ['demo-city-delhi','demo-city-noida','demo-city-gurugram'], assigned_city_names: ['Delhi','Noida','Gurugram'],
       kini_used_this_month: 7, kini_monthly_cap: 20, permissions: [] },
-    { id: 'fe4', name: 'Sneha Rao',    employee_id: 'AV-004', email: 'sneha@demo.in', mobile: '9000000004', role: 'supervisor', city: 'Hyderabad', is_active: true,
+    { id: 'fe4', name: 'Sneha Rao',    employee_id: 'AV-004', email: 'sneha@demo.in', mobile: '9000000004', role: 'supervisor', city: 'Hyderabad', is_active: true, zones: { name: 'Hyderabad Branch' },
       org_role_id: 'demo-role-bm',   org_role: { id: 'demo-role-bm',   name: 'Branch Manager' },
       assigned_cities: ['demo-city-hyderabad','demo-city-bangalore'], assigned_city_names: ['Hyderabad','Bengaluru'],
       kini_used_this_month: 18, kini_monthly_cap: 20, permissions: [] },
-    { id: 'fe5', name: 'Amit Singh',   employee_id: 'AV-005', email: 'amit@demo.in',  mobile: '9000000005', role: 'executive', city: 'Pune',      is_active: true,
+    { id: 'fe5', name: 'Amit Singh',   employee_id: 'AV-005', email: 'amit@demo.in',  mobile: '9000000005', role: 'executive', city: 'Pune',      is_active: true, zones: { name: 'Pune Branch' },
       org_role_id: 'demo-role-adv',  org_role: { id: 'demo-role-adv',  name: 'Advisor' },
       assigned_cities: ['demo-city-pune'], assigned_city_names: ['Pune'],
       kini_used_this_month: 2, kini_monthly_cap: 20, permissions: [] }
@@ -148,7 +148,7 @@ const mockAttendanceTeam = () => ({
       checkin_address: 'Koramangala 4th Block, Bengaluru',
       checkin_lat: 12.9352, checkin_lng: 77.6245,
       zones: { name: 'Bengaluru North Branch' },
-      users: { name: 'Arjun Sharma', employee_id: 'AV-001' }
+      users: { name: 'Arjun Sharma', employee_id: 'AV-001', zones: { name: 'Bengaluru North Branch' } }
     },
     {
       id: 'fe2', name: 'Priya Patel', display_status: 'present', status: 'checked_out',
@@ -161,7 +161,7 @@ const mockAttendanceTeam = () => ({
       checkin_lat: 19.0760, checkin_lng: 72.8777,
       checkout_lat: 19.0765, checkout_lng: 72.8780,
       zones: { name: 'Mumbai West Branch' },
-      users: { name: 'Priya Patel', employee_id: 'AV-002' }
+      users: { name: 'Priya Patel', employee_id: 'AV-002', zones: { name: 'Mumbai West Branch' } }
     },
     {
       id: 'fe3', name: 'Rahul Verma', display_status: 'on_break', status: 'checked_in',
@@ -171,7 +171,30 @@ const mockAttendanceTeam = () => ({
       checkin_address: 'Delhi Central, Connaught Place',
       checkin_lat: 28.6139, checkin_lng: 77.2090,
       zones: { name: 'Delhi Central Branch' },
-      users: { name: 'Rahul Verma', employee_id: 'AV-003' }
+      users: { name: 'Rahul Verma', employee_id: 'AV-003', zones: { name: 'Delhi Central Branch' } }
+    },
+    {
+      id: 'fe4', name: 'Sneha Rao', display_status: 'present', status: 'checked_in',
+      checkin_at: new Date().toISOString().replace(/T.*/, 'T09:45:00Z'),
+      total_hours: 4.1,
+      checkin_selfie_url: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400&h=400&fit=crop',
+      checkin_address: 'Hitech City, Hyderabad',
+      checkin_lat: 17.4474, checkin_lng: 78.3762,
+      zones: { name: 'Hyderabad Branch' },
+      users: { name: 'Sneha Rao', employee_id: 'AV-004', zones: { name: 'Hyderabad Branch' } }
+    },
+    {
+      id: 'fe5', name: 'Amit Singh', display_status: 'present', status: 'checked_out',
+      checkin_at: new Date().toISOString().replace(/T.*/, 'T09:05:00Z'),
+      checkout_at: new Date().toISOString().replace(/T.*/, 'T17:50:00Z'),
+      total_hours: 8.75,
+      checkin_selfie_url: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400&h=400&fit=crop',
+      checkout_selfie_url: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400&h=400&fit=crop&sat=-20',
+      checkin_address: 'Baner Road, Pune',
+      checkin_lat: 18.5590, checkin_lng: 73.7868,
+      checkout_lat: 18.5204, checkout_lng: 73.8567,
+      zones: { name: 'Pune Branch' },
+      users: { name: 'Amit Singh', employee_id: 'AV-005', zones: { name: 'Pune Branch' } }
     }
   ]
 });
