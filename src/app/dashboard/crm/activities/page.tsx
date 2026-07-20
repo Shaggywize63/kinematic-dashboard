@@ -1,6 +1,6 @@
 'use client';
 import { Suspense, useEffect, useMemo, useState } from 'react';
-import SignedImage from '@/components/shared/SignedImage';
+import SignedImage, { openSignedUrl } from '@/components/shared/SignedImage';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
@@ -272,7 +272,7 @@ function ActivitiesPageInner() {
     const admin = !!(user && canAccess(user.role, ['sub_admin']));
     if (admin) setIsAdmin(true);
     if (admin) {
-      (api.getUsers({ limit: '500' }) as Promise<any>)
+      (api.getUsers({ limit: '500', scope: 'assignable' }) as Promise<any>)
         .then((u) => {
           const list: UserOption[] = (u.data || u || []).map((x: any) => ({
             id: x.id, name: x.name || x.full_name || x.email || 'User',
@@ -695,7 +695,7 @@ function ActivitiesPageInner() {
                       {!cardHidden.has('photo') && a.image_url && (
                         /* Photo attached to this activity. Click → full-size in a new tab. */
                         /* eslint-disable-next-line @next/next/no-img-element */
-                        <a href={a.image_url} target="_blank" rel="noreferrer" style={{ display: 'inline-block', marginTop: 6, marginBottom: 6 }}>
+                        <a href={a.image_url} onClick={(e) => openSignedUrl(e, a.image_url)} target="_blank" rel="noreferrer" style={{ display: 'inline-block', marginTop: 6, marginBottom: 6 }}>
                           <SignedImage src={a.image_url} alt="Activity photo" style={{ maxWidth: 220, maxHeight: 160, borderRadius: 8, border: '1px solid var(--border)', objectFit: 'cover', display: 'block' }} />
                         </a>
                       )}

@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import { parseISO, isValid } from 'date-fns';
 import api from '../../../lib/api';
-import SignedImage from '@/components/shared/SignedImage';
+import SignedImage, { openSignedUrl } from '@/components/shared/SignedImage';
 import ConfirmModal from '../../../components/ConfirmModal';
 import { useAuth } from '../../../hooks/useAuth';
 import { useClient } from '../../../context/ClientContext';
@@ -1157,7 +1157,7 @@ function AttendanceContent() {
                       {r.checkin_selfie_url ? (
                         <div style={{ position: 'relative' }}>
                           <SignedImage src={r.checkin_selfie_url} alt="In" style={{ width: 40, height: 40, borderRadius: 8, objectFit: 'cover', border: `1px solid ${C.green}40` }} />
-                          <a href={r.checkin_selfie_url} target="_blank" rel="noreferrer" 
+                          <a href={r.checkin_selfie_url} onClick={(e) => openSignedUrl(e, r.checkin_selfie_url)} target="_blank" rel="noreferrer" 
                              style={{ position: 'absolute', bottom: -2, right: -2, background: C.s3, border: `1px solid ${C.border}`, borderRadius: '50%', width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, textDecoration: 'none' }}>
                             👁️
                           </a>
@@ -1167,7 +1167,7 @@ function AttendanceContent() {
                       {r.checkout_selfie_url ? (
                         <div style={{ position: 'relative' }}>
                           <SignedImage src={r.checkout_selfie_url} alt="Out" style={{ width: 40, height: 40, borderRadius: 8, objectFit: 'cover', border: `1px solid ${C.blue}40` }} />
-                          <a href={r.checkout_selfie_url} target="_blank" rel="noreferrer" 
+                          <a href={r.checkout_selfie_url} onClick={(e) => openSignedUrl(e, r.checkout_selfie_url)} target="_blank" rel="noreferrer" 
                              style={{ position: 'absolute', bottom: -2, right: -2, background: C.s3, border: `1px solid ${C.border}`, borderRadius: '50%', width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, textDecoration: 'none' }}>
                             👁️
                           </a>
@@ -1337,7 +1337,7 @@ function AttendanceContent() {
                 {detail.checkin_selfie_url && (
                   <div>
                     <div style={{ fontSize: 10, color: C.grayd, marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Check-in Selfie</div>
-                    <a href={detail.checkin_selfie_url} target="_blank" rel="noreferrer">
+                    <a href={detail.checkin_selfie_url} onClick={(e) => openSignedUrl(e, detail.checkin_selfie_url)} target="_blank" rel="noreferrer">
                       <SignedImage src={detail.checkin_selfie_url} alt="Check-in selfie"
                         style={{ width: '100%', height: 110, objectFit: 'cover', borderRadius: 10, border: `1px solid rgba(0,217,126,0.25)`, display: 'block' }}
                         onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
@@ -1347,7 +1347,7 @@ function AttendanceContent() {
                 {detail.checkout_selfie_url && (
                   <div>
                     <div style={{ fontSize: 10, color: C.grayd, marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Check-out Selfie</div>
-                    <a href={detail.checkout_selfie_url} target="_blank" rel="noreferrer">
+                    <a href={detail.checkout_selfie_url} onClick={(e) => openSignedUrl(e, detail.checkout_selfie_url)} target="_blank" rel="noreferrer">
                       <SignedImage src={detail.checkout_selfie_url} alt="Check-out selfie"
                         style={{ width: '100%', height: 110, objectFit: 'cover', borderRadius: 10, border: `1px solid rgba(62,158,255,0.25)`, display: 'block' }}
                         onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />

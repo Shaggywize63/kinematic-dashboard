@@ -283,7 +283,7 @@ export default function NewLeadPage() {
       const [s, src, u, p, meRes] = await Promise.allSettled([
         crmSettings.get(),
         crmLeadSources.list(),
-        api.getUsers({ limit: '500' }) as Promise<any>,
+        api.getUsers({ limit: '500', scope: 'assignable' }) as Promise<any>,
         crmProducts.list(),
         api.get<any>('/api/v1/auth/me'),
       ]);

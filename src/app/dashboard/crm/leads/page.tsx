@@ -333,7 +333,7 @@ export default function LeadsListPage() {
     if (users.length > 0 || usersLoading) return;
     setUsersLoading(true);
     try {
-      const r = await api.getUsers() as any;
+      const r = await api.getUsers({ scope: 'assignable' }) as any;
       const list: UserOption[] = (r.data || r || []).map((u: any) => ({
         id: u.id,
         name: u.name || u.full_name || u.email || 'User',

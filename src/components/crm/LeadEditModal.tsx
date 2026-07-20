@@ -117,7 +117,7 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
         const [s, src, u] = await Promise.allSettled([
           crmSettings.get(),
           crmLeadSources.list(),
-          api.getUsers({ limit: '500' }) as Promise<{ data?: Array<{ id: string; name?: string; full_name?: string; email?: string }> }>,
+          api.getUsers({ limit: '500', scope: 'assignable' }) as Promise<{ data?: Array<{ id: string; name?: string; full_name?: string; email?: string }> }>,
         ]);
         if (cancelled) return;
         if (s.status === 'fulfilled') {

@@ -168,7 +168,7 @@ function NewActivityPageInner() {
 
   useEffect(() => {
     const self = getStoredUser() as { id?: string; name?: string; email?: string } | null;
-    (api.getUsers({ limit: '500' }) as Promise<any>)
+    (api.getUsers({ limit: '500', scope: 'assignable' }) as Promise<any>)
       .then((u) => {
         const list: UserOption[] = (u.data || u || []).map((x: any) => ({
           id: x.id, name: x.name || x.full_name || x.email || 'User',

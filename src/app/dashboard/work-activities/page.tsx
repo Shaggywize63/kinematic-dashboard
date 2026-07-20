@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import api from '../../../lib/api';
 import { useClient } from '../../../context/ClientContext';
 import { extractImageUrls } from '../../../lib/utils';
+import { openSignedUrl } from '../../../components/shared/SignedImage';
 
 // design tokens
 const C = {
@@ -99,7 +100,7 @@ function renderAnswerValue(
   if (value === null || value === undefined || value === '') return '—';
   if (qtype === 'file') {
     const url = typeof value === 'string' ? value : (value?.url ?? null);
-    return url ? <a href={url} target="_blank" rel="noreferrer" style={{ color: 'var(--primary)', fontSize: '12px' }}>View File</a> : '—';
+    return url ? <a href={url} onClick={(e) => openSignedUrl(e, url)} target="_blank" rel="noreferrer" style={{ color: 'var(--primary)', fontSize: '12px' }}>View File</a> : '—';
   }
   if (qtype === 'rating') return `${'★'.repeat(Number(value) || 0)}${'☆'.repeat(Math.max(0, 5 - (Number(value) || 0)))} (${value})`;
   if (qtype === 'checkbox' && Array.isArray(value)) return value.join(', ') || '—';
