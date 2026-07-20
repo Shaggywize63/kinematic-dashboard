@@ -1,6 +1,6 @@
 'use client';
 import { Suspense, useEffect, useMemo, useState } from 'react';
-import SignedImage from '@/components/shared/SignedImage';
+import SignedImage, { openSignedUrl } from '@/components/shared/SignedImage';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
@@ -695,7 +695,7 @@ function ActivitiesPageInner() {
                       {!cardHidden.has('photo') && a.image_url && (
                         /* Photo attached to this activity. Click → full-size in a new tab. */
                         /* eslint-disable-next-line @next/next/no-img-element */
-                        <a href={a.image_url} target="_blank" rel="noreferrer" style={{ display: 'inline-block', marginTop: 6, marginBottom: 6 }}>
+                        <a href={a.image_url} onClick={(e) => openSignedUrl(e, a.image_url)} target="_blank" rel="noreferrer" style={{ display: 'inline-block', marginTop: 6, marginBottom: 6 }}>
                           <SignedImage src={a.image_url} alt="Activity photo" style={{ maxWidth: 220, maxHeight: 160, borderRadius: 8, border: '1px solid var(--border)', objectFit: 'cover', display: 'block' }} />
                         </a>
                       )}
