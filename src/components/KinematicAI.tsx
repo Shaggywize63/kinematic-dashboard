@@ -391,10 +391,17 @@ Be elite, professional, and data-driven. Use **bold** for key metrics. Proactive
       const reqInit = { method: 'POST', headers, body: JSON.stringify(body) } as const;
 
       let r = await fetch(`${apiBase}${v2Endpoint}`, reqInit);
-      if (r.status === 403) {
+      // Fall back to the legacy endpoint when agentic v2 is DISABLED (403) or
+      // NOT DEPLOYED on this backend (404). Previously only 403 fell back, so a
+      // 404 (or any non-403 error) skipped v1 entirely and surfaced the opaque
+      // "I apologize…" fallback below.
+      if (r.status === 403 || r.status === 404) {
         r = await fetch(`${apiBase}${v1Endpoint}`, reqInit);
       }
-      const d = await r.json();
+      // Parse defensively — an infra/proxy error (502/504) can return HTML, not
+      // JSON, which would otherwise throw straight to the Connectivity Error catch.
+      let d: any = null;
+      try { d = await r.json(); } catch { /* non-JSON error body — d stays null */ }
       // Quota-exceeded path: backend returns 429 with a friendly message
       // and the current usage view. Surface it as an assistant message so
       // the user understands what happened.
@@ -412,7 +419,23 @@ Be elite, professional, and data-driven. Use **bold** for key metrics. Proactive
         } : m));
         return;
       }
-      const reply = d?.data?.text || 'I apologize, but I am unable to process that right now.';
+      // Session expired / auth failure — tell the user to re-auth rather than
+      // showing a vague apology that hides the real cause.
+      if (r.status === 401) {
+        setMsgs(p => p.map((m, i) => i === p.length - 1 ? {
+          role: 'assistant',
+          content: 'Your session has expired. Please refresh the page and sign in again to keep using KINI.',
+        } : m));
+        return;
+      }
+      // Surface the REAL failure instead of a blanket apology: a non-OK response
+      // now shows its status (404 → deploy, 5xx → server error) so a broken chat
+      // is diagnosable rather than silently opaque.
+      const errText = (d && (typeof d.error === 'object' ? d.error?.message : d.error)) as string | undefined;
+      const reply = d?.data?.text
+        || (!r.ok
+          ? `KINI couldn't complete that (error ${r.status}${errText ? `: ${errText}` : ''}). Please try again in a moment — if it keeps happening, let the team know.`
+          : 'I apologize, but I am unable to process that right now.');
       const cards = d?.data?.cards || [];
       const usage = d?.data?.usage;
       if (usage) setUsage(usage);
