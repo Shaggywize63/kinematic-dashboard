@@ -295,6 +295,9 @@ class ApiClient {
    * triggers one POST to /auth/refresh.
    */
   private refreshInFlight: Promise<string | null> | null = null;
+  // One-shot guard so a burst of 401s (dashboard fires many calls in parallel)
+  // only triggers a single logout redirect, never a loop.
+  private deadSessionHandled = false;
 
   private async refreshAccessToken(): Promise<string | null> {
     if (typeof window === 'undefined') return null;
@@ -335,6 +338,28 @@ class ApiClient {
       }
     })();
     return this.refreshInFlight;
+  }
+
+  /**
+   * The session is genuinely dead — the access token was rejected AND a refresh
+   * failed (revoked / long-idle / the backend's auth secret changed). Previously
+   * we left the app in a zombie state where EVERY call 401'd silently (KINI just
+   * made it visible with an opaque error). Clear the local session and bounce to
+   * /login so the user re-authenticates cleanly. Guarded to fire once, never on
+   * the server, and never when already on the login page. Preserves the
+   * super-admin impersonation snapshot (`kinematic_su_session`) so returning to
+   * the master account still works.
+   */
+  private handleDeadSession(): void {
+    if (typeof window === 'undefined') return;
+    if (this.deadSessionHandled) return;
+    if (window.location.pathname.startsWith('/login')) return;
+    this.deadSessionHandled = true;
+    try {
+      ['kinematic_token', 'kinematic_refresh_token', 'kinematic_expiry'].forEach((k) => localStorage.removeItem(k));
+      sessionStorage.setItem('kinematic_session_expired', '1'); // login page can show "your session expired"
+    } catch { /* ignore storage errors */ }
+    window.location.href = '/login';
   }
 
   private async request<T>(path: string, options: RequestInit = {}, _isRetry = false): Promise<T> {
@@ -459,6 +484,9 @@ class ApiClient {
         if (newAccess) {
           return this.request<T>(path, options, true);
         }
+        // Refresh failed → the session can't be salvaged. Recover by clearing
+        // it and redirecting to /login instead of silently 401'ing every call.
+        this.handleDeadSession();
       }
       throw new Error('Unauthorized');
     }

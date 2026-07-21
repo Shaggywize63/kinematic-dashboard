@@ -5,6 +5,7 @@ import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { getStoredUser, isSessionValid, clearSession, getDesignationLabel } from '../../lib/auth';
 import api, { getActingAs, setActingAs, getImpersonateUser, stopImpersonation } from '../../lib/api';
+import { webChatsApi } from '../../lib/webChatsApi';
 import BrandLogo from '../../components/shared/BrandLogo';
 import StagingBoot from './StagingBoot';
 import StagingDeployModal from './StagingDeployModal';
@@ -196,6 +197,54 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const handleLogout = () => { clearSession(); router.push('/login'); };
   const userRole = user?.role || '';
   const userPerms = user?.permissions || [];
+
+  // ── Website-chat unread badge (super-admin only) ──────────────────────────
+  // The public-site KINI chatbot has no server-side read flag, so "new" means
+  // any conversation whose last_seen_at is newer than the last time this admin
+  // opened the Website Chats page (persisted in localStorage). Poll every 60s;
+  // the badge clears the moment the page is opened. Purely additive — the item
+  // itself is already super-admin-only in the nav.
+  const [webChatUnread, setWebChatUnread] = useState(0);
+  const isSuperAdminRole = (userRole || '').toLowerCase().replace(/-/g, '_') === 'super_admin';
+  useEffect(() => {
+    if (!isSuperAdminRole) { setWebChatUnread(0); return; }
+    let alive = true;
+    const SEEN_KEY = 'kinematic_webchats_seen_at';
+    const readSeen = (): number => {
+      try {
+        const v = localStorage.getItem(SEEN_KEY);
+        if (v) return Number(v) || 0;
+        // First run: baseline to now so we only flag genuinely NEW activity,
+        // never light up with the entire backlog of historical conversations.
+        const now = Date.now();
+        localStorage.setItem(SEEN_KEY, String(now));
+        return now;
+      } catch { return Date.now(); }
+    };
+    const poll = async () => {
+      try {
+        const { rows } = await webChatsApi.list({ limit: 50 });
+        if (!alive) return;
+        const seen = readSeen();
+        const n = rows.reduce((acc, r) => {
+          const t = new Date(r.last_seen_at || r.created_at).getTime();
+          return acc + (Number.isFinite(t) && t > seen ? 1 : 0);
+        }, 0);
+        setWebChatUnread(n);
+      } catch { /* transient — keep the last known count */ }
+    };
+    poll();
+    const id = setInterval(poll, 60000);
+    return () => { alive = false; clearInterval(id); };
+  }, [isSuperAdminRole]);
+
+  // Clear the badge the moment the admin opens the Website Chats surface.
+  useEffect(() => {
+    if (pathname.startsWith('/dashboard/crm/website-chats')) {
+      try { localStorage.setItem('kinematic_webchats_seen_at', String(Date.now())); } catch { /* ignore */ }
+      setWebChatUnread(0);
+    }
+  }, [pathname]);
   // Fetch the hierarchy role label once so the top header can show "Name ·
   // Business Manager" (the hierarchy name) instead of just the legacy
   // preset role. Cached in localStorage so repeat visits skip the round
@@ -752,6 +801,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                           }} />
                         )}
                         <span style={{
+                          position:'relative',
                           display:'flex', alignItems:'center', justifyContent:'center',
                           width:30, height:30, borderRadius:9, flexShrink:0,
                           background: active ? accent : `${accent}22`,
@@ -760,6 +810,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                           transition:'background .15s, color .15s, box-shadow .15s',
                         }}>
                           <Icon d={i.icon} size={17} />
+                          {i.href === '/dashboard/crm/website-chats' && webChatUnread > 0 && (
+                            <span
+                              aria-label={`${webChatUnread} new website chat${webChatUnread === 1 ? '' : 's'}`}
+                              style={{
+                                position:'absolute', top:-6, right:-6,
+                                minWidth:16, height:16, padding:'0 4px', borderRadius:8,
+                                background:'#D01E2C', color:'#fff', fontSize:10, fontWeight:700,
+                                display:'flex', alignItems:'center', justifyContent:'center',
+                                lineHeight:1, boxShadow:'0 0 0 2px var(--s1)',
+                              }}
+                            >{webChatUnread > 9 ? '9+' : webChatUnread}</span>
+                          )}
                         </span>
                         {(isMobile || !collapsed) && (
                           <span style={{ fontSize:13.5, fontWeight: active ? 600 : 500, whiteSpace:'nowrap' }}>{i.label}</span>
