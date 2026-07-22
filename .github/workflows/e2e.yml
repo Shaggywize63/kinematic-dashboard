@@ -1,0 +1,41 @@
+name: E2E (Playwright)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  e2e:
+    name: Playwright E2E
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci || npm install --no-audit --no-fund
+
+      # In this repo's own CI there is no pre-installed browser, so fetch
+      # Chromium (+ its OS deps). The playwright.config.ts only pins an explicit
+      # executablePath when the local /opt/pw-browsers binary exists, so here it
+      # falls back to this managed install automatically.
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run E2E tests
+        run: npx playwright test --reporter=list
+
+      - name: Upload report
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report
+          if-no-files-found: ignore
+          retention-days: 14
