@@ -12,6 +12,7 @@ import ActivityTimeline from '../../../../../components/crm/ActivityTimeline';
 import Breadcrumbs from '../../../../../components/crm/shared/Breadcrumbs';
 import ContactEditModal from '../../../../../components/crm/ContactEditModal';
 import CustomFieldsDetailCard from '../../../../../components/crm/CustomFieldsDetailCard';
+import { ConsentCard } from '../../../../../components/crm/DataConsent';
 import { formatINR } from '../../../../../lib/formatCurrency';
 
 export default function ContactDetailPage() {
@@ -137,6 +138,9 @@ export default function ContactDetailPage() {
         <Card title={`Activities (${activities.length})`}>
           <ActivityTimeline activities={activities} />
         </Card>
+
+        {/* DPDP §6(4)-(6) — consent status + in-app withdrawal for this contact. */}
+        <ConsentCard subjectType="contact" subjectId={id} />
 
         {emails.length > 0 && (
           <Card title={`Emails (${emails.length})`}>

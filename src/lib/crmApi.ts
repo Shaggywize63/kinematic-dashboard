@@ -647,8 +647,46 @@ export const crmIntegrations = {
     api.get<Wrapped<InboundEvent[]>>(`${INTEGRATIONS_BASE}/${id}/events?limit=${limit}`),
 };
 
+// --- Consent ledger (DPDP §6/§7/§9) ---
+export interface ConsentRecord {
+  id: string;
+  org_id: string;
+  client_id: string | null;
+  subject_type: 'lead' | 'contact' | 'employee';
+  subject_id: string | null;
+  purpose: string;
+  consented: boolean;
+  method: 'in_app' | 'web_form' | 'verbal' | 'imported' | 'api';
+  source: string | null;
+  notice_version: string | null;
+  actor_user_id: string | null;
+  notes: string | null;
+  created_at: string;
+  withdrawn_at: string | null;
+  withdrawn_by: string | null;
+}
+
+const CONSENT_BASE = `${BASE}/consent`;
+export const crmConsent = {
+  list: (params?: { subject_type?: string; subject_id?: string; purpose?: string }) =>
+    api.get<ConsentRecord[]>(`${CONSENT_BASE}${qs(params)}`),
+  record: (body: {
+    subject_type: 'lead' | 'contact' | 'employee';
+    subject_id?: string | null;
+    purpose: string;
+    consented?: boolean;
+    method: 'in_app' | 'web_form' | 'verbal' | 'imported' | 'api';
+    source?: string | null;
+    notice_version?: string | null;
+    notes?: string | null;
+  }) => api.post<ConsentRecord>(CONSENT_BASE, body),
+  withdraw: (body: { id?: string; subject_type?: string; subject_id?: string; purpose?: string }) =>
+    api.post<{ withdrawn: number }>(`${CONSENT_BASE}/withdraw`, body),
+};
+
 const crmApi = {
   leads: crmLeads, contacts: crmContacts, accounts: crmAccounts, deals: crmDeals,
+  consent: crmConsent,
   lineItems: crmLineItems, pipelines: crmPipelines, stages: crmStages,
   activities: crmActivities, notes: crmNotes, tasks: crmTasks,
   emailTemplates: crmEmailTemplates, emails: crmEmails,

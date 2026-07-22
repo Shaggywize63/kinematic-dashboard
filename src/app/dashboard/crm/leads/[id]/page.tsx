@@ -25,6 +25,7 @@ import { formatINR } from '../../../../../lib/formatCurrency';
 import { useAuth } from '../../../../../hooks/useAuth';
 import { isConsumerChampion, isTataTiscanActive } from '../../../../../lib/clientFeatures';
 import { isHorizonOrg } from '../../../../../lib/crmFeatureGates';
+import { ConsentCard } from '../../../../../components/crm/DataConsent';
 
 type UserOption = { id: string; name: string };
 
@@ -581,6 +582,8 @@ export default function LeadDetailPage() {
         {/* Next Best Action — AI manager-tier surface; hidden for the
             Consumer Champion FE flow since they don't act on it. */}
         {!isChampion && <NextBestActionCard action={nba} onLoad={loadNba} loading={nbaLoading} leadId={id} />}
+        {/* DPDP §6(4)-(6) — consent status + in-app withdrawal for this lead. */}
+        <ConsentCard subjectType="lead" subjectId={id} />
       </div>
 
       <LeadConvertModal
