@@ -765,6 +765,24 @@ class ApiClient {
     return this.get(`/api/v1/forms/templates${this.sanitizeParams(params)}`);
   }
 
+  /** True when the signed-in user is the shared demo account. Exposed so demo-only
+   *  UI (e.g. the Work Activities → Insights tab) can gate itself client-side. */
+  isDemoAccount(): boolean {
+    return this.getUserEmail() === demo.DEMO_USER_EMAIL;
+  }
+
+  /** Aggregated form-response insights for the Work Activities → Insights tab.
+   *  Demo account is served hand-crafted, vertical-aware fixtures with no network
+   *  call (mirrors getAdminSubmissions). Real tenants would hit the backend
+   *  aggregation endpoint — the tab is demo-gated today, so that path is unused. */
+  getFormInsights(params?: Record<string, string>) {
+    if (this.getUserEmail() === demo.DEMO_USER_EMAIL) {
+      const m = demo.matchDemoMock<unknown>('/api/v1/forms/admin/insights', 'GET');
+      if (m !== undefined) return Promise.resolve(m);
+    }
+    return this.get(`/api/v1/forms/admin/insights${this.sanitizeParams(params)}`);
+  }
+
   getGrievances() {
     return this.get('/api/v1/grievances');
   }

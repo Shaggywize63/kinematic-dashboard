@@ -797,6 +797,83 @@ const paginate = <T,>(rows: T[], query: URLSearchParams) => {
   };
 };
 
+// Generic (non-pharma / non-insurance) fallback for the Work Activities →
+// Insights tab, so flipping the demo to the default vertical still shows a
+// believable field form-response breakdown instead of pharma molecules.
+function genericFormInsights() {
+  return {
+    success: true,
+    data: {
+      period_label: 'Last 30 days',
+      labels: {
+        preferred: 'Most-preferred SKU',
+        respondent_mix: 'Channel mix',
+        sentiment: 'Retailer sentiment, by SKU',
+        objections: 'Top objections raised',
+        volume: 'Weekly response volume',
+        intent: 'Avg purchase intent (0–10) by week',
+        by_form: 'Responses by form',
+        kpi_responses: 'Form responses',
+        kpi_people: 'Outlets covered',
+        kpi_intent: 'Avg purchase intent',
+        kpi_signoff: 'Proof-capture rate',
+        kpi_top: 'Top SKU',
+      },
+      kpis: {
+        total_responses: 1460,
+        unique_hcps: 318,
+        avg_trial_intent: 6.8,
+        sample_signoff_rate: 82,
+        top_molecule: 'Premium SKU',
+      },
+      preferred_drug: [
+        { name: 'Premium SKU',  value: 512 },
+        { name: 'Value SKU',    value: 388 },
+        { name: 'Bulk Pack',    value: 296 },
+        { name: 'Trial Pack',   value: 168 },
+        { name: 'Other',        value: 96 },
+      ],
+      specialty_mix: [
+        { name: 'General Trade',  value: 142 },
+        { name: 'Modern Trade',   value: 88 },
+        { name: 'Wholesale',      value: 52 },
+        { name: 'Institutional',  value: 24 },
+        { name: 'E-commerce',     value: 12 },
+      ],
+      sentiment: [
+        { name: 'Premium SKU', positive: 64, neutral: 24, objection: 12 },
+        { name: 'Value SKU',   positive: 58, neutral: 28, objection: 14 },
+        { name: 'Bulk Pack',   positive: 52, neutral: 31, objection: 17 },
+      ],
+      objections: [
+        { name: 'Prefers competitor brand', value: 118 },
+        { name: 'Margin too low',           value: 102 },
+        { name: 'Slow-moving stock',        value: 84 },
+        { name: 'Credit terms',             value: 61 },
+        { name: 'No shelf space',           value: 44 },
+      ],
+      weekly_volume: [
+        { week: 'W1', responses: 302 }, { week: 'W2', responses: 331 },
+        { week: 'W3', responses: 318 }, { week: 'W4', responses: 356 },
+        { week: 'W5', responses: 372 }, { week: 'W6', responses: 344 },
+        { week: 'W7', responses: 401 }, { week: 'W8', responses: 428 },
+      ],
+      trial_intent_trend: [
+        { week: 'W1', intent: 6.1 }, { week: 'W2', intent: 6.3 },
+        { week: 'W3', intent: 6.2 }, { week: 'W4', intent: 6.6 },
+        { week: 'W5', intent: 6.7 }, { week: 'W6', intent: 6.6 },
+        { week: 'W7', intent: 6.9 }, { week: 'W8', intent: 7.1 },
+      ],
+      responses_by_form: [
+        { name: 'Store Audit',    value: 612 },
+        { name: 'Order Capture',  value: 428 },
+        { name: 'Merchandising',  value: 236 },
+        { name: 'Competitor Scan', value: 184 },
+      ],
+    },
+  };
+}
+
 export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown): T | undefined {
   const queryStart = rawPath.indexOf('?');
   const noQuery = queryStart === -1 ? rawPath : rawPath.slice(0, queryStart);
@@ -909,6 +986,13 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
     if (path === '/forms/templates' || path === '/form-templates') return mockFormTemplates() as unknown as T;
     if (path === '/forms/submissions' || path === '/submissions')  return mockSubmissions() as unknown as T;
     if (path === '/forms/admin/submissions')                       return mockSubmissions() as unknown as T;
+    // Aggregated form-response insights (Work Activities → Insights). The
+    // active vertical bundle themes it (pharma ships molecules + HCP specialties);
+    // verticals without their own fixture fall back to a generic field version.
+    if (path === '/forms/admin/insights' || path === '/forms/insights') {
+      const fn = (__seed as { mockFormInsights?: () => unknown }).mockFormInsights;
+      return (typeof fn === 'function' ? fn() : genericFormInsights()) as unknown as T;
+    }
     if (path === '/builder/forms')                                 return list(isPharmaceuticalDemo() ? PHARMA_BUILDER_FORMS : isInsuranceDemo() ? INS_BUILDER_FORMS : GEN_BUILDER_FORMS) as unknown as T;
     {
       // Builder form detail + its pages/questions (so opening the KYC form in
