@@ -14,6 +14,7 @@ import UserSearchSelect, { type UserOption } from '../../../../../components/crm
 import AlternateMobiles from '../../../../../components/crm/AlternateMobiles';
 import ClientScopeField from '../../../../../components/ClientScopeField';
 import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '../../../../../lib/crmFieldOverrides';
+import { DataCollectionConsent, NOTICE_VERSION } from '../../../../../components/crm/DataConsent';
 
 type UserOpt = UserOption;
 
@@ -220,6 +221,11 @@ export default function NewLeadPage() {
   // in crm_settings.config.field_overrides. Empty until first fetch — every
   // field renders with its hardcoded default in the interim.
   const [fieldOverrides, setFieldOverrides] = useState<FieldOverrides>({});
+  // DPDP §6 consent captured at collection. `consentRequired` mirrors the
+  // per-tenant crm_settings.config.consent.lead_pii.required gate (default off:
+  // notice shown + consent recorded, but not blocking).
+  const [dataConsent, setDataConsent] = useState(false);
+  const [consentRequired, setConsentRequired] = useState(false);
   // Pass the active B2C/B2B scope so overrides like "email required for
   // B2B only" or "last_name optional for B2C" take precedence over the
   // universal entry for the same field.
@@ -300,6 +306,8 @@ export default function NewLeadPage() {
         setBusinessType(t);
         if (t !== 'both') setForm((f) => ({ ...f, is_b2c: t === 'b2c' }));
         setFieldOverrides(extractFieldOverrides(s.value.data));
+        const cfg = (s.value.data as { config?: { consent?: { lead_pii?: { required?: boolean } } } } | undefined)?.config;
+        setConsentRequired(cfg?.consent?.lead_pii?.required === true);
       }
       if (src.status === 'fulfilled') setSources((src.value.data || []).filter((x: LeadSource) => x.is_active));
       if (u.status === 'fulfilled') {
@@ -487,6 +495,14 @@ export default function NewLeadPage() {
       if (isTata && form.log_as_site_visit) {
         payload._auto_log_site_visit = true;
       }
+      // DPDP §6 — capture consent at collection. Always sent (recorded in the
+      // crm_consents ledger); blocks submission only when the tenant requires it.
+      if (consentRequired && !dataConsent) {
+        toast.error('Please capture the individual’s consent to collect their personal data.');
+        setBusy(false);
+        return;
+      }
+      payload._consent = { consented: dataConsent, method: 'web_form', notice_version: NOTICE_VERSION };
       const r = await crmLeads.create(payload);
       toast.success('Lead created');
       // After creating a lead on Tata, ALWAYS hop to the activity
@@ -760,6 +776,13 @@ export default function NewLeadPage() {
           )}
         </>
       )}
+
+      {/* DPDP §5/§6 — at-collection notice + primary consent for the lead's
+          personal data. Always shown (B2B + B2C); recorded in the consent
+          ledger. Distinct from the marketing/WhatsApp opt-ins above. */}
+      <Section title="Data Collection & Consent">
+        <DataCollectionConsent checked={dataConsent} onChange={setDataConsent} required={consentRequired} />
+      </Section>
 
       {/* Products of Interest is captured in the Convert dialog (deal_product_lines)
           for Kaiyo/Tata, not on the lead form — the rep picks products when the
