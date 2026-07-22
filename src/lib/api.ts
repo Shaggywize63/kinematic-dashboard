@@ -40,6 +40,16 @@ export function setActingAs(v: ActingAs | null) {
   } catch { /* ignore */ }
 }
 
+// Write paths a read-only account may still call — session ops (login, refresh,
+// logout, change own password, project lookup) and the login-as/impersonate
+// view-switch that lets a cross-tenant viewer move between clients. Mirrors the
+// backend read-only guard's allowlist.
+function isReadOnlyAllowedPath(path: string): boolean {
+  const p = path.split('?')[0];
+  if (p.startsWith('/api/v1/auth/')) return true;
+  return /^\/api\/v1\/clients\/[^/]+\/(login-as|impersonate)$/.test(p);
+}
+
 // Master-admin user impersonation ("Viewing as <user>"): when set, every API
 // request carries `X-Impersonate-User-Id` so the backend swaps the effective
 // user to the target — /auth/me (and everything else) then returns the TARGET
@@ -278,6 +288,16 @@ class ApiClient {
     } catch { return null; }
   }
 
+  /** True when the signed-in user is flagged read-only (users.is_read_only).
+   *  Read from the stored login profile; the backend guard is authoritative. */
+  private isReadOnlyUser(): boolean {
+    if (typeof window === 'undefined') return false;
+    try {
+      const raw = localStorage.getItem('kinematic_user');
+      return raw ? JSON.parse(raw)?.is_read_only === true : false;
+    } catch { return false; }
+  }
+
   private getOrgId(): string | null {
     if (typeof window === 'undefined') return null;
     // When acting as a client, scope to that client's org.
@@ -376,6 +396,16 @@ class ApiClient {
       }
       const mocked = demo.matchDemoMock<T>(path, (options.method || 'GET').toUpperCase(), parsedBody);
       if (mocked !== undefined) return mocked;
+    }
+
+    // Read-only account: reject writes client-side with a friendly message,
+    // mirroring the backend read-only guard so the user sees a clear notice
+    // instead of a raw 403. Reads (GET/HEAD) and the auth/login-as view-switch
+    // endpoints are always allowed. The backend guard is the real enforcement;
+    // this is UX only.
+    const _method = (options.method || 'GET').toUpperCase();
+    if (_method !== 'GET' && _method !== 'HEAD' && this.isReadOnlyUser() && !isReadOnlyAllowedPath(path)) {
+      return Promise.reject(new Error('This account is read-only and cannot make changes.'));
     }
 
     const token = this.getToken();
