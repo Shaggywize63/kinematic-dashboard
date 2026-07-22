@@ -500,11 +500,111 @@ const ROUTE_PLANS = (() => {
   });
 })();
 
+// Aggregated insights over field form-responses (HCP detailing / sampling
+// forms). Powers the Work Activities → Insights tab: KPI headline numbers +
+// pie / bar / area / line charts that turn thousands of MR form submissions
+// into "which molecule is preferred, what do doctors object to, how is trial-Rx
+// intent trending". Pharma-themed (Vireon Pharma molecules + HCP specialties).
+const mockFormInsights = () => ({
+  success: true,
+  data: {
+    period_label: 'Last 30 days',
+    // Chart + KPI titles ship with the fixture so the Insights component stays
+    // vertical-agnostic (pharma vs generic each supply their own wording).
+    labels: {
+      preferred: 'Most-preferred molecule',
+      respondent_mix: 'HCP specialty mix',
+      sentiment: 'HCP sentiment on detailing, by molecule',
+      objections: 'Top objections raised by HCPs',
+      volume: 'Weekly response volume',
+      intent: 'Avg Trial-Rx intent (0–10) by week',
+      by_form: 'Responses by form template',
+      kpi_responses: 'Form responses',
+      kpi_people: 'HCPs covered',
+      kpi_intent: 'Avg Trial-Rx intent',
+      kpi_signoff: 'Sample sign-off rate',
+      kpi_top: 'Top molecule',
+    },
+    kpis: {
+      total_responses: 1820,
+      unique_hcps: 412,
+      avg_trial_intent: 7.4,      // mean of the "Trial Rx Intent (0-10)" field
+      sample_signoff_rate: 86,    // % of sample drops with an HCP signature captured
+      top_molecule: 'Glucanova',
+    },
+    // Share of "preferred / most-discussed molecule" answers — magnitude ranking.
+    preferred_drug: [
+      { name: 'Glucanova',  value: 642 },
+      { name: 'Diabextra',  value: 418 },
+      { name: 'Oncevia',    value: 356 },
+      { name: 'Migranova',  value: 214 },
+      { name: 'Oncorib',    value: 138 },
+      { name: 'Other',      value: 52 },
+    ],
+    // HCP specialty distribution of respondents — part-to-whole (donut).
+    specialty_mix: [
+      { name: 'Endocrinology',    value: 168 },
+      { name: 'Diabetology',      value: 96 },
+      { name: 'Oncology',         value: 74 },
+      { name: 'Cardiology',       value: 38 },
+      { name: 'Neurology',        value: 22 },
+      { name: 'General Practice', value: 14 },
+    ],
+    // HCP sentiment on detailing, per molecule (%) — ordered-scale stacked bar.
+    sentiment: [
+      { name: 'Glucanova', positive: 68, neutral: 22, objection: 10 },
+      { name: 'Diabextra', positive: 61, neutral: 27, objection: 12 },
+      { name: 'Oncevia',   positive: 54, neutral: 30, objection: 16 },
+      { name: 'Migranova', positive: 47, neutral: 33, objection: 20 },
+    ],
+    // Most-cited objections raised by HCPs — magnitude ranking.
+    objections: [
+      { name: 'Prefers competitor (dulaglutide)', value: 132 },
+      { name: 'Wants more efficacy data',         value: 118 },
+      { name: 'Price / patient affordability',    value: 96 },
+      { name: 'Not on hospital formulary',        value: 71 },
+      { name: 'Side-effect concerns (GI)',        value: 58 },
+      { name: 'No time to detail',                value: 34 },
+    ],
+    // Response volume by week — trend (area).
+    weekly_volume: [
+      { week: 'W1', responses: 372 },
+      { week: 'W2', responses: 418 },
+      { week: 'W3', responses: 401 },
+      { week: 'W4', responses: 456 },
+      { week: 'W5', responses: 472 },
+      { week: 'W6', responses: 438 },
+      { week: 'W7', responses: 501 },
+      { week: 'W8', responses: 534 },
+    ],
+    // Mean Trial-Rx intent (0-10) by week — trend (line).
+    trial_intent_trend: [
+      { week: 'W1', intent: 6.6 },
+      { week: 'W2', intent: 6.9 },
+      { week: 'W3', intent: 6.8 },
+      { week: 'W4', intent: 7.1 },
+      { week: 'W5', intent: 7.3 },
+      { week: 'W6', intent: 7.2 },
+      { week: 'W7', intent: 7.6 },
+      { week: 'W8', intent: 7.8 },
+    ],
+    // Which form template drives responses — categorical column.
+    responses_by_form: [
+      { name: 'HCP Detailing',  value: 742 },
+      { name: 'Sample Drop',    value: 512 },
+      { name: 'CME RSVP',       value: 268 },
+      { name: 'Pharmacy Audit', value: 196 },
+      { name: 'Adverse Event',  value: 102 },
+    ],
+  },
+});
+
 export const PHARMACEUTICAL_FIELD = {
   mockSummary, mockTrends, mockFeed, mockHeatmap, mockDashboardInit,
   mockLocations, mockUsers, mockAttendanceTeam, mockStores, mockFormTemplates,
   mockActivities, mockSubmissions, mockVisitLogs,
   mockCityPerformance, mockOutletCoverage, mockWeeklyContacts,
   mockBroadcasts, mockBroadcastAdmin, mockLearningMaterials, mockMobileHome,
+  mockFormInsights,
   ROUTE_PLANS,
 };

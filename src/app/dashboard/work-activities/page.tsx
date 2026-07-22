@@ -4,6 +4,14 @@ import api from '../../../lib/api';
 import { useClient } from '../../../context/ClientContext';
 import { extractImageUrls } from '../../../lib/utils';
 import { openSignedUrl } from '../../../components/shared/SignedImage';
+import dynamic from 'next/dynamic';
+
+// Lazy-load the charts bundle (recharts) so it stays out of the main Work
+// Activities bundle — only fetched when the demo account opens the Insights tab.
+const FormInsights = dynamic(() => import('../../../components/work-activities/FormInsights'), {
+  ssr: false,
+  loading: () => <div style={{ padding: '80px', textAlign: 'center', color: 'var(--text-dim)' }}>Loading insights…</div>,
+});
 
 // design tokens
 const C = {
@@ -135,6 +143,11 @@ function calcDuration(start?: string, end?: string) {
 /* ── Activity View Wrap ───────────────────────────────────────── */
 export default function WorkActivitiesPage() {
   const { selectedClientId } = useClient();
+  // Insights tab is demo-only for now (served from client-side fixtures). Real
+  // tenants keep the submissions-only view until the backend aggregation lands.
+  const [tab, setTab] = useState<'submissions' | 'insights'>('submissions');
+  const [isDemo, setIsDemo] = useState(false);
+  useEffect(() => { setIsDemo(api.isDemoAccount()); }, []);
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<FormActivity[]>([]);
   const [total, setTotal] = useState(0);
@@ -276,20 +289,49 @@ export default function WorkActivitiesPage() {
     <div style={{ padding: '32px', minHeight: '100vh', background: C.bg, color: C.text, fontFamily: "var(--font-dm-sans)" }}>
       
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '32px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: isDemo ? '20px' : '32px' }}>
         <div>
           <h1 style={{ fontSize: '32px', fontWeight: 800, margin: 0, letterSpacing: '-1px', fontFamily: 'var(--font-syne)' }}>Work Activities</h1>
-          <p style={{ color: C.textSec, marginTop: '8px', fontSize: '14px' }}>Analyze field submissions grouped by outlet visits and track duration.</p>
+          <p style={{ color: C.textSec, marginTop: '8px', fontSize: '14px' }}>
+            {tab === 'insights'
+              ? 'Aggregate what field teams capture — preferred products, sentiment and objections from form responses.'
+              : 'Analyze field submissions grouped by outlet visits and track duration.'}
+          </p>
         </div>
-        <button 
-          onClick={downloadReport}
-          disabled={reportLoading}
-          style={{ padding: '12px 24px', background: reportLoading ? C.card : C.accent, borderRadius: '12px', color: C.text, border: 'none', fontWeight: 700, cursor: reportLoading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 10px 20px rgba(62,158,255,0.2)' }}
-        >
-          <span>↓</span> {reportLoading ? 'Preparing Report...' : 'Download Report'}
-        </button>
+        {tab === 'submissions' && (
+          <button
+            onClick={downloadReport}
+            disabled={reportLoading}
+            style={{ padding: '12px 24px', background: reportLoading ? C.card : C.accent, borderRadius: '12px', color: C.text, border: 'none', fontWeight: 700, cursor: reportLoading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 10px 20px rgba(62,158,255,0.2)' }}
+          >
+            <span>↓</span> {reportLoading ? 'Preparing Report...' : 'Download Report'}
+          </button>
+        )}
       </div>
 
+      {/* Tab switcher — Insights is demo-only today */}
+      {isDemo && (
+        <div style={{ display: 'inline-flex', gap: '4px', background: C.card, border: `1px solid ${C.border}`, borderRadius: '12px', padding: '4px', marginBottom: '28px' }}>
+          {([['submissions', 'Submissions'], ['insights', 'Insights']] as const).map(([key, lbl]) => (
+            <button
+              key={key}
+              onClick={() => setTab(key)}
+              style={{
+                padding: '8px 18px', borderRadius: '9px', border: 'none', cursor: 'pointer',
+                fontWeight: 700, fontSize: '13px',
+                background: tab === key ? C.accent : 'transparent',
+                color: tab === key ? '#fff' : C.textSec,
+                transition: 'all 0.2s',
+              }}
+            >
+              {lbl}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {tab === 'insights' ? <FormInsights /> : (
+      <>
       {/* Universal Sticky Filter Bar */}
       <div style={{ position: 'sticky', top: '16px', zIndex: 100, background: 'rgba(22, 25, 31, 0.8)', backdropFilter: 'blur(20px)', border: `1px solid ${C.border}`, borderRadius: '20px', padding: '16px 24px', display: 'flex', gap: '20px', alignItems: 'center', marginBottom: '32px', boxShadow: '0 20px 40px rgba(0,0,0,0.4)' }}>
         
@@ -489,6 +531,9 @@ export default function WorkActivitiesPage() {
               <div style={{ alignSelf: 'center', fontSize: '14px', fontWeight: 600 }}>Page {page} of {Math.ceil(total / LIMIT)}</div>
               <button disabled={page >= Math.ceil(total / LIMIT)} onClick={() => loadData(page + 1)} style={{ padding: '10px 20px', background: C.card, borderRadius: '10px', border: `1px solid ${C.border}`, color: page >= Math.ceil(total / LIMIT) ? C.textTert : C.text, cursor: page >= Math.ceil(total / LIMIT) ? 'default' : 'pointer' }}>Next</button>
           </div>
+      )}
+
+      </>
       )}
 
       {/* detail modal */}
