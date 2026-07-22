@@ -108,7 +108,11 @@ export function userHasModule(user: AuthUser | null | undefined, moduleId: strin
   const isPlatformAdmin = !(user as any).client_id && (
     ['super_admin', 'admin', 'main_admin', 'master_admin', 'sub_admin'].includes(role) || role.includes('admin')
   );
-  if (isPlatformAdmin) return true;
+  // A scoped read-only viewer (non-super_admin) does NOT get the blanket
+  // platform-admin bypass — its module access is governed by the org_role
+  // entitlement/permission check below, same as the sidebar gate in the layout.
+  const isReadOnlyViewer = !!(user as any).is_read_only && role !== 'super_admin';
+  if (isPlatformAdmin && !isReadOnlyViewer) return true;
   const entitled: string[] = Array.isArray((user as any).enabled_modules) ? (user as any).enabled_modules : [];
   if (entitled.length > 0 && !entitled.includes(moduleId)) return false;
   const perms: string[] = Array.isArray((user as any).permissions) ? (user as any).permissions : [];

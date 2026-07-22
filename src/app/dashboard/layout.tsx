@@ -300,6 +300,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const isSuperAdmin = (userRole || '').toLowerCase().replace(/-/g, '_') === 'super_admin';
 
+  // A scoped, read-only cross-tenant VIEWER (e.g. the SRS + BMW "Lead Viewer"
+  // account). Such a user IS treated as a platform admin for the client picker
+  // — it must switch between the tenants it may view — but must NOT inherit the
+  // platform-admin nav bypass: its sidebar is gated to the modules its org_role
+  // grants, exactly like an ordinary rep. Detected as read-only + non-super_admin
+  // (a read-only super_admin, the older look-but-don't-touch account, keeps full
+  // nav). This is the ONLY thing that un-bypasses the platform-admin nav below.
+  const isViewer = !!(user?.is_read_only) && !isSuperAdmin;
+
   // Only build the nav once we can trust the permission set. Platform admins
   // and cached profiles that already carry permissions render immediately;
   // everyone else waits for the fresh /auth/me so role-gated items don't flash.
@@ -400,7 +409,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const scoped = Array.isArray(actingModules) && actingModules.length
       ? visibleAfterKinematic.filter(i => !i.module || actingModules.includes(i.module))
       : visibleAfterKinematic;
-    if (isPlatformAdmin) return scoped;
+    // Scoped viewers are gated to their granted modules (fall through to
+    // hasModule); only a true platform admin gets the unfiltered nav.
+    if (isPlatformAdmin && !isViewer) return scoped;
     return scoped.filter(i => hasModule(i.module));
   };
 
@@ -413,6 +424,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const sectionVisible = (pkg: string | undefined, items: any[]) => {
     if (items.length === 0) return false;
     if (!pkg) return true;
+    // A scoped viewer shows a section only if it contains at least one module
+    // its role grants — so the SRS+BMW Lead Viewer sees just the CRM section.
+    if (isViewer) return items.some((i: any) => hasModule(i.module));
     if (isPlatformAdmin) return true;
     // CRM-only clients hide every non-CRM section. A universal item may opt
     // back in via `crmVisible`, but NOTHING is flagged `crmVisible` today (Leave
