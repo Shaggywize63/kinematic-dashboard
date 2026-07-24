@@ -665,6 +665,7 @@ const btnDanger: React.CSSProperties = { background: 'transparent', border: '1px
 const btnGhostSm: React.CSSProperties = { background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '4px 9px', borderRadius: 6, cursor: 'pointer', fontSize: 12 };
 const btnDashed: React.CSSProperties = { background: 'transparent', border: '1.5px dashed var(--border)', color: 'var(--text-dim)', padding: '10px', borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: 650 };
 const paletteItem: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 11, width: '100%', border: 'none', background: 'transparent', borderRadius: 8, padding: '8px 10px', textAlign: 'left', cursor: 'pointer' };
+const andPill: React.CSSProperties = { fontSize: 10, fontWeight: 800, letterSpacing: 1, color: '#D98A0A', background: 'color-mix(in srgb, #D98A0A 16%, transparent)', padding: '2px 7px', borderRadius: 5 };
 const flowItem = (sel: boolean): React.CSSProperties => ({
   width: '100%', textAlign: 'left', border: `1px solid ${sel ? 'color-mix(in srgb, var(--primary) 32%, transparent)' : 'transparent'}`,
   background: sel ? 'color-mix(in srgb, var(--primary) 9%, transparent)' : 'transparent',
