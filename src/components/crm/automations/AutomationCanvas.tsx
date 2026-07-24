@@ -92,6 +92,32 @@ const ROLE_COLOR: Record<string, string> = {
   trigger: 'var(--primary)', cond: '#D98A0A',
   task: '#4C6FE0', messaging: '#0E9C8A', routing: '#8A5CD1', update: '#5A7290',
 };
+// Per-action line icon (white stroke on the role-coloured tile).
+const ACTION_ICON: Record<string, string> = {
+  create_task: 'clipboard', create_activity: 'note',
+  send_whatsapp: 'chat', send_email: 'mail', send_notification: 'bell',
+  assign_owner: 'user', convert_lead: 'swap',
+  update_lead: 'edit', update_deal: 'edit',
+};
+function Glyph({ name, size = 17 }: { name: string; size?: number }) {
+  const p: React.SVGProps<SVGSVGElement> = {
+    width: size, height: size, viewBox: '0 0 24 24', fill: 'none',
+    stroke: '#fff', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round',
+  };
+  switch (name) {
+    case 'bolt': return <svg {...p}><path d="M13 2 4 14h6l-1 8 9-12h-6z" /></svg>;
+    case 'funnel': return <svg {...p}><path d="M3 4h18l-7 8v7l-4 2v-9z" /></svg>;
+    case 'clipboard': return <svg {...p}><rect x="8" y="3" width="8" height="4" rx="1" /><path d="M8 5H5v16h14V5h-3" /><path d="m9 12 2 2 4-4" /></svg>;
+    case 'note': return <svg {...p}><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" /></svg>;
+    case 'chat': return <svg {...p}><path d="M21 15a2 2 0 0 1-2 2H8l-4 4V5a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2z" /></svg>;
+    case 'mail': return <svg {...p}><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m3 7 9 6 9-6" /></svg>;
+    case 'bell': return <svg {...p}><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.7 21a2 2 0 0 1-3.4 0" /></svg>;
+    case 'user': return <svg {...p}><circle cx="12" cy="8" r="4" /><path d="M20 21a8 8 0 0 0-16 0" /></svg>;
+    case 'swap': return <svg {...p}><path d="m17 3 4 4-4 4" /><path d="M21 7H7" /><path d="m7 21-4-4 4-4" /><path d="M3 17h14" /></svg>;
+    case 'edit': return <svg {...p}><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" /></svg>;
+    default: return <svg {...p}><circle cx="12" cy="12" r="8" /></svg>;
+  }
+}
 
 function triggerMeta(value: string) {
   for (const g of TRIGGER_GROUPS) { const it = g.items.find((i) => i.value === value); if (it) return it; }
@@ -344,16 +370,16 @@ export default function AutomationCanvas() {
               </svg>
 
               <FlowNode cap="When" title={`When ${triggerLabel(cur.trigger_type).replace('N days', `${cur.days} days`)}`}
-                sub={triggerMeta(cur.trigger_type).timed ? 'Checked daily' : 'Fires instantly'} role="trigger"
+                sub={triggerMeta(cur.trigger_type).timed ? 'Checked daily' : 'Fires instantly'} role="trigger" icon="bolt"
                 x={CX.trig} y={BASEY} selected={node.kind === 'trigger'} onClick={() => setNode({ kind: 'trigger' })} />
 
               <FlowNode cap="Only if" title={cur.conditions.length ? `${cur.conditions.length} condition${cur.conditions.length > 1 ? 's' : ''} must pass` : 'Runs every time'}
-                sub={cur.conditions.length ? prettyCond(cur.conditions[0]) : 'No filter'} role="cond"
+                sub={cur.conditions.length ? prettyCond(cur.conditions[0]) : 'No filter'} role="cond" icon="funnel"
                 x={CX.cond} y={BASEY} selected={node.kind === 'cond'} onClick={() => setNode({ kind: 'cond' })} />
 
               {cur.actions.map((a, i) => (
                 <FlowNode key={i} cap={`Then · ${i + 1}`} title={actionLabel(a.action_type)} sub={cfgSummary(a)}
-                  role={ACTION_ROLE[a.action_type]} x={CX.act} y={BASEY + i * GAPY}
+                  role={ACTION_ROLE[a.action_type]} icon={ACTION_ICON[a.action_type] || 'clipboard'} x={CX.act} y={BASEY + i * GAPY}
                   selected={node.kind === 'action' && node.i === i} onClick={() => setNode({ kind: 'action', i })} />
               ))}
 
@@ -434,7 +460,7 @@ export default function AutomationCanvas() {
                 <div style={{ ...railLabel, margin: '10px 6px 4px' }}>{g.group}</div>
                 {g.items.map((x) => (
                   <button key={x.value} onClick={() => addAction(x.value)} style={paletteItem}>
-                    <span style={{ width: 26, height: 26, borderRadius: 7, flex: '0 0 auto', background: ROLE_COLOR[ACTION_ROLE[x.value]] }} />
+                    <span style={{ width: 26, height: 26, borderRadius: 7, flex: '0 0 auto', background: ROLE_COLOR[ACTION_ROLE[x.value]], display: 'grid', placeItems: 'center' }}><Glyph name={ACTION_ICON[x.value] || 'clipboard'} size={15} /></span>
                     <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--text)' }}>{x.label}</span>
                   </button>
                 ))}
@@ -458,8 +484,8 @@ export default function AutomationCanvas() {
 }
 
 // ── canvas node ──
-function FlowNode({ cap, title, sub, role, x, y, selected, onClick }: {
-  cap: string; title: string; sub: string; role: string; x: number; y: number; selected: boolean; onClick: () => void;
+function FlowNode({ cap, title, sub, role, icon, x, y, selected, onClick }: {
+  cap: string; title: string; sub: string; role: string; icon: string; x: number; y: number; selected: boolean; onClick: () => void;
 }) {
   const color = ROLE_COLOR[role] || 'var(--text-dim)';
   return (
@@ -473,7 +499,7 @@ function FlowNode({ cap, title, sub, role, x, y, selected, onClick }: {
       <div style={{ padding: '9px 13px 12px' }}>
         <div style={{ fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', fontWeight: 800, color }}>{cap}</div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginTop: 5 }}>
-          <span style={{ width: 30, height: 30, borderRadius: 8, flex: '0 0 auto', background: color, opacity: 0.92 }} />
+          <span style={{ width: 30, height: 30, borderRadius: 8, flex: '0 0 auto', background: color, display: 'grid', placeItems: 'center' }}><Glyph name={icon} /></span>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text)', lineHeight: 1.2 }}>{title}</div>
             <div style={{ fontSize: 11.5, color: 'var(--text-dim)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sub}</div>
