@@ -425,6 +425,88 @@ export const crmWhatsapp = {
     api.get<Wrapped<WhatsappLog[]>>(`${BASE}/whatsapp/logs${qs(params)}`),
 };
 
+// ── WhatsApp Broadcasts (campaigns) — Phase 1 ──────────────────────────────
+export interface BroadcastAudience {
+  lead_ids?: string[];
+  statuses?: string[];
+  cities?: string[];
+  states?: string[];
+  countries?: string[];
+  industries?: string[];
+  tags?: string[];
+  min_score?: number | null;
+  search?: string | null;
+}
+export interface BroadcastVarSource { type: 'field' | 'literal'; key?: string; value?: string }
+export type BroadcastVariableMap = Record<string, BroadcastVarSource>;
+export type BroadcastStatus = 'draft' | 'scheduled' | 'sending' | 'paused' | 'completed' | 'cancelled' | 'failed';
+export interface Broadcast {
+  id: string;
+  org_id: string;
+  client_id: string | null;
+  name: string;
+  template_id: string;
+  template_meta_name: string | null;
+  template_language: string | null;
+  variable_map: BroadcastVariableMap;
+  audience: BroadcastAudience;
+  status: BroadcastStatus;
+  throttle_per_min: number;
+  scheduled_at: string | null;
+  total_recipients: number;
+  sent_count: number;
+  delivered_count: number;
+  read_count: number;
+  failed_count: number;
+  skipped_count: number;
+  started_at: string | null;
+  completed_at: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+export type BroadcastRecipientStatus = 'queued' | 'sent' | 'delivered' | 'read' | 'failed' | 'skipped';
+export interface BroadcastRecipient {
+  id: string;
+  broadcast_id: string;
+  lead_id: string | null;
+  phone: string;
+  status: BroadcastRecipientStatus;
+  skip_reason: string | null;
+  provider_message_id: string | null;
+  error: string | null;
+  variables: Record<string, string> | null;
+  sent_at: string | null;
+  updated_at: string;
+}
+export interface BroadcastPreview {
+  counts: { candidates: number; eligible: number; no_phone: number; not_opted_in: number; opted_out: number; duplicate: number };
+  sample: Array<{ lead_id: string; name: string; phone: string }>;
+}
+export interface CreateBroadcastBody {
+  name: string;
+  template_id: string;
+  audience: BroadcastAudience;
+  variable_map?: BroadcastVariableMap;
+  throttle_per_min?: number;
+  scheduled_at?: string | null;
+}
+export const crmBroadcasts = {
+  list: (params?: Record<string, string | number | boolean | undefined | null>) =>
+    api.get<Wrapped<Broadcast[]>>(`${BASE}/broadcasts${qs(params)}`),
+  get: (id: string) => api.get<Wrapped<Broadcast>>(`${BASE}/broadcasts/${id}`),
+  recipients: (id: string, params?: Record<string, string | number | boolean | undefined | null>) =>
+    api.get<Wrapped<BroadcastRecipient[]>>(`${BASE}/broadcasts/${id}/recipients${qs(params)}`),
+  preview: (body: { audience: BroadcastAudience; variable_map?: BroadcastVariableMap }) =>
+    api.post<Wrapped<BroadcastPreview>>(`${BASE}/broadcasts/preview`, body),
+  create: (body: CreateBroadcastBody) => api.post<Wrapped<Broadcast>>(`${BASE}/broadcasts`, body),
+  launch: (id: string) => api.post<Wrapped<Broadcast>>(`${BASE}/broadcasts/${id}/launch`, {}),
+  pause: (id: string) => api.post<Wrapped<Broadcast>>(`${BASE}/broadcasts/${id}/pause`, {}),
+  resume: (id: string) => api.post<Wrapped<Broadcast>>(`${BASE}/broadcasts/${id}/resume`, {}),
+  cancel: (id: string) => api.post<Wrapped<Broadcast>>(`${BASE}/broadcasts/${id}/cancel`, {}),
+  process: (id: string) => api.post<Wrapped<Broadcast>>(`${BASE}/broadcasts/${id}/process`, {}),
+};
+
 // Phase 3: States + Cities
 export const crmStatesApi = {
   ...crud<CrmState>(`${BASE}/states`),
@@ -694,7 +776,7 @@ const crmApi = {
   territories: crmTerritories, automations: crmAutomations,
   customFields: crmCustomFields,
   productCategories: crmProductCategories, products: crmProducts,
-  whatsappTemplates: crmWhatsappTemplates, whatsapp: crmWhatsapp,
+  whatsappTemplates: crmWhatsappTemplates, whatsapp: crmWhatsapp, broadcasts: crmBroadcasts,
   locations: crmStatesApi, cities: crmCitiesApi,
   import: crmImport, analytics: crmAnalytics, ai: crmAi, settings: crmSettings,
   integrations: crmIntegrations,

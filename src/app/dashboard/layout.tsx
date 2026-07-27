@@ -499,6 +499,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       // Kaiyo/TATA org (they don't use conversation analysis on the dashboard).
       { href: '/dashboard/crm/conversations',    label: 'Conversation Analysis', icon: 'M12 2a3 3 0 00-3 3v7a3 3 0 006 0V5a3 3 0 00-3-3z M19 10v2a7 7 0 01-14 0v-2 M12 19v3 M8 22h8', module: 'crm_conversation_intel', hiddenForTata: true },
       { href: '/dashboard/crm/whatsapp',         label: 'WhatsApp',       icon: ICON_WHATSAPP, module: 'crm_whatsapp' },
+      { href: '/dashboard/crm/campaigns',        label: 'Campaigns',      icon: 'M3 11l18-5v12L3 14v-3z M11.6 16.8a3 3 0 11-5.8-1.6', module: 'crm_whatsapp' },
       // KINI website-chatbot conversations from kinematicapp.com + the leads
       // they capture. This is the Kinematic platform's own website funnel, so
       // it's restricted to the Kinematic super admin — no client tenant (BMW,
