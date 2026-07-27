@@ -406,6 +406,53 @@ export default function PrivacyPage() {
           </table>
         </div>
 
+        <h2 style={h2}>14. Google user data (Google API Services)</h2>
+        <p style={p}>
+          Connecting your Google account is an <strong>optional</strong> integration. When you
+          enable it, {ENTITY} accesses limited Google data solely to power features you explicitly
+          turn on:
+        </p>
+        <ul>
+          <li>
+            <strong>Google Contacts</strong> (<code>contacts.readonly</code>, read-only) — accessed
+            only when you choose &ldquo;Import Google contacts&rdquo;, to copy your contacts into your
+            CRM so you can build email-campaign audiences.
+          </li>
+          <li>
+            <strong>Google Calendar</strong> (<code>calendar.events</code>) — to sync CRM
+            activities and tasks you create into your Google Calendar.
+          </li>
+          <li>
+            <strong>Basic Google profile email</strong> (<code>userinfo.email</code>) — to display
+            which Google account is connected.
+          </li>
+        </ul>
+        <p style={p}>
+          {ENTITY}&rsquo;s use and transfer to any other app of information received from Google APIs
+          will adhere to the{' '}
+          <a
+            href="https://developers.google.com/terms/api-services-user-data-policy"
+            style={link}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Google API Services User Data Policy
+          </a>
+          , including the <strong>Limited Use</strong> requirements. Google user data is used{' '}
+          <strong>only</strong> to provide and improve these user-facing features; it is{' '}
+          <strong>not sold</strong>, <strong>not used for advertising</strong>, and{' '}
+          <strong>not used to train generalized AI / ML models</strong>. We do not allow humans to
+          read this data except (a) with your consent, (b) where necessary for security or to comply
+          with applicable law, or (c) where the data is aggregated and anonymised for internal
+          operations.
+        </p>
+        <p style={p}>
+          You can <strong>disconnect Google at any time</strong> from the integration screen; this
+          revokes our access tokens with Google and stops further access. Contacts already imported
+          become ordinary CRM records that you control and can delete. Access and refresh tokens are
+          stored securely and used solely to perform the actions above on your behalf.
+        </p>
+
         <hr
           style={{
             border: 0,
