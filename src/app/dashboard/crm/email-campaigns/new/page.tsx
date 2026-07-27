@@ -27,12 +27,20 @@ const input: React.CSSProperties = { width: '100%', background: 'var(--s4)', bor
 const label: React.CSSProperties = { display: 'block', fontSize: 11, fontWeight: 700, color: C.gray, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 6 };
 const csv = (s: string) => s.split(',').map((x) => x.trim()).filter(Boolean);
 
+// Merge variables the send loop fills from each recipient's lead record.
+const VARIABLES: Array<{ token: string; desc: string }> = [
+  { token: '{{first_name}}', desc: 'First name' },
+  { token: '{{last_name}}', desc: 'Last name' },
+  { token: '{{email}}', desc: 'Email address' },
+];
+
 export default function NewEmailCampaignPage() {
   const router = useRouter();
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [name, setName] = useState('');
   const [templateId, setTemplateId] = useState('');
   const [throttle, setThrottle] = useState(60);
+  const [copied, setCopied] = useState('');
 
   // Audience filter state
   const [consentOnly, setConsentOnly] = useState(true);
@@ -119,9 +127,28 @@ export default function NewEmailCampaignPage() {
           {selectedTemplate && (
             <div style={{ marginTop: 10, fontSize: 12, color: C.gray }}>
               Subject: <b style={{ color: C.white }}>{selectedTemplate.subject}</b>
-              <span style={{ marginLeft: 8, color: C.grayd }}>Use <code>{'{{first_name}}'}</code> in the template for a personalised greeting.</span>
             </div>
           )}
+        </div>
+
+        {/* Available merge variables — auto-filled per recipient from their lead record. */}
+        <div style={{ marginTop: 16, background: 'var(--s4)', border: `1px solid ${C.border}`, borderRadius: 12, padding: 14 }}>
+          <div style={{ ...label, marginBottom: 8 }}>Available variables</div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+            {VARIABLES.map((v) => (
+              <button key={v.token} type="button"
+                onClick={() => { navigator.clipboard?.writeText(v.token); setCopied(v.token); setTimeout(() => setCopied(''), 1200); }}
+                title="Copy — paste into the template (Settings → Email Templates)"
+                style={{ display: 'flex', alignItems: 'center', gap: 7, background: C.s3, border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 10px', cursor: 'pointer', color: C.white }}>
+                <code style={{ fontSize: 12, color: C.blue }}>{v.token}</code>
+                <span style={{ fontSize: 11, color: C.grayd }}>{v.desc}</span>
+                {copied === v.token && <span style={{ fontSize: 10, color: C.green, fontWeight: 700 }}>copied</span>}
+              </button>
+            ))}
+          </div>
+          <div style={{ fontSize: 11, color: C.grayd, lineHeight: 1.6 }}>
+            Put these in the template (Settings → Email Templates) — each email fills them from the contact&apos;s record automatically. A blank first name falls back to <b style={{ color: C.gray }}>&ldquo;there&rdquo;</b> (so <code>Hi {'{{first_name}}'},</code> never sends as <code>Hi ,</code>).
+          </div>
         </div>
       </div>
 
