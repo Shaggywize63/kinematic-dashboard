@@ -94,7 +94,7 @@ export default function NewCampaignPage() {
   const runPreview = async () => {
     setPreviewing(true); setMsg(null);
     try {
-      const r = await crmBroadcasts.preview({ audience: buildAudience(), variable_map: varMap });
+      const r = await crmBroadcasts.preview({ audience: buildAudience(), variable_map: varMap, template_id: templateId || undefined });
       setPreview(r.data);
     } catch (e: any) { setMsg({ ok: false, text: e?.message || 'Preview failed' }); }
     finally { setPreviewing(false); }
@@ -210,7 +210,8 @@ export default function NewCampaignPage() {
           {preview && (
             <span style={{ fontSize: 13, color: C.white }}>
               <b style={{ color: C.green }}>{preview.counts.eligible}</b> will receive
-              <span style={{ color: C.grayd }}> · {preview.counts.candidates} matched · {preview.counts.not_opted_in} not opted-in · {preview.counts.opted_out} opted-out · {preview.counts.no_phone} no phone · {preview.counts.duplicate} duplicate</span>
+              <span style={{ color: C.grayd }}> · {preview.counts.candidates} matched · {preview.counts.not_opted_in} not opted-in · {preview.counts.opted_out} opted-out · {preview.counts.no_phone} no phone · {preview.counts.duplicate} duplicate{preview.counts.frequency_capped ? ` · ${preview.counts.frequency_capped} freq-capped` : ''}</span>
+              {preview.est_cost != null && <span style={{ marginLeft: 6, color: C.amber, fontWeight: 700 }}>· est. {preview.cost_currency} {preview.est_cost.toFixed(2)}</span>}
             </span>
           )}
         </div>
