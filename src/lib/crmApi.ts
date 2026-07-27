@@ -560,6 +560,95 @@ export const broadcastEntitlementApi = {
     api.put<Wrapped<BroadcastOrg>>(`/api/v1/admin/broadcast-entitlement/${orgId}`, body),
 };
 
+// ── Email Campaigns (bulk email — paid add-on, the email sibling of broadcasts)
+export interface EmailAudience {
+  lead_ids?: string[];
+  marketing_consent?: boolean;
+  status?: string[];
+  source_ids?: string[];
+  city?: string[];
+  state?: string[];
+  tags?: string[];
+  is_b2c?: boolean;
+}
+export interface EmailCampaign {
+  id: string;
+  org_id: string;
+  client_id: string | null;
+  name: string;
+  template_id: string | null;
+  subject: string;
+  body_html: string;
+  from_email: string | null;
+  audience: EmailAudience;
+  status: 'draft' | 'sending' | 'paused' | 'completed' | 'cancelled' | 'failed';
+  throttle_per_min: number;
+  total: number; sent: number; failed: number; skipped: number;
+  launched_at: string | null; completed_at: string | null;
+  created_at: string; updated_at: string;
+}
+export interface EmailCampaignRecipient {
+  id: string; campaign_id: string; email: string; first_name: string | null;
+  status: 'queued' | 'sending' | 'sent' | 'failed' | 'skipped';
+  skip_reason: string | null; error: string | null; sent_at: string | null; created_at: string;
+}
+export interface EmailCampaignPreview {
+  count: number;
+  total_candidates: number;
+  skipped: { no_email: number; duplicate: number; suppressed: number };
+  subject: string;
+  sample_html: string;
+  sample_recipients: Array<{ email: string; first_name: string | null }>;
+}
+export interface EmailCampaignAnalytics {
+  campaign: EmailCampaign;
+  totals: { recipients: number; queued: number; sent: number; failed: number; skipped: number; delivered: number; bounced: number; opened: number; clicked: number; unsubscribed: number };
+  open_rate: number; click_rate: number;
+  skips: Record<string, number>;
+}
+export interface CreateEmailCampaignBody {
+  name: string;
+  template_id?: string | null;
+  subject?: string;
+  body_html?: string;
+  body_text?: string;
+  from_email?: string;
+  audience: EmailAudience;
+  throttle_per_min?: number;
+}
+export const crmEmailCampaigns = {
+  list: (params?: Record<string, string | number | boolean | undefined | null>) =>
+    api.get<Wrapped<EmailCampaign[]>>(`${BASE}/email-campaigns${qs(params)}`),
+  get: (id: string) => api.get<Wrapped<EmailCampaign>>(`${BASE}/email-campaigns/${id}`),
+  recipients: (id: string, params?: Record<string, string | number | boolean | undefined | null>) =>
+    api.get<Wrapped<EmailCampaignRecipient[]>>(`${BASE}/email-campaigns/${id}/recipients${qs(params)}`),
+  analytics: (id: string) => api.get<Wrapped<EmailCampaignAnalytics>>(`${BASE}/email-campaigns/${id}/analytics`),
+  csvPath: (id: string) => `${BASE}/email-campaigns/${id}/recipients.csv`,
+  preview: (body: { audience: EmailAudience; template_id?: string | null; subject?: string; body_html?: string }) =>
+    api.post<Wrapped<EmailCampaignPreview>>(`${BASE}/email-campaigns/preview`, body),
+  create: (body: CreateEmailCampaignBody) => api.post<Wrapped<EmailCampaign>>(`${BASE}/email-campaigns`, body),
+  launch: (id: string) => api.post<Wrapped<EmailCampaign>>(`${BASE}/email-campaigns/${id}/launch`, {}),
+  pause: (id: string) => api.post<Wrapped<EmailCampaign>>(`${BASE}/email-campaigns/${id}/pause`, {}),
+  resume: (id: string) => api.post<Wrapped<EmailCampaign>>(`${BASE}/email-campaigns/${id}/resume`, {}),
+  cancel: (id: string) => api.post<Wrapped<EmailCampaign>>(`${BASE}/email-campaigns/${id}/cancel`, {}),
+  process: (id: string) => api.post<Wrapped<{ sent: number; failed: number; skipped: number; done: boolean }>>(`${BASE}/email-campaigns/${id}/process`, {}),
+  entitlement: () => api.get<Wrapped<{ enabled: boolean }>>(`${BASE}/email-campaigns/entitlement`),
+  usage: () => api.get<Wrapped<{ campaigns: number; emails_this_month: number }>>(`${BASE}/email-campaigns/usage`),
+  // Connect Google → import the rep's Google contacts as leads.
+  googleStatus: () => api.get<Wrapped<{ connected: boolean; email?: string; has_contacts_scope: boolean }>>(`${BASE}/email-campaigns/google/status`),
+  googleSync: () => api.post<Wrapped<{ imported: number; merged: number; skipped: number; total: number }>>(`${BASE}/email-campaigns/google/sync`, {}),
+  // Returns the Google consent URL; `returnPath` (an in-app /dashboard/ path) is
+  // where the OAuth callback bounces back to after the user grants access.
+  googleAuthorize: (returnPath: string) => api.get<{ url: string }>(`/api/v1/integrations/google/authorize?return=${encodeURIComponent(returnPath)}`),
+};
+
+// Super-admin: Email Campaigns entitlement (paid add-on).
+export const emailCampaignEntitlementApi = {
+  list: () => api.get<Wrapped<BroadcastOrg[]>>(`/api/v1/admin/email-campaign-entitlement`),
+  set: (orgId: string, body: { enabled: boolean; label?: string; project_key?: string | null }) =>
+    api.put<Wrapped<BroadcastOrg>>(`/api/v1/admin/email-campaign-entitlement/${orgId}`, body),
+};
+
 // Phase 3: States + Cities
 export const crmStatesApi = {
   ...crud<CrmState>(`${BASE}/states`),
