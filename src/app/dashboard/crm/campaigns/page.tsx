@@ -56,11 +56,18 @@ export default function CampaignsPage() {
   const [rows, setRows] = useState<Broadcast[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  const [enabled, setEnabled] = useState<boolean | null>(null);
+  const [usage, setUsage] = useState<{ month: string; sent: number } | null>(null);
 
   const load = useCallback(async () => {
     try {
-      const r = await crmBroadcasts.list({ limit: 100 });
-      setRows(r.data ?? []);
+      const ent = await crmBroadcasts.entitlement();
+      setEnabled(!!ent.data?.enabled);
+      if (ent.data?.enabled) {
+        const [r, u] = await Promise.all([crmBroadcasts.list({ limit: 100 }), crmBroadcasts.usage().catch(() => null)]);
+        setRows(r.data ?? []);
+        if (u) setUsage(u.data);
+      }
       setErr(null);
     } catch (e: any) { setErr(e?.message || 'Failed to load campaigns'); }
     finally { setLoading(false); }
@@ -82,17 +89,28 @@ export default function CampaignsPage() {
           <h1 style={{ fontFamily: "'Syne', sans-serif", fontSize: 24, fontWeight: 800, margin: '0 0 4px' }}>Campaigns</h1>
           <p style={{ color: C.gray, fontSize: 13, margin: 0, maxWidth: 640 }}>
             Send an approved WhatsApp template to a segment of your leads. Only opted-in leads are messaged, and sending is paced to protect your number&apos;s quality rating.
+            {usage && <span> · <b style={{ color: C.white }}>{usage.sent}</b> sent this month.</span>}
           </p>
         </div>
-        <Link href="/dashboard/crm/campaigns/new" style={{ background: C.red, color: '#fff', padding: '10px 18px', borderRadius: 10, fontSize: 13, fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' }}>
-          + New campaign
-        </Link>
+        {enabled && (
+          <div style={{ display: 'flex', gap: 8, whiteSpace: 'nowrap' }}>
+            <Link href="/dashboard/crm/campaigns/settings" style={{ background: C.s3, color: C.white, padding: '10px 14px', borderRadius: 10, fontSize: 13, fontWeight: 700, textDecoration: 'none', border: `1px solid ${C.border}` }}>Settings</Link>
+            <Link href="/dashboard/crm/campaigns/new" style={{ background: C.red, color: '#fff', padding: '10px 18px', borderRadius: 10, fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>+ New campaign</Link>
+          </div>
+        )}
       </div>
 
       {err && <div style={{ ...card, borderColor: 'rgba(224,30,44,0.3)', color: C.red, fontSize: 13, marginBottom: 16 }}>{err}</div>}
 
       {loading ? (
         <div style={{ ...card, color: C.gray, fontSize: 13 }}>Loading…</div>
+      ) : enabled === false ? (
+        <div style={{ ...card, textAlign: 'center', padding: '48px 20px' }}>
+          <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>WhatsApp Campaigns is a paid add-on</div>
+          <div style={{ color: C.gray, fontSize: 13, maxWidth: 460, margin: '0 auto' }}>
+            This feature isn&apos;t enabled for your account yet. Contact your Kinematic administrator to turn on WhatsApp broadcast campaigns.
+          </div>
+        </div>
       ) : rows.length === 0 ? (
         <div style={{ ...card, textAlign: 'center', padding: '48px 20px' }}>
           <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>No campaigns yet</div>

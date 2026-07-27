@@ -459,13 +459,17 @@ export interface Broadcast {
   read_count: number;
   failed_count: number;
   skipped_count: number;
+  reply_count: number;
+  est_cost: number | null;
+  actual_cost: number | null;
   started_at: string | null;
   completed_at: string | null;
+  hold_until: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
 }
-export type BroadcastRecipientStatus = 'queued' | 'sent' | 'delivered' | 'read' | 'failed' | 'skipped';
+export type BroadcastRecipientStatus = 'queued' | 'sending' | 'sent' | 'delivered' | 'read' | 'failed' | 'skipped';
 export interface BroadcastRecipient {
   id: string;
   broadcast_id: string;
@@ -473,15 +477,37 @@ export interface BroadcastRecipient {
   phone: string;
   status: BroadcastRecipientStatus;
   skip_reason: string | null;
+  failure_kind: string | null;
+  attempts: number | null;
   provider_message_id: string | null;
   error: string | null;
   variables: Record<string, string> | null;
   sent_at: string | null;
+  replied_at: string | null;
   updated_at: string;
 }
 export interface BroadcastPreview {
-  counts: { candidates: number; eligible: number; no_phone: number; not_opted_in: number; opted_out: number; duplicate: number };
+  counts: { candidates: number; eligible: number; no_phone: number; not_opted_in: number; opted_out: number; duplicate: number; frequency_capped: number };
   sample: Array<{ lead_id: string; name: string; phone: string }>;
+  est_cost: number | null;
+  cost_currency: string | null;
+}
+export interface BroadcastAnalytics {
+  total_recipients: number;
+  sent: number; delivered: number; read: number; failed: number; skipped: number; queued: number; replied: number;
+  delivery_rate: number; read_rate: number; reply_rate: number; failure_rate: number;
+  skip_reasons: Record<string, number>;
+  failure_kinds: Record<string, number>;
+  est_cost: number | null; actual_cost: number; cost_currency: string;
+}
+export interface BroadcastSettings {
+  frequency_cap_max: number | null;
+  frequency_cap_window_days: number;
+  quiet_hours_start: number | null;
+  quiet_hours_end: number | null;
+  quiet_hours_tz: string;
+  opt_out_keywords: string[] | null;
+  cost_rates: Record<string, Record<string, number>> | null;
 }
 export interface CreateBroadcastBody {
   name: string;
@@ -497,7 +523,9 @@ export const crmBroadcasts = {
   get: (id: string) => api.get<Wrapped<Broadcast>>(`${BASE}/broadcasts/${id}`),
   recipients: (id: string, params?: Record<string, string | number | boolean | undefined | null>) =>
     api.get<Wrapped<BroadcastRecipient[]>>(`${BASE}/broadcasts/${id}/recipients${qs(params)}`),
-  preview: (body: { audience: BroadcastAudience; variable_map?: BroadcastVariableMap }) =>
+  analytics: (id: string) => api.get<Wrapped<BroadcastAnalytics>>(`${BASE}/broadcasts/${id}/analytics`),
+  csvPath: (id: string) => `${BASE}/broadcasts/${id}/recipients.csv`,
+  preview: (body: { audience: BroadcastAudience; variable_map?: BroadcastVariableMap; template_id?: string | null }) =>
     api.post<Wrapped<BroadcastPreview>>(`${BASE}/broadcasts/preview`, body),
   create: (body: CreateBroadcastBody) => api.post<Wrapped<Broadcast>>(`${BASE}/broadcasts`, body),
   launch: (id: string) => api.post<Wrapped<Broadcast>>(`${BASE}/broadcasts/${id}/launch`, {}),
@@ -505,6 +533,18 @@ export const crmBroadcasts = {
   resume: (id: string) => api.post<Wrapped<Broadcast>>(`${BASE}/broadcasts/${id}/resume`, {}),
   cancel: (id: string) => api.post<Wrapped<Broadcast>>(`${BASE}/broadcasts/${id}/cancel`, {}),
   process: (id: string) => api.post<Wrapped<Broadcast>>(`${BASE}/broadcasts/${id}/process`, {}),
+  entitlement: () => api.get<Wrapped<{ enabled: boolean }>>(`${BASE}/broadcasts/entitlement`),
+  usage: () => api.get<Wrapped<{ month: string; sent: number }>>(`${BASE}/broadcasts/usage`),
+  getSettings: () => api.get<Wrapped<BroadcastSettings>>(`${BASE}/broadcasts/settings`),
+  putSettings: (body: Partial<BroadcastSettings>) => api.put<Wrapped<BroadcastSettings>>(`${BASE}/broadcasts/settings`, body),
+};
+
+// Super-admin: WhatsApp Campaigns entitlement (paid add-on).
+export interface BroadcastOrg { org_id: string; project_key: string | null; label: string | null; enabled: boolean; updated_at?: string | null }
+export const broadcastEntitlementApi = {
+  list: () => api.get<Wrapped<BroadcastOrg[]>>(`/api/v1/admin/broadcast-entitlement`),
+  set: (orgId: string, body: { enabled: boolean; label?: string; project_key?: string | null }) =>
+    api.put<Wrapped<BroadcastOrg>>(`/api/v1/admin/broadcast-entitlement/${orgId}`, body),
 };
 
 // Phase 3: States + Cities

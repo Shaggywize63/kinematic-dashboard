@@ -12,8 +12,9 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   crmBroadcasts,
-  type Broadcast, type BroadcastStatus, type BroadcastRecipient, type BroadcastRecipientStatus,
+  type Broadcast, type BroadcastStatus, type BroadcastRecipient, type BroadcastRecipientStatus, type BroadcastAnalytics,
 } from '../../../../../lib/crmApi';
+import { resolveApiUrl } from '../../../../../lib/api';
 
 const C = {
   s2: 'var(--s2)', s3: 'var(--s3)', s4: 'var(--s4)',
@@ -29,9 +30,28 @@ const STATUS_COLOR: Record<BroadcastStatus, string> = {
   completed: C.green, cancelled: C.grayd, failed: C.red,
 };
 const RCPT_COLOR: Record<BroadcastRecipientStatus, string> = {
-  queued: C.grayd, sent: C.blue, delivered: C.green, read: C.green, failed: C.red, skipped: C.amber,
+  queued: C.grayd, sending: C.amber, sent: C.blue, delivered: C.green, read: C.green, failed: C.red, skipped: C.amber,
 };
 const RCPT_TABS: Array<BroadcastRecipientStatus | 'all'> = ['all', 'queued', 'sent', 'delivered', 'read', 'failed', 'skipped'];
+
+// Authenticated CSV download (the export endpoint needs the bearer + org headers).
+function downloadCsv(path: string, filename: string) {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('kinematic_token') : null;
+  const orgRaw = typeof window !== 'undefined' ? localStorage.getItem('kinematic_user') : null;
+  const orgId = orgRaw ? (JSON.parse(orgRaw)?.org_id ?? null) : null;
+  const headers: Record<string, string> = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  if (orgId) headers['X-Org-Id'] = orgId;
+  fetch(`${resolveApiUrl()}${path}`, { headers })
+    .then((r) => r.blob())
+    .then((blob) => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename; a.click();
+      URL.revokeObjectURL(url);
+    })
+    .catch(() => alert('Export failed'));
+}
 
 function Stat({ n, label, color }: { n: number; label: string; color: string }) {
   return (
@@ -47,6 +67,7 @@ export default function CampaignDetailPage() {
   const [b, setB] = useState<Broadcast | null>(null);
   const [recipients, setRecipients] = useState<BroadcastRecipient[]>([]);
   const [tab, setTab] = useState<BroadcastRecipientStatus | 'all'>('all');
+  const [analytics, setAnalytics] = useState<BroadcastAnalytics | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -58,14 +79,19 @@ export default function CampaignDetailPage() {
     } catch { /* ignore transient */ }
   }, [id]);
 
+  const loadAnalytics = useCallback(async () => {
+    try { const r = await crmBroadcasts.analytics(id); setAnalytics(r.data); } catch { /* ignore */ }
+  }, [id]);
+
   const load = useCallback(async () => {
     try {
       const r = await crmBroadcasts.get(id);
       setB(r.data);
       setMsg(null);
+      loadAnalytics();
     } catch (e: any) { setMsg({ ok: false, text: e?.message || 'Failed to load campaign' }); }
     finally { setLoading(false); }
-  }, [id]);
+  }, [id, loadAnalytics]);
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { loadRecipients(tab); }, [tab, loadRecipients]);
@@ -78,10 +104,11 @@ export default function CampaignDetailPage() {
         const r = await crmBroadcasts.process(id);
         setB(r.data);
         loadRecipients(tab);
+        loadAnalytics();
       } catch { /* transient */ }
     }, 4000);
     return () => clearInterval(t);
-  }, [b?.status, id, tab, loadRecipients]);
+  }, [b?.status, id, tab, loadRecipients, loadAnalytics]);
 
   const act = async (fn: () => Promise<{ data: Broadcast }>, ok: string) => {
     setBusy(true); setMsg(null);
@@ -134,6 +161,26 @@ export default function CampaignDetailPage() {
         </div>
       </div>
 
+      {/* Analytics + cost */}
+      {analytics && (
+        <div style={card}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
+            <Stat n={analytics.delivery_rate} label="Delivery %" color={C.green} />
+            <Stat n={analytics.read_rate} label="Read %" color={C.green} />
+            <Stat n={analytics.reply_rate} label="Reply %" color={C.blue} />
+            <Stat n={analytics.failure_rate} label="Failure %" color={C.red} />
+            <Stat n={analytics.replied} label="Replies" color={C.blue} />
+          </div>
+          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center', fontSize: 12, color: C.gray, paddingTop: 12, borderTop: `1px solid ${C.border}` }}>
+            {b.est_cost != null && <span>Est. cost: <b style={{ color: C.white }}>{analytics.cost_currency} {b.est_cost.toFixed(2)}</b></span>}
+            <span>Billed so far: <b style={{ color: C.amber }}>{analytics.cost_currency} {analytics.actual_cost.toFixed(2)}</b></span>
+            {Object.keys(analytics.failure_kinds).length > 0 && (
+              <span>Failures: {Object.entries(analytics.failure_kinds).map(([k, n]) => `${n} ${k}`).join(', ')}</span>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Controls */}
       <div style={{ display: 'flex', gap: 10, marginBottom: 18, flexWrap: 'wrap' }}>
         {canLaunch && <button disabled={busy} onClick={() => act(() => crmBroadcasts.launch(id).then((r) => ({ data: r.data })), 'Launched.')} style={btnPrimary}>{b.scheduled_at ? 'Schedule & queue' : 'Launch now'}</button>}
@@ -146,7 +193,7 @@ export default function CampaignDetailPage() {
 
       {/* Recipients */}
       <div style={{ ...card, padding: 0, overflow: 'hidden' }}>
-        <div style={{ display: 'flex', gap: 6, padding: '12px 16px', borderBottom: `1px solid ${C.border}`, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 6, padding: '12px 16px', borderBottom: `1px solid ${C.border}`, flexWrap: 'wrap', alignItems: 'center' }}>
           {RCPT_TABS.map((t) => (
             <button key={t} onClick={() => setTab(t)}
               style={{ padding: '5px 12px', borderRadius: 7, fontSize: 12, fontWeight: 700, cursor: 'pointer', textTransform: 'capitalize',
@@ -154,6 +201,10 @@ export default function CampaignDetailPage() {
               {t}
             </button>
           ))}
+          <button onClick={() => downloadCsv(crmBroadcasts.csvPath(id), `campaign-${b.name.replace(/[^a-z0-9]+/gi, '-')}.csv`)}
+            style={{ marginLeft: 'auto', padding: '5px 12px', borderRadius: 7, fontSize: 12, fontWeight: 700, cursor: 'pointer', background: 'transparent', color: C.gray, border: `1px solid ${C.border}` }}>
+            ↓ Export CSV
+          </button>
         </div>
         {recipients.length === 0 ? (
           <div style={{ padding: '28px 16px', textAlign: 'center', color: C.gray, fontSize: 13 }}>
@@ -163,8 +214,8 @@ export default function CampaignDetailPage() {
           <div>
             {recipients.map((r, i) => (
               <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', borderTop: i === 0 ? 'none' : `1px solid ${C.border}`, fontSize: 13 }}>
-                <span style={{ flex: 1, minWidth: 0, color: C.white }}>{r.phone || '—'}</span>
-                {(r.skip_reason || r.error) && <span style={{ fontSize: 11, color: C.grayd, flex: 1, textAlign: 'right', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.skip_reason || r.error}</span>}
+                <span style={{ flex: 1, minWidth: 0, color: C.white }}>{r.phone || '—'}{r.replied_at && <span style={{ marginLeft: 6, fontSize: 10, color: C.blue }}>↩ replied</span>}</span>
+                {(r.skip_reason || r.error) && <span style={{ fontSize: 11, color: C.grayd, flex: 1, textAlign: 'right', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.skip_reason || r.error}{r.attempts && r.attempts > 1 ? ` · ${r.attempts} tries` : ''}</span>}
                 <span style={{ fontSize: 11, fontWeight: 800, color: RCPT_COLOR[r.status], textTransform: 'uppercase', minWidth: 72, textAlign: 'right' }}>{r.status}</span>
               </div>
             ))}
