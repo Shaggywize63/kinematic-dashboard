@@ -10,6 +10,7 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { crmEmailCampaigns, type EmailCampaign } from '../../../../lib/crmApi';
 import { getStoredUser } from '../../../../lib/auth';
 
@@ -58,6 +59,41 @@ export default function EmailCampaignsPage() {
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [usage, setUsage] = useState<{ campaigns: number; emails_this_month: number } | null>(null);
   const isSuper = (typeof window !== 'undefined' ? (getStoredUser()?.role || '') : '').toLowerCase() === 'super_admin';
+  const router = useRouter();
+  const [gStatus, setGStatus] = useState<{ connected: boolean; email?: string; has_contacts_scope: boolean } | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [notice, setNotice] = useState('');
+
+  const loadGoogleStatus = useCallback(async () => {
+    try { const r = await crmEmailCampaigns.googleStatus(); setGStatus(r.data); } catch { setGStatus(null); }
+  }, []);
+  useEffect(() => { loadGoogleStatus(); }, [loadGoogleStatus]);
+
+  // Handle the Google OAuth return (?connected=/?error=) when connecting from here.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const sp = new URLSearchParams(window.location.search);
+    const connected = sp.get('connected');
+    const error = sp.get('error');
+    if (connected) { setNotice(`Google connected as ${connected}. Click “Import Google contacts” to pull them in.`); loadGoogleStatus(); router.replace('/dashboard/crm/email-campaigns'); }
+    else if (error) { setNotice(`Google connection failed: ${error}. Add yourself as a test user (or verify the app) in Google Cloud, then retry.`); router.replace('/dashboard/crm/email-campaigns'); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const connectGoogle = async () => {
+    try {
+      const r = await crmEmailCampaigns.googleAuthorize('/dashboard/crm/email-campaigns');
+      if (r?.url) window.location.href = r.url; else setNotice('Google OAuth is not configured on the server.');
+    } catch (e: any) { setNotice(e?.message || 'Could not start Google connect'); }
+  };
+  const importGoogle = async () => {
+    setSyncing(true); setNotice('');
+    try {
+      const d = (await crmEmailCampaigns.googleSync()).data;
+      setNotice(`Imported ${d.imported} new + ${d.merged} existing contact(s) from Google${d.skipped ? ` (${d.skipped} skipped)` : ''}.`);
+    } catch (e: any) { setNotice(e?.message || 'Google import failed'); }
+    finally { setSyncing(false); }
+  };
 
   const load = useCallback(async () => {
     try {
@@ -92,15 +128,21 @@ export default function EmailCampaignsPage() {
             {usage && <span> · <b style={{ color: C.white }}>{usage.emails_this_month}</b> sent this month.</span>}
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 8, whiteSpace: 'nowrap', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 8, whiteSpace: 'nowrap', alignItems: 'center', flexWrap: 'wrap' }}>
           {isSuper && <Link href="/dashboard/settings/email-campaigns" style={{ color: C.gray, fontSize: 12, textDecoration: 'none', marginRight: 4 }}>Manage access →</Link>}
           {enabled && <>
-            <Link href="/dashboard/crm/leads/import" style={{ background: C.s3, color: C.white, padding: '10px 14px', borderRadius: 10, fontSize: 13, fontWeight: 700, textDecoration: 'none', border: `1px solid ${C.border}` }}>Import contacts</Link>
+            {gStatus?.connected && gStatus?.has_contacts_scope ? (
+              <button onClick={importGoogle} disabled={syncing} style={{ background: C.s3, color: C.white, padding: '10px 14px', borderRadius: 10, fontSize: 13, fontWeight: 700, border: `1px solid ${C.border}`, cursor: syncing ? 'not-allowed' : 'pointer', opacity: syncing ? 0.6 : 1 }}>{syncing ? 'Importing…' : 'Import Google contacts'}</button>
+            ) : (
+              <button onClick={connectGoogle} style={{ background: C.s3, color: C.white, padding: '10px 14px', borderRadius: 10, fontSize: 13, fontWeight: 700, border: `1px solid ${C.border}`, cursor: 'pointer' }}>{gStatus?.connected ? 'Reconnect Google' : 'Connect Google'}</button>
+            )}
+            <Link href="/dashboard/crm/leads/import" style={{ background: C.s3, color: C.white, padding: '10px 14px', borderRadius: 10, fontSize: 13, fontWeight: 700, textDecoration: 'none', border: `1px solid ${C.border}` }}>Import CSV</Link>
             <Link href="/dashboard/crm/email-campaigns/new" style={{ background: C.red, color: '#fff', padding: '10px 18px', borderRadius: 10, fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>+ New campaign</Link>
           </>}
         </div>
       </div>
 
+      {notice && <div style={{ ...card, borderColor: 'rgba(0,217,126,0.3)', color: C.green, fontSize: 13, marginBottom: 16, padding: 14 }}>{notice}</div>}
       {err && <div style={{ ...card, borderColor: 'rgba(224,30,44,0.3)', color: C.red, fontSize: 13, marginBottom: 16 }}>{err}</div>}
 
       {loading ? (
