@@ -487,11 +487,13 @@ export interface BroadcastRecipient {
   updated_at: string;
 }
 export interface BroadcastPreview {
-  counts: { candidates: number; eligible: number; no_phone: number; not_opted_in: number; opted_out: number; duplicate: number; frequency_capped: number };
+  counts: { candidates: number; eligible: number; no_phone: number; not_opted_in: number; opted_out: number; duplicate: number; frequency_capped: number; suppressed: number };
   sample: Array<{ lead_id: string; name: string; phone: string }>;
   est_cost: number | null;
   cost_currency: string | null;
 }
+export interface BroadcastSegment { id: string; org_id: string; client_id: string | null; name: string; audience: BroadcastAudience; created_at: string }
+export interface BroadcastSuppression { id: string; org_id: string; phone_digits: string; lead_id: string | null; reason: string | null; created_at: string }
 export interface BroadcastAnalytics {
   total_recipients: number;
   sent: number; delivered: number; read: number; failed: number; skipped: number; queued: number; replied: number;
@@ -508,6 +510,7 @@ export interface BroadcastSettings {
   quiet_hours_tz: string;
   opt_out_keywords: string[] | null;
   cost_rates: Record<string, Record<string, number>> | null;
+  reply_creates_task: boolean;
 }
 export interface CreateBroadcastBody {
   name: string;
@@ -537,6 +540,16 @@ export const crmBroadcasts = {
   usage: () => api.get<Wrapped<{ month: string; sent: number }>>(`${BASE}/broadcasts/usage`),
   getSettings: () => api.get<Wrapped<BroadcastSettings>>(`${BASE}/broadcasts/settings`),
   putSettings: (body: Partial<BroadcastSettings>) => api.put<Wrapped<BroadcastSettings>>(`${BASE}/broadcasts/settings`, body),
+  // R1 · saved segments
+  listSegments: () => api.get<Wrapped<BroadcastSegment[]>>(`${BASE}/broadcasts/segments`),
+  createSegment: (body: { name: string; audience: BroadcastAudience }) => api.post<Wrapped<BroadcastSegment>>(`${BASE}/broadcasts/segments`, body),
+  deleteSegment: (id: string) => api.delete<Wrapped<{ deleted: boolean }>>(`${BASE}/broadcasts/segments/${id}`),
+  // R2 · suppression list
+  listSuppressions: (params?: Record<string, string | number | undefined>) => api.get<Wrapped<BroadcastSuppression[]>>(`${BASE}/broadcasts/suppressions${qs(params)}`),
+  addSuppressions: (body: { phones: string[]; reason?: string }) => api.post<Wrapped<{ added: number }>>(`${BASE}/broadcasts/suppressions`, body),
+  removeSuppression: (id: string) => api.delete<Wrapped<{ deleted: boolean }>>(`${BASE}/broadcasts/suppressions/${id}`),
+  // R3 · test send
+  test: (id: string, phones: string[]) => api.post<Wrapped<{ sent: number; results: Array<{ phone: string; status: string; error?: string | null }> }>>(`${BASE}/broadcasts/${id}/test`, { phones }),
 };
 
 // Super-admin: WhatsApp Campaigns entitlement (paid add-on).

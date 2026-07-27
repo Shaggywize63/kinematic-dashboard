@@ -13,7 +13,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   crmBroadcasts, crmWhatsappTemplates,
-  type BroadcastAudience, type BroadcastVariableMap, type BroadcastPreview,
+  type BroadcastAudience, type BroadcastVariableMap, type BroadcastPreview, type BroadcastSegment,
 } from '../../../../../lib/crmApi';
 import type { WhatsappTemplate } from '../../../../../types/crm';
 
@@ -50,6 +50,7 @@ export default function NewCampaignPage() {
 
   const [aud, setAud] = useState({ statuses: '', cities: '', states: '', tags: '', industries: '', min_score: '', search: '' });
   const [varMap, setVarMap] = useState<BroadcastVariableMap>({});
+  const [segments, setSegments] = useState<BroadcastSegment[]>([]);
 
   const [preview, setPreview] = useState<BroadcastPreview | null>(null);
   const [previewing, setPreviewing] = useState(false);
@@ -64,7 +65,28 @@ export default function NewCampaignPage() {
       } catch { /* none / no access */ }
       finally { setLoadingTpl(false); }
     })();
+    crmBroadcasts.listSegments().then((r) => setSegments(r.data ?? [])).catch(() => {});
   }, []);
+
+  // Populate the audience form from a saved segment.
+  const applySegment = (seg: BroadcastSegment) => {
+    const a = seg.audience || {};
+    setAud({
+      statuses: (a.statuses || []).join(', '), cities: (a.cities || []).join(', '), states: (a.states || []).join(', '),
+      tags: (a.tags || []).join(', '), industries: (a.industries || []).join(', '),
+      min_score: a.min_score != null ? String(a.min_score) : '', search: a.search || '',
+    });
+    setPreview(null);
+  };
+  const saveSegment = async () => {
+    const segName = window.prompt('Save this audience as a segment. Name:');
+    if (!segName?.trim()) return;
+    try {
+      await crmBroadcasts.createSegment({ name: segName.trim(), audience: buildAudience() });
+      const r = await crmBroadcasts.listSegments(); setSegments(r.data ?? []);
+      setMsg({ ok: true, text: `Saved segment "${segName.trim()}".` });
+    } catch (e: any) { setMsg({ ok: false, text: e?.message || 'Could not save segment' }); }
+  };
 
   const template = useMemo(() => templates.find((t) => t.id === templateId) || null, [templates, templateId]);
   const vars = useMemo(() => detectVars(template?.body_text || ''), [template]);
@@ -156,6 +178,13 @@ export default function NewCampaignPage() {
             {template.header_text && <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>{template.header_text}</div>}
             <div style={{ fontSize: 13, color: C.white, whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{template.body_text}</div>
             {template.footer_text && <div style={{ fontSize: 11, color: C.grayd, marginTop: 8 }}>{template.footer_text}</div>}
+            {template.buttons && template.buttons.length > 0 && (
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>
+                {template.buttons.map((b, i) => (
+                  <span key={i} style={{ fontSize: 12, fontWeight: 700, color: C.blue, border: `1px solid ${C.border}`, borderRadius: 8, padding: '4px 12px' }}>{b.text}</span>
+                ))}
+              </div>
+            )}
             {template.status && template.status !== 'approved' && (
               <div style={{ fontSize: 11, color: C.amber, marginTop: 8 }}>⚠ This template is {template.status}. WhatsApp only delivers approved templates.</div>
             )}
@@ -196,6 +225,15 @@ export default function NewCampaignPage() {
         <div style={{ fontSize: 12, color: C.gray, marginBottom: 14 }}>
           Filter your leads. Leave everything blank to target every lead in scope. Only opted-in leads with a phone number are messaged — the rest are suppressed and shown below.
         </div>
+        {segments.length > 0 && (
+          <div style={{ marginBottom: 14 }}>
+            <span style={label}>Load a saved segment</span>
+            <select value="" onChange={(e) => { const s = segments.find((x) => x.id === e.target.value); if (s) applySegment(s); }} style={input}>
+              <option value="">Select a segment…</option>
+              {segments.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          </div>
+        )}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
           <div><span style={label}>Statuses <span style={{ color: C.grayd, textTransform: 'none' }}>(comma-sep)</span></span><input value={aud.statuses} onChange={(e) => setAud({ ...aud, statuses: e.target.value })} placeholder="new, qualified" style={input} /></div>
           <div><span style={label}>Tags <span style={{ color: C.grayd, textTransform: 'none' }}>(any of)</span></span><input value={aud.tags} onChange={(e) => setAud({ ...aud, tags: e.target.value })} placeholder="vip, retail" style={input} /></div>
@@ -207,10 +245,11 @@ export default function NewCampaignPage() {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 16, flexWrap: 'wrap' }}>
           <button onClick={runPreview} disabled={previewing} style={{ ...btnGhost, cursor: previewing ? 'not-allowed' : 'pointer' }}>{previewing ? 'Checking…' : 'Preview audience'}</button>
+          <button onClick={saveSegment} style={{ ...btnGhost, background: 'transparent' }}>Save as segment</button>
           {preview && (
             <span style={{ fontSize: 13, color: C.white }}>
               <b style={{ color: C.green }}>{preview.counts.eligible}</b> will receive
-              <span style={{ color: C.grayd }}> · {preview.counts.candidates} matched · {preview.counts.not_opted_in} not opted-in · {preview.counts.opted_out} opted-out · {preview.counts.no_phone} no phone · {preview.counts.duplicate} duplicate{preview.counts.frequency_capped ? ` · ${preview.counts.frequency_capped} freq-capped` : ''}</span>
+              <span style={{ color: C.grayd }}> · {preview.counts.candidates} matched · {preview.counts.not_opted_in} not opted-in · {preview.counts.opted_out} opted-out · {preview.counts.no_phone} no phone · {preview.counts.duplicate} duplicate{preview.counts.frequency_capped ? ` · ${preview.counts.frequency_capped} freq-capped` : ''}{preview.counts.suppressed ? ` · ${preview.counts.suppressed} suppressed` : ''}</span>
               {preview.est_cost != null && <span style={{ marginLeft: 6, color: C.amber, fontWeight: 700 }}>· est. {preview.cost_currency} {preview.est_cost.toFixed(2)}</span>}
             </span>
           )}

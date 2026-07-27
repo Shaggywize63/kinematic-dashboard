@@ -117,6 +117,18 @@ export default function CampaignDetailPage() {
     finally { setBusy(false); }
   };
 
+  const sendTest = async () => {
+    const raw = window.prompt('Send a test of this template to (comma-separated numbers, max 5):');
+    const phones = (raw || '').split(',').map((s) => s.trim()).filter(Boolean).slice(0, 5);
+    if (!phones.length) return;
+    setBusy(true); setMsg(null);
+    try {
+      const r = await crmBroadcasts.test(id, phones);
+      setMsg({ ok: r.data.sent > 0, text: `Test: ${r.data.sent}/${phones.length} sent.` });
+    } catch (e: any) { setMsg({ ok: false, text: e?.message || 'Test send failed' }); }
+    finally { setBusy(false); }
+  };
+
   if (loading) return <div style={{ color: C.gray, fontSize: 13, fontFamily: "'DM Sans', sans-serif" }}>Loading…</div>;
   if (!b) return (
     <div style={{ fontFamily: "'DM Sans', sans-serif", color: C.white }}>
@@ -188,6 +200,7 @@ export default function CampaignDetailPage() {
         {b.status === 'paused' && <button disabled={busy} onClick={() => act(() => crmBroadcasts.resume(id).then((r) => ({ data: r.data })), 'Resumed.')} style={btnPrimary}>Resume</button>}
         {b.status === 'scheduled' && <button disabled={busy} onClick={() => act(() => crmBroadcasts.pause(id).then((r) => ({ data: r.data })), 'Paused.')} style={btnGhost}>Pause schedule</button>}
         {['sending', 'paused', 'scheduled'].includes(b.status) && <button disabled={busy} onClick={() => act(() => crmBroadcasts.cancel(id).then((r) => ({ data: r.data })), 'Cancelled.')} style={{ ...btnGhost, color: C.red }}>Cancel</button>}
+        {b.status !== 'completed' && b.status !== 'cancelled' && <button disabled={busy} onClick={sendTest} style={btnGhost}>Send test</button>}
         {b.status === 'sending' && <span style={{ alignSelf: 'center', fontSize: 12, color: C.amber }}>● sending live…</span>}
       </div>
 

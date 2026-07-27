@@ -6,7 +6,7 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { crmBroadcasts, type BroadcastSettings } from '../../../../../lib/crmApi';
+import { crmBroadcasts, type BroadcastSettings, type BroadcastSuppression } from '../../../../../lib/crmApi';
 import { getStoredUser } from '../../../../../lib/auth';
 
 const C = {
@@ -24,12 +24,14 @@ export default function CampaignSettingsPage() {
   const [f, setF] = useState({
     frequency_cap_max: '', frequency_cap_window_days: '7',
     quiet_hours_start: '', quiet_hours_end: '', quiet_hours_tz: 'Asia/Kolkata',
-    opt_out_keywords: '',
+    opt_out_keywords: '', reply_creates_task: true,
     rate_marketing_in: '', rate_utility_in: '', rate_auth_in: '',
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [supp, setSupp] = useState<BroadcastSuppression[]>([]);
+  const [newNumbers, setNewNumbers] = useState('');
 
   const user = typeof window !== 'undefined' ? getStoredUser() : null;
   const role = (user?.role || '').toLowerCase();
@@ -47,6 +49,7 @@ export default function CampaignSettingsPage() {
         quiet_hours_end: s.quiet_hours_end != null ? String(s.quiet_hours_end) : '',
         quiet_hours_tz: s.quiet_hours_tz || 'Asia/Kolkata',
         opt_out_keywords: (s.opt_out_keywords || []).join(', '),
+        reply_creates_task: s.reply_creates_task !== false,
         rate_marketing_in: s.cost_rates?.marketing?.IN != null ? String(s.cost_rates.marketing.IN) : '',
         rate_utility_in: s.cost_rates?.utility?.IN != null ? String(s.cost_rates.utility.IN) : '',
         rate_auth_in: s.cost_rates?.authentication?.IN != null ? String(s.cost_rates.authentication.IN) : '',
@@ -54,7 +57,21 @@ export default function CampaignSettingsPage() {
     } catch { /* none yet / no access */ }
     finally { setLoading(false); }
   }, []);
-  useEffect(() => { load(); }, [load]);
+  const loadSupp = useCallback(async () => {
+    try { const r = await crmBroadcasts.listSuppressions({ limit: 500 }); setSupp(r.data ?? []); } catch { /* ignore */ }
+  }, []);
+  useEffect(() => { load(); loadSupp(); }, [load, loadSupp]);
+
+  const addNumbers = async () => {
+    const phones = newNumbers.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean);
+    if (!phones.length) return;
+    try { await crmBroadcasts.addSuppressions({ phones }); setNewNumbers(''); loadSupp(); setMsg({ ok: true, text: `Added ${phones.length} number(s) to the suppression list.` }); }
+    catch (e: any) { setMsg({ ok: false, text: e?.message || 'Could not add numbers' }); }
+  };
+  const removeNumber = async (sid: string) => {
+    try { await crmBroadcasts.removeSuppression(sid); setSupp((rs) => rs.filter((r) => r.id !== sid)); }
+    catch (e: any) { setMsg({ ok: false, text: e?.message || 'Remove failed' }); }
+  };
 
   const save = async () => {
     setSaving(true); setMsg(null);
@@ -71,6 +88,7 @@ export default function CampaignSettingsPage() {
         quiet_hours_tz: f.quiet_hours_tz || 'Asia/Kolkata',
         opt_out_keywords: keywords.length ? keywords : null,
         cost_rates: Object.keys(rates).length ? rates : null,
+        reply_creates_task: f.reply_creates_task,
       };
       await crmBroadcasts.putSettings(body);
       setMsg({ ok: true, text: 'Saved.' });
@@ -107,9 +125,34 @@ export default function CampaignSettingsPage() {
           </div>
 
           <div style={card}>
-            <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 4, color: C.blue }}>Opt-out keywords</div>
-            <div style={{ fontSize: 12, color: C.gray, marginBottom: 14 }}>When a lead replies with one of these, their consent is withdrawn and they&apos;re suppressed from every future campaign. Leave blank to use the built-in defaults (STOP, UNSUBSCRIBE, …).</div>
+            <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 4, color: C.blue }}>Replies</div>
+            <div style={{ fontSize: 12, color: C.gray, marginBottom: 14 }}>Keywords that withdraw consent (and suppress the lead) when they reply. Blank = built-in defaults (STOP, UNSUBSCRIBE, …).</div>
             <input value={f.opt_out_keywords} onChange={(e) => setF({ ...f, opt_out_keywords: e.target.value })} placeholder="stop, unsubscribe, cancel" style={input} />
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: C.gray, cursor: 'pointer', marginTop: 14 }}>
+              <input type="checkbox" checked={f.reply_creates_task} onChange={(e) => setF({ ...f, reply_creates_task: e.target.checked })} style={{ accentColor: C.green }} />
+              When a lead replies to a campaign, create a follow-up task for their owner
+            </label>
+          </div>
+
+          <div style={card}>
+            <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 4, color: C.blue }}>Suppression list</div>
+            <div style={{ fontSize: 12, color: C.gray, marginBottom: 14 }}>Numbers here are never messaged by any campaign, on top of consent checks. Opt-outs land here automatically. Paste numbers (comma / space / newline separated).</div>
+            <textarea value={newNumbers} onChange={(e) => setNewNumbers(e.target.value)} placeholder="+919876543210, +919812345678" rows={2} style={{ ...input, resize: 'vertical' }} />
+            <div style={{ marginTop: 10, marginBottom: 12 }}>
+              <button onClick={addNumbers} style={{ background: C.s3, border: `1px solid ${C.border}`, color: C.white, padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Add to list</button>
+            </div>
+            {supp.length === 0 ? (
+              <div style={{ fontSize: 12, color: C.grayd }}>No suppressed numbers.</div>
+            ) : (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {supp.map((s) => (
+                  <span key={s.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.white, background: 'var(--s4)', border: `1px solid ${C.border}`, borderRadius: 8, padding: '4px 10px' }}>
+                    {s.phone_digits}{s.reason ? <span style={{ color: C.grayd }}>· {s.reason}</span> : null}
+                    <button onClick={() => removeNumber(s.id)} style={{ background: 'none', border: 'none', color: C.grayd, cursor: 'pointer', fontSize: 14, lineHeight: 1 }}>×</button>
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
 
           <div style={card}>
