@@ -489,6 +489,10 @@ export default function SettingsPage() {
                 >🤖 AI Assistant Access</a>
               )}
               <a
+                href="/dashboard/settings/whatsapp"
+                style={{ background: C.s3, color: C.white, border: `1px solid ${C.border}`, padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+              >💬 WhatsApp</a>
+              <a
                 href="/dashboard/settings/roles"
                 style={{ background: C.s3, color: C.white, border: `1px solid ${C.border}`, padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}
               >🏗️ Role Hierarchy</a>
