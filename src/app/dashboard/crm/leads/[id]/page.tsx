@@ -321,7 +321,7 @@ export default function LeadDetailPage() {
                     if (isTataActive) {
                       setTataConverting(true);
                       try {
-                        const defaultName = (lead.company ? `${lead.company} Opportunity` : fullName) || 'New Opportunity';
+                        const defaultName = fullName || lead.company || 'New deal';
                         const r = await crmLeads.convert(id, {
                           create_account: false,
                           create_deal: true,
@@ -588,7 +588,7 @@ export default function LeadDetailPage() {
 
       <LeadConvertModal
         leadId={id}
-        defaultDealName={lead.company ? `${lead.company} Opportunity` : fullName}
+        defaultDealName={fullName}
         open={convertOpen}
         onClose={() => setConvertOpen(false)}
         onConverted={reload}

@@ -72,15 +72,17 @@ export function isTataTiscanActive(user: AnyUser): boolean {
 }
 
 /**
- * The SRS / Tata field report (Reports → "SRS Lead Report") is an
- * operational export for exactly two org roles: the Area Sales Officer
- * (sees only their own leads) and the CRM Admin (sees the whole tenant,
- * i.e. Hema). The backend enforces the same role gate and 403s anyone
- * else — this helper only decides whether to render the tile / page, so
- * the two must stay in sync with SRS_REPORT_ROLES in the backend's
- * crm.routes.ts.
+ * The SRS / Tata field reports (Reports → "SRS Lead Report" + Activity /
+ * Test / Day-Wise) are operational exports for three org roles: the Area
+ * Sales Officer (sees only their own leads), the CRM Admin (sees the whole
+ * tenant, i.e. Hema), and the Consumer Champion Manager (a team-scope
+ * designation that sees its own pod of Consumer Champions — the backend
+ * bounds the data to the manager's role-tree subtree). The backend enforces
+ * the same role gate and 403s anyone else — this helper only decides whether
+ * to render the tile / page, so the two must stay in sync with
+ * SRS_REPORT_ROLES in the backend's crm.routes.ts.
  */
-export const SRS_REPORT_ROLES = ['area sales officer', 'crm admin'];
+export const SRS_REPORT_ROLES = ['area sales officer', 'crm admin', 'consumer champion manager'];
 
 // BMW is included as the second steel-dealer tenant: isTataTiscanActive now
 // matches BMW's client id too, and BMW's admin carries the "CRM Admin"
