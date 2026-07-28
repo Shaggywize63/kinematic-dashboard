@@ -63,9 +63,10 @@ export default function LeadConvertModal({ leadId, defaultDealName, open, onClos
   const [amountOverridden, setAmountOverridden] = useState(false);
 
   // Pre-fill the deal name from the lead — caller usually passes a
-  // sensible default (e.g. "Acme Steel Opportunity"). If they didn't,
-  // fetch the lead and compose one from full_name / first+last / email
-  // so the field is never blank on open.
+  // sensible default (the lead's own name). If they didn't, fetch the
+  // lead and compose one from full_name / first+last / email so the
+  // field is never blank on open. The deal name mirrors the lead name
+  // verbatim (no "Opportunity" suffix).
   useEffect(() => {
     if (!open) return;
     if (defaultDealName) { setDealName(defaultDealName); return; }
@@ -79,7 +80,7 @@ export default function LeadConvertModal({ leadId, defaultDealName, open, onClos
         l?.company ||
         l?.email ||
         '';
-      if (name) setDealName(`${name} Opportunity`);
+      if (name) setDealName(name);
     }).catch(() => { /* leave blank, rep can type */ });
     return () => { cancelled = true; };
   }, [open, defaultDealName, leadId]);
@@ -242,7 +243,7 @@ export default function LeadConvertModal({ leadId, defaultDealName, open, onClos
         {createDeal && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
             <Field label="Deal name (editable)">
-              <input value={dealName} onChange={(e) => setDealName(e.target.value)} placeholder="e.g. Acme Steel Opportunity" style={inputCss} />
+              <input value={dealName} onChange={(e) => setDealName(e.target.value)} placeholder="e.g. Acme Steel" style={inputCss} />
             </Field>
 
             {/* Multi-product line items — Tata Tiscon only. Lets the rep
