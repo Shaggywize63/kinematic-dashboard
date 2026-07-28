@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import SignedImage from '@/components/shared/SignedImage';
+import SignedImage, { openSignedUrl } from '@/components/shared/SignedImage';
 import { toast } from 'sonner';
 import type { Activity } from '../../types/crm';
 import { format, formatDistanceToNow } from 'date-fns';
@@ -100,7 +100,7 @@ export default function ActivityTimeline({ activities, onChange }: Props) {
                     /* Thumbnail click → opens full-size in a new tab. No URL
                        text shown — the image IS the visible affordance. */
                     /* eslint-disable-next-line @next/next/no-img-element */
-                    <a href={a.image_url} target="_blank" rel="noreferrer" style={{ display: 'inline-block', marginTop: 8 }}>
+                    <a href={a.image_url} target="_blank" rel="noreferrer" onClick={(e) => openSignedUrl(e, a.image_url)} style={{ display: 'inline-block', marginTop: 8 }}>
                       <SignedImage src={a.image_url} alt="Activity photo" style={{ maxWidth: 240, maxHeight: 180, borderRadius: 8, border: '1px solid var(--border)', objectFit: 'cover', display: 'block' }} />
                     </a>
                   )}
