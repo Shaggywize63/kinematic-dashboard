@@ -1,5 +1,6 @@
 'use client';
-import React from 'react';
+/* eslint-disable @next/next/no-img-element */
+import React, { useState } from 'react';
 
 interface Props {
   /** Rendered height in px; width scales by the artwork's aspect ratio. */
@@ -8,48 +9,65 @@ interface Props {
   title?: string;
 }
 
-/**
- * Neuronimbus partner logo — surfaced only on the demo account's dashboard
- * header (top-right). Rendered from the SVG artwork in /public (NOT hand-drawn
- * inline), theme-aware via the same `.brand-logo-light` / `.brand-logo-dark`
- * CSS swap the Kinematic BrandLogo uses: the white-wordmark variant shows on
- * the dark header (default theme), the navy-wordmark variant on the light one.
- *
- * The two SVGs are a faithful recreation of the Neuronimbus mark; to use the
- * official artwork just replace /public/neuronimbus-dark.svg and
- * /public/neuronimbus-light.svg — no code change required.
- */
-// Aspect ratio of the shipped artwork (viewBox 226×44). Used to give the
+// Aspect ratio of the fallback artwork (viewBox 226×44). Used to give the
 // <img> an EXPLICIT width box so it can never collapse to 0px — some browsers
 // (Firefox/Safari) render an SVG-in-<img> at 0 width when it has no intrinsic
-// size and CSS only sets height:auto width. object-fit:contain means a swapped
-// file of a slightly different ratio letterboxes instead of distorting.
+// size and CSS only sets the height. object-fit:contain means a real logo of a
+// slightly different ratio letterboxes instead of distorting.
 const LOGO_ASPECT = 226 / 44;
 
+/**
+ * Neuronimbus partner logo — surfaced only on the demo account's dashboard
+ * sidebar footer.
+ *
+ * Prefers the OFFICIAL artwork at `/public/neuronimbus.png`. Just drop that
+ * file into `public/` (transparent PNG, wordmark light enough to read on the
+ * dark sidebar) and it takes over automatically — no code change. Until the
+ * PNG exists, it falls back to a theme-aware SVG recreation (white wordmark on
+ * the dark theme, navy on the light one) so the slot is never empty.
+ */
 export default function NeuronimbusLogo({ height = 22, style, title = 'Neuronimbus' }: Props) {
+  const [pngFailed, setPngFailed] = useState(false);
   const width = Math.round(height * LOGO_ASPECT);
-  const img: React.CSSProperties = {
+  const box: React.CSSProperties = {
     height,
-    width,
-    // Defeat any global/responsive `img { max-width: 100% }` clamp, which would
-    // otherwise shrink the width while the height stays fixed and squish the
-    // artwork. Keep a fixed, non-zero box at the artwork's true aspect ratio.
+    // Fixed, non-zero box so the image can never collapse to 0px width, and a
+    // global/responsive `img { max-width: 100% }` clamp can't squish it.
     maxWidth: 'none',
     flexShrink: 0,
     objectFit: 'contain',
     userSelect: 'none',
     pointerEvents: 'none',
   };
+  const wrap: React.CSSProperties = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    height,
+    flexShrink: 0,
+    ...style,
+  };
+
+  if (!pngFailed) {
+    // The official PNG has its own intrinsic aspect ratio, so let width auto-
+    // scale from the fixed height (no forced aspect box that could letterbox).
+    return (
+      <span style={wrap} aria-label={title} title={title}>
+        <img
+          src="/neuronimbus.png"
+          alt={title}
+          style={{ ...box, width: 'auto' }}
+          onError={() => setPngFailed(true)}
+        />
+      </span>
+    );
+  }
+
+  // Fallback: theme-aware SVG recreation (swapped by the same
+  // `.brand-logo-light` / `.brand-logo-dark` CSS the Kinematic BrandLogo uses).
   return (
-    <span
-      style={{ display: 'inline-flex', alignItems: 'center', height, flexShrink: 0, ...style }}
-      aria-label={title}
-      title={title}
-    >
-      {/* eslint-disable @next/next/no-img-element */}
-      <img src="/neuronimbus-light.svg" alt={title} className="brand-logo-light" style={img} />
-      <img src="/neuronimbus-dark.svg" alt="" aria-hidden className="brand-logo-dark" style={img} />
-      {/* eslint-enable @next/next/no-img-element */}
+    <span style={wrap} aria-label={title} title={title}>
+      <img src="/neuronimbus-light.svg" alt={title} className="brand-logo-light" style={{ ...box, width }} />
+      <img src="/neuronimbus-dark.svg" alt="" aria-hidden className="brand-logo-dark" style={{ ...box, width }} />
     </span>
   );
 }
