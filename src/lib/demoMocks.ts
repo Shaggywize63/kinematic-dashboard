@@ -957,7 +957,7 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
         // (parity with crm_reports). Demo account always sees it.
         // distribution_consumer + distribution_last_mile gate the
         // Last-Mile pages in the sidebar; demo user always sees them.
-        enabled_modules: ['crm','distribution','distribution_consumer','distribution_last_mile','people','reports','analytics','attendance','live_tracking','wms','manpower','clients','ffm_reports'],
+        enabled_modules: ['activities','analytics','assets','attendance','audit_log','broadcast','cities','clients','crm','crm_accounts','crm_activities','crm_contacts','crm_conversation_intel','crm_dashboard','crm_deals','crm_email','crm_lead_analytics','crm_leads','crm_people_directory','crm_pipeline','crm_products','crm_reports','crm_settings','crm_tasks','crm_whatsapp','dashboard','distribution','distribution_brands','distribution_consumer','distribution_distributors','distribution_invoicing','distribution_last_mile','distribution_ledger','distribution_orders','distribution_payments','distribution_pricing','distribution_returns','distribution_schemes','ffm_analytics','ffm_reports','form_builder','grievances','hr','inventory','leave','live_tracking','notifications','orders','planograms','reports','security_alerts','settings','skus','stores','users','visit_logs','work_activities','zones'],
         enabled_packages: ['crm','distribution','field_force','business','system','people','audit'],
         location_ping_interval_seconds: 600,
         business_type: 'both',
@@ -1227,6 +1227,157 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
     if (path === '/crm/assignment-rules')    return list([])               as unknown as T;
     if (path === '/crm/custom-fields')       return list(readDemoCustomFields()) as unknown as T;
     if (path === '/crm/settings')            return wrap(CRM_SETTINGS)      as unknown as T;
+
+    // ── CRM → Campaigns (WhatsApp broadcasts) & Email Campaigns ─────────────
+    // Both dashboard list pages first hit `.../entitlement` (must resolve to
+    // { enabled: true } or the page shows the "paid add-on, not enabled" empty
+    // state), then fetch the list + a usage counter. The generic catch-all at
+    // the bottom of this file would otherwise return `{ data: [] }` for every
+    // one of these, so the demo user saw no campaigns. Mock all three per side
+    // with realistic sample data using the exact Broadcast / EmailCampaign
+    // shapes from crmApi.ts. Demo-only — no effect on real tenants.
+    if (path === '/crm/broadcasts/entitlement')      return wrap({ enabled: true }) as unknown as T;
+    if (path === '/crm/broadcasts/usage')            return wrap({ month: new Date().toISOString().slice(0, 7), sent: 17600 }) as unknown as T;
+    if (path === '/crm/broadcasts') return list([
+      { id: 'demo-bc-1', org_id: 'demo-org-999', client_id: null, name: 'Monsoon Service Reminder',
+        template_id: 'wa-tpl-service', template_meta_name: 'service_reminder_v2', template_language: 'en',
+        variable_map: {}, audience: { statuses: ['customer'], cities: ['Bangalore', 'Mumbai'] }, status: 'completed', throttle_per_min: 120,
+        scheduled_at: null, total_recipients: 5200, sent_count: 5200, delivered_count: 5061, read_count: 4187, failed_count: 61, skipped_count: 78, reply_count: 214,
+        est_cost: 4160, actual_cost: 4108, started_at: new Date(Date.now() - 6 * 86400000).toISOString(), completed_at: new Date(Date.now() - 6 * 86400000 + 40 * 60000).toISOString(),
+        hold_until: null, created_by: 'demo-user-999', created_at: new Date(Date.now() - 7 * 86400000).toISOString(), updated_at: new Date(Date.now() - 6 * 86400000).toISOString() },
+      { id: 'demo-bc-2', org_id: 'demo-org-999', client_id: null, name: 'Festive Offer — Free Home Visit',
+        template_id: 'wa-tpl-festive', template_meta_name: 'festive_offer', template_language: 'en',
+        variable_map: {}, audience: { statuses: ['qualified', 'contacted'], min_score: 40 }, status: 'sending', throttle_per_min: 60,
+        scheduled_at: null, total_recipients: 3800, sent_count: 2140, delivered_count: 1980, read_count: 1120, failed_count: 24, skipped_count: 36, reply_count: 88,
+        est_cost: 3040, actual_cost: 1712, started_at: new Date(Date.now() - 22 * 60000).toISOString(), completed_at: null,
+        hold_until: null, created_by: 'demo-user-999', created_at: new Date(Date.now() - 90 * 60000).toISOString(), updated_at: new Date(Date.now() - 30 * 1000).toISOString() },
+      { id: 'demo-bc-3', org_id: 'demo-org-999', client_id: null, name: 'New Product Launch — TMT 550D',
+        template_id: 'wa-tpl-launch', template_meta_name: 'product_launch', template_language: 'en',
+        variable_map: {}, audience: { statuses: ['customer', 'qualified'], states: ['Karnataka', 'Maharashtra'] }, status: 'scheduled', throttle_per_min: 90,
+        scheduled_at: new Date(Date.now() + 2 * 86400000).toISOString(), total_recipients: 4600, sent_count: 0, delivered_count: 0, read_count: 0, failed_count: 0, skipped_count: 52, reply_count: 0,
+        est_cost: 3680, actual_cost: null, started_at: null, completed_at: null,
+        hold_until: null, created_by: 'demo-user-999', created_at: new Date(Date.now() - 1 * 86400000).toISOString(), updated_at: new Date(Date.now() - 1 * 86400000).toISOString() },
+      { id: 'demo-bc-4', org_id: 'demo-org-999', client_id: null, name: 'Dealer Meet Invite',
+        template_id: 'wa-tpl-invite', template_meta_name: null, template_language: null,
+        variable_map: {}, audience: { tags: ['dealer'] }, status: 'draft', throttle_per_min: 60,
+        scheduled_at: null, total_recipients: 0, sent_count: 0, delivered_count: 0, read_count: 0, failed_count: 0, skipped_count: 0, reply_count: 0,
+        est_cost: null, actual_cost: null, started_at: null, completed_at: null,
+        hold_until: null, created_by: 'demo-user-999', created_at: new Date(Date.now() - 5 * 3600000).toISOString(), updated_at: new Date(Date.now() - 5 * 3600000).toISOString() },
+      { id: 'demo-bc-5', org_id: 'demo-org-999', client_id: null, name: 'Payment Due Reminder',
+        template_id: 'wa-tpl-payment', template_meta_name: 'payment_reminder', template_language: 'en',
+        variable_map: {}, audience: { statuses: ['customer'], tags: ['credit'] }, status: 'paused', throttle_per_min: 120,
+        scheduled_at: null, total_recipients: 2900, sent_count: 1200, delivered_count: 1150, read_count: 640, failed_count: 18, skipped_count: 30, reply_count: 45,
+        est_cost: 2320, actual_cost: 960, started_at: new Date(Date.now() - 2 * 86400000).toISOString(), completed_at: null,
+        hold_until: null, created_by: 'demo-user-999', created_at: new Date(Date.now() - 3 * 86400000).toISOString(), updated_at: new Date(Date.now() - 2 * 86400000 + 3 * 3600000).toISOString() },
+      { id: 'demo-bc-6', org_id: 'demo-org-999', client_id: null, name: 'Diwali Greetings',
+        template_id: 'wa-tpl-diwali', template_meta_name: 'seasonal_greeting', template_language: 'en',
+        variable_map: {}, audience: { statuses: ['customer', 'qualified', 'contacted'] }, status: 'completed', throttle_per_min: 150,
+        scheduled_at: null, total_recipients: 6100, sent_count: 6100, delivered_count: 5980, read_count: 5230, failed_count: 40, skipped_count: 60, reply_count: 310,
+        est_cost: 4880, actual_cost: 4832, started_at: new Date(Date.now() - 12 * 86400000).toISOString(), completed_at: new Date(Date.now() - 12 * 86400000 + 52 * 60000).toISOString(),
+        hold_until: null, created_by: 'demo-user-999', created_at: new Date(Date.now() - 13 * 86400000).toISOString(), updated_at: new Date(Date.now() - 12 * 86400000).toISOString() },
+    ]) as unknown as T;
+
+    if (path === '/crm/email-campaigns/entitlement') return wrap({ enabled: true }) as unknown as T;
+    if (path === '/crm/email-campaigns/usage')       return wrap({ campaigns: 5, emails_this_month: 7878 }) as unknown as T;
+    if (path === '/crm/email-campaigns') return list([
+      { id: 'demo-ec-1', org_id: 'demo-org-999', client_id: null, name: 'July Newsletter — Product Updates',
+        template_id: 'email-tpl-newsletter', subject: 'What’s new in Kinematic this month 🚀', body_html: '<p>Here’s what shipped this month…</p>',
+        from_email: 'hello@kinematicapp.com', audience: { marketing_consent: true, status: ['customer'] }, status: 'completed', throttle_per_min: 240,
+        total: 4200, sent: 4126, failed: 41, skipped: 33, launched_at: new Date(Date.now() - 9 * 86400000).toISOString(), completed_at: new Date(Date.now() - 9 * 86400000 + 25 * 60000).toISOString(),
+        created_at: new Date(Date.now() - 11 * 86400000).toISOString(), updated_at: new Date(Date.now() - 9 * 86400000).toISOString() },
+      { id: 'demo-ec-2', org_id: 'demo-org-999', client_id: null, name: 'Renewal Reminder — Policy Expiring Soon',
+        template_id: 'email-tpl-renewal', subject: 'Your policy renews in 15 days — here’s how to continue', body_html: '<p>Your renewal is coming up…</p>',
+        from_email: 'renewals@kinematicapp.com', audience: { status: ['customer'], tags: ['renewal'] }, status: 'completed', throttle_per_min: 180,
+        total: 1875, sent: 1852, failed: 12, skipped: 11, launched_at: new Date(Date.now() - 4 * 86400000).toISOString(), completed_at: new Date(Date.now() - 4 * 86400000 + 18 * 60000).toISOString(),
+        created_at: new Date(Date.now() - 5 * 86400000).toISOString(), updated_at: new Date(Date.now() - 4 * 86400000).toISOString() },
+      { id: 'demo-ec-3', org_id: 'demo-org-999', client_id: null, name: 'Diwali Offer — 20% Off Premium Plans',
+        template_id: 'email-tpl-diwali', subject: 'Celebrate Diwali with 20% off ✨', body_html: '<p>Festive savings inside…</p>',
+        from_email: 'offers@kinematicapp.com', audience: { marketing_consent: true, city: ['Bangalore', 'Delhi', 'Mumbai'] }, status: 'sending', throttle_per_min: 300,
+        total: 3100, sent: 1420, failed: 8, skipped: 22, launched_at: new Date(Date.now() - 20 * 60000).toISOString(), completed_at: null,
+        created_at: new Date(Date.now() - 2 * 3600000).toISOString(), updated_at: new Date(Date.now() - 15 * 1000).toISOString() },
+      { id: 'demo-ec-4', org_id: 'demo-org-999', client_id: null, name: 'Q3 Webinar Invite',
+        template_id: 'email-tpl-webinar', subject: 'You’re invited: Scaling your sales team with CRM automation', body_html: '<p>Save your seat…</p>',
+        from_email: 'events@kinematicapp.com', audience: { status: ['qualified', 'contacted'] }, status: 'draft', throttle_per_min: 240,
+        total: 0, sent: 0, failed: 0, skipped: 0, launched_at: null, completed_at: null,
+        created_at: new Date(Date.now() - 26 * 3600000).toISOString(), updated_at: new Date(Date.now() - 26 * 3600000).toISOString() },
+      { id: 'demo-ec-5', org_id: 'demo-org-999', client_id: null, name: 'Win-back — Inactive Leads',
+        template_id: 'email-tpl-winback', subject: 'We miss you — here’s 15% to come back', body_html: '<p>A little something to return…</p>',
+        from_email: 'hello@kinematicapp.com', audience: { status: ['lost'], tags: ['inactive'] }, status: 'paused', throttle_per_min: 120,
+        total: 2400, sent: 900, failed: 15, skipped: 40, launched_at: new Date(Date.now() - 2 * 86400000).toISOString(), completed_at: null,
+        created_at: new Date(Date.now() - 3 * 86400000).toISOString(), updated_at: new Date(Date.now() - 2 * 86400000 + 4 * 3600000).toISOString() },
+    ]) as unknown as T;
+
+    // ── Campaign detail endpoints — so clicking a WhatsApp/email campaign in the
+    // list opens a populated monitor page (single record + recipients + analytics)
+    // instead of an empty one. Each echoes back the requested id. The `bcOne`/
+    // `ecOne` guards exclude reserved sub-resources (segments / suppressions /
+    // settings) so those pages keep falling through to their own handlers.
+    {
+      const bcRecips = path.match(/^\/crm\/broadcasts\/([^/]+)\/recipients$/);
+      if (bcRecips) {
+        const bid = bcRecips[1];
+        return list([
+          { id: `${bid}-r1`, broadcast_id: bid, lead_id: 'demo-lead-1', phone: '+91 98450 12345', status: 'read',      skip_reason: null, failure_kind: null, attempts: 1, provider_message_id: 'wamid.demo1', error: null, variables: { name: 'Rohan Mehta' }, sent_at: new Date(Date.now() - 40 * 60000).toISOString(), replied_at: new Date(Date.now() - 20 * 60000).toISOString(), updated_at: new Date(Date.now() - 20 * 60000).toISOString() },
+          { id: `${bid}-r2`, broadcast_id: bid, lead_id: 'demo-lead-2', phone: '+91 99860 44210', status: 'read',      skip_reason: null, failure_kind: null, attempts: 1, provider_message_id: 'wamid.demo2', error: null, variables: { name: 'Anjali Nair' }, sent_at: new Date(Date.now() - 39 * 60000).toISOString(), replied_at: null, updated_at: new Date(Date.now() - 34 * 60000).toISOString() },
+          { id: `${bid}-r3`, broadcast_id: bid, lead_id: 'demo-lead-3', phone: '+91 90080 77321', status: 'delivered', skip_reason: null, failure_kind: null, attempts: 1, provider_message_id: 'wamid.demo3', error: null, variables: { name: 'Suresh Rao' }, sent_at: new Date(Date.now() - 30 * 60000).toISOString(), replied_at: null, updated_at: new Date(Date.now() - 30 * 60000).toISOString() },
+          { id: `${bid}-r4`, broadcast_id: bid, lead_id: 'demo-lead-4', phone: '+91 98111 90233', status: 'sent',      skip_reason: null, failure_kind: null, attempts: 1, provider_message_id: 'wamid.demo4', error: null, variables: { name: 'Kavya Iyer' }, sent_at: new Date(Date.now() - 29 * 60000).toISOString(), replied_at: null, updated_at: new Date(Date.now() - 29 * 60000).toISOString() },
+          { id: `${bid}-r5`, broadcast_id: bid, lead_id: 'demo-lead-5', phone: '+91 97390 55118', status: 'failed',    skip_reason: null, failure_kind: 'undeliverable', attempts: 2, provider_message_id: null, error: 'Recipient number not on WhatsApp', variables: { name: 'Manoj Gupta' }, sent_at: new Date(Date.now() - 28 * 60000).toISOString(), replied_at: null, updated_at: new Date(Date.now() - 27 * 60000).toISOString() },
+          { id: `${bid}-r6`, broadcast_id: bid, lead_id: 'demo-lead-6', phone: '+91 96540 33902', status: 'skipped',   skip_reason: 'not_opted_in', failure_kind: null, attempts: 0, provider_message_id: null, error: null, variables: null, sent_at: null, replied_at: null, updated_at: new Date(Date.now() - 45 * 60000).toISOString() },
+        ]) as unknown as T;
+      }
+      const bcAnalytics = path.match(/^\/crm\/broadcasts\/([^/]+)\/analytics$/);
+      if (bcAnalytics) {
+        return wrap({
+          total_recipients: 3800, sent: 3800, delivered: 3705, read: 2410, failed: 34, skipped: 36, queued: 0, replied: 142,
+          delivery_rate: 0.975, read_rate: 0.650, reply_rate: 0.038, failure_rate: 0.009,
+          skip_reasons: { not_opted_in: 22, frequency_capped: 9, suppressed: 5 },
+          failure_kinds: { undeliverable: 24, invalid_number: 10 },
+          est_cost: 3040, actual_cost: 3010, cost_currency: 'INR',
+        }) as unknown as T;
+      }
+      const bcOne = path.match(/^\/crm\/broadcasts\/([^/]+)$/);
+      if (bcOne && !['segments', 'suppressions', 'settings', 'entitlement', 'usage', 'preview'].includes(bcOne[1])) {
+        const bid = bcOne[1];
+        return wrap({ id: bid, org_id: 'demo-org-999', client_id: null, name: 'Festive Offer — Free Home Visit',
+          template_id: 'wa-tpl-festive', template_meta_name: 'festive_offer', template_language: 'en',
+          variable_map: {}, audience: { statuses: ['qualified', 'contacted'], min_score: 40 }, status: 'completed', throttle_per_min: 60,
+          scheduled_at: null, total_recipients: 3800, sent_count: 3800, delivered_count: 3705, read_count: 2410, failed_count: 34, skipped_count: 36, reply_count: 142,
+          est_cost: 3040, actual_cost: 3010, started_at: new Date(Date.now() - 5 * 86400000).toISOString(), completed_at: new Date(Date.now() - 5 * 86400000 + 42 * 60000).toISOString(),
+          hold_until: null, created_by: 'demo-user-999', created_at: new Date(Date.now() - 6 * 86400000).toISOString(), updated_at: new Date(Date.now() - 5 * 86400000).toISOString() }) as unknown as T;
+      }
+
+      const ecRecips = path.match(/^\/crm\/email-campaigns\/([^/]+)\/recipients$/);
+      if (ecRecips) {
+        const cid = ecRecips[1];
+        return list([
+          { id: `${cid}-r1`, campaign_id: cid, email: 'rohan.mehta@example.com',  first_name: 'Rohan',  status: 'sent',    skip_reason: null, error: null, sent_at: new Date(Date.now() - 9 * 86400000).toISOString(), created_at: new Date(Date.now() - 9 * 86400000).toISOString() },
+          { id: `${cid}-r2`, campaign_id: cid, email: 'anjali.nair@example.com',   first_name: 'Anjali', status: 'sent',    skip_reason: null, error: null, sent_at: new Date(Date.now() - 9 * 86400000).toISOString(), created_at: new Date(Date.now() - 9 * 86400000).toISOString() },
+          { id: `${cid}-r3`, campaign_id: cid, email: 'suresh.rao@example.com',    first_name: 'Suresh', status: 'sent',    skip_reason: null, error: null, sent_at: new Date(Date.now() - 9 * 86400000).toISOString(), created_at: new Date(Date.now() - 9 * 86400000).toISOString() },
+          { id: `${cid}-r4`, campaign_id: cid, email: 'kavya.iyer@example.com',    first_name: 'Kavya',  status: 'sent',    skip_reason: null, error: null, sent_at: new Date(Date.now() - 9 * 86400000).toISOString(), created_at: new Date(Date.now() - 9 * 86400000).toISOString() },
+          { id: `${cid}-r5`, campaign_id: cid, email: 'delivery-fail@example.com', first_name: 'Manoj',  status: 'failed',  skip_reason: null, error: 'Mailbox full (452)', sent_at: new Date(Date.now() - 9 * 86400000).toISOString(), created_at: new Date(Date.now() - 9 * 86400000).toISOString() },
+          { id: `${cid}-r6`, campaign_id: cid, email: 'bounced@invalid.example',   first_name: null,     status: 'skipped', skip_reason: 'suppressed_bounced', error: null, sent_at: null, created_at: new Date(Date.now() - 9 * 86400000).toISOString() },
+        ]) as unknown as T;
+      }
+      const ecAnalytics = path.match(/^\/crm\/email-campaigns\/([^/]+)\/analytics$/);
+      if (ecAnalytics) {
+        const cid = ecAnalytics[1];
+        return wrap({
+          campaign: { id: cid, org_id: 'demo-org-999', client_id: null, name: 'July Newsletter — Product Updates', template_id: 'email-tpl-newsletter', subject: 'What’s new in Kinematic this month 🚀', body_html: '<p>Here’s what shipped this month…</p>', from_email: 'hello@kinematicapp.com', audience: { marketing_consent: true, status: ['customer'] }, status: 'completed', throttle_per_min: 240, total: 4200, sent: 4126, failed: 41, skipped: 33, launched_at: new Date(Date.now() - 9 * 86400000).toISOString(), completed_at: new Date(Date.now() - 9 * 86400000 + 25 * 60000).toISOString(), created_at: new Date(Date.now() - 11 * 86400000).toISOString(), updated_at: new Date(Date.now() - 9 * 86400000).toISOString() },
+          totals: { recipients: 4200, queued: 0, sent: 4126, failed: 41, skipped: 33, delivered: 4061, bounced: 65, opened: 2489, clicked: 812, unsubscribed: 37 },
+          open_rate: 0.613, click_rate: 0.200,
+          skips: { no_email: 18, duplicate: 9, suppressed: 6 },
+        }) as unknown as T;
+      }
+      const ecOne = path.match(/^\/crm\/email-campaigns\/([^/]+)$/);
+      if (ecOne && !['entitlement', 'usage', 'preview', 'google'].includes(ecOne[1])) {
+        const cid = ecOne[1];
+        return wrap({ id: cid, org_id: 'demo-org-999', client_id: null, name: 'July Newsletter — Product Updates',
+          template_id: 'email-tpl-newsletter', subject: 'What’s new in Kinematic this month 🚀', body_html: '<p>Here’s what shipped this month — smarter lead scoring, faster imports, and a refreshed pipeline board.</p>',
+          from_email: 'hello@kinematicapp.com', audience: { marketing_consent: true, status: ['customer'] }, status: 'completed', throttle_per_min: 240,
+          total: 4200, sent: 4126, failed: 41, skipped: 33, launched_at: new Date(Date.now() - 9 * 86400000).toISOString(), completed_at: new Date(Date.now() - 9 * 86400000 + 25 * 60000).toISOString(),
+          created_at: new Date(Date.now() - 11 * 86400000).toISOString(), updated_at: new Date(Date.now() - 9 * 86400000).toISOString() }) as unknown as T;
+      }
+    }
 
     // CRM "Home" (lead-management home) — was empty (no demo handler).
     if (path === '/crm/home') {
@@ -1504,7 +1655,20 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
       ]) as unknown as T;
     }
     if (path === '/misc/security/alerts/all') return wrap({ data: SECURITY_ALERTS, totalCount: SECURITY_ALERTS.length }) as unknown as T;
-    if (path === '/notifications/history')    return list([]) as unknown as T;
+    if (path === '/notifications/history') {
+      // Sent-notification history (bell / push broadcasts). The page reads
+      // `data.data` for rows and `data.totalCount` for paging, so mirror the
+      // security-alerts wrap shape rather than a bare list.
+      const notifs = [
+        { id: 'ntf-1', title: 'Monthly targets published', body: 'Your August sales targets are live — check the dashboard for your beat-wise break-up.', priority: 'info',    audience_summary: 'All field executives (145)',   created_at: new Date(Date.now() - 3 * 3600000).toISOString(),  recipients_count: 145, read_count: 118, send_push: true },
+        { id: 'ntf-2', title: 'App update required',       body: 'Please update the Kinematic app to v4.3 before your next beat to get the new visit form.', priority: 'warning', audience_summary: 'All users (162)',              created_at: new Date(Date.now() - 1 * 86400000).toISOString(), recipients_count: 162, read_count: 150, send_push: true },
+        { id: 'ntf-3', title: 'Diwali holiday notice',     body: 'Office and all DCs remain closed on 20 Oct for Diwali. Field visits are optional that day.', priority: 'info',    audience_summary: 'Bangalore, Mumbai, Delhi (98)', created_at: new Date(Date.now() - 2 * 86400000).toISOString(), recipients_count: 98,  read_count: 92,  send_push: false },
+        { id: 'ntf-4', title: 'New scheme: Aashirvaad Atta', body: 'Buy 2 get ₹30 off scheme is live — push at modern-trade outlets this week.', priority: 'info', audience_summary: 'Supervisors (18)', created_at: new Date(Date.now() - 4 * 86400000).toISOString(), recipients_count: 18, read_count: 16, send_push: true },
+        { id: 'ntf-5', title: 'Attendance reminder',       body: 'Mark check-in with live location before starting your first visit of the day.', priority: 'warning', audience_summary: 'Executives below 80% (24)', created_at: new Date(Date.now() - 6 * 86400000).toISOString(), recipients_count: 24,  read_count: 20,  send_push: true },
+        { id: 'ntf-6', title: 'Congrats to top performers', body: 'Priya Patel and Arjun Sharma topped last week’s conversions. Great work, team!', priority: 'success', audience_summary: 'All field executives (145)', created_at: new Date(Date.now() - 8 * 86400000).toISOString(), recipients_count: 145, read_count: 130, send_push: false },
+      ];
+      return wrap({ data: notifs, totalCount: notifs.length }) as unknown as T;
+    }
     if (path === '/candidates' || path.startsWith('/candidates?')) {
       return list(HR_CANDIDATES) as unknown as T;
     }
@@ -1526,6 +1690,66 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
       const by_stage: Record<string, number> = {};
       for (const c of HR_CANDIDATES) by_stage[c.stage] = (by_stage[c.stage] || 0) + 1;
       return wrap({ pipeline: HR_CANDIDATES, by_stage, total: HR_CANDIDATES.length }) as unknown as T;
+    }
+
+    // ── Leave Management (My Leave / Approvals / Regularize / Settings) ──────
+    // leaveApi hits /api/v1/leave/* (base stripped to /leave/*). None were
+    // mocked, so every leave surface fell through to the empty catch-all and
+    // rendered "No leave …". Mock the list endpoints with internally consistent
+    // sample data — requests + balances reference the same leave-type ids, and
+    // holidays follow the current calendar year.
+    {
+      const yr = new Date().getFullYear();
+      const dISO = (off: number) => new Date(Date.now() + off * 86400000).toISOString().slice(0, 10);
+      const tISO = (off: number) => new Date(Date.now() + off * 86400000).toISOString();
+      if (path === '/leave/types') return list([
+        { id: 'lt-cl', name: 'Casual Leave', code: 'CL', is_paid: true,  annual_quota: 12,   allow_half_day: true,  max_carry_forward: 6,    requires_attachment: false, color: '#3E9EFF', is_active: true, position: 1 },
+        { id: 'lt-sl', name: 'Sick Leave',   code: 'SL', is_paid: true,  annual_quota: 8,    allow_half_day: true,  max_carry_forward: 0,    requires_attachment: false, color: '#F5A623', is_active: true, position: 2 },
+        { id: 'lt-el', name: 'Earned Leave', code: 'EL', is_paid: true,  annual_quota: 15,   allow_half_day: false, max_carry_forward: 30,   requires_attachment: false, color: '#00D97E', is_active: true, position: 3 },
+        { id: 'lt-lop', name: 'Loss of Pay', code: 'LOP', is_paid: false, annual_quota: null, allow_half_day: true,  max_carry_forward: null, requires_attachment: false, color: '#9B6EFF', is_active: true, position: 4 },
+      ]) as unknown as T;
+      if (path === '/leave/holidays') return list([
+        { id: 'hol-1', holiday_date: `${yr}-01-26`, name: 'Republic Day',      is_optional: false },
+        { id: 'hol-2', holiday_date: `${yr}-03-14`, name: 'Holi',              is_optional: false },
+        { id: 'hol-3', holiday_date: `${yr}-08-15`, name: 'Independence Day',  is_optional: false },
+        { id: 'hol-4', holiday_date: `${yr}-10-02`, name: 'Gandhi Jayanti',    is_optional: false },
+        { id: 'hol-5', holiday_date: `${yr}-10-20`, name: 'Diwali',            is_optional: false },
+        { id: 'hol-6', holiday_date: `${yr}-12-25`, name: 'Christmas',         is_optional: true },
+      ]) as unknown as T;
+      if (path === '/leave/balances') return list([
+        { leave_type_id: 'lt-cl', name: 'Casual Leave', code: 'CL', color: '#3E9EFF', is_paid: true,  unlimited: false, entitled: 12, used: 4, pending: 1, available: 7 },
+        { leave_type_id: 'lt-sl', name: 'Sick Leave',   code: 'SL', color: '#F5A623', is_paid: true,  unlimited: false, entitled: 8,  used: 2, pending: 0, available: 6 },
+        { leave_type_id: 'lt-el', name: 'Earned Leave', code: 'EL', color: '#00D97E', is_paid: true,  unlimited: false, entitled: 15, used: 5, pending: 2, available: 8 },
+        { leave_type_id: 'lt-lop', name: 'Loss of Pay', code: 'LOP', color: '#9B6EFF', is_paid: false, unlimited: true,  entitled: 0,  used: 1, pending: 0, available: 0 },
+      ]) as unknown as T;
+      if (path === '/leave/requests') return list([
+        { id: 'lv-1', user_id: 'demo-user-999', leave_type_id: 'lt-el', from_date: dISO(-20), to_date: dISO(-18), half_day_start: false, half_day_end: false, days: 3,   reason: 'Family function out of town', contact_number: '9000000001', attachment_url: null, status: 'approved',  approver_id: 'fe3', decided_by: 'fe3', decided_at: tISO(-22), decision_note: null, created_at: tISO(-25), leave_type_name: 'Earned Leave', leave_type_code: 'EL', color: '#00D97E' },
+        { id: 'lv-2', user_id: 'demo-user-999', leave_type_id: 'lt-cl', from_date: dISO(6),   to_date: dISO(6),   half_day_start: false, half_day_end: false, days: 1,   reason: 'Personal work',              contact_number: '9000000001', attachment_url: null, status: 'pending',   approver_id: 'fe3', decided_by: null,  decided_at: null,     decision_note: null, created_at: tISO(-1),  leave_type_name: 'Casual Leave', leave_type_code: 'CL', color: '#3E9EFF' },
+        { id: 'lv-3', user_id: 'demo-user-999', leave_type_id: 'lt-sl', from_date: dISO(-8),  to_date: dISO(-8),  half_day_start: false, half_day_end: false, days: 1,   reason: 'Fever',                      contact_number: '9000000001', attachment_url: null, status: 'rejected',  approver_id: 'fe3', decided_by: 'fe3', decided_at: tISO(-7),  decision_note: 'Please submit a medical certificate for sick leave.', created_at: tISO(-9), leave_type_name: 'Sick Leave', leave_type_code: 'SL', color: '#F5A623' },
+        { id: 'lv-4', user_id: 'demo-user-999', leave_type_id: 'lt-cl', from_date: dISO(-3),  to_date: dISO(-3),  half_day_start: true,  half_day_end: false, days: 0.5, reason: 'Half day — bank work',       contact_number: null,         attachment_url: null, status: 'approved',  approver_id: 'fe3', decided_by: 'fe3', decided_at: tISO(-4),  decision_note: null, created_at: tISO(-5),  leave_type_name: 'Casual Leave', leave_type_code: 'CL', color: '#3E9EFF' },
+        { id: 'lv-5', user_id: 'demo-user-999', leave_type_id: 'lt-el', from_date: dISO(-40), to_date: dISO(-38), half_day_start: false, half_day_end: false, days: 3,   reason: 'Vacation (plans changed)',   contact_number: null,         attachment_url: null, status: 'cancelled', approver_id: null,  decided_by: null,  decided_at: null,     decision_note: null, created_at: tISO(-45), leave_type_name: 'Earned Leave', leave_type_code: 'EL', color: '#00D97E' },
+      ]) as unknown as T;
+      if (path === '/leave/requests/pending') return list([
+        { id: 'lvp-1', user_id: 'fe1', user_name: 'Arjun Sharma', leave_type_id: 'lt-cl', from_date: dISO(3), to_date: dISO(4), half_day_start: false, half_day_end: false, days: 2, reason: 'Sister’s wedding',    contact_number: '9812345678', attachment_url: null, status: 'pending', approver_id: 'demo-user-999', decided_by: null, decided_at: null, decision_note: null, created_at: tISO(-1), leave_type_name: 'Casual Leave', leave_type_code: 'CL', color: '#3E9EFF' },
+        { id: 'lvp-2', user_id: 'fe2', user_name: 'Priya Patel',  leave_type_id: 'lt-sl', from_date: dISO(1), to_date: dISO(2), half_day_start: false, half_day_end: false, days: 2, reason: 'Viral fever',         contact_number: '9898111222', attachment_url: null, status: 'pending', approver_id: 'demo-user-999', decided_by: null, decided_at: null, decision_note: null, created_at: tISO(-1), leave_type_name: 'Sick Leave',   leave_type_code: 'SL', color: '#F5A623' },
+        { id: 'lvp-3', user_id: 'fe3', user_name: 'Rahul Verma',  leave_type_id: 'lt-el', from_date: dISO(8), to_date: dISO(12), half_day_start: false, half_day_end: false, days: 5, reason: 'Annual vacation',     contact_number: '9765432109', attachment_url: null, status: 'pending', approver_id: 'demo-user-999', decided_by: null, decided_at: null, decision_note: null, created_at: tISO(-2), leave_type_name: 'Earned Leave', leave_type_code: 'EL', color: '#00D97E' },
+        { id: 'lvp-4', user_id: 'fe4', user_name: 'Sneha Reddy',  leave_type_id: 'lt-cl', from_date: dISO(5), to_date: dISO(5), half_day_start: false, half_day_end: true, days: 0.5, reason: 'Half day — personal', contact_number: '9900887766', attachment_url: null, status: 'pending', approver_id: 'demo-user-999', decided_by: null, decided_at: null, decision_note: null, created_at: tISO(0),  leave_type_name: 'Casual Leave', leave_type_code: 'CL', color: '#3E9EFF' },
+      ]) as unknown as T;
+      if (path === '/leave/calendar') return list([
+        { id: 'cal-1', user_id: 'fe1', user_name: 'Arjun Sharma', leave_type_id: 'lt-cl', from_date: dISO(3), to_date: dISO(4),  half_day_start: false, half_day_end: false, days: 2, status: 'pending',  leave_type_name: 'Casual Leave', color: '#3E9EFF' },
+        { id: 'cal-2', user_id: 'fe3', user_name: 'Rahul Verma',  leave_type_id: 'lt-el', from_date: dISO(8), to_date: dISO(12), half_day_start: false, half_day_end: false, days: 5, status: 'pending',  leave_type_name: 'Earned Leave', color: '#00D97E' },
+        { id: 'cal-3', user_id: 'demo-user-999', user_name: 'Demo Admin', leave_type_id: 'lt-cl', from_date: dISO(6), to_date: dISO(6), half_day_start: false, half_day_end: false, days: 1, status: 'pending', leave_type_name: 'Casual Leave', color: '#3E9EFF' },
+      ]) as unknown as T;
+      if (path === '/leave/regularizations') return list([
+        { id: 'rg-1', user_id: 'demo-user-999', att_date: dISO(-2), type: 'missing_checkout', requested_checkin_at: null, requested_checkout_at: tISO(-2), reason: 'Forgot to check out after the last field visit', status: 'approved', decided_by: 'fe3', decided_at: tISO(-1), decision_note: null, created_at: tISO(-2), user_name: 'Demo Admin' },
+        { id: 'rg-2', user_id: 'demo-user-999', att_date: dISO(-5), type: 'wfh',              requested_checkin_at: tISO(-5), requested_checkout_at: tISO(-5), reason: 'Worked from home — client calls', status: 'approved', decided_by: 'fe3', decided_at: tISO(-4), decision_note: null, created_at: tISO(-5), user_name: 'Demo Admin' },
+        { id: 'rg-3', user_id: 'demo-user-999', att_date: dISO(-1), type: 'missing_checkin',  requested_checkin_at: tISO(-1), requested_checkout_at: null, reason: 'App crashed during morning check-in', status: 'pending', decided_by: null, decided_at: null, decision_note: null, created_at: tISO(-1), user_name: 'Demo Admin' },
+      ]) as unknown as T;
+      if (path === '/leave/regularizations/pending') return list([
+        { id: 'rgp-1', user_id: 'fe2', user_name: 'Priya Patel', att_date: dISO(-1), type: 'wrong_time',      requested_checkin_at: tISO(-1), requested_checkout_at: tISO(-1), reason: 'Check-in punched at wrong location', status: 'pending', decided_by: null, decided_at: null, decision_note: null, created_at: tISO(-1) },
+        { id: 'rgp-2', user_id: 'fe1', user_name: 'Arjun Sharma', att_date: dISO(-2), type: 'on_duty',        requested_checkin_at: tISO(-2), requested_checkout_at: tISO(-2), reason: 'On duty at distributor warehouse', status: 'pending', decided_by: null, decided_at: null, decision_note: null, created_at: tISO(-2) },
+        { id: 'rgp-3', user_id: 'fe4', user_name: 'Sneha Reddy',  att_date: dISO(-3), type: 'missing_checkout', requested_checkin_at: null, requested_checkout_at: tISO(-3), reason: 'Phone battery died before checkout', status: 'pending', decided_by: null, decided_at: null, decision_note: null, created_at: tISO(-3) },
+      ]) as unknown as T;
     }
 
     if (path === '/settings' || path === '/settings/org') return wrap({}) as unknown as T;
