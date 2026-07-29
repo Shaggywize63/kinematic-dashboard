@@ -1192,7 +1192,38 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
       const userMade = readDemoWaTemplates();
       return list([...userMade, ...CRM_WA_TEMPLATES_SEED]) as unknown as T;
     }
-    if (path === '/crm/automations')         return list([])               as unknown as T;
+    if (path === '/crm/automations')         return list([
+      { id: 'demo-auto-1', org_id: 'demo-org-999', client_id: null, name: 'Welcome new leads on WhatsApp',
+        trigger_type: 'lead_created', trigger_config: { conditions: [] }, action_type: 'send_whatsapp',
+        action_config: { template: 'welcome_intro' }, is_active: true, run_count: 284,
+        last_run_at: new Date(Date.now() - 2 * 3600000).toISOString(),
+        created_at: new Date(Date.now() - 62 * 86400000).toISOString(), updated_at: new Date(Date.now() - 2 * 3600000).toISOString() },
+      { id: 'demo-auto-2', org_id: 'demo-org-999', client_id: null, name: 'Auto-assign new leads by territory',
+        trigger_type: 'lead_created', trigger_config: { conditions: [] }, action_type: 'assign_owner',
+        action_config: { strategy: 'round_robin' }, is_active: true, run_count: 306,
+        last_run_at: new Date(Date.now() - 40 * 60000).toISOString(),
+        created_at: new Date(Date.now() - 62 * 86400000).toISOString(), updated_at: new Date(Date.now() - 40 * 60000).toISOString() },
+      { id: 'demo-auto-3', org_id: 'demo-org-999', client_id: null, name: 'Follow-up task if a lead is untouched 3 days',
+        trigger_type: 'lead_idle', trigger_config: { conditions: [], days: 3 }, action_type: 'create_task',
+        action_config: { title: 'Follow up with lead', due_in_days: 1 }, is_active: true, run_count: 141,
+        last_run_at: new Date(Date.now() - 20 * 3600000).toISOString(),
+        created_at: new Date(Date.now() - 48 * 86400000).toISOString(), updated_at: new Date(Date.now() - 20 * 3600000).toISOString() },
+      { id: 'demo-auto-4', org_id: 'demo-org-999', client_id: null, name: 'Alert manager when a lead turns hot',
+        trigger_type: 'lead_lifecycle_stage_changed', trigger_config: { conditions: [{ field: 'lifecycle_stage', op: 'eq', value: 'sql' }] }, action_type: 'send_notification',
+        action_config: { to_role: 'manager' }, is_active: true, run_count: 63,
+        last_run_at: new Date(Date.now() - 5 * 3600000).toISOString(),
+        created_at: new Date(Date.now() - 40 * 86400000).toISOString(), updated_at: new Date(Date.now() - 5 * 3600000).toISOString() },
+      { id: 'demo-auto-5', org_id: 'demo-org-999', client_id: null, name: 'Thank-you email when a deal is won',
+        trigger_type: 'deal_won', trigger_config: { conditions: [] }, action_type: 'send_email',
+        action_config: { template: 'deal_won_thanks' }, is_active: true, run_count: 38,
+        last_run_at: new Date(Date.now() - 30 * 3600000).toISOString(),
+        created_at: new Date(Date.now() - 35 * 86400000).toISOString(), updated_at: new Date(Date.now() - 30 * 3600000).toISOString() },
+      { id: 'demo-auto-6', org_id: 'demo-org-999', client_id: null, name: 'Re-engage stalled deals after 14 days',
+        trigger_type: 'deal_stalled', trigger_config: { conditions: [], days: 14 }, action_type: 'send_whatsapp',
+        action_config: { template: 'nudge_stalled' }, is_active: false, run_count: 21,
+        last_run_at: new Date(Date.now() - 9 * 86400000).toISOString(),
+        created_at: new Date(Date.now() - 30 * 86400000).toISOString(), updated_at: new Date(Date.now() - 9 * 86400000).toISOString() },
+    ]) as unknown as T;
     if (path === '/crm/assignment-rules')    return list([])               as unknown as T;
     if (path === '/crm/custom-fields')       return list(readDemoCustomFields()) as unknown as T;
     if (path === '/crm/settings')            return wrap(CRM_SETTINGS)      as unknown as T;
