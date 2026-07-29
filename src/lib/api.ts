@@ -730,6 +730,11 @@ class ApiClient {
     if (orgId) headers['X-Org-Id'] = orgId;
     const imp = getImpersonateUser();
     if (imp?.id) headers['X-Impersonate-User-Id'] = imp.id;
+    // Raw fetch bypasses request(), so attach the multi-project header manually
+    // — without it a non-default (e.g. Kinematic) session routes to the default
+    // project, its JWT fails to verify there, and the call 401s ("Unauthorized").
+    const project = getStoredProjectKey();
+    if (project && project !== DEFAULT_PROJECT) headers['X-Kinematic-Project'] = project;
     const qs = this.sanitizeParams(params);
     return fetch(`${base}/api/v1/analytics/live-locations${qs}`, { headers, cache: 'no-store' })
       .then(async res => {
@@ -780,6 +785,11 @@ class ApiClient {
     if (orgId) headers['X-Org-Id'] = orgId;
     const imp = getImpersonateUser();
     if (imp?.id) headers['X-Impersonate-User-Id'] = imp.id;
+    // Raw fetch bypasses request(); attach the multi-project header manually so
+    // a non-default (e.g. Kinematic) session doesn't route to the default
+    // project and 401 on JWT verification.
+    const project = getStoredProjectKey();
+    if (project && project !== DEFAULT_PROJECT) headers['X-Kinematic-Project'] = project;
     return fetch(`${base}/api/v1/forms/admin/submissions${qs}`, { headers })
       .then(async res => {
         if (res.status === 401) throw new Error('Unauthorized');
