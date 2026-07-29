@@ -23,6 +23,11 @@ export default function NeuronimbusLogo({ height = 22, style, title = 'Neuronimb
   const img: React.CSSProperties = {
     height,
     width: 'auto',
+    // Defeat any global/responsive `img { max-width: 100% }` clamp, which would
+    // otherwise shrink the width while the height stays fixed and squish the
+    // artwork. Keep the artwork's true aspect ratio at all widths.
+    maxWidth: 'none',
+    flexShrink: 0,
     objectFit: 'contain',
     userSelect: 'none',
     pointerEvents: 'none',
