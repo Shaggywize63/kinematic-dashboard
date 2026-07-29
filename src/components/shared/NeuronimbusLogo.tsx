@@ -19,13 +19,21 @@ interface Props {
  * official artwork just replace /public/neuronimbus-dark.svg and
  * /public/neuronimbus-light.svg — no code change required.
  */
+// Aspect ratio of the shipped artwork (viewBox 226×44). Used to give the
+// <img> an EXPLICIT width box so it can never collapse to 0px — some browsers
+// (Firefox/Safari) render an SVG-in-<img> at 0 width when it has no intrinsic
+// size and CSS only sets height:auto width. object-fit:contain means a swapped
+// file of a slightly different ratio letterboxes instead of distorting.
+const LOGO_ASPECT = 226 / 44;
+
 export default function NeuronimbusLogo({ height = 22, style, title = 'Neuronimbus' }: Props) {
+  const width = Math.round(height * LOGO_ASPECT);
   const img: React.CSSProperties = {
     height,
-    width: 'auto',
+    width,
     // Defeat any global/responsive `img { max-width: 100% }` clamp, which would
     // otherwise shrink the width while the height stays fixed and squish the
-    // artwork. Keep the artwork's true aspect ratio at all widths.
+    // artwork. Keep a fixed, non-zero box at the artwork's true aspect ratio.
     maxWidth: 'none',
     flexShrink: 0,
     objectFit: 'contain',
