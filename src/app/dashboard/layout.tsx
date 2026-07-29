@@ -7,7 +7,6 @@ import { getStoredUser, isSessionValid, clearSession, getDesignationLabel } from
 import api, { getActingAs, setActingAs, getImpersonateUser, stopImpersonation } from '../../lib/api';
 import { webChatsApi } from '../../lib/webChatsApi';
 import BrandLogo from '../../components/shared/BrandLogo';
-import NeuronimbusLogo from '../../components/shared/NeuronimbusLogo';
 import StagingBoot from './StagingBoot';
 import StagingDeployModal from './StagingDeployModal';
 import { getStoredProjectKey } from '../../lib/projects';
@@ -853,31 +852,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
           <div style={{ padding: collapsed && !isMobile ? '12px 8px' : 16, borderTop:`1px solid ${C.border}` }}>
             {(isMobile || !collapsed) && (
-              user?.email === 'demo@kinematic.com' ? (
-                /* Demo account: the sidebar footer carries the Neuronimbus
-                   partner logo (bottom-left, just above Sign Out) instead of
-                   the name/designation — this is the demo's co-branding slot.
-                   No real tenant is affected. */
-                <div style={{ marginBottom:12, display:'flex', justifyContent:'flex-start' }}>
-                  <NeuronimbusLogo height={26} title="Powered by Neuronimbus" />
+              <div style={{ marginBottom:10 }}>
+                <div style={{ fontSize:13, fontWeight:700, color:C.white, lineHeight:1.2 }}>{user?.name || 'Admin'}</div>
+                {/* Designation = hierarchy role name (e.g. "Business Manager",
+                    "Consumer Champion"). Falls back to the legacy preset role
+                    label so we never show an empty descriptor. */}
+                <div style={{ fontSize:11, color:C.gray, marginTop:2, lineHeight:1.2 }}>
+                  {/* Show the real hierarchy designation (Business Manager,
+                      Consumer Champion, …). For platform admins with no
+                      org_role assigned, the shared helper resolves to
+                      "Super Admin" / "Admin". Returns "—" only when there
+                      is genuinely no designation — never substitutes a
+                      generic "Team Member" placeholder. */}
+                  {hierarchyRoleName || getDesignationLabel(user)}
                 </div>
-              ) : (
-                <div style={{ marginBottom:10 }}>
-                  <div style={{ fontSize:13, fontWeight:700, color:C.white, lineHeight:1.2 }}>{user?.name || 'Admin'}</div>
-                  {/* Designation = hierarchy role name (e.g. "Business Manager",
-                      "Consumer Champion"). Falls back to the legacy preset role
-                      label so we never show an empty descriptor. */}
-                  <div style={{ fontSize:11, color:C.gray, marginTop:2, lineHeight:1.2 }}>
-                    {/* Show the real hierarchy designation (Business Manager,
-                        Consumer Champion, …). For platform admins with no
-                        org_role assigned, the shared helper resolves to
-                        "Super Admin" / "Admin". Returns "—" only when there
-                        is genuinely no designation — never substitutes a
-                        generic "Team Member" placeholder. */}
-                    {hierarchyRoleName || getDesignationLabel(user)}
-                  </div>
-                </div>
-              )
+              </div>
             )}
             <button
               onClick={handleLogout}
