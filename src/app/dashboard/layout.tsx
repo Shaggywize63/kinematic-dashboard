@@ -7,6 +7,7 @@ import { getStoredUser, isSessionValid, clearSession, getDesignationLabel } from
 import api, { getActingAs, setActingAs, getImpersonateUser, stopImpersonation } from '../../lib/api';
 import { webChatsApi } from '../../lib/webChatsApi';
 import BrandLogo from '../../components/shared/BrandLogo';
+import NeuronimbusLogo from '../../components/shared/NeuronimbusLogo';
 import StagingBoot from './StagingBoot';
 import StagingDeployModal from './StagingDeployModal';
 import { getStoredProjectKey } from '../../lib/projects';
@@ -993,6 +994,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </Link>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, zIndex: 1 }}>
+              {/* Neuronimbus partner logo — demo account only, desktop header.
+                  Sits at the start of the right-hand control cluster with a
+                  divider, so the demo reads as "powered by Neuronimbus" without
+                  touching any real tenant's chrome. */}
+              {user?.email === 'demo@kinematic.com' && !isMobile && (
+                <>
+                  <NeuronimbusLogo height={22} title="Powered by Neuronimbus" style={{ marginRight: 2 }} />
+                  <span style={{ width: 1, height: 24, background: C.border, margin: '0 6px' }} aria-hidden />
+                </>
+              )}
               {/* Chat trigger lives next to the notification bell — the
                   previous floating FAB cramped on phones. ChatLauncher
                   renders an icon button here and pops the panel inline. */}
