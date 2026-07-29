@@ -1,5 +1,5 @@
 'use client';
-import React from 'react';
+import React, { useState } from 'react';
 
 interface Props {
   /** Rendered height in px (mark height); wordmark scales from it. */
@@ -12,29 +12,50 @@ interface Props {
  * Neuronimbus partner logo — surfaced only on the demo account's dashboard
  * sidebar footer.
  *
- * A lockup of the official node-mark (`/public/neuronimbus-mark.png`, the real
- * artwork with its white background made transparent) + the "neuronimbus"
- * wordmark. The wordmark colour is `var(--text)`, so it's white on the dark
- * sidebar and dark on the light theme; the light-blue mark reads on both.
- *
- * To use a fully official lockup instead, drop a transparent PNG of the whole
- * mark + wordmark in as `/public/neuronimbus.png` and swap the two nodes below
- * for a single <img src="/neuronimbus.png">.
+ * Prefers the OFFICIAL full logo at `/public/neuronimbus.png`. Drop that file
+ * in (a transparent PNG of the whole mark + wordmark, with a light/white
+ * wordmark so it reads on the dark sidebar) and it takes over automatically —
+ * no code change. Until it exists, an onError handler falls back to a lockup of
+ * the real node-mark (`/public/neuronimbus-mark.png`) + a rendered
+ * "neuronimbus" wordmark coloured `var(--text)` (white on dark, dark on light).
  */
 export default function NeuronimbusLogo({ height = 22, style, title = 'Neuronimbus' }: Props) {
+  const [officialFailed, setOfficialFailed] = useState(false);
+  const wrap: React.CSSProperties = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    height,
+    flexShrink: 0,
+    ...style,
+  };
+
+  // Preferred: the official full-logo PNG the client uploads.
+  if (!officialFailed) {
+    return (
+      <span style={wrap} aria-label={title} title={title}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/neuronimbus.png"
+          alt={title}
+          style={{
+            height,
+            width: 'auto',
+            maxWidth: 'none',
+            flexShrink: 0,
+            display: 'block',
+            objectFit: 'contain',
+            userSelect: 'none',
+            pointerEvents: 'none',
+          }}
+          onError={() => setOfficialFailed(true)}
+        />
+      </span>
+    );
+  }
+
+  // Fallback: real node-mark + rendered wordmark lockup.
   return (
-    <span
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: Math.round(height * 0.3),
-        height,
-        flexShrink: 0,
-        ...style,
-      }}
-      aria-label={title}
-      title={title}
-    >
+    <span style={{ ...wrap, gap: Math.round(height * 0.3) }} aria-label={title} title={title}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src="/neuronimbus-mark.png"
