@@ -48,14 +48,28 @@ export default function NeuronimbusLogo({ height = 22, style, title = 'Neuronimb
   };
 
   if (!pngFailed) {
-    // The official PNG has its own intrinsic aspect ratio, so let width auto-
-    // scale from the fixed height (no forced aspect box that could letterbox).
+    // The official PNG is a full-colour logo on a WHITE background (blue mark +
+    // navy wordmark), so it's rendered on a small white rounded "chip" — that
+    // makes it read as an intentional partner badge on the dark sidebar instead
+    // of a stray white bar. Width auto-scales from the fixed height.
     return (
-      <span style={wrap} aria-label={title} title={title}>
+      <span
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          background: '#ffffff',
+          borderRadius: 6,
+          padding: '3px 8px',
+          flexShrink: 0,
+          ...style,
+        }}
+        aria-label={title}
+        title={title}
+      >
         <img
           src="/neuronimbus.png"
           alt={title}
-          style={{ ...box, width: 'auto' }}
+          style={{ ...box, width: 'auto', display: 'block' }}
           onError={() => setPngFailed(true)}
         />
       </span>
