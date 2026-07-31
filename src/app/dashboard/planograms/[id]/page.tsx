@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import planogramApi, { PlanogramAssignment } from '../../../../lib/planogramApi';
@@ -105,6 +105,7 @@ export default function PlanogramDetailPage() {
           facings: Math.max(1, Math.floor(s.facings)),
           position: s.position,
           weight: s.weight,
+          ref_image_url: s.ref_image_url || undefined,
         })),
       });
       setPlanogram(res.data);
@@ -591,12 +592,13 @@ function SkuTable({
         No SKUs yet — add one.
       </div>
     );
+  const GRID = '52px 2fr 1.1fr 0.6fr 0.6fr 0.6fr 36px';
   return (
     <div>
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: '2fr 1.2fr 0.7fr 0.7fr 0.7fr 36px',
+          gridTemplateColumns: GRID,
           gap: 8,
           padding: '10px 18px',
           fontSize: 10,
@@ -606,6 +608,7 @@ function SkuTable({
           borderBottom: '1px solid var(--border)',
         }}
       >
+        <span>Ref</span>
         <span>SKU name</span>
         <span>SKU id</span>
         <span>Shelf</span>
@@ -618,13 +621,17 @@ function SkuTable({
           key={i}
           style={{
             display: 'grid',
-            gridTemplateColumns: '2fr 1.2fr 0.7fr 0.7fr 0.7fr 36px',
+            gridTemplateColumns: GRID,
             gap: 8,
             padding: '10px 18px',
             borderBottom: '1px solid rgba(122,139,160,0.15)',
             alignItems: 'center',
           }}
         >
+          <RefImageCell
+            value={s.ref_image_url}
+            onChange={(url) => onUpdate(i, { ref_image_url: url })}
+          />
           <input
             value={s.sku_name}
             onChange={(e) => onUpdate(i, { sku_name: e.target.value })}
@@ -674,6 +681,108 @@ function SkuTable({
           </button>
         </div>
       ))}
+    </div>
+  );
+}
+
+// Per-SKU reference-pack image: 48px thumbnail + click-to-upload. Uploads to
+// /api/v1/upload/planogram_ref (public bucket) and stores the returned URL as
+// ref_image_url, which shelf-recognition matches shelf products against.
+function RefImageCell({
+  value,
+  onChange,
+}: {
+  value?: string | null;
+  onChange: (url: string) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  const [broken, setBroken] = useState(false);
+
+  const upload = async (f: File) => {
+    if (!/^image\//.test(f.type)) return;
+    if (f.size > 8 * 1024 * 1024) return;
+    setBusy(true);
+    try {
+      const fd = new FormData();
+      fd.append('photo', f);
+      const token = typeof window !== 'undefined' ? localStorage.getItem('kinematic_token') : null;
+      const orgId =
+        typeof window !== 'undefined'
+          ? JSON.parse(localStorage.getItem('kinematic_user') || '{}').org_id || ''
+          : '';
+      // Same shape as the lead-photo upload: Authorization + X-Org-Id. The
+      // backend resolves the Supabase project from the token's issuer, so the
+      // reference lands in the caller's own project's public bucket.
+      const r = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/upload/planogram_ref`, {
+        method: 'POST',
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(orgId ? { 'X-Org-Id': orgId } : {}),
+        },
+        body: fd,
+      });
+      const json = await r.json();
+      const url = json?.data?.url || json?.url;
+      if (!url) throw new Error(json?.error || json?.message || 'Upload failed');
+      setBroken(false);
+      onChange(url);
+    } catch {
+      /* swallow — the cell just stays empty; user can retry */
+    } finally {
+      setBusy(false);
+      if (inputRef.current) inputRef.current.value = '';
+    }
+  };
+
+  return (
+    <div style={{ position: 'relative', width: 44, height: 44 }}>
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        title={value ? 'Replace reference image' : 'Upload reference image'}
+        style={{
+          width: 44,
+          height: 44,
+          borderRadius: 8,
+          border: '1px dashed var(--border)',
+          background: 'var(--s2)',
+          color: 'var(--textTert)',
+          cursor: 'pointer',
+          padding: 0,
+          overflow: 'hidden',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: 16,
+        }}
+      >
+        {busy ? (
+          <span style={{ fontSize: 10 }}>…</span>
+        ) : value && !broken ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={value}
+            alt="ref"
+            onError={() => setBroken(true)}
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          />
+        ) : (
+          <span title={broken ? 'Image set but not reachable yet' : 'Add image'}>
+            {broken ? '⚠' : '+'}
+          </span>
+        )}
+      </button>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        hidden
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) upload(f);
+        }}
+      />
     </div>
   );
 }
