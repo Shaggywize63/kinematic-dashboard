@@ -21,6 +21,8 @@ export interface ExpectedSKU {
   facings: number;
   position?: number;
   weight?: number;
+  /** Front-of-pack reference shot; shelf-recognition matches products against it. */
+  ref_image_url?: string | null;
 }
 
 export interface DetectedSKU {
