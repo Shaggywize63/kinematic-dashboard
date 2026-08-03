@@ -101,8 +101,23 @@ export default function InvoiceDetail() {
             </div>
           </Card>
 
+          {/* PMC DELTA — B2B/B2C billing type + delivery crew (driver / helper). */}
+          {(inv.bill_type || inv.driver_name || inv.helper_name) && (
+            <Card>
+              <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 12 }}>Bill details</div>
+              {inv.bill_type && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, padding: '4px 0', color: 'var(--text-dim)' }}>
+                  <span>Billing type</span><Pill color={inv.bill_type === 'B2B' ? 'blue' : 'green'}>{inv.bill_type}</Pill>
+                </div>
+              )}
+              {inv.driver_name && <Row k="Driver"  v={inv.driver_name} />}
+              {inv.helper_name && <Row k="Helper"  v={inv.helper_name} />}
+            </Card>
+          )}
+
           <Card>
             <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 12 }}>Tax breakdown</div>
+            <Row k="Gross amount" v={inr(Number(inv.taxable_value) + Number(inv.discount_total || 0))} />
             <Row k="Subtotal"     v={inr(inv.subtotal)} />
             <Row k="Discount"     v={`- ${inr(inv.discount_total)}`} />
             <Row k="Scheme"       v={`- ${inr(inv.scheme_total)}`} />

@@ -31,6 +31,7 @@ const NAV_TILES: NavTile[] = [
   { href: '/dashboard/distribution/ledger',           label: 'Ledger',         sub: 'Double-entry, ageing' },
   { href: '/dashboard/distribution/secondary-sales',  label: 'Consumer',       sub: 'Off-take · planogram' },
   { href: '/dashboard/planograms',                    label: 'Planograms',     sub: 'On-shelf compliance' },
+  { href: '/dashboard/distribution/reports',          label: 'Reports',        sub: 'Godown · Targets · DSR' },
 ];
 
 export default function DistributionOverview() {
