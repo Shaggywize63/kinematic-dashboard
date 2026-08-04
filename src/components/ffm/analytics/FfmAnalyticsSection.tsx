@@ -76,7 +76,7 @@ export default function FfmAnalyticsSection() {
   const dirty = useRef(false);
 
   useEffect(() => {
-    crmDashboardLayouts.get('ffm' as unknown as 'analytics')
+    crmDashboardLayouts.get('ffm')
       .then((r) => {
         const cfg = r?.data ?? defaultLayout();
         setConfig({
@@ -97,7 +97,7 @@ export default function FfmAnalyticsSection() {
     if (!dirty.current) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
-      crmDashboardLayouts.save('ffm' as unknown as 'analytics', config).catch((err) => {
+      crmDashboardLayouts.save('ffm', config).catch((err) => {
         toast.error(`Failed to save: ${(err as Error)?.message?.slice(0, 120) ?? 'unknown'}`);
       });
     }, 800);

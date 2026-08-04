@@ -388,6 +388,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // bound-client-OR-picker logic as Tata above.
   const KINEMATIC_CLIENT_ID = '7ecd47d7-9268-4ea2-a8ce-384978c13667';
   const kinematicActive = userClientId === KINEMATIC_CLIENT_ID || pickerClientId === KINEMATIC_CLIENT_ID;
+  // PM Corporation — a lean van-sales distribution + field-force demo tenant.
+  // Hides Lead Management, Business, People & Support and the Distribution →
+  // Integrations item. Driven by PMC's client OR org id (same bound-client-OR-
+  // picker-OR-org membership logic used for Tata above).
+  const PMC_CLIENT_ID = 'c0000000-0000-4000-a000-000000000002';
+  const PMC_ORG_ID = 'c0000000-0000-4000-a000-000000000001';
+  const pmcHideActive =
+    userClientId === PMC_CLIENT_ID || pickerClientId === PMC_CLIENT_ID ||
+    userOrgId === PMC_ORG_ID || (actingAs as any)?.org_id === PMC_ORG_ID;
 
   const filterNav = (items: any[]) => {
     const visibleAfterRole = items.filter((i) => !i.superAdminOnly || isSuperAdmin);
@@ -402,13 +411,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const visibleAfterTata = visibleAfterDemo.filter((i) => !(i.hiddenForTata && tataHideActive));
     // Parent Kinematic tenant hide list (opt-in via `hiddenForKinematic`).
     const visibleAfterKinematic = visibleAfterTata.filter((i) => !(i.hiddenForKinematic && kinematicActive));
+    // PM Corporation hide list (opt-in via `hiddenForPMC`, e.g. Integrations).
+    const visibleAfterPmc = visibleAfterKinematic.filter((i) => !(i.hiddenForPMC && pmcHideActive));
     // While acting-as a client (super-admin "Login as"), restrict the nav to
     // the modules granted to that client in Client Management — even though the
     // impersonated account itself may be a full admin in its own project.
     const actingModules = actingAs?.modules;
     const scoped = Array.isArray(actingModules) && actingModules.length
-      ? visibleAfterKinematic.filter(i => !i.module || actingModules.includes(i.module))
-      : visibleAfterKinematic;
+      ? visibleAfterPmc.filter(i => !i.module || actingModules.includes(i.module))
+      : visibleAfterPmc;
     // Scoped viewers are gated to their granted modules (fall through to
     // hasModule); only a true platform admin gets the unfiltered nav.
     if (isPlatformAdmin && !isViewer) return scoped;
@@ -424,6 +435,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const sectionVisible = (pkg: string | undefined, items: any[]) => {
     if (items.length === 0) return false;
     if (!pkg) return true;
+    // PM Corporation: lean distribution + field-force nav — drop Lead
+    // Management, Business and People & Support sections wholesale.
+    if (pmcHideActive && ['crm', 'business', 'people'].includes(pkg)) return false;
     // A scoped viewer shows a section only if it contains at least one module
     // its role grants — so the SRS+BMW Lead Viewer sees just the CRM section.
     if (isViewer) return items.some((i: any) => hasModule(i.module));
@@ -535,7 +549,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       { href: '/dashboard/distribution/last-mile',                  label: 'Last Mile',          icon: 'M2 12h4l3-9 4 18 3-9h4 M22 12h-3', module: 'distribution_consumer' },
       { href: '/dashboard/distribution/last-mile/consumers',        label: 'Consumer Registry',  icon: 'M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 7a4 4 0 100 8 4 4 0 000-8z', module: 'distribution_consumer' },
       { href: '/dashboard/distribution/last-mile/tertiary-sales',   label: 'Retailer Sales',     icon: 'M9 11l3 3L22 4 M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11', module: 'distribution_consumer' },
-      { href: '/dashboard/distribution/integrations',     label: 'Integrations', icon: 'M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71 M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71', module: 'distribution' },
+      { href: '/dashboard/distribution/integrations',     label: 'Integrations', icon: 'M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71 M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71', module: 'distribution', hiddenForPMC: true },
     ]},
     { label: 'Business', package: 'business', items: [
       { href: '/dashboard/clients',                  label: 'Clients',   icon: 'M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 7a4 4 0 100-8 4 4 0 000 8z', module: 'clients' },

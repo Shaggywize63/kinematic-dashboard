@@ -922,8 +922,17 @@ class ApiClient {
   // ── Distribution: Invoices (M2) ──────────────────────────────────────
   getInvoices(params?: Record<string, string>) { return this.get(`/api/v1/distribution/invoices${this.sanitizeParams(params)}`); }
   getInvoice(id: string) { return this.get(`/api/v1/distribution/invoices/${id}`); }
-  issueInvoice(orderId: string) { return this.post('/api/v1/distribution/invoices', { order_id: orderId }); }
+  // PMC DELTA — B2B/B2C + driver/helper captured at bill time.
+  issueInvoice(orderId: string, opts?: { bill_type?: string; driver_name?: string; helper_name?: string }) {
+    return this.post('/api/v1/distribution/invoices', { order_id: orderId, ...(opts || {}) });
+  }
   cancelInvoice(id: string, reason?: string) { return this.post(`/api/v1/distribution/invoices/${id}/cancel`, { reason }); }
+
+  // ── Distribution: PMC DELTA reports ──────────────────────────────────
+  getGodownReport(params?: Record<string, string>) { return this.get(`/api/v1/distribution/reports/godown${this.sanitizeParams(params)}`); }
+  getTargetReport(params?: Record<string, string>) { return this.get(`/api/v1/distribution/reports/targets${this.sanitizeParams(params)}`); }
+  getDsrList() { return this.get('/api/v1/distribution/reports/dsr'); }
+  getDsr(salesmanId: string, date: string) { return this.get(`/api/v1/distribution/reports/dsr${this.sanitizeParams({ salesman_id: salesmanId, date })}`); }
 
   // ── Distribution: Dispatches (M2) ────────────────────────────────────
   getDispatches(params?: Record<string, string>) { return this.get(`/api/v1/distribution/dispatches${this.sanitizeParams(params)}`); }
