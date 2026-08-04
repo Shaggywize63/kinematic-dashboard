@@ -77,7 +77,7 @@ export const crmMarketIntel = {
 export interface GridItem { i: string; x: number; y: number; w: number; h: number; minW?: number; minH?: number }
 export interface WidgetInstance { id: string; widget_type: string; chart_type: string; config?: Record<string, unknown> }
 export interface DashboardConfig { widgets: WidgetInstance[]; layouts: { lg?: GridItem[]; md?: GridItem[]; sm?: GridItem[] } }
-export type LayoutPage = 'analytics' | 'overview';
+export type LayoutPage = 'analytics' | 'overview' | 'ffm';
 
 export const crmDashboardLayouts = {
   get: (page: LayoutPage) => api.get<Wrapped<DashboardConfig>>(`${LAYOUT_BASE}/${page}`),
