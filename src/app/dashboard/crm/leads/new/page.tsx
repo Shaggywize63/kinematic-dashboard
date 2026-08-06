@@ -6,7 +6,7 @@ import { crmLeads, crmSettings, crmLeadSources, crmProducts, crmTargets, type My
 import api from '../../../../../lib/api';
 import { reverseGeocode } from '../../../../../lib/googleGeocode';
 import { useClient } from '../../../../../context/ClientContext';
-import type { BusinessType, LeadSource, Product } from '../../../../../types/crm';
+import type { BusinessType, LeadSource, Product, CustomField } from '../../../../../types/crm';
 import LocationPicker from '../../../../../components/crm/LocationPicker';
 import CustomFieldsSection from '../../../../../components/crm/CustomFieldsSection';
 import GoogleAddressAutocomplete from '../../../../../components/crm/GoogleAddressAutocomplete';
@@ -95,6 +95,11 @@ export default function NewLeadPage() {
   // Self-only roles (org_role.data_scope === 'own', e.g. Consumer Champion)
   // can't assign leads to others — they own what they create.
   const [selfOnly, setSelfOnly] = useState(false);
+  // The visible (role-filtered, non-hidden) custom-field defs, reported up
+  // from CustomFieldsSection. Used to enforce required custom fields on
+  // submit — the same rule the backend now enforces (enforceRequired) —
+  // so a blank mandatory field is caught inline instead of via a 400.
+  const [customFieldDefs, setCustomFieldDefs] = useState<CustomField[]>([]);
 
   // Capture the device's current position. Coordinates are mandatory and
   // non-editable: the lead is geo-tagged with the rep's actual location at
@@ -449,6 +454,21 @@ export default function NewLeadPage() {
       fail('lead-field-location', 'Location is required. Allow location access, then tap “Use my current location”.');
       return;
     }
+    // Required CUSTOM fields. CustomFieldsSection reports the visible, role-
+    // filtered defs up via onFieldsChange; enforce the required ones here so
+    // the user gets an inline scroll-to error instead of a bare 400 (the
+    // backend also enforces this now via enforceRequired). Hidden and role-
+    // scoped-out fields aren't in the list, so we only police what's shown.
+    for (const def of customFieldDefs) {
+      if (!def.required || def.field_type === 'formula') continue;
+      const v = form.custom_fields[def.field_key];
+      const missing = v === null || v === undefined || v === ''
+        || (Array.isArray(v) && v.length === 0);
+      if (missing) {
+        fail(`lead-cf-${def.field_key}`, `${def.label || def.field_key} is required.`);
+        return;
+      }
+    }
     setBusy(true);
     try {
       const payload: Record<string, unknown> = {
@@ -698,6 +718,7 @@ export default function NewLeadPage() {
                 entity="lead"
                 values={form.custom_fields}
                 onChange={(cf) => setForm({ ...form, custom_fields: cf })}
+                onFieldsChange={setCustomFieldDefs}
               />
             </div>
           </Section>
@@ -759,6 +780,7 @@ export default function NewLeadPage() {
                 entity="lead"
                 values={form.custom_fields}
                 onChange={(cf) => setForm({ ...form, custom_fields: cf })}
+                onFieldsChange={setCustomFieldDefs}
               />
             </div>
           </Section>
