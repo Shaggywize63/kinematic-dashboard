@@ -21,7 +21,7 @@ import {
   type IntelCompetitorShare, type IntelCompetitorPrice, type IntelSignalBreakdown,
   type IntelByCity, type IntelTrendPoint, type IntelSignal,
 } from '../../../../lib/crmAnalyticsExtApi';
-import { ChartCard, ChartTooltip, GradientDefs, grad, CHART, CHART_PALETTE, CHART_SEMANTIC } from '../../../../lib/chartTheme';
+import { ChartCard, ChartTooltip, ChartEmpty, GradientDefs, grad, CHART, CHART_PALETTE, CHART_SEMANTIC } from '../../../../lib/chartTheme';
 import { useTableSort, SortLabel } from '../../../../lib/tableSort';
 
 const BRAND = CHART_SEMANTIC.lost;
@@ -139,6 +139,7 @@ export default function MarketIntelligencePage() {
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 16 }}>
             <Card title="Competitor share of voice" subtitle="Mentions in the field, with where we're losing">
+              {share.length ? (
               <ResponsiveContainer width="100%" height={280}>
                 <BarChart data={share} layout="vertical" margin={{ left: 12 }}>
                   <GradientDefs colors={[BRAND, WIN]} />
@@ -151,9 +152,11 @@ export default function MarketIntelligencePage() {
                   <Bar dataKey="we_winning" name="We're winning" stackId="a" fill={grad(WIN)} radius={CHART.hBarRadius} {...CHART.animation} />
                 </BarChart>
               </ResponsiveContainer>
+              ) : <ChartEmpty message="No competitor mentions in this window yet" />}
             </Card>
 
             <Card title="Price gap vs competitors" subtitle="Avg competitor price minus ours (negative = they're cheaper)">
+              {price.length ? (
               <ResponsiveContainer width="100%" height={280}>
                 <BarChart data={price} layout="vertical" margin={{ left: 12 }}>
                   <GradientDefs colors={[BRAND, WIN]} />
@@ -168,9 +171,11 @@ export default function MarketIntelligencePage() {
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
+              ) : <ChartEmpty message="No competitor price signals logged yet" />}
             </Card>
 
             <Card title="Signal mix" subtitle="What the field is telling us">
+              {pieData.length ? (
               <ResponsiveContainer width="100%" height={280}>
                 <PieChart>
                   <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={52} outerRadius={92} paddingAngle={3} stroke="var(--s2)" strokeWidth={2} {...CHART.animation}>
@@ -180,9 +185,11 @@ export default function MarketIntelligencePage() {
                   <Legend />
                 </PieChart>
               </ResponsiveContainer>
+              ) : <ChartEmpty message="No signal-mix data yet" />}
             </Card>
 
             <Card title="Trend" subtitle="Monthly signals and competitive losses">
+              {trend.length ? (
               <ResponsiveContainer width="100%" height={280}>
                 <LineChart data={trend}>
                   <CartesianGrid {...CHART.grid} />
@@ -194,6 +201,7 @@ export default function MarketIntelligencePage() {
                   <Line type="monotone" dataKey="we_losing" name="We're losing" stroke={BRAND} strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} {...CHART.animation} />
                 </LineChart>
               </ResponsiveContainer>
+              ) : <ChartEmpty message="Not enough history to plot a trend yet" />}
             </Card>
           </div>
 
