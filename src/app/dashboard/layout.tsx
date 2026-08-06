@@ -28,6 +28,9 @@ const SidebarEditor = dynamic(() => import('../../components/dashboard/SidebarEd
 // Floating chat launcher (Messenger-style FAB + popup panel) — replaces the
 // sidebar Inbox entry. Lazy-loaded to keep TTI snappy.
 const ChatLauncher = dynamic(() => import('../../components/messaging/ChatLauncher'), { ssr: false });
+// Global smart-search command palette (⌘/Ctrl-K). Lazy — only pulled in when
+// the shell mounts; the panel itself renders nothing until opened.
+const SmartSearch = dynamic(() => import('../../components/shared/SmartSearch'), { ssr: false });
 
 function GlobalClientFilter({ isPlatformAdmin }: { isPlatformAdmin: boolean }) {
   const { selectedClientId, setSelectedClientId } = useClient();
@@ -161,6 +164,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // saved order is applied to the entitlement-filtered nav below; the editor
   // modal opens from the "Customise" button in the nav.
   const [editingNav, setEditingNav] = useState(false);
+  // Global smart-search command palette open state (⌘/Ctrl-K, and the header
+  // Search button). See the keydown effect below.
+  const [searchOpen, setSearchOpen] = useState(false);
   const { prefs: navPrefs, save: saveNavPrefs, reset: resetNavPrefs } = useNavPrefs(user?.id ?? null);
   // True once /auth/me has resolved. Until then, if the cached profile has no
   // explicit permissions, we hold the role-gated nav back to avoid a flash of
@@ -169,6 +175,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const isMobile = useIsMobile(1024);
   const router = useRouter();
   const pathname = usePathname();
+
+  // Global ⌘/Ctrl-K toggles the smart-search command palette from anywhere in
+  // the dashboard. preventDefault stops the browser's own bookmark shortcut.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && (e.key === 'k' || e.key === 'K')) {
+        e.preventDefault();
+        setSearchOpen((v) => !v);
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
 
   useEffect(() => {
     const u = getStoredUser();
@@ -1044,6 +1063,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </Link>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, zIndex: 1 }}>
+              {/* Global smart search (⌘/Ctrl-K). On phones it collapses to just
+                  the magnifier; on desktop it shows the "Search" label + hint. */}
+              {token && (
+                <button
+                  onClick={() => setSearchOpen(true)}
+                  aria-label="Search"
+                  title="Search (⌘K / Ctrl-K)"
+                  style={{ display: 'flex', alignItems: 'center', gap: 8, background: C.s3, border: `1px solid ${C.border}`, color: C.gray, borderRadius: 9, height: 34, padding: isMobile ? '0 9px' : '0 10px 0 11px', cursor: 'pointer' }}
+                >
+                  <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M21 21l-4.3-4.3" /><circle cx="11" cy="11" r="8" /></svg>
+                  {!isMobile && <span style={{ fontSize: 13 }}>Search</span>}
+                  {!isMobile && <kbd style={{ fontFamily: 'var(--font-jetbrains)', fontSize: 10.5, color: C.gray, background: C.s4, border: `1px solid ${C.border}`, borderRadius: 5, padding: '1px 5px' }}>⌘K</kbd>}
+                </button>
+              )}
               {/* Chat trigger lives next to the notification bell — the
                   previous floating FAB cramped on phones. ChatLauncher
                   renders an icon button here and pops the panel inline. */}
@@ -1105,6 +1138,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </footer>
         </main>
         {token && <KinematicAI token={token} />}
+        {token && (
+          <SmartSearch
+            open={searchOpen}
+            onClose={() => setSearchOpen(false)}
+            navGroups={orderedNavGroups}
+            userId={user?.id}
+          />
+        )}
         {editingNav && (
           <SidebarEditor
             groups={orderedNavGroups.map((g: any) => ({

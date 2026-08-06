@@ -151,6 +151,7 @@ const TTL_OVERRIDES: Array<[RegExp, number]> = [
 // stages, hierarchy, …) goes through the generic list helper, which would
 // blindly `.eq('city', …)` and 500 on tables with no city column.
 const CITY_AWARE_CRM_PREFIXES = [
+  '/api/v1/crm/search',
   '/api/v1/crm/leads',
   '/api/v1/crm/contacts',
   '/api/v1/crm/accounts',
