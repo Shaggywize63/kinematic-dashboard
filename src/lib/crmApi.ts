@@ -60,6 +60,19 @@ function crud<T, C = Partial<T>>(base: string) {
 
 const BASE = '/api/v1/crm';
 
+// ── Global smart search ──────────────────────────────────────────────
+// Unified omnisearch across the core CRM entities, powering the ⌘/Ctrl-K
+// command palette. Scoping (org + client + city + hierarchy) is applied
+// server-side; the request auto-carries X-Org-Id / X-Client-Id / ?city=
+// via the api client (see CITY_AWARE_CRM_PREFIXES in api.ts).
+export interface SearchResultItem { id: string; title: string; subtitle?: string; score: number }
+export interface SearchResultGroup { type: string; label: string; count: number; items: SearchResultItem[] }
+export interface SearchResponse { query: string; groups: SearchResultGroup[]; total: number }
+
+export const searchApi = {
+  query: (q: string) => api.get<Wrapped<SearchResponse>>(`${BASE}/search${qs({ q })}`),
+};
+
 export const crmLeads = {
   ...crud<Lead>(`${BASE}/leads`),
   score: (id: string) => api.post<Wrapped<LeadScore>>(`${BASE}/leads/${id}/score`, {}),

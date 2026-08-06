@@ -276,11 +276,30 @@ export default function KinematicAI({ token }: { token: string }) {
     }).catch(() => {});
   }, [open, token]);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [msgs]);
+  // A query handed off from the global smart search (⌘/Ctrl-K → "Ask KINI").
+  // Stashed here so we auto-send it only AFTER the panel has opened, with the
+  // current render's `send` closure (avoids a stale-state send).
+  const [pendingQuery, setPendingQuery] = useState<string | null>(null);
   useEffect(() => {
-    const h = () => setOpen(true);
+    const h = (e: Event) => {
+      setOpen(true);
+      const q = (e as CustomEvent).detail?.query;
+      if (typeof q === 'string' && q.trim()) setPendingQuery(q.trim());
+    };
     window.addEventListener('km-open-ai', h);
     return () => window.removeEventListener('km-open-ai', h);
   }, []);
+  useEffect(() => {
+    if (!open || !pendingQuery) return;
+    const q = pendingQuery;
+    setPendingQuery(null);
+    // Let the panel mount/focus first, then fire the query as a normal turn.
+    const t = setTimeout(() => { send(q); }, 60);
+    return () => clearTimeout(t);
+    // `send` is intentionally not a dep — the effect runs post-render with the
+    // current closure; adding it would re-fire on every keystroke-driven render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, pendingQuery]);
 
   const sys = () => {
     // Explicit IST formatting + a directive so KINI never replies with UTC
