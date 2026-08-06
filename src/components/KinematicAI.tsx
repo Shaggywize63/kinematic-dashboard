@@ -378,8 +378,20 @@ Be elite, professional, and data-driven. Use **bold** for key metrics. Proactive
         selCity = typeof window !== 'undefined' ? window.localStorage.getItem('kinematic_selected_city') : null;
       } catch { /* ignore */ }
 
+      // Sanitise the outgoing history window. Continuous (multi-turn) chats
+      // were throwing because the upstream LLM requires the first message to be
+      // a `user` turn with strictly alternating roles: once the conversation
+      // grew, `.slice(-6)` could start on an assistant turn and the request was
+      // rejected. Send only {role, content} (drop `cards`/`loading`/error
+      // bubbles), keep the last 6 turns, then trim any leading assistant turns
+      // so the window always opens on `user`.
+      const history = [...msgs.filter(m => !m.loading && !m.error), um]
+        .map(m => ({ role: m.role, content: m.content }))
+        .slice(-6);
+      while (history.length && history[0].role !== 'user') history.shift();
+
       const body: any = {
-        messages: [...msgs.filter(m => !m.loading), um].slice(-6),
+        messages: history,
         system: sys(),
       };
       // Always send a context object so the agentic v2 endpoint can build its
@@ -438,6 +450,7 @@ Be elite, professional, and data-driven. Use **bold** for key metrics. Proactive
         setMsgs(p => p.map((m, i) => i === p.length - 1 ? {
           role: 'assistant',
           content: errMsg || 'Monthly AI limit reached. Resets on the 1st.',
+          error: true,
         } : m));
         return;
       }
@@ -447,6 +460,7 @@ Be elite, professional, and data-driven. Use **bold** for key metrics. Proactive
         setMsgs(p => p.map((m, i) => i === p.length - 1 ? {
           role: 'assistant',
           content: 'Your session has expired. Please refresh the page and sign in again to keep using KINI.',
+          error: true,
         } : m));
         return;
       }
@@ -461,9 +475,9 @@ Be elite, professional, and data-driven. Use **bold** for key metrics. Proactive
       const cards = d?.data?.cards || [];
       const usage = d?.data?.usage;
       if (usage) setUsage(usage);
-      setMsgs(p => p.map((m, i) => i === p.length - 1 ? { role: 'assistant', content: reply, cards } : m));
+      setMsgs(p => p.map((m, i) => i === p.length - 1 ? { role: 'assistant', content: reply, cards, error: !r.ok } : m));
     } catch (e: any) {
-      setMsgs(p => p.map((m, i) => i === p.length - 1 ? { role: 'assistant', content: `Connectivity Error: ${e.message}` } : m));
+      setMsgs(p => p.map((m, i) => i === p.length - 1 ? { role: 'assistant', content: `Connectivity Error: ${e.message}`, error: true } : m));
     } finally { setBusy(false); }
   };
 
