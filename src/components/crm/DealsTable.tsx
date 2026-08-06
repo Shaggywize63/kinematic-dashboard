@@ -5,6 +5,8 @@ import StageBadge from './shared/StageBadge';
 import InlineOwnerAssign from './shared/InlineOwnerAssign';
 import LogoSpinner from '../shared/LogoSpinner';
 import { formatINR } from '../../lib/formatCurrency';
+import { useAuth } from '../../hooks/useAuth';
+import { isTataTiscanActive } from '../../lib/clientFeatures';
 
 interface Props {
   deals: Deal[];
@@ -82,7 +84,13 @@ export default function DealsTable({ deals, loading, onAssign, onDelete, onEdit,
   const showSelection = !!onToggle && !!selected;
   const showActions = !!onDelete || !!onEdit;
   const allSelected = showSelection && deals.length > 0 && deals.every((d) => selected!.has(d.id));
-  const hidden = hiddenColumns ?? new Set<string>();
+  // Weight / volume is a steel-dealer (Tata / BMW) concept. For every other
+  // tenant (e.g. Kinematic) hide the Volume (kg) column entirely — the copy
+  // below reads hidden.has('volume_kg') in colcount, header and cells.
+  const { user } = useAuth();
+  const steel = isTataTiscanActive(user as any);
+  const hidden = new Set<string>(hiddenColumns ?? []);
+  if (!steel) hidden.add('volume_kg');
   const tableClass = `responsive-cards${viewMode === 'cards' ? ' cards-view' : ''}`;
 
   let colCount = (showSelection ? 1 : 0) + 1; // name always
