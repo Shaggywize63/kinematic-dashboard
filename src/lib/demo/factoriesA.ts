@@ -136,17 +136,17 @@ export const mockAttendanceTeam = () => ({
   success: true,
   data: [
     {
-      id: 'fe1', name: 'Arjun Sharma', display_status: 'present', status: 'checked_in',
+      id: 'fe1', user_id: 'fe1', date: new Date().toISOString().slice(0, 10), name: 'Arjun Sharma', display_status: 'present', status: 'checked_in',
       checkin_at: new Date().toISOString().replace(/T.*/, 'T09:15:00Z'),
       total_hours: 4.5,
       checkin_selfie_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=400&fit=crop',
       checkin_address: 'Koramangala 4th Block, Bangalore',
       checkin_lat: 12.9352, checkin_lng: 77.6245,
       zones: { name: 'Bangalore North' },
-      users: { name: 'Arjun Sharma', employee_id: 'KIN-001', zones: { name: 'Bangalore North' } }
+      users: { name: 'Arjun Sharma', employee_id: 'KIN-001', role: 'executive', zones: { name: 'Bangalore North' } }
     },
     {
-      id: 'fe2', name: 'Priya Patel', display_status: 'present', status: 'checked_out',
+      id: 'fe2', user_id: 'fe2', date: new Date().toISOString().slice(0, 10), name: 'Priya Patel', display_status: 'present', status: 'checked_out',
       checkin_at: new Date().toISOString().replace(/T.*/, 'T09:30:00Z'),
       checkout_at: new Date().toISOString().replace(/T.*/, 'T18:30:00Z'),
       total_hours: 9.0,
@@ -156,30 +156,30 @@ export const mockAttendanceTeam = () => ({
       checkin_lat: 19.0760, checkin_lng: 72.8777,
       checkout_lat: 19.0765, checkout_lng: 72.8780,
       zones: { name: 'Mumbai West' },
-      users: { name: 'Priya Patel', employee_id: 'KIN-002', zones: { name: 'Mumbai West' } }
+      users: { name: 'Priya Patel', employee_id: 'KIN-002', role: 'executive', zones: { name: 'Mumbai West' } }
     },
     {
-      id: 'fe3', name: 'Rahul Verma', display_status: 'on_break', status: 'checked_in',
+      id: 'fe3', user_id: 'fe3', date: new Date().toISOString().slice(0, 10), name: 'Rahul Verma', display_status: 'on_break', status: 'checked_in',
       checkin_at: new Date().toISOString().replace(/T.*/, 'T09:00:00Z'),
       total_hours: 4.8,
       checkin_selfie_url: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&h=400&fit=crop',
       checkin_address: 'Delhi Central, Connaught Place',
       checkin_lat: 28.6139, checkin_lng: 77.2090,
       zones: { name: 'Delhi Central' },
-      users: { name: 'Rahul Verma', employee_id: 'KIN-003', zones: { name: 'Delhi Central' } }
+      users: { name: 'Rahul Verma', employee_id: 'KIN-003', role: 'executive', zones: { name: 'Delhi Central' } }
     },
     {
-      id: 'fe4', name: 'Sneha Rao', display_status: 'present', status: 'checked_in',
+      id: 'fe4', user_id: 'fe4', date: new Date().toISOString().slice(0, 10), name: 'Sneha Rao', display_status: 'present', status: 'checked_in',
       checkin_at: new Date().toISOString().replace(/T.*/, 'T09:45:00Z'),
       total_hours: 4.1,
       checkin_selfie_url: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400&h=400&fit=crop',
       checkin_address: 'Hitech City, Hyderabad',
       checkin_lat: 17.4474, checkin_lng: 78.3762,
       zones: { name: 'Hyderabad East' },
-      users: { name: 'Sneha Rao', employee_id: 'KIN-004', zones: { name: 'Hyderabad East' } }
+      users: { name: 'Sneha Rao', employee_id: 'KIN-004', role: 'supervisor', zones: { name: 'Hyderabad East' } }
     },
     {
-      id: 'fe5', name: 'Amit Singh', display_status: 'present', status: 'checked_out',
+      id: 'fe5', user_id: 'fe5', date: new Date().toISOString().slice(0, 10), name: 'Amit Singh', display_status: 'present', status: 'checked_out',
       checkin_at: new Date().toISOString().replace(/T.*/, 'T09:05:00Z'),
       checkout_at: new Date().toISOString().replace(/T.*/, 'T17:50:00Z'),
       total_hours: 8.75,
@@ -189,7 +189,7 @@ export const mockAttendanceTeam = () => ({
       checkin_lat: 18.5590, checkin_lng: 73.7868,
       checkout_lat: 18.5204, checkout_lng: 73.8567,
       zones: { name: 'Pune City' },
-      users: { name: 'Amit Singh', employee_id: 'KIN-005', zones: { name: 'Pune City' } }
+      users: { name: 'Amit Singh', employee_id: 'KIN-005', role: 'executive', zones: { name: 'Pune City' } }
     }
   ]
 });
@@ -390,14 +390,121 @@ export const mockVisitLogs = () => {
   };
 };
 
-export const mockSubmissions = () => ({
-  success: true,
-  total: 1560,
-  data: [
-    { id: 's1', submitted_at: new Date().toISOString(), is_converted: true, outlet_name: 'Reliance Fresh - Koramangala', users: { name: 'Arjun Sharma' }, form_templates: { name: 'Product Audit' }, activities: { name: 'Store Visit' } },
-    { id: 's2', submitted_at: new Date(Date.now() - 1800000).toISOString(), is_converted: false, outlet_name: 'Big Bazaar - Indiranagar', users: { name: 'Priya Patel' }, form_templates: { name: 'Merchandising' }, activities: { name: 'Merchandising' } },
-    { id: 's3', submitted_at: new Date(Date.now() - 3600000).toISOString(), is_converted: true, outlet_name: 'Star Market - HSR', users: { name: 'Rahul Verma' }, form_templates: { name: 'Product Audit' }, activities: { name: 'Store Visit' } },
-    { id: 's4', submitted_at: new Date(Date.now() - 7200000).toISOString(), is_converted: true, outlet_name: 'Metro Cash & Carry', users: { name: 'Sneha Rao' }, form_templates: { name: 'Compliance Checklist' }, activities: { name: 'Compliance' } },
-    { id: 's5', submitted_at: new Date(Date.now() - 10800000).toISOString(), is_converted: false, outlet_name: 'Amit Singh', users: { name: 'Amit Singh' }, form_templates: { name: 'Stock Repo' }, activities: { name: 'Inventory' } }
-  ]
-});
+// Field-visit submissions. Rows carry the fields the Work-Activity list cards
+// AND the "View Data" detail modal read: check-in/out timestamps (for the
+// duration chip), address + GPS coordinates, and a mix of photo/number/yes-no
+// answers (mirrored into form_responses with photo_url so the modal shows the
+// captured images). The demo interceptor also serves a single row by id off
+// this dataset for the detail fetch (/forms/submissions/:id).
+const SHELF_A = 'https://images.unsplash.com/photo-1556909212-d5b604d0c90d?w=640&q=80';
+const SHELF_B = 'https://images.unsplash.com/photo-1578916171728-46686eac8d58?w=640&q=80';
+const SHELF_C = 'https://images.unsplash.com/photo-1604719312566-8912e9227c6a?w=640&q=80';
+
+export const mockSubmissions = () => {
+  const now = Date.now();
+  const at = (minsAgo: number) => new Date(now - minsAgo * 60000).toISOString();
+  return {
+    success: true,
+    total: 1560,
+    data: [
+      {
+        id: 's1', user_id: 'fe1', submitted_at: at(57), is_converted: true,
+        outlet_name: 'Reliance Fresh - Koramangala', address: '80ft Road, 4th Block, Koramangala, Bengaluru 560095',
+        users: { name: 'Arjun Sharma', employee_id: 'KIN-001' },
+        form_templates: { name: 'Daily Store Audit' }, builder_forms: { id: 'bf-audit', title: 'Daily Store Audit' }, activities: { name: 'Store Visit' },
+        check_in_at: at(95), check_out_at: at(57),
+        check_in_gps: '12.9352,77.6245', latitude: 12.9352, longitude: 77.6245, check_out_gps: '12.9360,77.6250',
+        answers: [
+          { label: 'Shelf Photo', qtype: 'image', value: SHELF_A },
+          { label: 'Planogram compliant?', qtype: 'yes_no', value: true },
+          { label: 'Facings counted', qtype: 'number', value: 42 },
+          { label: 'Notes', qtype: 'text', value: 'Beverage cooler fully stocked; end-cap refreshed for Q3 scheme.' },
+        ],
+        form_responses: [
+          { question: 'Shelf Photo', answer: '', photo_url: SHELF_A },
+          { question: 'Planogram compliant?', answer: 'Yes' },
+          { question: 'Facings counted', answer: '42' },
+          { question: 'Notes', answer: 'Beverage cooler fully stocked; end-cap refreshed for Q3 scheme.' },
+        ],
+      },
+      {
+        id: 's2', user_id: 'fe2', submitted_at: at(30), is_converted: false,
+        outlet_name: 'Big Bazaar - Indiranagar', address: '100ft Road, Indiranagar, Bengaluru 560038',
+        users: { name: 'Priya Patel', employee_id: 'KIN-002' },
+        form_templates: { name: 'Merchandising Check' }, builder_forms: { id: 'bf-merch', title: 'Merchandising Check' }, activities: { name: 'Merchandising' },
+        check_in_at: at(78), check_out_at: at(30),
+        check_in_gps: '12.9719,77.6412', latitude: 12.9719, longitude: 77.6412, check_out_gps: '12.9722,77.6415',
+        answers: [
+          { label: 'End-cap Photo', qtype: 'image', value: SHELF_B },
+          { label: 'POSM installed?', qtype: 'yes_no', value: true },
+          { label: 'SKUs out of stock', qtype: 'number', value: 3 },
+        ],
+        form_responses: [
+          { question: 'End-cap Photo', answer: '', photo_url: SHELF_B },
+          { question: 'POSM installed?', answer: 'Yes' },
+          { question: 'SKUs out of stock', answer: '3' },
+        ],
+      },
+      {
+        id: 's3', user_id: 'fe3', submitted_at: at(60), is_converted: true,
+        outlet_name: 'Star Market - HSR', address: 'Sector 2, HSR Layout, Bengaluru 560102',
+        users: { name: 'Rahul Verma', employee_id: 'KIN-003' },
+        form_templates: { name: 'Daily Store Audit' }, builder_forms: { id: 'bf-audit', title: 'Daily Store Audit' }, activities: { name: 'Store Visit' },
+        check_in_at: at(96), check_out_at: at(60),
+        check_in_gps: '12.9116,77.6389', latitude: 12.9116, longitude: 77.6389, check_out_gps: '12.9120,77.6392',
+        answers: [
+          { label: 'Shelf Photo', qtype: 'image', value: SHELF_C },
+          { label: 'Planogram compliant?', qtype: 'yes_no', value: false },
+          { label: 'Facings counted', qtype: 'number', value: 28 },
+        ],
+        form_responses: [
+          { question: 'Shelf Photo', answer: '', photo_url: SHELF_C },
+          { question: 'Planogram compliant?', answer: 'No' },
+          { question: 'Facings counted', answer: '28' },
+        ],
+      },
+      {
+        id: 's4', user_id: 'fe4', submitted_at: at(120), is_converted: true,
+        outlet_name: 'Metro Cash & Carry - Whitefield', address: 'Whitefield Main Road, Bengaluru 560066',
+        users: { name: 'Sneha Rao', employee_id: 'KIN-004' },
+        form_templates: { name: 'Compliance Checklist' }, builder_forms: { id: 'bf-comp', title: 'Compliance Checklist' }, activities: { name: 'Compliance' },
+        check_in_at: at(165), check_out_at: at(120),
+        check_in_gps: '12.9698,77.7500', latitude: 12.9698, longitude: 77.7500, check_out_gps: '12.9701,77.7503',
+        answers: [
+          { label: 'Storefront Photo', qtype: 'image', value: SHELF_A },
+          { label: 'Licence displayed?', qtype: 'yes_no', value: true },
+          { label: 'Cleanliness score', qtype: 'number', value: 9 },
+        ],
+        form_responses: [
+          { question: 'Storefront Photo', answer: '', photo_url: SHELF_A },
+          { question: 'Licence displayed?', answer: 'Yes' },
+          { question: 'Cleanliness score', answer: '9' },
+        ],
+      },
+      {
+        id: 's5', user_id: 'fe5', submitted_at: at(180), is_converted: false,
+        outlet_name: 'Spencer\'s - Baner', address: 'Baner Road, Pune 411045',
+        users: { name: 'Amit Singh', employee_id: 'KIN-005' },
+        form_templates: { name: 'Stock Report' }, builder_forms: { id: 'bf-stock', title: 'Stock Report' }, activities: { name: 'Inventory' },
+        check_in_at: at(220), check_out_at: at(180),
+        check_in_gps: '18.5590,73.7868', latitude: 18.5590, longitude: 73.7868, check_out_gps: '18.5595,73.7871',
+        answers: [
+          { label: 'Aisle Photo', qtype: 'image', value: SHELF_B },
+          { label: 'Reorder needed?', qtype: 'yes_no', value: true },
+          { label: 'Units on hand', qtype: 'number', value: 64 },
+        ],
+        form_responses: [
+          { question: 'Aisle Photo', answer: '', photo_url: SHELF_B },
+          { question: 'Reorder needed?', answer: 'Yes' },
+          { question: 'Units on hand', answer: '64' },
+        ],
+      },
+    ],
+  };
+};
+
+// Single submission by id (detail "View Data" modal) — served off mockSubmissions.
+export const mockSubmissionDetail = (id: string) => {
+  const row = mockSubmissions().data.find((s) => s.id === id) || mockSubmissions().data[0];
+  return { success: true, data: row };
+};

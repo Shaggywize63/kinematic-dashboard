@@ -13,7 +13,7 @@ import {
   mockDashboardInit, mockSummary, mockTrends, mockFeed, mockHeatmap,
   mockLocations, mockUsers, mockAttendanceTeam, mockStores, mockFormTemplates,
   mockActivities, mockAssets, mockSecurityAlerts, mockVisitLogs,
-  mockSubmissions,
+  mockSubmissions, mockSubmissionDetail,
 } from './demo/factoriesA';
 import {
   mockSOS, mockGrievances, mockCities, mockZones, mockClients, mockInventory,
@@ -874,6 +874,46 @@ function genericFormInsights() {
   };
 }
 
+// Global smart-search results for the demo account. The palette (⌘K) only
+// renders its result UI — entity icons, type badges, match-highlighting and the
+// grouped animation — when the endpoint returns groups, and demo mode had no
+// /crm/search handler, so a demo session saw an almost-empty palette. This
+// synthesises plausible cross-entity hits whose titles contain the query so the
+// highlighting always shows.
+function mockGlobalSearch(q: string) {
+  const term = (q || '').trim();
+  if (!term) return { success: true, data: { query: q, groups: [], total: 0 } };
+  const cap = term.charAt(0).toUpperCase() + term.slice(1);
+  const grp = (type: string, label: string, items: Array<{ id: string; title: string; subtitle: string; score: number }>) =>
+    ({ type, label, count: items.length, items });
+  const groups = [
+    grp('lead', 'Leads', [
+      { id: 'ld-1', title: `${cap} Textiles Pvt Ltd`, subtitle: 'New · Bangalore · ₹4.2L', score: 0.98 },
+      { id: 'ld-2', title: `${cap} Traders`, subtitle: 'Contacted · Mumbai', score: 0.90 },
+      { id: 'ld-3', title: `${cap} Kumar`, subtitle: 'Qualified · Delhi · +91 90000 12345', score: 0.82 },
+    ]),
+    grp('deal', 'Deals', [
+      { id: 'dl-1', title: `${cap} Q3 Supply Deal`, subtitle: 'Proposal · ₹8.5L · 60%', score: 0.88 },
+      { id: 'dl-2', title: `${cap} Annual Contract`, subtitle: 'Negotiation · ₹22L', score: 0.79 },
+    ]),
+    grp('contact', 'Contacts', [
+      { id: 'ct-1', title: `${cap} Sharma`, subtitle: `Purchase Head · ${cap} Textiles`, score: 0.80 },
+      { id: 'ct-2', title: `${cap} Reddy`, subtitle: 'Owner · +91 90000 55555', score: 0.70 },
+    ]),
+    grp('account', 'Accounts', [
+      { id: 'ac-1', title: `${cap} Retail Group`, subtitle: '12 outlets · Bangalore', score: 0.76 },
+    ]),
+    grp('store', 'Stores', [
+      { id: 'st-1', title: `${cap} Supermart`, subtitle: 'SM-204 · Koramangala', score: 0.72 },
+    ]),
+    grp('user', 'Team', [
+      { id: 'fe1', title: `${cap} (Field Executive)`, subtitle: 'KIN-001 · Bangalore', score: 0.60 },
+    ]),
+  ];
+  const total = groups.reduce((s, g) => s + g.items.length, 0);
+  return { success: true, data: { query: q, groups, total } };
+}
+
 export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown): T | undefined {
   const queryStart = rawPath.indexOf('?');
   const noQuery = queryStart === -1 ? rawPath : rawPath.slice(0, queryStart);
@@ -986,6 +1026,15 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
     if (path === '/forms/templates' || path === '/form-templates') return mockFormTemplates() as unknown as T;
     if (path === '/forms/submissions' || path === '/submissions')  return mockSubmissions() as unknown as T;
     if (path === '/forms/admin/submissions')                       return mockSubmissions() as unknown as T;
+    // Single submission (Work Activities → "View Data" detail modal). Served off
+    // the same dataset so the modal shows the captured photos, GPS + answers.
+    {
+      const subOneM = path.match(/^\/forms\/(?:admin\/)?submissions\/([^/]+)$/);
+      if (subOneM) return mockSubmissionDetail(subOneM[1]) as unknown as T;
+    }
+    // Global smart-search (⌘K palette) — synthesise cross-entity results so the
+    // demo exercises the results UI (icons, badges, highlighting, animation).
+    if (path === '/crm/search') return mockGlobalSearch(query.get('q') || '') as unknown as T;
     // Aggregated form-response insights (Work Activities → Insights). The
     // active vertical bundle themes it (pharma ships molecules + HCP specialties);
     // verticals without their own fixture fall back to a generic field version.

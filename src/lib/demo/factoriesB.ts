@@ -200,6 +200,22 @@ export const mockOutletCoverage = () => ({
       { city: 'Chennai',   universe: 200, covered: 132 },
       { city: 'Pune',      universe: 170, covered: 105 },
       { city: 'Hyderabad', universe: 140, covered:  59 }
+    ],
+    // The dashboard "Outlet Coverage" card reads a different shape off this same
+    // endpoint (summary stats + an outlets[] table), whereas the Visit-Coverage
+    // report reads universe/covered/by_city above. Provide BOTH so neither
+    // surface renders empty.
+    summary: { total_outlets: 892, total_checkins: 1560, total_tff: 1248 },
+    cities: ['Bangalore', 'Mumbai', 'Delhi', 'Chennai', 'Pune', 'Hyderabad'],
+    outlets: [
+      { name: 'Reliance Fresh - Koramangala',    city: 'Bangalore', checkins: 18, tff: 14, tff_rate: 78 },
+      { name: 'Big Bazaar - Indiranagar',        city: 'Bangalore', checkins: 15, tff: 11, tff_rate: 73 },
+      { name: 'D-Mart - Andheri West',           city: 'Mumbai',    checkins: 21, tff: 17, tff_rate: 81 },
+      { name: 'Star Market - HSR',               city: 'Bangalore', checkins: 12, tff:  9, tff_rate: 75 },
+      { name: 'Metro Cash & Carry - Whitefield', city: 'Bangalore', checkins:  9, tff:  6, tff_rate: 67 },
+      { name: 'Modern Bazaar - CP',              city: 'Delhi',     checkins: 14, tff:  8, tff_rate: 57 },
+      { name: "Spencer's - Baner",               city: 'Pune',      checkins: 11, tff:  8, tff_rate: 73 },
+      { name: 'More Supermarket - T Nagar',      city: 'Chennai',   checkins: 10, tff:  7, tff_rate: 70 }
     ]
   }
 });
