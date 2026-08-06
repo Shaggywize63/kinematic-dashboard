@@ -6,6 +6,8 @@ import { crmSettings } from '../../../../lib/crmApi';
 import api from '../../../../lib/api';
 import { rolesApi, type OrgRole } from '../../../../lib/rolesApi';
 import type { BusinessType } from '../../../../types/crm';
+import { useAuth } from '../../../../hooks/useAuth';
+import { isTataTiscanActive } from '../../../../lib/clientFeatures';
 
 const SECTIONS = [
   { href: '/dashboard/crm/settings/users', title: 'Team Members', desc: 'Create CRM users scoped to the active client. Synced with global Settings → Users.', icon: '👥' },
@@ -43,6 +45,10 @@ function applyTheme(t: ThemeChoice) {
 }
 
 export default function SettingsIndex() {
+  // Weight/tonnage is a steel-dealer (Tata / BMW) concept only — the
+  // Weight-based Pricing card is hidden for Kinematic and every other tenant.
+  const { user } = useAuth();
+  const steel = isTataTiscanActive(user as any);
   // `null` until the first fetch resolves so the active-card highlight
   // doesn't flicker from a default ('both') to the saved value ('b2c').
   // Once loaded the value is sticky — the saveType handler reads the
@@ -209,10 +215,10 @@ export default function SettingsIndex() {
         )}
       </div>
 
-      {/* Weight-based pricing — moved to per-product. Deals reference a
-          product's `price` and `weight_kg` (configured under Products) to
-          auto-compute amount from a volume entered in kilograms. There's
-          no longer a single org-wide rate. */}
+      {/* Weight-based pricing — per-product (price + weight_kg → amount from a
+          volume in kg). Steel-dealer (Tata / BMW) only; hidden for Kinematic
+          and every other tenant, which don't price by weight. */}
+      {steel && (
       <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 14 }}>
         <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)', marginBottom: 4 }}>Weight-based Pricing</div>
         <p style={{ fontSize: 12, color: 'var(--text-dim)', margin: '0 0 8px', maxWidth: 600 }}>
@@ -220,6 +226,7 @@ export default function SettingsIndex() {
         </p>
         <Link href="/dashboard/crm/products" style={{ display: 'inline-block', background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700, textDecoration: 'none' }}>Manage Products →</Link>
       </div>
+      )}
 
       {/* Default Role Hierarchy — what role new users get unless overridden.
           Saved into crm_settings.config.default_role_id, scoped per client by
