@@ -16,6 +16,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { searchApi, type SearchResultGroup } from '../../lib/crmApi';
+import KiniMascot from '../crm/KiniMascot';
 
 type NavItemLike = { href: string; label: string; icon?: string };
 type NavGroupLike = { label: string; items: NavItemLike[] };
@@ -38,11 +39,17 @@ const ENTITY_ROUTE: Record<string, (id: string) => string> = {
   product: (id) => `/dashboard/crm/products/${id}`,
   activity: () => `/dashboard/crm/activities`,
   person: () => `/dashboard/crm/people-directory`,
+  // Distribution + field-force (list surfaces — these manage records in
+  // modals, so there is no [id] detail route to deep-link).
+  distributor: () => `/dashboard/distribution/distributors`,
+  brand: () => `/dashboard/distribution/brands`,
+  order: () => `/dashboard/distribution/orders`,
+  user: () => `/dashboard/manpower-directory`,
+  store: () => `/dashboard/other-management/stores`,
 };
 
 const SEARCH_ICON = 'M21 21l-4.3-4.3 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z';
 const CHEVRON = 'M9 18l6-6-6-6';
-const SPARKLE = 'M12 3l1.9 5.5L19.5 10l-5.6 1.5L12 17l-1.9-5.5L4.5 10l5.6-1.5z';
 const TYPE_ICON: Record<string, string> = {
   lead: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2 M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z',
   contact: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2 M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z',
@@ -51,6 +58,11 @@ const TYPE_ICON: Record<string, string> = {
   account: 'M3 21h18 M6 21V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v17 M9 9h1 M9 13h1 M14 9h1 M14 13h1',
   activity: 'M9 11l3 3L22 4 M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11',
   product: 'M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z M3.27 6.96 12 12l8.73-5.04 M12 22.08V12',
+  distributor: 'M1 3h15v13H1z M16 8h4l3 3v5h-7V8z M5.5 21a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z M18.5 21a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z',
+  brand: 'M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z M7 7h.01',
+  order: 'M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2 M15 2H9a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V3a1 1 0 0 0-1-1z M9 12h6 M9 16h6',
+  user: 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2 M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z',
+  store: 'M3 9l1.5-5h15L21 9 M3 9v11a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V9 M3 9h18 M9 21v-6h6v6',
 };
 
 function Glyph({ d, size = 18, color }: { d: string; size?: number; color?: string }) {
@@ -211,11 +223,22 @@ export default function SmartSearch({ open, onClose, navGroups, userId }: Props)
   return (
     <div
       onClick={onClose}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1200, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '72px 20px 20px', overflowY: 'auto' }}
+      style={{
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 1200,
+        display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '72px 20px 20px', overflowY: 'auto',
+        backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)',
+        // fadeIn / fadeUp keyframes are the shared ones in globals.css.
+        animation: 'fadeIn 0.16s ease both',
+      }}
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, width: '100%', maxWidth: 640, display: 'flex', flexDirection: 'column', maxHeight: 'calc(100vh - 120px)', boxShadow: '0 24px 70px rgba(0,0,0,0.45)', overflow: 'hidden' }}
+        style={{
+          background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, width: '100%', maxWidth: 640,
+          display: 'flex', flexDirection: 'column', maxHeight: 'calc(100vh - 120px)',
+          boxShadow: '0 24px 70px rgba(0,0,0,0.45)', overflow: 'hidden',
+          animation: 'fadeUp 0.24s cubic-bezier(0.22,1,0.36,1) both',
+        }}
         role="dialog" aria-modal="true" aria-label="Search"
       >
         {/* Search input */}
@@ -246,9 +269,9 @@ export default function SmartSearch({ open, onClose, navGroups, userId }: Props)
                 const isActive = myIdx === active;
                 const kini = row.kind === 'kini';
                 const iconPath = row.kind === 'nav' ? (row.icon || CHEVRON)
-                  : row.kind === 'kini' ? SPARKLE
                   : row.kind === 'result' ? (TYPE_ICON[row.type] || CHEVRON)
-                  : (row.entry.type ? (TYPE_ICON[row.entry.type] || CHEVRON) : CHEVRON);
+                  : row.kind === 'recent' ? (row.entry.type ? (TYPE_ICON[row.entry.type] || CHEVRON) : CHEVRON)
+                  : CHEVRON;
                 const badge = row.kind === 'result' ? row.type : row.kind === 'nav' ? 'page' : undefined;
                 const accent = kini ? '#E01E2C' : 'var(--accent)';
                 return (
@@ -261,14 +284,24 @@ export default function SmartSearch({ open, onClose, navGroups, userId }: Props)
                       display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 10, cursor: 'pointer',
                       background: isActive ? (kini ? 'rgba(224,30,44,0.10)' : 'var(--s3)') : 'transparent',
                       boxShadow: isActive ? `inset 3px 0 0 ${accent}` : 'none',
+                      transition: 'background 0.12s ease, box-shadow 0.12s ease',
                     }}
                   >
-                    <span style={{ color: isActive ? accent : (kini ? '#E01E2C' : 'var(--text-dim)'), display: 'flex' }}><Glyph d={iconPath} size={18} /></span>
+                    {kini
+                      ? <KiniMascot size={24} />
+                      : <span style={{ color: isActive ? accent : 'var(--text-dim)', display: 'flex', transition: 'color 0.12s ease' }}><Glyph d={iconPath} size={18} /></span>}
                     <div style={{ minWidth: 0, flex: 1 }}>
-                      <div style={{ fontSize: 14, color: kini ? '#E01E2C' : 'var(--text)', fontWeight: kini ? 700 : 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.label}</div>
-                      {row.sub && <div style={{ fontSize: 12.5, color: 'var(--text-dim)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.sub}</div>}
+                      <div style={{ fontSize: 14, color: kini ? '#E01E2C' : 'var(--text)', fontWeight: kini ? 700 : 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {kini ? row.label : <Highlight text={row.label} term={debouncedQ} />}
+                      </div>
+                      {row.sub && (
+                        <div style={{ fontSize: 12.5, color: 'var(--text-dim)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          <Highlight text={row.sub} term={debouncedQ} />
+                        </div>
+                      )}
                     </div>
                     {badge && <span style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.4, color: 'var(--text-dim)', background: 'var(--s4)', padding: '2px 7px', borderRadius: 6 }}>{badge}</span>}
+                    {isActive && <kbd style={{ ...kbdStyle, marginRight: 0 }}>↵</kbd>}
                   </div>
                 );
               })}
@@ -276,13 +309,14 @@ export default function SmartSearch({ open, onClose, navGroups, userId }: Props)
           ))}
 
           {showEmpty && (
-            <div style={{ padding: '18px 14px 8px', textAlign: 'center', color: 'var(--text-dim)', fontSize: 13 }}>
-              No records match “{debouncedQ}”. Try KINI below — it can answer questions and dig deeper.
+            <div style={{ padding: '18px 14px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, color: 'var(--text-dim)', fontSize: 13, animation: 'fadeIn 0.2s ease both' }}>
+              <KiniMascot size={44} />
+              <span>No records match “{debouncedQ}” — ask KINI, it can answer questions and dig deeper.</span>
             </div>
           )}
           {!debouncedQ && recent.length === 0 && (
             <div style={{ padding: '20px 14px', textAlign: 'center', color: 'var(--text-dim)', fontSize: 13 }}>
-              Search across leads, deals, contacts, accounts, activities, products &amp; people — or ask KINI.
+              Search across leads, deals, contacts, accounts, activities, products &amp; people — or ask KINI anything.
             </div>
           )}
         </div>
@@ -291,12 +325,28 @@ export default function SmartSearch({ open, onClose, navGroups, userId }: Props)
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '8px 14px', borderTop: '1px solid var(--border)', fontSize: 11, color: 'var(--text-dim)' }}>
           <span><kbd style={kbdStyle}>↑</kbd><kbd style={kbdStyle}>↓</kbd> navigate</span>
           <span><kbd style={kbdStyle}>↵</kbd> open</span>
-          <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 5, color: '#E01E2C', fontWeight: 600 }}>
-            <Glyph d={SPARKLE} size={13} color="#E01E2C" /> KINI AI fallback
+          <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
+            <KiniMascot size={17} /> Powered by KINI
           </span>
         </div>
       </div>
     </div>
+  );
+}
+
+/** Bolds the first case-insensitive occurrence of the search term so the eye
+ *  lands on WHY each row matched. Plain string split — no regex on user input. */
+function Highlight({ text, term }: { text: string; term: string }) {
+  const t = term.trim();
+  if (!t) return <>{text}</>;
+  const i = text.toLowerCase().indexOf(t.toLowerCase());
+  if (i < 0) return <>{text}</>;
+  return (
+    <>
+      {text.slice(0, i)}
+      <span style={{ color: 'var(--accent)', fontWeight: 700 }}>{text.slice(i, i + t.length)}</span>
+      {text.slice(i + t.length)}
+    </>
   );
 }
 
