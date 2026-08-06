@@ -146,6 +146,10 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-manrope); letter-spacing: -0.01
 ::-webkit-scrollbar-thumb { background: #1E2D45; border-radius: 2px; }
 ::-webkit-scrollbar-thumb:hover { background: #253650; }
 
+/* Predictive-insight ⓘ methodology popover — reveal on hover/focus of the icon. */
+.kini-info:hover .kini-info-pop,
+.kini-info:focus-within .kini-info-pop { display: block !important; animation: fadeIn 0.12s ease-out; }
+
 @keyframes fadeIn  { from { opacity: 0 } to { opacity: 1 } }
 @keyframes fadeUp  { from { opacity: 0; transform: translateY(14px) } to { opacity: 1; transform: translateY(0) } }
 @keyframes slideIn { from { transform: translateX(-100%) } to { transform: translateX(0) } }

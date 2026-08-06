@@ -144,15 +144,44 @@ function escapeHtml(s: string): string {
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
+// Line-aware markdown → HTML. Handles GitHub-style tables (previously the model's
+// `| col | col |` output rendered as raw piped text with <br/>, i.e. "distorted"),
+// headers, bullets, and inline bold/italic/code. All colours are theme vars so
+// the output is legible in both light and dark.
+function mdInline(s: string) {
+  return escapeHtml(s)
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+    .replace(/`(.*?)`/g, '<code style="background:var(--s3);padding:1px 6px;border-radius:4px;font-size:11px;font-family:monospace">$1</code>');
+}
 function md(text: string) {
-  return escapeHtml(text)
-    .replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>')
-    .replace(/\*(.*?)\*/g,'<em>$1</em>')
-    .replace(/`(.*?)`/g,'<code style="background:#131B2A;padding:1px 6px;border-radius:4px;font-size:11px;font-family:monospace">$1</code>')
-    .replace(/^### (.*)/gm,'<div style="font-family:\'Syne\',sans-serif;font-size:13px;font-weight:800;color:#E8EDF8;margin:10px 0 3px">$1</div>')
-    .replace(/^## (.*)/gm, '<div style="font-family:\'Syne\',sans-serif;font-size:14px;font-weight:800;color:#E8EDF8;margin:12px 0 4px">$1</div>')
-    .replace(/^- (.*)/gm,  '<div style="display:flex;gap:6px;margin:2px 0"><span style="color:#E01E2C">•</span><span>$1</span></div>')
-    .replace(/\n/g,'<br/>');
+  const lines = String(text).split('\n');
+  const isRow = (l: string) => /^\s*\|.*\|\s*$/.test(l);
+  const isSep = (l: string) => /\|/.test(l) && /-/.test(l) && /^\s*\|?[\s:|-]*-[\s:|-]*\|?\s*$/.test(l);
+  const cells = (l: string) => l.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(c => c.trim());
+  const out: string[] = [];
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    // Table: a header row immediately followed by a |---|---| separator.
+    if (isRow(line) && i + 1 < lines.length && isSep(lines[i + 1])) {
+      const header = cells(line);
+      i += 2;
+      const rows: string[][] = [];
+      while (i < lines.length && isRow(lines[i]) && !isSep(lines[i])) { rows.push(cells(lines[i])); i++; }
+      const th = header.map(h => `<th style="text-align:left;padding:7px 11px;font-size:10.5px;font-weight:800;letter-spacing:0.3px;text-transform:uppercase;color:var(--text-dim);white-space:nowrap">${mdInline(h)}</th>`).join('');
+      const body = rows.map((r, ri) => `<tr style="${ri % 2 ? 'background:var(--s1)' : ''}">` + r.map(c => `<td style="padding:7px 11px;font-size:12.5px;color:var(--text);border-top:1px solid var(--border);vertical-align:top">${mdInline(c)}</td>`).join('') + '</tr>').join('');
+      out.push(`<div style="overflow-x:auto;margin:9px 0;border:1px solid var(--border);border-radius:10px"><table style="width:100%;border-collapse:collapse"><thead><tr style="background:var(--s3)">${th}</tr></thead><tbody>${body}</tbody></table></div>`);
+      continue;
+    }
+    if (/^### /.test(line)) { out.push(`<div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:800;color:var(--text);margin:10px 0 3px">${mdInline(line.slice(4))}</div>`); i++; continue; }
+    if (/^## /.test(line))  { out.push(`<div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:800;color:var(--text);margin:12px 0 4px">${mdInline(line.slice(3))}</div>`); i++; continue; }
+    if (/^[-*] /.test(line)) { out.push(`<div style="display:flex;gap:7px;margin:3px 0"><span style="color:#E01E2C;font-weight:800">•</span><span>${mdInline(line.slice(2))}</span></div>`); i++; continue; }
+    if (line.trim() === '') { out.push('<div style="height:6px"></div>'); i++; continue; }
+    out.push(`<div style="margin:2px 0">${mdInline(line)}</div>`);
+    i++;
+  }
+  return out.join('');
 }
 
 /**
@@ -660,6 +689,9 @@ Be elite, professional, and data-driven. Use **bold** for key metrics. Proactive
                 </div>
               </div>
             ))}
+            {!busy && msgs.length > 0 && msgs[msgs.length - 1].role === 'assistant' && !msgs[msgs.length - 1].loading && !msgs[msgs.length - 1].error && (
+              <FollowUpChips inCrm={inCrm} onPick={(t) => void send(t)} />
+            )}
             <div ref={endRef} />
           </div>
 
@@ -734,6 +766,38 @@ Be elite, professional, and data-driven. Use **bold** for key metrics. Proactive
         </div>
       )}
     </>
+  );
+}
+
+// Contextual "next step" chips shown under the latest KINI reply, to keep the
+// conversation moving and nudge the user toward a useful follow-up action.
+function FollowUpChips({ inCrm, onPick }: { inCrm: boolean; onPick: (text: string) => void }) {
+  const chips = inCrm
+    ? ['What should I prioritise today?', 'Draft a follow-up email', 'Which deals are at risk?', 'Add a task']
+    : ['Who is offline right now?', 'Top performers this week', 'Any attendance gaps?'];
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 7, paddingLeft: 2, marginTop: 2 }}>
+      <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.6px', color: 'var(--text-dim)', textTransform: 'uppercase' }}>Suggested next steps</div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
+        {chips.map((c) => (
+          <button
+            key={c}
+            onClick={() => onPick(c)}
+            style={{
+              fontSize: 12, fontWeight: 600, color: '#E01E2C',
+              background: 'color-mix(in srgb, #E01E2C 10%, transparent)',
+              border: '1px solid color-mix(in srgb, #E01E2C 28%, transparent)',
+              borderRadius: 999, padding: '5px 12px', cursor: 'pointer',
+              transition: 'all .15s', whiteSpace: 'nowrap',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'color-mix(in srgb, #E01E2C 18%, transparent)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'color-mix(in srgb, #E01E2C 10%, transparent)'; e.currentTarget.style.transform = 'translateY(0)'; }}
+          >
+            {c}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 

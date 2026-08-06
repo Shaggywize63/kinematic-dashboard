@@ -73,10 +73,11 @@ function heatColor(value: number, max: number): string {
   if (max === 0) return C.s2;
   const ratio = value / max;
   if (ratio === 0)   return C.s2;
-  if (ratio < 0.25)  return '#3730A3'; // Indigo
-  if (ratio < 0.5)   return '#4F46E5'; // Bright indigo
-  if (ratio < 0.75)  return '#6366F1'; // Violet-indigo
-  return '#22D3EE'; // Cyan peak
+  // Kinematic-red gradient (deep maroon → brand red → light red for the peak).
+  if (ratio < 0.25)  return '#5E0F14'; // Deep maroon
+  if (ratio < 0.5)   return '#8E1620'; // Dark red
+  if (ratio < 0.75)  return '#C51A28'; // Kinematic red
+  return '#F26D6D'; // Light red peak
 }
 
 function ContactActivityHeatmap({ data, loading }: { data: HeatmapResponse | null; loading: boolean }) {
@@ -93,7 +94,7 @@ function ContactActivityHeatmap({ data, loading }: { data: HeatmapResponse | nul
       <style>{`
         .heatmap-cell:hover {
           transform: scale(1.15);
-          filter: brightness(1.2) drop-shadow(0 0 5px rgba(99, 179, 237, 0.4));
+          filter: brightness(1.12) drop-shadow(0 0 6px rgba(208, 30, 44, 0.45));
           z-index: 10;
         }
       `}</style>
@@ -109,7 +110,7 @@ function ContactActivityHeatmap({ data, loading }: { data: HeatmapResponse | nul
         {!isEmpty && !loading && (
           <div style={{ display:'flex', alignItems:'center', gap:6 }}>
             <span style={{ fontSize:11, color:C.grayd }}>Low</span>
-            {['#1A365D','#2B6CB0','#4299E1','#63B3ED'].map((col, i) => (
+            {['#5E0F14','#8E1620','#C51A28','#F26D6D'].map((col, i) => (
               <div key={i} style={{ width:16, height:16, borderRadius:3, background:col }}/>
             ))}
             <span style={{ fontSize:11, color:C.grayd }}>High</span>
@@ -462,10 +463,19 @@ export default function AnalyticsPage() {
               <div style={{ display:'flex', alignItems:'center', gap:7 }}>
                 <div style={{ fontSize:22 }}>{icon}</div>
                 {methodology && (
-                  <span title={methodology} style={{ cursor:'help', color:C.gray, display:'inline-flex', opacity:0.75 }}>
+                  <span className="kini-info" style={{ position:'relative', cursor:'help', color:C.gray, display:'inline-flex', opacity:0.8 }}>
                     <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                       <circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" />
                     </svg>
+                    <span className="kini-info-pop" style={{
+                      display:'none', position:'absolute', top:'165%', left:0, zIndex:60, width:230,
+                      background:C.s3, border:`1px solid ${C.border}`, borderRadius:10, padding:'9px 11px',
+                      fontSize:11, lineHeight:1.5, color:C.gray, fontWeight:400, textAlign:'left', whiteSpace:'normal',
+                      boxShadow:'0 12px 30px rgba(0,0,0,0.28)',
+                    }}>
+                      <span style={{ display:'block', fontWeight:800, color:'var(--text)', fontSize:9.5, letterSpacing:'0.5px', marginBottom:4 }}>HOW THIS IS CALCULATED</span>
+                      {methodology}
+                    </span>
                   </span>
                 )}
               </div>
