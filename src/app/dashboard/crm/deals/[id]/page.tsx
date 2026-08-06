@@ -704,7 +704,7 @@ export default function DealDetailPage() {
           </SafeRender>
 
           <SafeRender label="activities">
-            <Card title={`Activities (${activities.length})`}><ActivityTimeline activities={activities} /></Card>
+            <Card title={`Activities (${activities.length})`}><ActivityTimeline activities={activities} addHref={`/dashboard/crm/activities/new?deal_id=${id}`} /></Card>
           </SafeRender>
 
           <SafeRender label="history">

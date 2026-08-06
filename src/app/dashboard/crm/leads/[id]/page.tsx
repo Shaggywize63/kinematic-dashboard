@@ -554,7 +554,7 @@ export default function LeadDetailPage() {
             onAdded={() => { reload(); setNba(null); }}
           />
         </Card>
-        <Card title="Activity Timeline"><ActivityTimeline activities={activities} /></Card>
+        <Card title="Activity Timeline"><ActivityTimeline activities={activities} addHref={`/dashboard/crm/activities/new?lead_id=${id}`} /></Card>
       </div>
 
       <div style={{ flex: '1 1 280px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 18 }}>
