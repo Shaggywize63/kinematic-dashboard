@@ -16,6 +16,7 @@ import { IndustryScopeProvider } from '../../context/IndustryScopeContext';
 import ClientSelect from '../../components/ClientSelect';
 import IndustryScopePicker from '../../components/IndustryScopePicker';
 import NotificationBell from '../../components/crm/NotificationBell';
+import ThemeToggle from '../../components/shared/ThemeToggle';
 
 // KINI chat is ~250 lines + 4 card components + markdown helpers; load it on
 // demand so the main dashboard JS stays lean. ssr:false avoids hydration cost.
@@ -1011,6 +1012,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   previous floating FAB cramped on phones. ChatLauncher
                   renders an icon button here and pops the panel inline. */}
               {token && <ChatLauncher />}
+              {/* Header light/dark switch — lets users flip theme without
+                  opening Settings. Shares the exact persistence the Settings
+                  page uses (kinematic-theme cookie + localStorage), so both
+                  stay in sync. */}
+              <ThemeToggle compact={isMobile} />
               <NotificationBell />
               {/* Demo-only industry vertical switcher (renders null for
                   non-demo accounts). Sits next to the client filter. */}
