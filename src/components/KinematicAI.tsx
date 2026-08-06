@@ -292,9 +292,12 @@ export default function KinematicAI({ token }: { token: string }) {
   useEffect(() => {
     if (!open || !pendingQuery) return;
     const q = pendingQuery;
-    setPendingQuery(null);
     // Let the panel mount/focus first, then fire the query as a normal turn.
-    const t = setTimeout(() => { send(q); }, 60);
+    // IMPORTANT: pendingQuery is cleared INSIDE the timer, not synchronously —
+    // clearing it here re-ran this effect and its cleanup cancelled the very
+    // timer that would have sent the query, so the search→KINI hand-off opened
+    // the panel without ever asking the question.
+    const t = setTimeout(() => { setPendingQuery(null); send(q); }, 80);
     return () => clearTimeout(t);
     // `send` is intentionally not a dep — the effect runs post-render with the
     // current closure; adding it would re-fire on every keystroke-driven render.
