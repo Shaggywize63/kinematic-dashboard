@@ -5,20 +5,21 @@ import { useAuth } from '../../../hooks/useAuth';
 import { format } from 'date-fns';
 import { useTableSort, SortLabel } from '../../../lib/tableSort';
 
+// Inline theme-var styling (app convention). This page previously used Tailwind
+// colour utilities (bg-s2 / text-gray-* / border-border) whose tokens are
+// hardcoded DARK hex in tailwind.config.ts and never flip with the theme — so
+// the whole table was dark-on-dark (invisible) in light mode. Everything colour
+// related now reads a CSS var that is defined for both themes in globals.css.
+const RED = '#E01E2C';
+const PURPLE = '#9B6EFF';
 const C = {
-  red: '#E01E2C', 
-  green: '#00D97E', 
-  blue: '#3E9EFF', 
-  purple: '#9B6EFF',
-  gray: 'var(--textSec)', 
-  grayd: 'var(--textTert)', 
-  graydd: 'var(--border)',
-  s1: 'var(--bg)', 
-  s2: 'var(--s2)', 
-  s3: 'var(--s3)', 
-  s4: 'var(--s4)',
-  border: 'var(--border)', 
-  white: 'var(--text)',
+  card: 'var(--s2)',
+  raise: 'var(--s3)',
+  raise2: 'var(--s4)',
+  border: 'var(--border)',
+  text: 'var(--text)',
+  dim: 'var(--text-dim)',
+  accent: 'var(--accent)',
 };
 
 interface SecurityAlert {
@@ -48,6 +49,9 @@ const alertVal = (a: SecurityAlert, key: string): unknown => {
   }
 };
 
+const th: React.CSSProperties = { padding: '16px 24px' };
+const td: React.CSSProperties = { padding: '16px 24px' };
+
 export default function SecurityAlertsPage() {
   const [alerts, setAlerts] = useState<SecurityAlert[]>([]);
   const [loading, setLoading] = useState(true);
@@ -75,46 +79,53 @@ export default function SecurityAlertsPage() {
     fetchAlerts(page);
   }, [fetchAlerts, page]);
 
+  const hover = (on: boolean) => (e: React.MouseEvent<HTMLElement>) => {
+    e.currentTarget.style.background = on ? C.raise2 : C.raise;
+  };
+
   return (
     <div className="flex flex-col gap-6 pb-10">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-[var(--text)]">Security Alerts</h1>
-          <p className="text-sm text-gray-400 mt-1">Monitoring mock location and VPN violations across the field force.</p>
+          <h1 className="text-2xl font-bold" style={{ color: C.text }}>Security Alerts</h1>
+          <p className="text-sm mt-1" style={{ color: C.dim }}>Monitoring mock location and VPN violations across the field force.</p>
         </div>
-        <button 
+        <button
           onClick={() => fetchAlerts(page)}
-          className="px-4 py-2 bg-s3 border border-border rounded-lg text-sm font-medium hover:bg-s4 transition-colors"
+          className="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+          style={{ background: C.raise, border: `1px solid ${C.border}`, color: C.text }}
+          onMouseEnter={hover(true)}
+          onMouseLeave={hover(false)}
         >
           Refresh
         </button>
       </div>
 
-      <div className="bg-s2 border border-border rounded-2xl overflow-hidden">
+      <div className="rounded-2xl overflow-hidden" style={{ background: C.card, border: `1px solid ${C.border}` }}>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm border-collapse">
             <thead>
-              <tr className="bg-s3/50 border-b border-border text-gray-400 font-semibold uppercase text-[10px] tracking-wider">
-                <th className="px-6 py-4"><SortLabel label="Field Executive" sortKey="user" sort={sort} onToggle={toggle} /></th>
-                <th className="px-6 py-4"><SortLabel label="Violation Type" sortKey="type" sort={sort} onToggle={toggle} /></th>
-                <th className="px-6 py-4"><SortLabel label="Action Attempted" sortKey="action" sort={sort} onToggle={toggle} /></th>
-                <th className="px-6 py-4">Location</th>
-                <th className="px-6 py-4"><SortLabel label="Detected At" sortKey="detected" sort={sort} onToggle={toggle} /></th>
+              <tr className="font-semibold uppercase text-[10px] tracking-wider" style={{ background: C.raise, borderBottom: `1px solid ${C.border}`, color: C.dim }}>
+                <th style={th}><SortLabel label="Field Executive" sortKey="user" sort={sort} onToggle={toggle} /></th>
+                <th style={th}><SortLabel label="Violation Type" sortKey="type" sort={sort} onToggle={toggle} /></th>
+                <th style={th}><SortLabel label="Action Attempted" sortKey="action" sort={sort} onToggle={toggle} /></th>
+                <th style={th}>Location</th>
+                <th style={th}><SortLabel label="Detected At" sortKey="detected" sort={sort} onToggle={toggle} /></th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border/50">
+            <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-20 text-center text-gray-500">
+                  <td colSpan={5} className="px-6 py-20 text-center" style={{ color: C.dim }}>
                     <div className="flex flex-col items-center gap-3">
-                      <div className="w-6 h-6 border-2 border-red border-t-transparent rounded-full animate-spin" />
+                      <div className="w-6 h-6 rounded-full animate-spin" style={{ border: `2px solid ${RED}`, borderTopColor: 'transparent' }} />
                       Loading security alerts...
                     </div>
                   </td>
                 </tr>
               ) : alerts.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-20 text-center text-gray-500">
+                  <td colSpan={5} className="px-6 py-20 text-center" style={{ color: C.dim }}>
                     <div className="flex flex-col items-center gap-2">
                       <span className="text-3xl opacity-20">🛡️</span>
                       No security violations detected yet.
@@ -123,41 +134,49 @@ export default function SecurityAlertsPage() {
                 </tr>
               ) : (
                 sorted.map((alert) => (
-                  <tr key={alert.id} className="hover:bg-white/[0.02] transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="font-bold text-[var(--text)]">{alert.user?.name || 'Unknown User'}</div>
-                      <div className="text-[11px] text-gray-500 uppercase flex items-center gap-2 mt-0.5">
-                        <span className="bg-s3 px-1.5 py-0.5 rounded border border-border">{alert.user?.employee_id || 'N/A'}</span>
+                  <tr
+                    key={alert.id}
+                    className="transition-colors"
+                    style={{ borderTop: `1px solid ${C.border}` }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = C.raise)}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                  >
+                    <td style={td}>
+                      <div className="font-bold" style={{ color: C.text }}>{alert.user?.name || 'Unknown User'}</div>
+                      <div className="text-[11px] uppercase flex items-center gap-2 mt-0.5" style={{ color: C.dim }}>
+                        <span className="px-1.5 py-0.5 rounded" style={{ background: C.raise, border: `1px solid ${C.border}` }}>{alert.user?.employee_id || 'N/A'}</span>
                         <span>{alert.user?.zones?.name || 'No Zone'}</span>
                       </div>
                     </td>
-                    <td className="px-6 py-4">
-                      <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${
-                        alert.type === 'MOCK_LOCATION' 
-                          ? 'bg-red/10 text-red border border-red/20' 
-                          : 'bg-purple/10 text-purple border border-purple/20'
-                      }`}>
-                        {alert.type.replace('_', ' ')}
-                      </span>
+                    <td style={td}>
+                      {(() => {
+                        const col = alert.type === 'MOCK_LOCATION' ? RED : PURPLE;
+                        return (
+                          <span className="px-2 py-1 rounded-full text-[10px] font-bold" style={{ background: `${col}1A`, color: col, border: `1px solid ${col}33` }}>
+                            {alert.type.replace('_', ' ')}
+                          </span>
+                        );
+                      })()}
                     </td>
-                    <td className="px-6 py-4 font-medium text-gray-300">
+                    <td className="font-medium" style={{ ...td, color: C.dim }}>
                       {alert.action.replace('_', ' ')}
                     </td>
-                    <td className="px-6 py-4">
+                    <td style={td}>
                       {alert.lat && alert.lng ? (
-                        <a 
-                          href={`https://www.google.com/maps?q=${alert.lat},${alert.lng}`} 
-                          target="_blank" 
+                        <a
+                          href={`https://www.google.com/maps?q=${alert.lat},${alert.lng}`}
+                          target="_blank"
                           rel="noreferrer"
-                          className="text-blue hover:underline text-[12px] flex items-center gap-1.5"
+                          className="hover:underline text-[12px] flex items-center gap-1.5"
+                          style={{ color: C.accent }}
                         >
                           📍 {alert.lat.toFixed(4)}, {alert.lng.toFixed(4)}
                         </a>
                       ) : (
-                        <span className="text-gray-600 text-[12px]">No coordinates</span>
+                        <span className="text-[12px]" style={{ color: C.dim }}>No coordinates</span>
                       )}
                     </td>
-                    <td className="px-6 py-4 text-gray-400 font-mono text-[11px]">
+                    <td className="font-mono text-[11px]" style={{ ...td, color: C.dim }}>
                       {format(new Date(alert.created_at), 'dd MMM yyyy, HH:mm:ss')}
                     </td>
                   </tr>
@@ -168,22 +187,28 @@ export default function SecurityAlertsPage() {
         </div>
 
         {total > limit && (
-          <div className="px-6 py-4 bg-s3/30 border-t border-border flex items-center justify-between">
-            <div className="text-xs text-gray-500">
-              Showing <span className="text-[var(--text)] font-bold">{alerts.length}</span> of <span className="text-[var(--text)] font-bold">{total}</span> alerts
+          <div className="px-6 py-4 flex items-center justify-between" style={{ background: C.raise, borderTop: `1px solid ${C.border}` }}>
+            <div className="text-xs" style={{ color: C.dim }}>
+              Showing <span className="font-bold" style={{ color: C.text }}>{alerts.length}</span> of <span className="font-bold" style={{ color: C.text }}>{total}</span> alerts
             </div>
             <div className="flex gap-2">
               <button
                 disabled={page === 1}
                 onClick={() => setPage(p => p - 1)}
-                className="px-3 py-1.5 bg-s3 border border-border rounded-lg text-xs font-bold disabled:opacity-30 disabled:cursor-not-allowed hover:bg-s4 transition-colors"
+                className="px-3 py-1.5 rounded-lg text-xs font-bold disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                style={{ background: C.raise, border: `1px solid ${C.border}`, color: C.text }}
+                onMouseEnter={hover(true)}
+                onMouseLeave={hover(false)}
               >
                 Previous
               </button>
               <button
                 disabled={page * limit >= total}
                 onClick={() => setPage(p => p + 1)}
-                className="px-3 py-1.5 bg-s3 border border-border rounded-lg text-xs font-bold disabled:opacity-30 disabled:cursor-not-allowed hover:bg-s4 transition-colors"
+                className="px-3 py-1.5 rounded-lg text-xs font-bold disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                style={{ background: C.raise, border: `1px solid ${C.border}`, color: C.text }}
+                onMouseEnter={hover(true)}
+                onMouseLeave={hover(false)}
               >
                 Next
               </button>
@@ -193,24 +218,18 @@ export default function SecurityAlertsPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4">
-        <div className="bg-s2 border border-blue/20 rounded-2xl p-5 border-l-4 border-l-blue">
-          <div className="text-[10px] font-bold text-blue uppercase tracking-widest mb-1">Defense Protocol</div>
-          <div className="text-sm text-gray-300 leading-relaxed">
-            All Field Executive actions (Attendance, Forms, Visits) are now protected by real-time mock location and VPN checks.
+        {[
+          { c: C.accent, t: 'Defense Protocol', b: 'All Field Executive actions (Attendance, Forms, Visits) are now protected by real-time mock location and VPN checks.' },
+          { c: RED, t: 'Strict Enforcement', b: 'Violations result in an immediate block of the action. The FE cannot proceed until the spoofing app or VPN is disabled.' },
+          { c: PURPLE, t: 'Automated Reporting', b: 'Every blocked attempt is immediately reported here with user identity, location, and violation type for HR auditing.' },
+        ].map((card) => (
+          <div key={card.t} className="rounded-2xl p-5" style={{ background: C.card, border: `1px solid ${card.c}33`, borderLeft: `4px solid ${card.c}` }}>
+            <div className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: card.c }}>{card.t}</div>
+            <div className="text-sm leading-relaxed" style={{ color: C.dim }}>
+              {card.b}
+            </div>
           </div>
-        </div>
-        <div className="bg-s2 border border-red/20 rounded-2xl p-5 border-l-4 border-l-red">
-          <div className="text-[10px] font-bold text-red uppercase tracking-widest mb-1">Strict Enforcement</div>
-          <div className="text-sm text-gray-300 leading-relaxed">
-            Violations result in an immediate block of the action. The FE cannot proceed until the spoofing app or VPN is disabled.
-          </div>
-        </div>
-        <div className="bg-s2 border border-purple/20 rounded-2xl p-5 border-l-4 border-l-purple">
-          <div className="text-[10px] font-bold text-purple uppercase tracking-widest mb-1">Automated Reporting</div>
-          <div className="text-sm text-gray-300 leading-relaxed">
-            Every blocked attempt is immediately reported here with user identity, location, and violation type for HR auditing.
-          </div>
-        </div>
+        ))}
       </div>
     </div>
   );

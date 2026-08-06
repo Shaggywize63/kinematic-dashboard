@@ -3,9 +3,11 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import ConfirmModal from '../../../components/ConfirmModal';
 import { useAuth } from '../../../hooks/useAuth';
 import { matchDemoMock, DEMO_USER_EMAIL } from '../../../lib/demoMocks';
+import KiniMascot from '../../../components/crm/KiniMascot';
 import { 
   DndContext, 
   closestCenter,
+  pointerWithin,
   KeyboardSensor,
   PointerSensor,
   useSensor,
@@ -219,7 +221,7 @@ function FormList({ onOpen, onCreate }:{ onOpen:(f:BForm)=>void; onCreate:()=>vo
         </div>
         <div style={{ display:'flex', gap:12 }}>
           <button onClick={() => setShowAIGen(true)} style={{ padding:'10px 20px', background:`linear-gradient(135deg, ${C.blue}, ${C.purple})`, border:'none', borderRadius:10, color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", display:'flex', alignItems:'center', gap:8, boxShadow:`0 4px 18px ${C.blue}25` }}>
-            ✨ AI Magic
+            <KiniMascot size={16} /> KINI Magic
           </button>
           <button onClick={onCreate} style={{ padding:'10px 20px', background:C.red, border:'none', borderRadius:10, color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", display:'flex', alignItems:'center', gap:8, boxShadow:`0 4px 18px ${C.redB}` }}>
             + New Form
@@ -256,14 +258,14 @@ function FormList({ onOpen, onCreate }:{ onOpen:(f:BForm)=>void; onCreate:()=>vo
         <div style={{ display:'flex', justifyContent:'center', padding:60 }}><Spin size={24}/></div>
       ) : shown.length === 0 ? (
         <div style={{ textAlign:'center', padding:'80px 20px', display:'flex', flexDirection:'column', alignItems:'center' }}>
-          <div style={{ fontSize:60, marginBottom:20, animation:'km-pulse 2s infinite' }}>✨</div>
-          <h2 style={{ fontFamily:"'Syne',sans-serif", fontSize:24, fontWeight:800, color:C.white, marginBottom:8 }}>Start with AI or Build Manually</h2>
-          <p style={{ fontSize:14, color:C.gray, marginBottom:32, maxWidth:420, lineHeight:1.6 }}>Describe your field audit or survey challenge and let Kini AI design a professional multi-page form for you in seconds.</p>
+          <div style={{ marginBottom:20, animation:'km-pulse 2s infinite' }}><KiniMascot size={64} /></div>
+          <h2 style={{ fontFamily:"'Syne',sans-serif", fontSize:24, fontWeight:800, color:C.white, marginBottom:8 }}>Start with KINI or Build Manually</h2>
+          <p style={{ fontSize:14, color:C.gray, marginBottom:32, maxWidth:420, lineHeight:1.6 }}>Describe your field audit or survey challenge and let KINI design a professional multi-page form for you in seconds.</p>
           
           <div style={{ display:'flex', gap:20, flexWrap:'wrap', justifyContent:'center' }}>
             <div onClick={() => setShowAIGen(true)} className="kbtn" style={{ width:240, background:C.s2, border:`1px solid ${C.blue}40`, padding:'30px 20px', borderRadius:20, cursor:'pointer', boxShadow:`0 10px 40px ${C.blue}15`, transition:'all .2s' }}>
-              <div style={{ fontSize:32, marginBottom:16 }}>🪄</div>
-              <div style={{ fontWeight:800, color:C.white, marginBottom:6 }}>AI Magic Synthesis</div>
+              <div style={{ marginBottom:16 }}><KiniMascot size={34} /></div>
+              <div style={{ fontWeight:800, color:C.white, marginBottom:6 }}>KINI Magic Synthesis</div>
               <div style={{ fontSize:11, color:C.grayd }}>Describe a problem to get a full form structure.</div>
             </div>
 
@@ -424,9 +426,9 @@ function AIGenerateModal({ onGenerated, onClose }:{ onGenerated:(f:BForm)=>void;
         <button onClick={onClose} style={{ position:'absolute', top:24, right:24, background:'none', border:'none', color:C.gray, cursor:'pointer', fontSize:20 }}>✕</button>
 
         <div style={{ textAlign:'center', marginBottom:32 }}>
-          <div style={{ fontSize:42, marginBottom:16, animation: status==='thinking' ? 'pulse 2s infinite' : 'none' }}>✨</div>
-          <h2 style={{ fontFamily:"'Syne',sans-serif", fontSize:24, fontWeight:800, color:C.white, margin:0 }}>AI Form Synthesis</h2>
-          <p style={{ fontSize:14, color:C.gray, marginTop:8 }}>Describe your field challenge and let Kini AI design the solution.</p>
+          <div style={{ marginBottom:16, display:'flex', justifyContent:'center', animation: status==='thinking' ? 'pulse 2s infinite' : 'none' }}><KiniMascot size={46} /></div>
+          <h2 style={{ fontFamily:"'Syne',sans-serif", fontSize:24, fontWeight:800, color:C.white, margin:0 }}>KINI Form Synthesis</h2>
+          <p style={{ fontSize:14, color:C.gray, marginTop:8 }}>Describe your field challenge and let KINI design the solution.</p>
         </div>
 
         {status === 'idle' ? (
@@ -452,7 +454,7 @@ function AIGenerateModal({ onGenerated, onClose }:{ onGenerated:(f:BForm)=>void;
           <div style={{ textAlign:'center', padding:'20px 0' }}>
             <div style={{ display:'flex', justifyContent:'center', marginBottom:24 }}><Spin size={40} /></div>
             <div style={{ fontFamily:"'Syne',sans-serif", fontSize:18, fontWeight:700, color:C.white, marginBottom:8 }}>{stage}</div>
-            <div style={{ fontSize:13, color:C.grayd }}>Please wait while Kini AI synthesizes your requirements...</div>
+            <div style={{ fontSize:13, color:C.grayd }}>Please wait while KINI synthesizes your requirements...</div>
           </div>
         )}
 
@@ -540,7 +542,7 @@ function CreateFormModal({ onCreated, onClose }:{ onCreated:(f:BForm)=>void; onC
 
         {/* AI Magic Section */}
         <div style={{ marginBottom:30, padding:'16px', background:`linear-gradient(135deg, ${C.blue}08, ${C.purple}08)`, border:`1px solid ${C.blue}25`, borderRadius:18, position:'relative' }}>
-          <label style={{ fontSize:10, fontWeight:800, color:C.blue, textTransform:'uppercase', letterSpacing:1, display:'block', marginBottom:10 }}>✨ AI Magic Detailer</label>
+          <label style={{ fontSize:10, fontWeight:800, color:C.blue, textTransform:'uppercase', letterSpacing:1, display:'flex', alignItems:'center', gap:6, marginBottom:10 }}><KiniMascot size={14} /> KINI Magic Detailer</label>
           <div style={{ display:'flex', gap:10 }}>
             <input 
               style={{ ...inpStyle, fontSize:12, background:C.s4 }} 
@@ -561,7 +563,7 @@ function CreateFormModal({ onCreated, onClose }:{ onCreated:(f:BForm)=>void; onC
             <span 
               onClick={() => window.dispatchEvent(new CustomEvent('km-open-ai'))} 
               style={{ color:C.blue, cursor:'pointer', fontWeight:700, borderLeft:`1px solid ${C.border}`, paddingLeft:10 }}>
-              Need help? Consult Kini AI →
+              Need help? Consult KINI →
             </span>
           </div>
         </div>
@@ -897,7 +899,7 @@ function SortableQuestionCard(props: any) {
   );
 }
 
-function DraggableSidebarItem({ item }: { item: any }) {
+function DraggableSidebarItem({ item, onAdd }: { item: any; onAdd: () => void }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `new-${item.type}`,
   });
@@ -907,6 +909,8 @@ function DraggableSidebarItem({ item }: { item: any }) {
       ref={setNodeRef}
       {...listeners}
       {...attributes}
+      onClick={onAdd}
+      title="Click or drag to add this field"
       style={{
         padding: '7px 14px',
         cursor: 'grab',
@@ -974,7 +978,6 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
 
   const handleDragStart = (event: any) => {
     const { active } = event;
-    console.log('DragStart:', active.id);
     const id = String(active.id);
     setActiveId(id);
     if (id.startsWith('new-')) {
@@ -986,7 +989,6 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
 
   const handleDragEnd = async (event: any) => {
     const { active, over } = event;
-    console.log('DragEnd. Active:', active.id, 'Over:', over?.id);
     setActiveId(null);
     setActiveType(null);
     
@@ -1077,6 +1079,7 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
     const tempId = `temp-${Date.now()}`;
     const optimisticQ: BQuestion = {
       id: tempId,
+      form_id: form.id,
       page_id: selPage,
       qtype,
       label: `New ${typeInfo(qtype).label}`,
@@ -1222,7 +1225,7 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
       {tab==='build' && (
         <DndContext 
           sensors={sensors}
-          collisionDetection={closestCenter}
+          collisionDetection={pointerWithin}
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
         >
@@ -1233,7 +1236,7 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
                 <div key={group.label} style={{ marginBottom:4 }}>
                   <div style={{ padding:'6px 14px 4px', fontSize:10, color:C.grayd, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.8px' }}>{group.label}</div>
                   {group.items.map(item => (
-                    <DraggableSidebarItem key={item.type} item={item} />
+                    <DraggableSidebarItem key={item.type} item={item} onAdd={() => addQuestion(item.type)} />
                   ))}
                 </div>
               ))}
