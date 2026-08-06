@@ -13,7 +13,7 @@
  *   by the old form have no `flow_id`, so each is shown as its own 1-action flow
  *   and transparently upgraded (gets a flow_id) the next time it's saved.
  */
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { crmAutomations, crmPipelines, crmEmailTemplates, crmWhatsappTemplates } from '../../../lib/crmApi';
 import api from '../../../lib/api';
@@ -318,6 +318,24 @@ export default function AutomationCanvas() {
   const canvasW = CX.act + NW + 24;
   const canvasH = BASEY + ((cur?.actions.length || 1) + 1) * GAPY + 20;
 
+  // Zoom / fit-to-width. The flow (When → Only if → Then) is ~866px wide and the
+  // centre column is narrow, so the whole sentence was never visible at once (it
+  // only scrolled). Fit scales it to the viewport; +/− nudge from there.
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+  const [zoom, setZoom] = useState(1);
+  const fitToWidth = () => {
+    const w = viewportRef.current?.clientWidth;
+    if (w) setZoom(Number(Math.min(1, Math.max(0.4, (w - 36) / canvasW)).toFixed(3)));
+  };
+  useEffect(() => {
+    fitToWidth();
+    const on = () => fitToWidth();
+    window.addEventListener('resize', on);
+    return () => window.removeEventListener('resize', on);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canvasW, curIdx]);
+  const zoomBtn: React.CSSProperties = { width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--s3)', color: 'var(--text)', cursor: 'pointer', fontSize: 14, lineHeight: 1, padding: 0 };
+
   if (loading) return <div style={{ padding: 24, color: 'var(--text-dim)', fontSize: 13 }}>Loading automations…</div>;
 
   return (
@@ -357,12 +375,21 @@ export default function AutomationCanvas() {
           ) : <div style={{ fontSize: 13, color: 'var(--text-dim)' }}>Select a flow, or create a new one.</div>}
         </div>
 
-        <div style={{ ...card, padding: 0, flex: 1, overflow: 'auto', position: 'relative',
+        <div ref={viewportRef} style={{ ...card, padding: 0, flex: 1, overflow: 'auto', position: 'relative',
           backgroundImage: 'radial-gradient(circle at 1px 1px, var(--border) 1.3px, transparent 0)', backgroundSize: '22px 22px' }}>
+          {cur && (
+            <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 5, display: 'flex', alignItems: 'center', gap: 4, background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 10, padding: '4px 6px', boxShadow: '0 6px 18px rgba(0,0,0,0.18)' }}>
+              <button onClick={() => setZoom((z) => Number(Math.max(0.4, z - 0.1).toFixed(3)))} title="Zoom out" style={zoomBtn}>−</button>
+              <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', minWidth: 34, textAlign: 'center' }}>{Math.round(zoom * 100)}%</span>
+              <button onClick={() => setZoom((z) => Number(Math.min(1.5, z + 0.1).toFixed(3)))} title="Zoom in" style={zoomBtn}>＋</button>
+              <button onClick={fitToWidth} title="Fit to width" style={{ ...zoomBtn, width: 'auto', padding: '0 8px', fontSize: 11, fontWeight: 700 }}>Fit</button>
+            </div>
+          )}
           {!cur ? (
             <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-dim)', fontSize: 13 }}>Nothing selected.</div>
           ) : (
-            <div style={{ position: 'relative', width: canvasW, height: canvasH, padding: 18 }}>
+            <div style={{ position: 'relative', width: canvasW * zoom, height: canvasH * zoom }}>
+            <div style={{ position: 'relative', width: canvasW, height: canvasH, padding: 18, transform: `scale(${zoom})`, transformOrigin: 'top left' }}>
               <svg width={canvasW} height={canvasH} style={{ position: 'absolute', inset: 18, pointerEvents: 'none', overflow: 'visible' }}>
                 {wires.map((w, i) => (
                   <path key={i} d={w.d} fill="none" stroke="var(--border)" strokeWidth={2.2} strokeDasharray={w.dash ? '5 6' : undefined} />
@@ -387,6 +414,7 @@ export default function AutomationCanvas() {
                 style={{ ...btnDashed, position: 'absolute', left: CX.act + 18, top: BASEY + 18 + cur.actions.length * GAPY, width: NW }}>
                 ＋ Add an action
               </button>
+            </div>
             </div>
           )}
         </div>

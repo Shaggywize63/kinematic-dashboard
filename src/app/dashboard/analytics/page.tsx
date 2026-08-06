@@ -73,10 +73,10 @@ function heatColor(value: number, max: number): string {
   if (max === 0) return C.s2;
   const ratio = value / max;
   if (ratio === 0)   return C.s2;
-  if (ratio < 0.25)  return '#1A365D'; // Dark blue
-  if (ratio < 0.5)   return '#2B6CB0'; // Medium blue
-  if (ratio < 0.75)  return '#4299E1'; // Bright blue
-  return '#63B3ED'; // Lightest blue
+  if (ratio < 0.25)  return '#3730A3'; // Indigo
+  if (ratio < 0.5)   return '#4F46E5'; // Bright indigo
+  if (ratio < 0.75)  return '#6366F1'; // Violet-indigo
+  return '#22D3EE'; // Cyan peak
 }
 
 function ContactActivityHeatmap({ data, loading }: { data: HeatmapResponse | null; loading: boolean }) {
@@ -287,7 +287,7 @@ export default function AnalyticsPage() {
               <button key={p.l} onClick={() => { setFrom(pFrom); setTo(today); }}
                 style={{
                   padding:'6px 12px', borderRadius:8, fontSize:11, fontWeight:600, cursor:'pointer',
-                  background: active ? C.blue : '#1A2438',
+                  background: active ? C.blue : C.s2,
                   border: `1px solid ${active ? C.blue : C.border}`,
                   color: active ? '#fff' : C.gray,
                   transition: 'all .15s'
@@ -295,10 +295,10 @@ export default function AnalyticsPage() {
             );
           })}
           <input type="date" value={from} onChange={e => setFrom(e.target.value)}
-            style={{ background:'#1A2438', border:`1px solid ${C.border}`, borderRadius:8, color:'#fff', fontSize:11, padding:'5px 8px', colorScheme:'dark' }} />
+            style={{ background:C.s2, border:`1px solid ${C.border}`, borderRadius:8, color:'var(--text)', fontSize:11, padding:'5px 8px' }} />
           <span style={{ color:C.grayd, fontSize:12 }}>→</span>
           <input type="date" value={to} onChange={e => setTo(e.target.value)}
-            style={{ background:'#1A2438', border:`1px solid ${C.border}`, borderRadius:8, color:'#fff', fontSize:11, padding:'5px 8px', colorScheme:'dark' }} />
+            style={{ background:C.s2, border:`1px solid ${C.border}`, borderRadius:8, color:'var(--text)', fontSize:11, padding:'5px 8px' }} />
           
           <button onClick={fetchData} className="kbtn" 
             style={{ padding:'6px 12px', borderRadius:8, background:C.s2, border:`1px solid ${C.border}`, color:C.gray, fontSize:11, fontWeight:600 }}>
@@ -428,21 +428,22 @@ export default function AnalyticsPage() {
         const intercept   = yMean - slope * xMean;
         const forecastVal = Math.max(0, Math.round(intercept + slope * n));
 
-        // 3. Best performing day
-        const best = trends.reduce((a, b) => b.tff > a.tff ? b : a, trends[0]);
-
-        // 4. Consistency score: % of days with at least 1 TFF
+        // 3. Consistency score: % of days with at least 1 TFF
         const activeDays    = trends.filter(d => d.tff > 0).length;
         const consistencyPct = Math.round((activeDays / trends.length) * 100);
 
         // 5. At-risk zones: zones below 50% of target
         const atRiskZones = zones.filter((z: any) => z.target > 0 && (z.tff ?? 0) / z.target < 0.5);
 
-        // 6. Peak performer efficiency (TFF per attended day)
-        const topFe = topPerformers[0];
-        const efficiencyScore = topFe
-          ? `${topFe.tff} TFF · ${topFe.attendance}% att.`
-          : null;
+        // 6. Weekly run-rate: current daily average projected across a 7-day week
+        const dailyAvg = yMean;
+        const weeklyRunRate = Math.round(dailyAvg * 7);
+
+        // 7. Forecast confidence: R² of the linear trend fit (how tightly days follow the trend)
+        const ssTot = trends.reduce((s, d) => s + (d.tff - yMean) ** 2, 0);
+        const ssRes = trends.reduce((s, d, i) => { const pred = intercept + slope * i; return s + (d.tff - pred) ** 2; }, 0);
+        const r2 = ssTot > 0 ? Math.max(0, Math.min(1, 1 - ssRes / ssTot)) : 0;
+        const confPct = Math.round(r2 * 100);
 
         const insightCard = (
           icon: string,
@@ -450,14 +451,24 @@ export default function AnalyticsPage() {
           value: string,
           sub: string,
           accent: string,
-          badge?: { label: string; color: string }
+          badge?: { label: string; color: string },
+          methodology?: string
         ) => (
           <div style={{
             background:C.s1, border:`1px solid ${C.border}`, borderRadius:16,
             padding:20, display:'flex', flexDirection:'column', gap:10,
           }}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
-              <div style={{ fontSize:22 }}>{icon}</div>
+              <div style={{ display:'flex', alignItems:'center', gap:7 }}>
+                <div style={{ fontSize:22 }}>{icon}</div>
+                {methodology && (
+                  <span title={methodology} style={{ cursor:'help', color:C.gray, display:'inline-flex', opacity:0.75 }}>
+                    <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" />
+                    </svg>
+                  </span>
+                )}
+              </div>
               {badge && (
                 <span style={{
                   fontSize:10, fontWeight:700, letterSpacing:'0.5px',
@@ -472,7 +483,7 @@ export default function AnalyticsPage() {
             <div style={{ fontFamily:"'Syne',sans-serif", fontSize:24, fontWeight:800, color:accent, lineHeight:1 }}>
               {value}
             </div>
-            <div style={{ fontSize:13, fontWeight:600, color:'#E8EDF8' }}>{title}</div>
+            <div style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>{title}</div>
             <div style={{ fontSize:11, color:C.gray }}>{sub}</div>
           </div>
         );
@@ -480,11 +491,11 @@ export default function AnalyticsPage() {
         return (
           <div>
             <div style={{ marginBottom:14 }}>
-              <div style={{ fontFamily:"'Syne',sans-serif", fontSize:15, fontWeight:800, color:'#E8EDF8' }}>
+              <div style={{ fontFamily:"'Syne',sans-serif", fontSize:15, fontWeight:800, color:'var(--text)' }}>
                 Predictive Insights
               </div>
               <div style={{ fontSize:11, color:C.gray, marginTop:2 }}>
-                AI-computed signals from your {trends.length}-day activity window
+                KINI-computed signals from your {trends.length}-day activity window · hover the ⓘ on any card to see how it&apos;s calculated
               </div>
             </div>
             <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:14 }}>
@@ -496,7 +507,8 @@ export default function AnalyticsPage() {
                   ? `Performance is accelerating — second half avg ${Math.round(secondHalfAvg)} vs first half ${Math.round(firstHalfAvg)}`
                   : `Performance is declining — second half avg ${Math.round(secondHalfAvg)} vs first half ${Math.round(firstHalfAvg)}`,
                 momentumUp ? C.green : C.red,
-                { label: momentumUp ? 'TRENDING UP' : 'NEEDS ATTENTION', color: momentumUp ? C.green : C.red }
+                { label: momentumUp ? 'TRENDING UP' : 'NEEDS ATTENTION', color: momentumUp ? C.green : C.red },
+                'Average TFF across the first half of the selected window versus the second half. A positive value means daily output is accelerating.'
               )}
               {insightCard(
                 '🔮',
@@ -506,14 +518,8 @@ export default function AnalyticsPage() {
                   ? `Based on the current upward trend (+${slope.toFixed(1)}/day), tomorrow looks strong`
                   : `Current trend is softening (${slope.toFixed(1)}/day) — consider nudging the team`,
                 C.blue,
-                { label: slope >= 0 ? 'POSITIVE SIGNAL' : 'WATCH', color: slope >= 0 ? C.blue : C.yellow }
-              )}
-              {insightCard(
-                '🏆',
-                'Best Day This Period',
-                best.label,
-                `Peak TFF of ${best.tff} — schedule high-priority outlets on similar days`,
-                C.yellow
+                { label: slope >= 0 ? 'POSITIVE SIGNAL' : 'WATCH', color: slope >= 0 ? C.blue : C.yellow },
+                'Least-squares linear regression fitted to the daily TFF series, projected one day ahead.'
               )}
               {insightCard(
                 '📅',
@@ -524,7 +530,9 @@ export default function AnalyticsPage() {
                   : consistencyPct >= 50 ? 'some gaps in daily execution'
                   : 'significant gaps — check FE attendance & route coverage'
                 }`,
-                consistencyPct >= 80 ? C.green : consistencyPct >= 50 ? C.yellow : C.red
+                consistencyPct >= 80 ? C.green : consistencyPct >= 50 ? C.yellow : C.red,
+                undefined,
+                'Share of days in the window with at least one TFF logged (active days ÷ total days).'
               )}
               {atRiskZones.length > 0
                 ? insightCard(
@@ -533,7 +541,8 @@ export default function AnalyticsPage() {
                     String(atRiskZones.length),
                     `${atRiskZones.map((z: any) => z.zone).join(', ')} — immediate intervention recommended`,
                     C.red,
-                    { label: 'AT RISK', color: C.red }
+                    { label: 'AT RISK', color: C.red },
+                    'Zones whose TFF for this period is below 50% of their assigned target.'
                   )
                 : insightCard(
                     '✅',
@@ -541,27 +550,32 @@ export default function AnalyticsPage() {
                     '0 at risk',
                     'Every zone is above 50% of its TFF target for this period',
                     C.green,
-                    { label: 'ON TRACK', color: C.green }
+                    { label: 'ON TRACK', color: C.green },
+                    'Zones whose TFF for this period is below 50% of their assigned target.'
                   )
               }
-              {topFe
-                ? insightCard(
-                    '⚡',
-                    'Top Performer',
-                    topFe.name,
-                    efficiencyScore
-                      ? `${efficiencyScore} — replicate this execution pattern across the team`
-                      : 'Leading the leaderboard this period',
-                    C.purple
-                  )
-                : insightCard(
-                    '⚡',
-                    'Top Performer',
-                    '—',
-                    'No performer data available for this period',
-                    C.purple
-                  )
-              }
+              {insightCard(
+                '📊',
+                'Weekly Run-Rate',
+                String(weeklyRunRate),
+                `At the current pace of ~${Math.round(dailyAvg)} TFF/day, the team is on track for ${weeklyRunRate} TFF over a 7-day week`,
+                C.blue,
+                undefined,
+                'Average daily TFF across the window projected across a full 7-day week (daily average × 7).'
+              )}
+              {insightCard(
+                '🎯',
+                'Forecast Confidence',
+                `${confPct}%`,
+                confPct >= 70
+                  ? 'Daily TFF tracks the trend closely — the forecast is reliable'
+                  : confPct >= 40
+                    ? 'Daily TFF is moderately variable — treat the forecast as indicative'
+                    : 'Daily TFF is volatile — the forecast carries high uncertainty',
+                confPct >= 70 ? C.green : confPct >= 40 ? C.yellow : C.red,
+                { label: confPct >= 70 ? 'HIGH' : confPct >= 40 ? 'MODERATE' : 'LOW', color: confPct >= 70 ? C.green : confPct >= 40 ? C.yellow : C.red },
+                'R² of the linear trend fit — the share of day-to-day TFF variation explained by the trend line. Higher means a more reliable forecast.'
+              )}
             </div>
           </div>
         );

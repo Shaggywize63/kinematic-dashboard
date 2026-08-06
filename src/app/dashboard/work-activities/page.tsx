@@ -333,7 +333,7 @@ export default function WorkActivitiesPage() {
       {tab === 'insights' ? <FormInsights /> : (
       <>
       {/* Universal Sticky Filter Bar */}
-      <div style={{ position: 'sticky', top: '16px', zIndex: 100, background: 'rgba(22, 25, 31, 0.8)', backdropFilter: 'blur(20px)', border: `1px solid ${C.border}`, borderRadius: '20px', padding: '16px 24px', display: 'flex', gap: '20px', alignItems: 'center', marginBottom: '32px', boxShadow: '0 20px 40px rgba(0,0,0,0.4)' }}>
+      <div style={{ position: 'sticky', top: '16px', zIndex: 100, background: 'color-mix(in srgb, var(--s1) 82%, transparent)', backdropFilter: 'blur(20px)', border: `1px solid ${C.border}`, borderRadius: '20px', padding: '16px 24px', display: 'flex', gap: '20px', alignItems: 'center', marginBottom: '32px', boxShadow: '0 20px 40px rgba(0,0,0,0.18)' }}>
         
         <div style={{ flex: 1 }}>
           <label style={{ display: 'block', fontSize: '10px', fontWeight: 800, color: C.accent, textTransform: 'uppercase', marginBottom: '6px' }}>Date Window</label>

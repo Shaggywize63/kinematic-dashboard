@@ -13,7 +13,7 @@ import {
   mockDashboardInit, mockSummary, mockTrends, mockFeed, mockHeatmap,
   mockLocations, mockUsers, mockAttendanceTeam, mockStores, mockFormTemplates,
   mockActivities, mockAssets, mockSecurityAlerts, mockVisitLogs,
-  mockSubmissions,
+  mockSubmissions, mockSubmissionDetail,
 } from './demo/factoriesA';
 import {
   mockSOS, mockGrievances, mockCities, mockZones, mockClients, mockInventory,
@@ -874,6 +874,72 @@ function genericFormInsights() {
   };
 }
 
+// Global smart-search results for the demo account. The palette (⌘K) only
+// renders its result UI — entity icons, type badges, match-highlighting and the
+// grouped animation — when the endpoint returns groups, and demo mode had no
+// /crm/search handler, so a demo session saw an almost-empty palette. This
+// synthesises plausible cross-entity hits whose titles contain the query so the
+// highlighting always shows.
+function mockGlobalSearch(q: string) {
+  const term = (q || '').trim();
+  if (!term) return { success: true, data: { query: q, groups: [], total: 0 } };
+  const cap = term.charAt(0).toUpperCase() + term.slice(1);
+  const grp = (type: string, label: string, items: Array<{ id: string; title: string; subtitle: string; score: number }>) =>
+    ({ type, label, count: items.length, items });
+  const groups = [
+    grp('lead', 'Leads', [
+      { id: 'ld-1', title: `${cap} Textiles Pvt Ltd`, subtitle: 'New · Bangalore · ₹4.2L', score: 0.98 },
+      { id: 'ld-2', title: `${cap} Traders`, subtitle: 'Contacted · Mumbai', score: 0.90 },
+      { id: 'ld-3', title: `${cap} Kumar`, subtitle: 'Qualified · Delhi · +91 90000 12345', score: 0.82 },
+    ]),
+    grp('deal', 'Deals', [
+      { id: 'dl-1', title: `${cap} Q3 Supply Deal`, subtitle: 'Proposal · ₹8.5L · 60%', score: 0.88 },
+      { id: 'dl-2', title: `${cap} Annual Contract`, subtitle: 'Negotiation · ₹22L', score: 0.79 },
+    ]),
+    grp('contact', 'Contacts', [
+      { id: 'ct-1', title: `${cap} Sharma`, subtitle: `Purchase Head · ${cap} Textiles`, score: 0.80 },
+      { id: 'ct-2', title: `${cap} Reddy`, subtitle: 'Owner · +91 90000 55555', score: 0.70 },
+    ]),
+    grp('account', 'Accounts', [
+      { id: 'ac-1', title: `${cap} Retail Group`, subtitle: '12 outlets · Bangalore', score: 0.76 },
+    ]),
+    grp('store', 'Stores', [
+      { id: 'st-1', title: `${cap} Supermart`, subtitle: 'SM-204 · Koramangala', score: 0.72 },
+    ]),
+    grp('user', 'Team', [
+      { id: 'fe1', title: `${cap} (Field Executive)`, subtitle: 'KIN-001 · Bangalore', score: 0.60 },
+    ]),
+  ];
+  const total = groups.reduce((s, g) => s + g.items.length, 0);
+  return { success: true, data: { query: q, groups, total } };
+}
+
+// ── Email alerts / templates / verified senders (demo) ──────────────────────
+// These surfaces were empty in demo mode because there was no seed data and no
+// interceptor (and the composer stays disabled until a verified sender exists).
+// Seed a couple of verified senders, a few templates and a mix of sent/
+// scheduled/draft alerts so the pages are populated.
+const DEMO_SENDERS = [
+  { id: 'snd-1', email: 'sales@kinematic.in', display_name: 'Kinematic Sales', verified_at: new Date(Date.now() - 30 * 86400000).toISOString(), is_default: true, created_at: new Date(Date.now() - 32 * 86400000).toISOString() },
+  { id: 'snd-2', email: 'noreply@kinematic.in', display_name: 'Kinematic Notifications', verified_at: new Date(Date.now() - 20 * 86400000).toISOString(), is_default: false, created_at: new Date(Date.now() - 22 * 86400000).toISOString() },
+];
+const DEMO_EMAIL_TEMPLATES = [
+  { id: 'tpl-1', name: 'Welcome — New Lead', subject: 'Welcome to Kinematic, {{first_name}}!', category: 'Onboarding',
+    body_html: '<p>Hi {{first_name}},</p><p>Thanks for your interest — your account manager will reach out shortly.</p>', body_text: 'Hi {{first_name}}, thanks for your interest — your account manager will reach out shortly.',
+    variables: ['first_name'], is_active: true, created_at: new Date(Date.now() - 25 * 86400000).toISOString(), updated_at: new Date(Date.now() - 5 * 86400000).toISOString() },
+  { id: 'tpl-2', name: 'Follow-up — Proposal Sent', subject: 'Following up on your {{deal_name}} proposal', category: 'Sales',
+    body_html: '<p>Hi {{first_name}},</p><p>Just checking in on the proposal for {{deal_name}}. Happy to walk you through it.</p>', body_text: 'Hi {{first_name}}, just checking in on the proposal for {{deal_name}}.',
+    variables: ['first_name', 'deal_name'], is_active: true, created_at: new Date(Date.now() - 18 * 86400000).toISOString(), updated_at: new Date(Date.now() - 3 * 86400000).toISOString() },
+  { id: 'tpl-3', name: 'Monthly Field-Force Digest', subject: 'Your {{month}} field-force digest', category: 'Newsletter',
+    body_html: '<p>Here is your {{month}} summary: coverage, TFF and top performers.</p>', body_text: 'Here is your {{month}} summary: coverage, TFF and top performers.',
+    variables: ['month'], is_active: true, created_at: new Date(Date.now() - 40 * 86400000).toISOString(), updated_at: new Date(Date.now() - 8 * 86400000).toISOString() },
+];
+const DEMO_EMAIL_ALERTS = [
+  { id: 'al-1', name: 'Q3 Scheme Announcement', template_id: 'tpl-3', from_email: 'sales@kinematic.in', from_name: 'Kinematic Sales', to_emails: ['team@demo.in'], cc_emails: null, bcc_emails: null, scheduled_at: null, status: 'sent', sent_at: new Date(Date.now() - 2 * 86400000).toISOString(), recipients_total: 145, recipients_sent: 145, recipients_failed: 0, created_at: new Date(Date.now() - 3 * 86400000).toISOString(), error: null },
+  { id: 'al-2', name: 'Weekly Digest', template_id: 'tpl-3', from_email: 'noreply@kinematic.in', from_name: 'Kinematic Notifications', to_emails: ['team@demo.in'], cc_emails: null, bcc_emails: null, scheduled_at: new Date(Date.now() + 1 * 86400000).toISOString(), status: 'scheduled', sent_at: null, recipients_total: 145, recipients_sent: 0, recipients_failed: 0, created_at: new Date(Date.now() - 1 * 86400000).toISOString(), error: null },
+  { id: 'al-3', name: 'New Lead Welcome Blast', template_id: 'tpl-1', from_email: 'sales@kinematic.in', from_name: 'Kinematic Sales', to_emails: [], cc_emails: null, bcc_emails: null, scheduled_at: null, status: 'draft', sent_at: null, recipients_total: 0, recipients_sent: 0, recipients_failed: 0, created_at: new Date(Date.now() - 6 * 3600000).toISOString(), error: null },
+];
+
 export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown): T | undefined {
   const queryStart = rawPath.indexOf('?');
   const noQuery = queryStart === -1 ? rawPath : rawPath.slice(0, queryStart);
@@ -986,6 +1052,19 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
     if (path === '/forms/templates' || path === '/form-templates') return mockFormTemplates() as unknown as T;
     if (path === '/forms/submissions' || path === '/submissions')  return mockSubmissions() as unknown as T;
     if (path === '/forms/admin/submissions')                       return mockSubmissions() as unknown as T;
+    // Single submission (Work Activities → "View Data" detail modal). Served off
+    // the same dataset so the modal shows the captured photos, GPS + answers.
+    {
+      const subOneM = path.match(/^\/forms\/(?:admin\/)?submissions\/([^/]+)$/);
+      if (subOneM) return mockSubmissionDetail(subOneM[1]) as unknown as T;
+    }
+    // Global smart-search (⌘K palette) — synthesise cross-entity results so the
+    // demo exercises the results UI (icons, badges, highlighting, animation).
+    if (path === '/crm/search') return mockGlobalSearch(query.get('q') || '') as unknown as T;
+    // Email alerts / templates / verified senders — seed so these pages populate.
+    if (path === '/crm/verified-senders') return list(DEMO_SENDERS) as unknown as T;
+    if (path === '/crm/email-templates')  return list(DEMO_EMAIL_TEMPLATES) as unknown as T;
+    if (path === '/crm/email-alerts')     return list(DEMO_EMAIL_ALERTS) as unknown as T;
     // Aggregated form-response insights (Work Activities → Insights). The
     // active vertical bundle themes it (pharma ships molecules + HCP specialties);
     // verticals without their own fixture fall back to a generic field version.
