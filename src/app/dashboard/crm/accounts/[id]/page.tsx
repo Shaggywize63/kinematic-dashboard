@@ -160,7 +160,7 @@ export default function AccountDetailPage() {
           )}
         </Card>
 
-        <Card title={`Activities (${activities.length})`}><ActivityTimeline activities={activities} /></Card>
+        <Card title={`Activities (${activities.length})`}><ActivityTimeline activities={activities} addHref={`/dashboard/crm/activities/new?account_id=${id}`} /></Card>
 
         {notes.length > 0 && (
           <Card title={`Notes (${notes.length})`}>

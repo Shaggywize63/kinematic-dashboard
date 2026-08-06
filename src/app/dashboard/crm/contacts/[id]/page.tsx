@@ -136,7 +136,7 @@ export default function ContactDetailPage() {
         </Card>
 
         <Card title={`Activities (${activities.length})`}>
-          <ActivityTimeline activities={activities} />
+          <ActivityTimeline activities={activities} addHref={`/dashboard/crm/activities/new?contact_id=${id}`} />
         </Card>
 
         {/* DPDP §6(4)-(6) — consent status + in-app withdrawal for this contact. */}

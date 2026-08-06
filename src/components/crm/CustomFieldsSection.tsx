@@ -38,11 +38,22 @@ interface Props {
   entity: CustomField['entity_type'];
   values: Record<string, unknown>;
   onChange: (next: Record<string, unknown>) => void;
+  // Reports the visible (role-filtered, non-hidden) field defs back to the
+  // parent form so it can enforce required custom fields on submit — the
+  // parent can't see these defs otherwise (they're loaded in here). Mirrors
+  // the server-side `enforceRequired` check so the user gets an inline error
+  // instead of a bare 400 from the API.
+  onFieldsChange?: (fields: CustomField[]) => void;
 }
 
-export default function CustomFieldsSection({ entity, values, onChange }: Props) {
+export default function CustomFieldsSection({ entity, values, onChange, onFieldsChange }: Props) {
   const [fields, setFields] = useState<CustomField[]>([]);
   const [loading, setLoading] = useState(true);
+  // Keep the latest callback in a ref so the load effect can stay keyed on
+  // [entity] only — an inline arrow passed by the parent won't retrigger the
+  // fetch.
+  const onFieldsChangeRef = useRef(onFieldsChange);
+  onFieldsChangeRef.current = onFieldsChange;
 
   useEffect(() => {
     let cancel = false;
@@ -82,8 +93,10 @@ export default function CustomFieldsSection({ entity, values, onChange }: Props)
           })
           .sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
         setFields(visible);
+        onFieldsChangeRef.current?.(visible);
       } catch {
         setFields([]);
+        onFieldsChangeRef.current?.([]);
       } finally {
         if (!cancel) setLoading(false);
       }
@@ -485,7 +498,11 @@ function FileUploader({ field, value, onChange }: { field: CustomField; value: u
 
 function Wrap({ field, children, fullWidth }: { field: CustomField; children: React.ReactNode; fullWidth?: boolean }) {
   return (
-    <label style={{
+    <label
+      // Stable id so the parent form's required-field validation can
+      // scroll-to / highlight a missing custom field (fail('lead-cf-<key>')).
+      id={`lead-cf-${field.field_key}`}
+      style={{
       display: 'flex', flexDirection: 'column', gap: 4,
       // Long-form / file rows span the whole grid row so they aren't
       // squeezed into a 220px column with the other inputs.

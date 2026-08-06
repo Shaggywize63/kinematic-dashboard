@@ -629,7 +629,7 @@ function ActivitiesPageInner() {
         <>
           {/* Google Calendar connect / status strip — only surfaced in
               the calendar layout where it's directly relevant. */}
-          <GoogleCalendarBanner />
+          <GoogleCalendarBanner onSynced={reload} />
           <ActivityCalendar
             month={calendarMonth}
             onMonthChange={setCalendarMonth}

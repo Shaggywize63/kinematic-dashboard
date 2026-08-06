@@ -1,9 +1,10 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import api from '../../lib/api';
 
 type Status = { connected: boolean; email?: string; configured?: boolean };
+type SyncResult = { imported: number; updated: number; cancelled: number };
 
 /**
  * Inline Google Calendar connect/disconnect strip — designed to sit
@@ -11,17 +12,47 @@ type Status = { connected: boolean; email?: string; configured?: boolean };
  * account without leaving the page. Replaces the standalone settings
  * page as the primary entry point.
  *
- * Three states:
+ * Sync is two-way:
+ *   - push: activities with a scheduled time are mirrored onto Google
+ *     (handled server-side on every activity write);
+ *   - pull: this banner triggers an import of the rep's recent + upcoming
+ *     Google events back into the CRM — automatically once when it mounts
+ *     connected, and on demand via "Sync now". `onSynced` lets the parent
+ *     refresh the activity list after an import brings new rows in.
+ *
+ * States:
  *   - configured:false → "ask your admin to set this up"
  *   - connected:false  → "Connect Google Calendar" button
- *   - connected:true   → "Synced to alice@example.com · Disconnect"
+ *   - connected:true   → "Calendar connected · <email> · Sync now · Disconnect"
  *
  * Also picks up `?connected=…` / `?error=…` query params from the
  * OAuth callback and surfaces them as toasts before clearing the URL.
  */
-export default function GoogleCalendarBanner() {
+export default function GoogleCalendarBanner({ onSynced }: { onSynced?: () => void } = {}) {
   const [status, setStatus] = useState<Status | null>(null);
   const [busy, setBusy] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const autoSynced = useRef(false);
+
+  // Pull Google → CRM. `manual` toasts the result and always refreshes the
+  // parent; the silent auto-run only refreshes when it actually changed rows.
+  const runSync = async (manual: boolean) => {
+    setSyncing(true);
+    try {
+      const r = await api.post<SyncResult & { connected?: boolean }>('/api/v1/integrations/google/sync', {});
+      const changed = (r.imported || 0) + (r.updated || 0) + (r.cancelled || 0);
+      if (manual) {
+        toast.success(changed > 0
+          ? `Synced — ${r.imported} added, ${r.updated} updated${r.cancelled ? `, ${r.cancelled} removed` : ''}`
+          : 'Calendar already up to date');
+      }
+      if (manual || changed > 0) onSynced?.();
+    } catch (e: any) {
+      if (manual) toast.error(e?.message || 'Calendar sync failed');
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const reload = async () => {
     try {
@@ -35,6 +66,16 @@ export default function GoogleCalendarBanner() {
   };
 
   useEffect(() => { reload(); }, []);
+
+  // Auto-pull once when we learn the calendar is connected, so events booked
+  // directly in Google show up without the rep clicking anything.
+  useEffect(() => {
+    if (status?.connected && !autoSynced.current) {
+      autoSynced.current = true;
+      runSync(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status?.connected]);
 
   // Surface OAuth round-trip result from query string once on mount.
   useEffect(() => {
@@ -98,9 +139,30 @@ export default function GoogleCalendarBanner() {
     return (
       <div style={bannerStyle('ok')}>
         <GIcon />
+        <span style={{
+          width: 8, height: 8, borderRadius: '50%', background: '#10b981', flexShrink: 0,
+          boxShadow: '0 0 0 3px rgba(16,185,129,0.2)',
+        }} aria-hidden />
         <span style={{ flex: 1, fontSize: 13, color: 'var(--text)' }}>
-          Synced to <strong>{status.email || 'your Google account'}</strong>. Activities with a scheduled time appear on your Google Calendar.
+          <strong>Calendar connected</strong> · {status.email || 'your Google account'}. Two-way sync — activities appear on your Google Calendar, and events you book in Google show up here.
         </span>
+        <button
+          type="button"
+          onClick={() => runSync(true)}
+          disabled={syncing || busy}
+          style={{
+            background: 'transparent',
+            border: '1px solid var(--border)',
+            color: 'var(--text)',
+            padding: '6px 12px',
+            borderRadius: 6,
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: (syncing || busy) ? 'not-allowed' : 'pointer',
+          }}
+        >
+          {syncing ? 'Syncing…' : '↻ Sync now'}
+        </button>
         <button
           type="button"
           onClick={disconnect}

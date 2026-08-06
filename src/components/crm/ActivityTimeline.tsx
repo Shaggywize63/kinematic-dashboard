@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import Link from 'next/link';
 import SignedImage, { openSignedUrl } from '@/components/shared/SignedImage';
 import { toast } from 'sonner';
 import type { Activity } from '../../types/crm';
@@ -27,10 +28,18 @@ const STATUS_COLORS: Record<string, string> = {
 interface Props {
   activities: Activity[];
   onChange?: () => void;
+  // When set, an "+ Add activity" button links to the Log-Activity form
+  // prefilled for this record (e.g. /dashboard/crm/activities/new?lead_id=X).
+  // Lets users log an activity straight from the timeline.
+  addHref?: string;
 }
 
-export default function ActivityTimeline({ activities, onChange }: Props) {
+export default function ActivityTimeline({ activities, onChange, addHref }: Props) {
   const [busyId, setBusyId] = useState<string | null>(null);
+
+  const addBtn = addHref ? (
+    <Link href={addHref} style={addBtnStyle}>+ Add activity</Link>
+  ) : null;
 
   const updateStatus = async (a: Activity, status: string) => {
     setBusyId(a.id);
@@ -66,9 +75,15 @@ export default function ActivityTimeline({ activities, onChange }: Props) {
     }
   };
 
-  if (!activities.length) return <div style={{ color: 'var(--text-dim)', padding: 16, textAlign: 'center' }}>No activities yet.</div>;
+  if (!activities.length) return (
+    <div>
+      {addBtn && <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>{addBtn}</div>}
+      <div style={{ color: 'var(--text-dim)', padding: 16, textAlign: 'center' }}>No activities yet.</div>
+    </div>
+  );
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {addBtn && <div style={{ display: 'flex', justifyContent: 'flex-end' }}>{addBtn}</div>}
       {activities.map((a) => {
         const status = (a as any).status as string | undefined;
         const isCompleted = status === 'completed' || status === 'done' || !!a.completed_at;
@@ -171,6 +186,11 @@ export default function ActivityTimeline({ activities, onChange }: Props) {
   );
 }
 
+const addBtnStyle: React.CSSProperties = {
+  padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+  background: 'var(--primary)', color: '#fff', textDecoration: 'none',
+  display: 'inline-block', border: '1px solid var(--primary)',
+};
 const btnBase: React.CSSProperties = { padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer', background: 'transparent' };
 const btnGreen: React.CSSProperties = { ...btnBase, border: '1px solid #10b981', color: '#10b981' };
 const btnAmber: React.CSSProperties = { ...btnBase, border: '1px solid #f59e0b', color: '#f59e0b' };

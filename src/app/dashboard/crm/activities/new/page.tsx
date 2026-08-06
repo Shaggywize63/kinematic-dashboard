@@ -71,12 +71,11 @@ function NewActivityPageInner() {
 
   const [type, setType] = useState<string>(prefillType);
   const [activityTypes, setActivityTypes] = useState<Array<{ value: string; label: string; icon?: string | null }>>(BUILTIN_TYPES);
-  const [subject, setSubject] = useState(prefillSubject);
-  // Admin-curated subject presets from /api/v1/crm/activity-subjects.
-  // The picker lets reps pick a stock subject quickly (Meeting first by
-  // position=0). Free-text fallback stays so reps can still type a custom
-  // subject if nothing in the list matches.
-  const [subjectOptions, setSubjectOptions] = useState<Array<{ id: string; name: string }>>([]);
+  // Subject is no longer a form field — Type and Subject were near-duplicates,
+  // so the rep now picks only the activity Type and the subject is derived
+  // from it on save. We still honour a subject passed in via the URL (the
+  // tap-to-call / next-best-action / lead→visit redirects set a descriptive
+  // one like "Meeting — Acme"); manual entries fall back to the type's name.
   const [body, setBody] = useState(prefillBody);
   const [dueAt, setDueAt] = useState(prefillDueAt);
   // Visit composer state. The rep can do BOTH on one screen / one
@@ -197,16 +196,6 @@ function NewActivityPageInner() {
         }
       })
       .catch(() => {});
-    // Subject presets — admin-curated dropdown options. Backend
-    // returns them ordered by position so Meeting (position=0) lands
-    // first. Falls back to an empty list silently so the free-text
-    // input still works if the endpoint is unreachable.
-    api.get<{ success?: boolean; data?: Array<{ id: string; name: string; is_active?: boolean | null }> }>(
-      '/api/v1/crm/activity-subjects',
-    ).then((r) => {
-      const rows = (r?.data ?? []) as Array<{ id: string; name: string; is_active?: boolean | null }>;
-      setSubjectOptions(rows.filter((row) => row.is_active !== false).map((row) => ({ id: row.id, name: row.name })));
-    }).catch(() => setSubjectOptions([]));
   }, []);
 
   // Skip the entity-reset effect on the very first render if we arrived
@@ -325,7 +314,6 @@ function NewActivityPageInner() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!subject.trim()) return toast.error('Subject is required');
 
     // From-lead meeting path: the visit composer can create up to
     // TWO activities in one save — a completed "first visit today"
@@ -340,7 +328,12 @@ function NewActivityPageInner() {
 
     setBusy(true);
     const nowIso = new Date().toISOString();
-    const baseSubject = subject.trim();
+    // Subject is derived: a URL-provided subject wins (descriptive prefills
+    // like "Meeting — Acme"); otherwise use the selected type's display name
+    // (e.g. "Call", "Site Visit") so the timeline/reports still read cleanly
+    // now that the rep no longer types a subject.
+    const typeLabel = activityTypes.find((t) => t.value === type)?.label || type;
+    const baseSubject = prefillSubject.trim() || typeLabel;
     // Subject decoration. When the rep marks the first visit AND
     // schedules a next visit on the same save, we adjust the two
     // subjects so the timeline reads cleanly:
@@ -450,7 +443,10 @@ function NewActivityPageInner() {
       <Section title="Activity Details">
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
           <Field label="Type *">
-            {/* Custom dropdown — needed because the WhatsApp row uses an
+            {/* Single activity field. Type and Subject used to be separate
+                near-duplicate pickers; the rep now chooses only the Type and
+                the subject is derived from it on save.
+                Custom dropdown — needed because the WhatsApp row uses an
                 SVG brand mark, which can't live inside a native <option>.
                 Other rows render their backend emoji as before. */}
             <ActivityTypePicker
@@ -458,28 +454,6 @@ function NewActivityPageInner() {
               options={activityTypes}
               onChange={setType}
             />
-          </Field>
-          <Field label="Subject *">
-            {/* Subject picker — admin-curated presets from
-                /api/v1/crm/activity-subjects (Meeting first by
-                position). The dropdown is the only subject control;
-                reps pick a preset. Falls back to a free-text input
-                only when the tenant has no presets configured. */}
-            {subjectOptions.length > 0 ? (
-              <select
-                value={subjectOptions.some((o) => o.name === subject) ? subject : ''}
-                onChange={(e) => setSubject(e.target.value)}
-                required
-                style={input}
-              >
-                <option value="">— pick a subject preset —</option>
-                {subjectOptions.map((o) => (
-                  <option key={o.id} value={o.name}>{o.name}</option>
-                ))}
-              </select>
-            ) : (
-              <input value={subject} onChange={(e) => setSubject(e.target.value)} required placeholder="e.g. Discovery call with Acme" style={input} />
-            )}
           </Field>
         </div>
         <Field label="Notes / Description" style={{ marginTop: 12 }}>
