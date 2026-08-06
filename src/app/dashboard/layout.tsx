@@ -17,10 +17,14 @@ import ClientSelect from '../../components/ClientSelect';
 import IndustryScopePicker from '../../components/IndustryScopePicker';
 import NotificationBell from '../../components/crm/NotificationBell';
 import ThemeToggle from '../../components/shared/ThemeToggle';
+import { useNavPrefs, applyNavOrder } from '../../lib/navPrefs';
 
 // KINI chat is ~250 lines + 4 card components + markdown helpers; load it on
 // demand so the main dashboard JS stays lean. ssr:false avoids hydration cost.
 const KinematicAI = dynamic(() => import('../../components/KinematicAI'), { ssr: false });
+// Sidebar "Customise menu" editor (drag-to-reorder). Only mounted when the
+// user opens it, so @dnd-kit stays out of the main dashboard bundle.
+const SidebarEditor = dynamic(() => import('../../components/dashboard/SidebarEditor'), { ssr: false });
 // Floating chat launcher (Messenger-style FAB + popup panel) — replaces the
 // sidebar Inbox entry. Lazy-loaded to keep TTI snappy.
 const ChatLauncher = dynamic(() => import('../../components/messaging/ChatLauncher'), { ssr: false });
@@ -153,6 +157,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [otherOpen, setOtherOpen] = useState(false);
   const [token, setToken] = useState('');
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // Per-user sidebar customisation (drag-to-reorder sections + items). The
+  // saved order is applied to the entitlement-filtered nav below; the editor
+  // modal opens from the "Customise" button in the nav.
+  const [editingNav, setEditingNav] = useState(false);
+  const { prefs: navPrefs, save: saveNavPrefs, reset: resetNavPrefs } = useNavPrefs(user?.id ?? null);
   // True once /auth/me has resolved. Until then, if the cached profile has no
   // explicit permissions, we hold the role-gated nav back to avoid a flash of
   // modules (e.g. Settings) the user shouldn't see.
@@ -609,6 +618,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     })
     .filter(g => sectionVisible(g.package, g.items));
 
+  // Apply the user's saved section/item order on top of the entitlement-
+  // filtered nav. Unknown (newly added) sections/items append after the
+  // remembered ones, so a saved order never hides anything.
+  const orderedNavGroups = applyNavOrder(navGroups, navPrefs);
+
   // Collapsible nav sections (Field Force, Lead Management, …). Per-section
   // open/closed state persisted to localStorage so it survives reloads.
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
@@ -747,7 +761,29 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 ))}
               </div>
             )}
-            {navGroups.map((g, gi) => (
+            {/* "Customise menu" — opens the drag-to-reorder editor. Shown only
+                in the expanded sidebar (hidden in the icon-only rail), and once
+                the nav has resolved so it doesn't flash before entitlements
+                load. Web-only feature; the mobile drawer is the expanded view. */}
+            {navReady && (isMobile || !collapsed) && orderedNavGroups.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setEditingNav(true)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  width: 'calc(100% - 20px)', margin: '0 10px 10px',
+                  padding: '6px 12px', borderRadius: 8,
+                  background: 'transparent', border: `1px dashed ${C.border}`,
+                  color: C.gray, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.color = C.white; e.currentTarget.style.borderColor = C.borderL; }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = C.gray; e.currentTarget.style.borderColor = C.border; }}
+              >
+                <Icon d="M12 20h9 M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4 12.5-12.5z" size={14} />
+                Customise menu
+              </button>
+            )}
+            {orderedNavGroups.map((g, gi) => (
               <div key={gi} style={{ marginBottom: collapsed && !isMobile ? 10 : 18 }}>
                 {(isMobile || !collapsed) ? (
                   <button
@@ -1069,6 +1105,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </footer>
         </main>
         {token && <KinematicAI token={token} />}
+        {editingNav && (
+          <SidebarEditor
+            groups={orderedNavGroups.map((g: any) => ({
+              label: g.label,
+              items: g.items.map((i: any) => ({ href: i.href, label: i.label, icon: i.icon })),
+            }))}
+            onSave={saveNavPrefs}
+            onReset={resetNavPrefs}
+            onClose={() => setEditingNav(false)}
+          />
+        )}
       </div>
       </IndustryScopeProvider>
       </CityScopeProvider>
