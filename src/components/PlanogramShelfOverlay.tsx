@@ -26,6 +26,10 @@ export function categoryColor(cat: string): string {
 const ZONE_COLOR: Record<ShelfZone, string> = { low: '#9B7BFF', eye: '#00D97E', top: '#3E9EFF' };
 const ZONE_LABEL: Record<ShelfZone, string> = { low: 'Low shelf', eye: 'Eye-level', top: 'Top shelf' };
 const PROMO_COLOR = '#FF7A59';
+// SKUs the first vision pass missed but a second targeted pass recovered.
+const RECOVERED_COLOR = '#3E9EFF';
+const RECOVERED_HINT =
+  'Missed on the first scan, found on a second targeted pass using its pack-shot.';
 
 /**
  * Renders the shelf image with bounding-box overlays for every detected SKU.
@@ -147,6 +151,23 @@ export default function PlanogramShelfOverlay({
                 cursor: 'pointer',
               }}
             >
+              {/* Recovered marker — a small 2nd-pass dot in the corner. */}
+              {sku.recovered && (
+                <span
+                  title={RECOVERED_HINT}
+                  style={{
+                    position: 'absolute',
+                    top: -6,
+                    right: -6,
+                    width: 12,
+                    height: 12,
+                    borderRadius: '50%',
+                    background: RECOVERED_COLOR,
+                    border: '2px solid #0F1419',
+                    boxShadow: '0 0 0 1px ' + RECOVERED_COLOR,
+                  }}
+                />
+              )}
               {hovered === i && (
                 <div style={tooltipStyle(color)}>
                   <div style={{ fontWeight: 700 }}>
@@ -166,6 +187,37 @@ export default function PlanogramShelfOverlay({
                   <div style={{ opacity: 0.85, fontWeight: 500, marginTop: 2 }}>
                     {Math.round(sku.confidence * 100)}%{priceStr}
                   </div>
+                  {sku.recovered && (
+                    <div style={{ marginTop: 6 }}>
+                      <span
+                        style={{
+                          display: 'inline-block',
+                          fontSize: 9.5,
+                          fontWeight: 700,
+                          letterSpacing: 0.3,
+                          padding: '2px 6px',
+                          borderRadius: 5,
+                          color: RECOVERED_COLOR,
+                          background: `${RECOVERED_COLOR}22`,
+                          border: `1px solid ${RECOVERED_COLOR}55`,
+                        }}
+                      >
+                        Recovered · 2nd pass
+                      </span>
+                      <div
+                        style={{
+                          whiteSpace: 'normal',
+                          maxWidth: 210,
+                          opacity: 0.8,
+                          fontWeight: 500,
+                          marginTop: 4,
+                          lineHeight: 1.4,
+                        }}
+                      >
+                        {RECOVERED_HINT}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

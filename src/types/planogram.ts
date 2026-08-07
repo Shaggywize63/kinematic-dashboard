@@ -77,6 +77,10 @@ export interface DetectedSKU {
   confidence: number;
   is_competitor: boolean;
   reasoning?: string | null;
+  /** True when the first vision pass missed this SKU but a second targeted pass
+   *  recovered it (it WAS on the shelf). Absent/false = a normal first-pass find.
+   *  Older recognitions predate the recall pass and never carry it. */
+  recovered?: boolean;
 }
 
 /** A promotion / offer detected on the shelf image. */
@@ -132,6 +136,9 @@ export interface PricingRow {
   delta: number | null;
   source: PriceSource | null;
   confidence: number;
+  /** Matched competitor identity, when the row is a competitor observation.
+   *  Optional — older pricing rows predate brand matching. */
+  brand?: string | null;
 }
 
 /** Promotion carried on the compliance record (rolled up from recognition). */
