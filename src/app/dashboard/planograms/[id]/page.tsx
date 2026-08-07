@@ -338,21 +338,28 @@ export default function PlanogramDetailPage() {
         <div
           style={{
             display: 'flex',
-            alignItems: 'center',
+            alignItems: 'flex-start',
             justifyContent: 'space-between',
-            padding: '14px 18px',
+            gap: 12,
+            flexWrap: 'wrap',
+            padding: '16px 18px',
             borderBottom: `1px solid ${C.border}`,
+            background: 'rgba(224,30,44,0.04)',
           }}
         >
-          <div>
-            <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 14, fontWeight: 700 }}>
-              Tracked competitors ({competitors.length})
-            </div>
-            <div style={{ fontSize: 11, color: C.gray, marginTop: 2 }}>
-              Competitor SKUs (with pack shots) threaded into recognition at capture time.
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+            <div style={{ fontSize: 20, lineHeight: 1.1 }}>🎯</div>
+            <div>
+              <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 15, fontWeight: 800 }}>
+                Tracked competitors ({competitors.length})
+              </div>
+              <div style={{ fontSize: 12, color: C.gray, marginTop: 3, maxWidth: 520, lineHeight: 1.5 }}>
+                Add competitor products the shelf recognition should watch for — brand, name,
+                category, price, and a product photo so it&apos;s identified reliably.
+              </div>
             </div>
           </div>
-          <button onClick={addCompetitor} style={btnSecondary}>
+          <button onClick={addCompetitor} style={btnAdd}>
             + Add competitor
           </button>
         </div>
@@ -360,6 +367,7 @@ export default function PlanogramDetailPage() {
           competitors={competitors}
           onUpdate={updateCompetitor}
           onRemove={removeCompetitor}
+          onAdd={addCompetitor}
         />
       </div>
 
@@ -800,15 +808,33 @@ function CompetitorTable({
   competitors,
   onUpdate,
   onRemove,
+  onAdd,
 }: {
   competitors: PlanogramCompetitor[];
   onUpdate: (i: number, patch: Partial<PlanogramCompetitor>) => void;
   onRemove: (i: number) => void;
+  onAdd: () => void;
 }) {
   if (competitors.length === 0)
     return (
-      <div style={{ padding: 30, textAlign: 'center', color: 'var(--textTert)', fontSize: 13 }}>
-        No tracked competitors — add one to sharpen competitor detection.
+      <div style={{ padding: '40px 24px', textAlign: 'center' }}>
+        <div style={{ fontSize: 30, marginBottom: 10 }}>🏷️</div>
+        <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 6 }}>No competitors tracked yet</div>
+        <div
+          style={{
+            fontSize: 12.5,
+            color: 'var(--textSec)',
+            maxWidth: 420,
+            margin: '0 auto 16px',
+            lineHeight: 1.5,
+          }}
+        >
+          Add the rival SKUs you want flagged on the shelf. Each takes a product name, brand,
+          category, expected price, and a product photo so recognition can identify it reliably.
+        </div>
+        <button onClick={onAdd} style={btnAdd}>
+          + Add your first competitor
+        </button>
       </div>
     );
   const GRID = '52px 1.8fr 1.1fr 1.1fr 1.1fr 0.9fr 36px';
@@ -828,8 +854,8 @@ function CompetitorTable({
             borderBottom: '1px solid var(--border)',
           }}
         >
-          <span>Ref</span>
-          <span>SKU name</span>
+          <span>Photo</span>
+          <span>Product name</span>
           <span>SKU id</span>
           <span>Brand</span>
           <span>Category</span>
@@ -1052,6 +1078,19 @@ const btnDanger: React.CSSProperties = {
   fontWeight: 600,
   cursor: 'pointer',
   fontFamily: "'DM Sans',sans-serif",
+};
+
+const btnAdd: React.CSSProperties = {
+  padding: '9px 16px',
+  background: 'rgba(224,30,44,0.1)',
+  border: '1px solid rgba(224,30,44,0.35)',
+  color: '#E01E2C',
+  borderRadius: 10,
+  fontSize: 12.5,
+  fontWeight: 700,
+  cursor: 'pointer',
+  fontFamily: "'DM Sans',sans-serif",
+  whiteSpace: 'nowrap',
 };
 
 const btnGhostDanger: React.CSSProperties = {

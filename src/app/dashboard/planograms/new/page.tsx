@@ -240,18 +240,21 @@ export default function NewPlanogramPage() {
             </div>
 
             <div style={{ background: 'var(--s1)', border: `1px solid ${C.border}`, borderRadius: 16, overflow: 'hidden' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: `1px solid ${C.border}` }}>
-                <div>
-                  <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 14, fontWeight: 700 }}>
-                    Tracked competitors ({competitors.length})
-                  </div>
-                  <div style={{ fontSize: 11, color: C.gray, marginTop: 2 }}>
-                    Competitor SKUs the shelf recognition should watch for.
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', padding: '16px 18px', borderBottom: `1px solid ${C.border}`, background: 'rgba(224,30,44,0.04)' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                  <div style={{ fontSize: 20, lineHeight: 1.1 }}>🎯</div>
+                  <div>
+                    <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 15, fontWeight: 800 }}>
+                      Tracked competitors ({competitors.length})
+                    </div>
+                    <div style={{ fontSize: 12, color: C.gray, marginTop: 3, maxWidth: 520, lineHeight: 1.5 }}>
+                      Add competitor products the shelf recognition should watch for — brand, name, category, price, and a product photo so it&apos;s identified reliably.
+                    </div>
                   </div>
                 </div>
-                <button onClick={addCompetitor} style={btnSecondary}>+ Add competitor</button>
+                <button onClick={addCompetitor} style={btnAdd}>+ Add competitor</button>
               </div>
-              <CompetitorTable competitors={competitors} onUpdate={updateCompetitor} onRemove={removeCompetitor} />
+              <CompetitorTable competitors={competitors} onUpdate={updateCompetitor} onRemove={removeCompetitor} onAdd={addCompetitor} />
             </div>
 
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
@@ -298,21 +301,31 @@ function SkuTable({
   );
 }
 
-const COMP_GRID = '1.8fr 1.2fr 1.2fr 1.2fr 1fr 36px';
+const COMP_GRID = '52px 1.8fr 1.1fr 1.1fr 1.1fr 0.9fr 36px';
 
 function CompetitorTable({
-  competitors, onUpdate, onRemove,
-}: { competitors: PlanogramCompetitor[]; onUpdate: (i: number, patch: Partial<PlanogramCompetitor>) => void; onRemove: (i: number) => void; }) {
+  competitors, onUpdate, onRemove, onAdd,
+}: { competitors: PlanogramCompetitor[]; onUpdate: (i: number, patch: Partial<PlanogramCompetitor>) => void; onRemove: (i: number) => void; onAdd: () => void; }) {
   if (competitors.length === 0)
-    return <div style={{ padding: 30, textAlign: 'center', color: 'var(--textTert)', fontSize: 13 }}>No tracked competitors — add one to sharpen competitor detection.</div>;
+    return (
+      <div style={{ padding: '40px 24px', textAlign: 'center' }}>
+        <div style={{ fontSize: 30, marginBottom: 10 }}>🏷️</div>
+        <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 6 }}>No competitors tracked yet</div>
+        <div style={{ fontSize: 12.5, color: C.gray, maxWidth: 420, margin: '0 auto 16px', lineHeight: 1.5 }}>
+          Add the rival SKUs you want flagged on the shelf. Each takes a product name, brand, category, expected price, and a product photo so recognition can identify it reliably.
+        </div>
+        <button onClick={onAdd} style={btnAdd}>+ Add your first competitor</button>
+      </div>
+    );
   return (
     <div style={{ overflowX: 'auto' }}>
-      <div style={{ minWidth: 720 }}>
+      <div style={{ minWidth: 780 }}>
         <div style={{ display: 'grid', gridTemplateColumns: COMP_GRID, gap: 8, padding: '10px 18px', fontSize: 10, color: 'var(--textSec)', textTransform: 'uppercase', letterSpacing: 1, borderBottom: '1px solid var(--border)' }}>
-          <span>SKU name</span><span>SKU id</span><span>Brand</span><span>Category</span><span>Exp. price</span><span />
+          <span>Photo</span><span>Product name</span><span>SKU id</span><span>Brand</span><span>Category</span><span>Exp. price</span><span />
         </div>
         {competitors.map((c, i) => (
           <div key={i} style={{ display: 'grid', gridTemplateColumns: COMP_GRID, gap: 8, padding: '10px 18px', borderBottom: '1px solid rgba(122,139,160,0.15)', alignItems: 'center' }}>
+            <RefImageCell value={c.ref_image_url} onChange={(url) => onUpdate(i, { ref_image_url: url })} />
             <input value={c.sku_name} onChange={(e) => onUpdate(i, { sku_name: e.target.value })} style={inputStyle} />
             <input value={c.sku_id} onChange={(e) => onUpdate(i, { sku_id: e.target.value })} style={inputStyle} />
             <input value={c.brand ?? ''} placeholder="—" onChange={(e) => onUpdate(i, { brand: e.target.value })} style={inputStyle} />
@@ -322,6 +335,105 @@ function CompetitorTable({
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+// Per-SKU reference-pack image: 44px thumbnail + click-to-upload. Uploads to
+// /api/v1/upload/planogram_ref (public bucket) and stores the returned URL as
+// ref_image_url, which shelf-recognition matches shelf products against.
+function RefImageCell({
+  value,
+  onChange,
+}: {
+  value?: string | null;
+  onChange: (url: string) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  const [broken, setBroken] = useState(false);
+
+  const upload = async (f: File) => {
+    if (!/^image\//.test(f.type)) return;
+    if (f.size > 8 * 1024 * 1024) return;
+    setBusy(true);
+    try {
+      const fd = new FormData();
+      fd.append('photo', f);
+      const token = typeof window !== 'undefined' ? localStorage.getItem('kinematic_token') : null;
+      const orgId =
+        typeof window !== 'undefined'
+          ? JSON.parse(localStorage.getItem('kinematic_user') || '{}').org_id || ''
+          : '';
+      const r = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/upload/planogram_ref`, {
+        method: 'POST',
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(orgId ? { 'X-Org-Id': orgId } : {}),
+        },
+        body: fd,
+      });
+      const json = await r.json();
+      const url = json?.data?.url || json?.url;
+      if (!url) throw new Error(json?.error || json?.message || 'Upload failed');
+      setBroken(false);
+      onChange(url);
+    } catch {
+      /* swallow — the cell just stays empty; user can retry */
+    } finally {
+      setBusy(false);
+      if (inputRef.current) inputRef.current.value = '';
+    }
+  };
+
+  return (
+    <div style={{ position: 'relative', width: 44, height: 44 }}>
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        title={value ? 'Replace product image' : 'Upload product image'}
+        style={{
+          width: 44,
+          height: 44,
+          borderRadius: 8,
+          border: '1px dashed var(--border)',
+          background: 'var(--s2)',
+          color: 'var(--textTert)',
+          cursor: 'pointer',
+          padding: 0,
+          overflow: 'hidden',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: 16,
+        }}
+      >
+        {busy ? (
+          <span style={{ fontSize: 10 }}>…</span>
+        ) : value && !broken ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={value}
+            alt="ref"
+            onError={() => setBroken(true)}
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          />
+        ) : (
+          <span title={broken ? 'Image set but not reachable yet' : 'Add image'}>
+            {broken ? '⚠' : '+'}
+          </span>
+        )}
+      </button>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        hidden
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) upload(f);
+        }}
+      />
     </div>
   );
 }
@@ -348,6 +460,7 @@ function Field({ label, children, full }: { label: string; children: React.React
 
 const inputStyle: React.CSSProperties = { width: '100%', background: 'var(--s2)', border: '1px solid var(--border)', color: 'var(--text, #E8EDF8)', borderRadius: 8, padding: '8px 12px', fontSize: 13, outline: 'none', fontFamily: "'DM Sans',sans-serif" };
 const btnSecondary: React.CSSProperties = { padding: '8px 14px', background: 'var(--s2)', border: '1px solid var(--border)', color: 'var(--textSec)', borderRadius: 10, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" };
+const btnAdd: React.CSSProperties = { padding: '9px 16px', background: 'rgba(224,30,44,0.1)', border: '1px solid rgba(224,30,44,0.35)', color: '#E01E2C', borderRadius: 10, fontSize: 12.5, fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", whiteSpace: 'nowrap' };
 function btnPrimary(disabled = false): React.CSSProperties { return { padding: '10px 18px', background: '#E01E2C', color: '#fff', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.6 : 1, fontFamily: "'DM Sans',sans-serif" }; }
 
 function readBase64(file: File): Promise<string> {
