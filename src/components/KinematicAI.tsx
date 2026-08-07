@@ -206,15 +206,18 @@ function sanitizeMdHtml(html: string): string {
     .replace(/javascript:/gi, 'javascript-blocked:');
 }
 
-function KiniCardRenderer({ card }: { card: any }) {
+// `onAction` lets a card fire a natural-language prompt back into the chat
+// (wired to send() at the call site) so each result card can drive the next
+// step of the agent loop — e.g. "Draft a follow-up email to <lead>".
+function KiniCardRenderer({ card, onAction }: { card: any; onAction?: (prompt: string) => void }) {
   if (!card || !card.type) return null;
   const d = card.data;
   const asArray = (v: unknown): any[] => Array.isArray(v) ? v : [];
   switch (card.type) {
     case 'deal_list':
-      return <DealListCard title={d?.title ?? card.title} deals={asArray(d?.deals ?? d)} />;
+      return <DealListCard title={d?.title ?? card.title} deals={asArray(d?.deals ?? d)} onAction={onAction} />;
     case 'lead_list':
-      return <LeadListCard title={d?.title ?? card.title} leads={asArray(d?.leads ?? d)} />;
+      return <LeadListCard title={d?.title ?? card.title} leads={asArray(d?.leads ?? d)} onAction={onAction} />;
     case 'draft_email':
       return <DraftEmailCard subject={d?.subject} body={d?.body_text || d?.body_html} />;
     case 'summary':
@@ -683,7 +686,7 @@ Be elite, professional, and data-driven. Use **bold** for key metrics. Proactive
                   ) : (
                     <>
                       <div dangerouslySetInnerHTML={{ __html: sanitizeMdHtml(md(m.content)) }} className="km-chat-content" />
-                      {Array.isArray(m.cards) && m.cards.map((c: any, idx: number) => <KiniCardRenderer key={idx} card={c} />)}
+                      {Array.isArray(m.cards) && m.cards.map((c: any, idx: number) => <KiniCardRenderer key={idx} card={c} onAction={(t) => void send(t)} />)}
                     </>
                   )}
                 </div>
