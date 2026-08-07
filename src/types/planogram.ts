@@ -6,6 +6,7 @@ export type MethodologyKey =
   | 'occupancy'
   | 'shelf_share'
   | 'zone'
+  | 'category'
   | 'facing'
   | 'position'
   | 'presence'
