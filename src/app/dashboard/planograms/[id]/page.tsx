@@ -141,6 +141,12 @@ export default function PlanogramDetailPage() {
           brand: s.brand?.trim() || undefined,
           expected_price: s.expected_price ?? undefined,
           ref_image_url: s.ref_image_url || undefined,
+          // Preserve confirm-crop reference pack-shots grown by the self-
+          // improving library — the PATCH does a full-column replace, so
+          // omitting this would silently wipe them on an admin edit.
+          ...(s.additional_ref_urls && s.additional_ref_urls.length > 0
+            ? { additional_ref_urls: s.additional_ref_urls }
+            : {}),
         })),
       });
       setPlanogram(res.data);
@@ -806,6 +812,12 @@ function cleanCompetitor(c: PlanogramCompetitor): PlanogramCompetitor {
     category: c.category?.trim() || undefined,
     expected_price: c.expected_price ?? undefined,
     ref_image_url: c.ref_image_url || undefined,
+    // Preserve confirm-crop reference pack-shots grown by the self-improving
+    // library — the PATCH does a full-column replace, so omitting this would
+    // silently wipe them on an admin edit.
+    ...(c.additional_ref_urls && c.additional_ref_urls.length > 0
+      ? { additional_ref_urls: c.additional_ref_urls }
+      : {}),
   };
 }
 
