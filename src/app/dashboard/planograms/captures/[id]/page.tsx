@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
+import Link from 'next/link';
 import planogramApi from '../../../../../lib/planogramApi';
 import PlanogramShelfOverlay, { categoryColor } from '../../../../../components/PlanogramShelfOverlay';
 import type {
@@ -386,7 +387,27 @@ export default function CaptureDetailPage() {
             </Panel>
           )}
           {competitorRows.length > 0 && (
-            <Panel title={`Competitors (${competitorRows.length})`} subtitle="Detected competitor placements">
+            <Panel
+              title={`Competitors (${competitorRows.length})`}
+              subtitle="Detected competitor placements"
+              action={
+                capture?.planogram_id ? (
+                  <Link
+                    href={`/dashboard/planograms/${capture.planogram_id}`}
+                    style={{
+                      fontSize: 11.5,
+                      fontWeight: 700,
+                      color: C.red,
+                      textDecoration: 'none',
+                      whiteSpace: 'nowrap',
+                    }}
+                    title="Add or edit the competitor SKUs and product images this planogram tracks"
+                  >
+                    Manage tracked competitors →
+                  </Link>
+                ) : null
+              }
+            >
               <div style={{ padding: '4px 0' }}>
                 <div style={{ ...compGrid, ...priceHeadStyle }}>
                   <span>SKU</span>
@@ -981,11 +1002,13 @@ function Panel({
   title,
   subtitle,
   info,
+  action,
   children,
 }: {
   title: string;
   subtitle?: string;
   info?: MethodologyEntry;
+  action?: React.ReactNode;
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -999,9 +1022,12 @@ function Panel({
       }}
     >
       <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ fontFamily: "'Syne',sans-serif", fontSize: 14, fontWeight: 700 }}>{title}</span>
-          <InfoDotButton method={info} open={open} onToggle={() => setOpen((o) => !o)} />
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontFamily: "'Syne',sans-serif", fontSize: 14, fontWeight: 700 }}>{title}</span>
+            <InfoDotButton method={info} open={open} onToggle={() => setOpen((o) => !o)} />
+          </div>
+          {action}
         </div>
         {subtitle && <div style={{ fontSize: 11, color: 'var(--textSec)', marginTop: 2 }}>{subtitle}</div>}
         {open && info && <MethodologyDetails method={info} />}
