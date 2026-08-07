@@ -505,13 +505,70 @@ Be elite, professional, and data-driven. Use **bold** for key metrics. Proactive
           ? `KINI couldn't complete that (error ${r.status}${errText ? `: ${errText}` : ''}). Please try again in a moment — if it keeps happening, let the team know.`
           : 'I apologize, but I am unable to process that right now.');
       const cards = d?.data?.cards || [];
+      // Approval gate: when a write needs explicit confirmation the backend
+      // returns the un-executed action here instead of running it. Attach it to
+      // the assistant turn (like `cards`) so a ConfirmActionCard renders under
+      // the reply; it stays unresolved until the user confirms or cancels.
+      const pending_action = d?.data?.pending_action || null;
       const usage = d?.data?.usage;
       if (usage) setUsage(usage);
-      setMsgs(p => p.map((m, i) => i === p.length - 1 ? { role: 'assistant', content: reply, cards, error: !r.ok } : m));
+      setMsgs(p => p.map((m, i) => i === p.length - 1 ? { role: 'assistant', content: reply, cards, pending_action, error: !r.ok } : m));
     } catch (e: any) {
       setMsgs(p => p.map((m, i) => i === p.length - 1 ? { role: 'assistant', content: `Connectivity Error: ${e.message}`, error: true } : m));
     } finally { setBusy(false); }
   };
+
+  // KINI approval gate. A chat turn may carry an un-executed `pending_action`
+  // that the user must confirm before the write runs. Confirm POSTs the action
+  // to the v2 confirm endpoint (mirroring the chat fetch's base URL + auth /
+  // project / org / client headers), then appends the returned cards + text as a
+  // NEW assistant turn and marks the source turn resolved so its buttons drop.
+  // Throws on any non-OK/parse failure so the card can surface an inline error
+  // and re-enable. Cancel resolves locally with no backend call.
+  const confirmAction = useCallback(async (action: { id: string; tool: string; args: any }) => {
+    const apiBase = process.env.NEXT_PUBLIC_API_URL;
+    const headers: Record<string, string> = { 'Content-Type': 'application/json', ...kiniAuthHeaders(token) };
+    try {
+      const raw = typeof window !== 'undefined' ? localStorage.getItem('kinematic_user') : null;
+      const orgId = raw ? JSON.parse(raw)?.org_id ?? null : null;
+      if (orgId) headers['X-Org-Id'] = orgId;
+    } catch { /* ignore */ }
+    try {
+      const sel = typeof window !== 'undefined' ? window.localStorage.getItem('kinematic_selected_client') : null;
+      if (sel && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sel)) {
+        headers['X-Client-Id'] = sel;
+      }
+    } catch { /* ignore */ }
+
+    const r = await fetch(`${apiBase}/api/v1/kini/v2/confirm`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ action: { id: action.id, tool: action.tool, args: action.args } }),
+    });
+    let d: any = null;
+    try { d = await r.json(); } catch { /* non-JSON error body */ }
+    if (!r.ok) {
+      const errText = (d && (typeof d.error === 'object' ? d.error?.message : d.error)) as string | undefined;
+      throw new Error(errText || `KINI couldn't complete that (error ${r.status}). Please try again.`);
+    }
+    const cards = d?.data?.cards || [];
+    const text = d?.data?.text || 'Done.';
+    const usage = d?.data?.usage;
+    if (usage) setUsage(usage);
+    // Resolve the source turn (identified by the action id) AND append the
+    // result as a fresh assistant turn — in one update so the buttons vanish
+    // exactly as the outcome appears.
+    setMsgs(p => ([
+      ...p.map(m => (m.pending_action && m.pending_action.id === action.id) ? { ...m, pendingResolved: true } : m),
+      { role: 'assistant', content: text, cards },
+    ]));
+  }, [token]);
+
+  const cancelAction = useCallback((action: { id: string }) => {
+    setMsgs(p => p.map(m => (m.pending_action && m.pending_action.id === action.id)
+      ? { ...m, pendingResolved: true, pendingCancelled: true }
+      : m));
+  }, []);
 
   // Sheet (mobile) vs floating card (desktop). On mobile the panel anchors
   // to the bottom of the viewport and fills the width, so it never overflows
@@ -557,6 +614,7 @@ Be elite, professional, and data-driven. Use **bold** for key metrics. Proactive
         @keyframes km-ai-shimmer { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
         @keyframes km-ai-slide-up { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         @keyframes km-mic-pulse  { 0%,100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.18); opacity: 0.7; } }
+        @keyframes km-ai-spin    { to { transform: rotate(360deg); } }
       `}</style>
 
       <button
@@ -687,12 +745,21 @@ Be elite, professional, and data-driven. Use **bold** for key metrics. Proactive
                     <>
                       <div dangerouslySetInnerHTML={{ __html: sanitizeMdHtml(md(m.content)) }} className="km-chat-content" />
                       {Array.isArray(m.cards) && m.cards.map((c: any, idx: number) => <KiniCardRenderer key={idx} card={c} onAction={(t) => void send(t)} />)}
+                      {m.pending_action && (
+                        <ConfirmActionCard
+                          action={m.pending_action}
+                          resolved={!!m.pendingResolved}
+                          cancelled={!!m.pendingCancelled}
+                          onConfirm={confirmAction}
+                          onCancel={cancelAction}
+                        />
+                      )}
                     </>
                   )}
                 </div>
               </div>
             ))}
-            {!busy && msgs.length > 0 && msgs[msgs.length - 1].role === 'assistant' && !msgs[msgs.length - 1].loading && !msgs[msgs.length - 1].error && (
+            {!busy && msgs.length > 0 && msgs[msgs.length - 1].role === 'assistant' && !msgs[msgs.length - 1].loading && !msgs[msgs.length - 1].error && !(msgs[msgs.length - 1].pending_action && !msgs[msgs.length - 1].pendingResolved) && (
               <FollowUpChips inCrm={inCrm} onPick={(t) => void send(t)} />
             )}
             <div ref={endRef} />
@@ -769,6 +836,108 @@ Be elite, professional, and data-driven. Use **bold** for key metrics. Proactive
         </div>
       )}
     </>
+  );
+}
+
+// KINI approval gate card. Rendered under an assistant turn that carries an
+// unresolved `pending_action` — a write the backend deferred pending explicit
+// user confirmation. Confirm (KINI-red, primary) fires onConfirm → the v2
+// confirm POST; Cancel (ghost) resolves it locally. Manages its own busy /
+// error state, guards against double-submit, and disables both buttons once
+// the action is in-flight or resolved. Theme-aware via CSS vars; the fixed KINI
+// red marks this as "the assistant's" write action regardless of theme.
+function ConfirmActionCard({
+  action,
+  resolved,
+  cancelled,
+  onConfirm,
+  onCancel,
+}: {
+  action: { id: string; tool: string; label?: string; summary?: string; args: any };
+  resolved: boolean;
+  cancelled: boolean;
+  onConfirm: (action: { id: string; tool: string; args: any }) => Promise<void>;
+  onCancel: (action: { id: string }) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  // Disable both buttons while a submit is in flight OR once the action has
+  // been resolved (confirmed / cancelled) — the double-submit guard.
+  const locked = busy || resolved;
+
+  const handleConfirm = async () => {
+    if (locked) return;
+    setError(null);
+    setBusy(true);
+    try {
+      await onConfirm({ id: action.id, tool: action.tool, args: action.args });
+      // On success the parent marks the turn resolved, which re-renders this
+      // card into its "Confirmed" state; leave busy set until that lands so the
+      // spinner shows through the transition.
+    } catch (e: any) {
+      setError(e?.message || 'Something went wrong. Please try again.');
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div style={{
+      background: 'color-mix(in srgb, #E01E2C 8%, transparent)',
+      border: '1px solid color-mix(in srgb, #E01E2C 30%, transparent)',
+      borderRadius: 12, padding: 12, marginTop: 8,
+    }}>
+      <div style={{ fontSize: 11, color: '#E01E2C', fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+        <Icon d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z M12 9v4 M12 17h.01" size={13} />
+        Confirm action
+      </div>
+      {action.label && <div style={{ fontWeight: 700, color: 'var(--text)', fontSize: 13, marginBottom: 4 }}>{action.label}</div>}
+      {action.summary && <div style={{ fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.5, marginBottom: (resolved || cancelled) ? 0 : 10 }}>{action.summary}</div>}
+
+      {cancelled ? (
+        <div style={{ fontSize: 12, color: 'var(--text-dim)', fontStyle: 'italic', marginTop: 8 }}>Cancelled.</div>
+      ) : resolved ? (
+        <div style={{ fontSize: 12, color: '#28B463', fontWeight: 700, marginTop: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Icon d="M20 6 9 17l-5-5" size={13} /> Confirmed
+        </div>
+      ) : (
+        <>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              type="button"
+              onClick={handleConfirm}
+              disabled={locked}
+              style={{
+                background: '#E01E2C', border: 'none', color: '#fff',
+                fontSize: 12, fontWeight: 700, borderRadius: 999,
+                padding: '7px 16px', cursor: locked ? 'default' : 'pointer',
+                opacity: locked ? 0.6 : 1, transition: 'opacity .15s',
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+              }}
+            >
+              {busy && <span style={{ width: 11, height: 11, border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', borderRadius: '50%', display: 'inline-block', animation: 'km-ai-spin .7s linear infinite' }} />}
+              {busy ? 'Confirming…' : 'Confirm'}
+            </button>
+            <button
+              type="button"
+              onClick={() => { if (!locked) onCancel({ id: action.id }); }}
+              disabled={locked}
+              style={{
+                background: 'transparent',
+                border: '1px solid var(--border)', color: 'var(--text-dim)',
+                fontSize: 12, fontWeight: 600, borderRadius: 999,
+                padding: '7px 16px', cursor: locked ? 'default' : 'pointer',
+                opacity: locked ? 0.6 : 1, transition: 'opacity .15s',
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+          {error && (
+            <div style={{ fontSize: 11.5, color: '#E01E2C', marginTop: 8, lineHeight: 1.4 }}>{error}</div>
+          )}
+        </>
+      )}
+    </div>
   );
 }
 
