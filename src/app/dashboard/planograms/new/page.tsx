@@ -2,7 +2,7 @@
 import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import planogramApi, { ParsedPlanogram } from '../../../../lib/planogramApi';
-import type { ExpectedSKU } from '../../../../types/planogram';
+import type { ExpectedSKU, PlanogramCompetitor } from '../../../../types/planogram';
 
 const C = {
   red: '#E01E2C',
@@ -30,6 +30,7 @@ export default function NewPlanogramPage() {
   const [category, setCategory] = useState('');
   const [storeFormat, setStoreFormat] = useState('');
   const [skus, setSkus] = useState<ExpectedSKU[]>([]);
+  const [competitors, setCompetitors] = useState<PlanogramCompetitor[]>([]);
 
   const handleFile = async (file: File) => {
     setError('');
@@ -49,7 +50,15 @@ export default function NewPlanogramPage() {
       setName(parsed.name_suggestion);
       setCategory(parsed.category_suggestion || '');
       setStoreFormat(parsed.store_format_suggestion || '');
-      setSkus(parsed.expected_skus.map((s) => ({ ...s, weight: s.weight ?? 1 })));
+      setSkus(
+        parsed.expected_skus.map((s) => ({
+          ...s,
+          weight: s.weight ?? 1,
+          category: s.category ?? null,
+          brand: s.brand ?? null,
+          expected_price: s.expected_price ?? null,
+        })),
+      );
       setConfidence(parsed.overall_confidence);
       setPhase('review');
     } catch (e: any) {
@@ -71,6 +80,26 @@ export default function NewPlanogramPage() {
         shelf_index: 0,
         facings: 1,
         weight: 1,
+        category: null,
+        brand: null,
+        expected_price: null,
+      },
+    ]);
+
+  const updateCompetitor = (i: number, patch: Partial<PlanogramCompetitor>) => {
+    setCompetitors((prev) => prev.map((c, idx) => (idx === i ? { ...c, ...patch } : c)));
+  };
+  const removeCompetitor = (i: number) =>
+    setCompetitors((prev) => prev.filter((_, idx) => idx !== i));
+  const addCompetitor = () =>
+    setCompetitors((prev) => [
+      ...prev,
+      {
+        sku_id: `comp-${prev.length + 1}`,
+        sku_name: 'Competitor SKU',
+        brand: null,
+        category: null,
+        expected_price: null,
       },
     ]);
 
@@ -87,7 +116,12 @@ export default function NewPlanogramPage() {
     setPhase('saving');
     try {
       const shelfIndices = Array.from(new Set(skus.map((s) => s.shelf_index))).sort((a, b) => a - b);
-      const layout = { shelves: shelfIndices.map((i) => ({ index: i })) };
+      const layout = {
+        shelves: shelfIndices.map((i) => ({ index: i })),
+        ...(competitors.length > 0
+          ? { competitors: competitors.map((c) => cleanCompetitor(c)) }
+          : {}),
+      };
       const res = await planogramApi.create({
         name: name.trim(),
         category: category.trim() || undefined,
@@ -100,6 +134,9 @@ export default function NewPlanogramPage() {
           facings: Math.max(1, Math.floor(s.facings)),
           position: s.position,
           weight: s.weight,
+          category: s.category?.trim() || undefined,
+          brand: s.brand?.trim() || undefined,
+          expected_price: s.expected_price ?? undefined,
         })),
       });
       router.push(`/dashboard/planograms/${res.data.id}`);
@@ -202,6 +239,21 @@ export default function NewPlanogramPage() {
               <SkuTable skus={skus} onUpdate={updateSku} onRemove={removeSku} />
             </div>
 
+            <div style={{ background: 'var(--s1)', border: `1px solid ${C.border}`, borderRadius: 16, overflow: 'hidden' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: `1px solid ${C.border}` }}>
+                <div>
+                  <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 14, fontWeight: 700 }}>
+                    Tracked competitors ({competitors.length})
+                  </div>
+                  <div style={{ fontSize: 11, color: C.gray, marginTop: 2 }}>
+                    Competitor SKUs the shelf recognition should watch for.
+                  </div>
+                </div>
+                <button onClick={addCompetitor} style={btnSecondary}>+ Add competitor</button>
+              </div>
+              <CompetitorTable competitors={competitors} onUpdate={updateCompetitor} onRemove={removeCompetitor} />
+            </div>
+
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <button onClick={() => setPhase('idle')} style={btnSecondary}>Replace image</button>
               <button onClick={save} disabled={phase === 'saving'} style={btnPrimary(phase === 'saving')}>
@@ -215,28 +267,74 @@ export default function NewPlanogramPage() {
   );
 }
 
+const SKU_GRID = '1.8fr 1.2fr 1.2fr 1.1fr 0.7fr 0.7fr 0.7fr 1fr 36px';
+
 function SkuTable({
   skus, onUpdate, onRemove,
 }: { skus: ExpectedSKU[]; onUpdate: (i: number, patch: Partial<ExpectedSKU>) => void; onRemove: (i: number) => void; }) {
   if (skus.length === 0)
     return <div style={{ padding: 36, textAlign: 'center', color: 'var(--textTert)', fontSize: 13 }}>No SKUs yet — add one or re-upload the image.</div>;
   return (
-    <div>
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.2fr 0.7fr 0.7fr 0.7fr 36px', gap: 8, padding: '10px 18px', fontSize: 10, color: 'var(--textSec)', textTransform: 'uppercase', letterSpacing: 1, borderBottom: '1px solid var(--border)' }}>
-        <span>SKU name</span><span>SKU id</span><span>Shelf</span><span>Facings</span><span>Weight</span><span />
-      </div>
-      {skus.map((s, i) => (
-        <div key={i} style={{ display: 'grid', gridTemplateColumns: '2fr 1.2fr 0.7fr 0.7fr 0.7fr 36px', gap: 8, padding: '10px 18px', borderBottom: '1px solid rgba(122,139,160,0.15)', alignItems: 'center' }}>
-          <input value={s.sku_name} onChange={(e) => onUpdate(i, { sku_name: e.target.value })} style={inputStyle} />
-          <input value={s.sku_id} onChange={(e) => onUpdate(i, { sku_id: e.target.value })} style={inputStyle} />
-          <input type="number" min={0} value={s.shelf_index} onChange={(e) => onUpdate(i, { shelf_index: Number(e.target.value) })} style={inputStyle} />
-          <input type="number" min={1} value={s.facings} onChange={(e) => onUpdate(i, { facings: Number(e.target.value) })} style={inputStyle} />
-          <input type="number" step={0.1} min={0} value={s.weight ?? 1} onChange={(e) => onUpdate(i, { weight: Number(e.target.value) })} style={inputStyle} />
-          <button onClick={() => onRemove(i)} title="Remove" style={{ background: 'transparent', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--textSec)', cursor: 'pointer', width: 28, height: 28 }}>✕</button>
+    <div style={{ overflowX: 'auto' }}>
+      <div style={{ minWidth: 920 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: SKU_GRID, gap: 8, padding: '10px 18px', fontSize: 10, color: 'var(--textSec)', textTransform: 'uppercase', letterSpacing: 1, borderBottom: '1px solid var(--border)' }}>
+          <span>SKU name</span><span>SKU id</span><span>Category</span><span>Brand</span><span>Shelf</span><span>Facings</span><span>Weight</span><span>Exp. price</span><span />
         </div>
-      ))}
+        {skus.map((s, i) => (
+          <div key={i} style={{ display: 'grid', gridTemplateColumns: SKU_GRID, gap: 8, padding: '10px 18px', borderBottom: '1px solid rgba(122,139,160,0.15)', alignItems: 'center' }}>
+            <input value={s.sku_name} onChange={(e) => onUpdate(i, { sku_name: e.target.value })} style={inputStyle} />
+            <input value={s.sku_id} onChange={(e) => onUpdate(i, { sku_id: e.target.value })} style={inputStyle} />
+            <input value={s.category ?? ''} placeholder="—" onChange={(e) => onUpdate(i, { category: e.target.value })} style={inputStyle} />
+            <input value={s.brand ?? ''} placeholder="—" onChange={(e) => onUpdate(i, { brand: e.target.value })} style={inputStyle} />
+            <input type="number" min={0} value={s.shelf_index} onChange={(e) => onUpdate(i, { shelf_index: Number(e.target.value) })} style={inputStyle} />
+            <input type="number" min={1} value={s.facings} onChange={(e) => onUpdate(i, { facings: Number(e.target.value) })} style={inputStyle} />
+            <input type="number" step={0.1} min={0} value={s.weight ?? 1} onChange={(e) => onUpdate(i, { weight: Number(e.target.value) })} style={inputStyle} />
+            <input type="number" step={0.01} min={0} value={s.expected_price ?? ''} placeholder="—" onChange={(e) => onUpdate(i, { expected_price: e.target.value === '' ? null : Number(e.target.value) })} style={inputStyle} />
+            <button onClick={() => onRemove(i)} title="Remove" style={{ background: 'transparent', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--textSec)', cursor: 'pointer', width: 28, height: 28 }}>✕</button>
+          </div>
+        ))}
+      </div>
     </div>
   );
+}
+
+const COMP_GRID = '1.8fr 1.2fr 1.2fr 1.2fr 1fr 36px';
+
+function CompetitorTable({
+  competitors, onUpdate, onRemove,
+}: { competitors: PlanogramCompetitor[]; onUpdate: (i: number, patch: Partial<PlanogramCompetitor>) => void; onRemove: (i: number) => void; }) {
+  if (competitors.length === 0)
+    return <div style={{ padding: 30, textAlign: 'center', color: 'var(--textTert)', fontSize: 13 }}>No tracked competitors — add one to sharpen competitor detection.</div>;
+  return (
+    <div style={{ overflowX: 'auto' }}>
+      <div style={{ minWidth: 720 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: COMP_GRID, gap: 8, padding: '10px 18px', fontSize: 10, color: 'var(--textSec)', textTransform: 'uppercase', letterSpacing: 1, borderBottom: '1px solid var(--border)' }}>
+          <span>SKU name</span><span>SKU id</span><span>Brand</span><span>Category</span><span>Exp. price</span><span />
+        </div>
+        {competitors.map((c, i) => (
+          <div key={i} style={{ display: 'grid', gridTemplateColumns: COMP_GRID, gap: 8, padding: '10px 18px', borderBottom: '1px solid rgba(122,139,160,0.15)', alignItems: 'center' }}>
+            <input value={c.sku_name} onChange={(e) => onUpdate(i, { sku_name: e.target.value })} style={inputStyle} />
+            <input value={c.sku_id} onChange={(e) => onUpdate(i, { sku_id: e.target.value })} style={inputStyle} />
+            <input value={c.brand ?? ''} placeholder="—" onChange={(e) => onUpdate(i, { brand: e.target.value })} style={inputStyle} />
+            <input value={c.category ?? ''} placeholder="—" onChange={(e) => onUpdate(i, { category: e.target.value })} style={inputStyle} />
+            <input type="number" step={0.01} min={0} value={c.expected_price ?? ''} placeholder="—" onChange={(e) => onUpdate(i, { expected_price: e.target.value === '' ? null : Number(e.target.value) })} style={inputStyle} />
+            <button onClick={() => onRemove(i)} title="Remove" style={{ background: 'transparent', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--textSec)', cursor: 'pointer', width: 28, height: 28 }}>✕</button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function cleanCompetitor(c: PlanogramCompetitor): PlanogramCompetitor {
+  return {
+    sku_id: c.sku_id.trim(),
+    sku_name: c.sku_name.trim(),
+    brand: c.brand?.trim() || undefined,
+    category: c.category?.trim() || undefined,
+    expected_price: c.expected_price ?? undefined,
+    ref_image_url: c.ref_image_url || undefined,
+  };
 }
 
 function Field({ label, children, full }: { label: string; children: React.ReactNode; full?: boolean; }) {
