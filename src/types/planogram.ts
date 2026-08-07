@@ -47,6 +47,9 @@ export interface ExpectedSKU {
   expected_price?: number | null;
   /** Front-of-pack reference shot; shelf-recognition matches products against it. */
   ref_image_url?: string | null;
+  /** Extra reference pack-shots grown over time by confirming correct shelf
+   *  detections (self-improving recognition). Optional — older data lacks it. */
+  additional_ref_urls?: string[];
 }
 
 /** A tracked competitor SKU stored on `planogram.layout.competitors`. */
@@ -57,6 +60,9 @@ export interface PlanogramCompetitor {
   category?: string | null;
   expected_price?: number | null;
   ref_image_url?: string | null;
+  /** Extra reference pack-shots grown over time by confirming correct shelf
+   *  detections (self-improving recognition). Optional — older data lacks it. */
+  additional_ref_urls?: string[];
 }
 
 export interface DetectedSKU {

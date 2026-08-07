@@ -118,6 +118,16 @@ export const planogramApi = {
     },
   ) => api.post<Wrapped<{ id: string }>>(`/api/v1/planograms/captures/${captureId}/feedback`, body),
 
+  // Turn a correct shelf detection into a new reference pack-shot for the SKU:
+  // the backend crops that bbox from the capture image and saves it as an
+  // additional reference so future scans recognise this product better.
+  // Mirrors getCapture's URL + auth/org headers (same api client, same base).
+  confirmDetection: (captureId: string, body: { sku_id: string; bbox: number[] }) =>
+    api.post<Wrapped<{ ref_image_url: string }>>(
+      `/api/v1/planograms/captures/${captureId}/confirm-detection`,
+      body,
+    ),
+
   // Analytics
   trend: (days = 30) =>
     api.get<Wrapped<TrendPoint[]>>(`/api/v1/planograms/analytics/trend?days=${days}`),

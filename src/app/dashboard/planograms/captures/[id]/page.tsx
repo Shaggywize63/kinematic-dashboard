@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import planogramApi from '../../../../../lib/planogramApi';
@@ -50,6 +50,41 @@ export default function CaptureDetailPage() {
   const [error, setError] = useState('');
   const [compositeOpen, setCompositeOpen] = useState(false);
 
+  // "Confirm & save as reference": per-detection status, keyed by the detection's
+  // index in recognition.detected_skus (stable within a load). A ref-backed set
+  // of in-flight keys guards against double-submits even before a re-render.
+  const [confirmState, setConfirmState] = useState<Record<string, ConfirmState>>({});
+  const confirmInFlight = useRef<Set<string>>(new Set());
+
+  const handleConfirmDetection = useCallback(
+    async (key: string, skuId: string, bbox: number[]) => {
+      if (!id) return;
+      if (confirmInFlight.current.has(key)) return; // double-submit guard
+      setConfirmState((s) => {
+        if (s[key]?.status === 'done') return s; // already saved — don't re-fire
+        return { ...s, [key]: { status: 'pending' } };
+      });
+      if (confirmState[key]?.status === 'done') return;
+      confirmInFlight.current.add(key);
+      try {
+        const res = await planogramApi.confirmDetection(id, { sku_id: skuId, bbox });
+        // Tolerate both the wrapped ({success,data}) and a bare body shape.
+        const refUrl =
+          (res as { data?: { ref_image_url?: string } })?.data?.ref_image_url ??
+          (res as unknown as { ref_image_url?: string })?.ref_image_url;
+        setConfirmState((s) => ({ ...s, [key]: { status: 'done', refUrl } }));
+      } catch (e) {
+        setConfirmState((s) => ({
+          ...s,
+          [key]: { status: 'error', message: (e as Error)?.message || 'Failed to save reference' },
+        }));
+      } finally {
+        confirmInFlight.current.delete(key);
+      }
+    },
+    [id, confirmState],
+  );
+
   const load = useCallback(async () => {
     if (!id) return;
     setLoading(true);
@@ -76,6 +111,14 @@ export default function CaptureDetailPage() {
 
   // SKUs the first vision pass missed but a second targeted recall pass found.
   const recoveredSkus = detected.filter((d) => d.recovered);
+
+  // Detections an admin can confirm into a new reference pack-shot. Recovered
+  // and low-confidence finds float to the top — confirming those teaches the
+  // recogniser the most. Original index is kept as the state key so per-row
+  // pending/done status stays stable regardless of sort order.
+  const confirmableDetections = detected
+    .map((d, i) => ({ sku: d, key: String(i) }))
+    .sort((a, b) => confirmPriority(a.sku) - confirmPriority(b.sku));
   // High-priority quality-gate recommendation (image too poor to trust).
   const reshoot = compliance?.recommendations?.find((r) => /re-?shoot/i.test(r.action));
 
@@ -269,6 +312,26 @@ export default function CaptureDetailPage() {
           </div>
         )}
       </div>
+
+      {/* Confirm detections as reference pack-shots (self-improving recognition) */}
+      {confirmableDetections.length > 0 && (
+        <Panel
+          title="Detected SKUs"
+          subtitle="Confirm a correct detection to save its crop as a new reference pack-shot — future scans recognize this product better. Recovered and low-confidence finds are worth confirming first."
+        >
+          <div>
+            {confirmableDetections.map(({ sku, key }) => (
+              <ConfirmDetectionRow
+                key={key}
+                sku={sku}
+                state={confirmState[key]}
+                isCompact={isCompact}
+                onConfirm={() => handleConfirmDetection(key, sku.sku_id as string, sku.bbox)}
+              />
+            ))}
+          </div>
+        </Panel>
+      )}
 
       {/* Category-wise analysis */}
       {categoryRows.length > 0 && (
@@ -542,6 +605,29 @@ interface OwnPriceRow {
   expected: number | null;
   currency: string | null;
   delta: number | null;
+}
+
+/** Per-detection state for the "Confirm & save as reference" action. */
+interface ConfirmState {
+  status: 'pending' | 'done' | 'error';
+  message?: string;
+  refUrl?: string;
+}
+
+/** Detections below this confidence are the ones most worth confirming. */
+const LOW_CONF_THRESHOLD = 0.6;
+
+/** True when a detection can be turned into a reference: it needs a matched SKU
+ *  id and a valid normalized bbox to crop. */
+function canConfirm(sku: DetectedSKU): boolean {
+  return !!sku.sku_id && Array.isArray(sku.bbox) && sku.bbox.length === 4;
+}
+
+/** Sort key: recovered first (0), then low-confidence (1), then the rest (2). */
+function confirmPriority(sku: DetectedSKU): number {
+  if (sku.recovered) return 0;
+  if (sku.confidence < LOW_CONF_THRESHOLD) return 1;
+  return 2;
 }
 
 const ZONE_LABEL: Record<ShelfZone, string> = { low: 'Low shelf', eye: 'Eye-level', top: 'Top shelf' };
@@ -980,6 +1066,170 @@ function RecoveredTag() {
     <span title={RECOVERED_HINT} style={{ ...recoveredTagStyle, marginLeft: 8, flexShrink: 0 }}>
       Recovered · 2nd pass
     </span>
+  );
+}
+
+/** Amber chip flagging a low-confidence detection — the recogniser is least
+ *  sure here, so confirming it is especially valuable. */
+function LowConfTag({ confidence }: { confidence: number }) {
+  return (
+    <span
+      title="The recogniser was unsure about this detection — confirming it improves future accuracy the most."
+      style={{
+        display: 'inline-block',
+        fontSize: 9.5,
+        fontWeight: 700,
+        letterSpacing: 0.3,
+        padding: '2px 6px',
+        borderRadius: 5,
+        marginLeft: 8,
+        flexShrink: 0,
+        color: C.yellow,
+        background: 'rgba(255,184,0,0.14)',
+        border: '1px solid rgba(255,184,0,0.45)',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      Low confidence · {Math.round(confidence * 100)}%
+    </span>
+  );
+}
+
+/** One detected-SKU row with a "Confirm & save as reference" action. Confirming
+ *  posts the detection's bbox to the backend, which crops it from the capture
+ *  image and stores it as an additional reference pack-shot for the SKU — so the
+ *  recogniser keeps getting better. Guards double-submits (disabled while
+ *  pending / after done) and disables entirely for detections lacking a matched
+ *  SKU id or a bbox to crop. */
+function ConfirmDetectionRow({
+  sku,
+  state,
+  onConfirm,
+  isCompact,
+}: {
+  sku: DetectedSKU;
+  state?: ConfirmState;
+  onConfirm: () => void;
+  isCompact: boolean;
+}) {
+  const eligible = canConfirm(sku);
+  const status = state?.status ?? 'idle';
+  const lowConf = sku.confidence < LOW_CONF_THRESHOLD;
+  const pending = status === 'pending';
+  const done = status === 'done';
+
+  const nameColor = sku.is_competitor ? C.red : 'var(--text)';
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: isCompact ? 'flex-start' : 'center',
+        justifyContent: 'space-between',
+        flexDirection: isCompact ? 'column' : 'row',
+        gap: isCompact ? 8 : 14,
+        padding: '12px 18px',
+        borderBottom: '1px solid rgba(122,139,160,0.15)',
+        fontSize: 13,
+      }}
+    >
+      {/* Identity + signals */}
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap' }}>
+          <span
+            style={{
+              fontWeight: 600,
+              color: nameColor,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              maxWidth: '100%',
+            }}
+          >
+            {sku.sku_name}
+            {sku.is_competitor ? ' · competitor' : ''}
+          </span>
+          {sku.recovered && <RecoveredTag />}
+          {lowConf && <LowConfTag confidence={sku.confidence} />}
+        </div>
+        <div style={{ fontSize: 11.5, color: C.gray, marginTop: 3 }}>
+          {[
+            sku.category || null,
+            `${sku.facings} facing${sku.facings === 1 ? '' : 's'}`,
+            `${Math.round(sku.confidence * 100)}% confidence`,
+          ]
+            .filter(Boolean)
+            .join(' · ')}
+        </div>
+        {done && (
+          <div style={{ fontSize: 11.5, color: C.green, marginTop: 5, fontWeight: 600 }}>
+            ✓ Saved as reference — future scans will recognize this better.
+          </div>
+        )}
+        {status === 'error' && (
+          <div style={{ fontSize: 11.5, color: C.red, marginTop: 5, fontWeight: 600 }}>
+            {state?.message || 'Failed to save reference.'} Tap to retry.
+          </div>
+        )}
+      </div>
+
+      {/* Action */}
+      <button
+        type="button"
+        onClick={eligible && !pending && !done ? onConfirm : undefined}
+        disabled={!eligible || pending || done}
+        aria-busy={pending}
+        title={
+          !eligible
+            ? 'Needs a matched SKU and a bounding box to save as a reference'
+            : done
+            ? 'Already saved as a reference'
+            : 'Save this detection as a new reference pack-shot for the SKU'
+        }
+        style={{
+          appearance: 'none',
+          flexShrink: 0,
+          alignSelf: isCompact ? 'stretch' : 'auto',
+          width: isCompact ? '100%' : 'auto',
+          padding: '7px 13px',
+          borderRadius: 9,
+          fontSize: 12,
+          fontWeight: 700,
+          fontFamily: "'DM Sans',sans-serif",
+          whiteSpace: 'nowrap',
+          cursor: !eligible || pending || done ? 'default' : 'pointer',
+          transition: 'background 120ms, border-color 120ms',
+          color: done ? C.green : status === 'error' ? C.red : !eligible ? C.grayd : C.blue,
+          background: done
+            ? 'rgba(0,217,126,0.12)'
+            : status === 'error'
+            ? 'rgba(224,30,44,0.10)'
+            : !eligible
+            ? 'var(--s2)'
+            : 'rgba(62,158,255,0.12)',
+          border: `1px solid ${
+            done
+              ? 'rgba(0,217,126,0.4)'
+              : status === 'error'
+              ? 'rgba(224,30,44,0.35)'
+              : !eligible
+              ? C.border
+              : 'rgba(62,158,255,0.4)'
+          }`,
+          opacity: !eligible ? 0.65 : 1,
+        }}
+      >
+        {done
+          ? '✓ Saved as reference'
+          : pending
+          ? 'Saving…'
+          : status === 'error'
+          ? 'Retry'
+          : !eligible
+          ? 'Not confirmable'
+          : 'Confirm & save as reference'}
+      </button>
+    </div>
   );
 }
 
