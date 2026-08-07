@@ -276,7 +276,7 @@ export default function CaptureDetailPage() {
               ? 'Estimated from detected facings on this shelf'
               : 'Computed by the compliance engine'
           }
-          info={method?.occupancy}
+          info={method?.category}
         >
           <div style={{ overflowX: 'auto' }}>
             <div style={{ minWidth: 640 }}>
