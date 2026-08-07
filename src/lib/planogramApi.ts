@@ -10,6 +10,7 @@ import type {
   SkuVisibility,
   RiskForecastRow,
   ExpectedSKU,
+  PlanogramCompetitor,
 } from '../types/planogram';
 
 type Wrapped<T> = { success: boolean; data: T };
@@ -21,6 +22,9 @@ export interface ParsedPlanogramSku {
   facings: number;
   position?: number;
   weight?: number;
+  category?: string | null;
+  brand?: string | null;
+  expected_price?: number | null;
 }
 
 export interface ParsedPlanogram {
@@ -50,7 +54,11 @@ export interface CreatePlanogramBody {
   store_format?: string;
   client_id?: string;
   source_url?: string;
-  layout?: { shelves: Array<{ index: number; capacity?: number }> };
+  layout?: {
+    shelves: Array<{ index: number; capacity?: number }>;
+    competitors?: PlanogramCompetitor[];
+    category_definition?: string;
+  };
   expected_skus: ExpectedSKU[];
 }
 
