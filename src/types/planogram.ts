@@ -141,11 +141,24 @@ export interface CompliancePromotion {
   linked_sku_ids: string[];
 }
 
-/** How a metric was computed — surfaced in the methodology popovers. */
+/** How a metric was computed — surfaced in the methodology explainers.
+ *  `formula`/`inputs`/`notes` are always present; the remaining fields are the
+ *  auditable extras (real numbers + per-SKU table). Older captures only carry
+ *  `formula`/`inputs`, so every extra is optional and must render fine absent. */
 export interface MethodologyEntry {
   formula: string;
   inputs: string[];
   notes?: string;
+  /** Composite contribution weight (presence 0.5, facing 0.25, position 0.2, competitor -0.05). */
+  weight?: number;
+  /** The computed metric value, 0..100. */
+  result?: number;
+  /** The actual arithmetic WITH real numbers, e.g. `present weight 20 / total weight 32 × 100 = 62.5`. */
+  calc?: string;
+  /** Header for the audit table. */
+  columns?: { key: string; label: string }[];
+  /** Per-SKU rows, each keyed by `columns[].key`. */
+  rows?: Array<Record<string, string | number | boolean | null>>;
 }
 
 export interface Compliance {

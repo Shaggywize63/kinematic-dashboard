@@ -47,6 +47,7 @@ export default function CaptureDetailPage() {
   const [compliance, setCompliance] = useState<Compliance | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [compositeOpen, setCompositeOpen] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -230,9 +231,16 @@ export default function CaptureDetailPage() {
               >
                 {compliance.score}%
               </div>
-              <InfoDot method={method?.composite} />
+              <InfoDotButton
+                method={method?.composite}
+                open={compositeOpen}
+                onToggle={() => setCompositeOpen((o) => !o)}
+              />
             </div>
             <div style={{ fontSize: 12, color: C.gray, marginTop: 6 }}>compliance score</div>
+            {compositeOpen && method?.composite && (
+              <MethodologyDetails method={method.composite} />
+            )}
 
             <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 12 }}>
               <ScoreBar label="Presence" value={compliance.presence_score} method={method?.presence} />
@@ -584,12 +592,39 @@ function money(n: number | null | undefined, currency?: string | null): string {
 
 // ── Helper components ────────────────────────────────────────────────────────
 
-function InfoDot({ method, align = 'left' }: { method?: MethodologyEntry; align?: 'left' | 'right' }) {
+/** The clickable ⓘ toggle. Controlled — the parent owns `open` so the
+ *  full-width details block can render outside this inline flex row. */
+function InfoDotButton({
+  method,
+  open,
+  onToggle,
+}: {
+  method?: MethodologyEntry;
+  open: boolean;
+  onToggle: () => void;
+}) {
   if (!method) return null;
   return (
-    <span
-      className="kini-info"
-      style={{ position: 'relative', cursor: 'help', color: C.gray, display: 'inline-flex', opacity: 0.7 }}
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={open}
+      aria-label="How this is calculated"
+      title="How this is calculated"
+      style={{
+        appearance: 'none',
+        background: open ? 'var(--s3)' : 'transparent',
+        border: 'none',
+        padding: 2,
+        margin: 0,
+        borderRadius: 6,
+        cursor: 'pointer',
+        color: open ? C.blue : C.gray,
+        display: 'inline-flex',
+        alignItems: 'center',
+        opacity: open ? 1 : 0.7,
+        lineHeight: 0,
+      }}
     >
       <svg
         width={13}
@@ -605,49 +640,220 @@ function InfoDot({ method, align = 'left' }: { method?: MethodologyEntry; align?
         <line x1="12" y1="16" x2="12" y2="12" />
         <line x1="12" y1="8" x2="12.01" y2="8" />
       </svg>
-      <span
-        className="kini-info-pop"
+    </button>
+  );
+}
+
+/** Format a cell value for the audit table. */
+function fmtCell(v: string | number | boolean | null): string {
+  if (v == null) return '—';
+  if (typeof v === 'number') return String(round1(v));
+  return String(v);
+}
+
+/** Infer column alignment from its sampled row values. */
+function inferAlign(
+  rows: Array<Record<string, string | number | boolean | null>>,
+  key: string,
+): 'left' | 'right' | 'center' {
+  let sawNumber = false;
+  let sawBool = false;
+  let sawOther = false;
+  for (const r of rows) {
+    const v = r[key];
+    if (v == null) continue;
+    if (typeof v === 'number') sawNumber = true;
+    else if (typeof v === 'boolean') sawBool = true;
+    else sawOther = true;
+  }
+  if (sawOther) return 'left';
+  if (sawBool && !sawNumber) return 'center';
+  if (sawNumber) return 'right';
+  return 'left';
+}
+
+/** Scrollable per-SKU audit table driven by `columns` + `rows`. */
+function MethodologyTable({
+  columns,
+  rows,
+}: {
+  columns: { key: string; label: string }[];
+  rows: Array<Record<string, string | number | boolean | null>>;
+}) {
+  const aligns = columns.map((c) => inferAlign(rows, c.key));
+  return (
+    <div
+      style={{
+        overflowX: 'auto',
+        marginTop: 10,
+        border: `1px solid ${C.border}`,
+        borderRadius: 8,
+      }}
+    >
+      <table
         style={{
-          display: 'none',
-          position: 'absolute',
-          top: '165%',
-          ...(align === 'right' ? { right: 0 } : { left: 0 }),
-          zIndex: 60,
-          width: 250,
-          background: 'var(--s3)',
-          border: `1px solid ${C.border}`,
-          borderRadius: 10,
-          padding: '10px 12px',
-          fontSize: 11,
-          lineHeight: 1.5,
-          color: C.gray,
-          fontWeight: 400,
-          textAlign: 'left',
-          whiteSpace: 'normal',
-          boxShadow: '0 12px 30px rgba(0,0,0,0.28)',
+          borderCollapse: 'collapse',
+          width: '100%',
+          minWidth: Math.max(320, columns.length * 96),
+          fontSize: 11.5,
         }}
       >
-        <span
+        <thead>
+          <tr>
+            {columns.map((c, i) => (
+              <th
+                key={c.key}
+                style={{
+                  textAlign: aligns[i],
+                  padding: '7px 10px',
+                  fontSize: 9.5,
+                  fontWeight: 800,
+                  letterSpacing: 0.5,
+                  textTransform: 'uppercase',
+                  color: 'var(--textSec)',
+                  background: 'var(--s2)',
+                  borderBottom: `1px solid ${C.border}`,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {c.label}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, ri) => (
+            <tr key={ri}>
+              {columns.map((c, ci) => {
+                const v = r[c.key];
+                const isDelta = c.key.toLowerCase().includes('delta');
+                let color: string | undefined;
+                let content: React.ReactNode;
+                if (typeof v === 'boolean') {
+                  color = v ? C.green : C.red;
+                  content = v ? '✓' : '✗';
+                } else if (typeof v === 'number' && isDelta) {
+                  color = v < 0 ? C.red : v > 0 ? C.green : C.gray;
+                  content = `${v > 0 ? '+' : ''}${round1(v)}`;
+                } else {
+                  content = fmtCell(v);
+                  if (v == null) color = C.grayd;
+                }
+                return (
+                  <td
+                    key={c.key}
+                    style={{
+                      textAlign: aligns[ci],
+                      padding: '7px 10px',
+                      color: color ?? 'var(--text)',
+                      fontWeight: typeof v === 'boolean' || isDelta ? 700 : 400,
+                      borderBottom: `1px solid rgba(122,139,160,0.15)`,
+                      whiteSpace: 'nowrap',
+                      fontVariantNumeric: 'tabular-nums',
+                    }}
+                  >
+                    {content}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/** The expanded, auditable explainer body: result + weight, prominent calc,
+ *  plain-English formula/inputs/notes, and the per-SKU audit table. */
+function MethodologyDetails({ method }: { method: MethodologyEntry }) {
+  const hasTable = !!(method.columns && method.columns.length > 0 && method.rows && method.rows.length > 0);
+  return (
+    <div
+      style={{
+        marginTop: 10,
+        background: 'var(--s3)',
+        border: `1px solid ${C.border}`,
+        borderRadius: 10,
+        padding: '12px 14px',
+        fontSize: 12,
+        lineHeight: 1.55,
+        color: C.gray,
+        textAlign: 'left',
+        boxShadow: '0 12px 30px rgba(0,0,0,0.18)',
+      }}
+    >
+      <div
+        style={{
+          fontWeight: 800,
+          color: 'var(--text)',
+          fontSize: 9.5,
+          letterSpacing: 0.5,
+          marginBottom: 8,
+        }}
+      >
+        HOW THIS IS CALCULATED
+      </div>
+
+      {/* 1. Result + weight badge */}
+      {method.result != null && (
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+          <span style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', lineHeight: 1 }}>
+            {round1(method.result)}
+          </span>
+          <span style={{ fontSize: 11, color: C.gray }}>result</span>
+          {method.weight != null && (
+            <span
+              style={{
+                fontSize: 10,
+                fontWeight: 700,
+                padding: '3px 8px',
+                borderRadius: 20,
+                background: 'rgba(62,158,255,0.14)',
+                color: C.blue,
+                border: '1px solid rgba(62,158,255,0.3)',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              weight {method.weight} in composite
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* 2. calc — the real arithmetic, prominent monospace */}
+      {method.calc && (
+        <div
           style={{
-            display: 'block',
-            fontWeight: 800,
+            fontFamily: "'SFMono-Regular',ui-monospace,Menlo,Consolas,monospace",
+            fontSize: 12.5,
             color: 'var(--text)',
-            fontSize: 9.5,
-            letterSpacing: '0.5px',
-            marginBottom: 5,
+            background: 'var(--s2)',
+            border: `1px solid ${C.border}`,
+            borderRadius: 8,
+            padding: '9px 11px',
+            marginBottom: 8,
+            overflowX: 'auto',
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-word',
           }}
         >
-          HOW THIS IS CALCULATED
-        </span>
-        <span style={{ display: 'block', color: 'var(--text)', marginBottom: 6 }}>{method.formula}</span>
-        {method.inputs?.length > 0 && (
-          <span style={{ display: 'block' }}>Inputs: {method.inputs.join(', ')}</span>
-        )}
-        {method.notes && (
-          <span style={{ display: 'block', marginTop: 6, opacity: 0.85 }}>{method.notes}</span>
-        )}
-      </span>
-    </span>
+          {method.calc}
+        </div>
+      )}
+
+      {/* 3. formula (plain-English) + inputs + notes — secondary */}
+      <div style={{ color: 'var(--text)', marginBottom: method.inputs?.length || method.notes ? 4 : 0 }}>
+        {method.formula}
+      </div>
+      {method.inputs?.length > 0 && (
+        <div style={{ opacity: 0.9 }}>Inputs: {method.inputs.join(', ')}</div>
+      )}
+      {method.notes && <div style={{ marginTop: 6, opacity: 0.85 }}>{method.notes}</div>}
+
+      {/* 4. per-SKU audit table */}
+      {hasTable && <MethodologyTable columns={method.columns!} rows={method.rows!} />}
+    </div>
   );
 }
 
@@ -662,6 +868,7 @@ function ScoreBar({
   inverted?: boolean;
   method?: MethodologyEntry;
 }) {
+  const [open, setOpen] = useState(false);
   const good = inverted ? value <= 25 : value >= 80;
   const ok = inverted ? value <= 40 : value >= 65;
   const color = good ? C.green : ok ? C.yellow : C.red;
@@ -678,13 +885,14 @@ function ScoreBar({
       >
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
           {label}
-          <InfoDot method={method} />
+          <InfoDotButton method={method} open={open} onToggle={() => setOpen((o) => !o)} />
         </span>
         <span style={{ fontWeight: 700, color }}>{value}%</span>
       </div>
       <div style={{ height: 6, background: 'var(--s2)', borderRadius: 3, overflow: 'hidden' }}>
         <div style={{ width: `${Math.min(100, value)}%`, height: '100%', background: color }} />
       </div>
+      {open && method && <MethodologyDetails method={method} />}
     </div>
   );
 }
@@ -780,6 +988,7 @@ function Panel({
   info?: MethodologyEntry;
   children: React.ReactNode;
 }) {
+  const [open, setOpen] = useState(false);
   return (
     <div
       style={{
@@ -792,9 +1001,10 @@ function Panel({
       <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ fontFamily: "'Syne',sans-serif", fontSize: 14, fontWeight: 700 }}>{title}</span>
-          <InfoDot method={info} />
+          <InfoDotButton method={info} open={open} onToggle={() => setOpen((o) => !o)} />
         </div>
         {subtitle && <div style={{ fontSize: 11, color: 'var(--textSec)', marginTop: 2 }}>{subtitle}</div>}
+        {open && info && <MethodologyDetails method={info} />}
       </div>
       {children}
     </div>
