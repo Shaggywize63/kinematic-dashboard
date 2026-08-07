@@ -310,14 +310,18 @@ export default function PlanogramDetailPage() {
         <div
           style={{
             display: 'flex',
-            alignItems: 'center',
+            alignItems: 'flex-start',
             justifyContent: 'space-between',
+            gap: 12,
             padding: '14px 18px',
             borderBottom: `1px solid ${C.border}`,
           }}
         >
-          <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 14, fontWeight: 700 }}>
-            Expected SKUs ({skus.length})
+          <div>
+            <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 14, fontWeight: 700 }}>
+              Expected SKUs ({skus.length})
+            </div>
+            <PackshotHint missing={skus.filter((s) => !s.ref_image_url).length} />
           </div>
           <button onClick={addSku} style={btnSecondary}>
             + Add SKU
@@ -357,6 +361,7 @@ export default function PlanogramDetailPage() {
                 Add competitor products the shelf recognition should watch for — brand, name,
                 category, price, and a product photo so it&apos;s identified reliably.
               </div>
+              <PackshotHint missing={competitors.filter((c) => !c.ref_image_url).length} />
             </div>
           </div>
           <button onClick={addCompetitor} style={btnAdd}>
@@ -983,19 +988,26 @@ function RefImageCell({
     }
   };
 
+  const empty = !value || broken;
   return (
     <div style={{ position: 'relative', width: 44, height: 44 }}>
       <button
         type="button"
         onClick={() => inputRef.current?.click()}
-        title={value ? 'Replace reference image' : 'Upload reference image'}
+        title={
+          value && !broken
+            ? 'Replace reference image'
+            : broken
+            ? 'Image set but not reachable yet — re-upload to improve recognition'
+            : 'No photo — add one to improve recognition'
+        }
         style={{
           width: 44,
           height: 44,
           borderRadius: 8,
-          border: '1px dashed var(--border)',
-          background: 'var(--s2)',
-          color: 'var(--textTert)',
+          border: `1px dashed ${empty ? 'rgba(255,184,0,0.55)' : 'var(--border)'}`,
+          background: empty ? 'rgba(255,184,0,0.08)' : 'var(--s2)',
+          color: empty ? '#FFB800' : 'var(--textTert)',
           cursor: 'pointer',
           padding: 0,
           overflow: 'hidden',
@@ -1016,9 +1028,7 @@ function RefImageCell({
             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
           />
         ) : (
-          <span title={broken ? 'Image set but not reachable yet' : 'Add image'}>
-            {broken ? '⚠' : '+'}
-          </span>
+          <span aria-hidden>{broken ? '⚠' : '+'}</span>
         )}
       </button>
       <input
@@ -1040,6 +1050,27 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     <div>
       <div style={{ fontSize: 11, color: 'var(--textSec)', marginBottom: 5 }}>{label}</div>
       {children}
+    </div>
+  );
+}
+
+/** Subtle nudge counting rows with no pack-shot — recognition relies on them. */
+function PackshotHint({ missing }: { missing: number }) {
+  if (missing <= 0) return null;
+  return (
+    <div
+      style={{
+        fontSize: 11,
+        color: C.yellow,
+        marginTop: 3,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 5,
+        lineHeight: 1.4,
+      }}
+    >
+      <span aria-hidden>⚠</span>
+      {missing} without a pack-shot — add photos to improve recognition.
     </div>
   );
 }

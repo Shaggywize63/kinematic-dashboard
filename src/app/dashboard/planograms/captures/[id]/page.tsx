@@ -74,6 +74,11 @@ export default function CaptureDetailPage() {
   const detected = recognition?.detected_skus || [];
   const method = compliance?.methodology;
 
+  // SKUs the first vision pass missed but a second targeted recall pass found.
+  const recoveredSkus = detected.filter((d) => d.recovered);
+  // High-priority quality-gate recommendation (image too poor to trust).
+  const reshoot = compliance?.recommendations?.find((r) => /re-?shoot/i.test(r.action));
+
   // Category rows: prefer the backend rollup, else compute from detections.
   const categoryRows: CategoryBreakdown[] =
     compliance?.category_breakdown && compliance.category_breakdown.length > 0
@@ -103,6 +108,7 @@ export default function CaptureDetailPage() {
       category: d.category ?? null,
       price: d.price ?? null,
       currency: d.price_currency ?? null,
+      recovered: d.recovered,
     }));
   const ownPricingRows: OwnPriceRow[] =
     ownPricing.length > 0
@@ -192,20 +198,16 @@ export default function CaptureDetailPage() {
               promotions={recognition.promotions}
             />
           )}
-          {recognition?.needs_review && (
-            <div
-              style={{
-                marginTop: 10,
-                padding: '10px 14px',
-                background: 'rgba(255,184,0,0.12)',
-                border: '1px solid rgba(255,184,0,0.3)',
-                borderRadius: 10,
-                fontSize: 12,
-                color: C.yellow,
-              }}
-            >
-              ⚠ Low confidence ({Math.round(recognition.overall_confidence * 100)}%) — flag for review.
-            </div>
+          {recoveredSkus.length > 0 && <RecoveredSummary skus={recoveredSkus} />}
+          {(recognition?.needs_review || reshoot) && (
+            <QualityGatePanel
+              needsReview={!!recognition?.needs_review}
+              confidence={recognition?.overall_confidence}
+              blur={capture?.blur_score}
+              glare={capture?.glare_score}
+              angle={capture?.angle_score}
+              reshoot={reshoot}
+            />
           )}
         </div>
 
@@ -416,7 +418,10 @@ export default function CaptureDetailPage() {
                 </div>
                 {competitorRows.map((r, i) => (
                   <div key={i} style={{ ...compGrid, ...priceRowStyle }}>
-                    <span style={{ fontWeight: 600, color: C.red }}>{r.name}</span>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', minWidth: 0, fontWeight: 600, color: C.red }}>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</span>
+                      {r.recovered && <RecoveredTag />}
+                    </span>
                     <span style={{ color: C.gray }}>{r.category || '—'}</span>
                     <span style={num}>{money(r.price, r.currency)}</span>
                   </div>
@@ -496,7 +501,10 @@ export default function CaptureDetailPage() {
       {compliance && (compliance.missing_skus.length > 0 || compliance.misplaced_skus.length > 0) && (
         <div style={{ display: 'grid', gridTemplateColumns: isCompact ? '1fr' : '1fr 1fr', gap: 14 }}>
           {compliance.missing_skus.length > 0 && (
-            <Panel title={`Missing SKUs (${compliance.missing_skus.length})`}>
+            <Panel
+              title={`Not found on shelf (${compliance.missing_skus.length})`}
+              subtitle="Likely out of stock — recognition already ran a second targeted pass, so these are probably genuine gaps rather than recognition misses."
+            >
               {compliance.missing_skus.map((m) => (
                 <Row key={m.sku_id} left={m.sku_name} right={`${m.expected_facings} expected`} />
               ))}
@@ -526,6 +534,7 @@ interface CompetitorRow {
   category: string | null;
   price: number | null;
   currency: string | null;
+  recovered?: boolean;
 }
 interface OwnPriceRow {
   name: string;
@@ -944,6 +953,158 @@ function DeltaCell({ delta, currency }: { delta: number | null; currency: string
       {currency || '₹'}
       {round1(delta)}
     </span>
+  );
+}
+
+// ── Recognition-accuracy surfaces ────────────────────────────────────────────
+
+const RECOVERED_HINT =
+  'Missed on the first scan, found on a second targeted pass using its pack-shot.';
+
+const recoveredTagStyle: React.CSSProperties = {
+  display: 'inline-block',
+  fontSize: 9.5,
+  fontWeight: 700,
+  letterSpacing: 0.3,
+  padding: '2px 6px',
+  borderRadius: 5,
+  color: C.blue,
+  background: `${C.blue}1F`,
+  border: `1px solid ${C.blue}55`,
+  whiteSpace: 'nowrap',
+};
+
+/** Inline blue chip flagging a detected SKU the recall pass recovered. */
+function RecoveredTag() {
+  return (
+    <span title={RECOVERED_HINT} style={{ ...recoveredTagStyle, marginLeft: 8, flexShrink: 0 }}>
+      Recovered · 2nd pass
+    </span>
+  );
+}
+
+/** Summary strip listing every detected SKU the second targeted pass recovered. */
+function RecoveredSummary({ skus }: { skus: DetectedSKU[] }) {
+  const names = skus.map((s) => s.sku_name);
+  const shown = names.slice(0, 6);
+  const extra = names.length - shown.length;
+  return (
+    <div
+      style={{
+        marginTop: 10,
+        padding: '11px 14px',
+        background: `${C.blue}14`,
+        border: `1px solid ${C.blue}40`,
+        borderRadius: 10,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <span style={recoveredTagStyle}>Recovered · 2nd pass</span>
+        <span style={{ fontSize: 12, color: C.gray, fontWeight: 600 }}>
+          {skus.length} SKU{skus.length === 1 ? '' : 's'} found on a second targeted pass
+        </span>
+      </div>
+      <div style={{ fontSize: 11.5, color: C.gray, marginTop: 6, lineHeight: 1.5 }}>
+        {shown.join(', ')}
+        {extra > 0 ? `, +${extra} more` : ''} — missed on the first scan, matched against their
+        pack-shots on a retry.
+      </div>
+    </div>
+  );
+}
+
+function fmtScore(v: number): string {
+  return String(Math.round(v * 100) / 100);
+}
+
+/** One capture-quality metric as a chip. Blur/glare/angle: lower = worse.
+ *  Confidence: higher = better. Warns (amber ⚠) when below the threshold. */
+function QualityChip({
+  label,
+  value,
+  warnBelow,
+  higherIsBetter,
+}: {
+  label: string;
+  value?: number | null;
+  warnBelow: number;
+  higherIsBetter?: boolean;
+}) {
+  if (value == null) return null;
+  const warn = value < warnBelow;
+  return (
+    <span
+      title={`${label} ${fmtScore(value)} — ${higherIsBetter ? 'higher is better' : 'lower is worse'}`}
+      style={{
+        fontSize: 11,
+        fontWeight: 600,
+        padding: '4px 9px',
+        borderRadius: 20,
+        whiteSpace: 'nowrap',
+        border: `1px solid ${warn ? 'rgba(255,184,0,0.4)' : 'var(--border)'}`,
+        background: warn ? 'rgba(255,184,0,0.12)' : 'var(--s2)',
+        color: warn ? C.yellow : C.gray,
+      }}
+    >
+      {label} {fmtScore(value)}
+      {warn ? ' ⚠' : ''}
+    </span>
+  );
+}
+
+/** The quality-gate banner. Escalates to a red "Re-shoot recommended" callout
+ *  when the backend tripped the gate, and always shows the capture's
+ *  blur / glare / angle / confidence chips so the admin sees WHY it flagged. */
+function QualityGatePanel({
+  needsReview,
+  confidence,
+  blur,
+  glare,
+  angle,
+  reshoot,
+}: {
+  needsReview: boolean;
+  confidence?: number;
+  blur?: number;
+  glare?: number;
+  angle?: number;
+  reshoot?: { action: string; rationale: string };
+}) {
+  const accent = reshoot ? C.red : C.yellow;
+  const tint = reshoot ? 'rgba(224,30,44,0.10)' : 'rgba(255,184,0,0.12)';
+  const bord = reshoot ? 'rgba(224,30,44,0.3)' : 'rgba(255,184,0,0.3)';
+  const hasChips = confidence != null || blur != null || glare != null || angle != null;
+  return (
+    <div
+      style={{
+        marginTop: 10,
+        padding: '12px 14px',
+        background: tint,
+        border: `1px solid ${bord}`,
+        borderRadius: 10,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 800, color: accent }}>
+        <span aria-hidden>⚠</span>
+        <span>{reshoot ? 'Re-shoot recommended' : 'Flagged for review'}</span>
+      </div>
+      <div style={{ fontSize: 12, color: C.gray, marginTop: 4, lineHeight: 1.5 }}>
+        {reshoot
+          ? reshoot.rationale
+          : `Low recognition confidence${
+              confidence != null ? ` (${Math.round(confidence * 100)}%)` : ''
+            } — verify the detections before trusting this capture.`}
+        {reshoot && needsReview ? ' Recognition also flagged this capture for review.' : ''}
+      </div>
+      {hasChips && (
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>
+          <QualityChip label="Confidence" value={confidence} warnBelow={0.6} higherIsBetter />
+          <QualityChip label="Blur" value={blur} warnBelow={0.5} />
+          <QualityChip label="Glare" value={glare} warnBelow={0.5} />
+          <QualityChip label="Angle" value={angle} warnBelow={0.5} />
+        </div>
+      )}
+    </div>
   );
 }
 
