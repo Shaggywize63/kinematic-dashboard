@@ -89,23 +89,19 @@ export default function CaptureDetailPage() {
 
   // Pricing: own SKUs (price vs expected) and competitors.
   const ownPricing: PricingRow[] = (compliance?.pricing || []).filter((p) => !p.is_competitor);
-  const competitorPricing: PricingRow[] = (compliance?.pricing || []).filter((p) => p.is_competitor);
-  const competitorRows: CompetitorRow[] =
-    competitorPricing.length > 0
-      ? competitorPricing.map((p) => ({
-          name: p.sku_name,
-          category: null,
-          price: p.price,
-          currency: p.currency,
-        }))
-      : detected
-          .filter((d) => d.is_competitor)
-          .map((d) => ({
-            name: d.sku_name,
-            category: d.category ?? null,
-            price: d.price ?? null,
-            currency: d.price_currency ?? null,
-          }));
+  // Always list every detected competitor (priced or not) so the panel and its
+  // header count reflect the full competitive set — matching shelf_share and the
+  // overlay. Detections already carry price/currency (compliance.pricing is
+  // derived from them), so switching to the pricing rows would only drop the
+  // unpriced ones and undercount.
+  const competitorRows: CompetitorRow[] = detected
+    .filter((d) => d.is_competitor)
+    .map((d) => ({
+      name: d.sku_name,
+      category: d.category ?? null,
+      price: d.price ?? null,
+      currency: d.price_currency ?? null,
+    }));
   const ownPricingRows: OwnPriceRow[] =
     ownPricing.length > 0
       ? ownPricing.map((p) => ({
