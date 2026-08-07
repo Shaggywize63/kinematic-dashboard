@@ -398,6 +398,29 @@ Be elite, professional, and data-driven. Use **bold** for key metrics. Proactive
     const um = { role: 'user', content: q };
     const lm = { role: 'assistant', content: '', loading: true };
     setMsgs(p => [...p, um, lm]); setBusy(true);
+
+    // Patch the trailing (assistant) turn — the bubble we just pushed. send() is
+    // the ONLY thing that mutates the tail while a turn is in flight (confirm /
+    // cancel / follow-up chips are all gated on `busy`), so the streamed bubble
+    // stays the last message for the whole call and this merge is race-free.
+    const patchLast = (patch: any) =>
+      setMsgs(p => p.map((m, i) => (i === p.length - 1 ? { ...m, ...patch } : m)));
+
+    // rAF-batched token flush. Streamed `token` deltas accumulate in a ref and
+    // paint at most once per animation frame, so a long reply never fires one
+    // React setState per token (which would thrash + jank the scroll). The
+    // authoritative `done` frame does a final, exact replace.
+    const streamTextRef = { current: '' };
+    let rafId: number | null = null;
+    const cancelFlush = () => { if (rafId != null) { cancelAnimationFrame(rafId); rafId = null; } };
+    const scheduleFlush = () => {
+      if (rafId != null) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        patchLast({ content: streamTextRef.current, loading: false, streaming: true });
+      });
+    };
+
     try {
       let userOrgId: string | null = null;
       try {
@@ -453,68 +476,230 @@ Be elite, professional, and data-driven. Use **bold** for key metrics. Proactive
       // elsewhere. The same `context` object carries both v1 and v2 fields.
       const apiBase = process.env.NEXT_PUBLIC_API_URL;
       const v2Endpoint = '/api/v1/kini/v2/chat';
+      const v2StreamEndpoint = '/api/v1/kini/v2/chat/stream';
       const v1Endpoint = inCrm ? '/api/v1/crm/ai/chat' : '/api/v1/ai/chat';
       const reqInit = { method: 'POST', headers, body: JSON.stringify(body) } as const;
 
-      let r = await fetch(`${apiBase}${v2Endpoint}`, reqInit);
-      // Fall back to the legacy endpoint when agentic v2 is DISABLED (403) or
-      // NOT DEPLOYED on this backend (404). Previously only 403 fell back, so a
-      // 404 (or any non-403 error) skipped v1 entirely and surfaced the opaque
-      // "I apologize…" fallback below.
-      if (r.status === 403 || r.status === 404) {
-        r = await fetch(`${apiBase}${v1Endpoint}`, reqInit);
-      }
-      // Parse defensively — an infra/proxy error (502/504) can return HTML, not
-      // JSON, which would otherwise throw straight to the Connectivity Error catch.
-      let d: any = null;
-      try { d = await r.json(); } catch { /* non-JSON error body — d stays null */ }
-      // Quota-exceeded path: backend returns 429 with a friendly message
-      // and the current usage view. Surface it as an assistant message so
-      // the user understands what happened.
-      if (r.status === 429) {
-        const usage = d?.data?.usage;
-        if (usage) setUsage(usage);
-        // Backend returns `error: { code, message }` — use .message, not the
-        // object, otherwise it renders as the literal "[object Object]".
-        const errMsg = typeof d?.error === 'string'
-          ? d.error
-          : (d?.error?.message || d?.message);
-        setMsgs(p => p.map((m, i) => i === p.length - 1 ? {
-          role: 'assistant',
-          content: errMsg || 'Monthly AI limit reached. Resets on the 1st.',
-          error: true,
-        } : m));
+      // ------------------------------------------------------------------
+      // Buffered path (the fallback). This is byte-for-byte the pre-streaming
+      // behavior: hit v2, fall back to v1 on 403 (KINI_V2_DISABLED) / 404 (not
+      // deployed), then render 429 / 401 / error / success. Reused by every
+      // "streaming unavailable" branch below, so a stream failure can NEVER
+      // regress the chat.
+      // ------------------------------------------------------------------
+      const fetchBuffered = async (initial?: Response): Promise<Response> => {
+        let r = initial ?? await fetch(`${apiBase}${v2Endpoint}`, reqInit);
+        if (r.status === 403 || r.status === 404) {
+          r = await fetch(`${apiBase}${v1Endpoint}`, reqInit);
+        }
+        return r;
+      };
+      const applyBuffered = async (r: Response) => {
+        // Parse defensively — an infra/proxy error (502/504) can return HTML,
+        // not JSON, which would otherwise throw straight to the catch below.
+        let d: any = null;
+        try { d = await r.json(); } catch { /* non-JSON error body — d stays null */ }
+        // Quota-exceeded: backend returns 429 with a friendly message + the
+        // current usage view. Surface it as the assistant turn.
+        if (r.status === 429) {
+          const u = d?.data?.usage;
+          if (u) setUsage(u);
+          // Backend returns `error: { code, message }` — use .message, not the
+          // object, otherwise it renders as the literal "[object Object]".
+          const errMsg = typeof d?.error === 'string' ? d.error : (d?.error?.message || d?.message);
+          patchLast({ role: 'assistant', content: errMsg || 'Monthly AI limit reached. Resets on the 1st.', cards: [], pending_action: null, error: true, loading: false, streaming: false, toolCalls: [] });
+          return;
+        }
+        // Session expired / auth failure — tell the user to re-auth.
+        if (r.status === 401) {
+          patchLast({ role: 'assistant', content: 'Your session has expired. Please refresh the page and sign in again to keep using KINI.', cards: [], pending_action: null, error: true, loading: false, streaming: false, toolCalls: [] });
+          return;
+        }
+        // Surface the REAL failure (404 → deploy, 5xx → server error) instead of
+        // a blanket apology, so a broken chat is diagnosable.
+        const errText = (d && (typeof d.error === 'object' ? d.error?.message : d.error)) as string | undefined;
+        const reply = d?.data?.text
+          || (!r.ok
+            ? `KINI couldn't complete that (error ${r.status}${errText ? `: ${errText}` : ''}). Please try again in a moment — if it keeps happening, let the team know.`
+            : 'I apologize, but I am unable to process that right now.');
+        const cards = d?.data?.cards || [];
+        // Approval gate: an un-executed write is attached here so a
+        // ConfirmActionCard renders under the reply until the user acts on it.
+        const pending_action = d?.data?.pending_action || null;
+        const u = d?.data?.usage;
+        if (u) setUsage(u);
+        patchLast({ role: 'assistant', content: reply, cards, pending_action, error: !r.ok, loading: false, streaming: false, toolCalls: [] });
+      };
+      const runBuffered = async () => { await applyBuffered(await fetchBuffered()); };
+
+      // ------------------------------------------------------------------
+      // Streaming path (the PRIMARY attempt). Consumes an SSE body frame by
+      // frame. Returns 'done' when it fully rendered the turn (including
+      // rendering an in-band `error` after content), or 'fallback' when nothing
+      // usable arrived and the caller should retry the buffered call.
+      // ------------------------------------------------------------------
+      let gotContent = false; // any token OR card rendered → never silently fall back
+      const consumeStream = async (resp: Response): Promise<'done' | 'fallback'> => {
+        const reader = resp.body!.getReader();
+        const decoder = new TextDecoder();
+        let buf = '';
+        let sawDone = false;
+        let sawError = false;
+        let errorMsg: string | undefined;
+
+        const handle = (evt: string, data: any) => {
+          switch (evt) {
+            case 'start':
+              // Begin the assistant bubble (it already exists as the loading
+              // turn); keep the dots until the first token/card/tool arrives.
+              patchLast({ streaming: true, threadId: data?.thread_id });
+              break;
+            case 'tool_call': {
+              // Live "working" chip. phase:'start' adds it; phase:'done' marks
+              // the matching in-flight chip finished (with its ok flag).
+              const phase = data?.phase;
+              setMsgs(p => p.map((m, i) => {
+                if (i !== p.length - 1) return m;
+                const tcs = Array.isArray(m.toolCalls) ? [...m.toolCalls] : [];
+                if (phase === 'done') {
+                  const idx = tcs.findIndex((t: any) => t.tool === data?.tool && !t.done);
+                  if (idx >= 0) tcs[idx] = { ...tcs[idx], done: true, ok: data?.ok !== false };
+                  else tcs.push({ tool: data?.tool, label: data?.label, done: true, ok: data?.ok !== false });
+                } else {
+                  tcs.push({ tool: data?.tool, label: data?.label, done: false });
+                }
+                return { ...m, loading: false, streaming: true, toolCalls: tcs };
+              }));
+              break;
+            }
+            case 'card':
+              // { type, data } is already the shape KiniCardRenderer expects.
+              if (data && data.type) {
+                gotContent = true;
+                setMsgs(p => p.map((m, i) => (i === p.length - 1
+                  ? { ...m, loading: false, streaming: true, cards: [...(m.cards || []), data] }
+                  : m)));
+              }
+              break;
+            case 'token':
+              if (data && typeof data.text === 'string') {
+                gotContent = true;
+                streamTextRef.current += data.text;
+                scheduleFlush();
+              }
+              break;
+            case 'pending_action':
+              // Same approval gate as the buffered path — ConfirmActionCard renders.
+              if (data) patchLast({ pending_action: data, loading: false, streaming: true });
+              break;
+            case 'usage': {
+              const u = data?.usage ?? data;
+              if (u && typeof u.used === 'number') setUsage(u);
+              break;
+            }
+            case 'done': {
+              // Authoritative final payload — replace the streamed text exactly
+              // (avoids any delta drift) and set final cards / pending_action.
+              cancelFlush();
+              const u = data?.usage;
+              if (u && typeof u.used === 'number') setUsage(u);
+              setMsgs(p => p.map((m, i) => (i === p.length - 1 ? {
+                ...m,
+                role: 'assistant',
+                content: typeof data?.text === 'string' ? data.text : streamTextRef.current,
+                cards: Array.isArray(data?.cards) ? data.cards : (m.cards || []),
+                pending_action: data?.pending_action ?? m.pending_action ?? null,
+                error: false,
+                loading: false,
+                streaming: false,
+                toolCalls: [],
+              } : m)));
+              break;
+            }
+            // 'error' is handled by dispatch() (it decides fallback vs render).
+          }
+        };
+
+        const dispatch = (chunk: string) => {
+          let evt = 'message';
+          const dataLines: string[] = [];
+          for (const rawLine of chunk.split('\n')) {
+            const line = rawLine.replace(/\r$/, '');
+            if (line.startsWith('event:')) evt = line.slice(6).trim();
+            else if (line.startsWith('data:')) dataLines.push(line.slice(5).replace(/^ /, ''));
+          }
+          const dataStr = dataLines.join('\n');
+          let data: any = null;
+          if (dataStr) { try { data = JSON.parse(dataStr); } catch { data = null; } }
+          if (evt === 'done') sawDone = true;
+          if (evt === 'error') { sawError = true; errorMsg = data?.message; return; }
+          handle(evt, data);
+        };
+
+        try {
+          for (;;) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            buf += decoder.decode(value, { stream: true });
+            let sep: number;
+            while ((sep = buf.indexOf('\n\n')) >= 0) {
+              const chunk = buf.slice(0, sep);
+              buf = buf.slice(sep + 2);
+              if (chunk.trim()) dispatch(chunk);
+            }
+          }
+          // Flush a trailing frame that had no terminating blank line.
+          if (buf.trim()) dispatch(buf);
+        } catch {
+          // Network drop mid-stream: fall back only if nothing was shown yet;
+          // otherwise keep the partial reply and stop the indicator.
+          cancelFlush();
+          if (!gotContent) return 'fallback';
+          patchLast({ content: streamTextRef.current, streaming: false, loading: false, toolCalls: [] });
+          return 'done';
+        }
+
+        cancelFlush();
+        if (sawDone) return 'done';
+        if (sawError) {
+          // No tokens/cards yet → retry buffered; otherwise show the message.
+          if (!gotContent) return 'fallback';
+          patchLast({ content: errorMsg || 'Something went wrong. Please try again.', error: true, streaming: false, loading: false, toolCalls: [] });
+          return 'done';
+        }
+        // Stream ended without an explicit done/error frame.
+        if (!gotContent) return 'fallback';
+        patchLast({ content: streamTextRef.current, streaming: false, loading: false, toolCalls: [] });
+        return 'done';
+      };
+
+      // Attempt streaming first. A non-stream / not-ok response is treated
+      // EXACTLY like the buffered path (403 → v1, 429, error, success). Any
+      // setup failure (network, no ReadableStream) drops to the buffered call.
+      try {
+        const sr = await fetch(`${apiBase}${v2StreamEndpoint}`, {
+          method: 'POST',
+          headers: { ...headers, Accept: 'text/event-stream' },
+          body: reqInit.body,
+        });
+        const ct = (sr.headers.get('content-type') || '').toLowerCase();
+        if (sr.ok && ct.includes('text/event-stream') && sr.body) {
+          const outcome = await consumeStream(sr);
+          if (outcome === 'fallback') await runBuffered();
+          return;
+        }
+        // Not an event stream — hand the response to the buffered pipeline.
+        await applyBuffered(await fetchBuffered(sr));
         return;
+      } catch {
+        // Stream endpoint unreachable / body not readable — use buffered.
+        cancelFlush();
       }
-      // Session expired / auth failure — tell the user to re-auth rather than
-      // showing a vague apology that hides the real cause.
-      if (r.status === 401) {
-        setMsgs(p => p.map((m, i) => i === p.length - 1 ? {
-          role: 'assistant',
-          content: 'Your session has expired. Please refresh the page and sign in again to keep using KINI.',
-          error: true,
-        } : m));
-        return;
-      }
-      // Surface the REAL failure instead of a blanket apology: a non-OK response
-      // now shows its status (404 → deploy, 5xx → server error) so a broken chat
-      // is diagnosable rather than silently opaque.
-      const errText = (d && (typeof d.error === 'object' ? d.error?.message : d.error)) as string | undefined;
-      const reply = d?.data?.text
-        || (!r.ok
-          ? `KINI couldn't complete that (error ${r.status}${errText ? `: ${errText}` : ''}). Please try again in a moment — if it keeps happening, let the team know.`
-          : 'I apologize, but I am unable to process that right now.');
-      const cards = d?.data?.cards || [];
-      // Approval gate: when a write needs explicit confirmation the backend
-      // returns the un-executed action here instead of running it. Attach it to
-      // the assistant turn (like `cards`) so a ConfirmActionCard renders under
-      // the reply; it stays unresolved until the user confirms or cancels.
-      const pending_action = d?.data?.pending_action || null;
-      const usage = d?.data?.usage;
-      if (usage) setUsage(usage);
-      setMsgs(p => p.map((m, i) => i === p.length - 1 ? { role: 'assistant', content: reply, cards, pending_action, error: !r.ok } : m));
+
+      await runBuffered();
     } catch (e: any) {
-      setMsgs(p => p.map((m, i) => i === p.length - 1 ? { role: 'assistant', content: `Connectivity Error: ${e.message}`, error: true } : m));
+      cancelFlush();
+      patchLast({ role: 'assistant', content: `Connectivity Error: ${e.message}`, error: true, loading: false, streaming: false, toolCalls: [] });
     } finally { setBusy(false); }
   };
 
@@ -743,7 +928,17 @@ Be elite, professional, and data-driven. Use **bold** for key metrics. Proactive
                     </div>
                   ) : (
                     <>
-                      <div dangerouslySetInnerHTML={{ __html: sanitizeMdHtml(md(m.content)) }} className="km-chat-content" />
+                      {/* Live "working" chips while streaming — one per tool the
+                          agent calls, spinning until its phase:'done' frame. */}
+                      {m.streaming && Array.isArray(m.toolCalls) && m.toolCalls.length > 0 && (
+                        <ToolCallChips calls={m.toolCalls} />
+                      )}
+                      {/* Append a block cursor to the still-streaming text for a
+                          typewriter feel; md() escapes it so it's inert. On the
+                          authoritative `done` frame `streaming` clears and it's gone. */}
+                      {(m.content || !m.streaming) && (
+                        <div dangerouslySetInnerHTML={{ __html: sanitizeMdHtml(md(m.streaming && m.content ? m.content + '▌' : m.content)) }} className="km-chat-content" />
+                      )}
                       {Array.isArray(m.cards) && m.cards.map((c: any, idx: number) => <KiniCardRenderer key={idx} card={c} onAction={(t) => void send(t)} />)}
                       {m.pending_action && (
                         <ConfirmActionCard
@@ -937,6 +1132,43 @@ function ConfirmActionCard({
           )}
         </>
       )}
+    </div>
+  );
+}
+
+// Live tool-activity chips shown inside a streaming assistant bubble. Each chip
+// spins (km-ai-spin) while its tool is running and flips to a check (or an ✕ on
+// failure) when the backend emits the matching `tool_call` phase:'done' frame.
+// KINI red keeps them visually "the assistant's" work regardless of theme.
+function ToolCallChips({ calls }: { calls: any[] }) {
+  if (!Array.isArray(calls) || calls.length === 0) return null;
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+      {calls.map((c, i) => {
+        const failed = c.done && c.ok === false;
+        return (
+          <span
+            key={i}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              fontSize: 11, fontWeight: 600,
+              color: failed ? '#E01E2C' : (c.done ? 'var(--text-dim)' : '#E01E2C'),
+              background: 'color-mix(in srgb, #E01E2C 8%, transparent)',
+              border: '1px solid color-mix(in srgb, #E01E2C 22%, transparent)',
+              borderRadius: 999, padding: '4px 10px',
+            }}
+          >
+            {c.done ? (
+              failed
+                ? <Icon d="M18 6 6 18 M6 6l12 12" size={11} />
+                : <Icon d="M20 6 9 17l-5-5" size={11} />
+            ) : (
+              <span style={{ width: 10, height: 10, border: '2px solid color-mix(in srgb, #E01E2C 30%, transparent)', borderTopColor: '#E01E2C', borderRadius: '50%', display: 'inline-block', animation: 'km-ai-spin .7s linear infinite' }} />
+            )}
+            {c.label || c.tool || 'Working…'}
+          </span>
+        );
+      })}
     </div>
   );
 }
