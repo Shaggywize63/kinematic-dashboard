@@ -11,9 +11,62 @@ import type {
   RiskForecastRow,
   ExpectedSKU,
   PlanogramCompetitor,
+  PlanogramOverview,
+  CaptureListItem,
+  CapturesListResponse,
+  CaptureListParams,
+  DetectionFeedbackBody,
 } from '../types/planogram';
 
 type Wrapped<T> = { success: boolean; data: T };
+
+/** Build a `?a=b&c=d` query string from a params object, skipping
+ *  undefined / null / '' so we never send empty filters. Booleans become
+ *  `true`/`false`; numbers are stringified. */
+function buildQuery(params: Record<string, string | number | boolean | undefined | null>): string {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v === undefined || v === null || v === '') continue;
+    qs.set(k, String(v));
+  }
+  const s = qs.toString();
+  return s ? `?${s}` : '';
+}
+
+/** Adapt a raw /captures response into the pinned `{ total, captures }` shape.
+ *  The current backend returns a bare `Capture[]`; the redesigned endpoint
+ *  returns `{ total, captures }`. Normalize both so callers see one shape and
+ *  the list populates against real data today. */
+function normalizeCapturesResponse(raw: unknown): CapturesListResponse {
+  const data = (raw as { data?: unknown })?.data ?? raw;
+  // Already the new shape.
+  if (data && typeof data === 'object' && Array.isArray((data as { captures?: unknown }).captures)) {
+    const d = data as { total?: number; captures: CaptureListItem[] };
+    return { total: d.total ?? d.captures.length, captures: d.captures };
+  }
+  // Legacy bare-array shape — map each joined Capture into a list item.
+  if (Array.isArray(data)) {
+    const captures = (data as Capture[]).map(captureToListItem);
+    return { total: captures.length, captures };
+  }
+  return { total: 0, captures: [] };
+}
+
+/** Map a joined `Capture` row (legacy list shape) into a `CaptureListItem`.
+ *  Fields the legacy endpoint doesn't return (city, presence, shelf-share,
+ *  needs_review, recovered_count, competitor_present) stay undefined so the UI
+ *  simply omits those signals until the richer endpoint ships. */
+function captureToListItem(c: Capture): CaptureListItem {
+  return {
+    id: c.id,
+    store_id: c.store_id ?? null,
+    store_name: c.store?.name ?? null,
+    category: c.planogram?.name ?? null,
+    captured_at: c.captured_at,
+    fe_name: c.fe?.name ?? null,
+    score: c.compliance?.score ?? null,
+  };
+}
 
 export interface ParsedPlanogramSku {
   sku_id: string;
@@ -98,11 +151,44 @@ export const planogramApi = {
   parseFromImage: (body: { image_base64: string; image_media_type: string }) =>
     api.post<Wrapped<ParsedPlanogram>>('/api/v1/planograms/parse', body),
 
-  // Captures
-  listCaptures: () => api.get<Wrapped<Capture[]>>('/api/v1/planograms/captures'),
+  // ── Redesigned module: Overview + Captures list ─────────────────────────
+  // Mirrors getCapture's URL + auth/org headers (same api client, same base).
+
+  /** Landing-page rollup for the module Overview. Degrades gracefully: the
+   *  backend endpoint may not exist yet, so callers should catch + fall back. */
+  getOverview: (params: { city?: string; period_days?: number } = {}) =>
+    api.get<Wrapped<PlanogramOverview>>(
+      `/api/v1/planograms/overview${buildQuery({ city: params.city, period_days: params.period_days })}`,
+    ),
+
+  // Captures — filterable list. Returns the normalized `{ total, captures }`
+  // shape regardless of which backend version answers.
+  listCaptures: (params: CaptureListParams = {}): Promise<Wrapped<CapturesListResponse>> => {
+    const query = buildQuery({
+      city: params.city,
+      store_id: params.store_id,
+      needs_review: params.needs_review,
+      min_score: params.min_score,
+      max_score: params.max_score,
+      limit: params.limit,
+      offset: params.offset,
+    });
+    return api
+      .get<unknown>(`/api/v1/planograms/captures${query}`)
+      .then((raw) => ({ success: true, data: normalizeCapturesResponse(raw) }));
+  },
   getCapture: (id: string) =>
     api.get<Wrapped<{ capture: Capture; recognition: Recognition; compliance: Compliance }>>(
       `/api/v1/planograms/captures/${id}`,
+    ),
+
+  /** Detection-level feedback for the review/feedback loop (wired now for the
+   *  next phase's capture-detail redesign). Body: {sku_id?, bbox?, reason,
+   *  correct_sku_id?, note?}. */
+  submitDetectionFeedback: (captureId: string, body: DetectionFeedbackBody) =>
+    api.post<Wrapped<{ id: string }>>(
+      `/api/v1/planograms/captures/${captureId}/detection-feedback`,
+      body,
     ),
 
   submitFeedback: (

@@ -158,7 +158,7 @@ export default function NewPlanogramPage() {
             Upload a brand planogram image — AI extracts the shelf layout for you to review.
           </div>
         </div>
-        <button onClick={() => router.push('/dashboard/planograms')} style={btnSecondary}>Cancel</button>
+        <button onClick={() => router.push('/dashboard/planograms/library')} style={btnSecondary}>Cancel</button>
       </div>
 
       {error && (

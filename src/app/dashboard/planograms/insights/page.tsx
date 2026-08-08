@@ -46,13 +46,8 @@ export default function PlanogramInsightsPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div>
-        <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 22, fontWeight: 800 }}>
-          Planogram Insights
-        </div>
-        <div style={{ fontSize: 13, color: C.gray, marginTop: 3 }}>
-          Predictive intelligence — chronic gaps, risk forecast, SKU visibility.
-        </div>
+      <div style={{ fontSize: 13, color: 'var(--text-dim)' }}>
+        Predictive intelligence — chronic gaps, risk forecast, SKU visibility.
       </div>
 
       {error && (
