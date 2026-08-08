@@ -163,7 +163,7 @@ export default function PlanogramDetailPage() {
     setSaving(true);
     try {
       await planogramApi.remove(id);
-      router.push('/dashboard/planograms');
+      router.push('/dashboard/planograms/library');
     } catch (e: any) {
       setError(e.message || 'Failed to delete.');
       setSaving(false);
@@ -200,7 +200,7 @@ export default function PlanogramDetailPage() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
           <Link
-            href="/dashboard/planograms"
+            href="/dashboard/planograms/library"
             style={{
               fontSize: 11,
               color: C.gray,

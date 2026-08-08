@@ -282,3 +282,89 @@ export interface RiskForecastRow {
   slope: number;
   risk: number;
 }
+
+// ── Redesigned module: Overview + Captures list contracts ───────────────────
+// These mirror the pinned backend contract for the new planogram module shell.
+// Every field is optional/nullable so the UI degrades gracefully while the
+// backend endpoints are being built out (they can be sparse or absent).
+
+/** One point on the Overview compliance-trend mini chart. */
+export interface OverviewTrendPoint {
+  date: string;
+  avg_score: number;
+}
+
+/** A low-scoring / flagged capture surfaced in the Overview "Needs attention". */
+export interface NeedsAttentionItem {
+  capture_id: string;
+  store_name?: string | null;
+  score?: number | null;
+  reason?: string | null;
+}
+
+/** A row in the Overview "Recent captures" table. */
+export interface OverviewRecentItem {
+  capture_id: string;
+  store_name?: string | null;
+  category?: string | null;
+  captured_at: string;
+  score?: number | null;
+  recovered_count?: number | null;
+  needs_review?: boolean;
+  competitor_present?: boolean;
+}
+
+/** Response of GET /api/v1/planograms/overview. */
+export interface PlanogramOverview {
+  avg_compliance?: number | null;
+  own_shelf_share?: number | null;
+  captures_count?: number | null;
+  stores_count?: number | null;
+  flagged_count?: number | null;
+  trend?: OverviewTrendPoint[];
+  needs_attention?: NeedsAttentionItem[];
+  recent?: OverviewRecentItem[];
+}
+
+/** A row in the Captures list / Review queue tables. */
+export interface CaptureListItem {
+  id: string;
+  store_id?: string | null;
+  store_name?: string | null;
+  city?: string | null;
+  category?: string | null;
+  captured_at: string;
+  fe_name?: string | null;
+  score?: number | null;
+  presence_score?: number | null;
+  shelf_share_own?: number | null;
+  needs_review?: boolean;
+  recovered_count?: number | null;
+  competitor_present?: boolean;
+}
+
+/** Normalized response of GET /api/v1/planograms/captures. */
+export interface CapturesListResponse {
+  total: number;
+  captures: CaptureListItem[];
+}
+
+/** Filters accepted by the captures list endpoint. */
+export interface CaptureListParams {
+  city?: string;
+  store_id?: string;
+  needs_review?: boolean;
+  min_score?: number;
+  max_score?: number;
+  limit?: number;
+  offset?: number;
+}
+
+/** Body for POST /api/v1/planograms/captures/:id/detection-feedback (next phase). */
+export interface DetectionFeedbackBody {
+  sku_id?: string;
+  bbox?: number[];
+  reason: string;
+  correct_sku_id?: string;
+  note?: string;
+}

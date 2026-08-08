@@ -1,237 +1,221 @@
 'use client';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import planogramApi from '../../../../lib/planogramApi';
-import type { Capture } from '../../../../types/planogram';
+import { useCityScope } from '../../../../context/CityScopeContext';
+import type { CaptureListItem } from '../../../../types/planogram';
+import {
+  PC,
+  fmtDate,
+  fmtPct,
+  ScorePill,
+  CaptureFlags,
+  SectionCard,
+  StateBlock,
+  selyStyle,
+  TableScroll,
+  th,
+  thR,
+  td,
+  tdR,
+} from '../_components/planogramUi';
 
-const C = {
-  red: '#E01E2C',
-  green: '#00D97E',
-  yellow: '#FFB800',
-  blue: '#3E9EFF',
-  gray: 'var(--textSec)',
-  grayd: 'var(--textTert)',
-  s2: 'var(--s2)',
-  border: 'var(--border)',
-};
+type ScoreBand = 'any' | 'good' | 'warn' | 'bad';
+type FlagFilter = 'any' | 'recovered' | 'review' | 'competitor';
 
-export default function CapturesListPage() {
-  const [captures, setCaptures] = useState<Capture[]>([]);
+const SCORE_BANDS: { value: ScoreBand; label: string; min?: number; max?: number }[] = [
+  { value: 'any', label: 'Score: any' },
+  { value: 'good', label: 'Score: 80+', min: 80 },
+  { value: 'warn', label: 'Score: 65–79', min: 65, max: 79 },
+  { value: 'bad', label: 'Score: < 65', max: 64 },
+];
+
+const FLAG_FILTERS: { value: FlagFilter; label: string }[] = [
+  { value: 'any', label: 'Flags: all' },
+  { value: 'recovered', label: 'Recovered' },
+  { value: 'review', label: 'Needs review' },
+  { value: 'competitor', label: 'Competitor' },
+];
+
+export default function CapturesPage() {
+  const { selectedCity } = useCityScope();
+  const router = useRouter();
+
+  const [storeId, setStoreId] = useState('');
+  const [scoreBand, setScoreBand] = useState<ScoreBand>('any');
+  const [flag, setFlag] = useState<FlagFilter>('any');
+
+  const [rows, setRows] = useState<CaptureListItem[]>([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const fetch = useCallback(async () => {
+  // Store dropdown options — captured from the unfiltered-by-store result so
+  // they stay stable while a store filter is active.
+  const [storeOptions, setStoreOptions] = useState<{ id: string; name: string }[]>([]);
+  const storeOptionsRef = useRef<{ id: string; name: string }[]>([]);
+
+  // Reset the store filter when the city scope changes (a store may not exist
+  // in the newly-scoped city).
+  useEffect(() => {
+    setStoreId('');
+  }, [selectedCity]);
+
+  const band = SCORE_BANDS.find((b) => b.value === scoreBand);
+
+  const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await planogramApi.listCaptures();
-      setCaptures(res.data || []);
+      const res = await planogramApi.listCaptures({
+        city: selectedCity || undefined,
+        store_id: storeId || undefined,
+        needs_review: flag === 'review' ? true : undefined,
+        min_score: band?.min,
+        max_score: band?.max,
+        limit: 500,
+      });
+      const captures = res.data.captures || [];
+      setRows(captures);
+      setTotal(res.data.total ?? captures.length);
+      // Refresh store options only from the store-unfiltered result.
+      if (!storeId) {
+        const map = new Map<string, string>();
+        for (const c of captures) {
+          if (c.store_id) map.set(c.store_id, c.store_name || c.store_id);
+        }
+        const opts = Array.from(map.entries()).map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+        storeOptionsRef.current = opts;
+        setStoreOptions(opts);
+      }
       setError('');
     } catch (e: any) {
-      setError(e.message || 'Failed to load captures');
+      setError(e?.message || 'Failed to load captures');
+      setRows([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedCity, storeId, flag, band?.min, band?.max]);
 
   useEffect(() => {
-    fetch();
-  }, [fetch]);
+    load();
+  }, [load]);
+
+  // Client-side safety net so every control filters even if the backend ignores
+  // the query params (recovered / competitor have no server param at all).
+  const filtered = useMemo(() => {
+    return rows.filter((c) => {
+      if (storeId && c.store_id !== storeId) return false;
+      if (band?.min != null && (c.score == null || c.score < band.min)) return false;
+      if (band?.max != null && (c.score == null || c.score > band.max)) return false;
+      if (flag === 'review' && !c.needs_review) return false;
+      if (flag === 'recovered' && !(c.recovered_count && c.recovered_count > 0)) return false;
+      if (flag === 'competitor' && !c.competitor_present) return false;
+      return true;
+    });
+  }, [rows, storeId, band?.min, band?.max, flag]);
+
+  const filtersActive = !!storeId || scoreBand !== 'any' || flag !== 'any';
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div>
-          <Link
-            href="/dashboard/planograms"
-            style={{
-              fontSize: 11,
-              color: C.gray,
-              textDecoration: 'none',
-              letterSpacing: 1,
-              textTransform: 'uppercase',
-            }}
-          >
-            ← AI Planogram Engine
-          </Link>
-          <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 22, fontWeight: 800, marginTop: 4 }}>
-            Shelf captures
-          </div>
-          <div style={{ fontSize: 13, color: C.gray, marginTop: 3 }}>
-            History of field audits, AI recognition, and compliance scores.
-          </div>
+    <SectionCard
+      title="Captures"
+      caption={
+        loading
+          ? 'Loading…'
+          : `${filtered.length}${filtered.length !== total && !filtersActive ? ` of ${total}` : ''} capture${
+              filtered.length === 1 ? '' : 's'
+            } · click a row to open the audit`
+      }
+      right={
+        <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
+          <select value={storeId} onChange={(e) => setStoreId(e.target.value)} style={selyStyle} aria-label="Store">
+            <option value="">All stores</option>
+            {storeOptions.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+          <select value={scoreBand} onChange={(e) => setScoreBand(e.target.value as ScoreBand)} style={selyStyle} aria-label="Score band">
+            {SCORE_BANDS.map((b) => (
+              <option key={b.value} value={b.value}>
+                {b.label}
+              </option>
+            ))}
+          </select>
+          <select value={flag} onChange={(e) => setFlag(e.target.value as FlagFilter)} style={selyStyle} aria-label="Flags">
+            {FLAG_FILTERS.map((f) => (
+              <option key={f.value} value={f.value}>
+                {f.label}
+              </option>
+            ))}
+          </select>
         </div>
-        <button
-          onClick={fetch}
-          style={{
-            padding: '9px 16px',
-            background: C.s2,
-            border: `1px solid ${C.border}`,
-            color: C.gray,
-            borderRadius: 10,
-            fontSize: 13,
-            fontWeight: 600,
-            cursor: 'pointer',
-            fontFamily: "'DM Sans',sans-serif",
-          }}
-        >
-          Refresh
-        </button>
-      </div>
-
-      {error && (
-        <div
-          style={{
-            background: 'rgba(224,30,44,0.08)',
-            border: '1px solid rgba(224,30,44,0.2)',
-            borderRadius: 12,
-            padding: '12px 16px',
-            fontSize: 13,
-            color: C.red,
-          }}
-        >
-          {error}
-        </div>
-      )}
-
-      {/* Grid */}
-      {loading ? (
-        <div style={{ padding: 48, textAlign: 'center', color: C.grayd, fontSize: 14 }}>Loading…</div>
-      ) : captures.length === 0 ? (
-        <div
-          style={{
-            background: 'var(--s1)',
-            border: `1px solid ${C.border}`,
-            borderRadius: 16,
-            padding: 48,
-            textAlign: 'center',
-            color: C.grayd,
-            fontSize: 14,
-          }}
-        >
-          No captures yet. Start auditing shelves from the mobile app.
-        </div>
-      ) : (
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
-            gap: 16,
-          }}
-        >
-          {captures.map((c) => (
-            <CaptureCard key={c.id} capture={c} />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function CaptureCard({ capture }: { capture: Capture }) {
-  const score = capture.compliance?.score ?? 0;
-  const color = score >= 80 ? C.green : score >= 65 ? C.yellow : C.red;
-
-  return (
-    <Link
-      href={`/dashboard/planograms/captures/${capture.id}`}
-      style={{
-        background: 'var(--s1)',
-        border: `1px solid ${C.border}`,
-        borderRadius: 16,
-        overflow: 'hidden',
-        textDecoration: 'none',
-        color: 'inherit',
-        display: 'flex',
-        flexDirection: 'column',
-        transition: 'transform 0.15s ease',
-      }}
-      onMouseEnter={(e) => (e.currentTarget.style.transform = 'translateY(-2px)')}
-      onMouseLeave={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
+      }
+      bodyPad={false}
     >
-      <div style={{ position: 'relative', width: '100%', paddingTop: '65%', background: '#000' }}>
-        <img
-          src={capture.image_url}
-          alt="Shelf capture"
-          style={{
-            position: 'absolute',
-            inset: 0,
-            width: '100%',
-            height: '100%',
-            objectFit: 'cover',
-            opacity: 0.9,
-          }}
-        />
-        <div
-          style={{
-            position: 'absolute',
-            top: 12,
-            right: 12,
-            background: 'rgba(0,0,0,0.6)',
-            backdropFilter: 'blur(8px)',
-            borderRadius: 20,
-            padding: '4px 10px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            border: '1px solid rgba(255,255,255,0.15)',
-          }}
-        >
-          <div style={{ width: 6, height: 6, borderRadius: 3, background: color }} />
-          <span style={{ color: '#fff', fontSize: 13, fontWeight: 800 }}>{score}%</span>
+      {error ? (
+        <div style={{ padding: 16 }}>
+          <StateBlock tone="error">{error}</StateBlock>
         </div>
-      </div>
-
-      <div style={{ padding: 16, flex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <div>
-          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 2 }}>
-            {capture.store?.name || `Store ${capture.store_id?.slice(0, 8)}…`}
-          </div>
-          <div style={{ fontSize: 11, color: C.gray }}>
-            {capture.planogram?.name || 'Unknown planogram'}
-          </div>
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 'auto' }}>
-          <div>
-            <div style={{ fontSize: 9, color: C.grayd, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-              Auditor
-            </div>
-            <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--textSec)', marginTop: 2 }}>
-              {capture.fe?.name || 'FE Executive'}
-            </div>
-          </div>
-          <div>
-            <div style={{ fontSize: 9, color: C.grayd, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-              Time
-            </div>
-            <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--textSec)', marginTop: 2 }}>
-              {new Date(capture.captured_at).toLocaleTimeString([], {
-                hour: '2-digit',
-                minute: '2-digit',
-              })}
-            </div>
-          </div>
-        </div>
-
-        <div
-          style={{
-            paddingTop: 12,
-            borderTop: `1px solid ${C.border}40`,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span style={{ fontSize: 11, color: C.grayd }}>📍</span>
-            <span style={{ fontSize: 11, color: C.grayd, fontFamily: 'monospace' }}>
-              {capture.capture_lat?.toFixed(4)}, {capture.capture_lng?.toFixed(4)}
-            </span>
-          </div>
-          <span style={{ fontSize: 11, color: C.gray, fontWeight: 600 }}>View details →</span>
-        </div>
-      </div>
-    </Link>
+      ) : loading ? (
+        <StateBlock>Loading captures…</StateBlock>
+      ) : filtered.length === 0 ? (
+        <StateBlock>
+          {filtersActive ? 'No captures match these filters.' : 'No captures yet. Field executives audit shelves from the mobile app.'}
+        </StateBlock>
+      ) : (
+        <TableScroll>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 820 }}>
+            <thead>
+              <tr>
+                <th style={th}>Store</th>
+                <th style={th}>Bay</th>
+                <th style={th}>Auditor</th>
+                <th style={th}>Date</th>
+                <th style={thR}>Score</th>
+                <th style={thR}>Own share</th>
+                <th style={th}>Flags</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((c) => (
+                <tr
+                  key={c.id}
+                  data-clickable="true"
+                  onClick={() => router.push(`/dashboard/planograms/captures/${c.id}`)}
+                >
+                  <td style={td}>
+                    <Link
+                      href={`/dashboard/planograms/captures/${c.id}`}
+                      style={{ color: PC.text, fontWeight: 600, textDecoration: 'none' }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {c.store_name || 'Unknown store'}
+                    </Link>
+                    {c.city && <div style={{ fontSize: 11, color: PC.muted }}>{c.city}</div>}
+                  </td>
+                  <td style={{ ...td, color: PC.muted }}>{c.category || '—'}</td>
+                  <td style={{ ...td, color: PC.muted }}>{c.fe_name || 'FE Executive'}</td>
+                  <td style={{ ...td, color: PC.muted, whiteSpace: 'nowrap' }}>{fmtDate(c.captured_at)}</td>
+                  <td style={tdR}>
+                    <ScorePill score={c.score} />
+                  </td>
+                  <td style={{ ...tdR, color: PC.muted }}>{fmtPct(c.shelf_share_own)}</td>
+                  <td style={td}>
+                    <CaptureFlags
+                      recovered_count={c.recovered_count}
+                      needs_review={c.needs_review}
+                      competitor_present={c.competitor_present}
+                    />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </TableScroll>
+      )}
+    </SectionCard>
   );
 }
