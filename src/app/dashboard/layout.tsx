@@ -426,6 +426,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pmcHideActive =
     userClientId === PMC_CLIENT_ID || pickerClientId === PMC_CLIENT_ID ||
     userOrgId === PMC_ORG_ID || (actingAs as any)?.org_id === PMC_ORG_ID;
+  // MoiSoi — a retail-execution (planogram) demo tenant. Hides the Business
+  // and People & Support sections wholesale (it doesn't use them). Driven by
+  // MoiSoi's client OR org id (same bound-client-OR-picker-OR-org membership
+  // logic used for PMC/Tata above), so the MoiSoi client-admin is covered too.
+  const MOISOI_CLIENT_ID = 'd0000000-0000-4000-a000-000000000002';
+  const MOISOI_ORG_ID = 'd0000000-0000-4000-a000-000000000001';
+  const moisoiHideActive =
+    userClientId === MOISOI_CLIENT_ID || pickerClientId === MOISOI_CLIENT_ID ||
+    userOrgId === MOISOI_ORG_ID || (actingAs as any)?.org_id === MOISOI_ORG_ID;
 
   const filterNav = (items: any[]) => {
     const visibleAfterRole = items.filter((i) => !i.superAdminOnly || isSuperAdmin);
@@ -467,6 +476,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     // PM Corporation: lean distribution + field-force nav — drop Lead
     // Management, Business and People & Support sections wholesale.
     if (pmcHideActive && ['crm', 'business', 'people'].includes(pkg)) return false;
+    // MoiSoi: retail-execution demo tenant — drop the Business and People &
+    // Support sections wholesale. Placed before the platform-admin bypass
+    // below so the MoiSoi client-admin loses them too, not just its reps.
+    if (moisoiHideActive && ['business', 'people'].includes(pkg)) return false;
     // A scoped viewer shows a section only if it contains at least one module
     // its role grants — so the SRS+BMW Lead Viewer sees just the CRM section.
     if (isViewer) return items.some((i: any) => hasModule(i.module));

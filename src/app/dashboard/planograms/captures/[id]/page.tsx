@@ -215,7 +215,7 @@ export default function CaptureDetailPage() {
       setFeedbackState({});
       feedbackInFlight.current.clear();
       setError('');
-      toast.success('Analysis updated — results reflect the latest AI pass.');
+      toast.success('Analysis updated — results reflect the latest KINI AI pass.');
     } catch (e) {
       toast.error((e as Error)?.message || 'Re-analysis failed. Please try again.');
     } finally {
@@ -226,10 +226,6 @@ export default function CaptureDetailPage() {
 
   // ── Derived data (all null-safe for older captures) ───────────────────────
   const detected = useMemo(() => recognition?.detected_skus || [], [recognition]);
-  const missingIds = useMemo(
-    () => new Set(compliance?.missing_skus.map((m) => m.sku_id) || []),
-    [compliance],
-  );
   const method = compliance?.methodology;
 
   // SKUs the first vision pass missed but a second targeted recall pass found.
@@ -329,7 +325,6 @@ export default function CaptureDetailPage() {
   const missingList = compliance?.missing_skus || [];
   const expectedSkuCount = new Set([...matchedOwn, ...missingList.map((m) => m.sku_id)]).size;
   const shelfCount = recognition?.shelf_map?.shelf_count;
-  const missingCount = missingList.length;
 
   const competitorFacings = detected
     .filter((d) => d.is_competitor)
@@ -502,7 +497,7 @@ export default function CaptureDetailPage() {
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: isCompact ? 'repeat(2, 1fr)' : 'repeat(6, 1fr)',
+            gridTemplateColumns: isCompact ? 'repeat(2, 1fr)' : 'repeat(5, 1fr)',
             gap: 9,
           }}
         >
@@ -522,13 +517,6 @@ export default function CaptureDetailPage() {
             pctValue
             metricTone
             sub="own vs competitor"
-          />
-          <KpiTile
-            label="Not on shelf"
-            value={missingCount}
-            color={missingCount > 0 ? C.red : C.green}
-            meterPct={expectedSkuCount > 0 ? Math.min(100, (missingCount / expectedSkuCount) * 100) : missingCount > 0 ? 100 : 0}
-            sub="likely out of stock"
           />
         </div>
       )}
@@ -558,7 +546,6 @@ export default function CaptureDetailPage() {
               <PlanogramShelfOverlay
                 imageUrl={capture.image_url}
                 detectedSkus={recognition.detected_skus}
-                missingSkuIds={missingIds}
                 promotions={recognition.promotions}
               />
             ) : (
@@ -585,19 +572,6 @@ export default function CaptureDetailPage() {
               At a glance
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 11 }}>
-              <Finding
-                count={missingCount}
-                tone={missingCount > 0 ? 'bad' : 'good'}
-                title="Not on shelf"
-                detail={
-                  missingCount > 0
-                    ? `Likely out of stock — ${missingList
-                        .slice(0, 4)
-                        .map((m) => m.sku_name)
-                        .join(', ')}${missingCount > 4 ? `, +${missingCount - 4} more` : ''}`
-                    : 'Every expected SKU was found on the shelf'
-                }
-              />
               <Finding
                 count={competitorRows.length}
                 tone={competitorRows.length > 0 ? 'brand' : 'good'}
@@ -746,7 +720,6 @@ export default function CaptureDetailPage() {
             onConfirm={handleConfirmDetection}
             onSubmitFeedback={handleSubmitFeedback}
             knownSkus={knownSkus}
-            missing={missingList}
             misplaced={compliance?.misplaced_skus || []}
             isCompact={isCompact}
           />
@@ -815,7 +788,7 @@ function ReanalyzeButton({ busy, onRun }: { busy: boolean; onRun: () => void }) 
         disabled={busy}
         aria-busy={busy}
         aria-expanded={confirmOpen}
-        title="Re-run the AI recognition + scoring on this capture's photo"
+        title="Re-run KINI AI recognition + scoring on this capture's photo"
         style={btnBase}
       >
         {busy ? (
@@ -860,7 +833,7 @@ function ReanalyzeButton({ busy, onRun }: { busy: boolean; onRun: () => void }) 
           >
             <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)' }}>Re-analyze this capture?</div>
             <div style={{ fontSize: 12, color: C.gray, marginTop: 6, lineHeight: 1.5 }}>
-              Re-run the AI analysis on this capture&apos;s photo. Results may change, and this uses an AI credit.
+              Re-run the KINI AI analysis on this capture&apos;s photo. Results may change, and this uses a KINI AI credit.
             </div>
             <div style={{ display: 'flex', gap: 8, marginTop: 12, justifyContent: 'flex-end' }}>
               <button
@@ -1030,7 +1003,6 @@ function SkusTab({
   onConfirm,
   onSubmitFeedback,
   knownSkus,
-  missing,
   misplaced,
   isCompact,
 }: {
@@ -1044,15 +1016,14 @@ function SkusTab({
     partial: { reason: FeedbackReason; correct_sku_id?: string; note?: string },
   ) => void;
   knownSkus: Map<string, string>;
-  missing: Compliance['missing_skus'];
   misplaced: Compliance['misplaced_skus'];
   isCompact: boolean;
 }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <Panel
-        title="Detected SKUs — is the AI right?"
-        subtitle="Confirm a correct detection to save its crop as a new reference pack-shot, or give feedback to teach the model. Recovered & low-confidence detections are sorted first."
+        title="Detected SKUs — is KINI AI right?"
+        subtitle="Confirm a correct detection to save its crop as a new reference pack-shot, or give feedback to teach KINI AI. Recovered & low-confidence detections are sorted first."
       >
         {rows.length === 0 ? (
           <EmptyLine>No SKUs were detected on this shelf.</EmptyLine>
@@ -1072,26 +1043,12 @@ function SkusTab({
         )}
       </Panel>
 
-      {(missing.length > 0 || misplaced.length > 0) && (
-        <div style={{ display: 'grid', gridTemplateColumns: isCompact ? '1fr' : '1fr 1fr', gap: 14 }}>
-          {missing.length > 0 && (
-            <Panel
-              title={`Not found on shelf (${missing.length})`}
-              subtitle="Likely out of stock — recognition already ran a second targeted pass, so these are probably genuine gaps rather than recognition misses."
-            >
-              {missing.map((m) => (
-                <Row key={m.sku_id} left={m.sku_name} right={`${m.expected_facings} expected`} />
-              ))}
-            </Panel>
-          )}
-          {misplaced.length > 0 && (
-            <Panel title={`Misplaced (${misplaced.length})`} subtitle="Detected on the wrong shelf band">
-              {misplaced.map((m) => (
-                <Row key={m.sku_id} left={m.sku_name} right={`shelf ${m.actual_shelf} → ${m.expected_shelf}`} />
-              ))}
-            </Panel>
-          )}
-        </div>
+      {misplaced.length > 0 && (
+        <Panel title={`Misplaced (${misplaced.length})`} subtitle="Detected on the wrong shelf band">
+          {misplaced.map((m) => (
+            <Row key={m.sku_id} left={m.sku_name} right={`shelf ${m.actual_shelf} → ${m.expected_shelf}`} />
+          ))}
+        </Panel>
       )}
     </div>
   );
@@ -1219,7 +1176,7 @@ function DetectionRow({
             }}
           >
             {confirmDone ? (
-              <span style={doneMsgStyle}>✓ Saved as reference — the model will use this photo</span>
+              <span style={doneMsgStyle}>✓ Saved as reference — KINI AI will use this photo</span>
             ) : (
               <>
                 <button
@@ -1240,7 +1197,7 @@ function DetectionRow({
                   type="button"
                   onClick={() => setFormOpen(true)}
                   style={actionBtnStyle('fix', false)}
-                  title="Tell the model what it got wrong"
+                  title="Tell KINI AI what it got wrong"
                 >
                   ✎ Fix
                 </button>
@@ -1260,7 +1217,7 @@ function DetectionRow({
       {/* Feedback confirmation */}
       {fbDone && (
         <div style={{ ...doneMsgStyle, marginTop: 8 }}>
-          ✓ Thanks — feedback saved. The model will learn from this.
+          ✓ Thanks — feedback saved. KINI AI will learn from this.
         </div>
       )}
 
@@ -1276,7 +1233,7 @@ function DetectionRow({
           }}
         >
           <div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 9 }}>
-            What did the AI get wrong?
+            What did KINI AI get wrong?
           </div>
           <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginBottom: 11 }}>
             {REASONS.map((r) => {
@@ -1344,7 +1301,7 @@ function DetectionRow({
             )}
           </div>
           <div style={{ fontSize: 11, color: C.gray, marginTop: 9 }}>
-            Feedback trains recognition — repeated corrections become new references so it improves over
+            Feedback trains KINI AI — repeated corrections become new references so it improves over
             time.
           </div>
         </div>
