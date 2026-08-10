@@ -2,6 +2,7 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import { toast } from 'sonner';
 import planogramApi from '../../../../../lib/planogramApi';
 import PlanogramShelfOverlay, { categoryColor } from '../../../../../components/PlanogramShelfOverlay';
 import { PC, scoreTone, toneColor, fmtDateTime } from '../../_components/planogramUi';
@@ -95,6 +96,12 @@ export default function CaptureDetailPage() {
   const [error, setError] = useState('');
   const [tab, setTab] = useState<TabKey>('overview');
 
+  // "Re-analyze": re-run the AI on the stored image to bring an older capture up
+  // to the current analysis. A ref-backed guard blocks double-clicks even before
+  // React re-renders the disabled button.
+  const [reprocessing, setReprocessing] = useState(false);
+  const reprocessInFlight = useRef(false);
+
   // "Confirm & save as reference": per-detection status keyed by the detection's
   // index in recognition.detected_skus (stable within a load). A ref-backed set
   // of in-flight keys guards against double-submits even before a re-render.
@@ -184,6 +191,38 @@ export default function CaptureDetailPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Re-run recognition + scoring on the stored image and swap in the fresh rows.
+  // Resets the per-detection confirm/feedback state, whose keys (detection index)
+  // no longer match the new detections.
+  const handleReprocess = useCallback(async () => {
+    if (!id) return;
+    if (reprocessInFlight.current) return; // double-submit guard
+    reprocessInFlight.current = true;
+    setReprocessing(true);
+    try {
+      const r = await planogramApi.reprocessCapture(id);
+      if (r?.data?.capture) {
+        setCapture(r.data.capture);
+        setRecognition(r.data.recognition);
+        setCompliance(r.data.compliance);
+      } else {
+        // Unexpected shape — fall back to a fresh fetch so the page still updates.
+        await load();
+      }
+      setConfirmState({});
+      confirmInFlight.current.clear();
+      setFeedbackState({});
+      feedbackInFlight.current.clear();
+      setError('');
+      toast.success('Analysis updated — results reflect the latest AI pass.');
+    } catch (e) {
+      toast.error((e as Error)?.message || 'Re-analysis failed. Please try again.');
+    } finally {
+      reprocessInFlight.current = false;
+      setReprocessing(false);
+    }
+  }, [id, load]);
 
   // ── Derived data (all null-safe for older captures) ───────────────────────
   const detected = useMemo(() => recognition?.detected_skus || [], [recognition]);
@@ -336,7 +375,7 @@ export default function CaptureDetailPage() {
       {/* Panel fade — respects prefers-reduced-motion. */}
       <style
         dangerouslySetInnerHTML={{
-          __html: `.pg-fade{animation:pgFade .18s ease}@keyframes pgFade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}@media(prefers-reduced-motion:reduce){.pg-fade{animation:none}}`,
+          __html: `.pg-fade{animation:pgFade .18s ease}@keyframes pgFade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}.pg-spin{animation:pgSpin .7s linear infinite;transform-origin:center}@keyframes pgSpin{to{transform:rotate(360deg)}}@media(prefers-reduced-motion:reduce){.pg-fade{animation:none}.pg-spin{animation:none}}`,
         }}
       />
 
@@ -403,8 +442,10 @@ export default function CaptureDetailPage() {
           </div>
         </div>
 
-        {/* Compliance score ring */}
-        {compliance && (
+        {/* Right-side actions: Re-analyze + compliance score ring */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'flex-end' }}>
+          <ReanalyzeButton busy={reprocessing} onRun={handleReprocess} />
+          {compliance && (
           <div
             style={{
               display: 'flex',
@@ -452,7 +493,8 @@ export default function CaptureDetailPage() {
               )}
             </div>
           </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* ── 2. KPI strip ───────────────────────────────────────────────────── */}
@@ -730,6 +772,149 @@ export default function CaptureDetailPage() {
         {tab === 'methodology' && <MethodologyTab compliance={compliance} method={method} />}
       </div>
     </div>
+  );
+}
+
+// ── Re-analyze control ───────────────────────────────────────────────────────
+
+/** "Re-analyze" action: brings an older capture up to the current AI analysis.
+ *  Owns its own confirm popover; the parent owns the async run + busy state and
+ *  guards double-clicks. Uses an AI credit, so the click is gated behind a
+ *  confirm step. */
+function ReanalyzeButton({ busy, onRun }: { busy: boolean; onRun: () => void }) {
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  // While a run is in flight, keep the popover closed.
+  useEffect(() => {
+    if (busy) setConfirmOpen(false);
+  }, [busy]);
+
+  const btnBase: React.CSSProperties = {
+    appearance: 'none',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 7,
+    padding: '8px 13px',
+    borderRadius: 9,
+    fontSize: 13,
+    fontWeight: 700,
+    fontFamily: "'DM Sans',sans-serif",
+    whiteSpace: 'nowrap',
+    cursor: busy ? 'default' : 'pointer',
+    background: 'var(--s1)',
+    border: `1px solid ${C.border}`,
+    color: busy ? C.gray : 'var(--text)',
+    opacity: busy ? 0.7 : 1,
+  };
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <button
+        type="button"
+        onClick={busy ? undefined : () => setConfirmOpen((o) => !o)}
+        disabled={busy}
+        aria-busy={busy}
+        aria-expanded={confirmOpen}
+        title="Re-run the AI recognition + scoring on this capture's photo"
+        style={btnBase}
+      >
+        {busy ? (
+          <>
+            <Spinner />
+            Analyzing…
+          </>
+        ) : (
+          <>
+            <span aria-hidden style={{ fontSize: 14, lineHeight: 0 }}>
+              ↻
+            </span>
+            Re-analyze
+          </>
+        )}
+      </button>
+
+      {confirmOpen && !busy && (
+        <>
+          <div
+            onClick={() => setConfirmOpen(false)}
+            style={{ position: 'fixed', inset: 0, zIndex: 40, background: 'transparent' }}
+            aria-hidden
+          />
+          <div
+            role="dialog"
+            aria-label="Confirm re-analysis"
+            style={{
+              position: 'absolute',
+              top: 'calc(100% + 8px)',
+              right: 0,
+              zIndex: 41,
+              width: 300,
+              maxWidth: '92vw',
+              background: 'var(--s1)',
+              border: `1px solid ${C.border}`,
+              borderRadius: 12,
+              boxShadow: '0 12px 32px rgba(16,20,30,0.18)',
+              padding: 14,
+              textAlign: 'left',
+            }}
+          >
+            <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)' }}>Re-analyze this capture?</div>
+            <div style={{ fontSize: 12, color: C.gray, marginTop: 6, lineHeight: 1.5 }}>
+              Re-run the AI analysis on this capture&apos;s photo. Results may change, and this uses an AI credit.
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginTop: 12, justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                onClick={() => setConfirmOpen(false)}
+                style={{
+                  appearance: 'none',
+                  border: `1px solid ${C.border}`,
+                  background: 'var(--s1)',
+                  color: C.gray,
+                  borderRadius: 8,
+                  padding: '6px 12px',
+                  fontSize: 12.5,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setConfirmOpen(false);
+                  onRun();
+                }}
+                style={{
+                  appearance: 'none',
+                  border: 0,
+                  background: C.brand,
+                  color: '#fff',
+                  borderRadius: 8,
+                  padding: '6px 12px',
+                  fontSize: 12.5,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                Re-analyze
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/** Small rotating spinner (respects prefers-reduced-motion via `.pg-spin`). */
+function Spinner() {
+  return (
+    <svg width={13} height={13} viewBox="0 0 24 24" fill="none" aria-hidden className="pg-spin">
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeOpacity={0.25} strokeWidth={3} />
+      <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth={3} strokeLinecap="round" />
+    </svg>
   );
 }
 
