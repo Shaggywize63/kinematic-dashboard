@@ -1,24 +1,17 @@
 'use client';
 import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import planogramApi, { ParsedPlanogram } from '../../../../lib/planogramApi';
+import planogramApi from '../../../../lib/planogramApi';
 import type { ExpectedSKU, PlanogramCompetitor } from '../../../../types/planogram';
+import { PC, SectionCard, useIsCompact, TableScroll, th, thR, td } from '../_components/planogramUi';
 
-const C = {
-  red: '#E01E2C',
-  green: '#00D97E',
-  yellow: '#FFB800',
-  blue: '#3E9EFF',
-  gray: 'var(--textSec)',
-  grayd: 'var(--textTert)',
-  s2: 'var(--s2)',
-  border: 'var(--border)',
-};
+const BASE = '/dashboard/planograms';
 
 type Phase = 'idle' | 'parsing' | 'review' | 'saving';
 
 export default function NewPlanogramPage() {
   const router = useRouter();
+  const isCompact = useIsCompact();
   const fileRef = useRef<HTMLInputElement>(null);
   const [phase, setPhase] = useState<Phase>('idle');
   const [error, setError] = useState('');
@@ -140,29 +133,59 @@ export default function NewPlanogramPage() {
           ref_image_url: s.ref_image_url || undefined,
         })),
       });
-      router.push(`/dashboard/planograms/${res.data.id}`);
+      router.push(`${BASE}/${res.data.id}`);
     } catch (e: any) {
       setError(e.message || 'Failed to save planogram.');
       setPhase('review');
     }
   };
 
+  const missingSkuShots = skus.filter((s) => !s.ref_image_url).length;
+  const missingCompShots = competitors.filter((c) => !c.ref_image_url).length;
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div>
-          <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 22, fontWeight: 800 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Contextual header */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'flex-start',
+          justifyContent: 'space-between',
+          gap: 12,
+          flexWrap: 'wrap',
+        }}
+      >
+        <div style={{ minWidth: 0 }}>
+          <div
+            style={{
+              fontFamily: 'var(--font-manrope)',
+              fontSize: 18,
+              fontWeight: 800,
+              color: PC.text,
+            }}
+          >
             New planogram
           </div>
-          <div style={{ fontSize: 13, color: C.gray, marginTop: 3 }}>
+          <div style={{ fontSize: 12.5, color: PC.muted, marginTop: 3, lineHeight: 1.5 }}>
             Upload a brand planogram image — AI extracts the shelf layout for you to review.
           </div>
         </div>
-        <button onClick={() => router.push('/dashboard/planograms/library')} style={btnSecondary}>Cancel</button>
+        <button onClick={() => router.push(`${BASE}/library`)} style={btnSecondary}>
+          Cancel
+        </button>
       </div>
 
       {error && (
-        <div style={{ background: 'rgba(224,30,44,0.08)', border: '1px solid rgba(224,30,44,0.2)', borderRadius: 12, padding: '12px 16px', fontSize: 13, color: C.red }}>
+        <div
+          style={{
+            background: PC.badWash,
+            border: `1px solid ${PC.bad}55`,
+            borderRadius: 12,
+            padding: '12px 16px',
+            fontSize: 13,
+            color: PC.bad,
+          }}
+        >
           {error}
         </div>
       )}
@@ -171,99 +194,246 @@ export default function NewPlanogramPage() {
         <div
           onClick={() => fileRef.current?.click()}
           onDragOver={(e) => e.preventDefault()}
-          onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files?.[0]; if (f) handleFile(f); }}
-          style={{ background: 'var(--s1)', border: `2px dashed ${C.border}`, borderRadius: 16, padding: 60, textAlign: 'center', cursor: 'pointer' }}
+          onDrop={(e) => {
+            e.preventDefault();
+            const f = e.dataTransfer.files?.[0];
+            if (f) handleFile(f);
+          }}
+          style={{
+            background: PC.surface,
+            border: `2px dashed ${PC.border}`,
+            borderRadius: 14,
+            padding: '56px 24px',
+            textAlign: 'center',
+            cursor: 'pointer',
+          }}
         >
-          <div style={{ fontSize: 48, marginBottom: 14 }}>📐</div>
-          <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>Drop a planogram image here</div>
-          <div style={{ fontSize: 13, color: C.gray }}>or click to browse — JPG, PNG, WebP up to 10 MB</div>
+          <div style={{ fontSize: 42, marginBottom: 12 }} aria-hidden>
+            📐
+          </div>
+          <div style={{ fontSize: 16, fontWeight: 800, color: PC.text, fontFamily: 'var(--font-manrope)' }}>
+            Drop a planogram image here
+          </div>
+          <div style={{ fontSize: 13, color: PC.muted, marginTop: 6 }}>
+            or click to browse — JPG, PNG, WebP up to 10 MB
+          </div>
           <input
             ref={fileRef}
             type="file"
             accept="image/jpeg,image/png,image/webp"
             style={{ display: 'none' }}
-            onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) handleFile(f);
+            }}
           />
         </div>
       )}
 
       {phase === 'parsing' && (
-        <div style={{ background: 'var(--s1)', border: `1px solid ${C.border}`, borderRadius: 16, padding: 60, textAlign: 'center' }}>
-          <div style={{ fontSize: 14, color: C.gray, marginBottom: 12 }}>Analyzing planogram with AI…</div>
-          <div style={{ height: 4, background: C.s2, borderRadius: 2, maxWidth: 240, margin: '0 auto', overflow: 'hidden' }}>
-            <div style={{ width: '40%', height: '100%', background: C.red, animation: 'kmpg-slide 1.4s ease-in-out infinite' }} />
+        <div
+          style={{
+            background: PC.surface,
+            border: `1px solid ${PC.border}`,
+            borderRadius: 14,
+            padding: '56px 24px',
+            textAlign: 'center',
+          }}
+        >
+          <div style={{ fontSize: 14, color: PC.muted, marginBottom: 14 }}>Analyzing planogram with AI…</div>
+          <div
+            style={{
+              height: 4,
+              background: PC.surface3,
+              borderRadius: 2,
+              maxWidth: 240,
+              margin: '0 auto',
+              overflow: 'hidden',
+            }}
+          >
+            <div
+              style={{
+                width: '40%',
+                height: '100%',
+                background: PC.brand,
+                animation: 'kmpg-slide 1.4s ease-in-out infinite',
+              }}
+            />
           </div>
-          <style jsx>{`@keyframes kmpg-slide { 0% { transform: translateX(-120%); } 100% { transform: translateX(280%); } }`}</style>
+          <style jsx>{`
+            @keyframes kmpg-slide {
+              0% {
+                transform: translateX(-120%);
+              }
+              100% {
+                transform: translateX(280%);
+              }
+            }
+          `}</style>
         </div>
       )}
 
       {(phase === 'review' || phase === 'saving') && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: 14 }}>
-          <div style={{ background: 'var(--s1)', border: `1px solid ${C.border}`, borderRadius: 16, padding: 14, alignSelf: 'flex-start' }}>
-            <div style={{ fontSize: 11, color: C.gray, marginBottom: 8 }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: isCompact ? '1fr' : '1fr 1.5fr',
+            gap: 16,
+            alignItems: 'flex-start',
+          }}
+        >
+          {/* Source preview */}
+          <div
+            style={{
+              background: PC.surface,
+              border: `1px solid ${PC.border}`,
+              borderRadius: 14,
+              padding: 14,
+              boxShadow: '0 1px 2px rgba(16,20,30,0.04)',
+              position: isCompact ? 'static' : 'sticky',
+              top: 16,
+            }}
+          >
+            <div
+              style={{
+                fontSize: 11,
+                color: PC.muted,
+                marginBottom: 10,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+              }}
+            >
               Source · AI confidence{' '}
-              <span style={{ fontWeight: 700, color: confidence >= 0.7 ? C.green : confidence >= 0.5 ? C.yellow : C.red }}>
+              <span
+                style={{
+                  fontWeight: 800,
+                  color:
+                    confidence >= 0.7 ? PC.good : confidence >= 0.5 ? PC.warn : PC.bad,
+                  fontVariantNumeric: 'tabular-nums',
+                }}
+              >
                 {Math.round(confidence * 100)}%
               </span>
             </div>
             {previewUrl && (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={previewUrl} alt="Planogram source" style={{ width: '100%', height: 'auto', borderRadius: 10, display: 'block' }} />
+              <img
+                src={previewUrl}
+                alt="Planogram source"
+                style={{ width: '100%', height: 'auto', borderRadius: 10, display: 'block' }}
+              />
             )}
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div style={{ background: 'var(--s1)', border: `1px solid ${C.border}`, borderRadius: 16, padding: 18, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <Field label="Name" full>
-                <input value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} />
-              </Field>
-              <Field label="Category">
-                <input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="e.g. Beverages" style={inputStyle} />
-              </Field>
-              <Field label="Store format">
-                <select value={storeFormat} onChange={(e) => setStoreFormat(e.target.value)} style={inputStyle}>
-                  <option value="">—</option>
-                  <option value="modern_trade">Modern trade</option>
-                  <option value="general_trade">General trade</option>
-                  <option value="hyper">Hyper</option>
-                </select>
-              </Field>
-            </div>
-
-            <div style={{ background: 'var(--s1)', border: `1px solid ${C.border}`, borderRadius: 16, overflow: 'hidden' }}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, padding: '14px 18px', borderBottom: `1px solid ${C.border}` }}>
-                <div>
-                  <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 14, fontWeight: 700 }}>
-                    Expected SKUs ({skus.length})
-                  </div>
-                  <PackshotHint missing={skus.filter((s) => !s.ref_image_url).length} />
-                </div>
-                <button onClick={addSku} style={btnSecondary}>+ Add SKU</button>
+          {/* Editable definition */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <SectionCard title="Planogram details">
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: isCompact ? '1fr' : '1fr 1fr',
+                  gap: 12,
+                }}
+              >
+                <Field label="Name" full>
+                  <input value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} />
+                </Field>
+                <Field label="Category">
+                  <input
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                    placeholder="e.g. Beverages"
+                    style={inputStyle}
+                  />
+                </Field>
+                <Field label="Store format">
+                  <select value={storeFormat} onChange={(e) => setStoreFormat(e.target.value)} style={inputStyle}>
+                    <option value="">—</option>
+                    <option value="modern_trade">Modern trade</option>
+                    <option value="general_trade">General trade</option>
+                    <option value="hyper">Hyper</option>
+                  </select>
+                </Field>
               </div>
+            </SectionCard>
+
+            <SectionCard
+              title={`Expected SKUs (${skus.length})`}
+              caption={
+                missingSkuShots > 0
+                  ? undefined
+                  : 'The shelf products this planogram expects, with pack-shots for recognition.'
+              }
+              right={
+                <button onClick={addSku} style={btnSecondary}>
+                  + Add SKU
+                </button>
+              }
+              bodyPad={false}
+            >
+              {missingSkuShots > 0 && (
+                <div style={{ padding: '0 18px' }}>
+                  <PackshotHint missing={missingSkuShots} />
+                </div>
+              )}
               <SkuTable skus={skus} onUpdate={updateSku} onRemove={removeSku} />
-            </div>
+            </SectionCard>
 
-            <div style={{ background: 'var(--s1)', border: `1px solid ${C.border}`, borderRadius: 16, overflow: 'hidden' }}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', padding: '16px 18px', borderBottom: `1px solid ${C.border}`, background: 'rgba(224,30,44,0.04)' }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                  <div style={{ fontSize: 20, lineHeight: 1.1 }}>🎯</div>
-                  <div>
-                    <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 15, fontWeight: 800 }}>
-                      Tracked competitors ({competitors.length})
-                    </div>
-                    <div style={{ fontSize: 12, color: C.gray, marginTop: 3, maxWidth: 520, lineHeight: 1.5 }}>
-                      Add competitor products the shelf recognition should watch for — brand, name, category, price, and a product photo so it&apos;s identified reliably.
-                    </div>
-                    <PackshotHint missing={competitors.filter((c) => !c.ref_image_url).length} />
+            <div
+              style={{
+                background: PC.surface,
+                border: `1px solid ${PC.border}`,
+                borderRadius: 14,
+                overflow: 'hidden',
+                boxShadow: '0 1px 2px rgba(16,20,30,0.04)',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                  flexWrap: 'wrap',
+                  padding: '15px 18px 12px',
+                  background: PC.brandWash,
+                  borderBottom: `1px solid ${PC.border}`,
+                }}
+              >
+                <div style={{ minWidth: 0 }}>
+                  <div
+                    style={{
+                      fontFamily: 'var(--font-manrope)',
+                      fontSize: 14.5,
+                      fontWeight: 800,
+                      color: PC.text,
+                    }}
+                  >
+                    Tracked competitors ({competitors.length})
                   </div>
+                  <div style={{ fontSize: 12, color: PC.muted, marginTop: 3, maxWidth: 520, lineHeight: 1.5 }}>
+                    Add competitor products the shelf recognition should watch for — brand, name,
+                    category, price, and a product photo so it&apos;s identified reliably.
+                  </div>
+                  {missingCompShots > 0 && <PackshotHint missing={missingCompShots} />}
                 </div>
-                <button onClick={addCompetitor} style={btnAdd}>+ Add competitor</button>
+                <button onClick={addCompetitor} style={btnAdd}>
+                  + Add competitor
+                </button>
               </div>
-              <CompetitorTable competitors={competitors} onUpdate={updateCompetitor} onRemove={removeCompetitor} onAdd={addCompetitor} />
+              <CompetitorTable
+                competitors={competitors}
+                onUpdate={updateCompetitor}
+                onRemove={removeCompetitor}
+                onAdd={addCompetitor}
+              />
             </div>
 
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              <button onClick={() => setPhase('idle')} style={btnSecondary}>Replace image</button>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+              <button onClick={() => setPhase('idle')} style={btnSecondary}>
+                Replace image
+              </button>
               <button onClick={save} disabled={phase === 'saving'} style={btnPrimary(phase === 'saving')}>
                 {phase === 'saving' ? 'Saving…' : 'Save planogram'}
               </button>
@@ -275,12 +445,23 @@ export default function NewPlanogramPage() {
   );
 }
 
-const SKU_GRID = '52px 1.8fr 1.2fr 1.2fr 1.1fr 0.7fr 0.7fr 0.7fr 1fr 36px';
+// ── SKU table ────────────────────────────────────────────────────────────────
 
 function PackshotHint({ missing }: { missing: number }) {
   if (missing <= 0) return null;
   return (
-    <div style={{ fontSize: 11, color: C.yellow, marginTop: 3, display: 'flex', alignItems: 'center', gap: 5, lineHeight: 1.4 }}>
+    <div
+      style={{
+        fontSize: 11.5,
+        color: PC.warn,
+        marginTop: 6,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 5,
+        lineHeight: 1.4,
+        fontWeight: 600,
+      }}
+    >
       <span aria-hidden>⚠</span>
       {missing} without a pack-shot — add photos to improve recognition.
     </div>
@@ -288,83 +469,218 @@ function PackshotHint({ missing }: { missing: number }) {
 }
 
 function SkuTable({
-  skus, onUpdate, onRemove,
-}: { skus: ExpectedSKU[]; onUpdate: (i: number, patch: Partial<ExpectedSKU>) => void; onRemove: (i: number) => void; }) {
+  skus,
+  onUpdate,
+  onRemove,
+}: {
+  skus: ExpectedSKU[];
+  onUpdate: (i: number, patch: Partial<ExpectedSKU>) => void;
+  onRemove: (i: number) => void;
+}) {
   if (skus.length === 0)
-    return <div style={{ padding: 36, textAlign: 'center', color: 'var(--textTert)', fontSize: 13 }}>No SKUs yet — add one or re-upload the image.</div>;
-  return (
-    <div style={{ overflowX: 'auto' }}>
-      <div style={{ minWidth: 972 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: SKU_GRID, gap: 8, padding: '10px 18px', fontSize: 10, color: 'var(--textSec)', textTransform: 'uppercase', letterSpacing: 1, borderBottom: '1px solid var(--border)' }}>
-          <span>Photo</span><span>SKU name</span><span>SKU id</span><span>Category</span><span>Brand</span><span>Shelf</span><span>Facings</span><span>Weight</span><span>Exp. price</span><span />
-        </div>
-        {skus.map((s, i) => (
-          <div key={i} style={{ display: 'grid', gridTemplateColumns: SKU_GRID, gap: 8, padding: '10px 18px', borderBottom: '1px solid rgba(122,139,160,0.15)', alignItems: 'center' }}>
-            <RefImageCell value={s.ref_image_url} onChange={(url) => onUpdate(i, { ref_image_url: url })} />
-            <input value={s.sku_name} onChange={(e) => onUpdate(i, { sku_name: e.target.value })} style={inputStyle} />
-            <input value={s.sku_id} onChange={(e) => onUpdate(i, { sku_id: e.target.value })} style={inputStyle} />
-            <input value={s.category ?? ''} placeholder="—" onChange={(e) => onUpdate(i, { category: e.target.value })} style={inputStyle} />
-            <input value={s.brand ?? ''} placeholder="—" onChange={(e) => onUpdate(i, { brand: e.target.value })} style={inputStyle} />
-            <input type="number" min={0} value={s.shelf_index} onChange={(e) => onUpdate(i, { shelf_index: Number(e.target.value) })} style={inputStyle} />
-            <input type="number" min={1} value={s.facings} onChange={(e) => onUpdate(i, { facings: Number(e.target.value) })} style={inputStyle} />
-            <input type="number" step={0.1} min={0} value={s.weight ?? 1} onChange={(e) => onUpdate(i, { weight: Number(e.target.value) })} style={inputStyle} />
-            <input type="number" step={0.01} min={0} value={s.expected_price ?? ''} placeholder="—" onChange={(e) => onUpdate(i, { expected_price: e.target.value === '' ? null : Number(e.target.value) })} style={inputStyle} />
-            <button onClick={() => onRemove(i)} title="Remove" style={{ background: 'transparent', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--textSec)', cursor: 'pointer', width: 28, height: 28 }}>✕</button>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-const COMP_GRID = '52px 1.8fr 1.1fr 1.1fr 1.1fr 0.9fr 36px';
-
-function CompetitorTable({
-  competitors, onUpdate, onRemove, onAdd,
-}: { competitors: PlanogramCompetitor[]; onUpdate: (i: number, patch: Partial<PlanogramCompetitor>) => void; onRemove: (i: number) => void; onAdd: () => void; }) {
-  if (competitors.length === 0)
     return (
-      <div style={{ padding: '40px 24px', textAlign: 'center' }}>
-        <div style={{ fontSize: 30, marginBottom: 10 }}>🏷️</div>
-        <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 6 }}>No competitors tracked yet</div>
-        <div style={{ fontSize: 12.5, color: C.gray, maxWidth: 420, margin: '0 auto 16px', lineHeight: 1.5 }}>
-          Add the rival SKUs you want flagged on the shelf. Each takes a product name, brand, category, expected price, and a product photo so recognition can identify it reliably.
-        </div>
-        <button onClick={onAdd} style={btnAdd}>+ Add your first competitor</button>
+      <div style={{ padding: 32, textAlign: 'center', color: PC.muted, fontSize: 13 }}>
+        No SKUs yet — add one or re-upload the image.
       </div>
     );
   return (
-    <div style={{ overflowX: 'auto' }}>
-      <div style={{ minWidth: 780 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: COMP_GRID, gap: 8, padding: '10px 18px', fontSize: 10, color: 'var(--textSec)', textTransform: 'uppercase', letterSpacing: 1, borderBottom: '1px solid var(--border)' }}>
-          <span>Photo</span><span>Product name</span><span>SKU id</span><span>Brand</span><span>Category</span><span>Exp. price</span><span />
+    <TableScroll>
+      <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 940 }}>
+        <thead>
+          <tr>
+            <th style={{ ...th, width: 56 }}>Photo</th>
+            <th style={th}>SKU name</th>
+            <th style={th}>SKU id</th>
+            <th style={th}>Category</th>
+            <th style={th}>Brand</th>
+            <th style={thR}>Shelf</th>
+            <th style={thR}>Facings</th>
+            <th style={thR}>Weight</th>
+            <th style={thR}>Exp. price</th>
+            <th style={{ ...th, width: 40 }} aria-label="Remove" />
+          </tr>
+        </thead>
+        <tbody>
+          {skus.map((s, i) => (
+            <tr key={i}>
+              <td style={cellTd}>
+                <RefImageCell value={s.ref_image_url} onChange={(url) => onUpdate(i, { ref_image_url: url })} />
+              </td>
+              <td style={cellTd}>
+                <input value={s.sku_name} onChange={(e) => onUpdate(i, { sku_name: e.target.value })} style={inputStyle} />
+              </td>
+              <td style={cellTd}>
+                <input value={s.sku_id} onChange={(e) => onUpdate(i, { sku_id: e.target.value })} style={inputStyle} />
+              </td>
+              <td style={cellTd}>
+                <input
+                  value={s.category ?? ''}
+                  placeholder="—"
+                  onChange={(e) => onUpdate(i, { category: e.target.value })}
+                  style={inputStyle}
+                />
+              </td>
+              <td style={cellTd}>
+                <input
+                  value={s.brand ?? ''}
+                  placeholder="—"
+                  onChange={(e) => onUpdate(i, { brand: e.target.value })}
+                  style={inputStyle}
+                />
+              </td>
+              <td style={cellTdR}>
+                <input
+                  type="number"
+                  min={0}
+                  value={s.shelf_index}
+                  onChange={(e) => onUpdate(i, { shelf_index: Number(e.target.value) })}
+                  style={numInputStyle}
+                />
+              </td>
+              <td style={cellTdR}>
+                <input
+                  type="number"
+                  min={1}
+                  value={s.facings}
+                  onChange={(e) => onUpdate(i, { facings: Number(e.target.value) })}
+                  style={numInputStyle}
+                />
+              </td>
+              <td style={cellTdR}>
+                <input
+                  type="number"
+                  step={0.1}
+                  min={0}
+                  value={s.weight ?? 1}
+                  onChange={(e) => onUpdate(i, { weight: Number(e.target.value) })}
+                  style={numInputStyle}
+                />
+              </td>
+              <td style={cellTdR}>
+                <input
+                  type="number"
+                  step={0.01}
+                  min={0}
+                  value={s.expected_price ?? ''}
+                  placeholder="—"
+                  onChange={(e) =>
+                    onUpdate(i, { expected_price: e.target.value === '' ? null : Number(e.target.value) })
+                  }
+                  style={numInputStyle}
+                />
+              </td>
+              <td style={cellTd}>
+                <RemoveButton onClick={() => onRemove(i)} />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </TableScroll>
+  );
+}
+
+// ── Competitor table ─────────────────────────────────────────────────────────
+
+function CompetitorTable({
+  competitors,
+  onUpdate,
+  onRemove,
+  onAdd,
+}: {
+  competitors: PlanogramCompetitor[];
+  onUpdate: (i: number, patch: Partial<PlanogramCompetitor>) => void;
+  onRemove: (i: number) => void;
+  onAdd: () => void;
+}) {
+  if (competitors.length === 0)
+    return (
+      <div style={{ padding: '36px 24px', textAlign: 'center' }}>
+        <div style={{ fontSize: 28, marginBottom: 10 }} aria-hidden>
+          🏷️
         </div>
-        {competitors.map((c, i) => (
-          <div key={i} style={{ display: 'grid', gridTemplateColumns: COMP_GRID, gap: 8, padding: '10px 18px', borderBottom: '1px solid rgba(122,139,160,0.15)', alignItems: 'center' }}>
-            <RefImageCell value={c.ref_image_url} onChange={(url) => onUpdate(i, { ref_image_url: url })} />
-            <input value={c.sku_name} onChange={(e) => onUpdate(i, { sku_name: e.target.value })} style={inputStyle} />
-            <input value={c.sku_id} onChange={(e) => onUpdate(i, { sku_id: e.target.value })} style={inputStyle} />
-            <input value={c.brand ?? ''} placeholder="—" onChange={(e) => onUpdate(i, { brand: e.target.value })} style={inputStyle} />
-            <input value={c.category ?? ''} placeholder="—" onChange={(e) => onUpdate(i, { category: e.target.value })} style={inputStyle} />
-            <input type="number" step={0.01} min={0} value={c.expected_price ?? ''} placeholder="—" onChange={(e) => onUpdate(i, { expected_price: e.target.value === '' ? null : Number(e.target.value) })} style={inputStyle} />
-            <button onClick={() => onRemove(i)} title="Remove" style={{ background: 'transparent', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--textSec)', cursor: 'pointer', width: 28, height: 28 }}>✕</button>
-          </div>
-        ))}
+        <div style={{ fontSize: 14, fontWeight: 800, color: PC.text, fontFamily: 'var(--font-manrope)' }}>
+          No competitors tracked yet
+        </div>
+        <div style={{ fontSize: 12.5, color: PC.muted, maxWidth: 420, margin: '6px auto 16px', lineHeight: 1.5 }}>
+          Add the rival SKUs you want flagged on the shelf. Each takes a product name, brand,
+          category, expected price, and a product photo so recognition can identify it reliably.
+        </div>
+        <button onClick={onAdd} style={btnAdd}>
+          + Add your first competitor
+        </button>
       </div>
-    </div>
+    );
+  return (
+    <TableScroll>
+      <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 760 }}>
+        <thead>
+          <tr>
+            <th style={{ ...th, width: 56 }}>Photo</th>
+            <th style={th}>Product name</th>
+            <th style={th}>SKU id</th>
+            <th style={th}>Brand</th>
+            <th style={th}>Category</th>
+            <th style={thR}>Exp. price</th>
+            <th style={{ ...th, width: 40 }} aria-label="Remove" />
+          </tr>
+        </thead>
+        <tbody>
+          {competitors.map((c, i) => (
+            <tr key={i}>
+              <td style={cellTd}>
+                <RefImageCell value={c.ref_image_url} onChange={(url) => onUpdate(i, { ref_image_url: url })} />
+              </td>
+              <td style={cellTd}>
+                <input value={c.sku_name} onChange={(e) => onUpdate(i, { sku_name: e.target.value })} style={inputStyle} />
+              </td>
+              <td style={cellTd}>
+                <input value={c.sku_id} onChange={(e) => onUpdate(i, { sku_id: e.target.value })} style={inputStyle} />
+              </td>
+              <td style={cellTd}>
+                <input
+                  value={c.brand ?? ''}
+                  placeholder="—"
+                  onChange={(e) => onUpdate(i, { brand: e.target.value })}
+                  style={inputStyle}
+                />
+              </td>
+              <td style={cellTd}>
+                <input
+                  value={c.category ?? ''}
+                  placeholder="—"
+                  onChange={(e) => onUpdate(i, { category: e.target.value })}
+                  style={inputStyle}
+                />
+              </td>
+              <td style={cellTdR}>
+                <input
+                  type="number"
+                  step={0.01}
+                  min={0}
+                  value={c.expected_price ?? ''}
+                  placeholder="—"
+                  onChange={(e) =>
+                    onUpdate(i, { expected_price: e.target.value === '' ? null : Number(e.target.value) })
+                  }
+                  style={numInputStyle}
+                />
+              </td>
+              <td style={cellTd}>
+                <RemoveButton onClick={() => onRemove(i)} />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </TableScroll>
   );
 }
 
 // Per-SKU reference-pack image: 44px thumbnail + click-to-upload. Uploads to
 // /api/v1/upload/planogram_ref (public bucket) and stores the returned URL as
 // ref_image_url, which shelf-recognition matches shelf products against.
-function RefImageCell({
-  value,
-  onChange,
-}: {
-  value?: string | null;
-  onChange: (url: string) => void;
-}) {
+function RefImageCell({ value, onChange }: { value?: string | null; onChange: (url: string) => void }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [broken, setBroken] = useState(false);
@@ -419,9 +735,9 @@ function RefImageCell({
           width: 44,
           height: 44,
           borderRadius: 8,
-          border: `1px dashed ${empty ? 'rgba(255,184,0,0.55)' : 'var(--border)'}`,
-          background: empty ? 'rgba(255,184,0,0.08)' : 'var(--s2)',
-          color: empty ? '#FFB800' : 'var(--textTert)',
+          border: `1px dashed ${empty ? PC.warn + '88' : PC.border}`,
+          background: empty ? PC.warnWash : PC.surface2,
+          color: empty ? PC.warn : PC.muted,
           cursor: 'pointer',
           padding: 0,
           overflow: 'hidden',
@@ -459,6 +775,27 @@ function RefImageCell({
   );
 }
 
+function RemoveButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      title="Remove"
+      style={{
+        background: 'transparent',
+        border: `1px solid ${PC.border}`,
+        borderRadius: 8,
+        color: PC.muted,
+        cursor: 'pointer',
+        width: 28,
+        height: 28,
+        lineHeight: 0,
+      }}
+    >
+      ✕
+    </button>
+  );
+}
+
 function cleanCompetitor(c: PlanogramCompetitor): PlanogramCompetitor {
   return {
     sku_id: c.sku_id.trim(),
@@ -470,19 +807,79 @@ function cleanCompetitor(c: PlanogramCompetitor): PlanogramCompetitor {
   };
 }
 
-function Field({ label, children, full }: { label: string; children: React.ReactNode; full?: boolean; }) {
+function Field({ label, children, full }: { label: string; children: React.ReactNode; full?: boolean }) {
   return (
-    <div style={{ gridColumn: full ? 'span 2' : undefined }}>
-      <div style={{ fontSize: 11, color: 'var(--textSec)', marginBottom: 5 }}>{label}</div>
+    <div style={{ gridColumn: full ? '1 / -1' : undefined }}>
+      <div style={{ fontSize: 11, color: PC.muted, marginBottom: 5, fontWeight: 600 }}>{label}</div>
       {children}
     </div>
   );
 }
 
-const inputStyle: React.CSSProperties = { width: '100%', background: 'var(--s2)', border: '1px solid var(--border)', color: 'var(--text, #E8EDF8)', borderRadius: 8, padding: '8px 12px', fontSize: 13, outline: 'none', fontFamily: "'DM Sans',sans-serif" };
-const btnSecondary: React.CSSProperties = { padding: '8px 14px', background: 'var(--s2)', border: '1px solid var(--border)', color: 'var(--textSec)', borderRadius: 10, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" };
-const btnAdd: React.CSSProperties = { padding: '9px 16px', background: 'rgba(224,30,44,0.1)', border: '1px solid rgba(224,30,44,0.35)', color: '#E01E2C', borderRadius: 10, fontSize: 12.5, fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", whiteSpace: 'nowrap' };
-function btnPrimary(disabled = false): React.CSSProperties { return { padding: '10px 18px', background: '#E01E2C', color: '#fff', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.6 : 1, fontFamily: "'DM Sans',sans-serif" }; }
+const inputStyle: React.CSSProperties = {
+  width: '100%',
+  minWidth: 92,
+  background: PC.surface2,
+  border: `1px solid ${PC.border}`,
+  color: PC.text,
+  borderRadius: 8,
+  padding: '8px 11px',
+  fontSize: 13,
+  outline: 'none',
+};
+
+const numInputStyle: React.CSSProperties = {
+  ...inputStyle,
+  width: 80,
+  minWidth: 64,
+  textAlign: 'right',
+  padding: '8px 9px',
+  fontVariantNumeric: 'tabular-nums',
+};
+
+const cellTd: React.CSSProperties = {
+  padding: '8px 10px',
+  borderBottom: `1px solid ${PC.border}`,
+  verticalAlign: 'middle',
+};
+const cellTdR: React.CSSProperties = { ...cellTd, textAlign: 'right' };
+
+const btnSecondary: React.CSSProperties = {
+  padding: '8px 14px',
+  background: PC.surface2,
+  border: `1px solid ${PC.border}`,
+  color: PC.text,
+  borderRadius: 9,
+  fontSize: 12.5,
+  fontWeight: 600,
+  cursor: 'pointer',
+};
+
+const btnAdd: React.CSSProperties = {
+  padding: '9px 15px',
+  background: PC.brandWash,
+  border: `1px solid ${PC.brand}55`,
+  color: PC.brand,
+  borderRadius: 9,
+  fontSize: 12.5,
+  fontWeight: 700,
+  cursor: 'pointer',
+  whiteSpace: 'nowrap',
+};
+
+function btnPrimary(disabled = false): React.CSSProperties {
+  return {
+    padding: '10px 18px',
+    background: PC.brand,
+    color: '#fff',
+    border: 'none',
+    borderRadius: 9,
+    fontSize: 13,
+    fontWeight: 700,
+    cursor: disabled ? 'not-allowed' : 'pointer',
+    opacity: disabled ? 0.6 : 1,
+  };
+}
 
 function readBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
