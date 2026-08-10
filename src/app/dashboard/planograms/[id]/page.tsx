@@ -338,11 +338,13 @@ export default function PlanogramDetailPage() {
 
       {/* Tracked competitors */}
       <div
+        id="competitors"
         style={{
           background: 'var(--s1)',
           border: `1px solid ${C.border}`,
           borderRadius: 16,
           overflow: 'hidden',
+          scrollMarginTop: 16,
         }}
       >
         <div

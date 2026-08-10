@@ -2,6 +2,7 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 import planogramApi from '../../../../lib/planogramApi';
 import { useCityScope } from '../../../../context/CityScopeContext';
 import type { CaptureListItem } from '../../../../types/planogram';
@@ -117,6 +118,60 @@ export default function CapturesPage() {
 
   const filtersActive = !!storeId || scoreBand !== 'any' || flag !== 'any';
 
+  // Per-row "Re-analyze" — subtle nice-to-have that re-runs the AI on a capture
+  // and patches the row in place from the response. Ref-guarded against
+  // double-clicks; confirmed via a toast action so it can't fire (an AI credit)
+  // on a stray click.
+  const [busyIds, setBusyIds] = useState<Set<string>>(new Set());
+  const reprocessInFlight = useRef<Set<string>>(new Set());
+
+  const reprocessRow = useCallback(async (cid: string) => {
+    if (reprocessInFlight.current.has(cid)) return;
+    reprocessInFlight.current.add(cid);
+    setBusyIds((s) => new Set(s).add(cid));
+    try {
+      const r = await planogramApi.reprocessCapture(cid);
+      const d = r?.data;
+      if (d) {
+        const detected = d.recognition?.detected_skus || [];
+        setRows((prev) =>
+          prev.map((row) =>
+            row.id === cid
+              ? {
+                  ...row,
+                  score: d.compliance?.score ?? row.score,
+                  shelf_share_own: d.compliance?.shelf_share_own ?? row.shelf_share_own,
+                  needs_review: d.recognition?.needs_review ?? row.needs_review,
+                  competitor_present: detected.some((x) => x.is_competitor),
+                  recovered_count: detected.filter((x) => x.recovered).length,
+                }
+              : row,
+          ),
+        );
+      }
+      toast.success('Analysis updated');
+    } catch (e) {
+      toast.error((e as Error)?.message || 'Re-analysis failed');
+    } finally {
+      reprocessInFlight.current.delete(cid);
+      setBusyIds((s) => {
+        const n = new Set(s);
+        n.delete(cid);
+        return n;
+      });
+    }
+  }, []);
+
+  const confirmReprocessRow = useCallback(
+    (cid: string) => {
+      toast('Re-analyze this capture?', {
+        description: 'Re-runs the AI on the photo. Uses an AI credit; results may change.',
+        action: { label: 'Re-analyze', onClick: () => reprocessRow(cid) },
+      });
+    },
+    [reprocessRow],
+  );
+
   return (
     <SectionCard
       title="Captures"
@@ -177,6 +232,7 @@ export default function CapturesPage() {
                 <th style={thR}>Score</th>
                 <th style={thR}>Own share</th>
                 <th style={th}>Flags</th>
+                <th style={thR} aria-label="Actions" />
               </tr>
             </thead>
             <tbody>
@@ -209,6 +265,33 @@ export default function CapturesPage() {
                       needs_review={c.needs_review}
                       competitor_present={c.competitor_present}
                     />
+                  </td>
+                  <td style={{ ...tdR, whiteSpace: 'nowrap' }} onClick={(e) => e.stopPropagation()}>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        confirmReprocessRow(c.id);
+                      }}
+                      disabled={busyIds.has(c.id)}
+                      title="Re-analyze — re-run the AI on this capture"
+                      aria-label="Re-analyze capture"
+                      style={{
+                        appearance: 'none',
+                        border: `1px solid ${PC.border}`,
+                        background: 'var(--s1)',
+                        color: PC.muted,
+                        borderRadius: 8,
+                        width: 30,
+                        height: 28,
+                        cursor: busyIds.has(c.id) ? 'default' : 'pointer',
+                        opacity: busyIds.has(c.id) ? 0.5 : 1,
+                        fontSize: 14,
+                        lineHeight: 0,
+                      }}
+                    >
+                      {busyIds.has(c.id) ? '…' : '↻'}
+                    </button>
                   </td>
                 </tr>
               ))}

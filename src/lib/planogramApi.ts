@@ -182,6 +182,17 @@ export const planogramApi = {
       `/api/v1/planograms/captures/${id}`,
     ),
 
+  /** Re-run the AI recognition + compliance scoring on a capture's stored image
+   *  and upsert the fresh rows — used to bring older captures up to the current
+   *  (v2) analysis. Returns the same `{ capture, recognition, compliance }` shape
+   *  as getCapture so a caller can swap its state straight from the response.
+   *  Mirrors getCapture's URL + auth/org headers (same api client, same base). */
+  reprocessCapture: (id: string) =>
+    api.post<Wrapped<{ capture: Capture; recognition: Recognition; compliance: Compliance }>>(
+      `/api/v1/planograms/captures/${id}/reprocess`,
+      {},
+    ),
+
   /** Detection-level feedback for the review/feedback loop (wired now for the
    *  next phase's capture-detail redesign). Body: {sku_id?, bbox?, reason,
    *  correct_sku_id?, note?}. */
