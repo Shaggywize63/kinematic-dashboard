@@ -283,6 +283,66 @@ export interface RiskForecastRow {
   risk: number;
 }
 
+// ── Insights (cross-store trend analytics) ──────────────────────────────────
+// Response of GET /api/v1/planograms/analytics/insights. Every series degrades
+// to empty on sparse data, so the page renders graceful empty states.
+
+export interface InsightsTrendPoint {
+  date: string;
+  avg_score: number;
+  captures: number;
+}
+export interface InsightsCategoryShare {
+  category: string;
+  own_share: number;
+  competitor_share: number;
+  facings: number;
+  captures: number;
+  avg_own_price: number | null;
+  avg_competitor_price: number | null;
+}
+export interface InsightsPricePoint {
+  date: string;
+  own_avg_price: number | null;
+  competitor_avg_price: number | null;
+  own_n: number;
+  competitor_n: number;
+}
+export interface InsightsStoreRow {
+  store_id: string;
+  store_name: string | null;
+  region: string | null;
+  captures: number;
+  avg_score: number;
+  own_shelf_share: number | null;
+  competitor_share: number | null;
+}
+export interface InsightsRegionRow {
+  region: string;
+  stores: number;
+  captures: number;
+  avg_score: number;
+  own_shelf_share: number | null;
+}
+export interface InsightsPromo {
+  captures_total: number;
+  captures_with_promo: number;
+  pct: number;
+  trend: Array<{ date: string; total: number; with_promo: number; pct: number }>;
+  top_offers: Array<{ text: string; offer_type: string; count: number }>;
+}
+export interface PlanogramInsights {
+  period_days: number;
+  captures_count: number;
+  stores_count: number;
+  compliance_trend: InsightsTrendPoint[];
+  category_share: InsightsCategoryShare[];
+  price_movement: InsightsPricePoint[];
+  store_compliance: InsightsStoreRow[];
+  region_compliance: InsightsRegionRow[];
+  promo: InsightsPromo;
+}
+
 // ── Redesigned module: Overview + Captures list contracts ───────────────────
 // These mirror the pinned backend contract for the new planogram module shell.
 // Every field is optional/nullable so the UI degrades gracefully while the

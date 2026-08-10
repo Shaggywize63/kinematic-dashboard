@@ -16,6 +16,7 @@ import type {
   CapturesListResponse,
   CaptureListParams,
   DetectionFeedbackBody,
+  PlanogramInsights,
 } from '../types/planogram';
 
 type Wrapped<T> = { success: boolean; data: T };
@@ -236,6 +237,12 @@ export const planogramApi = {
     api.get<Wrapped<SkuVisibility[]>>(`/api/v1/planograms/analytics/sku-visibility?days=${days}`),
   riskForecast: () =>
     api.get<Wrapped<RiskForecastRow[]>>('/api/v1/planograms/analytics/risk-forecast'),
+
+  /** Cross-store trend analytics for the Insights view (compliance trend,
+   *  category share, price movement, store/region compliance, promo presence).
+   *  Org-scoped; `days` window (default 90, max 365). */
+  insights: (days = 90) =>
+    api.get<Wrapped<PlanogramInsights>>(`/api/v1/planograms/analytics/insights?days=${days}`),
 };
 
 export default planogramApi;
