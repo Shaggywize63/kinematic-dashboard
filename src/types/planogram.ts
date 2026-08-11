@@ -238,6 +238,8 @@ export interface Capture {
   blur_score?: number;
   glare_score?: number;
   captured_at: string;
+  /** Trial / storeless captures: manually-entered outlet name + device info. */
+  device_meta?: { outlet_label?: string | null; platform?: string | null } | null;
 
   // Joined
   fe?: { name: string };
@@ -391,6 +393,10 @@ export interface CaptureListItem {
   id: string;
   store_id?: string | null;
   store_name?: string | null;
+  /** Free-trial / storeless captures carry the rep's manually-entered outlet
+   *  name here (from device_meta.outlet_label) so the list can name the outlet
+   *  even though there is no server store. */
+  outlet_label?: string | null;
   city?: string | null;
   category?: string | null;
   captured_at: string;

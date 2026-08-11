@@ -394,7 +394,7 @@ export default function CaptureDetailPage() {
             </Link>
             <span style={{ margin: '0 7px', opacity: 0.6 }}>›</span>
             <span style={{ color: C.gray, fontWeight: 600 }}>
-              {capture?.store?.name || capture?.store_id?.slice(0, 8) || 'Store'}
+              {capture?.store?.name || capture?.device_meta?.outlet_label || capture?.store_id?.slice(0, 8) || 'Store'}
             </span>
             <span style={{ margin: '0 7px', opacity: 0.6 }}>›</span>
             Capture

@@ -248,8 +248,13 @@ export default function CapturesPage() {
                       style={{ color: PC.text, fontWeight: 600, textDecoration: 'none' }}
                       onClick={(e) => e.stopPropagation()}
                     >
-                      {c.store_name || 'Unknown store'}
+                      {c.store_name || c.outlet_label || 'Unknown store'}
                     </Link>
+                    {/* Storeless (free-trial) captures name the manually-added
+                        outlet; tag it so admins can tell it from a registered store. */}
+                    {!c.store_name && c.outlet_label && (
+                      <div style={{ fontSize: 11, color: PC.muted }}>Outlet</div>
+                    )}
                     {c.city && <div style={{ fontSize: 11, color: PC.muted }}>{c.city}</div>}
                   </td>
                   <td style={{ ...td, color: PC.muted }}>{c.category || '—'}</td>
