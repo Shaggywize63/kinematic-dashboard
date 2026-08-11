@@ -70,6 +70,7 @@ const NAV_GROUP_ACCENT: Record<string, string> = {
   distribution: '#F59E0B', // amber
   business:     '#14B8A6', // teal
   people:       '#10B981', // green
+  planograms:   '#EC4899', // pink — retail-execution / shelf IQ
 };
 const NAV_ITEM_ACCENT: Record<string, string> = {
   '/dashboard/crm/website-chats': '#D01E2C', // KINI brand red
@@ -307,7 +308,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [user?.id]);
   const enabledModules: string[] = Array.isArray(user?.enabled_modules) ? user.enabled_modules : [];
   const enabledPackages: string[] = Array.isArray(user?.enabled_packages) ? user.enabled_packages : [];
-  const isActive = (href: string) => href === '/dashboard' ? pathname === '/dashboard' : pathname.startsWith(href);
+  // Exact-match hrefs: the root '/dashboard' AND the planogram Overview
+  // ('/dashboard/planograms'). The latter is a *prefix* of every other
+  // planogram route (/captures, /review, /library, …), so a plain
+  // `startsWith` would keep Overview highlighted on all those sub-pages.
+  // Match those two only when the path is exactly them; everything else
+  // keeps the normal prefix match.
+  const isActive = (href: string) =>
+    (href === '/dashboard' || href === '/dashboard/planograms')
+      ? pathname === href
+      : pathname.startsWith(href);
   const sideW = isMobile ? 0 : (collapsed ? 64 : 220);
   const drawerW = isMobile ? 240 : (collapsed ? 64 : 220);
   const sidebarVisible = isMobile ? drawerOpen : true;
@@ -473,6 +483,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const sectionVisible = (pkg: string | undefined, items: any[]) => {
     if (items.length === 0) return false;
     if (!pkg) return true;
+    // Planogram section — a promoted group whose items are ALL
+    // `module:'planograms'`. Its visibility is driven purely by that module,
+    // NOT by a package SKU (there is no 'planograms' entry in
+    // `enabled_packages`). `filterNav` has already dropped every item the
+    // user/tenant can't access, so a non-empty item list here means the
+    // planograms module is enabled (or the viewer is a platform admin, who
+    // should always see it) — mirroring exactly where the old single
+    // Field-Force "Planograms" item used to appear. Returned early so the
+    // section is NEVER wholesale-hidden for MoiSoi (the planogram demo
+    // tenant), whose only wholesale hides are Business + People & Support.
+    if (pkg === 'planograms') return true;
     // PM Corporation: lean distribution + field-force nav — drop Lead
     // Management, Business and People & Support sections wholesale.
     if (pmcHideActive && ['crm', 'business', 'people'].includes(pkg)) return false;
@@ -516,7 +537,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       { href: '/dashboard/analytics',                    label: 'Analytics',           icon: 'M18 20V10 M12 20V4 M6 20v-6', module: 'analytics' },
       { href: '/dashboard/live-tracking',                label: 'Live Tracking',       icon: 'M12 22s-8-4.5-8-11.8A8 8 0 0112 2a8 8 0 018 8.2c0 7.3-8 11.8-8 11.8z M12 13a3 3 0 100-6 3 3 0 000 6z', module: 'live_tracking' },
       { href: '/dashboard/other-management/activities',  label: 'Activity Management', icon: 'M12 2v20 M2 12h20', module: 'activities' },
-      { href: '/dashboard/planograms',                   label: 'Planograms',          icon: 'M3 5h18 M3 12h18 M3 19h18 M7 5v14 M17 5v14', module: 'planograms' },
       { href: '/dashboard/form-builder',                 label: 'Form Builder',        icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2 M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2', module: 'form_builder' },
       { href: '/dashboard/route-plan',                   label: 'Route Plan',          icon: 'M9 20l-5.44-2.72A2 2 0 013 15.49V4.5a2 2 0 012.89-1.8L9 4 M9 4v16 M15 1l5.44 2.72A2 2 0 0121 5.51v10.98a2 2 0 01-2.89 1.8L15 17 M15 1v16', module: 'orders' },
       { href: '/dashboard/work-activities',              label: 'Work Activities',     icon: 'M12 2v20 M2 12h20 M5 5l14 14 M19 5L5 14', module: 'work_activities' },
@@ -526,6 +546,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       // so admins don't have to hop between sidebar surfaces to build a
       // monthly review pack.
       { href: '/dashboard/ffm-reports',                  label: 'Reports',             icon: 'M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6 M16 13H8 M16 17H8', module: 'ffm_reports' },
+    ]},
+    // Planogram — retail-execution module, promoted from a single Field-Force
+    // item to its own section. Every item is `module:'planograms'` so the
+    // whole group is gated exactly like the old single item (visible wherever
+    // the planograms module is enabled, including MoiSoi). The `planograms`
+    // package is NOT an entitlement SKU — sectionVisible() special-cases it to
+    // show whenever the module-gated items survive filterNav (see above).
+    { label: 'Planogram', package: 'planograms', items: [
+      { href: '/dashboard/planograms',             label: 'Overview',     icon: 'M3 3v18h18 M7 14l4-4 4 4 5-5', module: 'planograms' },
+      { href: '/dashboard/planograms/captures',    label: 'Captures',     icon: 'M3 3h18v18H3z M3 9h18 M9 21V9', module: 'planograms' },
+      { href: '/dashboard/planograms/review',      label: 'Review queue', icon: 'M22 11.08V12a10 10 0 11-5.93-9.14 M22 4L12 14.01l-3-3', module: 'planograms' },
+      { href: '/dashboard/planograms/library',     label: 'Planograms',   icon: 'M3 5h18 M3 12h18 M3 19h18 M7 5v14 M17 5v14', module: 'planograms' },
+      { href: '/dashboard/planograms/competitors', label: 'Competitors',  icon: 'M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z M12 10a3 3 0 100-6 3 3 0 000 6z', module: 'planograms' },
+      { href: '/dashboard/planograms/insights',    label: 'Insights',     icon: 'M18 20V10 M12 20V4 M6 20v-6', module: 'planograms' },
     ]},
     { label: 'Lead Management', package: 'crm', items: [
       // Daily mission control — target + near-to-close + next actions
