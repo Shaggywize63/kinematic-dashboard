@@ -4,7 +4,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import planogramApi from '../../../../../lib/planogramApi';
-import PlanogramShelfOverlay, { categoryColor } from '../../../../../components/PlanogramShelfOverlay';
+import PlanogramShelfOverlay, { categoryColor, type MarkableSku } from '../../../../../components/PlanogramShelfOverlay';
 import { PC, scoreTone, toneColor, fmtDateTime } from '../../_components/planogramUi';
 import type {
   Capture,
@@ -95,6 +95,10 @@ export default function CaptureDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [tab, setTab] = useState<TabKey>('overview');
+
+  // Planogram SKU catalog (own + competitors) for the "Mark a product" teaching
+  // tool on the shelf image. Loaded once we know the capture's planogram.
+  const [markSkus, setMarkSkus] = useState<MarkableSku[]>([]);
 
   // "Re-analyze": re-run the AI on the stored image to bring an older capture up
   // to the current analysis. A ref-backed guard blocks double-clicks even before
@@ -191,6 +195,57 @@ export default function CaptureDetailPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Load the planogram's SKU catalog (own products + tracked competitors) so the
+  // "Mark a product" tool can offer a label picker. Best-effort: if it fails the
+  // tool just stays hidden — the rest of the page is unaffected.
+  const planogramId = capture?.planogram_id;
+  useEffect(() => {
+    if (!planogramId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await planogramApi.get(planogramId);
+        const p = r.data;
+        const own: MarkableSku[] = (p.expected_skus || []).map((s) => ({
+          sku_id: s.sku_id,
+          sku_name: s.sku_name,
+          brand: s.brand ?? null,
+          is_competitor: false,
+        }));
+        const competitors: MarkableSku[] = (p.layout?.competitors || []).map((c) => ({
+          sku_id: c.sku_id,
+          sku_name: c.sku_name,
+          brand: c.brand ?? null,
+          is_competitor: true,
+        }));
+        if (!cancelled) setMarkSkus([...own, ...competitors]);
+      } catch {
+        if (!cancelled) setMarkSkus([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [planogramId]);
+
+  // Save a hand-drawn box as a labeled reference pack-shot. The backend crops
+  // that region from the shelf photo and adds it to the SKU's reference set, so
+  // KINI AI recognises the product better on future captures. Throws on failure
+  // so the overlay keeps the box for a retry.
+  const handleMarkProduct = useCallback(
+    async (skuId: string, bbox: [number, number, number, number]) => {
+      if (!id) return;
+      try {
+        await planogramApi.confirmDetection(id, { sku_id: skuId, bbox });
+        toast.success('Saved — KINI AI will use this to recognise the product.');
+      } catch (e) {
+        toast.error((e as Error)?.message || 'Could not save the marked product');
+        throw e;
+      }
+    },
+    [id],
+  );
 
   // Re-run recognition + scoring on the stored image and swap in the fresh rows.
   // Resets the per-detection confirm/feedback state, whose keys (detection index)
@@ -547,6 +602,7 @@ export default function CaptureDetailPage() {
                 imageUrl={capture.image_url}
                 detectedSkus={recognition.detected_skus}
                 promotions={recognition.promotions}
+                annotation={markSkus.length > 0 ? { skus: markSkus, onSave: handleMarkProduct } : undefined}
               />
             ) : (
               <div style={{ color: C.grayd, fontSize: 13, padding: 24, textAlign: 'center' }}>
