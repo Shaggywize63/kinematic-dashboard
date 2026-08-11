@@ -62,6 +62,7 @@ function captureToListItem(c: Capture): CaptureListItem {
     id: c.id,
     store_id: c.store_id ?? null,
     store_name: c.store?.name ?? null,
+    outlet_label: c.device_meta?.outlet_label ?? null,
     category: c.planogram?.name ?? null,
     captured_at: c.captured_at,
     fe_name: c.fe?.name ?? null,
