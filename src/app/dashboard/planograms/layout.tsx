@@ -1,5 +1,4 @@
 'use client';
-import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import CityScopePicker from '../../../components/crm/CityScopePicker';
 import { PC, useIsCompact } from './_components/planogramUi';
@@ -11,8 +10,8 @@ import { PC, useIsCompact } from './_components/planogramUi';
  * Competitors · Insights) now lives in the MAIN dashboard sidebar under the
  * "Planogram" group, so this shell no longer renders its own left sub-nav.
  * It keeps only the top scope bar — the page title (derived from the
- * pathname), the city-scope picker and the "New planogram" action — and
- * renders {children} full-width beneath it.
+ * pathname) and the city-scope picker — and renders {children} full-width
+ * beneath it.
  */
 
 const BASE = '/dashboard/planograms';
@@ -81,24 +80,6 @@ export default function PlanogramModuleLayout({ children }: { children: React.Re
           }}
         >
           <CityScopePicker />
-          <Link
-            href={`${BASE}/new`}
-            style={{
-              background: PC.brand,
-              color: '#fff',
-              borderRadius: 9,
-              padding: '8px 14px',
-              fontSize: 13,
-              fontWeight: 700,
-              textDecoration: 'none',
-              whiteSpace: 'nowrap',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-            }}
-          >
-            <span aria-hidden style={{ fontSize: 15, lineHeight: 0 }}>+</span> New planogram
-          </Link>
         </div>
       </div>
       {children}
