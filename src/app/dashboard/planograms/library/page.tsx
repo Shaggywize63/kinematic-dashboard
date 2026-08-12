@@ -155,29 +155,6 @@ export default function PlanogramLibraryPage() {
       <SectionCard
         title="Planograms"
         caption="Expected shelf layouts per store format — recognition scores captures against these."
-        right={
-          <Link
-            href={`${BASE}/new`}
-            style={{
-              background: PC.brand,
-              color: '#fff',
-              borderRadius: 9,
-              padding: '8px 14px',
-              fontSize: 13,
-              fontWeight: 700,
-              textDecoration: 'none',
-              whiteSpace: 'nowrap',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-            }}
-          >
-            <span aria-hidden style={{ fontSize: 15, lineHeight: 0 }}>
-              +
-            </span>{' '}
-            New planogram
-          </Link>
-        }
         bodyPad={false}
       >
         {loading ? (
@@ -206,26 +183,8 @@ export default function PlanogramLibraryPage() {
                   lineHeight: 1.55,
                 }}
               >
-                Upload a brand planogram image and the AI extracts the expected shelf layout — then
-                captures are scored against it.
+                Planograms are configured for your account — captures are scored against them.
               </div>
-              <Link
-                href={`${BASE}/new`}
-                style={{
-                  display: 'inline-block',
-                  marginTop: 14,
-                  background: PC.brand,
-                  color: '#fff',
-                  border: 0,
-                  borderRadius: 9,
-                  padding: '9px 16px',
-                  fontSize: 13,
-                  fontWeight: 700,
-                  textDecoration: 'none',
-                }}
-              >
-                + New planogram
-              </Link>
             </div>
           </div>
         ) : (
