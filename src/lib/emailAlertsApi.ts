@@ -32,6 +32,13 @@ export interface EmailAlert {
   error: string | null;
 }
 
+export interface SavedRecipient {
+  email: string;
+  name: string | null;
+  times_sent: number;
+  last_sent_at: string | null;
+}
+
 export interface CreateAlertInput {
   name: string;
   template_id?: string | null;
@@ -64,4 +71,7 @@ export const emailAlertsApi = {
   create: (input: CreateAlertInput) => api.post<{ data: EmailAlert }>(alerts, input),
   cancel: (id: string) => api.post<void>(`${alerts}/${id}/cancel`, {}),
   sendNow: (id: string) => api.post<void>(`${alerts}/${id}/send-now`, {}),
+  // Saved-recipient book — every address a past alert was sent to. Auto-grows
+  // on each dispatch (see backend dispatchAlert), newest activity first.
+  listRecipients: () => api.get<{ data: SavedRecipient[] }>(`${alerts}/recipients`),
 };

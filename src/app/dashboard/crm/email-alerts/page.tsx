@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import Link from 'next/link';
-import { emailAlertsApi, verifiedSendersApi, type EmailAlert, type VerifiedSender } from '../../../../lib/emailAlertsApi';
+import { emailAlertsApi, verifiedSendersApi, type EmailAlert, type VerifiedSender, type SavedRecipient } from '../../../../lib/emailAlertsApi';
 import { crmEmailTemplates } from '../../../../lib/crmApi';
 import type { EmailTemplate } from '../../../../types/crm';
 import HtmlEmailEditor from '../../../../components/crm/email/HtmlEmailEditor';
@@ -157,6 +157,7 @@ function StatusPill({ status }: { status: EmailAlert['status'] }) {
 function ComposeModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const [senders, setSenders] = useState<VerifiedSender[]>([]);
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
+  const [savedRecipients, setSavedRecipients] = useState<SavedRecipient[]>([]);
   const [busy, setBusy] = useState(false);
 
   const [name, setName] = useState('');
@@ -174,12 +175,14 @@ function ComposeModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
     Promise.all([
       verifiedSendersApi.list(true),
       crmEmailTemplates.list().catch(() => ({ data: [] } as any)),
-    ]).then(([s, t]: any) => {
+      emailAlertsApi.listRecipients().catch(() => ({ data: [] } as any)),
+    ]).then(([s, t, r]: any) => {
       const sList = s.data || [];
       setSenders(sList);
       const defaultS = sList.find((x: VerifiedSender) => x.is_default) || sList[0];
       if (defaultS) setFromEmail(defaultS.email);
       setTemplates(((t.data || t) || []).filter((x: any) => x.is_active !== false));
+      setSavedRecipients((r.data || []) as SavedRecipient[]);
     }).catch(() => { /* surface failures via toast in submit */ });
   }, []);
 
@@ -198,6 +201,20 @@ function ComposeModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
   const toList = useMemo(() => splitAddrs(to), [to]);
   const ccList = useMemo(() => splitAddrs(cc), [cc]);
   const bccList = useMemo(() => splitAddrs(bcc), [bcc]);
+  const toSet = useMemo(() => new Set(toList.map((x) => x.toLowerCase())), [toList]);
+
+  // Append saved recipients into the free-text To field, skipping any already
+  // present. splitAddrs/toList re-derive from the string, so the "N valid
+  // addresses" counter and dedupe come for free.
+  const addToRecipients = (emails: string[]) => {
+    setTo((prev) => {
+      const have = new Set(splitAddrs(prev).map((x) => x.toLowerCase()));
+      const fresh = emails.filter((e) => e && !have.has(e.toLowerCase()));
+      if (fresh.length === 0) return prev;
+      const base = prev.trim().replace(/[,;\s]+$/, '');
+      return base ? `${base}, ${fresh.join(', ')}` : fresh.join(', ');
+    });
+  };
 
   const submit = async () => {
     if (!fromEmail) { toast.error('Pick a verified From address'); return; }
@@ -265,6 +282,45 @@ function ComposeModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
           <Col label="To (comma or newline separated)">
             <textarea value={to} onChange={(e) => setTo(e.target.value)} rows={2} placeholder="alice@acme.com, bob@acme.com" style={{ ...input, fontFamily: 'inherit', resize: 'vertical' }} />
             <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 4 }}>{toList.length} valid address{toList.length === 1 ? '' : 'es'}</div>
+
+            {savedRecipients.length > 0 && (
+              <div style={{ marginTop: 8, border: '1px solid var(--border)', borderRadius: 8, padding: 10, background: 'var(--s2)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 1 }}>
+                    Saved recipients · {savedRecipients.length}
+                  </div>
+                  <button type="button" onClick={() => addToRecipients(savedRecipients.map((r) => r.email))} style={{ ...btnGhost, color: 'var(--primary)', borderColor: 'var(--primary)' }}>
+                    + Add all
+                  </button>
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, maxHeight: 128, overflowY: 'auto' }}>
+                  {savedRecipients.map((r) => {
+                    const added = toSet.has(r.email.toLowerCase());
+                    return (
+                      <button
+                        key={r.email}
+                        type="button"
+                        onClick={() => addToRecipients([r.email])}
+                        disabled={added}
+                        title={r.last_sent_at ? `Last emailed ${new Date(r.last_sent_at).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}${r.times_sent ? ` · ${r.times_sent}×` : ''}` : undefined}
+                        style={{
+                          padding: '4px 10px', borderRadius: 999, fontSize: 12,
+                          border: '1px solid var(--border)',
+                          background: added ? 'var(--s3)' : 'transparent',
+                          color: added ? 'var(--text-dim)' : 'var(--text)',
+                          opacity: added ? 0.55 : 1, cursor: added ? 'default' : 'pointer',
+                        }}
+                      >
+                        {added ? '✓ ' : '+ '}{r.email}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 6 }}>
+                  Grows automatically — everyone you email is saved here for next time.
+                </div>
+              </div>
+            )}
           </Col>
 
           <Row>
