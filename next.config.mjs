@@ -92,6 +92,22 @@ const nextConfig = {
       { source: '/:path*', headers: securityHeaders },
     ];
   },
+  async rewrites() {
+    // Outbound emails embed their open-pixel, click-redirect and one-click
+    // unsubscribe beacons as dashboard-host URLs (nicer / more trusted to
+    // recipients than the raw API host). The handlers themselves live on the
+    // backend API, and this app calls the API cross-origin via NEXT_PUBLIC_API_URL
+    // — it does NOT proxy /api/v1 — so those beacons would 404 on the dashboard
+    // and opens/clicks/unsubscribes would never record (analytics stuck at 0).
+    // Proxy ONLY those three public, unauthenticated paths through to the API so
+    // tracking works while the pretty dashboard URL stays in the email. No-op if
+    // the API host isn't configured at build time.
+    if (!API_HOST) return [];
+    return [
+      { source: '/api/v1/crm/emails/track/:path*', destination: `${API_HOST}/api/v1/crm/emails/track/:path*` },
+      { source: '/api/v1/crm/unsubscribe',          destination: `${API_HOST}/api/v1/crm/unsubscribe` },
+    ];
+  },
 };
 
 export default nextConfig;
