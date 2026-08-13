@@ -12,6 +12,7 @@ import api from '../../../../lib/api';
 interface Agent { key: string; name: string; icon: string; desc: string; autonomy: 'suggest' | 'approve' | 'auto' }
 interface ReplItem { sku_id: string; name: string; last30: number; prior30: number; trendPct: number; suggested_qty: number }
 interface ReplGroup { distributor_id: string; distributor_name: string; items: ReplItem[]; total_units: number }
+interface DraftOrder { id: string; distributor_id: string; distributor_name: string; total_units: number; items: ReplItem[]; rationale?: string | null; created_at: string }
 
 const LEVELS: Array<Agent['autonomy']> = ['suggest', 'approve', 'auto'];
 const LEVEL_LABEL: Record<string, string> = { suggest: 'Suggest', approve: 'Approve', auto: 'Auto' };
@@ -21,27 +22,47 @@ export default function DistributionAiPage() {
   const [repl, setRepl] = useState<{ suggestions: ReplGroup[]; rationale: string } | null>(null);
   const [coverage, setCoverage] = useState<any>(null);
   const [anomalies, setAnomalies] = useState<any>(null);
+  const [drafts, setDrafts] = useState<DraftOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
+  const [approving, setApproving] = useState<string | null>(null);
+  const [busyDraft, setBusyDraft] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [a, r, c, an]: any = await Promise.all([
+      const [a, r, c, an, d]: any = await Promise.all([
         api.getDistAgents(),
         api.getReplenishment().catch(() => null),
         api.getDistCoverage().catch(() => null),
         api.getDistAnomalies().catch(() => null),
+        api.getDraftOrders().catch(() => null),
       ]);
       setAgents(((a?.data ?? a)?.agents || []) as Agent[]);
       const rp = (r?.data ?? r);
       if (rp) setRepl({ suggestions: rp.suggestions || [], rationale: rp.rationale || '' });
       setCoverage((c?.data ?? c) || null);
       setAnomalies((an?.data ?? an) || null);
+      setDrafts(((d?.data ?? d)?.drafts || []) as DraftOrder[]);
     } catch { /* surfaced via empty states */ }
     finally { setLoading(false); }
   }, []);
   useEffect(() => { load(); }, [load]);
+
+  // Approve a replenishment suggestion → the agent persists a draft order for
+  // that distributor (server recomputes the authoritative quantities).
+  const approve = async (distributor_id: string) => {
+    setApproving(distributor_id);
+    try { await api.approveReplenishment(distributor_id); await load(); }
+    catch { /* surfaced via empty states */ }
+    finally { setApproving(null); }
+  };
+  const dismissDraft = async (id: string) => {
+    setBusyDraft(id);
+    try { await api.dismissDraftOrder(id); setDrafts((prev) => prev.filter((x) => x.id !== id)); }
+    catch { await load(); }
+    finally { setBusyDraft(null); }
+  };
 
   const setAutonomy = async (key: string, autonomy: Agent['autonomy']) => {
     setAgents((prev) => prev.map((a) => (a.key === key ? { ...a, autonomy } : a)));
@@ -146,10 +167,48 @@ export default function DistributionAiPage() {
                   </div>
                 ))}
               </div>
-              <div style={{ marginTop: 12 }}><Btn>Approve → draft order</Btn></div>
+              <div style={{ marginTop: 12 }}>
+                <Btn onClick={() => approve(g.distributor_id)} disabled={approving === g.distributor_id}>
+                  {approving === g.distributor_id ? 'Creating draft…' : 'Approve → draft order'}
+                </Btn>
+              </div>
             </Card>
           ))}
         </div>
+      )}
+
+      {/* Draft orders — approved replenishment plans awaiting placement */}
+      {drafts.length > 0 && (
+        <>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '22px 2px 10px' }}>
+            <div style={{ fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', color: C.dim, fontWeight: 700 }}>Draft orders · approved plans</div>
+            <Pill color="green">{drafts.length}</Pill>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 14 }}>
+            {drafts.map((d) => (
+              <Card key={d.id} style={{ padding: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ fontSize: 14, fontWeight: 800 }}>{d.distributor_name}</div>
+                  <Pill color="green">draft</Pill>
+                  <span style={{ marginLeft: 'auto', fontSize: 12, color: C.dim }}>{Number(d.total_units || 0).toLocaleString('en-IN')} units</span>
+                </div>
+                {d.rationale && <div style={{ fontSize: 12.5, color: C.dim, marginTop: 8, lineHeight: 1.5 }}>{d.rationale}</div>}
+                <div style={{ marginTop: 10 }}>
+                  {(d.items || []).slice(0, 6).map((it) => (
+                    <div key={it.sku_id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0', borderTop: `1px solid ${C.border}` }}>
+                      <div style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{it.name}</div>
+                      <div style={{ fontSize: 14, fontWeight: 800 }}>{it.suggested_qty}</div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 12 }}>
+                  <span style={{ fontSize: 11.5, color: C.dim, marginRight: 'auto' }}>Review &amp; place in Orders</span>
+                  <Btn variant="ghost" onClick={() => dismissDraft(d.id)} disabled={busyDraft === d.id}>{busyDraft === d.id ? 'Dismissing…' : 'Dismiss'}</Btn>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </>
       )}
 
       {/* Coverage agent */}

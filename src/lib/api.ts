@@ -905,6 +905,9 @@ class ApiClient {
   getDistCoverage(params?: Record<string, string>) { return this.get(`/api/v1/distribution/ai/coverage${this.sanitizeParams(params)}`); }
   getDistAnomalies(params?: Record<string, string>) { return this.get(`/api/v1/distribution/ai/anomalies${this.sanitizeParams(params)}`); }
   askDistKini(question: string) { return this.post('/api/v1/distribution/ai/ask', { question }); }
+  approveReplenishment(distributor_id: string) { return this.post('/api/v1/distribution/ai/replenishment/approve', { distributor_id }); }
+  getDraftOrders() { return this.get('/api/v1/distribution/ai/draft-orders'); }
+  dismissDraftOrder(id: string) { return this.post(`/api/v1/distribution/ai/draft-orders/${id}/dismiss`, {}); }
 
   // ── Distribution: Brands ─────────────────────────────────────────────
   getBrands(params?: Record<string, string>) { return this.get(`/api/v1/distribution/brands${this.sanitizeParams(params)}`); }
