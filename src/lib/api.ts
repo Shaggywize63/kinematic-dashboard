@@ -893,6 +893,11 @@ class ApiClient {
   verifyGstin(gstin: string) { return this.post<{ success: boolean; data: any }>('/api/v1/distribution/gstin/verify', { gstin }); }
   getDistStates() { return this.get('/api/v1/distribution/gstin/states'); }
 
+  // ── Distribution: Control Tower + Network Setup (redesign) ───────────
+  getControlTower(params?: Record<string, string>) { return this.get(`/api/v1/distribution/control-tower${this.sanitizeParams(params)}`); }
+  getDistStages() { return this.get('/api/v1/distribution/stages'); }
+  saveDistStages(stages: Array<object>) { return this.post('/api/v1/distribution/stages', { stages }); }
+
   // ── Distribution: Brands ─────────────────────────────────────────────
   getBrands(params?: Record<string, string>) { return this.get(`/api/v1/distribution/brands${this.sanitizeParams(params)}`); }
   getBrand(id: string) { return this.get(`/api/v1/distribution/brands/${id}`); }
