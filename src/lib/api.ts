@@ -898,6 +898,12 @@ class ApiClient {
   getDistStages() { return this.get('/api/v1/distribution/stages'); }
   saveDistStages(stages: Array<object>) { return this.post('/api/v1/distribution/stages', { stages }); }
 
+  // ── Distribution: AI layer (Phase 2) ─────────────────────────────────
+  getDistAgents() { return this.get('/api/v1/distribution/ai/agents'); }
+  saveDistAgent(agent_key: string, autonomy: string) { return this.post('/api/v1/distribution/ai/agents', { agent_key, autonomy }); }
+  getReplenishment(params?: Record<string, string>) { return this.get(`/api/v1/distribution/ai/replenishment${this.sanitizeParams(params)}`); }
+  askDistKini(question: string) { return this.post('/api/v1/distribution/ai/ask', { question }); }
+
   // ── Distribution: Brands ─────────────────────────────────────────────
   getBrands(params?: Record<string, string>) { return this.get(`/api/v1/distribution/brands${this.sanitizeParams(params)}`); }
   getBrand(id: string) { return this.get(`/api/v1/distribution/brands/${id}`); }
