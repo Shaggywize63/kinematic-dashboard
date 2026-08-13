@@ -19,16 +19,25 @@ const LEVEL_LABEL: Record<string, string> = { suggest: 'Suggest', approve: 'Appr
 export default function DistributionAiPage() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [repl, setRepl] = useState<{ suggestions: ReplGroup[]; rationale: string } | null>(null);
+  const [coverage, setCoverage] = useState<any>(null);
+  const [anomalies, setAnomalies] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [a, r]: any = await Promise.all([api.getDistAgents(), api.getReplenishment().catch(() => null)]);
+      const [a, r, c, an]: any = await Promise.all([
+        api.getDistAgents(),
+        api.getReplenishment().catch(() => null),
+        api.getDistCoverage().catch(() => null),
+        api.getDistAnomalies().catch(() => null),
+      ]);
       setAgents(((a?.data ?? a)?.agents || []) as Agent[]);
       const rp = (r?.data ?? r);
       if (rp) setRepl({ suggestions: rp.suggestions || [], rationale: rp.rationale || '' });
+      setCoverage((c?.data ?? c) || null);
+      setAnomalies((an?.data ?? an) || null);
     } catch { /* surfaced via empty states */ }
     finally { setLoading(false); }
   }, []);
@@ -96,7 +105,7 @@ export default function DistributionAiPage() {
                 </button>
               ))}
             </div>
-            {a.key !== 'replenishment' && <div style={{ fontSize: 11, color: C.dim, marginTop: 8 }}>Preview — turns on with Phase 3 data.</div>}
+            {a.key === 'perfect_store' && <div style={{ fontSize: 11, color: C.dim, marginTop: 8 }}>Preview — connects to the planogram engine next.</div>}
           </Card>
         ))}
       </div>
@@ -142,6 +151,84 @@ export default function DistributionAiPage() {
           ))}
         </div>
       )}
+
+      {/* Coverage agent */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '22px 2px 10px' }}>
+        <div style={{ fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', color: C.dim, fontWeight: 700 }}>Coverage agent · gaps</div>
+        <Pill color="blue">live</Pill>
+      </div>
+      {coverage?.rationale && (
+        <div style={{ display: 'flex', gap: 11, alignItems: 'flex-start', background: 'var(--s1)', border: `1px solid ${C.border}`, borderRadius: 12, padding: 14, marginBottom: 12 }}>
+          <span style={{ fontSize: 16 }}>🧭</span><div style={{ fontSize: 13.5, color: C.text }}>{coverage.rationale}</div>
+        </div>
+      )}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14 }}>
+        <Card style={{ padding: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ fontSize: 14, fontWeight: 800 }}>Dormant outlets</div>
+            <Pill color="amber">{coverage?.dormant_count ?? 0}</Pill>
+            <span style={{ marginLeft: 'auto', fontSize: 12, color: C.dim }}>{coverage?.coverage_pct ?? 0}% covered</span>
+          </div>
+          {(!coverage || (coverage.dormant || []).length === 0) ? (
+            <div style={{ color: C.dim, fontSize: 13, marginTop: 10 }}>{loading ? 'Scanning outlets…' : 'No dormant outlets — coverage is healthy.'}</div>
+          ) : (coverage.dormant || []).slice(0, 12).map((d: any) => (
+            <div key={d.outlet_id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderTop: `1px solid ${C.border}` }}>
+              <div style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{d.name}</div>
+              <span style={{ fontSize: 12, color: 'var(--primary)', fontWeight: 700 }}>{d.days}d</span>
+            </div>
+          ))}
+        </Card>
+        <Card style={{ padding: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ fontSize: 14, fontWeight: 800 }}>Never ordered</div>
+            <Pill color="gray">{coverage?.never_count ?? 0}</Pill>
+          </div>
+          {(!coverage || (coverage.never_ordered || []).length === 0) ? (
+            <div style={{ color: C.dim, fontSize: 13, marginTop: 10 }}>{loading ? '…' : 'Every mapped outlet has ordered.'}</div>
+          ) : (coverage.never_ordered || []).slice(0, 12).map((d: any) => (
+            <div key={d.outlet_id} style={{ padding: '8px 0', borderTop: `1px solid ${C.border}`, fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{d.name}</div>
+          ))}
+        </Card>
+      </div>
+
+      {/* Anomaly agent */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '22px 2px 10px' }}>
+        <div style={{ fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', color: C.dim, fontWeight: 700 }}>Anomaly agent · pricing leakage</div>
+        <Pill color="blue">live</Pill>
+        {anomalies?.total_impact > 0 && <Pill color="red">₹{Number(anomalies.total_impact).toLocaleString('en-IN')} at risk</Pill>}
+      </div>
+      {anomalies?.rationale && (
+        <div style={{ display: 'flex', gap: 11, alignItems: 'flex-start', background: 'var(--s1)', border: `1px solid ${C.border}`, borderRadius: 12, padding: 14, marginBottom: 12 }}>
+          <span style={{ fontSize: 16 }}>🕵️</span><div style={{ fontSize: 13.5, color: C.text }}>{anomalies.rationale}</div>
+        </div>
+      )}
+      <Card style={{ padding: 16 }}>
+        {(!anomalies || (anomalies.anomalies || []).length === 0) ? (
+          <div style={{ color: C.dim, fontSize: 13 }}>{loading ? 'Auditing order prices…' : 'No pricing anomalies — every line is within 15% of list.'}</div>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 520 }}>
+              <thead><tr>
+                {['SKU', 'Distributor', 'Billed', 'Expected', 'Δ', 'Leakage'].map((h) => (
+                  <th key={h} style={{ textAlign: h === 'SKU' || h === 'Distributor' ? 'left' : 'right', padding: '8px 10px', fontSize: 11, color: C.dim, textTransform: 'uppercase', letterSpacing: 0.5, borderBottom: `1px solid ${C.border}` }}>{h}</th>
+                ))}
+              </tr></thead>
+              <tbody>
+                {(anomalies.anomalies || []).slice(0, 12).map((a: any, i: number) => (
+                  <tr key={i}>
+                    <td style={{ padding: '8px 10px', borderBottom: `1px solid ${C.border}`, fontWeight: 600 }}>{a.sku}</td>
+                    <td style={{ padding: '8px 10px', borderBottom: `1px solid ${C.border}`, color: C.dim }}>{a.distributor}</td>
+                    <td style={{ padding: '8px 10px', borderBottom: `1px solid ${C.border}`, textAlign: 'right' }}>₹{a.unit_price}</td>
+                    <td style={{ padding: '8px 10px', borderBottom: `1px solid ${C.border}`, textAlign: 'right', color: C.dim }}>₹{a.expected}</td>
+                    <td style={{ padding: '8px 10px', borderBottom: `1px solid ${C.border}`, textAlign: 'right', color: a.dev_pct < 0 ? 'var(--primary)' : 'var(--green)', fontWeight: 700 }}>{a.dev_pct > 0 ? '+' : ''}{a.dev_pct}%</td>
+                    <td style={{ padding: '8px 10px', borderBottom: `1px solid ${C.border}`, textAlign: 'right', fontWeight: 700 }}>{a.impact > 0 ? `₹${Number(a.impact).toLocaleString('en-IN')}` : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
     </div>
   );
 }

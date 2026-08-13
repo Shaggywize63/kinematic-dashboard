@@ -41,6 +41,9 @@ export default function ControlTowerPage() {
   const [stages, setStages] = useState<Stage[]>(DEFAULT_STAGES);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  const [q, setQ] = useState('');
+  const [asking, setAsking] = useState(false);
+  const [answer, setAnswer] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true); setErr(null);
@@ -59,6 +62,15 @@ export default function ControlTowerPage() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  const ask = async (question?: string) => {
+    const text = (question ?? q).trim();
+    if (!text) return;
+    setQ(text); setAsking(true); setAnswer(null);
+    try { const r: any = await api.askDistKini(text); setAnswer((r?.data ?? r)?.answer || 'No answer.'); }
+    catch (e: any) { setAnswer(e?.message || 'KINI is unavailable right now.'); }
+    finally { setAsking(false); }
+  };
 
   // Map each configured stage to its live metric from the spine.
   const nodes = useMemo(() => {
@@ -96,6 +108,18 @@ export default function ControlTowerPage() {
           </div>
         </div>
       )}
+
+      {/* Ask KINI — conversational control tower */}
+      <div style={{ border: `1px solid ${C.border}`, borderRadius: 12, background: 'var(--s1)', padding: 12, marginBottom: 18 }}>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <span style={{ fontSize: 15 }}>✨</span>
+          <input value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') ask(); }}
+            placeholder="Ask KINI about your network — e.g. which distributors will stock out this week?"
+            style={{ flex: 1, background: 'transparent', border: 'none', color: C.text, fontSize: 14, outline: 'none' }} />
+          <Btn onClick={() => ask()} disabled={asking || !q.trim()}>{asking ? 'Thinking…' : 'Ask'}</Btn>
+        </div>
+        {answer && <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${C.border}`, fontSize: 13.5, color: C.text, lineHeight: 1.55 }}>{answer}</div>}
+      </div>
 
       {/* KPIs */}
       <Row style={{ marginBottom: 18 }}>
