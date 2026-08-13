@@ -610,6 +610,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     ]},
     { label: 'Supply Chain & Distribution', package: 'distribution', items: [
       { href: '/dashboard/distribution/control-tower',    label: 'Control Tower', icon: 'M12 2a10 10 0 100 20 10 10 0 000-20z M12 6v6l4 2', module: 'distribution' },
+      { href: '/dashboard/distribution/ai',               label: 'AI Copilot',    icon: 'M12 2l2.4 5.6L20 8l-4 4 1 6-5-3-5 3 1-6-4-4 5.6-.4z', module: 'distribution' },
       { href: '/dashboard/distribution/setup',            label: 'Network Setup', icon: 'M3 7l9-4 9 4-9 4-9-4z M3 12l9 4 9-4 M3 17l9 4 9-4', module: 'distribution' },
       { href: '/dashboard/distribution',                  label: 'Overview',     icon: 'M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z M9 22V12h6v10', module: 'distribution' },
       { href: '/dashboard/distribution/brands',           label: 'Brands',       icon: 'M5 3a2 2 0 00-2 2v2a2 2 0 002 2h14a2 2 0 002-2V5a2 2 0 00-2-2H5z M5 11a2 2 0 00-2 2v6a2 2 0 002 2h14a2 2 0 002-2v-6a2 2 0 00-2-2H5z', module: 'distribution_brands' },
