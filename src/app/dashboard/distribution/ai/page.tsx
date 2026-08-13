@@ -127,6 +127,7 @@ export default function DistributionAiPage() {
               ))}
             </div>
             {a.key === 'perfect_store' && <div style={{ fontSize: 11, color: C.dim, marginTop: 8 }}>Preview — connects to the planogram engine next.</div>}
+            {a.key === 'replenishment' && a.autonomy === 'auto' && <div style={{ fontSize: 11, color: 'var(--green)', marginTop: 8 }}>Auto — drafts the next order per distributor each morning. Review them under Draft orders.</div>}
           </Card>
         ))}
       </div>
