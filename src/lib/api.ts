@@ -907,7 +907,9 @@ class ApiClient {
   askDistKini(question: string) { return this.post('/api/v1/distribution/ai/ask', { question }); }
   approveReplenishment(distributor_id: string) { return this.post('/api/v1/distribution/ai/replenishment/approve', { distributor_id }); }
   getDraftOrders() { return this.get('/api/v1/distribution/ai/draft-orders'); }
+  getDraftOutlets(id: string) { return this.get(`/api/v1/distribution/ai/draft-orders/${id}/outlets`); }
   dismissDraftOrder(id: string) { return this.post(`/api/v1/distribution/ai/draft-orders/${id}/dismiss`, {}); }
+  placeDraftOrder(id: string, outlet_id: string) { return this.post(`/api/v1/distribution/ai/draft-orders/${id}/place`, { outlet_id }); }
 
   // ── Distribution: Brands ─────────────────────────────────────────────
   getBrands(params?: Record<string, string>) { return this.get(`/api/v1/distribution/brands${this.sanitizeParams(params)}`); }

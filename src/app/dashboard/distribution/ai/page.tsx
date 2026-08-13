@@ -23,6 +23,10 @@ export default function DistributionAiPage() {
   const [coverage, setCoverage] = useState<any>(null);
   const [anomalies, setAnomalies] = useState<any>(null);
   const [drafts, setDrafts] = useState<DraftOrder[]>([]);
+  const [draftOutlets, setDraftOutlets] = useState<Record<string, Array<{ id: string; name: string }>>>({});
+  const [outletSel, setOutletSel] = useState<Record<string, string>>({});
+  const [placing, setPlacing] = useState<string | null>(null);
+  const [placedNote, setPlacedNote] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [approving, setApproving] = useState<string | null>(null);
@@ -43,11 +47,36 @@ export default function DistributionAiPage() {
       if (rp) setRepl({ suggestions: rp.suggestions || [], rationale: rp.rationale || '' });
       setCoverage((c?.data ?? c) || null);
       setAnomalies((an?.data ?? an) || null);
-      setDrafts(((d?.data ?? d)?.drafts || []) as DraftOrder[]);
+      const ds = ((d?.data ?? d)?.drafts || []) as DraftOrder[];
+      setDrafts(ds);
+      // Load the candidate outlets for each open draft's distributor, for the
+      // "Place in Orders" picker.
+      const outletMap: Record<string, Array<{ id: string; name: string }>> = {};
+      await Promise.all(ds.map(async (dr) => {
+        try { const o: any = await api.getDraftOutlets(dr.id); outletMap[dr.id] = (o?.data ?? o)?.outlets || []; }
+        catch { outletMap[dr.id] = []; }
+      }));
+      setDraftOutlets(outletMap);
     } catch { /* surfaced via empty states */ }
     finally { setLoading(false); }
   }, []);
   useEffect(() => { load(); }, [load]);
+
+  // Place a draft in Orders → creates a real, priced order for the chosen outlet;
+  // the draft flips to 'converted' and drops off the open list.
+  const place = async (draftId: string) => {
+    const outlet_id = outletSel[draftId];
+    if (!outlet_id) return;
+    setPlacing(draftId); setPlacedNote(null);
+    try {
+      const r: any = await api.placeDraftOrder(draftId, outlet_id);
+      const order = (r?.data ?? r)?.order;
+      setPlacedNote(`Order ${order?.order_no || ''} placed — review it in Orders.`);
+      await load();
+    } catch (e: any) {
+      setPlacedNote(e?.message || 'Could not place the order.');
+    } finally { setPlacing(null); }
+  };
 
   // Approve a replenishment suggestion → the agent persists a draft order for
   // that distributor (server recomputes the authoritative quantities).
@@ -185,6 +214,7 @@ export default function DistributionAiPage() {
             <div style={{ fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', color: C.dim, fontWeight: 700 }}>Draft orders · approved plans</div>
             <Pill color="green">{drafts.length}</Pill>
           </div>
+          {placedNote && <div style={{ fontSize: 12.5, color: 'var(--green)', margin: '0 2px 10px', fontWeight: 600 }}>{placedNote}</div>}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 14 }}>
             {drafts.map((d) => (
               <Card key={d.id} style={{ padding: 16 }}>
@@ -202,10 +232,18 @@ export default function DistributionAiPage() {
                     </div>
                   ))}
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 12 }}>
-                  <span style={{ fontSize: 11.5, color: C.dim, marginRight: 'auto' }}>Review &amp; place in Orders</span>
-                  <Btn variant="ghost" onClick={() => dismissDraft(d.id)} disabled={busyDraft === d.id}>{busyDraft === d.id ? 'Dismissing…' : 'Dismiss'}</Btn>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+                  <select value={outletSel[d.id] || ''} onChange={(e) => setOutletSel((p) => ({ ...p, [d.id]: e.target.value }))}
+                    style={{ flex: 1, minWidth: 150, background: 'var(--s3)', color: C.text, border: `1px solid ${C.border}`, borderRadius: 8, padding: '8px 9px', fontSize: 12.5 }}>
+                    <option value="">Place at outlet…</option>
+                    {(draftOutlets[d.id] || []).map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+                  </select>
+                  <Btn onClick={() => place(d.id)} disabled={placing === d.id || !outletSel[d.id]}>{placing === d.id ? 'Placing…' : 'Place order'}</Btn>
+                  <Btn variant="ghost" onClick={() => dismissDraft(d.id)} disabled={busyDraft === d.id}>{busyDraft === d.id ? '…' : 'Dismiss'}</Btn>
                 </div>
+                {draftOutlets[d.id] && draftOutlets[d.id].length === 0 && (
+                  <div style={{ fontSize: 11, color: C.dim, marginTop: 6 }}>No outlets mapped to this distributor yet — map one under Distributors to place.</div>
+                )}
               </Card>
             ))}
           </div>
