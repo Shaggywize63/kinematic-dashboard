@@ -153,6 +153,21 @@ export const planogramApi = {
   parseFromImage: (body: { image_base64: string; image_media_type: string }) =>
     api.post<Wrapped<ParsedPlanogram>>('/api/v1/planograms/parse', body),
 
+  /** Web shelf-audit: upload a shelf photo (raw base64 + a hosted image URL)
+   *  and run the SAME AI capture pipeline the mobile camera uses. Returns the
+   *  created capture plus its recognition + compliance so the caller can jump
+   *  straight to the audit detail. */
+  createCapture: (body: {
+    image_url: string;
+    image_base64: string;
+    image_media_type: 'image/jpeg' | 'image/png' | 'image/webp';
+    store_id?: string;
+  }) =>
+    api.post<Wrapped<{ capture: Capture; recognition: Recognition; compliance: Compliance }>>(
+      '/api/v1/planograms/captures',
+      body,
+    ),
+
   // ── Redesigned module: Overview + Captures list ─────────────────────────
   // Mirrors getCapture's URL + auth/org headers (same api client, same base).
 
