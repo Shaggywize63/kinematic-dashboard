@@ -52,6 +52,11 @@ export default function CapturesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  // Web shelf-audit: upload a shelf photo and run the same AI capture pipeline
+  // the mobile camera uses — so a MoiSoi demo can be run entirely in the browser.
+  const [uploading, setUploading] = useState(false);
+  const shelfFileRef = useRef<HTMLInputElement>(null);
+
   // Store dropdown options — captured from the unfiltered-by-store result so
   // they stay stable while a store filter is active.
   const [storeOptions, setStoreOptions] = useState<{ id: string; name: string }[]>([]);
@@ -172,6 +177,65 @@ export default function CapturesPage() {
     [reprocessRow],
   );
 
+  // Upload a shelf photo from the browser and run the AI audit (same pipeline as
+  // the mobile camera). On success we jump straight to the capture's report.
+  const runShelfAudit = async (file: File) => {
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      toast.error('Upload a JPG, PNG, or WebP shelf photo.');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('Image is too large (max 10 MB).');
+      return;
+    }
+    setUploading(true);
+    const tId = toast.loading('Analyzing the shelf with AI — this can take up to a minute.');
+    try {
+      const image_base64 = await readBase64(file);
+      // The capture endpoint also requires a hosted image URL, so upload the file
+      // first (same public bucket the mobile capture stores its photo in).
+      const fd = new FormData();
+      fd.append('photo', file);
+      const token = typeof window !== 'undefined' ? localStorage.getItem('kinematic_token') : null;
+      const orgId =
+        typeof window !== 'undefined'
+          ? JSON.parse(localStorage.getItem('kinematic_user') || '{}').org_id || ''
+          : '';
+      const up = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/upload/planogram_ref`, {
+        method: 'POST',
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(orgId ? { 'X-Org-Id': orgId } : {}),
+        },
+        body: fd,
+      });
+      const upJson = await up.json().catch(() => ({}));
+      const image_url = upJson?.data?.url || upJson?.url;
+      if (!image_url) throw new Error(upJson?.error || upJson?.message || 'Image upload failed.');
+
+      const res = await planogramApi.createCapture({
+        image_url,
+        image_base64,
+        image_media_type: file.type as 'image/jpeg' | 'image/png' | 'image/webp',
+      });
+      const capture = res?.data?.capture;
+      toast.dismiss(tId);
+      if (capture?.id) {
+        toast.success('Shelf audited — opening the report.');
+        router.push(`/dashboard/planograms/captures/${capture.id}`);
+      } else {
+        toast.success('Shelf audited.');
+        load();
+      }
+    } catch (e) {
+      toast.dismiss(tId);
+      toast.error((e as Error)?.message || 'Could not audit the shelf. Please try again.');
+    } finally {
+      setUploading(false);
+      if (shelfFileRef.current) shelfFileRef.current.value = '';
+    }
+  };
+
   return (
     <SectionCard
       title="Captures"
@@ -183,7 +247,39 @@ export default function CapturesPage() {
             } · click a row to open the audit`
       }
       right={
-        <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', alignItems: 'center' }}>
+          <button
+            type="button"
+            onClick={() => shelfFileRef.current?.click()}
+            disabled={uploading}
+            title="Upload a shelf photo and run the AI audit"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              background: PC.brand,
+              color: '#fff',
+              border: 'none',
+              borderRadius: 8,
+              padding: '8px 13px',
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: uploading ? 'not-allowed' : 'pointer',
+              opacity: uploading ? 0.65 : 1,
+            }}
+          >
+            {uploading ? '⏳ Analyzing…' : '📷 Upload shelf photo'}
+          </button>
+          <input
+            ref={shelfFileRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            hidden
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) runShelfAudit(f);
+            }}
+          />
           <select value={storeId} onChange={(e) => setStoreId(e.target.value)} style={selyStyle} aria-label="Store">
             <option value="">All stores</option>
             {storeOptions.map((s) => (
@@ -218,7 +314,7 @@ export default function CapturesPage() {
         <StateBlock>Loading captures…</StateBlock>
       ) : filtered.length === 0 ? (
         <StateBlock>
-          {filtersActive ? 'No captures match these filters.' : 'No captures yet. Field executives audit shelves from the mobile app.'}
+          {filtersActive ? 'No captures match these filters.' : 'No captures yet. Upload a shelf photo above to run an AI audit, or have field executives capture shelves from the mobile app.'}
         </StateBlock>
       ) : (
         <TableScroll>
@@ -306,4 +402,19 @@ export default function CapturesPage() {
       )}
     </SectionCard>
   );
+}
+
+/** Read a File as raw base64 (no data-URL prefix) — the shape the capture
+ *  endpoint's `image_base64` expects. */
+function readBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      const idx = result.indexOf(',');
+      resolve(idx >= 0 ? result.slice(idx + 1) : result);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 }
