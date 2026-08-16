@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { crmLeads, crmLeadSources, crmSettings, type Pagination } from '../../../../lib/crmApi';
 import api, { API_BASE_URL } from '../../../../lib/api';
 import { getStoredToken, getStoredUser } from '../../../../lib/auth';
-import { isKinematicActive } from '../../../../lib/clientFeatures';
+import { isKinematicTenant } from '../../../../lib/clientFeatures';
 import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
 import type { Lead, LeadSource } from '../../../../types/crm';
 import LeadsTable, { LEAD_COLUMNS } from '../../../../components/crm/LeadsTable';
@@ -78,8 +78,10 @@ export default function LeadsListPage() {
   // every other key maps to a backend column via ?sort=&order=.
   // Default sort: the Kinematic tenant asked for "Date added (newest)" as the
   // resting order; every other client keeps the "most recent activity" default.
+  // isKinematicTenant (not isKinematicActive) so the tenant's super-admin —
+  // client_id null, org-level — gets it too, regardless of the client picker.
   const [sort, setSort] = useState<{ key: string; order: 'asc' | 'desc' }>(() =>
-    isKinematicActive(getStoredUser()) ? { key: 'created', order: 'desc' } : { key: 'recent', order: 'desc' },
+    isKinematicTenant(getStoredUser()) ? { key: 'created', order: 'desc' } : { key: 'recent', order: 'desc' },
   );
   const view = useViewPrefs('leads');
   const hiddenSet = useMemo(() => new Set(view.prefs.hidden), [view.prefs.hidden]);

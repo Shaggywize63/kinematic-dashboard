@@ -12,7 +12,7 @@ import DealEditModal from '../../../../components/crm/DealEditModal';
 import ViewCustomizer from '../../../../components/crm/shared/ViewCustomizer';
 import { useViewPrefs } from '../../../../lib/crmViewPrefs';
 import { getStoredUser, canAccess, getStoredToken, userHasModule } from '../../../../lib/auth';
-import { isKinematicActive } from '../../../../lib/clientFeatures';
+import { isKinematicTenant } from '../../../../lib/clientFeatures';
 import { API_BASE_URL } from '../../../../lib/api';
 
 const DEAL_PAGE_SIZE_OPTIONS = [25, 50, 100, 200] as const;
@@ -108,8 +108,10 @@ function DealsListPage() {
   // (expected_close_date). A header click sets a real crm_deals column.
   // Kinematic tenant defaults deals to "Date added (newest)" (created_at desc);
   // other clients keep the backend default order (expected close ascending).
+  // isKinematicTenant so the tenant's org-level super-admin (client_id null)
+  // gets it too, not only sessions with the Kinematic client picked.
   const [sort, setSort] = useState<{ key: string; order: 'asc' | 'desc' }>(() =>
-    isKinematicActive(getStoredUser()) ? { key: 'created', order: 'desc' } : { key: '', order: 'asc' },
+    isKinematicTenant(getStoredUser()) ? { key: 'created', order: 'desc' } : { key: '', order: 'asc' },
   );
   const dealView = useViewPrefs('deals');
   const dealHidden = useMemo(() => new Set(dealView.prefs.hidden), [dealView.prefs.hidden]);

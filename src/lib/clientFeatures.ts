@@ -24,6 +24,14 @@ export const BMW_CLIENT_ID = '2ee5e03a-3a56-41c9-aaa0-16468920f871';
  * doesn't use (Pipeline, Products, People Directory, leads-on-map). */
 export const KINEMATIC_CLIENT_ID = '7ecd47d7-9268-4ea2-a8ce-384978c13667';
 
+/** The Kinematic tenant's ORG id. The "Kinematic" client above lives under
+ * this org, but the tenant's own super-admin (e.g. s@kinematicapp.com) has
+ * client_id = null and operates at org level — so a client-only check misses
+ * them. isKinematicTenant() below matches by org too, for tenant-wide defaults
+ * (like the leads/deals "newest first" resting sort) that should apply to the
+ * super-admin's session regardless of the client picker. */
+export const KINEMATIC_ORG_ID = '11111111-1111-4111-8111-111111111111';
+
 /** Tenants that run the steel-dealer feature set (weight-based deal
  * pricing, product-basket capture at convert, SRS lead report). Tata
  * Tiscon was the original; BMW is folded in as the second one. Gate
@@ -33,6 +41,7 @@ const STEEL_DEALER_CLIENT_IDS = [TATA_TISCON_CLIENT_ID, BMW_CLIENT_ID];
 
 type AnyUser = {
   client_id?: string | null;
+  org_id?: string | null;
   org_role?: { name?: string | null } | null;
   org_role_name?: string | null;
 } | null | undefined;
@@ -112,4 +121,15 @@ export function leadReportLabel(user: AnyUser): string {
  * the parent Kinematic tenant. */
 export function isKinematicActive(user: AnyUser): boolean {
   return activeClientId(user) === KINEMATIC_CLIENT_ID;
+}
+
+/** True when the user belongs to the Kinematic tenant — either the active
+ * client is the Kinematic client, OR the user's home org is the Kinematic org
+ * (which catches the tenant's super-admin, whose client_id is null and who
+ * therefore fails isKinematicActive unless the picker happens to be set).
+ * Use this for tenant-wide UI defaults (e.g. the leads/deals "newest first"
+ * resting sort) that must apply to the super-admin's session too. NOT a
+ * substitute for isKinematicActive on client-scoped surfaces. */
+export function isKinematicTenant(user: AnyUser): boolean {
+  return isKinematicActive(user) || (user?.org_id ?? '') === KINEMATIC_ORG_ID;
 }
