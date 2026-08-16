@@ -13,7 +13,8 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import api from '../../../lib/api';
+import api, { API_BASE_URL } from '../../../lib/api';
+import { resolveProjectForEmail, setStoredProjectKey } from '../../../lib/projects';
 
 const PALETTE = {
   bg:         '#F6F8FB',
@@ -41,6 +42,17 @@ export default function ForgotPasswordPage() {
     setBusy(true);
     setError(null);
     try {
+      // Multi-project: resolve which Supabase project this email belongs to and
+      // store it BEFORE the request, so api.forgotPassword() stamps the
+      // X-Kinematic-Project header and the backend mints the recovery token in
+      // the CORRECT project. Without this a non-default (e.g. Kinematic) user's
+      // reset routes to the default project, finds no such user, and silently
+      // no-ops (anti-enumeration) — no email ever sends. Mirrors the login page.
+      // Always resolves (defaults on failure), so this never blocks the request.
+      try {
+        const project = await resolveProjectForEmail(API_BASE_URL, trimmed);
+        setStoredProjectKey(project);
+      } catch { setStoredProjectKey(null); }
       await api.forgotPassword(trimmed);
       // Always treat the response as success — backend never reveals
       // whether the email matched a user.

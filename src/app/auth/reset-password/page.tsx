@@ -14,9 +14,9 @@ import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import api from '../../../lib/api';
+import api, { API_BASE_URL } from '../../../lib/api';
 import { saveSession, landingRouteFor, detectIdentitySwitch, recordLoginIdentity } from '../../../lib/auth';
-import { getStoredProjectKey } from '../../../lib/projects';
+import { getStoredProjectKey, resolveProjectForEmail, setStoredProjectKey } from '../../../lib/projects';
 import type { AuthUser } from '../../../types';
 
 const PALETTE = {
@@ -68,6 +68,16 @@ function ResetPasswordInner() {
     setBusy(true);
     setError(null);
     try {
+      // Multi-project: the recovery token was minted in the user's OWN project,
+      // so verification must target that project. Resolve it from the link's
+      // email and store it BEFORE the request, so api.resetPassword() stamps the
+      // X-Kinematic-Project header. Without this a non-default (e.g. Kinematic)
+      // user's link verifies against the default project and always fails with
+      // "invalid or expired". Mirrors the login + forgot-password pages.
+      try {
+        const project = await resolveProjectForEmail(API_BASE_URL, email);
+        setStoredProjectKey(project);
+      } catch { /* keep whatever's already stored */ }
       const resp = await api.resetPassword(email, token, password);
       // Mirrors the /login save path: stash the new session in
       // localStorage then route via landingRouteFor so role-based
