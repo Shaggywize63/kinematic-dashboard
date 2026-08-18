@@ -58,6 +58,11 @@ export const ALL_MODULES: ModuleEntry[] = [
   { id: 'planograms',      l: 'Planograms',       group: 'FieldForce', package: 'field_force' },
   { id: 'form_builder',    l: 'Form Builder',     group: 'FieldForce', package: 'field_force' },
   { id: 'orders',          l: 'Route Plan',       group: 'FieldForce', package: 'field_force' },
+  // Phase B — Beat/route/journey per-client toggles (OFF by default). Backend
+  // module ids route_optimization / route_deviation / beat_productivity.
+  { id: 'route_optimization', l: 'Route Optimization',    group: 'FieldForce', package: 'field_force' },
+  { id: 'route_deviation',    l: 'Route Deviation Alerts', group: 'FieldForce', package: 'field_force' },
+  { id: 'beat_productivity',  l: 'Beat Productivity',      group: 'FieldForce', package: 'field_force' },
   { id: 'work_activities', l: 'Work Activities',  group: 'FieldForce', package: 'field_force' },
 
   // CRM / Lead Management (bundle + per-feature toggles)

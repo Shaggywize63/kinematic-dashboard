@@ -34,6 +34,9 @@ export interface StuckFeRow            { fe_id: string; fe_name: string; days_si
 export interface SecurityViolationRow  { fe_id: string; fe_name: string; mock_location: number; vpn_detected: number; violation_count: number }
 export interface FormCompletionRow     { fe_id: string; fe_name: string; required: number; submitted: number; completion_pct: number }
 export interface TopPerformerRow       { fe_id: string; fe_name: string; revenue_inr: number; orders: number; outlets_covered: number }
+// Phase B — beat_productivity module (off by default).
+export interface TlsdPoint             { day: string; lines: number; orders: number; lines_per_order: number }
+export interface UniqueOutletsRow      { fe_id: string; fe_name: string; unique_outlets: number; productive_outlets: number; productive_outlet_pct: number }
 
 // ── Endpoints ───────────────────────────────────────────────────────────
 
@@ -54,6 +57,9 @@ export const ffmAnalytics = {
   securityViolations:() => api.get<Wrapped<SecurityViolationRow[]>>(`${BASE}/security-violations`),
   formCompletion:    () => api.get<Wrapped<FormCompletionRow[]>>(`${BASE}/form-completion`),
   topPerformers:     () => api.get<Wrapped<TopPerformerRow[]>>(`${BASE}/top-performers`),
+  // Phase B — beat_productivity module (returns 403 until the client is granted it).
+  tlsd:              () => api.get<Wrapped<TlsdPoint[]>>(`${BASE}/tlsd`),
+  uniqueOutlets:     () => api.get<Wrapped<UniqueOutletsRow[]>>(`${BASE}/unique-outlets`),
 };
 
 // ── Widget catalog ──────────────────────────────────────────────────────
