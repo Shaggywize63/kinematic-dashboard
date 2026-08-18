@@ -71,7 +71,7 @@ interface AttendanceRecord {
   id: string;
   user_id: string;
   date: string;
-  status: 'checked_in' | 'checked_out' | 'absent' | 'half_day';
+  status: 'checked_in' | 'checked_out' | 'absent' | 'half_day' | 'on_leave';
   checkin_at?: string;
   checkin_lat?: number;
   checkin_lng?: number;
@@ -147,6 +147,7 @@ const statusMeta: Record<string, { label: string; color: string; bg: string }> =
   checked_out: { label: 'Checked Out', color: C.blue,   bg: C.blueD   },
   absent:      { label: 'Absent',      color: C.red,    bg: C.redD    },
   half_day:    { label: 'Half Day',    color: C.yellow, bg: C.yellowD },
+  on_leave:    { label: 'On Leave',    color: C.purple, bg: C.purpleD },
 };
 
 const fmt = (iso?: string) => {
@@ -564,7 +565,8 @@ function AttendanceContent() {
     return Math.min(Math.max(h, 0), 24);
   };
 
-  const classifyDay = (rec: AttendanceRecord): 'Present' | 'Half Day' | 'Absent' | 'Checked In' => {
+  const classifyDay = (rec: AttendanceRecord): 'Present' | 'Half Day' | 'Absent' | 'Checked In' | 'On Leave' => {
+    if (rec.status === 'on_leave') return 'On Leave';
     if (rec.status === 'absent') return 'Absent';
     if (rec.status === 'half_day') return 'Half Day';
     const h = calcHours(rec);
@@ -629,7 +631,7 @@ function AttendanceContent() {
       city: string; zone: string; supervisor: string;
       records: (AttendanceRecord & { _date: string })[];
       totalDays: number; presentDays: number; halfDays: number;
-      absentDays: number; totalHours: number; avgHoursPerDay: number;
+      absentDays: number; onLeaveDays: number; totalHours: number; avgHoursPerDay: number;
     }
     const userMap: Record<string, UserSummary> = {};
     records.forEach(r => {
@@ -644,7 +646,7 @@ function AttendanceContent() {
           zone: r.users?.zones?.name || (u as any)?.zones?.name || '',
           supervisor: (u as any)?.supervisors?.name || '',
           records: [],
-          totalDays: 0, presentDays: 0, halfDays: 0, absentDays: 0, totalHours: 0, avgHoursPerDay: 0,
+          totalDays: 0, presentDays: 0, halfDays: 0, absentDays: 0, onLeaveDays: 0, totalHours: 0, avgHoursPerDay: 0,
         };
       }
       userMap[uid].records.push(r);
@@ -655,7 +657,9 @@ function AttendanceContent() {
       u.totalDays    = dates.length;
       u.presentDays  = u.records.filter(r => classifyDay(r) === 'Present' || classifyDay(r) === 'Checked In').length;
       u.halfDays     = u.records.filter(r => classifyDay(r) === 'Half Day').length;
-      u.absentDays   = dates.length - u.presentDays - u.halfDays;
+      u.onLeaveDays  = u.records.filter(r => classifyDay(r) === 'On Leave').length;
+      // Approved leave is neither present nor absent — exclude it from absent.
+      u.absentDays   = Math.max(0, dates.length - u.presentDays - u.halfDays - u.onLeaveDays);
       u.totalHours   = u.records.reduce((acc, r) => acc + (calcHours(r) || 0), 0);
       u.avgHoursPerDay = u.presentDays > 0 ? u.totalHours / u.presentDays : 0;
     });
@@ -664,12 +668,12 @@ function AttendanceContent() {
     const tabs: { name: string; csvContent: string }[] = [];
 
     // ══ SHEET 1: Summary by user ══
-    const summaryHeader = ['Name','Employee ID','Role','City','Zone','Supervisor','Working Days','Present','Half Days','Absent','Total Hours','Avg Hrs/Day'];
+    const summaryHeader = ['Name','Employee ID','Role','City','Zone','Supervisor','Working Days','Present','Half Days','On Leave','Absent','Total Hours','Avg Hrs/Day'];
     const summaryRows = allUsers.map(u => [
       q(u.name), q(u.employee_id), q(u.role), q(u.city), q(u.zone), q(u.supervisor),
       u.totalDays, u.presentDays,
       u.halfDays > 0 ? `⚠ ${u.halfDays}` : '0',
-      u.absentDays, fmtHrs(u.totalHours), fmtHrs(u.avgHoursPerDay),
+      u.onLeaveDays, u.absentDays, fmtHrs(u.totalHours), fmtHrs(u.avgHoursPerDay),
     ]);
     tabs.push({ name: 'Summary', csvContent: [summaryHeader.map(q).join(','), ...summaryRows.map(r => r.join(','))].join('\n') });
 
@@ -774,6 +778,7 @@ function AttendanceContent() {
     out:      currentRoleRecords.filter(r => r.status === 'checked_out').length,
     absent:   currentRoleRecords.filter(r => r.status === 'absent').length,
     half:     currentRoleRecords.filter(r => r.status === 'half_day').length,
+    onLeave:  currentRoleRecords.filter(r => r.status === 'on_leave').length,
   };
 
   /* 3. final shown list */
@@ -808,6 +813,7 @@ function AttendanceContent() {
             value={form.status} onChange={e => setF('status', e.target.value)}>
             <option value="checked_in">Checked In</option>
             <option value="checked_out">Checked Out</option>
+            <option value="on_leave">On Leave</option>
             <option value="absent">Absent</option>
             <option value="half_day">Half Day</option>
           </select>
@@ -953,13 +959,14 @@ function AttendanceContent() {
         )}
 
         {/* ── stat cards ── */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6,1fr)', gap: 12 }}>
           {[
-            { l: 'Total',       v: stats.total,  c: C.blue,   },
-            { l: 'Checked In',  v: stats.in,     c: C.green,  },
-            { l: 'Checked Out', v: stats.out,    c: C.purple, },
-            { l: 'Absent',      v: stats.absent, c: C.red,    },
-            { l: 'Half Day',    v: stats.half,   c: C.yellow, },
+            { l: 'Total',       v: stats.total,   c: C.blue,   },
+            { l: 'Checked In',  v: stats.in,      c: C.green,  },
+            { l: 'Checked Out', v: stats.out,     c: C.blue,   },
+            { l: 'On Leave',    v: stats.onLeave, c: C.purple, },
+            { l: 'Absent',      v: stats.absent,  c: C.red,    },
+            { l: 'Half Day',    v: stats.half,    c: C.yellow, },
           ].map(s => (
             <div key={s.l} style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 16, padding: '16px 18px', position: 'relative', overflow: 'hidden' }}>
               <div style={{ position: 'absolute', top: 0, left: 0, bottom: 0, width: 3, borderRadius: '3px 0 0 3px', background: s.c, opacity: .55 }} />
@@ -971,7 +978,9 @@ function AttendanceContent() {
 
         {/* ── Attendance Analysis ── derived from the loaded records ── */}
         {records.length > 0 && (() => {
-          const total = records.length;
+          // Approved leave is excluded from the attendance-rate denominator.
+          const onLeave = records.filter(r => classifyDay(r) === 'On Leave').length;
+          const total = records.length - onLeave;
           const present = records.filter(r => { const d = classifyDay(r); return d === 'Present' || d === 'Checked In'; }).length;
           const hoursArr = records.map(r => calcHours(r)).filter((h): h is number => h != null);
           const totalHours = hoursArr.reduce((a, b) => a + b, 0);
@@ -1081,10 +1090,10 @@ function AttendanceContent() {
 
           {/* Row 2: status filter pills */}
           <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
-            {(['all', 'checked_in', 'checked_out', 'absent', 'half_day'] as const).map(f => (
+            {(['all', 'checked_in', 'checked_out', 'on_leave', 'absent', 'half_day'] as const).map(f => (
               <button key={f} className="kbtn" onClick={() => setSF(f)}
                 style={{ padding: '7px 14px', borderRadius: 9, border: `1px solid ${statusFilter === f ? C.red : C.border}`, fontSize: 12, fontWeight: 600, fontFamily: "'DM Sans',sans-serif", whiteSpace: 'nowrap' as const, background: statusFilter === f ? C.red : C.s2, color: statusFilter === f ? '#fff' : C.gray, transition: 'all .15s' }}>
-                {f === 'all' ? 'All' : f === 'checked_in' ? '● Checked In' : f === 'checked_out' ? '✓ Checked Out' : f === 'half_day' ? '⚠ Half Day' : '✕ Absent'}
+                {f === 'all' ? 'All' : f === 'checked_in' ? '● Checked In' : f === 'checked_out' ? '✓ Checked Out' : f === 'on_leave' ? '🌴 On Leave' : f === 'half_day' ? '⚠ Half Day' : '✕ Absent'}
               </button>
             ))}
             <span style={{ marginLeft: 'auto', fontSize: 12, color: C.grayd, alignSelf: 'center', fontWeight: 600 }}>
