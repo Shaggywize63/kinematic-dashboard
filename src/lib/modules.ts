@@ -44,6 +44,9 @@ export const ALL_MODULES: ModuleEntry[] = [
   // Field Force (bundle + per-feature toggles)
   { id: 'dashboard',       l: 'Dashboard',        group: 'FieldForce', package: 'field_force' },
   { id: 'attendance',      l: 'Attendance',       group: 'FieldForce', package: 'field_force' },
+  // Per-client toggle (OFF by default): face-recognition selfie verification
+  // for attendance check-in/out. Backend module id 'face_attendance'.
+  { id: 'face_attendance', l: 'Face Attendance',  group: 'FieldForce', package: 'field_force' },
   { id: 'analytics',       l: 'Analytics',        group: 'FieldForce', package: 'field_force' },
   { id: 'ffm_analytics',   l: 'FFM Analytics',    group: 'FieldForce', package: 'field_force' },
   // FFM Reports hub — attendance, visit coverage, hours & idle, route
