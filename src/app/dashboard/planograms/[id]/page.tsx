@@ -3,7 +3,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import planogramApi, { PlanogramAssignment } from '../../../../lib/planogramApi';
-import type { ExpectedSKU, Planogram, PlanogramCompetitor } from '../../../../types/planogram';
+import type {
+  ExpectedSKU,
+  ExpectedPosm,
+  Planogram,
+  PlanogramCompetitor,
+  PosmType,
+} from '../../../../types/planogram';
 import StoreSelect from '../../../../components/StoreSelect';
 import { PC, SectionCard, StateBlock, useIsCompact, TableScroll, th, thR } from '../_components/planogramUi';
 
@@ -29,6 +35,7 @@ export default function PlanogramDetailPage() {
   const [storeFormat, setStoreFormat] = useState('');
   const [skus, setSkus] = useState<ExpectedSKU[]>([]);
   const [competitors, setCompetitors] = useState<PlanogramCompetitor[]>([]);
+  const [expectedPosm, setExpectedPosm] = useState<ExpectedPosm[]>([]);
   const [dirty, setDirty] = useState(false);
 
   const load = useCallback(async () => {
@@ -45,6 +52,7 @@ export default function PlanogramDetailPage() {
       setStoreFormat(p.data.store_format || '');
       setSkus(p.data.expected_skus || []);
       setCompetitors(p.data.layout?.competitors || []);
+      setExpectedPosm(p.data.expected_posm || []);
       setAssignments((a as { data: PlanogramAssignment[] }).data || []);
       setDirty(false);
       setError('');
@@ -106,6 +114,22 @@ export default function PlanogramDetailPage() {
     setDirty(true);
   };
 
+  const updatePosm = (i: number, patch: Partial<ExpectedPosm>) => {
+    setExpectedPosm((prev) => prev.map((p, idx) => (idx === i ? { ...p, ...patch } : p)));
+    setDirty(true);
+  };
+  const removePosm = (i: number) => {
+    setExpectedPosm((prev) => prev.filter((_, idx) => idx !== i));
+    setDirty(true);
+  };
+  const addPosm = () => {
+    setExpectedPosm((prev) => [
+      ...prev,
+      { type: 'poster', name: 'New POSM', brand: null, required: true },
+    ]);
+    setDirty(true);
+  };
+
   const save = async () => {
     if (!id) return;
     setSaving(true);
@@ -141,8 +165,10 @@ export default function PlanogramDetailPage() {
             ? { additional_ref_urls: s.additional_ref_urls }
             : {}),
         })),
+        expected_posm: expectedPosm.map((p) => cleanPosm(p)),
       });
       setPlanogram(res.data);
+      setExpectedPosm(res.data.expected_posm || []);
       setDirty(false);
     } catch (e: any) {
       setError(e.message || 'Failed to save.');
@@ -352,6 +378,20 @@ export default function PlanogramDetailPage() {
           onAdd={addCompetitor}
         />
       </div>
+
+      {/* Expected POSM */}
+      <SectionCard
+        title={`Expected POSM (${expectedPosm.length})`}
+        caption="Point-of-sale materials this planogram requires — posters, danglers, coolers and more. Scored against what's found on shelf."
+        right={
+          <button onClick={addPosm} style={btnSecondary}>
+            + Add POSM
+          </button>
+        }
+        bodyPad={false}
+      >
+        <PosmTable items={expectedPosm} onUpdate={updatePosm} onRemove={removePosm} onAdd={addPosm} />
+      </SectionCard>
 
       {/* Assignments */}
       <SectionCard title="Store assignments" caption="Stores currently scored against this planogram" bodyPad={false}>
@@ -827,6 +867,123 @@ function CompetitorTable({
                     onUpdate(i, { expected_price: e.target.value === '' ? null : Number(e.target.value) })
                   }
                   style={numInputStyle}
+                />
+              </td>
+              <td style={cellTd}>
+                <RemoveButton onClick={() => onRemove(i)} />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </TableScroll>
+  );
+}
+
+// ── Expected-POSM table ────────────────────────────────────────────────────
+
+const POSM_TYPES: { value: PosmType; label: string }[] = [
+  { value: 'poster', label: 'Poster' },
+  { value: 'dangler', label: 'Dangler' },
+  { value: 'wobbler', label: 'Wobbler' },
+  { value: 'shelf_strip', label: 'Shelf strip' },
+  { value: 'standee', label: 'Standee' },
+  { value: 'gondola_end', label: 'Gondola end' },
+  { value: 'cooler', label: 'Cooler' },
+  { value: 'branded_rack', label: 'Branded rack' },
+  { value: 'tent_card', label: 'Tent card' },
+  { value: 'bunting', label: 'Bunting' },
+  { value: 'banner', label: 'Banner' },
+  { value: 'other', label: 'Other' },
+];
+
+/** Normalize an Expected-POSM row for the save body — trims strings, drops an
+ *  empty brand, and defaults `required` to true. */
+function cleanPosm(p: ExpectedPosm): ExpectedPosm {
+  return {
+    ...(p.id ? { id: p.id } : {}),
+    type: p.type,
+    name: p.name.trim() || 'POSM',
+    brand: p.brand?.trim() || undefined,
+    required: p.required !== false,
+  };
+}
+
+function PosmTable({
+  items,
+  onUpdate,
+  onRemove,
+  onAdd,
+}: {
+  items: ExpectedPosm[];
+  onUpdate: (i: number, patch: Partial<ExpectedPosm>) => void;
+  onRemove: (i: number) => void;
+  onAdd: () => void;
+}) {
+  if (items.length === 0)
+    return (
+      <div style={{ padding: '36px 24px', textAlign: 'center' }}>
+        <div style={{ fontSize: 28, marginBottom: 10 }} aria-hidden>
+          🪧
+        </div>
+        <div style={{ fontSize: 14, fontWeight: 800, color: PC.text, fontFamily: 'var(--font-manrope)' }}>
+          No expected POSM yet
+        </div>
+        <div style={{ fontSize: 12.5, color: PC.muted, maxWidth: 420, margin: '6px auto 16px', lineHeight: 1.5 }}>
+          Add the point-of-sale materials this planogram requires — posters, danglers, coolers and
+          more. Each capture is then scored on what&apos;s present and intact.
+        </div>
+        <button onClick={onAdd} style={btnAdd}>
+          + Add your first POSM
+        </button>
+      </div>
+    );
+  return (
+    <TableScroll>
+      <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 640 }}>
+        <thead>
+          <tr>
+            <th style={th}>Type</th>
+            <th style={th}>Name</th>
+            <th style={th}>Brand</th>
+            <th style={{ ...th, width: 96, textAlign: 'center' }}>Required</th>
+            <th style={{ ...th, width: 40 }} aria-label="Remove" />
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((p, i) => (
+            <tr key={i}>
+              <td style={cellTd}>
+                <select
+                  value={p.type}
+                  onChange={(e) => onUpdate(i, { type: e.target.value as PosmType })}
+                  style={inputStyle}
+                >
+                  {POSM_TYPES.map((t) => (
+                    <option key={t.value} value={t.value}>
+                      {t.label}
+                    </option>
+                  ))}
+                </select>
+              </td>
+              <td style={cellTd}>
+                <input value={p.name} onChange={(e) => onUpdate(i, { name: e.target.value })} style={inputStyle} />
+              </td>
+              <td style={cellTd}>
+                <input
+                  value={p.brand ?? ''}
+                  placeholder="—"
+                  onChange={(e) => onUpdate(i, { brand: e.target.value })}
+                  style={inputStyle}
+                />
+              </td>
+              <td style={{ ...cellTd, textAlign: 'center' }}>
+                <input
+                  type="checkbox"
+                  checked={p.required !== false}
+                  onChange={(e) => onUpdate(i, { required: e.target.checked })}
+                  aria-label="Required"
+                  style={{ width: 16, height: 16, cursor: 'pointer', accentColor: PC.brand }}
                 />
               </td>
               <td style={cellTd}>

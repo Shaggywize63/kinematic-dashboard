@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { toast } from 'sonner';
 import planogramApi from '../../../../../lib/planogramApi';
 import PlanogramShelfOverlay, { categoryColor, type MarkableSku } from '../../../../../components/PlanogramShelfOverlay';
-import { PC, scoreTone, toneColor, fmtDateTime } from '../../_components/planogramUi';
+import { PC, scoreTone, toneColor, fmtDateTime, ScorePill } from '../../_components/planogramUi';
 import type {
   Capture,
   Compliance,
@@ -19,6 +19,11 @@ import type {
   ShelfZone,
   OfferType,
   DetectionFeedbackBody,
+  StockSummary,
+  StockStatus,
+  PosmCompliance,
+  PosmType,
+  PosmCondition,
 } from '../../../../../types/planogram';
 
 // Colour tokens for this page. Semantic good / warn / bad are kept separate from
@@ -49,11 +54,13 @@ function useIsCompact(breakpoint = 860): boolean {
 type TabKey =
   | 'overview'
   | 'skus'
+  | 'stock'
   | 'categories'
   | 'placement'
   | 'competitors'
   | 'pricing'
   | 'promotions'
+  | 'posm'
   | 'methodology';
 
 // ── Feedback loop ────────────────────────────────────────────────────────────
@@ -283,6 +290,15 @@ export default function CaptureDetailPage() {
   const detected = useMemo(() => recognition?.detected_skus || [], [recognition]);
   const method = compliance?.methodology;
 
+  // Retail-execution rollups (stock + POSM). Scalar mirrors are preferred; fall
+  // back to the nested summaries so older/partial payloads still render.
+  const stockSummary = compliance?.stock_summary ?? null;
+  const availabilityRate =
+    compliance?.availability_rate ?? stockSummary?.availability_rate ?? null;
+  const availabilityOos = compliance?.oos_count ?? stockSummary?.oos_count ?? 0;
+  const posmComp = compliance?.posm ?? null;
+  const posmScore = compliance?.posm_score ?? posmComp?.score ?? null;
+
   // SKUs the first vision pass missed but a second targeted recall pass found.
   const recoveredSkus = useMemo(() => detected.filter((d) => d.recovered), [detected]);
 
@@ -412,11 +428,13 @@ export default function CaptureDetailPage() {
   const tabs: { key: TabKey; label: string; count?: number }[] = [
     { key: 'overview', label: 'Overview' },
     { key: 'skus', label: 'SKUs', count: detected.length || undefined },
+    { key: 'stock', label: 'Stock' },
     { key: 'categories', label: 'Categories', count: categoryRows.length || undefined },
     { key: 'placement', label: 'Placement' },
     { key: 'competitors', label: 'Competitors', count: competitorRows.length || undefined },
     { key: 'pricing', label: 'Pricing' },
     { key: 'promotions', label: 'Promotions', count: promotions.length || undefined },
+    { key: 'posm', label: 'POSM', count: posmComp?.found.length || undefined },
     { key: 'methodology', label: 'Methodology' },
   ];
 
@@ -552,7 +570,7 @@ export default function CaptureDetailPage() {
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: isCompact ? 'repeat(2, 1fr)' : 'repeat(5, 1fr)',
+            gridTemplateColumns: isCompact ? 'repeat(2, 1fr)' : 'repeat(7, minmax(0, 1fr))',
             gap: 9,
           }}
         >
@@ -572,6 +590,25 @@ export default function CaptureDetailPage() {
             pctValue
             metricTone
             sub="own vs competitor"
+          />
+          <KpiTile
+            label="Availability"
+            value={availabilityRate}
+            pctValue
+            metricTone
+            sub={availabilityOos > 0 ? `${availabilityOos} out of stock` : 'all SKUs in stock'}
+          />
+          <KpiTile
+            label="POSM"
+            value={posmScore}
+            pctValue
+            metricTone
+            emptyLabel="N/A"
+            sub={
+              posmComp && posmComp.expected_count > 0
+                ? `${posmComp.found_count}/${posmComp.expected_count} found`
+                : 'none expected'
+            }
           />
         </div>
       )}
@@ -781,6 +818,15 @@ export default function CaptureDetailPage() {
           />
         )}
 
+        {tab === 'stock' && (
+          <StockTab
+            stock={stockSummary}
+            availabilityRate={availabilityRate}
+            detected={detected}
+            isCompact={isCompact}
+          />
+        )}
+
         {tab === 'categories' && (
           <CategoriesTab rows={categoryRows} computed={categoryComputed} info={method?.category} />
         )}
@@ -797,6 +843,8 @@ export default function CaptureDetailPage() {
         {tab === 'pricing' && <PricingTab rows={ownPricingRows} />}
 
         {tab === 'promotions' && <PromotionsTab promotions={promotions} />}
+
+        {tab === 'posm' && <PosmTab posm={posmComp} isCompact={isCompact} />}
 
         {tab === 'methodology' && <MethodologyTab compliance={compliance} method={method} />}
       </div>
@@ -1621,6 +1669,382 @@ function PromotionsTab({
   );
 }
 
+// ── Tab: Stock ───────────────────────────────────────────────────────────────
+
+/** On-shelf stock / availability: availability rate + unit rollup, out-of-stock
+ *  and low-stock lists, and a per-SKU units/status table. Null-safe — older
+ *  captures that predate unit estimation degrade to a friendly empty state. */
+function StockTab({
+  stock,
+  availabilityRate,
+  detected,
+  isCompact,
+}: {
+  stock: StockSummary | null;
+  availabilityRate: number | null;
+  detected: DetectedSKU[];
+  isCompact: boolean;
+}) {
+  const oos = stock?.out_of_stock_skus ?? [];
+  const low = stock?.low_stock_skus ?? [];
+  const hasUnits = detected.some((d) => d.units_estimate != null || d.stock_status != null);
+
+  if (!stock && !hasUnits && availabilityRate == null) {
+    return (
+      <Panel title="Stock & availability" subtitle="Estimated on-shelf units and availability">
+        <EmptyLine>No stock estimate is available for this capture.</EmptyLine>
+      </Panel>
+    );
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <Panel title="Stock & availability" subtitle="Estimated physical units on the shelf and availability rate">
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: isCompact ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)',
+            gap: 12,
+            padding: 16,
+          }}
+        >
+          <StockStat label="Availability" pill={availabilityRate} sub="SKUs in stock" />
+          <StockStat label="Total units" value={stock?.total_units ?? null} sub="on shelf (est.)" />
+          <StockStat label="Own units" value={stock?.own_units ?? null} valueColor={C.green} sub="your products" />
+          <StockStat
+            label="Competitor units"
+            value={stock?.competitor_units ?? null}
+            valueColor={C.brand}
+            sub="rival products"
+          />
+        </div>
+      </Panel>
+
+      <div style={{ display: 'grid', gridTemplateColumns: isCompact ? '1fr' : '1fr 1fr', gap: 14 }}>
+        <Panel
+          title={`Out of stock${oos.length ? ` (${oos.length})` : ''}`}
+          subtitle="Expected SKUs with no units detected on shelf"
+        >
+          {oos.length === 0 ? (
+            <EmptyLine>Nothing out of stock — every tracked SKU has units on shelf.</EmptyLine>
+          ) : (
+            oos.map((s) => <Row key={s.sku_id} left={s.sku_name} right={<StatusChip status="out" />} />)
+          )}
+        </Panel>
+        <Panel
+          title={`Low stock${low.length ? ` (${low.length})` : ''}`}
+          subtitle="Running low — restock before they sell out"
+        >
+          {low.length === 0 ? (
+            <EmptyLine>No SKUs are running low.</EmptyLine>
+          ) : (
+            low.map((s) => (
+              <Row
+                key={s.sku_id}
+                left={s.sku_name}
+                right={
+                  <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
+                    <span style={num}>{s.units_estimate != null ? `${s.units_estimate} left` : '—'}</span>
+                    <StatusChip status="low" />
+                  </span>
+                }
+              />
+            ))
+          )}
+        </Panel>
+      </div>
+
+      <Panel title="Per-SKU units & status" subtitle="Estimated units and stock status for each detected product">
+        {detected.length === 0 ? (
+          <EmptyLine>No SKUs were detected on this shelf.</EmptyLine>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <div style={{ minWidth: 560 }}>
+              <div style={{ ...stockGrid, ...priceHeadStyle }}>
+                <span>SKU</span>
+                <span>Brand</span>
+                <span style={num}>Facings</span>
+                <span style={num}>Units (est.)</span>
+                <span>Status</span>
+              </div>
+              {detected.map((d, i) => (
+                <div key={i} style={{ ...stockGrid, ...priceRowStyle }}>
+                  <span
+                    style={{
+                      fontWeight: 600,
+                      color: d.is_competitor ? C.brand : 'var(--text)',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {d.sku_name}
+                    {d.is_competitor ? ' · competitor' : ''}
+                  </span>
+                  <span style={{ color: C.gray }}>{d.brand || '—'}</span>
+                  <span style={num}>{d.facings}</span>
+                  <span style={num}>{d.units_estimate != null ? d.units_estimate : '—'}</span>
+                  <span>
+                    <StatusChip status={d.stock_status} />
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </Panel>
+    </div>
+  );
+}
+
+/** A stat block for the Stock header: either a ScorePill (banded 0..100) or a
+ *  plain tabular number, with a small caption. */
+function StockStat({
+  label,
+  value,
+  pill,
+  valueColor,
+  sub,
+}: {
+  label: string;
+  value?: number | null;
+  pill?: number | null;
+  valueColor?: string;
+  sub?: string;
+}) {
+  return (
+    <div
+      style={{
+        border: `1px solid ${C.border}`,
+        borderRadius: 12,
+        padding: 14,
+        background: 'var(--s2)',
+      }}
+    >
+      <div style={{ fontSize: 11, color: C.gray, fontWeight: 600 }}>{label}</div>
+      <div style={{ marginTop: 6 }}>
+        {pill !== undefined ? (
+          <ScorePill score={pill} />
+        ) : (
+          <span
+            style={{
+              fontSize: 22,
+              fontWeight: 800,
+              fontVariantNumeric: 'tabular-nums',
+              color: value != null ? valueColor ?? 'var(--text)' : C.grayd,
+            }}
+          >
+            {value != null ? value : '—'}
+          </span>
+        )}
+      </div>
+      {sub && <div style={{ fontSize: 11, color: C.grayd, marginTop: 6 }}>{sub}</div>}
+    </div>
+  );
+}
+
+// ── Tab: POSM ────────────────────────────────────────────────────────────────
+
+/** POSM compliance: expected vs found point-of-sale materials, with missing +
+ *  damaged lists and a found table. Empty state when nothing is expected. */
+function PosmTab({ posm, isCompact }: { posm: PosmCompliance | null; isCompact: boolean }) {
+  if (!posm || posm.expected_count === 0) {
+    return (
+      <Panel title="POSM compliance" subtitle="Point-of-sale materials expected vs found on shelf">
+        <EmptyLine>No expected POSM defined for this planogram.</EmptyLine>
+      </Panel>
+    );
+  }
+  const missing = posm.missing ?? [];
+  const damaged = posm.damaged ?? [];
+  const found = posm.found ?? [];
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <Panel title="POSM compliance" subtitle="How much of the expected point-of-sale material is present and intact">
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: isCompact ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)',
+            gap: 12,
+            padding: 16,
+          }}
+        >
+          <StockStat label="POSM score" pill={posm.score} sub="present & undamaged" />
+          <StockStat label="Found" value={posm.found_count} sub={`of ${posm.expected_count} expected`} />
+          <StockStat label="Required" value={posm.required_count} sub="mandatory elements" />
+          <StockStat
+            label="Missing"
+            value={missing.length}
+            valueColor={missing.length > 0 ? C.red : C.green}
+            sub="not on shelf"
+          />
+        </div>
+      </Panel>
+
+      <div style={{ display: 'grid', gridTemplateColumns: isCompact ? '1fr' : '1fr 1fr', gap: 14 }}>
+        <Panel
+          title={`Missing${missing.length ? ` (${missing.length})` : ''}`}
+          subtitle="Expected POSM not detected on the shelf"
+        >
+          {missing.length === 0 ? (
+            <EmptyLine>Nothing missing — all expected POSM was found.</EmptyLine>
+          ) : (
+            missing.map((m, i) => (
+              <Row key={i} left={m.name} right={<PosmTypeTag type={m.type} />} />
+            ))
+          )}
+        </Panel>
+        <Panel
+          title={`Damaged${damaged.length ? ` (${damaged.length})` : ''}`}
+          subtitle="Present but damaged or obscured — needs replacing"
+        >
+          {damaged.length === 0 ? (
+            <EmptyLine>No damaged POSM detected.</EmptyLine>
+          ) : (
+            damaged.map((d, i) => (
+              <Row
+                key={i}
+                left={d.name}
+                right={
+                  <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
+                    <PosmTypeTag type={d.type} />
+                    <ConditionChip condition="damaged" />
+                  </span>
+                }
+              />
+            ))
+          )}
+        </Panel>
+      </div>
+
+      <Panel title={`Found${found.length ? ` (${found.length})` : ''}`} subtitle="Point-of-sale materials detected on this shelf">
+        {found.length === 0 ? (
+          <EmptyLine>No POSM was detected on this shelf.</EmptyLine>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <div style={{ minWidth: 620 }}>
+              <div style={{ ...posmGrid, ...priceHeadStyle }}>
+                <span>Type</span>
+                <span>Name</span>
+                <span>Brand</span>
+                <span>Condition</span>
+                <span style={num}>Confidence</span>
+              </div>
+              {found.map((f, i) => (
+                <div key={i} style={{ ...posmGrid, ...priceRowStyle }}>
+                  <span style={{ color: C.gray }}>{POSM_LABEL[f.type] ?? f.type}</span>
+                  <span
+                    style={{
+                      fontWeight: 600,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {f.name}
+                  </span>
+                  <span style={{ color: C.gray }}>{f.brand || '—'}</span>
+                  <span>
+                    <ConditionChip condition={f.condition} />
+                  </span>
+                  <span style={num}>{Math.round(f.confidence * 100)}%</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </Panel>
+    </div>
+  );
+}
+
+// ── Retail-execution chips ────────────────────────────────────────────────────
+
+const POSM_LABEL: Record<PosmType, string> = {
+  poster: 'Poster',
+  dangler: 'Dangler',
+  wobbler: 'Wobbler',
+  shelf_strip: 'Shelf strip',
+  standee: 'Standee',
+  gondola_end: 'Gondola end',
+  cooler: 'Cooler',
+  branded_rack: 'Branded rack',
+  tent_card: 'Tent card',
+  bunting: 'Bunting',
+  banner: 'Banner',
+  other: 'Other',
+};
+
+/** Small colored chip helper (matches ScorePill's pill geometry + tone washes). */
+function toneChip(label: string, color: string, wash: string) {
+  return (
+    <span
+      style={{
+        fontSize: 11,
+        fontWeight: 700,
+        padding: '3px 10px',
+        borderRadius: 100,
+        color,
+        background: wash,
+        display: 'inline-block',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {label}
+    </span>
+  );
+}
+
+/** Stock-status chip: in_stock = green, low = amber, out = red. */
+function StatusChip({ status }: { status: StockStatus | null | undefined }) {
+  if (!status) return <span style={{ fontSize: 12, color: C.grayd }}>—</span>;
+  switch (status) {
+    case 'in_stock':
+      return toneChip('In stock', C.green, PC.goodWash);
+    case 'low':
+      return toneChip('Low', C.yellow, PC.warnWash);
+    case 'out':
+      return toneChip('Out', C.red, PC.badWash);
+    default:
+      return <span style={{ fontSize: 12, color: C.grayd }}>—</span>;
+  }
+}
+
+/** POSM condition chip: good = green, obscured = amber, damaged = red. */
+function ConditionChip({ condition }: { condition: PosmCondition | null | undefined }) {
+  if (!condition) return <span style={{ fontSize: 12, color: C.grayd }}>—</span>;
+  switch (condition) {
+    case 'good':
+      return toneChip('Good', C.green, PC.goodWash);
+    case 'obscured':
+      return toneChip('Obscured', C.yellow, PC.warnWash);
+    case 'damaged':
+      return toneChip('Damaged', C.red, PC.badWash);
+    default:
+      return <span style={{ fontSize: 12, color: C.grayd }}>—</span>;
+  }
+}
+
+/** A neutral tag naming a POSM type (poster, dangler…). */
+function PosmTypeTag({ type }: { type: PosmType }) {
+  return (
+    <span
+      style={{
+        fontSize: 10.5,
+        fontWeight: 700,
+        padding: '2px 8px',
+        borderRadius: 100,
+        color: C.gray,
+        background: 'var(--s3)',
+        display: 'inline-block',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {POSM_LABEL[type] ?? type}
+    </span>
+  );
+}
+
 // ── Tab: Methodology ─────────────────────────────────────────────────────────
 
 const METHOD_ORDER: { key: MethodologyKey; label: string }[] = [
@@ -1796,6 +2220,7 @@ function KpiTile({
   color,
   meterPct,
   sub,
+  emptyLabel,
 }: {
   label: string;
   value: number | null;
@@ -1804,6 +2229,8 @@ function KpiTile({
   color?: string;
   meterPct?: number;
   sub?: string;
+  /** Shown in place of the value when it is null (defaults to "—"). */
+  emptyLabel?: string;
 }) {
   const barColor = color ?? (metricTone && value != null ? toneColor(scoreTone(value)) : C.gray);
   const barPct =
@@ -1818,7 +2245,7 @@ function KpiTile({
             {pctValue && <small style={{ fontSize: 13, color: C.grayd }}>%</small>}
           </>
         ) : (
-          <span style={{ color: C.grayd, fontSize: 18 }}>—</span>
+          <span style={{ color: C.grayd, fontSize: 18 }}>{emptyLabel ?? '—'}</span>
         )}
       </div>
       <div style={{ height: 4, borderRadius: 100, background: 'var(--s3)', marginTop: 8, overflow: 'hidden' }}>
@@ -2545,20 +2972,21 @@ function Panel({
   );
 }
 
-function Row({ left, right }: { left: string; right: string }) {
+function Row({ left, right }: { left: React.ReactNode; right: React.ReactNode }) {
   return (
     <div
       style={{
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
+        gap: 12,
         padding: '12px 18px',
         borderBottom: `1px solid rgba(122,139,160,0.15)`,
         fontSize: 13,
       }}
     >
-      <span style={{ fontWeight: 600 }}>{left}</span>
-      <span style={{ color: C.gray }}>{right}</span>
+      <span style={{ fontWeight: 600, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{left}</span>
+      <span style={{ color: C.gray, flexShrink: 0 }}>{right}</span>
     </div>
   );
 }
@@ -2642,6 +3070,20 @@ const priceGrid: React.CSSProperties = {
 const compGrid: React.CSSProperties = {
   display: 'grid',
   gridTemplateColumns: '1.6fr 1fr 1.2fr 0.8fr 1fr 1fr',
+  gap: 8,
+  padding: '10px 18px',
+  alignItems: 'center',
+};
+const stockGrid: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: '2fr 1.2fr 0.8fr 1fr 1fr',
+  gap: 8,
+  padding: '10px 18px',
+  alignItems: 'center',
+};
+const posmGrid: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: '1fr 1.6fr 1fr 1fr 0.9fr',
   gap: 8,
   padding: '10px 18px',
   alignItems: 'center',

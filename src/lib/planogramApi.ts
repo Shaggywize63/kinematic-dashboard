@@ -10,6 +10,7 @@ import type {
   SkuVisibility,
   RiskForecastRow,
   ExpectedSKU,
+  ExpectedPosm,
   PlanogramCompetitor,
   PlanogramOverview,
   CaptureListItem,
@@ -115,6 +116,8 @@ export interface CreatePlanogramBody {
     category_definition?: string;
   };
   expected_skus: ExpectedSKU[];
+  /** Expected point-of-sale materials — round-tripped by POST/PATCH. */
+  expected_posm?: ExpectedPosm[];
 }
 
 /**

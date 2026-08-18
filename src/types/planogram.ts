@@ -1,6 +1,24 @@
 export type PriceSource = 'shelf_tag' | 'on_pack' | 'promo';
 export type ShelfZone = 'low' | 'eye' | 'top';
 export type OfferType = 'price_off' | 'bundle' | 'bogo' | 'combo' | 'other';
+/** On-shelf availability bucket for a detected SKU. */
+export type StockStatus = 'in_stock' | 'low' | 'out';
+/** Point-of-sale-material kinds tracked for retail execution. */
+export type PosmType =
+  | 'poster'
+  | 'dangler'
+  | 'wobbler'
+  | 'shelf_strip'
+  | 'standee'
+  | 'gondola_end'
+  | 'cooler'
+  | 'branded_rack'
+  | 'tent_card'
+  | 'bunting'
+  | 'banner'
+  | 'other';
+/** Physical condition of a detected POSM element. */
+export type PosmCondition = 'good' | 'damaged' | 'obscured';
 /** Metrics the backend documents a formula for in `Compliance.methodology`. */
 export type MethodologyKey =
   | 'occupancy'
@@ -27,10 +45,26 @@ export interface Planogram {
     category_definition?: string;
   };
   expected_skus: Array<ExpectedSKU>;
+  /** Expected point-of-sale materials this planogram requires (posters,
+   *  danglers, wobblers…), matched against at capture time. POST/PATCH
+   *  accept and round-trip it. Absent on planograms that predate POSM. */
+  expected_posm?: ExpectedPosm[];
   version: number;
   is_active: boolean;
   created_at: string;
   updated_at: string;
+}
+
+/** A point-of-sale material a planogram expects on the shelf/fixture. */
+export interface ExpectedPosm {
+  /** Server-assigned id when persisted; omitted for a freshly-added row. */
+  id?: string;
+  type: PosmType;
+  name: string;
+  brand?: string | null;
+  /** Whether this element is mandatory (counts toward the required score).
+   *  Defaults to true when omitted. */
+  required?: boolean;
 }
 
 export interface ExpectedSKU {
@@ -80,6 +114,11 @@ export interface DetectedSKU {
   price?: number | null;
   price_currency?: string | null;
   price_source?: PriceSource | null;
+  /** Estimated physical units of this SKU on the shelf (null when the model
+   *  could not estimate depth). Absent on captures that predate unit estimation. */
+  units_estimate?: number | null;
+  /** Availability bucket derived from the unit estimate. */
+  stock_status?: StockStatus | null;
   confidence: number;
   is_competitor: boolean;
   reasoning?: string | null;
@@ -98,11 +137,24 @@ export interface Promotion {
   linked_sku_ids: string[];
 }
 
+/** A point-of-sale material element detected on the shelf image. */
+export interface PosmDetection {
+  type: PosmType;
+  name: string;
+  brand: string | null;
+  bbox: [number, number, number, number] | null;
+  condition: PosmCondition;
+  confidence: number;
+}
+
 export interface Recognition {
   id: string;
   capture_id: string;
   detected_skus: DetectedSKU[];
   promotions?: Promotion[];
+  /** Point-of-sale materials (posters, danglers…) detected on the shelf image.
+   *  Absent on older recognitions that predate POSM detection. */
+  posm?: PosmDetection[];
   shelf_map: { shelf_count: number };
   overall_confidence: number;
   needs_review: boolean;
@@ -175,6 +227,37 @@ export interface MethodologyEntry {
   rows?: Array<Record<string, string | number | boolean | null>>;
 }
 
+/** On-shelf stock estimate rollup for a capture (units + availability). */
+export interface StockSummary {
+  total_units: number;
+  own_units: number;
+  competitor_units: number;
+  /** Share of expected/detected SKUs that are in stock, 0..100. */
+  availability_rate: number;
+  oos_count: number;
+  low_count: number;
+  out_of_stock_skus: Array<{ sku_id: string; sku_name: string }>;
+  low_stock_skus: Array<{ sku_id: string; sku_name: string; units_estimate: number | null }>;
+}
+
+/** POSM compliance rollup — expected point-of-sale materials vs what was found. */
+export interface PosmCompliance {
+  expected_count: number;
+  required_count: number;
+  found_count: number;
+  /** Compliance score 0..100, or null when nothing was expected. */
+  score: number | null;
+  missing: Array<{ type: PosmType; name: string }>;
+  damaged: Array<{ type: PosmType; name: string }>;
+  found: Array<{
+    type: PosmType;
+    name: string;
+    brand: string | null;
+    condition: PosmCondition;
+    confidence: number;
+  }>;
+}
+
 export interface Compliance {
   id: string;
   capture_id: string;
@@ -220,6 +303,18 @@ export interface Compliance {
   pricing?: PricingRow[];
   /** New: detected promotions rolled up from recognition. */
   promotions?: CompliancePromotion[];
+  /** New: on-shelf stock estimate rollup (units + availability). */
+  stock_summary?: StockSummary;
+  /** New: POSM compliance rollup (expected vs found signage). */
+  posm?: PosmCompliance;
+  /** New: scalar mirror of `posm.score` for tiles/lists (null when no POSM expected). */
+  posm_score?: number | null;
+  /** New: scalar mirror of `stock_summary.availability_rate` for tiles/lists. */
+  availability_rate?: number;
+  /** New: scalar mirror of `stock_summary.oos_count`. */
+  oos_count?: number;
+  /** New: scalar mirror of `stock_summary.low_count`. */
+  low_stock_count?: number;
   /** New: per-metric formula + inputs for the methodology popovers. */
   methodology?: Partial<Record<MethodologyKey, MethodologyEntry>>;
   created_at: string;
