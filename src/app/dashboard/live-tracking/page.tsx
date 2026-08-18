@@ -33,6 +33,8 @@ interface FELoc {
   today_engagements?: number; today_tff?: number;
   battery_percentage?: number;
   device_model?: string; device_brand?: string; os_version?: string;
+  // GPS-integrity signals from the latest heartbeat (GPS-spoof hardening).
+  is_mock?: boolean; is_suspect?: boolean; suspect_reason?: string; location_accuracy_m?: number;
 }
 interface Outlet {
   id: string; name: string; store_type?: string;
@@ -495,6 +497,7 @@ export default function LiveTrackingPage() {
   const breakCount   = fes.filter(f => f.status === 'on_break').length;
   const outCount     = fes.filter(f => f.status === 'checked_out').length;
   const absentCount  = fes.filter(f => f.status === 'absent').length;
+  const flaggedCount = fes.filter(f => f.is_mock || f.is_suspect).length;
 
   const selFE  = selectedType === 'fe'         ? fes.find(f => f.id === selectedId)
                : selectedType === 'supervisor'  ? supervisors.find(s => s.id === selectedId) : null;
@@ -577,6 +580,8 @@ export default function LiveTrackingPage() {
             { l:'Absent',      v:absentCount, c:C.grayd  },
             { l:'Outlets',     v:outlets.filter(o=>o.is_active).length, c:C.yellow },
             { l:'Warehouses',  v:warehouses.filter(w=>w.is_active).length, c:C.purple },
+            // GPS-integrity flag — only surfaced when at least one rep is flagged.
+            ...(flaggedCount > 0 ? [{ l:'⚠ Flagged GPS', v:flaggedCount, c:C.red }] : []),
           ].map((s,i) => (
             <div key={i} style={{ background:C.s2, border:`1px solid ${C.border}`, borderRadius:12, padding:'10px 16px', textAlign:'center', flex:1 }}>
               <div className="lt-kpi-val" style={{ fontFamily:"'Syne',sans-serif", fontSize:20, fontWeight:800, color:s.c }}>{loading?'—':s.v}</div>
@@ -652,7 +657,16 @@ export default function LiveTrackingPage() {
                         {(fe.name||'?')[0]}
                       </div>
                       <div style={{ flex:1, minWidth:0 }}>
-                        <div style={{ fontSize:13, fontWeight:700, color:C.white, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{fe.name}</div>
+                        <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                          <div style={{ fontSize:13, fontWeight:700, color:C.white, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{fe.name}</div>
+                          {(fe.is_mock || fe.is_suspect) && (
+                            <span title={fe.suspect_reason || (fe.is_mock ? 'Mock/simulated GPS reported by the device' : 'Impossible-speed jump vs the previous fix')}
+                              style={{ flexShrink:0, fontSize:9, fontWeight:800, letterSpacing:'0.4px', textTransform:'uppercase',
+                                color:C.red, background:`${C.red}1f`, border:`1px solid ${C.red}55`, borderRadius:5, padding:'1px 5px' }}>
+                              ⚠ {fe.is_mock ? 'Mock GPS' : 'Teleport'}
+                            </span>
+                          )}
+                        </div>
                         <div style={{ fontSize:10, color:C.grayd, marginTop:1 }}>
                           {fe.employee_id||''} {fe.zone_name?`· ${fe.zone_name}`:''}
                           {fe.last_location_updated_at && (
@@ -877,6 +891,12 @@ export default function LiveTrackingPage() {
                         <div style={{ fontSize:10, color:C.grayd, marginTop:1, display:'flex', alignItems:'center', gap:4 }}>
                           📱 {selFE.device_brand ? selFE.device_brand + ' ' : ''}{selFE.device_model || 'Device'}
                           {selFE.os_version && <span> · Android {selFE.os_version}</span>}
+                        </div>
+                      )}
+                      {(selFE.is_mock || selFE.is_suspect) && (
+                        <div style={{ fontSize:11, color:C.red, marginTop:4, fontWeight:600, display:'flex', alignItems:'center', gap:5 }}>
+                          ⚠ {selFE.is_mock ? 'Mock/simulated GPS on the last fix' : 'Impossible-speed jump vs the previous fix'}
+                          {selFE.suspect_reason && <span style={{ color:C.gray, fontWeight:500 }}>· {selFE.suspect_reason}</span>}
                         </div>
                       )}
                       <div style={{ fontSize:11, color:C.gray, marginTop:2 }}>{selFE.employee_id||''} · {selFE.zone_name||'No zone'}</div>
