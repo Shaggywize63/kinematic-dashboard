@@ -86,6 +86,12 @@ interface AttendanceRecord {
   override_reason?: string;
   override_by?: string;
   is_regularised?: boolean;
+  // Face-recognition attendance (module face_attendance): the on-device 1:1
+  // match result stamped at check-in / check-out.
+  checkin_face_verified?: boolean;
+  checkin_face_score?: number;
+  checkout_face_verified?: boolean;
+  checkout_face_score?: number;
   _virtual?: boolean;
   users?: { name: string; role?: string; employee_id?: string; zones?: { name: string } };
 }
@@ -1163,6 +1169,16 @@ function AttendanceContent() {
 
                     {/* selfie preview */}
                     <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      {/* Face-recognition verdict (module face_attendance). */}
+                      {r.checkin_face_verified != null && (
+                        <span title={r.checkin_face_score != null ? `On-device face match: ${Math.round(r.checkin_face_score * 100)}%` : (r.checkin_face_verified ? 'Face verified' : 'Face not matched')}
+                          style={{ fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 6, whiteSpace: 'nowrap', flexShrink: 0,
+                            color: r.checkin_face_verified ? C.green : C.yellow,
+                            background: r.checkin_face_verified ? C.greenD : C.yellowD,
+                            border: `1px solid ${(r.checkin_face_verified ? C.green : C.yellow)}40` }}>
+                          {r.checkin_face_verified ? '✓ Face' : 'Face ?'}
+                        </span>
+                      )}
                       {r.checkin_selfie_url ? (
                         <div style={{ position: 'relative' }}>
                           <SignedImage src={r.checkin_selfie_url} alt="In" style={{ width: 40, height: 40, borderRadius: 8, objectFit: 'cover', border: `1px solid ${C.green}40` }} />
@@ -1375,6 +1391,25 @@ function AttendanceContent() {
             {detail.is_regularised && (
               <div style={{ background: 'rgba(155,110,255,0.08)', border: '1px solid rgba(155,110,255,0.2)', borderRadius: 11, padding: '10px 13px', marginBottom: 14, fontSize: 12, color: '#9B6EFF', display: 'flex', gap: 8, alignItems: 'center' }}>
                 ✎ Regularised by admin
+              </div>
+            )}
+
+            {/* Face-recognition verdict (module face_attendance). */}
+            {(detail.checkin_face_verified != null || detail.checkout_face_verified != null) && (
+              <div style={{ background: C.s3, border: `1px solid ${C.border}`, borderRadius: 11, padding: '10px 13px', marginBottom: 14, fontSize: 12, color: C.gray, display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+                <span style={{ fontWeight: 700, color: C.white }}>Face match</span>
+                {detail.checkin_face_verified != null && (
+                  <span style={{ color: detail.checkin_face_verified ? C.green : C.yellow, fontWeight: 600 }}>
+                    In: {detail.checkin_face_verified ? '✓ verified' : 'not matched'}
+                    {detail.checkin_face_score != null && ` (${Math.round(detail.checkin_face_score * 100)}%)`}
+                  </span>
+                )}
+                {detail.checkout_face_verified != null && (
+                  <span style={{ color: detail.checkout_face_verified ? C.green : C.yellow, fontWeight: 600 }}>
+                    Out: {detail.checkout_face_verified ? '✓ verified' : 'not matched'}
+                    {detail.checkout_face_score != null && ` (${Math.round(detail.checkout_face_score * 100)}%)`}
+                  </span>
+                )}
               </div>
             )}
 
