@@ -1096,6 +1096,20 @@ class ApiClient {
   // SKU lookup for the stock-adjust + van-load pickers (shared catalogue route).
   getSkus(params?: Record<string, string>) { return this.get(`/api/v1/skus${this.sanitizeParams(params)}`); }
 
+  // ── Distribution: Damaged / Expiry register (module distribution_damage) ──
+  getDamageEntries(params?: Record<string, string>) { return this.get(`/api/v1/distribution/damage${this.sanitizeParams(params)}`); }
+  createDamageEntry(data: object) { return this.post('/api/v1/distribution/damage', data); }
+  confirmDamage(id: string) { return this.post(`/api/v1/distribution/damage/${id}/confirm`, {}); }
+  rejectDamage(id: string, data: object) { return this.post(`/api/v1/distribution/damage/${id}/reject`, data); }
+
+  // ── Distribution: Claims & Settlements (module distribution_claims) ───────
+  getClaims(params?: Record<string, string>) { return this.get(`/api/v1/distribution/claims${this.sanitizeParams(params)}`); }
+  getClaim(id: string) { return this.get(`/api/v1/distribution/claims/${id}`); }
+  getClaimsSummary(params?: Record<string, string>) { return this.get(`/api/v1/distribution/claims/summary${this.sanitizeParams(params)}`); }
+  createClaim(data: object) { return this.post('/api/v1/distribution/claims', data); }
+  updateClaimStatus(id: string, data: object) { return this.post(`/api/v1/distribution/claims/${id}/status`, data); }
+  settleClaim(id: string, data: object) { return this.post(`/api/v1/distribution/claims/${id}/settle`, data); }
+
   // ── Distribution: Consumer / Secondary Sales (M3) ────────────────────
   getSecondarySales(params?: Record<string, string>) { return this.get(`/api/v1/distribution/secondary-sales${this.sanitizeParams(params)}`); }
   createSecondarySale(data: object) { return this.post('/api/v1/distribution/secondary-sales', data); }
