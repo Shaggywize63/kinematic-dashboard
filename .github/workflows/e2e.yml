@@ -23,30 +23,41 @@ jobs:
       - name: Install dependencies
         run: npm ci || npm install --no-audit --no-fund
 
-      # In this repo's own CI there is no pre-installed browser, so fetch
-      # Chromium (+ its OS deps). The playwright.config.ts only pins an explicit
-      # executablePath when the local /opt/pw-browsers binary exists, so here it
-      # falls back to this managed install automatically.
-      #
-      # `playwright install --with-deps` shells out to apt-get, which has
-      # intermittently hung on the runner's package mirror (the browser download
-      # + OS-deps step). Cap each attempt with `timeout` and retry, so a network
-      # stall aborts and retries within the run instead of hanging the job.
-      - name: Install Playwright Chromium
-        timeout-minutes: 15
+      # Fetch the Chromium binary from Playwright's CDN. This is fast and
+      # reliable (no apt), so it stays a hard requirement.
+      - name: Install Playwright browser
+        timeout-minutes: 6
         run: |
           for attempt in 1 2 3; do
-            echo "::group::playwright install (attempt $attempt)"
-            if timeout 360 npx playwright install --with-deps chromium; then
-              echo "::endgroup::"
-              exit 0
-            fi
-            echo "attempt $attempt stalled or failed; retrying..."
-            echo "::endgroup::"
+            if timeout 240 npx playwright install chromium; then exit 0; fi
+            echo "browser download attempt $attempt failed; retrying..."
             sleep 5
           done
-          echo "playwright install failed after 3 attempts"
+          echo "browser download failed after 3 attempts"
           exit 1
+
+      # OS libraries via `playwright install-deps` shell out to apt-get, which
+      # has intermittently HUNG on the runner's Ubuntu mirror
+      # (azure.archive.ubuntu.com) — and killing a hung apt-get leaves a stale
+      # dpkg/apt lock that breaks the next attempt. So: clean stale locks first,
+      # cap each attempt with `timeout`, retry — and treat this as best-effort
+      # (continue-on-error), because GitHub's ubuntu-latest image already ships
+      # Chromium's runtime libs (this is why the suite has passed without it).
+      - name: Install Playwright OS deps (best-effort)
+        timeout-minutes: 8
+        continue-on-error: true
+        run: |
+          for attempt in 1 2 3; do
+            sudo pkill -9 -f apt-get 2>/dev/null || true
+            sudo rm -f /var/lib/apt/lists/lock /var/lib/apt/lists/lock-frontend \
+              /var/cache/apt/archives/lock /var/lib/dpkg/lock /var/lib/dpkg/lock-frontend 2>/dev/null || true
+            if sudo timeout 180 npx playwright install-deps chromium; then
+              echo "OS deps installed on attempt $attempt"; exit 0
+            fi
+            echo "install-deps attempt $attempt stalled/failed; retrying..."
+            sleep 5
+          done
+          echo "install-deps did not complete; continuing (runner likely already has the libs)"
 
       - name: Run E2E tests
         timeout-minutes: 8
