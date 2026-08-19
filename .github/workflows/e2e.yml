@@ -10,6 +10,9 @@ jobs:
   e2e:
     name: Playwright E2E
     runs-on: ubuntu-latest
+    # Backstop: a healthy run finishes in ~2-3 min. Cap the whole job so a
+    # stalled step fails fast (and is diagnosable) instead of hanging for hours.
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
 
@@ -24,10 +27,29 @@ jobs:
       # Chromium (+ its OS deps). The playwright.config.ts only pins an explicit
       # executablePath when the local /opt/pw-browsers binary exists, so here it
       # falls back to this managed install automatically.
+      #
+      # `playwright install --with-deps` shells out to apt-get, which has
+      # intermittently hung on the runner's package mirror (the browser download
+      # + OS-deps step). Cap each attempt with `timeout` and retry, so a network
+      # stall aborts and retries within the run instead of hanging the job.
       - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium
+        timeout-minutes: 15
+        run: |
+          for attempt in 1 2 3; do
+            echo "::group::playwright install (attempt $attempt)"
+            if timeout 360 npx playwright install --with-deps chromium; then
+              echo "::endgroup::"
+              exit 0
+            fi
+            echo "attempt $attempt stalled or failed; retrying..."
+            echo "::endgroup::"
+            sleep 5
+          done
+          echo "playwright install failed after 3 attempts"
+          exit 1
 
       - name: Run E2E tests
+        timeout-minutes: 8
         run: npx playwright test --reporter=list
 
       - name: Upload report
