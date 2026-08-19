@@ -1102,6 +1102,9 @@ class ApiClient {
   confirmDamage(id: string) { return this.post(`/api/v1/distribution/damage/${id}/confirm`, {}); }
   rejectDamage(id: string, data: object) { return this.post(`/api/v1/distribution/damage/${id}/reject`, data); }
 
+  // ── Distribution: Reconciliation (module distribution_reconciliation) ─────
+  getReconciliation(params?: Record<string, string>) { return this.get(`/api/v1/distribution/reconciliation${this.sanitizeParams(params)}`); }
+
   // ── Distribution: Claims & Settlements (module distribution_claims) ───────
   getClaims(params?: Record<string, string>) { return this.get(`/api/v1/distribution/claims${this.sanitizeParams(params)}`); }
   getClaim(id: string) { return this.get(`/api/v1/distribution/claims/${id}`); }

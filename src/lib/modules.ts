@@ -105,6 +105,7 @@ export const ALL_MODULES: ModuleEntry[] = [
   { id: 'distribution_van',            l: 'Van Sales',    group: 'Distribution', package: 'distribution' },
   { id: 'distribution_damage',         l: 'Damaged / Expiry', group: 'Distribution', package: 'distribution' },
   { id: 'distribution_claims',         l: 'Claims',       group: 'Distribution', package: 'distribution' },
+  { id: 'distribution_reconciliation', l: 'Reconciliation', group: 'Distribution', package: 'distribution' },
 
   // Business (universal — every client gets these)
   { id: 'clients',   l: 'Clients',        group: 'Business', package: 'business', universal: true },

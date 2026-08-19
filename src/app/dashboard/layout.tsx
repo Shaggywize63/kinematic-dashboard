@@ -630,6 +630,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       { href: '/dashboard/distribution/van-loads',        label: 'Van Sales',    icon: 'M1 3h15v13H1z M16 8h4l3 3v5h-7V8z M5.5 21a2.5 2.5 0 100-5 2.5 2.5 0 000 5z M18.5 21a2.5 2.5 0 100-5 2.5 2.5 0 000 5z', module: 'distribution_van' },
       { href: '/dashboard/distribution/damage',           label: 'Damaged / Expiry', icon: 'M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z M12 9v4 M12 17h.01', module: 'distribution_damage' },
       { href: '/dashboard/distribution/claims',           label: 'Claims',       icon: 'M9 12l2 2 4-4 M21 12a9 9 0 11-18 0 9 9 0 0118 0z', module: 'distribution_claims' },
+      { href: '/dashboard/distribution/reconciliation',   label: 'Reconciliation', icon: 'M21 12a9 9 0 01-9 9m0 0a9 9 0 01-9-9m9 9V3m0 0a9 9 0 019 9M3 12h18', module: 'distribution_reconciliation' },
       { href: '/dashboard/distribution/secondary-sales',  label: 'Consumer',     icon: 'M3 3h18v18H3z M3 9h18 M9 21V9', module: 'distribution_consumer' },
       // Last-mile dashboards (Phase 1): retailer → consumer visibility.
       { href: '/dashboard/distribution/last-mile',                  label: 'Last Mile',          icon: 'M2 12h4l3-9 4 18 3-9h4 M22 12h-3', module: 'distribution_consumer' },
