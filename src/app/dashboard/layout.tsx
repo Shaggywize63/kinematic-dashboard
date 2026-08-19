@@ -617,6 +617,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       { href: '/dashboard/distribution',                  label: 'Overview',     icon: 'M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z M9 22V12h6v10', module: 'distribution' },
       { href: '/dashboard/distribution/brands',           label: 'Brands',       icon: 'M5 3a2 2 0 00-2 2v2a2 2 0 002 2h14a2 2 0 002-2V5a2 2 0 00-2-2H5z M5 11a2 2 0 00-2 2v6a2 2 0 002 2h14a2 2 0 002-2v-6a2 2 0 00-2-2H5z', module: 'distribution_brands' },
       { href: '/dashboard/distribution/distributors',     label: 'Distributors', icon: 'M3 7l9-4 9 4-9 4-9-4z M3 12l9 4 9-4 M3 17l9 4 9-4', module: 'distribution_distributors' },
+      { href: '/dashboard/distribution/receivables',       label: 'Receivables',  icon: 'M12 1v22 M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6', module: 'distribution_distributors' },
       { href: '/dashboard/distribution/price-lists',      label: 'Price Lists',  icon: 'M9 7h6 M9 11h6 M9 15h4 M5 5a2 2 0 012-2h10a2 2 0 012 2v14a2 2 0 01-2 2H7a2 2 0 01-2-2z', module: 'distribution_pricing' },
       { href: '/dashboard/distribution/schemes',          label: 'Schemes',      icon: 'M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z', module: 'distribution_schemes' },
       { href: '/dashboard/distribution/promotions',       label: 'Promotions',   icon: 'M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z M7 7h.01', module: 'distribution_promotions' },

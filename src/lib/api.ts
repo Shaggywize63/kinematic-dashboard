@@ -1000,6 +1000,7 @@ class ApiClient {
   createDistributor(data: object) { return this.post('/api/v1/distribution/distributors', data); }
   updateDistributor(id: string, data: object) { return this.patch(`/api/v1/distribution/distributors/${id}`, data); }
   getDistributorBilling(id: string) { return this.get(`/api/v1/distribution/distributors/${id}/billing-summary`); }
+  getDistributorAgeing() { return this.get('/api/v1/distribution/distributors/ageing'); }
 
   // ── Distribution: Price Lists ────────────────────────────────────────
   getPriceLists() { return this.get('/api/v1/distribution/price-lists'); }
