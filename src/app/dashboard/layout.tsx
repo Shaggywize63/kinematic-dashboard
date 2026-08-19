@@ -165,6 +165,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // saved order is applied to the entitlement-filtered nav below; the editor
   // modal opens from the "Customise" button in the nav.
   const [editingNav, setEditingNav] = useState(false);
+  const [navQuery, setNavQuery] = useState('');
   // Global smart-search command palette open state (⌘/Ctrl-K, and the header
   // Search button). See the keydown effect below.
   const [searchOpen, setSearchOpen] = useState(false);
@@ -693,6 +694,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // filtered nav. Unknown (newly added) sections/items append after the
   // remembered ones, so a saved order never hides anything.
   const orderedNavGroups = applyNavOrder(navGroups, navPrefs);
+  // Sidebar menu search — filter items by label; drop groups with no match.
+  const navFilter = navQuery.trim().toLowerCase();
+  const displayNavGroups = navFilter
+    ? orderedNavGroups
+        .map((g) => ({ ...g, items: (g.items as any[]).filter((i: any) => (i.label || '').toLowerCase().includes(navFilter)) }))
+        .filter((g) => g.items.length > 0)
+    : orderedNavGroups;
 
   // Collapsible nav sections (Field Force, Lead Management, …). Per-section
   // open/closed state persisted to localStorage so it survives reloads.
@@ -832,29 +840,61 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 ))}
               </div>
             )}
-            {/* "Customise menu" — opens the drag-to-reorder editor. Shown only
-                in the expanded sidebar (hidden in the icon-only rail), and once
-                the nav has resolved so it doesn't flash before entitlements
-                load. Web-only feature; the mobile drawer is the expanded view. */}
+            {/* Menu search + a small "customise menu" edit icon. Search filters
+                the nav items by label; the pencil icon opens the drag-to-reorder
+                editor (previously a full-width "Customise menu" button). Shown
+                only in the expanded sidebar (hidden in the icon-only rail), once
+                the nav has resolved so it doesn't flash before entitlements load. */}
             {navReady && (isMobile || !collapsed) && orderedNavGroups.length > 0 && (
-              <button
-                type="button"
-                onClick={() => setEditingNav(true)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 8,
-                  width: 'calc(100% - 20px)', margin: '0 10px 10px',
-                  padding: '6px 12px', borderRadius: 8,
-                  background: 'transparent', border: `1px dashed ${C.border}`,
-                  color: C.gray, fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.color = C.white; e.currentTarget.style.borderColor = C.borderL; }}
-                onMouseLeave={(e) => { e.currentTarget.style.color = C.gray; e.currentTarget.style.borderColor = C.border; }}
-              >
-                <Icon d="M12 20h9 M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4 12.5-12.5z" size={14} />
-                Customise menu
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '0 10px 10px' }}>
+                <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
+                  <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: C.grayd, display: 'flex', pointerEvents: 'none' }}>
+                    <Icon d="M11 19a8 8 0 100-16 8 8 0 000 16z M21 21l-4.35-4.35" size={13} />
+                  </span>
+                  <input
+                    type="text"
+                    value={navQuery}
+                    onChange={(e) => setNavQuery(e.target.value)}
+                    placeholder="Search menu"
+                    aria-label="Search menu"
+                    style={{
+                      width: '100%', boxSizing: 'border-box',
+                      padding: navQuery ? '7px 24px 7px 30px' : '7px 12px 7px 30px',
+                      borderRadius: 8, background: C.s2, border: `1px solid ${C.border}`,
+                      color: C.white, fontSize: 12, outline: 'none',
+                    }}
+                  />
+                  {navQuery && (
+                    <button
+                      type="button" aria-label="Clear menu search" onClick={() => setNavQuery('')}
+                      style={{ position: 'absolute', right: 5, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: C.grayd, cursor: 'pointer', fontSize: 15, lineHeight: 1, padding: 2 }}
+                    >×</button>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEditingNav(true)}
+                  title="Customise menu"
+                  aria-label="Customise menu"
+                  style={{
+                    flexShrink: 0, width: 32, height: 32,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    borderRadius: 8, background: 'transparent', border: `1px solid ${C.border}`,
+                    color: C.gray, cursor: 'pointer',
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.color = C.white; e.currentTarget.style.borderColor = C.borderL; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.color = C.gray; e.currentTarget.style.borderColor = C.border; }}
+                >
+                  <Icon d="M12 20h9 M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4 12.5-12.5z" size={14} />
+                </button>
+              </div>
             )}
-            {orderedNavGroups.map((g, gi) => (
+            {navFilter && displayNavGroups.length === 0 && (isMobile || !collapsed) && (
+              <div style={{ padding: '4px 20px 12px', fontSize: 12, color: C.grayd }}>
+                No menu items match “{navQuery.trim()}”.
+              </div>
+            )}
+            {displayNavGroups.map((g, gi) => (
               <div key={gi} style={{ marginBottom: collapsed && !isMobile ? 10 : 18 }}>
                 {(isMobile || !collapsed) ? (
                   <button
@@ -901,7 +941,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 {/* In the rail-collapsed sidebar we always show the icons;
                     in the expanded sidebar, hide a section's items when the
                     user has collapsed that section. */}
-                {((collapsed && !isMobile) || !collapsedSections[g.label]) && g.items.map((i:any) => {
+                {((collapsed && !isMobile) || !collapsedSections[g.label] || !!navFilter) && g.items.map((i:any) => {
                   const active = isActive(i.href);
                   const accent = navAccent(g.package, i.href);
                   return (
