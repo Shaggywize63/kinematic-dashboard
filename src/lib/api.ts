@@ -1077,6 +1077,25 @@ class ApiClient {
   rejectPromotionClaim(claimId: string, data: object) { return this.post(`/api/v1/distribution/promotions/claims/${claimId}/reject`, data); }
   settlePromotionClaim(claimId: string, data: object) { return this.post(`/api/v1/distribution/promotions/claims/${claimId}/settle`, data); }
 
+  // ── Distribution: Distributor Stock (module distribution_stock) ──────
+  getDistributorStock(distributorId: string, low?: boolean) {
+    const params: Record<string, string> = { distributor_id: distributorId };
+    if (low) params.low = '1';
+    return this.get(`/api/v1/distribution/stock${this.sanitizeParams(params)}`);
+  }
+  getStockMovements(params?: Record<string, string>) { return this.get(`/api/v1/distribution/stock/movements${this.sanitizeParams(params)}`); }
+  adjustStock(data: object) { return this.post('/api/v1/distribution/stock/adjust', data); }
+
+  // ── Distribution: Van Sales (module distribution_van) ────────────────
+  getVanLoads(params?: Record<string, string>) { return this.get(`/api/v1/distribution/van-loads${this.sanitizeParams(params)}`); }
+  getVanLoad(id: string) { return this.get(`/api/v1/distribution/van-loads/${id}`); }
+  createVanLoad(data: object) { return this.post('/api/v1/distribution/van-loads', data); }
+  reconcileVanLoad(id: string, data: object) { return this.post(`/api/v1/distribution/van-loads/${id}/reconcile`, data); }
+  closeVanLoad(id: string) { return this.post(`/api/v1/distribution/van-loads/${id}/close`, {}); }
+
+  // SKU lookup for the stock-adjust + van-load pickers (shared catalogue route).
+  getSkus(params?: Record<string, string>) { return this.get(`/api/v1/skus${this.sanitizeParams(params)}`); }
+
   // ── Distribution: Consumer / Secondary Sales (M3) ────────────────────
   getSecondarySales(params?: Record<string, string>) { return this.get(`/api/v1/distribution/secondary-sales${this.sanitizeParams(params)}`); }
   createSecondarySale(data: object) { return this.post('/api/v1/distribution/secondary-sales', data); }

@@ -101,6 +101,8 @@ export const ALL_MODULES: ModuleEntry[] = [
   // consumer_registrations data. Shares the distribution_consumer SKU on
   // the backend so granting "Consumer" implicitly unlocks last-mile.
   { id: 'distribution_last_mile',      l: 'Last Mile',    group: 'Distribution', package: 'distribution' },
+  { id: 'distribution_stock',          l: 'Distributor Stock', group: 'Distribution', package: 'distribution' },
+  { id: 'distribution_van',            l: 'Van Sales',    group: 'Distribution', package: 'distribution' },
 
   // Business (universal — every client gets these)
   { id: 'clients',   l: 'Clients',        group: 'Business', package: 'business', universal: true },
