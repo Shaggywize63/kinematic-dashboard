@@ -90,6 +90,7 @@ export const ALL_MODULES: ModuleEntry[] = [
   { id: 'distribution_distributors',   l: 'Distributors', group: 'Distribution', package: 'distribution' },
   { id: 'distribution_pricing',        l: 'Price Lists',  group: 'Distribution', package: 'distribution' },
   { id: 'distribution_schemes',        l: 'Schemes',      group: 'Distribution', package: 'distribution' },
+  { id: 'distribution_promotions',     l: 'Trade Promotions', group: 'Distribution', package: 'distribution' },
   { id: 'distribution_orders',         l: 'Orders',       group: 'Distribution', package: 'distribution' },
   { id: 'distribution_invoicing',      l: 'Invoicing',    group: 'Distribution', package: 'distribution' },
   { id: 'distribution_payments',       l: 'Payments',     group: 'Distribution', package: 'distribution' },

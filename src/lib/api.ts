@@ -1064,6 +1064,19 @@ class ApiClient {
   updateScheme(id: string, data: object) { return this.patch(`/api/v1/distribution/schemes/${id}`, data); }
   previewScheme(data: object) { return this.post('/api/v1/distribution/schemes/preview', data); }
 
+  // ── Distribution: Trade Promotion Management (TPM) ───────────────────
+  getPromotions(params?: Record<string, string>) { return this.get(`/api/v1/distribution/promotions${this.sanitizeParams(params)}`); }
+  getPromotion(id: string) { return this.get(`/api/v1/distribution/promotions/${id}`); }
+  getPromotionSummary(id: string) { return this.get(`/api/v1/distribution/promotions/${id}/summary`); }
+  createPromotion(data: object) { return this.post('/api/v1/distribution/promotions', data); }
+  updatePromotion(id: string, data: object) { return this.patch(`/api/v1/distribution/promotions/${id}`, data); }
+  setPromotionStatus(id: string, status: string) { return this.post(`/api/v1/distribution/promotions/${id}/status`, { status }); }
+  getPromotionClaims(id: string) { return this.get(`/api/v1/distribution/promotions/${id}/claims`); }
+  createPromotionClaim(id: string, data: object) { return this.post(`/api/v1/distribution/promotions/${id}/claims`, data); }
+  approvePromotionClaim(claimId: string, data: object) { return this.post(`/api/v1/distribution/promotions/claims/${claimId}/approve`, data); }
+  rejectPromotionClaim(claimId: string, data: object) { return this.post(`/api/v1/distribution/promotions/claims/${claimId}/reject`, data); }
+  settlePromotionClaim(claimId: string, data: object) { return this.post(`/api/v1/distribution/promotions/claims/${claimId}/settle`, data); }
+
   // ── Distribution: Consumer / Secondary Sales (M3) ────────────────────
   getSecondarySales(params?: Record<string, string>) { return this.get(`/api/v1/distribution/secondary-sales${this.sanitizeParams(params)}`); }
   createSecondarySale(data: object) { return this.post('/api/v1/distribution/secondary-sales', data); }
