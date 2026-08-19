@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
 import api from '../../../../lib/api';
-import { Card, PageHeader, Pill, Th, Td, inr, fmtDate, statusColor } from '../../../../components/distribution/Atoms';
+import { Card, PageHeader, Pill, Th, Td, Btn, inr, fmtDate, statusColor } from '../../../../components/distribution/Atoms';
 import PrefetchLink from '../../../../components/PrefetchLink';
 import { useTableSort, SortLabel } from '../../../../lib/tableSort';
 import { usePagination } from '../../../../components/shared/Pagination';
@@ -44,7 +44,11 @@ export default function OrdersPage() {
 
   return (
     <div>
-      <PageHeader title="Orders" subtitle="Captured by FE, dashboard or API" />
+      <PageHeader
+        title="Orders"
+        subtitle="Captured by FE, dashboard or API"
+        right={<a href="/dashboard/distribution/orders/new"><Btn>+ New order</Btn></a>}
+      />
 
       <Card style={{ marginBottom: 22 }}>
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>

@@ -229,6 +229,82 @@ function extractApiError(data: any): string {
   return 'Request failed';
 }
 
+// ── Distribution: Order entry (dashboard cart) types ───────────────────────
+// Mirror the /distribution/orders catalogue + preview + create contracts so the
+// order-booking cart page (dashboard/distribution/orders/new) is typed end-to-end.
+export interface OrderCredit {
+  credit_limit: number | null;
+  current_balance: number;
+  order_value: number;
+  projected_balance: number;
+  available: number | null;
+  utilization_pct: number | null;
+  status: 'na' | 'ok' | 'warning' | 'exceeded';
+}
+export interface OrderCatalogueItem {
+  sku_id: string;
+  sku_name: string | null;
+  sku_code: string | null;
+  category: string | null;
+  uom: string;
+  pack_size: number;
+  mrp: number;
+  base_price: number;
+  min_qty: number | null;
+  max_qty: number | null;
+  gst_rate: number;
+}
+export interface OrderCatalogue {
+  items: OrderCatalogueItem[];
+  price_list_id: string | null;
+  price_list_version: number | null;
+  customer_class: string | null;
+  credit: OrderCredit;
+}
+export interface OrderPreviewLine {
+  sku_id: string;
+  sku_name: string;
+  qty: number;
+  uom: string;
+  unit_price: number;
+  mrp: number;
+  discount_pct: number;
+  discount_amt: number;
+  is_free_good: boolean;
+  taxable_value: number;
+  gst_rate: number;
+  total: number;
+  line_no: number;
+}
+export interface OrderTotals {
+  subtotal: number;
+  discount_total: number;
+  taxable_value: number;
+  cgst: number;
+  sgst: number;
+  igst: number;
+  cess: number;
+  round_off: number;
+  grand_total: number;
+}
+export interface OrderPreview {
+  lines: OrderPreviewLine[];
+  applied_schemes: unknown[];
+  totals: OrderTotals;
+  scheme_total: number;
+  price_list_version: number | null;
+  intra_state: boolean;
+  credit: OrderCredit;
+}
+export interface OrderCartLineInput { sku_id: string; qty: number; uom?: string }
+export interface OrderCartInput {
+  outlet_id: string;
+  distributor_id?: string;
+  items: OrderCartLineInput[];
+  notes?: string;
+  client_total?: number;
+}
+
 class ApiClient {
   private baseUrl: string;
 
@@ -937,6 +1013,20 @@ class ApiClient {
   getDistOrder(id: string) { return this.get(`/api/v1/distribution/orders/${id}`); }
   approveDistOrder(id: string) { return this.post(`/api/v1/distribution/orders/${id}/approve`, {}); }
   cancelDistOrder(id: string, reason?: string) { return this.post(`/api/v1/distribution/orders/${id}/cancel`, { reason }); }
+
+  // ── Distribution: Order entry / cart (dashboard order booking) ───────
+  // Browsable priced catalogue for an outlet (resolves its active price list),
+  // server-side pricing preview (reuses the salesman pricing pipeline), and
+  // order create (send client_total for the anti-tamper check).
+  getOrderCatalogue(outletId: string) {
+    return this.get<{ success: boolean; data: OrderCatalogue }>(`/api/v1/distribution/orders/catalogue${this.sanitizeParams({ outlet_id: outletId })}`);
+  }
+  previewDistOrder(body: OrderCartInput) {
+    return this.post<{ success: boolean; data: OrderPreview }>('/api/v1/distribution/orders/preview', body);
+  }
+  createDistOrder(body: OrderCartInput) {
+    return this.post<{ success: boolean; data: any }>('/api/v1/distribution/orders', body);
+  }
 
   // ── Distribution: Invoices (M2) ──────────────────────────────────────
   getInvoices(params?: Record<string, string>) { return this.get(`/api/v1/distribution/invoices${this.sanitizeParams(params)}`); }
