@@ -659,6 +659,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       // field-force tenants still see it; `hiddenForTata` removes it for the
       // Kaiyo/TATA org among those.
       { href: '/dashboard/leave',              label: 'Leave',         icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z M9 16l2 2 4-4', module: 'leave', hiddenForTata: true },
+      // Field Expense / Travel Claims. Non-universal (entitlement-gated), so it
+      // only appears for clients granted `field_expenses` — hidden for Tata and
+      // any tenant without the grant automatically (no hiddenForTata needed).
+      { href: '/dashboard/expenses',           label: 'Expenses',      icon: 'M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1z M8 7h8 M8 11h8 M8 15h5', module: 'field_expenses' },
       { href: '/dashboard/grievances',         label: 'Grievances',    icon: 'M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z M12 9v4 M12 17h.01', module: 'grievances' },
       { href: '/dashboard/visit-logs',         label: 'Visit Logs',    icon: 'M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z', module: 'visit_logs' },
       { href: '/dashboard/broadcast',          label: 'Broadcast',     icon: 'M12 19V5 M5 12l7-7 7 7', module: 'broadcast' },
