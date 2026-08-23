@@ -75,6 +75,11 @@ export const searchApi = {
 
 export const crmLeads = {
   ...crud<Lead>(`${BASE}/leads`),
+  // AI Smart Filters — plain-English → validated lead-list filter params. The
+  // page applies the returned params to the normal list fetch (all tenant
+  // scoping stays server-side). `explanation` is a human-readable summary.
+  smartFilter: (query: string) =>
+    api.post<Wrapped<{ params: Record<string, string>; explanation: string }>>(`${BASE}/ai/smart-filter`, { query }),
   score: (id: string) => api.post<Wrapped<LeadScore>>(`${BASE}/leads/${id}/score`, {}),
   scoreHistory: (id: string) => api.get<Wrapped<LeadScore[]>>(`${BASE}/leads/${id}/score-history`),
   activities: (id: string) => api.get<Wrapped<Activity[]>>(`${BASE}/leads/${id}/activities`),

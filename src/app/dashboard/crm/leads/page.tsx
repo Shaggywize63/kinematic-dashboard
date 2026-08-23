@@ -57,6 +57,11 @@ export default function LeadsListPage() {
   const [showAssignMenu, setShowAssignMenu] = useState(false);
   const [usersLoading, setUsersLoading] = useState(false);
   const [isB2C, setIsB2C] = useState(false);
+  // AI Smart Filters
+  const [smartQuery, setSmartQuery] = useState('');
+  const [smartParams, setSmartParams] = useState<Record<string, string>>({});
+  const [smartExplain, setSmartExplain] = useState('');
+  const [smartLoading, setSmartLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   // Elapsed seconds for the export progress UI. Server caps at 10k rows so the
   // upper bound on duration is bounded but variable (10–40s depending on
@@ -227,6 +232,11 @@ export default function LeadsListPage() {
       // matches across all pages. Debounced to avoid a refetch per keystroke.
       if (debouncedQ)       params.q          = debouncedQ;
       if (sort.key !== 'recent') { params.sort = sort.key; params.order = sort.order; }
+      // AI Smart Filter params (plain-English → validated filters) win over the
+      // manual controls — the NL query is the active intent. They cover extra
+      // keys the manual UI doesn't expose (score_gte/lte, is_b2c, status_in,
+      // created_within_days, not_contacted_days, …). Server applies + scopes.
+      Object.assign(params, smartParams);
       const [l, s] = await Promise.allSettled([crmLeads.list(params), crmLeadSources.list()]);
       if (l.status === 'fulfilled') {
         setLeads(l.value.data || []);
@@ -250,6 +260,25 @@ export default function LeadsListPage() {
     }
   };
 
+  // AI Smart Filters: plain-English → validated filter params (server-side),
+  // applied on top of the normal list fetch. `mine` is resolved to owner_id by
+  // the backend, so no client identity needed.
+  const runSmartFilter = async () => {
+    const q = smartQuery.trim();
+    if (!q) { setSmartParams({}); setSmartExplain(''); return; }
+    setSmartLoading(true);
+    try {
+      const r = await crmLeads.smartFilter(q);
+      const p = (r.data?.params || {}) as Record<string, string>;
+      setSmartParams(p);
+      setSmartExplain(r.data?.explanation || '');
+      if (Object.keys(p).length === 0) toast('No specific filters detected — showing all leads.');
+    } catch (e: any) {
+      toast.error(e.message || 'Smart filter failed');
+    } finally { setSmartLoading(false); }
+  };
+  const clearSmartFilter = () => { setSmartQuery(''); setSmartParams({}); setSmartExplain(''); };
+
   // Reload on filter / range / page / page-size change. Server-side
   // pagination means changing the row-count'd filter set must also
   // reset to page 1, or we'd request page 5 of a 3-page result and
@@ -267,6 +296,7 @@ export default function LeadsListPage() {
     filters.status, filters.source, filters.owner, filters.grade,
     debouncedQ,
     page, pageSize, sort.key, sort.order,
+    smartParams,
   ]);
 
   // Load the user list up front so the Owner filter dropdown is populated
@@ -282,6 +312,7 @@ export default function LeadsListPage() {
     filters.status, filters.source, filters.owner, filters.grade,
     debouncedQ,
     pageSize, sort.key, sort.order,
+    smartParams,
   ]);
 
   useEffect(() => {
@@ -516,6 +547,32 @@ export default function LeadsListPage() {
           <Link href="/dashboard/crm/leads/import" style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600 }}>Import</Link>
           <Link href="/dashboard/crm/leads/new" style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700 }}>+ New Lead</Link>
         </div>
+      </div>
+      {/* AI Smart Filters — plain-English → validated lead filters (KINI). */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <input
+            value={smartQuery}
+            onChange={(e) => setSmartQuery(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') runSmartFilter(); }}
+            placeholder="Ask in plain English — e.g. “hot B2C leads in Mumbai not contacted in 30 days”"
+            style={{ flex: 1, minWidth: 240, background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '9px 12px', borderRadius: 8, fontSize: 13 }}
+          />
+          <button
+            onClick={runSmartFilter}
+            disabled={smartLoading}
+            style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '9px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, opacity: smartLoading ? 0.6 : 1, whiteSpace: 'nowrap', cursor: 'pointer' }}
+          >{smartLoading ? 'Thinking…' : '🧠 Smart Filter'}</button>
+        </div>
+        {smartExplain && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 12, color: 'var(--textSec)', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 8, padding: '6px 10px' }}>
+            <span>🧠 Interpreted as: <strong style={{ color: 'var(--text)' }}>{smartExplain}</strong></span>
+            {Object.keys(smartParams).length > 0 && (
+              <span>({Object.entries(smartParams).map(([k, v]) => `${k}=${v}`).join(', ')})</span>
+            )}
+            <button onClick={clearSmartFilter} style={{ marginLeft: 'auto', background: 'transparent', border: '1px solid var(--border)', color: 'var(--textSec)', padding: '2px 10px', borderRadius: 6, fontSize: 11, cursor: 'pointer' }}>Clear</button>
+          </div>
+        )}
       </div>
       <LeadFilters value={filters} onChange={setFilters} sources={sources.map((s) => ({ id: s.id, name: s.name }))} owners={users} />
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0 2px' }}>
