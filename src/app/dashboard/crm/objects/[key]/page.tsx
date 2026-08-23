@@ -55,13 +55,19 @@ export default function CustomObjectRecordsPage() {
         <Link href="/dashboard/crm/settings/custom-objects" style={{ ...btnSmallGhost, textDecoration: 'none' }}>← Objects</Link>
         <span style={{ fontSize: 22 }}>{obj?.icon || '🧩'}</span>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text)' }}>{obj?.label_plural || key}</div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text)' }}>
+            {obj?.label_plural || key}
+            {!loading && <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-dim)', marginLeft: 8 }}>{records.length}</span>}
+          </div>
           {obj?.description && <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>{obj.description}</div>}
         </div>
         <button onClick={() => { setEditing(null); setShowForm(true); }} style={btnPrimary}>+ New {obj?.label || 'record'}</button>
       </div>
 
-      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by title…" style={{ ...input, maxWidth: 320 }} />
+      <div style={{ position: 'relative', maxWidth: 320 }}>
+        <span aria-hidden style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 13, pointerEvents: 'none', opacity: 0.7 }}>🔍</span>
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={`Search ${obj?.label_plural || 'records'}…`} style={{ ...input, paddingLeft: 30 }} />
+      </div>
 
       {(showForm || editing) && obj && (
         <RecordForm
@@ -76,7 +82,18 @@ export default function CustomObjectRecordsPage() {
 
       <div style={card}>
         {loading ? <div style={dim}>Loading…</div> : records.length === 0 ? (
-          <div style={dim}>No records yet.</div>
+          <div style={{ textAlign: 'center', padding: '28px 16px' }}>
+            <div style={{ fontSize: 34 }}>{obj?.icon || '🧩'}</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginTop: 8 }}>
+              {q ? `No ${obj?.label_plural || 'records'} match “${q}”` : `No ${obj?.label_plural || 'records'} yet`}
+            </div>
+            {!q && (
+              <>
+                <div style={{ ...dim, marginTop: 4 }}>Add your first {obj?.label || 'record'} to get started.</div>
+                <button onClick={() => { setEditing(null); setShowForm(true); }} style={{ ...btnPrimary, marginTop: 12 }}>+ New {obj?.label || 'record'}</button>
+              </>
+            )}
+          </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {records.map((rec) => (

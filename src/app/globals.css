@@ -164,6 +164,26 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-manrope); letter-spacing: -0.01
 .animate-fade-up  { animation: fadeUp  0.4s cubic-bezier(0.22,1,0.36,1) both; }
 .animate-slide-in { animation: slideIn 0.35s cubic-bezier(0.22,1,0.36,1) both; }
 
+/* ── AI Smart Filter bar ──────────────────────────────────────────────────
+   Typewriter caret + a slow ambient sheen on the run button so the feature
+   reads as "AI / magic" without being loud. Motion is disabled for users who
+   ask for reduced motion. */
+@keyframes sfBlink { 0%,49% { opacity: 1 } 50%,100% { opacity: 0 } }
+@keyframes sfSheen { 0% { background-position: -140% 0 } 60%,100% { background-position: 140% 0 } }
+.sf-caret { display: inline-block; width: 2px; margin-left: 1px; background: currentColor;
+            animation: sfBlink 1.05s steps(1) infinite; vertical-align: -2px; }
+.sf-run   { position: relative; overflow: hidden; }
+.sf-run::after { content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(105deg, transparent 30%, rgba(255,255,255,0.45) 50%, transparent 70%);
+  background-size: 220% 100%; animation: sfSheen 3.6s ease-in-out infinite; }
+.sf-chip { transition: background 0.15s ease, border-color 0.15s ease, transform 0.08s ease; }
+.sf-chip:hover  { border-color: var(--primary) !important; background: var(--s2) !important; }
+.sf-chip:active { transform: scale(0.96); }
+@media (prefers-reduced-motion: reduce) {
+  .sf-caret { animation: none; opacity: 1; }
+  .sf-run::after { animation: none; display: none; }
+}
+
 /* ============================================================================
    Detail-page action buttons — desktop default. Phones go even tighter
    below. Used by the buttons inside the lead/deal/account/contact detail
