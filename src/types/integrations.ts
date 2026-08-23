@@ -13,7 +13,8 @@ export type IntegrationProvider =
   | 'google_ads'
   | 'zoho'
   | 'salesforce'
-  | 'email_inbound';
+  | 'email_inbound'
+  | 'ivr_missed_call';
 
 export type IntegrationStatus = 'pending' | 'active' | 'error' | 'disabled';
 

@@ -62,6 +62,13 @@ const PROVIDERS: Array<{
     available: true,
     icon: '✉️',
   },
+  {
+    id: 'ivr_missed_call',
+    label: 'IVR / Missed Call',
+    desc: 'Point your telephony provider (Exotel, Knowlarity, Twilio…) at the webhook. Every inbound / missed call becomes a lead from the caller’s number.',
+    available: true,
+    icon: '📞',
+  },
 ];
 
 const STATUS_STYLES: Record<IntegrationStatus, { bg: string; color: string; label: string }> = {
@@ -725,6 +732,21 @@ function SuccessModal({ integration, onClose }: { integration: Integration; onCl
           <li>Include the standard fields: <code>FirstName</code>, <code>LastName</code>, <code>Email</code>, <code>Phone</code>, <code>Company</code>, <code>City</code>, <code>State</code>, <code>LeadSource</code>. Salesforce&rsquo;s native column names map automatically.</li>
           <li>Save + Activate the flow → trigger by creating a Lead in Salesforce.</li>
         </ol>
+      </div>
+    ) : provider === 'ivr_missed_call' ? (
+      <div style={{
+        background: 'rgba(59, 130, 246, 0.06)', border: '1px solid rgba(59, 130, 246, 0.25)',
+        borderRadius: 8, padding: 12, fontSize: 12, color: 'var(--text)',
+      }}>
+        <div style={{ fontWeight: 700, marginBottom: 8 }}>Point your telephony provider here:</div>
+        <ol style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7 }}>
+          <li>In your telephony console (Exotel, Knowlarity, Twilio, Plivo…), open the <strong>call / missed-call webhook</strong> (a.k.a. passthru or status callback).</li>
+          <li>Set the <strong>POST</strong> URL to the <em>Webhook URL</em> below — the key is already in it.</li>
+          <li>We read the caller&rsquo;s number from the standard fields (<code style={{ background: 'var(--s3)', padding: '1px 4px', borderRadius: 3 }}>CallFrom</code> / <code style={{ background: 'var(--s3)', padding: '1px 4px', borderRadius: 3 }}>From</code> / <code style={{ background: 'var(--s3)', padding: '1px 4px', borderRadius: 3 }}>caller_id</code>) and create a lead from it. Repeat callers merge onto the same lead via phone dedup.</li>
+        </ol>
+        <div style={{ marginTop: 8, color: 'var(--text-dim)' }}>
+          Both JSON and form-encoded webhooks are accepted. The dialled number, call id, status and time are saved on the lead for reference.
+        </div>
       </div>
     ) : provider === 'email_inbound' ? (
       <div style={{
