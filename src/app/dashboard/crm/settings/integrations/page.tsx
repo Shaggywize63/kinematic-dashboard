@@ -55,6 +55,13 @@ const PROVIDERS: Array<{
     available: true,
     icon: '☁️',
   },
+  {
+    id: 'email_inbound',
+    label: 'Inbound Email',
+    desc: 'Forward or route enquiry emails to your capture address. KINI reads each one and creates a lead.',
+    available: true,
+    icon: '✉️',
+  },
 ];
 
 const STATUS_STYLES: Record<IntegrationStatus, { bg: string; color: string; label: string }> = {
@@ -470,6 +477,12 @@ const DEFAULT_FORM_FIELDS: FormFieldCfg[] = [
 function SuccessModal({ integration, onClose }: { integration: Integration; onClose: () => void }) {
   const url = integration.webhook_url ?? '';
   const provider = integration.provider;
+  // The shared secret, pulled out of the webhook URL's ?key= so Google Ads
+  // admins can paste it into Google's "Key" field (Google returns it in each
+  // lead body as google_key and the backend verifies the match).
+  const webhookKey = (() => {
+    try { return new URL(url).searchParams.get('key') || ''; } catch { return ''; }
+  })();
   const verifyToken = (integration.config as Record<string, unknown> | undefined)?.verify_token as string | undefined;
 
   // Test-lead state for the inline preview / live-check step. We POST
@@ -679,9 +692,8 @@ function SuccessModal({ integration, onClose }: { integration: Integration; onCl
         <ol style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7 }}>
           <li>Open your campaign → <strong>Assets → Lead Form Asset</strong>.</li>
           <li>Edit the asset → <strong>Lead Delivery Options → Webhook integration</strong>.</li>
-          <li>Paste the <em>Webhook URL</em> below.</li>
-          <li>The <em>Key</em> is already embedded in the URL — Google Ads will read it
-            from the <code style={{ background: 'var(--s3)', padding: '1px 4px', borderRadius: 3 }}>?key=…</code> parameter.</li>
+          <li>Paste the <em>Webhook URL</em> below into Google&rsquo;s <strong>Webhook URL</strong> field.</li>
+          <li>Paste the <em>Webhook Key</em> below into Google&rsquo;s <strong>Key</strong> field. Google sends this key back inside every lead, and we reject anything that doesn&rsquo;t match — so this step is required.</li>
           <li>Click <strong>Send test data</strong> in Google Ads to verify the connection.</li>
         </ol>
       </div>
@@ -713,6 +725,23 @@ function SuccessModal({ integration, onClose }: { integration: Integration; onCl
           <li>Include the standard fields: <code>FirstName</code>, <code>LastName</code>, <code>Email</code>, <code>Phone</code>, <code>Company</code>, <code>City</code>, <code>State</code>, <code>LeadSource</code>. Salesforce&rsquo;s native column names map automatically.</li>
           <li>Save + Activate the flow → trigger by creating a Lead in Salesforce.</li>
         </ol>
+      </div>
+    ) : provider === 'email_inbound' ? (
+      <div style={{
+        background: 'rgba(59, 130, 246, 0.06)', border: '1px solid rgba(59, 130, 246, 0.25)',
+        borderRadius: 8, padding: 12, fontSize: 12, color: 'var(--text)',
+      }}>
+        <div style={{ fontWeight: 700, marginBottom: 8 }}>Route your enquiry emails here:</div>
+        <ol style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7 }}>
+          <li>In your mail provider, set up an <strong>inbound parse / route</strong> that POSTs each message as <code style={{ background: 'var(--s3)', padding: '1px 4px', borderRadius: 3 }}>application/json</code> to the <em>Webhook URL</em> below.
+            <span style={{ color: 'var(--text-dim)' }}> Mailgun Routes, AWS SES→SNS, or a Zapier/Make “new email → POST” step all work.</span>
+          </li>
+          <li>KINI reads each email — sender, subject, body, signature — and creates a lead, pulling out the phone / company / name it can find.</li>
+          <li>Simplest test: use a Zapier/Make hook on your enquiries inbox and map the email fields (<code>from</code>, <code>subject</code>, <code>text</code>) into the JSON body.</li>
+        </ol>
+        <div style={{ marginTop: 8, color: 'var(--text-dim)' }}>
+          The key is already in the URL. SendGrid’s classic Inbound Parse sends multipart form-data, so it needs a small relay to convert to JSON first.
+        </div>
       </div>
     ) : null;
 
@@ -747,6 +776,23 @@ function SuccessModal({ integration, onClose }: { integration: Integration; onCl
             <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 4 }}>
               Meta echoes this back during the subscription handshake — we verify the match
               before accepting any incoming leadgen events.
+            </div>
+          </div>
+        )}
+
+        {/* Google-specific webhook key — Google sends this back in each lead's
+            body as `google_key`; the backend rejects any lead where it doesn't
+            match, so the admin MUST paste it into Google's Key field. */}
+        {provider === 'google_ads' && webhookKey && (
+          <div>
+            <label style={fieldLabel}>Webhook Key</label>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <input value={webhookKey} readOnly style={{ ...input, fontFamily: 'monospace', fontSize: 11 }} />
+              <button onClick={() => copy(webhookKey, 'Webhook Key')} style={ghostBtn}>Copy</button>
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 4 }}>
+              Paste this into the <strong>Key</strong> field of Google Ads&rsquo; webhook integration.
+              Google returns it with every lead and we verify the match — without it, leads are rejected.
             </div>
           </div>
         )}

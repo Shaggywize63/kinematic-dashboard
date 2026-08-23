@@ -12,7 +12,8 @@ export type IntegrationProvider =
   | 'meta_lead_ads'
   | 'google_ads'
   | 'zoho'
-  | 'salesforce';
+  | 'salesforce'
+  | 'email_inbound';
 
 export type IntegrationStatus = 'pending' | 'active' | 'error' | 'disabled';
 
