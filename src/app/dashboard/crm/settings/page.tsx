@@ -25,6 +25,7 @@ const SECTIONS = [
   { href: '/dashboard/crm/settings/targets', title: 'Targets', desc: 'Set daily lead targets per field executive — or the same for everyone.', icon: '🥅' },
   { href: '/dashboard/crm/settings/scoring', title: 'Scoring Model', desc: 'Tune the AI lead scoring weights.', icon: '⭐' },
   { href: '/dashboard/crm/settings/custom-fields', title: 'Custom Fields', desc: 'Add fields per entity + override built-in field labels and required flags.', icon: '🧩' },
+  { href: '/dashboard/crm/settings/custom-objects', title: 'Custom Objects', desc: 'Define your own record types (Property, Vehicle, Policy…) with their own fields, beyond leads/contacts/deals/accounts.', icon: '🗂️' },
 ];
 
 const BUSINESS_OPTIONS: Array<{ value: BusinessType; label: string; desc: string }> = [

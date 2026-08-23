@@ -326,6 +326,38 @@ export const crmTerritories = crud<Territory>(`${BASE}/territories`);
 export const crmAutomations = crud<Automation>(`${BASE}/automations`);
 export const crmCustomFields = crud<CustomField>(`${BASE}/custom-fields`);
 
+// ── Custom Objects (user-defined entity types) ───────────────────────────────
+// Object-type defs + their records. A custom object's FIELDS are ordinary
+// crm_custom_field_defs rows with entity_type = object.key, so field CRUD reuses
+// `crmCustomFields` (list/create/update/remove with { entity_type: key }).
+export interface CustomObject {
+  id: string; org_id: string; client_id: string | null;
+  key: string; label: string; label_plural: string;
+  icon: string | null; description: string | null;
+  is_active: boolean; created_at?: string; updated_at?: string;
+}
+export interface CustomRecord {
+  id: string; object_id: string; org_id: string; client_id: string | null;
+  title: string | null; data: Record<string, unknown>;
+  owner_id: string | null; created_at?: string; updated_at?: string;
+}
+type CustomRecordBody = { title?: string | null; data?: Record<string, unknown>; owner_id?: string | null };
+const CO_BASE = `${BASE}/custom-objects`;
+export const crmCustomObjects = {
+  list: () => api.get<Wrapped<CustomObject[]>>(CO_BASE),
+  get: (key: string) => api.get<Wrapped<CustomObject>>(`${CO_BASE}/${key}`),
+  create: (body: Partial<CustomObject>) => api.post<Wrapped<CustomObject>>(CO_BASE, body),
+  update: (id: string, body: Partial<CustomObject>) => api.patch<Wrapped<CustomObject>>(`${CO_BASE}/${id}`, body),
+  remove: (id: string) => api.delete<Wrapped<{ success: true }>>(`${CO_BASE}/${id}`),
+  // records (addressed by the object's key)
+  listRecords: (key: string, params?: Record<string, string | number | undefined | null>) =>
+    api.get<Wrapped<{ rows: CustomRecord[]; total: number }>>(`${CO_BASE}/${key}/records${qs(params)}`),
+  getRecord: (key: string, id: string) => api.get<Wrapped<CustomRecord>>(`${CO_BASE}/${key}/records/${id}`),
+  createRecord: (key: string, body: CustomRecordBody) => api.post<Wrapped<CustomRecord>>(`${CO_BASE}/${key}/records`, body),
+  updateRecord: (key: string, id: string, body: CustomRecordBody) => api.patch<Wrapped<CustomRecord>>(`${CO_BASE}/${key}/records/${id}`, body),
+  removeRecord: (key: string, id: string) => api.delete<Wrapped<{ success: true }>>(`${CO_BASE}/${key}/records/${id}`),
+};
+
 // ── Cadences / flows (Phase-2 multi-step automation engine) ─────────────
 export interface Flow {
   id: string; name: string; trigger_type: string;

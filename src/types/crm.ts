@@ -270,7 +270,9 @@ export interface CustomField {
   // Backend column is `entity_type` (lead/contact/account/deal). Older
   // code used `entity`; rename kept here so the field name matches what
   // the server actually returns + validates against.
-  entity_type: 'lead' | 'contact' | 'account' | 'deal' | 'activity';
+  // Built-in entities OR a custom object's key (crm_custom_objects.key) — a
+  // custom object's field defs are stored here with entity_type = its key.
+  entity_type: 'lead' | 'contact' | 'account' | 'deal' | 'activity' | (string & {});
   field_key: string; label: string;
   field_type:
     | 'text' | 'longtext'
