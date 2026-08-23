@@ -127,6 +127,19 @@ export default function IntegrationsPage() {
     }
   };
 
+  // Reopen the setup/snippets modal for an existing integration. The list
+  // payload omits the webhook_secret (and thus webhook_url), so fetch the full
+  // row first — the Form Designer keys off the id regardless, but the share
+  // link / embed snippets need the secret-bearing URL.
+  const openSetup = async (i: Integration) => {
+    try {
+      const r = await crmIntegrations.get(i.id);
+      setSuccess(r.data ?? i);
+    } catch {
+      setSuccess(i);
+    }
+  };
+
   return (
     <div>
       <Link
@@ -203,6 +216,9 @@ export default function IntegrationsPage() {
                 )}
 
                 <div style={{ display: 'flex', gap: 6, marginTop: 'auto' }}>
+                  <button onClick={() => openSetup(i)} style={ghostBtn}>
+                    {i.provider === 'web_form' ? 'Design form' : 'Setup'}
+                  </button>
                   <button onClick={() => handleDisconnect(i)} style={ghostBtnDanger}>Disconnect</button>
                 </div>
               </div>
@@ -431,6 +447,25 @@ function ConnectModal({
   );
 }
 
+// ── Web-form Form Designer ───────────────────────────────────────────────────
+// Fields the hosted /f/<id> page + embed.js know how to render (must match the
+// FIELD_DEFS whitelist in the backend public/embed.js). Order here is the
+// canonical display order.
+type FormFieldCfg = { key: string; required: boolean };
+const FORM_FIELD_CATALOG: Array<{ key: string; label: string }> = [
+  { key: 'name',    label: 'Name' },
+  { key: 'email',   label: 'Email' },
+  { key: 'phone',   label: 'Mobile' },
+  { key: 'city',    label: 'City' },
+  { key: 'company', label: 'Company' },
+  { key: 'message', label: 'Message' },
+];
+const DEFAULT_FORM_FIELDS: FormFieldCfg[] = [
+  { key: 'name', required: true }, { key: 'email', required: false },
+  { key: 'phone', required: true }, { key: 'city', required: true },
+  { key: 'message', required: false },
+];
+
 // ── Success modal: show webhook URL + JS snippet ─────────────────────────────────────────────
 function SuccessModal({ integration, onClose }: { integration: Integration; onClose: () => void }) {
   const url = integration.webhook_url ?? '';
@@ -443,6 +478,64 @@ function SuccessModal({ integration, onClose }: { integration: Integration; onCl
   // round-trip works before embedding anywhere.
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; msg: string; leadId?: string } | null>(null);
+
+  // ── Form Designer state (web_form only) ──
+  const savedForm = (integration.config as { form?: Record<string, unknown> } | undefined)?.form;
+  const initFields: FormFieldCfg[] =
+    Array.isArray(savedForm?.fields) && (savedForm!.fields as unknown[]).length
+      ? (savedForm!.fields as unknown[])
+          .map((f) => {
+            const rec = f && typeof f === 'object' ? (f as { key?: unknown; required?: unknown }) : null;
+            return { key: String(rec ? rec.key : f).toLowerCase(), required: !!(rec && rec.required) };
+          })
+          .filter((f) => FORM_FIELD_CATALOG.some((c) => c.key === f.key))
+      : DEFAULT_FORM_FIELDS;
+  const [dFields, setDFields] = useState<FormFieldCfg[]>(initFields);
+  const [dTitle, setDTitle] = useState<string>(String((savedForm?.title as string) ?? integration.label ?? ''));
+  const [dDesc, setDDesc] = useState<string>(String((savedForm?.description as string) ?? ''));
+  const [dColor, setDColor] = useState<string>(String((savedForm?.primary_color as string) ?? '#E01E2C'));
+  const [dSubmit, setDSubmit] = useState<string>(String((savedForm?.submit_label as string) ?? ''));
+  const [dSuccessMsg, setDSuccessMsg] = useState<string>(String((savedForm?.success_message as string) ?? ''));
+  const [dRedirect, setDRedirect] = useState<string>(String((savedForm?.redirect_url as string) ?? ''));
+  const [savingForm, setSavingForm] = useState(false);
+  const [formDirty, setFormDirty] = useState(false);
+
+  const toggleField = (key: string) => {
+    setDFields((prev) => {
+      if (prev.some((f) => f.key === key)) return prev.filter((f) => f.key !== key);
+      const order = FORM_FIELD_CATALOG.map((c) => c.key);
+      return [...prev, { key, required: false }].sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key));
+    });
+    setFormDirty(true);
+  };
+  const toggleRequired = (key: string) => {
+    setDFields((prev) => prev.map((f) => (f.key === key ? { ...f, required: !f.required } : f)));
+    setFormDirty(true);
+  };
+  const saveForm = async () => {
+    if (dFields.length === 0) { toast.error('Pick at least one field'); return; }
+    setSavingForm(true);
+    try {
+      const form = {
+        fields: dFields.map((f) => ({ key: f.key, required: f.required })),
+        title: dTitle.trim() || undefined,
+        description: dDesc.trim() || undefined,
+        primary_color: dColor,
+        submit_label: dSubmit.trim() || undefined,
+        success_message: dSuccessMsg.trim() || undefined,
+        redirect_url: dRedirect.trim() || undefined,
+      };
+      await crmIntegrations.update(integration.id, {
+        config: { ...((integration.config as Record<string, unknown>) ?? {}), form },
+      });
+      toast.success('Form design saved — the hosted link & embed now use it');
+      setFormDirty(false);
+    } catch (e: any) {
+      toast.error(e?.message || 'Failed to save form design');
+    } finally {
+      setSavingForm(false);
+    }
+  };
   const sendTestLead = async () => {
     if (!url) return;
     setTesting(true);
@@ -516,13 +609,14 @@ function SuccessModal({ integration, onClose }: { integration: Integration; onCl
       return `${u.protocol}//${u.host}/embed.js`;
     } catch { return ''; }
   })();
+  // Embed snippet mirrors the Form Designer selections so pasting it on a site
+  // matches the hosted /f/<id> page exactly. Only non-empty options are emitted.
+  const designFieldsCsv = dFields.map((f) => f.key).join(',') || 'name,email,phone,city,message';
+  const designRequiredCsv = dFields.filter((f) => f.required).map((f) => f.key).join(',');
+  const attrLine = (k: string, v: string) => (v ? `\n     ${k}="${v.replace(/"/g, '&quot;')}"` : '');
   const embedSnippet =
     provider === 'web_form' && embedUrl
-      ? `<div data-kinematic-form="${url}"
-     data-title="Get a callback"
-     data-primary-color="#E01E2C"
-     data-fields="name,email,phone,city,message"></div>
-<script src="${embedUrl}" async></script>`
+      ? `<div data-kinematic-form="${url}"${attrLine('data-title', dTitle || 'Get a callback')}${attrLine('data-description', dDesc)}${attrLine('data-primary-color', dColor || '#E01E2C')}${attrLine('data-fields', designFieldsCsv)}${attrLine('data-required', designRequiredCsv)}${attrLine('data-success', dSuccessMsg)}${attrLine('data-submit-label', dSubmit)}${attrLine('data-redirect', dRedirect)}></div>\n<script src="${embedUrl}" async></script>`
       : null;
 
   // Zero-code option: a hosted form on Kinematic's own domain. Derived
@@ -653,6 +747,82 @@ function SuccessModal({ integration, onClose }: { integration: Integration; onCl
             <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 4 }}>
               Meta echoes this back during the subscription handshake — we verify the match
               before accepting any incoming leadgen events.
+            </div>
+          </div>
+        )}
+
+        {provider === 'web_form' && (
+          <div style={{ background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 10, padding: 14 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <label style={{ ...fieldLabel, marginBottom: 0 }}>🎨 Form designer</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {formDirty && <span style={{ fontSize: 10, color: 'var(--text-dim)' }}>Unsaved</span>}
+                <button
+                  onClick={saveForm}
+                  disabled={savingForm}
+                  style={{ ...primaryBtn, padding: '6px 12px', fontSize: 12, opacity: savingForm ? 0.55 : 1, cursor: savingForm ? 'wait' : 'pointer' }}
+                >
+                  {savingForm ? 'Saving…' : 'Save design'}
+                </button>
+              </div>
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 12, lineHeight: 1.5 }}>
+              Pick the fields and branding. Saving applies instantly to the hosted link &amp; QR below; the one-line embed snippet updates live as you edit.
+            </div>
+
+            {/* Fields */}
+            <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--text-dim)', marginBottom: 8 }}>Fields</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
+              {FORM_FIELD_CATALOG.map((c) => {
+                const idx = dFields.findIndex((f) => f.key === c.key);
+                const on = idx >= 0;
+                const required = on ? dFields[idx].required : false;
+                return (
+                  <div key={c.key} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, cursor: 'pointer' }}>
+                      <input type="checkbox" checked={on} onChange={() => toggleField(c.key)} />
+                      <span style={{ fontSize: 13, color: 'var(--text)' }}>{c.label}</span>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, opacity: on ? 1 : 0.4, cursor: on ? 'pointer' : 'default' }}>
+                      <input type="checkbox" checked={required} disabled={!on} onChange={() => toggleRequired(c.key)} />
+                      <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>Required</span>
+                    </label>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Branding + copy */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div>
+                <label style={fieldLabel}>Title</label>
+                <input value={dTitle} onChange={(e) => { setDTitle(e.target.value); setFormDirty(true); }} placeholder="Get a callback" style={input} />
+              </div>
+              <div>
+                <label style={fieldLabel}>Primary colour</label>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <input type="color" value={/^#[0-9a-fA-F]{6}$/.test(dColor) ? dColor : '#E01E2C'} onChange={(e) => { setDColor(e.target.value); setFormDirty(true); }} style={{ width: 42, height: 34, padding: 2, border: '1px solid var(--border)', borderRadius: 6, background: 'transparent', cursor: 'pointer' }} />
+                  <input value={dColor} onChange={(e) => { setDColor(e.target.value); setFormDirty(true); }} style={{ ...input, fontFamily: 'monospace' }} />
+                </div>
+              </div>
+            </div>
+            <div style={{ marginTop: 10 }}>
+              <label style={fieldLabel}>Description <span style={{ color: 'var(--text-dim)', fontWeight: 400 }}>(optional)</span></label>
+              <input value={dDesc} onChange={(e) => { setDDesc(e.target.value); setFormDirty(true); }} placeholder="Sub-heading shown under the title" style={input} />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 10 }}>
+              <div>
+                <label style={fieldLabel}>Submit button</label>
+                <input value={dSubmit} onChange={(e) => { setDSubmit(e.target.value); setFormDirty(true); }} placeholder="Submit" style={input} />
+              </div>
+              <div>
+                <label style={fieldLabel}>Success message</label>
+                <input value={dSuccessMsg} onChange={(e) => { setDSuccessMsg(e.target.value); setFormDirty(true); }} placeholder="Thanks! We'll be in touch shortly." style={input} />
+              </div>
+            </div>
+            <div style={{ marginTop: 10 }}>
+              <label style={fieldLabel}>Redirect after submit <span style={{ color: 'var(--text-dim)', fontWeight: 400 }}>(optional, https://)</span></label>
+              <input value={dRedirect} onChange={(e) => { setDRedirect(e.target.value); setFormDirty(true); }} placeholder="https://yoursite.com/thank-you" style={input} />
             </div>
           </div>
         )}
