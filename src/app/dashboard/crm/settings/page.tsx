@@ -19,6 +19,7 @@ const SECTIONS = [
   { href: '/dashboard/crm/settings/activity-subjects', title: 'Activity Subjects', desc: 'Curate the subject dropdown reps pick from on activity compose. Meeting first by position.', icon: '📝' },
   { href: '/dashboard/crm/settings/integrations', title: 'Integrations', desc: 'Connect web forms, Facebook, Google Ads, Zoho. Cross-channel dedup baked in.', icon: '🔌' },
   { href: '/dashboard/crm/settings/automations', title: 'Automations', desc: 'Trigger-based workflows: assign, notify, create tasks on lead/deal events.', icon: '⚡' },
+  { href: '/dashboard/crm/settings/cadences', title: 'Cadences & Drips', desc: 'Multi-step follow-up sequences: email → wait → WhatsApp → task, fired on lead/deal events.', icon: '🪜' },
   { href: '/dashboard/crm/settings/assignment-rules', title: 'Assignment Rules', desc: 'Auto-assign new leads.', icon: '🎲' },
   { href: '/dashboard/crm/settings/territories', title: 'Territories', desc: 'Sales territory hierarchy.', icon: '🗺️' },
   { href: '/dashboard/crm/settings/targets', title: 'Targets', desc: 'Set daily lead targets per field executive — or the same for everyone.', icon: '🥅' },

@@ -326,6 +326,29 @@ export const crmTerritories = crud<Territory>(`${BASE}/territories`);
 export const crmAutomations = crud<Automation>(`${BASE}/automations`);
 export const crmCustomFields = crud<CustomField>(`${BASE}/custom-fields`);
 
+// ── Cadences / flows (Phase-2 multi-step automation engine) ─────────────
+export interface Flow {
+  id: string; name: string; trigger_type: string;
+  trigger_config?: { conditions?: unknown[] } | null;
+  is_active?: boolean; client_id?: string | null;
+  run_count?: number | null; last_run_at?: string | null; created_at?: string;
+}
+export interface FlowStep {
+  id: string; flow_id: string;
+  kind: 'action' | 'delay' | 'branch' | 'stop';
+  position: number;
+  action_type?: string | null;
+  action_config?: Record<string, unknown> | null;
+  delay?: { amount?: number; unit?: string } | null;
+  next_step_id?: string | null;
+}
+export const crmFlows = {
+  ...crud<Flow>(`${BASE}/flows`),
+  testRun: (body: { flow_id: string; entity_type: string; entity_id: string }) =>
+    api.post<Wrapped<{ ok: true; steps: number }>>(`${BASE}/flow-test-run`, body),
+};
+export const crmFlowSteps = crud<FlowStep>(`${BASE}/flow-steps`);
+
 // KINI AI lead-form builder — generates a comprehensive custom-field set from
 // a plain-English problem statement (Settings → Custom Fields). Two steps:
 // clarifying questions, then the proposed fields; the UI previews + edits the
