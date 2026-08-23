@@ -15,7 +15,7 @@
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { crmAutomations, crmPipelines, crmEmailTemplates, crmWhatsappTemplates } from '../../../lib/crmApi';
+import { crmAutomations, crmFlows, crmFlowSteps, crmPipelines, crmEmailTemplates, crmWhatsappTemplates } from '../../../lib/crmApi';
 import api from '../../../lib/api';
 import type { Automation, AutomationCondition, Pipeline, EmailTemplate, WhatsappTemplate } from '../../../types/crm';
 import UserSearchSelect, { type UserOption } from '../shared/UserSearchSelect';
@@ -91,7 +91,14 @@ const ACTION_ROLE: Record<string, ActionRole> = {
 const ROLE_COLOR: Record<string, string> = {
   trigger: 'var(--primary)', cond: '#D98A0A',
   task: '#4C6FE0', messaging: '#0E9C8A', routing: '#8A5CD1', update: '#5A7290',
+  wait: '#6D6AE0',
 };
+// A wait/delay is stored as a pseudo-action in the working `actions` list so it
+// reuses the existing ordered rendering. A flow that contains one is persisted
+// to the flow engine (crm_flows), which natively supports timed steps.
+const WAIT = '__wait__';
+const waitTitle = (a: FlowAction) => `Wait ${a.action_config?.amount ?? 1} ${a.action_config?.unit ?? 'days'}`;
+const hasWait = (f: { actions: FlowAction[] }) => f.actions.some((a) => a.action_type === WAIT);
 // Per-action line icon (white stroke on the role-coloured tile).
 const ACTION_ICON: Record<string, string> = {
   create_task: 'clipboard', create_activity: 'note',
@@ -115,6 +122,7 @@ function Glyph({ name, size = 17 }: { name: string; size?: number }) {
     case 'user': return <svg {...p}><circle cx="12" cy="8" r="4" /><path d="M20 21a8 8 0 0 0-16 0" /></svg>;
     case 'swap': return <svg {...p}><path d="m17 3 4 4-4 4" /><path d="M21 7H7" /><path d="m7 21-4-4 4-4" /><path d="M3 17h14" /></svg>;
     case 'edit': return <svg {...p}><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" /></svg>;
+    case 'clock': return <svg {...p}><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>;
     default: return <svg {...p}><circle cx="12" cy="12" r="8" /></svg>;
   }
 }
@@ -142,6 +150,10 @@ type Flow = {
   actions: FlowAction[];
   run_count: number;
   _rowIds: string[]; // ids that existed on the server for diff-on-save
+  // Which engine backs this flow: 'automations' (crm_automations, instant
+  // rules) or 'flows' (crm_flows, timed sequences). A flow starts as
+  // 'automations' and is promoted to 'flows' the moment it contains a Wait.
+  source: 'automations' | 'flows';
 };
 type NodeSel = { kind: 'trigger' | 'cond' | 'action'; i?: number };
 
@@ -149,8 +161,9 @@ const newFlow = (): Flow => ({
   flow_id: uuid(), name: 'Untitled flow', active: false,
   trigger_type: 'lead_created', days: 3, conditions: [],
   actions: [{ row_id: null, action_type: 'create_task', action_config: {} }],
-  run_count: 0, _rowIds: [],
+  run_count: 0, _rowIds: [], source: 'automations',
 });
+const newWait = (): FlowAction => ({ row_id: null, action_type: WAIT, action_config: { amount: 2, unit: 'days' } });
 
 // ── Canvas layout constants (deterministic → wires computed, no DOM measuring) ──
 const NW = 250, NH = 90, GAPY = 108;
@@ -161,6 +174,13 @@ const anchorL = (x: number, y: number) => ({ x, y: y + NH / 2 });
 const bez = (a: { x: number; y: number }, b: { x: number; y: number }) => {
   const dx = Math.max(34, (b.x - a.x) / 2);
   return `M ${a.x} ${a.y} C ${a.x + dx} ${a.y}, ${b.x - dx} ${b.y}, ${b.x} ${b.y}`;
+};
+// Vertical connector (top/bottom anchors) for chaining sequence steps.
+const bottomC = (x: number, y: number) => ({ x: x + NW / 2, y: y + NH });
+const topC = (x: number, y: number) => ({ x: x + NW / 2, y });
+const bezV = (a: { x: number; y: number }, b: { x: number; y: number }) => {
+  const dy = Math.max(16, (b.y - a.y) / 2);
+  return `M ${a.x} ${a.y} C ${a.x} ${a.y + dy}, ${b.x} ${b.y - dy}, ${b.x} ${b.y}`;
 };
 
 export default function AutomationCanvas() {
@@ -204,10 +224,44 @@ export default function AutomationCanvas() {
           actions: sorted.map((r) => ({ row_id: r.id, action_type: r.action_type, action_config: { ...(r.action_config || {}) } })),
           run_count: rs.reduce((s, r) => s + (r.run_count || 0), 0),
           _rowIds: rs.map((r) => r.id),
+          source: 'automations' as const,
         };
       }).sort((a, b) => a.name.localeCompare(b.name));
-      setFlows(built);
-      setCurIdx((i) => Math.min(i, Math.max(0, built.length - 1)));
+
+      // Also surface timed sequences from the flow engine (crm_flows) so the one
+      // canvas shows both. A flow with a branch/stop step can't be represented
+      // linearly here — skip it (it stays editable in the Sequences tab) so we
+      // never flatten a branch on save.
+      let seqFlows: Flow[] = [];
+      try {
+        const frows = ((await crmFlows.list()).data || []) as any[];
+        const reBuilt = await Promise.all(frows.map(async (fr) => {
+          const steps = (((await crmFlowSteps.list({ flow_id: fr.id })).data || []) as any[])
+            .slice().sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+          if (steps.some((s) => s.kind === 'branch' || s.kind === 'stop')) return null;
+          const tc = (fr.trigger_config || {}) as any;
+          const actions: FlowAction[] = steps.map((s) => s.kind === 'delay'
+            ? { row_id: s.id, action_type: WAIT, action_config: { amount: s.delay?.amount ?? 1, unit: s.delay?.unit ?? 'days' } }
+            : { row_id: s.id, action_type: s.action_type || 'create_task', action_config: { ...(s.action_config || {}) } });
+          return {
+            flow_id: fr.id,
+            name: fr.name || 'Sequence',
+            active: !!fr.is_active,
+            trigger_type: fr.trigger_type,
+            days: Number(tc.days ?? 3),
+            conditions: (tc.conditions || []).map((c: any) => ({ field: c.field, op: c.op, value: c.value })),
+            actions: actions.length ? actions : [{ row_id: null, action_type: 'create_task', action_config: {} }],
+            run_count: fr.run_count || 0,
+            _rowIds: [],
+            source: 'flows' as const,
+          } as Flow;
+        }));
+        seqFlows = reBuilt.filter(Boolean) as Flow[];
+      } catch { /* flow engine may be absent on some tenants — ignore */ }
+
+      const all = [...built, ...seqFlows];
+      setFlows(all);
+      setCurIdx((i) => Math.min(i, Math.max(0, all.length - 1)));
     } catch (e: any) { toast.error(e.message || 'Failed to load automations'); }
     finally { setLoading(false); }
   };
@@ -239,6 +293,12 @@ export default function AutomationCanvas() {
     setNode({ kind: 'action', i: cur.actions.length });
     setPalette(false);
   };
+  const addWait = () => {
+    if (!cur) return;
+    patch({ actions: [...cur.actions, newWait()] });
+    setNode({ kind: 'action', i: cur.actions.length });
+    setPalette(false);
+  };
   const removeAction = (i: number) => {
     if (!cur || cur.actions.length <= 1) { toast.error('A flow needs at least one action'); return; }
     patch({ actions: cur.actions.filter((_, idx) => idx !== i) });
@@ -248,34 +308,66 @@ export default function AutomationCanvas() {
   const saveFlow = async () => {
     if (!cur) return;
     if (!cur.name.trim()) return toast.error('Give the flow a name');
-    if (!cur.actions.length) return toast.error('Add at least one action');
+    if (!cur.actions.filter((a) => a.action_type !== WAIT).length) return toast.error('Add at least one action');
     setSaving(true);
     const timed = !!triggerMeta(cur.trigger_type).timed;
-    const baseTC: Record<string, any> = {
-      conditions: cur.conditions.filter((c) => c.field.trim()),
-      flow_id: cur.flow_id,
-      flow_name: cur.name.trim(),
-    };
-    if (timed) baseTC.days = Number(cur.days) || 1;
-    const kept = new Set<string>();
+    // A flow with a Wait (or one already living on the flow engine) is a timed
+    // SEQUENCE → persist to crm_flows/crm_flow_steps. Otherwise it stays an
+    // instant rule on crm_automations (path unchanged).
+    const useFlowEngine = cur.source === 'flows' || hasWait(cur);
     try {
-      for (let i = 0; i < cur.actions.length; i++) {
-        const a = cur.actions[i];
-        const payload: any = {
-          name: cur.name.trim(),
-          trigger_type: cur.trigger_type,
-          trigger_config: { ...baseTC, position: i },
-          action_type: a.action_type,
-          action_config: a.action_config,
-          is_active: cur.active,
+      if (useFlowEngine) {
+        const tc: Record<string, any> = { conditions: cur.conditions.filter((c) => c.field.trim()) };
+        if (timed) tc.days = Number(cur.days) || 1;
+        const flowPayload: any = { name: cur.name.trim(), trigger_type: cur.trigger_type, trigger_config: tc, is_active: cur.active };
+        let flowId = cur.source === 'flows' ? cur.flow_id : '';
+        if (flowId) {
+          await crmFlows.update(flowId, flowPayload);
+          // Full-replace the steps (small lists; avoids fiddly per-step diffing).
+          const existing = ((await crmFlowSteps.list({ flow_id: flowId })).data || []) as any[];
+          for (const s of existing) await crmFlowSteps.remove(s.id);
+        } else {
+          const r = await crmFlows.create(flowPayload);
+          flowId = (r.data as any)?.id;
+          if (!flowId) throw new Error('Could not create the sequence');
+          // Promoting an instant rule to a sequence — remove its old automation rows.
+          for (const rid of cur._rowIds) await crmAutomations.remove(rid);
+        }
+        for (let i = 0; i < cur.actions.length; i++) {
+          const a = cur.actions[i];
+          const payload = a.action_type === WAIT
+            ? { flow_id: flowId, kind: 'delay', position: i, delay: { amount: Number(a.action_config?.amount) || 1, unit: a.action_config?.unit || 'days' } }
+            : { flow_id: flowId, kind: 'action', position: i, action_type: a.action_type, action_config: a.action_config };
+          await crmFlowSteps.create(payload as any);
+        }
+        toast.success('Sequence saved');
+        await load();
+      } else {
+        const baseTC: Record<string, any> = {
+          conditions: cur.conditions.filter((c) => c.field.trim()),
+          flow_id: cur.flow_id,
+          flow_name: cur.name.trim(),
         };
-        if (a.row_id) { await crmAutomations.update(a.row_id, payload); kept.add(a.row_id); }
-        else { await crmAutomations.create(payload); }
+        if (timed) baseTC.days = Number(cur.days) || 1;
+        const kept = new Set<string>();
+        for (let i = 0; i < cur.actions.length; i++) {
+          const a = cur.actions[i];
+          const payload: any = {
+            name: cur.name.trim(),
+            trigger_type: cur.trigger_type,
+            trigger_config: { ...baseTC, position: i },
+            action_type: a.action_type,
+            action_config: a.action_config,
+            is_active: cur.active,
+          };
+          if (a.row_id) { await crmAutomations.update(a.row_id, payload); kept.add(a.row_id); }
+          else { await crmAutomations.create(payload); }
+        }
+        // delete rows that were on the server but are no longer part of the flow
+        for (const rid of cur._rowIds) if (!kept.has(rid)) await crmAutomations.remove(rid);
+        toast.success('Flow saved');
+        await load();
       }
-      // delete rows that were on the server but are no longer part of the flow
-      for (const rid of cur._rowIds) if (!kept.has(rid)) await crmAutomations.remove(rid);
-      toast.success('Flow saved');
-      await load();
     } catch (e: any) { toast.error(e.message || 'Save failed'); }
     finally { setSaving(false); }
   };
@@ -284,9 +376,14 @@ export default function AutomationCanvas() {
     if (!cur) return;
     const next = !cur.active;
     patch({ active: next });
-    if (!cur._rowIds.length) return; // unsaved flow — persists on Save
+    const persisted = cur.source === 'flows' ? !!cur.flow_id : cur._rowIds.length > 0;
+    if (!persisted) return; // unsaved flow — persists on Save
     setBusy(true);
-    try { for (const rid of cur._rowIds) await crmAutomations.update(rid, { is_active: next } as any); toast.success(next ? 'Flow turned on' : 'Flow paused'); await load(); }
+    try {
+      if (cur.source === 'flows') await crmFlows.update(cur.flow_id, { is_active: next } as any);
+      else for (const rid of cur._rowIds) await crmAutomations.update(rid, { is_active: next } as any);
+      toast.success(next ? 'Turned on' : 'Paused'); await load();
+    }
     catch (e: any) { toast.error(e.message || 'Failed'); patch({ active: !next }); }
     finally { setBusy(false); }
   };
@@ -295,12 +392,14 @@ export default function AutomationCanvas() {
     if (!cur) return;
     if (!window.confirm(`Delete flow "${cur.name}"? This removes its ${cur.actions.length} action(s).`)) return;
     setBusy(true);
+    const wasPersisted = cur.source === 'flows' ? !!cur.flow_id : cur._rowIds.length > 0;
     try {
-      for (const rid of cur._rowIds) await crmAutomations.remove(rid);
+      if (cur.source === 'flows') { if (cur.flow_id) await crmFlows.remove(cur.flow_id); }
+      else for (const rid of cur._rowIds) await crmAutomations.remove(rid);
       // drop locally whether or not it had server rows
       setFlows((fs) => fs.filter((_, i) => i !== curIdx));
       setCurIdx(0); setNode({ kind: 'trigger' });
-      if (cur._rowIds.length) { toast.success('Flow deleted'); await load(); }
+      if (wasPersisted) { toast.success('Deleted'); await load(); }
     } catch (e: any) { toast.error(e.message || 'Delete failed'); }
     finally { setBusy(false); }
   };
@@ -310,7 +409,15 @@ export default function AutomationCanvas() {
     if (!cur) return [] as Array<{ d: string; dash?: boolean }>;
     const out: Array<{ d: string; dash?: boolean }> = [];
     out.push({ d: bez(anchorR(CX.trig, BASEY), anchorL(CX.cond, BASEY)) });
-    cur.actions.forEach((_, i) => out.push({ d: bez(anchorR(CX.cond, BASEY), anchorL(CX.act, BASEY + i * GAPY)) }));
+    if (hasWait(cur)) {
+      // Sequence: cond → step 1, then a vertical chain step i → step i+1.
+      if (cur.actions.length) out.push({ d: bez(anchorR(CX.cond, BASEY), anchorL(CX.act, BASEY)) });
+      for (let i = 1; i < cur.actions.length; i++)
+        out.push({ d: bezV(bottomC(CX.act, BASEY + (i - 1) * GAPY), topC(CX.act, BASEY + i * GAPY)) });
+    } else {
+      // Rule: cond fans out to every action (they all fire).
+      cur.actions.forEach((_, i) => out.push({ d: bez(anchorR(CX.cond, BASEY), anchorL(CX.act, BASEY + i * GAPY)) }));
+    }
     out.push({ d: bez(anchorR(CX.cond, BASEY), { x: CX.act, y: BASEY + cur.actions.length * GAPY + 22 }), dash: true });
     return out;
   }, [cur]);
@@ -404,15 +511,23 @@ export default function AutomationCanvas() {
                 sub={cur.conditions.length ? prettyCond(cur.conditions[0]) : 'No filter'} role="cond" icon="funnel"
                 x={CX.cond} y={BASEY} selected={node.kind === 'cond'} onClick={() => setNode({ kind: 'cond' })} />
 
-              {cur.actions.map((a, i) => (
-                <FlowNode key={i} cap={`Then · ${i + 1}`} title={actionLabel(a.action_type)} sub={cfgSummary(a)}
-                  role={ACTION_ROLE[a.action_type]} icon={ACTION_ICON[a.action_type] || 'clipboard'} x={CX.act} y={BASEY + i * GAPY}
-                  selected={node.kind === 'action' && node.i === i} onClick={() => setNode({ kind: 'action', i })} />
-              ))}
+              {cur.actions.map((a, i) => {
+                const isWait = a.action_type === WAIT;
+                return (
+                  <FlowNode key={i}
+                    cap={isWait ? 'Wait' : `Then · ${i + 1}`}
+                    title={isWait ? waitTitle(a) : actionLabel(a.action_type)}
+                    sub={isWait ? 'then continue' : cfgSummary(a)}
+                    role={isWait ? 'wait' : ACTION_ROLE[a.action_type]}
+                    icon={isWait ? 'clock' : (ACTION_ICON[a.action_type] || 'clipboard')}
+                    x={CX.act} y={BASEY + i * GAPY}
+                    selected={node.kind === 'action' && node.i === i} onClick={() => setNode({ kind: 'action', i })} />
+                );
+              })}
 
               <button onClick={() => setPalette(true)}
                 style={{ ...btnDashed, position: 'absolute', left: CX.act + 18, top: BASEY + 18 + cur.actions.length * GAPY, width: NW }}>
-                ＋ Add an action
+                ＋ Add step
               </button>
             </div>
             </div>
@@ -461,6 +576,28 @@ export default function AutomationCanvas() {
           </Inspector>
         ) : (() => {
           const i = node.i ?? 0; const a = cur.actions[i]; if (!a) return null;
+          if (a.action_type === WAIT) {
+            return (
+              <Inspector cap="Wait" title="Pause the sequence" color={ROLE_COLOR.wait}>
+                <Field label="Wait for">
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <input type="number" min={1} value={a.action_config?.amount ?? 1}
+                      onChange={(e) => patchAction(i, { action_config: { ...a.action_config, amount: Number(e.target.value) } })}
+                      style={{ ...input, width: 90 }} />
+                    <select value={a.action_config?.unit ?? 'days'}
+                      onChange={(e) => patchAction(i, { action_config: { ...a.action_config, unit: e.target.value } })}
+                      style={{ ...input, flex: 1 }}>
+                      <option value="minutes">minutes</option>
+                      <option value="hours">hours</option>
+                      <option value="days">days</option>
+                    </select>
+                  </div>
+                </Field>
+                <Note>A wait turns this flow into a <b>timed sequence</b> — the steps run in order and pause here until due (saved to the Sequences engine).</Note>
+                <button onClick={() => removeAction(i)} style={{ ...btnGhostSm, color: '#ef4444', border: 'none', marginTop: 12, padding: 0 }}>✕ Remove this wait</button>
+              </Inspector>
+            );
+          }
           const role = ACTION_ROLE[a.action_type];
           return (
             <Inspector cap="Action" title={`Then · action ${i + 1}`} color={ROLE_COLOR[role]}>
@@ -482,7 +619,7 @@ export default function AutomationCanvas() {
       {palette && (
         <div onClick={() => setPalette(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(8,14,24,.45)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div onClick={(e) => e.stopPropagation()} style={{ ...card, width: 360, maxHeight: '72vh', overflowY: 'auto', padding: 10 }}>
-            <div style={{ ...railLabel, margin: '4px 6px 8px' }}>Add an action</div>
+            <div style={{ ...railLabel, margin: '4px 6px 8px' }}>Add a step</div>
             {ACTION_GROUPS.map((g) => (
               <div key={g.group}>
                 <div style={{ ...railLabel, margin: '10px 6px 4px' }}>{g.group}</div>
@@ -494,6 +631,14 @@ export default function AutomationCanvas() {
                 ))}
               </div>
             ))}
+            {/* Timing — adding a wait turns the flow into a timed sequence. */}
+            <div>
+              <div style={{ ...railLabel, margin: '10px 6px 4px' }}>Timing</div>
+              <button onClick={addWait} style={paletteItem}>
+                <span style={{ width: 26, height: 26, borderRadius: 7, flex: '0 0 auto', background: ROLE_COLOR.wait, display: 'grid', placeItems: 'center' }}><Glyph name="clock" size={15} /></span>
+                <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--text)' }}>Wait / delay</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
