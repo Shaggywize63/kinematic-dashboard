@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { toast } from 'sonner';
 import { crmSettings } from '../../../../lib/crmApi';
 import api from '../../../../lib/api';
+import NewBadge from '../../../../components/shared/NewBadge';
 import { rolesApi, type OrgRole } from '../../../../lib/rolesApi';
 import type { BusinessType } from '../../../../types/crm';
 import { useAuth } from '../../../../hooks/useAuth';
@@ -268,8 +269,11 @@ export default function SettingsIndex() {
         {SECTIONS.map((s) => (
           <Link key={s.href} href={s.href} style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, padding: 16, textDecoration: 'none', display: 'flex', gap: 12 }}>
             <div style={{ fontSize: 22, lineHeight: 1, flexShrink: 0 }} aria-hidden>{s.icon}</div>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>{s.title}</div>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{s.title}</span>
+                <NewBadge href={s.href} />
+              </div>
               <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>{s.desc}</div>
             </div>
           </Link>

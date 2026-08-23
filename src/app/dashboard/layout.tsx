@@ -7,6 +7,8 @@ import { getStoredUser, isSessionValid, clearSession, getDesignationLabel } from
 import api, { getActingAs, setActingAs, getImpersonateUser, stopImpersonation } from '../../lib/api';
 import { webChatsApi } from '../../lib/webChatsApi';
 import BrandLogo from '../../components/shared/BrandLogo';
+import NewBadge from '../../components/shared/NewBadge';
+import { WHATS_NEW, markSectionSeen } from '../../lib/whatsNew';
 import StagingBoot from './StagingBoot';
 import StagingDeployModal from './StagingDeployModal';
 import { getStoredProjectKey } from '../../lib/projects';
@@ -177,6 +179,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const isMobile = useIsMobile(1024);
   const router = useRouter();
   const pathname = usePathname();
+
+  // Clear a section's "New" highlight once the viewer opens it (this route or
+  // any sub-route of it). Runs on every navigation; the badges recompute on the
+  // resulting re-render.
+  useEffect(() => {
+    if (!pathname) return;
+    for (const key of Object.keys(WHATS_NEW)) {
+      if (pathname === key || pathname.startsWith(key + '/')) markSectionSeen(key);
+    }
+  }, [pathname]);
 
   // Global ⌘/Ctrl-K toggles the smart-search command palette from anywhere in
   // the dashboard. preventDefault stops the browser's own bookmark shortcut.
@@ -1010,9 +1022,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                               }}
                             >{webChatUnread > 9 ? '9+' : webChatUnread}</span>
                           )}
+                          {(collapsed && !isMobile) && <NewBadge href={i.href} dot />}
                         </span>
                         {(isMobile || !collapsed) && (
-                          <span style={{ fontSize:13.5, fontWeight: active ? 600 : 500, whiteSpace:'nowrap' }}>{i.label}</span>
+                          <>
+                            <span style={{ fontSize:13.5, fontWeight: active ? 600 : 500, whiteSpace:'nowrap' }}>{i.label}</span>
+                            <NewBadge href={i.href} />
+                          </>
                         )}
                       </div>
                     </Link>
