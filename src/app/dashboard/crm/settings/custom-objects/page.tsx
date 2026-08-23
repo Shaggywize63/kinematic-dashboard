@@ -17,6 +17,45 @@ const NEEDS_OPTIONS = new Set(['select', 'multiselect', 'radio']);
 const slugify = (s: string) =>
   s.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 48);
 
+// Quick-pick icons for the object (click to set) — saves hunting for an emoji.
+const ICON_CHOICES = ['🏠', '🚗', '📄', '🎫', '📦', '🧾', '🏢', '👤', '💼', '🛠️', '📅', '⭐'];
+
+// One-tap object blueprints. Each creates the object + a sensible starter field
+// set, using the same create calls as the manual editor.
+type TplField = { label: string; type: string; required?: boolean; options?: string[] };
+const OBJECT_TEMPLATES: Array<{ id: string; icon: string; label: string; label_plural: string; description: string; fields: TplField[] }> = [
+  {
+    id: 'property', icon: '🏠', label: 'Property', label_plural: 'Properties', description: 'Real-estate listings',
+    fields: [
+      { label: 'Address', type: 'text', required: true },
+      { label: 'Price', type: 'currency' },
+      { label: 'Bedrooms', type: 'number' },
+      { label: 'Status', type: 'select', options: ['Available', 'Under offer', 'Sold'] },
+      { label: 'Listed on', type: 'date' },
+    ],
+  },
+  {
+    id: 'vehicle', icon: '🚗', label: 'Vehicle', label_plural: 'Vehicles', description: 'Fleet / inventory vehicles',
+    fields: [
+      { label: 'Registration', type: 'text', required: true },
+      { label: 'Make & model', type: 'text' },
+      { label: 'Year', type: 'number' },
+      { label: 'Price', type: 'currency' },
+      { label: 'Condition', type: 'select', options: ['New', 'Used', 'Certified'] },
+    ],
+  },
+  {
+    id: 'policy', icon: '📄', label: 'Policy', label_plural: 'Policies', description: 'Insurance policies',
+    fields: [
+      { label: 'Policy number', type: 'text', required: true },
+      { label: 'Holder', type: 'text' },
+      { label: 'Premium', type: 'currency' },
+      { label: 'Renewal date', type: 'date' },
+      { label: 'Status', type: 'select', options: ['Active', 'Lapsed', 'Cancelled'] },
+    ],
+  },
+];
+
 export default function CustomObjectsSettings() {
   const [objects, setObjects] = useState<CustomObject[]>([]);
   const [loading, setLoading] = useState(true);
@@ -63,6 +102,28 @@ export default function CustomObjectsSettings() {
     finally { setCreating(false); }
   };
 
+  const [applyingTpl, setApplyingTpl] = useState<string | null>(null);
+  const createFromTemplate = async (tpl: typeof OBJECT_TEMPLATES[number]) => {
+    setApplyingTpl(tpl.id);
+    try {
+      await crmCustomObjects.create({
+        key: tpl.id, label: tpl.label, label_plural: tpl.label_plural,
+        icon: tpl.icon, description: tpl.description,
+      });
+      for (let i = 0; i < tpl.fields.length; i++) {
+        const f = tpl.fields[i];
+        await crmCustomFields.create({
+          entity_type: tpl.id, field_key: slugify(f.label), label: f.label,
+          field_type: f.type, required: !!f.required, options: f.options ?? null, position: i,
+        } as any);
+      }
+      toast.success(`“${tpl.label}” created with ${tpl.fields.length} fields`);
+      await reload();
+      setExpanded(tpl.id);
+    } catch (e: any) { toast.error(e.message || 'Could not create from template'); }
+    finally { setApplyingTpl(null); }
+  };
+
   const toggleActive = async (o: CustomObject) => {
     setBusy((b) => ({ ...b, [o.id + '_t']: true }));
     try {
@@ -85,6 +146,39 @@ export default function CustomObjectsSettings() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div>
+        <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', margin: 0 }}>Custom Objects</h1>
+        <p style={{ fontSize: 12.5, color: 'var(--text-dim)', margin: '4px 0 0', maxWidth: 640 }}>
+          Model record types unique to your business — Properties, Vehicles, Policies, Tickets — each with its own
+          fields, records, search, and mobile parity. Start from a template below or build one from scratch.
+        </p>
+      </div>
+
+      {/* One-tap object templates */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10 }}>
+        {OBJECT_TEMPLATES.map((tpl) => {
+          const exists = objects.some((o) => o.key === tpl.id);
+          return (
+            <button
+              key={tpl.id}
+              className="sf-chip"
+              disabled={!!applyingTpl || exists}
+              onClick={() => createFromTemplate(tpl)}
+              style={{ ...card, textAlign: 'left', padding: 14, cursor: applyingTpl || exists ? 'default' : 'pointer', display: 'flex', flexDirection: 'column', gap: 4, opacity: (applyingTpl && applyingTpl !== tpl.id) || exists ? 0.5 : 1 }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 20 }}>{tpl.icon}</span>
+                <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text)' }}>{tpl.label_plural}</span>
+              </div>
+              <div style={{ fontSize: 11.5, color: 'var(--text-dim)' }}>{tpl.description}</div>
+              <div style={{ fontSize: 11, color: exists ? 'var(--text-dim)' : 'var(--primary)', fontWeight: 700, marginTop: 2 }}>
+                {exists ? '✓ Already added' : applyingTpl === tpl.id ? 'Creating…' : `+ Use template · ${tpl.fields.length} fields`}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
       <div style={card}>
         <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>Create Custom Object</div>
         <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 12 }}>
@@ -94,7 +188,22 @@ export default function CustomObjectsSettings() {
           <input value={label} onChange={(e) => { setLabel(e.target.value); if (!keyTouched) setKey(slugify(e.target.value)); }} placeholder="Label (singular, e.g. Property)" style={input} />
           <input value={labelPlural} onChange={(e) => setLabelPlural(e.target.value)} placeholder="Plural (e.g. Properties)" style={input} />
           <input value={keyTouched ? key : slugify(label)} onChange={(e) => { setKeyTouched(true); setKey(slugify(e.target.value)); }} placeholder="key (auto)" style={{ ...input, fontFamily: 'monospace' }} />
-          <input value={icon} onChange={(e) => setIcon(e.target.value)} placeholder="Icon emoji (optional)" style={input} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <input value={icon} onChange={(e) => setIcon(e.target.value)} placeholder="Icon (optional)" style={{ ...input, width: 120 }} />
+            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+              {ICON_CHOICES.map((em) => (
+                <button
+                  key={em}
+                  type="button"
+                  onClick={() => setIcon(em)}
+                  title={`Use ${em}`}
+                  style={{ fontSize: 16, lineHeight: 1, width: 30, height: 30, borderRadius: 8, cursor: 'pointer',
+                    background: icon === em ? 'var(--s2)' : 'transparent',
+                    border: `1px solid ${icon === em ? 'var(--primary)' : 'var(--border)'}` }}
+                >{em}</button>
+              ))}
+            </div>
+          </div>
           <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Description (optional)" style={{ ...input, gridColumn: '1 / -1' }} />
         </div>
         <div style={{ marginTop: 10 }}>

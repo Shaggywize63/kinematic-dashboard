@@ -36,6 +36,55 @@ const STEP_TYPES = [
   { key: 'custom', label: '⚙️ Custom action (JSON)' },
 ] as const;
 
+// Per-step icon + accent, keyed by delay-kind or action_type. Drives the
+// timeline dots so a cadence reads as a sequence at a glance.
+const STEP_META: Record<string, { icon: string; color: string }> = {
+  delay:             { icon: '⏱', color: '#f59e0b' },
+  create_task:       { icon: '✅', color: '#3b82f6' },
+  send_notification: { icon: '🔔', color: '#8b5cf6' },
+  send_email:        { icon: '✉️', color: '#14b8a6' },
+  send_whatsapp:     { icon: '💬', color: '#22c55e' },
+};
+const stepMeta = (s: FlowStep) =>
+  s.kind === 'delay' ? STEP_META.delay : (STEP_META[s.action_type || ''] || { icon: '⚙️', color: 'var(--text-dim)' });
+
+// One-tap starter cadences. Each expands into a flow + ordered steps using the
+// same payload shapes the manual editor produces, so nothing new to validate.
+type TplStep =
+  | { kind: 'delay'; amount: number; unit: string }
+  | { kind: 'action'; action_type: string; action_config: Record<string, unknown> };
+const TEMPLATES: Array<{ id: string; icon: string; name: string; trigger: string; blurb: string; steps: TplStep[] }> = [
+  {
+    id: 'new-lead-5day', icon: '🌱', name: 'New-lead 5-day follow-up', trigger: 'lead_created',
+    blurb: 'Task → wait 2d → notify → wait 3d → proposal task',
+    steps: [
+      { kind: 'action', action_type: 'create_task', action_config: { subject: 'Intro call with {{lead.first_name}}', due_in_days: 0 } },
+      { kind: 'delay', amount: 2, unit: 'days' },
+      { kind: 'action', action_type: 'send_notification', action_config: { title: 'Follow up with {{lead.first_name}}' } },
+      { kind: 'delay', amount: 3, unit: 'days' },
+      { kind: 'action', action_type: 'create_task', action_config: { subject: 'Send proposal to {{lead.first_name}}' } },
+    ],
+  },
+  {
+    id: 're-engage', icon: '🔁', name: 'Re-engage cold leads', trigger: 'lead_idle',
+    blurb: 'Notify owner → wait 2d → re-engagement call task',
+    steps: [
+      { kind: 'action', action_type: 'send_notification', action_config: { title: '{{lead.first_name}} has gone quiet — reach out' } },
+      { kind: 'delay', amount: 2, unit: 'days' },
+      { kind: 'action', action_type: 'create_task', action_config: { subject: 'Re-engagement call: {{lead.first_name}}' } },
+    ],
+  },
+  {
+    id: 'deal-won', icon: '🎉', name: 'Deal won → kickoff', trigger: 'deal_won',
+    blurb: 'Onboarding task → wait 1d → notify owner',
+    steps: [
+      { kind: 'action', action_type: 'create_task', action_config: { subject: 'Kick off onboarding for {{deal.name}}', due_in_days: 1 } },
+      { kind: 'delay', amount: 1, unit: 'days' },
+      { kind: 'action', action_type: 'send_notification', action_config: { title: 'Onboarding started for {{deal.name}}' } },
+    ],
+  },
+];
+
 const card: React.CSSProperties = { background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, padding: 16 };
 const input: React.CSSProperties = { background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13, width: '100%' };
 const label: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4, display: 'block' };
@@ -71,6 +120,29 @@ export default function CadencesPage() {
       setExpandedId((r.data as Flow)?.id ?? null);
     } catch (e: any) { toast.error(e.message || 'Create failed'); }
     finally { setCreating(false); }
+  };
+
+  const [applyingTpl, setApplyingTpl] = useState<string | null>(null);
+  const createFromTemplate = async (tpl: typeof TEMPLATES[number]) => {
+    setApplyingTpl(tpl.id);
+    try {
+      const r = await crmFlows.create({ name: tpl.name, trigger_type: tpl.trigger, is_active: false } as any);
+      const flowId = (r.data as Flow)?.id;
+      if (!flowId) throw new Error('Could not create cadence');
+      // Steps are created in order; position = index so the engine runs them
+      // top-to-bottom (delays park the run until due).
+      for (let i = 0; i < tpl.steps.length; i++) {
+        const st = tpl.steps[i];
+        const payload = st.kind === 'delay'
+          ? { flow_id: flowId, kind: 'delay', position: i, delay: { amount: st.amount, unit: st.unit } }
+          : { flow_id: flowId, kind: 'action', position: i, action_type: st.action_type, action_config: st.action_config };
+        await crmFlowSteps.create(payload as any);
+      }
+      toast.success(`“${tpl.name}” created — review the steps, then activate`);
+      await load();
+      setExpandedId(flowId);
+    } catch (e: any) { toast.error(e.message || 'Could not create from template'); }
+    finally { setApplyingTpl(null); }
   };
 
   const toggleActive = async (f: Flow) => {
@@ -112,6 +184,33 @@ export default function CadencesPage() {
         <button style={{ ...btnPrimary, opacity: creating ? 0.6 : 1 }} disabled={creating} onClick={createFlow}>
           {creating ? 'Creating…' : '+ New Cadence'}
         </button>
+      </div>
+
+      {/* Start-from-a-template shortcuts */}
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
+          Or start from a template
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10 }}>
+          {TEMPLATES.map((tpl) => (
+            <button
+              key={tpl.id}
+              className="sf-chip"
+              disabled={!!applyingTpl}
+              onClick={() => createFromTemplate(tpl)}
+              style={{ ...card, textAlign: 'left', cursor: applyingTpl ? 'default' : 'pointer', padding: 14, display: 'flex', flexDirection: 'column', gap: 4, opacity: applyingTpl && applyingTpl !== tpl.id ? 0.5 : 1 }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 18 }}>{tpl.icon}</span>
+                <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text)' }}>{tpl.name}</span>
+              </div>
+              <div style={{ fontSize: 11.5, color: 'var(--text-dim)', lineHeight: 1.4 }}>{tpl.blurb}</div>
+              <div style={{ fontSize: 11, color: 'var(--primary)', fontWeight: 700, marginTop: 2 }}>
+                {applyingTpl === tpl.id ? 'Creating…' : `+ Use template · ${tpl.steps.length} steps`}
+              </div>
+            </button>
+          ))}
+        </div>
       </div>
 
       {loading && flows.length === 0 ? (
@@ -213,15 +312,24 @@ function StepEditor({ flowId }: { flowId: string }) {
     catch (e: any) { toast.error(e.message || 'Remove failed'); }
   };
 
-  const stepSummary = (s: FlowStep): string => {
+  const stepTitle = (s: FlowStep): string => {
     if (s.kind === 'delay') return `Wait ${s.delay?.amount ?? '?'} ${s.delay?.unit ?? 'days'}`;
     if (s.kind === 'action') {
       const cfg = (s.action_config || {}) as any;
-      if (s.action_type === 'create_task') return `Create task: ${cfg.subject ?? ''}`;
-      if (s.action_type === 'send_notification') return `Notify owner: ${cfg.title ?? ''}`;
-      return `${s.action_type}`;
+      if (s.action_type === 'create_task') return `Create task`;
+      if (s.action_type === 'send_notification') return `Notify owner`;
+      if (s.action_type === 'send_email') return `Send email`;
+      if (s.action_type === 'send_whatsapp') return `Send WhatsApp`;
+      return String(s.action_type || 'Action');
     }
     return s.kind;
+  };
+  const stepDetail = (s: FlowStep): string => {
+    if (s.kind === 'delay') return 'then continue to the next step';
+    const cfg = (s.action_config || {}) as any;
+    if (s.action_type === 'create_task') return [cfg.subject, cfg.due_in_days != null ? `due in ${cfg.due_in_days}d` : ''].filter(Boolean).join(' · ');
+    if (s.action_type === 'send_notification') return [cfg.title, cfg.body].filter(Boolean).join(' · ');
+    return cfg.template_id ? `template ${cfg.template_id}` : '';
   };
 
   return (
@@ -232,14 +340,31 @@ function StepEditor({ flowId }: { flowId: string }) {
       ) : steps.length === 0 ? (
         <div style={{ color: 'var(--text-dim)', fontSize: 12, marginBottom: 10 }}>No steps yet — add the first touch below.</div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
-          {steps.map((s, i) => (
-            <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--s3)', borderRadius: 8, padding: '8px 12px' }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', width: 20 }}>{i + 1}</span>
-              <span style={{ fontSize: 13, color: 'var(--text)', flex: 1 }}>{stepSummary(s)}</span>
-              <button onClick={() => removeStep(s)} style={{ background: 'transparent', border: '1px solid var(--border)', color: '#ef4444', padding: '2px 10px', borderRadius: 6, fontSize: 11, cursor: 'pointer' }}>Remove</button>
-            </div>
-          ))}
+        <div style={{ marginBottom: 12 }}>
+          {steps.map((s, i) => {
+            const m = stepMeta(s);
+            const detail = stepDetail(s);
+            const isLast = i === steps.length - 1;
+            return (
+              <div key={s.id} style={{ display: 'flex', gap: 12, alignItems: 'stretch' }}>
+                {/* Timeline rail: icon dot + connector line to the next step */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 30 }}>
+                  <div style={{ width: 30, height: 30, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14,
+                    background: `color-mix(in srgb, ${m.color} 16%, transparent)`, border: `1.5px solid ${m.color}` }}>{m.icon}</div>
+                  {!isLast && <div style={{ flex: 1, width: 2, minHeight: 14, background: 'var(--border)', margin: '2px 0' }} />}
+                </div>
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 10, paddingBottom: isLast ? 0 : 10 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
+                      <span style={{ color: 'var(--text-dim)', fontWeight: 700, marginRight: 6 }}>{i + 1}</span>{stepTitle(s)}
+                    </div>
+                    {detail && <div style={{ fontSize: 11.5, color: 'var(--text-dim)', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{detail}</div>}
+                  </div>
+                  <button onClick={() => removeStep(s)} style={{ background: 'transparent', border: '1px solid var(--border)', color: '#ef4444', padding: '2px 10px', borderRadius: 6, fontSize: 11, cursor: 'pointer', flexShrink: 0 }}>Remove</button>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 

@@ -11,6 +11,7 @@ import type { Lead, LeadSource } from '../../../../types/crm';
 import LeadsTable, { LEAD_COLUMNS } from '../../../../components/crm/LeadsTable';
 import LeadEditModal from '../../../../components/crm/LeadEditModal';
 import LeadFilters, { type LeadFiltersValue } from '../../../../components/crm/LeadFilters';
+import SmartFilterBar from '../../../../components/crm/SmartFilterBar';
 import ViewCustomizer from '../../../../components/crm/shared/ViewCustomizer';
 import { useViewPrefs } from '../../../../lib/crmViewPrefs';
 
@@ -263,8 +264,11 @@ export default function LeadsListPage() {
   // AI Smart Filters: plain-English → validated filter params (server-side),
   // applied on top of the normal list fetch. `mine` is resolved to owner_id by
   // the backend, so no client identity needed.
-  const runSmartFilter = async () => {
-    const q = smartQuery.trim();
+  const runSmartFilter = async (explicit?: string) => {
+    // `explicit` lets an example chip fill-and-run in one tap without waiting
+    // for the smartQuery state to flush (setState is async).
+    if (explicit !== undefined) setSmartQuery(explicit);
+    const q = (explicit ?? smartQuery).trim();
     if (!q) { setSmartParams({}); setSmartExplain(''); return; }
     setSmartLoading(true);
     try {
@@ -549,31 +553,15 @@ export default function LeadsListPage() {
         </div>
       </div>
       {/* AI Smart Filters — plain-English → validated lead filters (KINI). */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <input
-            value={smartQuery}
-            onChange={(e) => setSmartQuery(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') runSmartFilter(); }}
-            placeholder="Ask in plain English — e.g. “hot B2C leads in Mumbai not contacted in 30 days”"
-            style={{ flex: 1, minWidth: 240, background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '9px 12px', borderRadius: 8, fontSize: 13 }}
-          />
-          <button
-            onClick={runSmartFilter}
-            disabled={smartLoading}
-            style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '9px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, opacity: smartLoading ? 0.6 : 1, whiteSpace: 'nowrap', cursor: 'pointer' }}
-          >{smartLoading ? 'Thinking…' : '🧠 Smart Filter'}</button>
-        </div>
-        {smartExplain && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 12, color: 'var(--textSec)', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 8, padding: '6px 10px' }}>
-            <span>🧠 Interpreted as: <strong style={{ color: 'var(--text)' }}>{smartExplain}</strong></span>
-            {Object.keys(smartParams).length > 0 && (
-              <span>({Object.entries(smartParams).map(([k, v]) => `${k}=${v}`).join(', ')})</span>
-            )}
-            <button onClick={clearSmartFilter} style={{ marginLeft: 'auto', background: 'transparent', border: '1px solid var(--border)', color: 'var(--textSec)', padding: '2px 10px', borderRadius: 6, fontSize: 11, cursor: 'pointer' }}>Clear</button>
-          </div>
-        )}
-      </div>
+      <SmartFilterBar
+        query={smartQuery}
+        setQuery={setSmartQuery}
+        onRun={runSmartFilter}
+        onClear={clearSmartFilter}
+        loading={smartLoading}
+        explanation={smartExplain}
+        params={smartParams}
+      />
       <LeadFilters value={filters} onChange={setFilters} sources={sources.map((s) => ({ id: s.id, name: s.name }))} owners={users} />
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0 2px' }}>
         <span style={{ fontSize: 12, color: 'var(--textSec)', fontWeight: 600 }}>Sort by</span>
