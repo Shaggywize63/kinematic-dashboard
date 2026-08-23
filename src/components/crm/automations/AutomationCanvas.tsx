@@ -92,13 +92,23 @@ const ROLE_COLOR: Record<string, string> = {
   trigger: 'var(--primary)', cond: '#D98A0A',
   task: '#4C6FE0', messaging: '#0E9C8A', routing: '#8A5CD1', update: '#5A7290',
   wait: '#6D6AE0',
+  branch: '#D98A0A',
 };
-// A wait/delay is stored as a pseudo-action in the working `actions` list so it
-// reuses the existing ordered rendering. A flow that contains one is persisted
-// to the flow engine (crm_flows), which natively supports timed steps.
+// A wait/delay and a branch/condition-gate are stored as pseudo-actions in the
+// working `actions` list so they reuse the existing ordered rendering. A flow
+// that contains either is persisted to the flow engine (crm_flows), which
+// natively supports timed + branch steps.
 const WAIT = '__wait__';
+const BRANCH = '__branch__'; // condition gate: pass → continue, fail → stop
 const waitTitle = (a: FlowAction) => `Wait ${a.action_config?.amount ?? 1} ${a.action_config?.unit ?? 'days'}`;
+const gateConds = (a: FlowAction): AutomationCondition[] => Array.isArray(a.action_config?.conditions) ? a.action_config!.conditions : [];
+const gateTitle = (a: FlowAction) => {
+  const cs = gateConds(a).filter((c) => (c.field || '').trim());
+  return cs.length ? `If ${prettyCond(cs[0])}${cs.length > 1 ? ` +${cs.length - 1}` : ''}` : 'If …';
+};
 const hasWait = (f: { actions: FlowAction[] }) => f.actions.some((a) => a.action_type === WAIT);
+const hasGate = (f: { actions: FlowAction[] }) => f.actions.some((a) => a.action_type === BRANCH);
+const isPseudo = (t: string) => t === WAIT || t === BRANCH;
 // Per-action line icon (white stroke on the role-coloured tile).
 const ACTION_ICON: Record<string, string> = {
   create_task: 'clipboard', create_activity: 'note',
@@ -164,6 +174,7 @@ const newFlow = (): Flow => ({
   run_count: 0, _rowIds: [], source: 'automations',
 });
 const newWait = (): FlowAction => ({ row_id: null, action_type: WAIT, action_config: { amount: 2, unit: 'days' } });
+const newGate = (): FlowAction => ({ row_id: null, action_type: BRANCH, action_config: { conditions: [{ field: '', op: '=', value: '' }] } });
 
 // ── Canvas layout constants (deterministic → wires computed, no DOM measuring) ──
 const NW = 250, NH = 90, GAPY = 108;
@@ -238,11 +249,23 @@ export default function AutomationCanvas() {
         const reBuilt = await Promise.all(frows.map(async (fr) => {
           const steps = (((await crmFlowSteps.list({ flow_id: fr.id })).data || []) as any[])
             .slice().sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
-          if (steps.some((s) => s.kind === 'branch' || s.kind === 'stop')) return null;
+          const byId = new Map(steps.map((s) => [s.id, s]));
+          // A "gate" branch has no true-target (falls through) and its false-
+          // target is a terminal Stop. Anything else is a real two-way branch we
+          // can't represent linearly yet — leave that whole flow to the
+          // Sequences tab so the canvas never flattens it.
+          const isGateStep = (s: any) => s.kind === 'branch'
+            && !s.branch_true_step_id
+            && (!s.branch_false_step_id || byId.get(s.branch_false_step_id)?.kind === 'stop');
+          if (steps.some((s) => s.kind === 'branch' && !isGateStep(s))) return null;
           const tc = (fr.trigger_config || {}) as any;
-          const actions: FlowAction[] = steps.map((s) => s.kind === 'delay'
-            ? { row_id: s.id, action_type: WAIT, action_config: { amount: s.delay?.amount ?? 1, unit: s.delay?.unit ?? 'days' } }
-            : { row_id: s.id, action_type: s.action_type || 'create_task', action_config: { ...(s.action_config || {}) } });
+          const actions: FlowAction[] = steps
+            .filter((s) => s.kind !== 'stop') // stops are a gate's fail target, not a visible step
+            .map((s) => s.kind === 'delay'
+              ? { row_id: s.id, action_type: WAIT, action_config: { amount: s.delay?.amount ?? 1, unit: s.delay?.unit ?? 'days' } }
+              : s.kind === 'branch'
+              ? { row_id: s.id, action_type: BRANCH, action_config: { conditions: (s.branch?.conditions || []).map((c: any) => ({ field: c.field, op: c.op, value: c.value })) } }
+              : { row_id: s.id, action_type: s.action_type || 'create_task', action_config: { ...(s.action_config || {}) } });
           return {
             flow_id: fr.id,
             name: fr.name || 'Sequence',
@@ -299,6 +322,12 @@ export default function AutomationCanvas() {
     setNode({ kind: 'action', i: cur.actions.length });
     setPalette(false);
   };
+  const addGate = () => {
+    if (!cur) return;
+    patch({ actions: [...cur.actions, newGate()] });
+    setNode({ kind: 'action', i: cur.actions.length });
+    setPalette(false);
+  };
   const removeAction = (i: number) => {
     if (!cur || cur.actions.length <= 1) { toast.error('A flow needs at least one action'); return; }
     patch({ actions: cur.actions.filter((_, idx) => idx !== i) });
@@ -308,13 +337,13 @@ export default function AutomationCanvas() {
   const saveFlow = async () => {
     if (!cur) return;
     if (!cur.name.trim()) return toast.error('Give the flow a name');
-    if (!cur.actions.filter((a) => a.action_type !== WAIT).length) return toast.error('Add at least one action');
+    if (!cur.actions.filter((a) => !isPseudo(a.action_type)).length) return toast.error('Add at least one action');
     setSaving(true);
     const timed = !!triggerMeta(cur.trigger_type).timed;
-    // A flow with a Wait (or one already living on the flow engine) is a timed
-    // SEQUENCE → persist to crm_flows/crm_flow_steps. Otherwise it stays an
-    // instant rule on crm_automations (path unchanged).
-    const useFlowEngine = cur.source === 'flows' || hasWait(cur);
+    // A flow with a Wait or a Branch gate (or one already living on the flow
+    // engine) is a SEQUENCE → persist to crm_flows/crm_flow_steps. Otherwise it
+    // stays an instant rule on crm_automations (path unchanged).
+    const useFlowEngine = cur.source === 'flows' || hasWait(cur) || hasGate(cur);
     try {
       if (useFlowEngine) {
         const tc: Record<string, any> = { conditions: cur.conditions.filter((c) => c.field.trim()) };
@@ -333,12 +362,33 @@ export default function AutomationCanvas() {
           // Promoting an instant rule to a sequence — remove its old automation rows.
           for (const rid of cur._rowIds) await crmAutomations.remove(rid);
         }
+        // Create the real steps in order. A Branch gate becomes a `branch`
+        // step; its FAIL edge is wired (below) to a terminal Stop step so a
+        // failing condition halts the run, while PASS (branch_true = null)
+        // falls through to the next step by position.
+        const createdIds: (string | null)[] = [];
+        const gatePositions: number[] = [];
         for (let i = 0; i < cur.actions.length; i++) {
           const a = cur.actions[i];
-          const payload = a.action_type === WAIT
-            ? { flow_id: flowId, kind: 'delay', position: i, delay: { amount: Number(a.action_config?.amount) || 1, unit: a.action_config?.unit || 'days' } }
-            : { flow_id: flowId, kind: 'action', position: i, action_type: a.action_type, action_config: a.action_config };
-          await crmFlowSteps.create(payload as any);
+          let payload: any;
+          if (a.action_type === WAIT) {
+            payload = { flow_id: flowId, kind: 'delay', position: i, delay: { amount: Number(a.action_config?.amount) || 1, unit: a.action_config?.unit || 'days' } };
+          } else if (a.action_type === BRANCH) {
+            payload = { flow_id: flowId, kind: 'branch', position: i, branch: { conditions: gateConds(a).filter((c) => (c.field || '').trim()) } };
+            gatePositions.push(i);
+          } else {
+            payload = { flow_id: flowId, kind: 'action', position: i, action_type: a.action_type, action_config: a.action_config };
+          }
+          const cr = await crmFlowSteps.create(payload as any);
+          createdIds[i] = (cr.data as any)?.id ?? null;
+        }
+        // One terminal Stop per gate, at the end (so it never sits on the
+        // fall-through path), pointed at by the gate's branch_false edge.
+        let stopPos = cur.actions.length;
+        for (const gi of gatePositions) {
+          const stop = await crmFlowSteps.create({ flow_id: flowId, kind: 'stop', position: stopPos++ } as any);
+          const stopId = (stop.data as any)?.id ?? null;
+          if (createdIds[gi] && stopId) await crmFlowSteps.update(createdIds[gi] as string, { branch_false_step_id: stopId } as any);
         }
         toast.success('Sequence saved');
         await load();
@@ -409,7 +459,7 @@ export default function AutomationCanvas() {
     if (!cur) return [] as Array<{ d: string; dash?: boolean }>;
     const out: Array<{ d: string; dash?: boolean }> = [];
     out.push({ d: bez(anchorR(CX.trig, BASEY), anchorL(CX.cond, BASEY)) });
-    if (hasWait(cur)) {
+    if (hasWait(cur) || hasGate(cur)) {
       // Sequence: cond → step 1, then a vertical chain step i → step i+1.
       if (cur.actions.length) out.push({ d: bez(anchorR(CX.cond, BASEY), anchorL(CX.act, BASEY)) });
       for (let i = 1; i < cur.actions.length; i++)
@@ -513,13 +563,14 @@ export default function AutomationCanvas() {
 
               {cur.actions.map((a, i) => {
                 const isWait = a.action_type === WAIT;
+                const isGate = a.action_type === BRANCH;
                 return (
                   <FlowNode key={i}
-                    cap={isWait ? 'Wait' : `Then · ${i + 1}`}
-                    title={isWait ? waitTitle(a) : actionLabel(a.action_type)}
-                    sub={isWait ? 'then continue' : cfgSummary(a)}
-                    role={isWait ? 'wait' : ACTION_ROLE[a.action_type]}
-                    icon={isWait ? 'clock' : (ACTION_ICON[a.action_type] || 'clipboard')}
+                    cap={isWait ? 'Wait' : isGate ? 'Branch' : `Then · ${i + 1}`}
+                    title={isWait ? waitTitle(a) : isGate ? gateTitle(a) : actionLabel(a.action_type)}
+                    sub={isWait ? 'then continue' : isGate ? 'else stop the flow' : cfgSummary(a)}
+                    role={isWait ? 'wait' : isGate ? 'branch' : ACTION_ROLE[a.action_type]}
+                    icon={isWait ? 'clock' : isGate ? 'funnel' : (ACTION_ICON[a.action_type] || 'clipboard')}
                     x={CX.act} y={BASEY + i * GAPY}
                     selected={node.kind === 'action' && node.i === i} onClick={() => setNode({ kind: 'action', i })} />
                 );
@@ -598,6 +649,38 @@ export default function AutomationCanvas() {
               </Inspector>
             );
           }
+          if (a.action_type === BRANCH) {
+            const conds = gateConds(a);
+            const ent = triggerMeta(cur.trigger_type).entity;
+            const setConds = (next: AutomationCondition[]) => patchAction(i, { action_config: { ...a.action_config, conditions: next } });
+            return (
+              <Inspector cap="Branch" title="Continue only if…" color={ROLE_COLOR.branch}>
+                <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 10 }}>The flow continues when <b>all</b> of these pass. If any fail, it <b>stops here</b>.</div>
+                {conds.map((c, ci) => (
+                  <div key={ci}>
+                    {ci > 0 && <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0' }}><span style={andPill}>AND</span><span style={{ flex: 1, height: 1, background: 'var(--border)' }} /></div>}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 84px 1fr auto', gap: 6, marginBottom: 6 }}>
+                      <input list={`gate-fields-${ent}`} value={c.field} onChange={(e) => setConds(conds.map((x, xi) => xi === ci ? { ...x, field: e.target.value } : x))} placeholder="field" style={{ ...input, minWidth: 0 }} />
+                      <select value={c.op} onChange={(e) => setConds(conds.map((x, xi) => xi === ci ? { ...x, op: e.target.value } : x))} style={{ ...input, minWidth: 0 }}>
+                        {OPS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                      </select>
+                      {c.op !== 'exists'
+                        ? <input value={String(c.value ?? '')} onChange={(e) => setConds(conds.map((x, xi) => xi === ci ? { ...x, value: e.target.value } : x))} placeholder="value" style={{ ...input, minWidth: 0 }} />
+                        : <span />}
+                      <button onClick={() => setConds(conds.filter((_, xi) => xi !== ci))} style={btnGhostSm}>✕</button>
+                    </div>
+                  </div>
+                ))}
+                <datalist id={`gate-fields-${ent}`}>
+                  {(FIELD_SUGGESTIONS[ent] || []).map((f) => <option key={f} value={f} />)}
+                </datalist>
+                <button onClick={() => setConds([...conds, { field: '', op: '=', value: '' }])} style={{ ...btnDashed, width: '100%', marginTop: 4 }}>＋ Add condition</button>
+                <div style={{ height: 10 }} />
+                <Note>A branch gate turns this flow into a <b>sequence</b> — on save, a failing condition stops the run here (saved to the Sequences engine).</Note>
+                <button onClick={() => removeAction(i)} style={{ ...btnGhostSm, color: '#ef4444', border: 'none', marginTop: 12, padding: 0 }}>✕ Remove this branch</button>
+              </Inspector>
+            );
+          }
           const role = ACTION_ROLE[a.action_type];
           return (
             <Inspector cap="Action" title={`Then · action ${i + 1}`} color={ROLE_COLOR[role]}>
@@ -631,12 +714,17 @@ export default function AutomationCanvas() {
                 ))}
               </div>
             ))}
-            {/* Timing — adding a wait turns the flow into a timed sequence. */}
+            {/* Timing + Logic — a wait or a branch gate turns the flow into a
+                sequence (saved to the Sequences engine). */}
             <div>
-              <div style={{ ...railLabel, margin: '10px 6px 4px' }}>Timing</div>
+              <div style={{ ...railLabel, margin: '10px 6px 4px' }}>Timing &amp; logic</div>
               <button onClick={addWait} style={paletteItem}>
                 <span style={{ width: 26, height: 26, borderRadius: 7, flex: '0 0 auto', background: ROLE_COLOR.wait, display: 'grid', placeItems: 'center' }}><Glyph name="clock" size={15} /></span>
                 <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--text)' }}>Wait / delay</span>
+              </button>
+              <button onClick={addGate} style={paletteItem}>
+                <span style={{ width: 26, height: 26, borderRadius: 7, flex: '0 0 auto', background: ROLE_COLOR.branch, display: 'grid', placeItems: 'center' }}><Glyph name="funnel" size={15} /></span>
+                <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--text)' }}>Branch (continue if…)</span>
               </button>
             </div>
           </div>

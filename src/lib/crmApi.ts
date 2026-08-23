@@ -373,6 +373,12 @@ export interface FlowStep {
   action_config?: Record<string, unknown> | null;
   delay?: { amount?: number; unit?: string } | null;
   next_step_id?: string | null;
+  // Branch (condition gate): `branch.conditions` decide the path — pass follows
+  // branch_true_step_id (null = fall through by position), fail follows
+  // branch_false_step_id.
+  branch?: { conditions?: unknown[] } | null;
+  branch_true_step_id?: string | null;
+  branch_false_step_id?: string | null;
 }
 export const crmFlows = {
   ...crud<Flow>(`${BASE}/flows`),
