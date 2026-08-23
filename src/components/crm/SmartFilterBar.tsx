@@ -15,15 +15,13 @@ import { useEffect, useRef, useState } from 'react';
  */
 
 // Full-length phrasings drive the typewriter — they read like real questions.
+// Kept to five so the loop stays short and readable.
 const TYPE_EXAMPLES = [
   'hot B2C leads in Mumbai not contacted in 30 days',
   'qualified leads added this week',
   'my open leads going cold',
   'B2B leads in steel industry with score above 70',
   'leads from Facebook this month',
-  'unqualified leads in Delhi to re-engage',
-  "high-intent leads I haven't followed up",
-  'new leads added today, highest score first',
 ];
 
 // Short, tappable starters — clicking fills the box and runs immediately.
