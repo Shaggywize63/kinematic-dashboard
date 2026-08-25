@@ -715,7 +715,7 @@ export const crmEmailCampaigns = {
   usage: () => api.get<Wrapped<{ campaigns: number; emails_this_month: number }>>(`${BASE}/email-campaigns/usage`),
   // Connect Google → import the rep's Google contacts as leads.
   googleStatus: () => api.get<Wrapped<{ connected: boolean; email?: string; has_contacts_scope: boolean }>>(`${BASE}/email-campaigns/google/status`),
-  googleSync: () => api.post<Wrapped<{ imported: number; merged: number; skipped: number; total: number }>>(`${BASE}/email-campaigns/google/sync`, {}),
+  googleSync: () => api.post<Wrapped<{ imported: number; merged: number; skipped: number; total: number; partial?: boolean }>>(`${BASE}/email-campaigns/google/sync`, {}),
   // Returns the Google consent URL; `returnPath` (an in-app /dashboard/ path) is
   // where the OAuth callback bounces back to after the user grants access.
   googleAuthorize: (returnPath: string) => api.get<{ url: string }>(`/api/v1/integrations/google/authorize?return=${encodeURIComponent(returnPath)}`),

@@ -127,7 +127,9 @@ export default function NewEmailCampaignPage() {
     setSyncing(true); setErr(''); setNotice('');
     try {
       const d = (await crmEmailCampaigns.googleSync()).data;
-      setNotice(`Imported ${d.imported} new + ${d.merged} existing contact(s) from Google${d.skipped ? ` (${d.skipped} skipped)` : ''}.`);
+      const base = `Imported ${d.imported} new + ${d.merged} existing contact(s) from Google${d.skipped ? ` (${d.skipped} skipped)` : ''}.`;
+      // Large books import in batches (partial) so the request can't time out.
+      setNotice(d.partial ? `${base} There are more to import — click Import again to continue.` : base);
       await loadContacts();
     } catch (e: any) { setErr(e?.message || 'Google import failed'); }
     finally { setSyncing(false); }

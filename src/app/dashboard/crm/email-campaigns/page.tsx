@@ -106,7 +106,10 @@ export default function EmailCampaignsPage() {
     setSyncing(true); setNotice(''); setGErr('');
     try {
       const d = (await crmEmailCampaigns.googleSync()).data;
-      setNotice(`Imported ${d.imported} new + ${d.merged} existing contact(s) from Google${d.skipped ? ` (${d.skipped} skipped)` : ''}.`);
+      const base = `Imported ${d.imported} new + ${d.merged} existing contact(s) from Google${d.skipped ? ` (${d.skipped} skipped)` : ''}.`;
+      // A large address book is imported in batches so the request can't time
+      // out. When the server returns partial, prompt the admin to click again.
+      setNotice(d.partial ? `${base} There are more to import — click “Import Google contacts” again to continue.` : base);
     } catch (e: any) {
       setGErr(friendlyGoogleError(e?.message));
       // A dead token flips the button back to "Reconnect Google".
