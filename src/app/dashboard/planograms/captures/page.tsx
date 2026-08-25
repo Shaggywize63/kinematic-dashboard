@@ -55,6 +55,8 @@ export default function CapturesPage() {
   // Web shelf-audit: upload a shelf photo and run the same AI capture pipeline
   // the mobile camera uses — so a MoiSoi demo can be run entirely in the browser.
   const [uploading, setUploading] = useState(false);
+  // Progress across a (possibly multi-file) shelf-audit batch. null when idle.
+  const [progress, setProgress] = useState<{ total: number; done: number; label: string } | null>(null);
   const shelfFileRef = useRef<HTMLInputElement>(null);
 
   // Store dropdown options — captured from the unfiltered-by-store result so
@@ -179,17 +181,16 @@ export default function CapturesPage() {
 
   // Upload a shelf photo from the browser and run the AI audit (same pipeline as
   // the mobile camera). On success we jump straight to the capture's report.
-  const runShelfAudit = async (file: File) => {
+  // Audit ONE shelf photo: validate → upload the file → run the AI capture.
+  // Returns a result object (no toasts/routing) so the batch orchestrator below
+  // can drive the shared progress UI and decide the final UX.
+  const auditOne = async (file: File): Promise<{ ok: boolean; captureId?: string; error?: string }> => {
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-      toast.error('Upload a JPG, PNG, or WebP shelf photo.');
-      return;
+      return { ok: false, error: `${file.name}: not a JPG/PNG/WebP` };
     }
     if (file.size > 10 * 1024 * 1024) {
-      toast.error('Image is too large (max 10 MB).');
-      return;
+      return { ok: false, error: `${file.name}: too large (max 10 MB)` };
     }
-    setUploading(true);
-    const tId = toast.loading('Analyzing the shelf with AI — this can take up to a minute.');
     try {
       const image_base64 = await readBase64(file);
       // The capture endpoint also requires a hosted image URL, so upload the file
@@ -211,29 +212,70 @@ export default function CapturesPage() {
       });
       const upJson = await up.json().catch(() => ({}));
       const image_url = upJson?.data?.url || upJson?.url;
-      if (!image_url) throw new Error(upJson?.error || upJson?.message || 'Image upload failed.');
+      if (!image_url) throw new Error(upJson?.error || upJson?.message || 'image upload failed');
 
       const res = await planogramApi.createCapture({
         image_url,
         image_base64,
         image_media_type: file.type as 'image/jpeg' | 'image/png' | 'image/webp',
       });
-      const capture = res?.data?.capture;
-      toast.dismiss(tId);
-      if (capture?.id) {
-        toast.success('Shelf audited — opening the report.');
-        router.push(`/dashboard/planograms/captures/${capture.id}`);
-      } else {
-        toast.success('Shelf audited.');
-        load();
-      }
+      return { ok: true, captureId: res?.data?.capture?.id };
     } catch (e) {
-      toast.dismiss(tId);
-      toast.error((e as Error)?.message || 'Could not audit the shelf. Please try again.');
-    } finally {
-      setUploading(false);
-      if (shelfFileRef.current) shelfFileRef.current.value = '';
+      return { ok: false, error: `${file.name}: ${(e as Error)?.message || 'audit failed'}` };
     }
+  };
+
+  // Upload one OR MANY shelf photos and run the AI audit on each, sequentially,
+  // with a progress bar. A single photo keeps the old UX (jump to its report);
+  // several photos process in turn and land back on a refreshed list with a
+  // summary. Each capture can take up to a minute, so the bar shows "N of M".
+  const runShelfAudits = async (files: File[]) => {
+    if (!files.length) return;
+    const many = files.length > 1;
+    setUploading(true);
+    setProgress({ total: files.length, done: 0, label: many ? `Analyzing 1 of ${files.length}…` : 'Analyzing the shelf…' });
+    const tId = many ? null : toast.loading('Analyzing the shelf with AI — this can take up to a minute.');
+    let firstCaptureId: string | undefined;
+    let ok = 0;
+    const errors: string[] = [];
+    for (let i = 0; i < files.length; i++) {
+      setProgress({
+        total: files.length,
+        done: i,
+        label: many ? `Analyzing ${i + 1} of ${files.length}…` : 'Analyzing the shelf…',
+      });
+      const r = await auditOne(files[i]);
+      if (r.ok) {
+        ok++;
+        if (!firstCaptureId) firstCaptureId = r.captureId;
+      } else {
+        errors.push(r.error || 'failed');
+      }
+      setProgress({
+        total: files.length,
+        done: i + 1,
+        label: many ? `Analyzing ${Math.min(i + 2, files.length)} of ${files.length}…` : 'Analyzing the shelf…',
+      });
+    }
+    if (tId) toast.dismiss(tId);
+    const reset = () => {
+      setUploading(false);
+      setProgress(null);
+      if (shelfFileRef.current) shelfFileRef.current.value = '';
+    };
+    // Single success → open the report (unchanged UX). Otherwise summarize + refresh.
+    if (!many && ok === 1 && firstCaptureId) {
+      toast.success('Shelf audited — opening the report.');
+      reset();
+      router.push(`/dashboard/planograms/captures/${firstCaptureId}`);
+      return;
+    }
+    if (ok) toast.success(`Audited ${ok} of ${files.length} shelf photo${files.length === 1 ? '' : 's'}.`);
+    if (errors.length) {
+      toast.error(`${errors.length} couldn’t be audited: ${errors.slice(0, 2).join('; ')}${errors.length > 2 ? '…' : ''}`);
+    }
+    reset();
+    load();
   };
 
   return (
@@ -268,16 +310,21 @@ export default function CapturesPage() {
               opacity: uploading ? 0.65 : 1,
             }}
           >
-            {uploading ? '⏳ Analyzing…' : '📷 Upload shelf photo'}
+            {uploading
+              ? progress && progress.total > 1
+                ? `⏳ ${progress.done}/${progress.total}…`
+                : '⏳ Analyzing…'
+              : '📷 Upload shelf photos'}
           </button>
           <input
             ref={shelfFileRef}
             type="file"
             accept="image/jpeg,image/png,image/webp"
+            multiple
             hidden
             onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) runShelfAudit(f);
+              const files = e.target.files ? Array.from(e.target.files) : [];
+              if (files.length) runShelfAudits(files);
             }}
           />
           <select value={storeId} onChange={(e) => setStoreId(e.target.value)} style={selyStyle} aria-label="Store">
@@ -306,6 +353,33 @@ export default function CapturesPage() {
       }
       bodyPad={false}
     >
+      {progress && progress.total > 1 && (
+        <div style={{ padding: '12px 16px', borderBottom: `1px solid ${PC.border}` }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, gap: 10 }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: PC.text }}>{progress.label}</span>
+            <span style={{ fontSize: 12, color: PC.muted, fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>
+              {progress.done} / {progress.total} done
+            </span>
+          </div>
+          <div
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={progress.total}
+            aria-valuenow={progress.done}
+            style={{ height: 8, borderRadius: 999, background: PC.surface3, overflow: 'hidden' }}
+          >
+            <div
+              style={{
+                height: '100%',
+                width: `${Math.round((progress.done / Math.max(1, progress.total)) * 100)}%`,
+                background: PC.brand,
+                borderRadius: 999,
+                transition: 'width 0.35s ease',
+              }}
+            />
+          </div>
+        </div>
+      )}
       {error ? (
         <div style={{ padding: 16 }}>
           <StateBlock tone="error">{error}</StateBlock>
