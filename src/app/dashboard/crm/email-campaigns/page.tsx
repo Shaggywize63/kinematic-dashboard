@@ -52,6 +52,19 @@ function ProgressBar({ c: b }: { c: EmailCampaign }) {
   );
 }
 
+/**
+ * Turn a raw Google-integration error into an actionable message. An expired /
+ * revoked refresh token (`invalid_grant`) can only be fixed by re-consenting, so
+ * point the user at "Reconnect Google" instead of showing the raw 400 JSON.
+ */
+function friendlyGoogleError(raw?: string): string {
+  const msg = raw || 'Google import failed';
+  if (/invalid_grant|expired or revoked|token has been expired/i.test(msg)) {
+    return 'Your Google connection has expired or was revoked. Click “Reconnect Google” above to re-authorize, then import again.';
+  }
+  return msg;
+}
+
 export default function EmailCampaignsPage() {
   const [rows, setRows] = useState<EmailCampaign[]>([]);
   const [loading, setLoading] = useState(true);
@@ -63,6 +76,9 @@ export default function EmailCampaignsPage() {
   const [gStatus, setGStatus] = useState<{ connected: boolean; email?: string; has_contacts_scope: boolean } | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [notice, setNotice] = useState('');
+  // Google-integration errors render in RED (separate from `notice`, which is
+  // green success). An expired/revoked token is an error, not a success notice.
+  const [gErr, setGErr] = useState('');
 
   const loadGoogleStatus = useCallback(async () => {
     try { const r = await crmEmailCampaigns.googleStatus(); setGStatus(r.data); } catch { setGStatus(null); }
@@ -75,23 +91,27 @@ export default function EmailCampaignsPage() {
     const sp = new URLSearchParams(window.location.search);
     const connected = sp.get('connected');
     const error = sp.get('error');
-    if (connected) { setNotice(`Google connected as ${connected}. Click “Import Google contacts” to pull them in.`); loadGoogleStatus(); router.replace('/dashboard/crm/email-campaigns'); }
-    else if (error) { setNotice(`Google connection failed: ${error}. Add yourself as a test user (or verify the app) in Google Cloud, then retry.`); router.replace('/dashboard/crm/email-campaigns'); }
+    if (connected) { setNotice(`Google connected as ${connected}. Click “Import Google contacts” to pull them in.`); setGErr(''); loadGoogleStatus(); router.replace('/dashboard/crm/email-campaigns'); }
+    else if (error) { setGErr(`Google connection failed: ${error}. Add yourself as a test user (or verify the app) in Google Cloud, then retry.`); router.replace('/dashboard/crm/email-campaigns'); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const connectGoogle = async () => {
     try {
       const r = await crmEmailCampaigns.googleAuthorize('/dashboard/crm/email-campaigns');
-      if (r?.url) window.location.href = r.url; else setNotice('Google OAuth is not configured on the server.');
-    } catch (e: any) { setNotice(e?.message || 'Could not start Google connect'); }
+      if (r?.url) window.location.href = r.url; else setGErr('Google OAuth is not configured on the server.');
+    } catch (e: any) { setGErr(e?.message || 'Could not start Google connect'); }
   };
   const importGoogle = async () => {
-    setSyncing(true); setNotice('');
+    setSyncing(true); setNotice(''); setGErr('');
     try {
       const d = (await crmEmailCampaigns.googleSync()).data;
       setNotice(`Imported ${d.imported} new + ${d.merged} existing contact(s) from Google${d.skipped ? ` (${d.skipped} skipped)` : ''}.`);
-    } catch (e: any) { setNotice(e?.message || 'Google import failed'); }
+    } catch (e: any) {
+      setGErr(friendlyGoogleError(e?.message));
+      // A dead token flips the button back to "Reconnect Google".
+      loadGoogleStatus();
+    }
     finally { setSyncing(false); }
   };
 
@@ -143,6 +163,7 @@ export default function EmailCampaignsPage() {
       </div>
 
       {notice && <div style={{ ...card, borderColor: 'rgba(0,217,126,0.3)', color: C.green, fontSize: 13, marginBottom: 16, padding: 14 }}>{notice}</div>}
+      {gErr && <div style={{ ...card, borderColor: 'rgba(224,30,44,0.3)', color: C.red, fontSize: 13, marginBottom: 16, padding: 14 }}>{gErr}</div>}
       {err && <div style={{ ...card, borderColor: 'rgba(224,30,44,0.3)', color: C.red, fontSize: 13, marginBottom: 16 }}>{err}</div>}
 
       {loading ? (
