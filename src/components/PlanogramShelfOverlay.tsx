@@ -101,6 +101,23 @@ export default function PlanogramShelfOverlay({
   const hasZone = detectedSkus.some((s) => s.zone);
   const promoBoxes = (promotions || []).filter((p) => Array.isArray(p.bbox) && p.bbox.length === 4);
 
+  // Detections are shown as small NUMBERED pins (a dot at each product's centre)
+  // keyed to the list below, rather than tight bounding boxes — a dot reads as
+  // "on the product" even with a little position error, where a box that misses
+  // by a few percent looks broken. Number them in reading order (top row → down,
+  // left → right) so the pin numbers and the list line up intuitively.
+  const ordered = useMemo(() => {
+    return detectedSkus
+      .map((sku, i) => ({ sku, i }))
+      .sort((a, b) => {
+        const ay = a.sku.bbox[1] + a.sku.bbox[3] / 2;
+        const by = b.sku.bbox[1] + b.sku.bbox[3] / 2;
+        if (Math.abs(ay - by) > 0.06) return ay - by; // different rows
+        return a.sku.bbox[0] - b.sku.bbox[0]; // same row → left to right
+      })
+      .map((e, n) => ({ ...e, num: n + 1 }));
+  }, [detectedSkus]);
+
   const normPoint = (clientX: number, clientY: number): { x: number; y: number } | null => {
     const el = wrapRef.current;
     if (!el) return null;
@@ -249,9 +266,11 @@ export default function PlanogramShelfOverlay({
           style={{ display: 'block', width: '100%', height: 'auto', userSelect: 'none' }}
         />
 
-        {/* Promotion boxes (dashed) */}
+        {/* Promotion pins (a small tag marker at the offer's centre) */}
         {promoBoxes.map((p, i) => {
           const [x, y, w, h] = p.bbox as [number, number, number, number];
+          const cx = (x + w / 2) * 100;
+          const cy = (y + h / 2) * 100;
           return (
             <div
               key={`promo-${i}`}
@@ -259,32 +278,43 @@ export default function PlanogramShelfOverlay({
               onMouseLeave={() => setHoveredPromo(null)}
               style={{
                 position: 'absolute',
-                left: `${x * 100}%`,
-                top: `${y * 100}%`,
-                width: `${w * 100}%`,
-                height: `${h * 100}%`,
-                border: `2px dashed ${PROMO_COLOR}`,
-                background: hoveredPromo === i ? `${PROMO_COLOR}33` : 'transparent',
+                left: `${cx}%`,
+                top: `${cy}%`,
+                transform: 'translate(-50%, -50%)',
+                width: 22,
+                height: 22,
+                borderRadius: '50%',
+                background: PROMO_COLOR,
+                border: '2px solid #fff',
+                boxShadow: '0 1px 4px rgba(16,20,30,0.5)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 11,
                 cursor: 'pointer',
+                zIndex: hoveredPromo === i ? 8 : 4,
               }}
             >
+              🏷
               {hoveredPromo === i && (
                 <div style={tooltipStyle(PROMO_COLOR)}>
-                  🏷 {p.text} · {Math.round(p.confidence * 100)}%
+                  {p.text} · {Math.round(p.confidence * 100)}%
                 </div>
               )}
             </div>
           );
         })}
 
-        {/* SKU boxes */}
-        {detectedSkus.map((sku, i) => {
+        {/* SKU pins — a small numbered dot at each product's centre, keyed to
+            the list below. Deliberately NOT a tight box: the AI's exact box can
+            drift a few percent, and a dot still reads as "on the product". */}
+        {ordered.map(({ sku, i, num }) => {
           const [x, y, w, h] = sku.bbox;
+          const cx = (x + w / 2) * 100;
+          const cy = (y + h / 2) * 100;
           const color = boxColor(sku);
           const priceStr =
-            sku.price != null
-              ? ` · ${sku.price_currency || '₹'}${sku.price}`
-              : '';
+            sku.price != null ? ` · ${sku.price_currency || '₹'}${sku.price}` : '';
           return (
             <div
               key={i}
@@ -292,38 +322,31 @@ export default function PlanogramShelfOverlay({
               onMouseLeave={() => setHovered(null)}
               style={{
                 position: 'absolute',
-                left: `${x * 100}%`,
-                top: `${y * 100}%`,
-                width: `${w * 100}%`,
-                height: `${h * 100}%`,
-                border: `2px solid ${color}`,
-                background: hovered === i ? `${color}33` : 'transparent',
-                boxShadow: hovered === i ? `0 0 0 2px ${color}` : 'none',
-                transition: 'background 120ms',
+                left: `${cx}%`,
+                top: `${cy}%`,
+                transform: 'translate(-50%, -50%)',
+                width: hovered === i ? 28 : 24,
+                height: hovered === i ? 28 : 24,
+                borderRadius: '50%',
+                background: color,
+                color: '#fff',
+                border: `2px solid ${sku.recovered ? RECOVERED_COLOR : '#fff'}`,
+                boxShadow: hovered === i ? `0 0 0 3px ${color}66` : '0 1px 4px rgba(16,20,30,0.5)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 12,
+                fontWeight: 800,
                 cursor: 'pointer',
+                transition: 'width 100ms, height 100ms',
+                zIndex: hovered === i ? 8 : 3,
               }}
             >
-              {/* Recovered marker — a small 2nd-pass dot in the corner. */}
-              {sku.recovered && (
-                <span
-                  title={RECOVERED_HINT}
-                  style={{
-                    position: 'absolute',
-                    top: -6,
-                    right: -6,
-                    width: 12,
-                    height: 12,
-                    borderRadius: '50%',
-                    background: RECOVERED_COLOR,
-                    border: '2px solid #0F1419',
-                    boxShadow: '0 0 0 1px ' + RECOVERED_COLOR,
-                  }}
-                />
-              )}
+              {num}
               {hovered === i && (
                 <div style={tooltipStyle(color)}>
                   <div style={{ fontWeight: 700 }}>
-                    {sku.sku_name}
+                    {num}. {sku.sku_name}
                     {sku.is_competitor ? ' · competitor' : ''}
                   </div>
                   <div style={{ opacity: 0.85, fontWeight: 500, marginTop: 2 }}>
@@ -340,35 +363,7 @@ export default function PlanogramShelfOverlay({
                     {Math.round(sku.confidence * 100)}%{priceStr}
                   </div>
                   {sku.recovered && (
-                    <div style={{ marginTop: 6 }}>
-                      <span
-                        style={{
-                          display: 'inline-block',
-                          fontSize: 9.5,
-                          fontWeight: 700,
-                          letterSpacing: 0.3,
-                          padding: '2px 6px',
-                          borderRadius: 5,
-                          color: RECOVERED_COLOR,
-                          background: `${RECOVERED_COLOR}22`,
-                          border: `1px solid ${RECOVERED_COLOR}55`,
-                        }}
-                      >
-                        Recovered · 2nd pass
-                      </span>
-                      <div
-                        style={{
-                          whiteSpace: 'normal',
-                          maxWidth: 210,
-                          opacity: 0.8,
-                          fontWeight: 500,
-                          marginTop: 4,
-                          lineHeight: 1.4,
-                        }}
-                      >
-                        {RECOVERED_HINT}
-                      </div>
-                    </div>
+                    <div style={{ marginTop: 6, opacity: 0.85, fontWeight: 500 }}>{RECOVERED_HINT}</div>
                   )}
                 </div>
               )}
@@ -396,6 +391,51 @@ export default function PlanogramShelfOverlay({
           </div>
         )}
       </div>
+
+      {/* Numbered detections list — the record of what was found, keyed to the
+          pins on the photo. This is the source of truth (scoring uses it), so it
+          stays correct even when a pin's position is slightly off. */}
+      {ordered.length > 0 && (
+        <div>
+          <div style={{ fontSize: 10, color: 'var(--textTert)', textTransform: 'uppercase', letterSpacing: 1, margin: '2px 0 6px' }}>
+            {ordered.length} product{ordered.length === 1 ? '' : 's'} detected
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 6 }}>
+            {ordered.map(({ sku, num }) => {
+              const color = boxColor(sku);
+              const meta = [
+                sku.brand || null,
+                sku.category || null,
+                `${sku.facings} facing${sku.facings === 1 ? '' : 's'}`,
+                sku.price != null ? `${sku.price_currency || '₹'}${sku.price}` : null,
+                sku.is_competitor ? 'competitor' : null,
+              ].filter(Boolean).join(' · ');
+              return (
+                <div
+                  key={num}
+                  onMouseEnter={() => setHovered(detectedSkus.indexOf(sku))}
+                  onMouseLeave={() => setHovered(null)}
+                  style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '5px 6px', borderRadius: 8, background: hovered === detectedSkus.indexOf(sku) ? 'var(--s2)' : 'transparent' }}
+                >
+                  <span
+                    style={{
+                      flex: '0 0 auto', width: 20, height: 20, borderRadius: '50%',
+                      background: color, color: '#fff', fontSize: 11, fontWeight: 800,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: 1,
+                    }}
+                  >
+                    {num}
+                  </span>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--textPri)', lineHeight: 1.3 }}>{sku.sku_name}</div>
+                    {meta && <div style={{ fontSize: 11, color: 'var(--textSec)', lineHeight: 1.3 }}>{meta}</div>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Teaching-tool SKU picker — tag the box just drawn. */}
       {annotation && pending && (
