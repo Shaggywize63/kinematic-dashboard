@@ -22,7 +22,12 @@ const P = {
 };
 
 interface Product { sku_id: string; name: string; sku_code?: string | null }
-interface CaptureCtx { outlet_name: string; products: Product[] }
+interface CaptureField {
+  key: string; label: string;
+  type: 'text' | 'email' | 'tel' | 'number' | 'select' | 'product';
+  enabled: boolean; required: boolean; builtin: boolean; options?: string[];
+}
+interface CaptureCtx { outlet_name: string; products: Product[]; fields: CaptureField[] }
 
 export default function CapturePage() {
   return (
@@ -41,12 +46,12 @@ function CaptureInner() {
   const [loading, setLoading] = useState(true);
 
   const [phone, setPhone] = useState('');
-  const [name, setName] = useState('');
-  const [skuId, setSkuId] = useState('');
-  const [vehicle, setVehicle] = useState('');
+  const [answers, setAnswers] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const setAnswer = (key: string, val: string) => setAnswers((a) => ({ ...a, [key]: val }));
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -73,18 +78,17 @@ function CaptureInner() {
     setError(null);
     const digits = phone.replace(/\D/g, '');
     if (digits.length < 7) { setError('Please enter a valid mobile number.'); return; }
+    // Client-side required check (server re-validates).
+    const missing = (ctx?.fields || []).find((f) => f.required && !(answers[f.key] || '').trim());
+    if (missing) { setError(`${missing.label} is required.`); return; }
     setBusy(true);
     try {
+      const fields: Record<string, string> = {};
+      for (const [k, v] of Object.entries(answers)) { if (v && v.trim()) fields[k] = v.trim(); }
       const res = await fetch(`${API_BASE_URL}/api/v1/distribution/capture/${encodeURIComponent(token)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          consumer_phone: phone.trim(),
-          consumer_name: name.trim() || null,
-          sku_id: skuId || null,
-          vehicle_reg: vehicle.trim() || null,
-          channel: 'qr',
-        }),
+        body: JSON.stringify({ consumer_phone: phone.trim(), fields, channel: 'qr' }),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok || !body?.success) {
@@ -168,24 +172,42 @@ function CaptureInner() {
           />
         </Field>
 
-        <Field label="Your name">
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Optional" style={inputStyle} />
-        </Field>
-
-        {ctx && ctx.products.length > 0 && (
-          <Field label="Which product did you buy?">
-            <select value={skuId} onChange={(e) => setSkuId(e.target.value)} style={inputStyle}>
-              <option value="">Select a product (optional)</option>
-              {ctx.products.map((p) => (
-                <option key={p.sku_id} value={p.sku_id}>{p.name}{p.sku_code ? ` (${p.sku_code})` : ''}</option>
-              ))}
-            </select>
-          </Field>
-        )}
-
-        <Field label="Vehicle / serial (optional)">
-          <input value={vehicle} onChange={(e) => setVehicle(e.target.value)} placeholder="If applicable" style={inputStyle} />
-        </Field>
+        {(ctx?.fields || []).map((f) => {
+          const label = f.required ? `${f.label} *` : f.label;
+          if (f.type === 'product') {
+            if (!ctx || ctx.products.length === 0) return null;
+            return (
+              <Field key={f.key} label={label}>
+                <select value={answers[f.key] || ''} onChange={(e) => setAnswer(f.key, e.target.value)} style={inputStyle}>
+                  <option value="">{f.required ? 'Select a product' : 'Select a product (optional)'}</option>
+                  {ctx.products.map((p) => (
+                    <option key={p.sku_id} value={p.sku_id}>{p.name}{p.sku_code ? ` (${p.sku_code})` : ''}</option>
+                  ))}
+                </select>
+              </Field>
+            );
+          }
+          if (f.type === 'select') {
+            return (
+              <Field key={f.key} label={label}>
+                <select value={answers[f.key] || ''} onChange={(e) => setAnswer(f.key, e.target.value)} style={inputStyle}>
+                  <option value="">Select…</option>
+                  {(f.options || []).map((o) => <option key={o} value={o}>{o}</option>)}
+                </select>
+              </Field>
+            );
+          }
+          return (
+            <Field key={f.key} label={label}>
+              <input
+                type={f.type === 'number' ? 'number' : f.type === 'email' ? 'email' : f.type === 'tel' ? 'tel' : 'text'}
+                inputMode={f.type === 'number' ? 'numeric' : undefined}
+                value={answers[f.key] || ''} onChange={(e) => setAnswer(f.key, e.target.value)}
+                placeholder={f.required ? '' : 'Optional'} style={inputStyle}
+              />
+            </Field>
+          );
+        })}
 
         {error && (
           <div style={{ fontSize: 13, color: P.danger, background: 'rgba(196,82,62,0.07)', padding: '10px 12px', borderRadius: 10 }}>

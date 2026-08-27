@@ -1136,6 +1136,8 @@ class ApiClient {
   mintCaptureToken(outletId: string, rotate = false) { return this.post(`/api/v1/distribution/capture-admin/outlets/${outletId}/token`, { rotate }); }
   deactivateCaptureToken(outletId: string) { return this.post(`/api/v1/distribution/capture-admin/outlets/${outletId}/deactivate`, {}); }
   mintAllCaptureTokens() { return this.post('/api/v1/distribution/capture-admin/mint-all', {}); }
+  getCaptureConfig() { return this.get('/api/v1/distribution/capture-admin/config'); }
+  saveCaptureConfig(fields: unknown[]) { return this.put('/api/v1/distribution/capture-admin/config', { fields }); }
 }
 
 export const api = new ApiClient(API_URL);
