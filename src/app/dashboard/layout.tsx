@@ -649,6 +649,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       { href: '/dashboard/distribution/last-mile',                  label: 'Last Mile',          icon: 'M2 12h4l3-9 4 18 3-9h4 M22 12h-3', module: 'distribution_consumer' },
       { href: '/dashboard/distribution/last-mile/consumers',        label: 'Consumer Registry',  icon: 'M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 7a4 4 0 100 8 4 4 0 000-8z', module: 'distribution_consumer' },
       { href: '/dashboard/distribution/last-mile/tertiary-sales',   label: 'Retailer Sales',     icon: 'M9 11l3 3L22 4 M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11', module: 'distribution_consumer' },
+      { href: '/dashboard/distribution/capture',                    label: 'Consumer Capture',   icon: 'M4 4h6v6H4z M14 4h6v6h-6z M4 14h6v6H4z M14 14h3v3h-3z M20 14v6h-3 M17 20h-3', module: 'distribution_consumer' },
       { href: '/dashboard/distribution/integrations',     label: 'Integrations', icon: 'M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71 M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71', module: 'distribution', hiddenForPMC: true },
     ]},
     { label: 'Business', package: 'business', items: [

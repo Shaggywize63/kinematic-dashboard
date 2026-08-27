@@ -1128,6 +1128,14 @@ class ApiClient {
   // a CRM lead with appropriate attribution all in one round-trip.
   getConsumerRegistrations(params?: Record<string, string>) { return this.get(`/api/v1/distribution/consumer-registrations${this.sanitizeParams(params)}`); }
   createConsumerRegistration(data: object) { return this.post('/api/v1/distribution/consumer-registrations', data); }
+
+  // ── Distribution: Consumer Capture (per-outlet QR / wa.me link) ───────
+  // Admin surface for the self-registration tokens. The consumer-facing page
+  // that a QR points at is the public /s/[token] route (raw fetch, no auth).
+  getCaptureOutlets() { return this.get('/api/v1/distribution/capture-admin/outlets'); }
+  mintCaptureToken(outletId: string, rotate = false) { return this.post(`/api/v1/distribution/capture-admin/outlets/${outletId}/token`, { rotate }); }
+  deactivateCaptureToken(outletId: string) { return this.post(`/api/v1/distribution/capture-admin/outlets/${outletId}/deactivate`, {}); }
+  mintAllCaptureTokens() { return this.post('/api/v1/distribution/capture-admin/mint-all', {}); }
 }
 
 export const api = new ApiClient(API_URL);
