@@ -58,6 +58,13 @@ export interface Lead extends B2CFields {
   tags?: string[] | null;
   custom?: Record<string, unknown> | null;
   photo_url?: string | null;
+  // Manager approval workflow. Leads captured by a field rep enter 'pending'
+  // and must be approved by a manager before they count as live; admin/system
+  // created leads default to 'approved'.
+  approval_status?: 'pending' | 'approved' | 'rejected' | null;
+  approval_requested_by?: string | null;
+  approved_by?: string | null;
+  approved_at?: string | null;
   created_at: string;
   updated_at: string;
 }

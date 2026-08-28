@@ -46,6 +46,9 @@ export default function LeadsListPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [sources, setSources] = useState<LeadSource[]>([]);
   const [filters, setFilters] = useState<LeadFiltersValue>({});
+  // Manager approval quick-filter: '' = all, 'pending' = awaiting sign-off,
+  // 'rejected' = declined. Applied server-side via ?approval_status.
+  const [approvalFilter, setApprovalFilter] = useState<'' | 'pending' | 'rejected'>('');
   // Debounced copy of the free-text search, sent to the backend so a search
   // (incl. phone number) finds matches on ANY page — not just the loaded one.
   const [debouncedQ, setDebouncedQ] = useState('');
@@ -123,6 +126,7 @@ export default function LeadsListPage() {
       if (filters.block)      qs.set('block',     filters.block);
       // The list-side filters that were silently dropped before:
       if (filters.status)     qs.set('status',      filters.status);
+      if (approvalFilter)     qs.set('approval_status', approvalFilter);
       if (filters.source)     qs.set('source_id',   filters.source);
       if (filters.owner)      qs.set('owner_id',    filters.owner);
       if (filters.grade)      qs.set('score_grade', filters.grade);
@@ -226,6 +230,7 @@ export default function LeadsListPage() {
       if (filters.district) params.district  = filters.district;
       if (filters.block)    params.block     = filters.block;
       if (filters.status)   params.status    = filters.status;
+      if (approvalFilter)   params.approval_status = approvalFilter;
       if (filters.source)   params.source_id = filters.source;
       if (filters.owner)    params.owner_id  = filters.owner;
       if (filters.grade)    params.score_grade = filters.grade;
@@ -297,7 +302,7 @@ export default function LeadsListPage() {
   useEffect(() => { reload(); /* eslint-disable-next-line */ }, [
     range.from, range.to,
     filters.state, filters.city, filters.district, filters.block,
-    filters.status, filters.source, filters.owner, filters.grade,
+    filters.status, approvalFilter, filters.source, filters.owner, filters.grade,
     debouncedQ,
     page, pageSize, sort.key, sort.order,
     smartParams,
@@ -313,7 +318,7 @@ export default function LeadsListPage() {
   useEffect(() => { setPage(1); /* eslint-disable-next-line */ }, [
     range.from, range.to,
     filters.state, filters.city, filters.district, filters.block,
-    filters.status, filters.source, filters.owner, filters.grade,
+    filters.status, approvalFilter, filters.source, filters.owner, filters.grade,
     debouncedQ,
     pageSize, sort.key, sort.order,
     smartParams,
@@ -563,6 +568,34 @@ export default function LeadsListPage() {
         params={smartParams}
       />
       <LeadFilters value={filters} onChange={setFilters} sources={sources.map((s) => ({ id: s.id, name: s.name }))} owners={users} />
+      {/* Manager approval quick-filter. Field-rep-captured leads land in
+          'pending' and must be signed off by a manager (see backend lead
+          approval workflow); this surfaces the queue in one click. */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '6px 0 2px', flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 12, color: 'var(--textSec)', fontWeight: 600, marginRight: 2 }}>Approval</span>
+        {([
+          { key: '' as const, label: 'All' },
+          { key: 'pending' as const, label: '⏳ Pending' },
+          { key: 'rejected' as const, label: 'Rejected' },
+        ]).map((opt) => {
+          const active = approvalFilter === opt.key;
+          return (
+            <button
+              key={opt.key || 'all'}
+              type="button"
+              onClick={() => setApprovalFilter(opt.key)}
+              style={{
+                background: active ? (opt.key === 'pending' ? 'rgba(245,158,11,0.18)' : 'var(--primary)') : 'var(--s3)',
+                border: `1px solid ${active ? (opt.key === 'pending' ? 'rgba(245,158,11,0.55)' : 'var(--primary)') : 'var(--border)'}`,
+                color: active ? (opt.key === 'pending' ? '#b45309' : '#fff') : 'var(--text)',
+                borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+              }}
+            >
+              {opt.label}
+            </button>
+          );
+        })}
+      </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0 2px' }}>
         <span style={{ fontSize: 12, color: 'var(--textSec)', fontWeight: 600 }}>Sort by</span>
         <select
@@ -602,6 +635,15 @@ export default function LeadsListPage() {
           reload();
         }}
         onEdit={setEditingLead}
+        onApprove={async (leadId, decision) => {
+          try {
+            await crmLeads.decideApproval(leadId, { decision });
+            toast.success(decision === 'approved' ? 'Lead approved' : 'Lead rejected');
+            reload();
+          } catch (e: any) {
+            toast.error(e?.message || 'Could not update approval');
+          }
+        }}
       />
       <PaginationBar
         pagination={pagination}

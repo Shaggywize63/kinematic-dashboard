@@ -377,7 +377,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     // intersect: when the user has an explicit permission set, the module must
     // be in it; legacy accounts with no granular permissions fall back to the
     // entitlement so they aren't locked out.
-    const entitled = enabledModules.length === 0 || enabledModules.includes(m);
+    // Supply Chain & Distribution is a paid SKU: NEVER grant its modules via the
+    // empty-entitlement fallback — they must be explicitly present. (Every other
+    // module keeps the legacy "empty = allow" behaviour for un-provisioned
+    // sessions.) This stops SCM leaking in by default.
+    const isSellableDist = m === 'distribution' || m.startsWith('distribution_');
+    const entitled = isSellableDist
+      ? enabledModules.includes(m)
+      : (enabledModules.length === 0 || enabledModules.includes(m));
     if (!entitled) return false;
     if (userPerms.length > 0) return userPerms.includes(m);
     return true;
@@ -514,6 +521,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     // Support sections wholesale. Placed before the platform-admin bypass
     // below so the MoiSoi client-admin loses them too, not just its reps.
     if (moisoiHideActive && ['business', 'people'].includes(pkg)) return false;
+    // Supply Chain & Distribution is a paid SKU — its whole section is
+    // deny-by-default. Show it ONLY when 'distribution' is an explicitly
+    // enabled package. Placed BEFORE the platform-admin and empty-packages
+    // bypasses below so a tenant/client-admin (isPlatformAdmin, but with a
+    // client_id-less org-admin role) doesn't get SCM leaking in by default.
+    // The true platform operator (super_admin) is exempt so support/config
+    // still sees every section; while a super-admin is "Login as" a client,
+    // filterNav has already scoped the items to that client's modules.
+    if (pkg === 'distribution' && !isSuperAdmin && !enabledPackages.includes('distribution')) return false;
     // A scoped viewer shows a section only if it contains at least one module
     // its role grants — so the SRS+BMW Lead Viewer sees just the CRM section.
     if (isViewer) return items.some((i: any) => hasModule(i.module));
