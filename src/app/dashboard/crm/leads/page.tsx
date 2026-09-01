@@ -179,7 +179,17 @@ export default function LeadsListPage() {
           headers['X-Client-Id'] = sel;
         }
       } catch { /* ignore */ }
-      const res = await fetch(url, { headers });
+      // Abort a stuck export instead of spinning forever. Without this the
+      // fetch has no timeout, so a hung backend export left the button counting
+      // ("Exporting… 64s…") with no error. 3 min is generous for a 10k-row cap.
+      const ctrl = new AbortController();
+      const abortTimer = window.setTimeout(() => ctrl.abort(), 180_000);
+      let res: Response;
+      try {
+        res = await fetch(url, { headers, signal: ctrl.signal });
+      } finally {
+        window.clearTimeout(abortTimer);
+      }
       if (!res.ok) {
         // Pull the backend's {success:false, error, code} body so the
         // toast surfaces "Validation failed: ..." / "Forbidden: ..."
@@ -204,7 +214,10 @@ export default function LeadsListPage() {
       URL.revokeObjectURL(objUrl);
       toast.success('Leads exported');
     } catch (e: any) {
-      toast.error(e.message || 'Export failed');
+      const msg = e?.name === 'AbortError'
+        ? 'Export timed out — try narrowing the date range or filters and export again.'
+        : (e?.message || 'Export failed');
+      toast.error(msg);
     } finally {
       window.clearInterval(ticker);
       setExporting(false);
