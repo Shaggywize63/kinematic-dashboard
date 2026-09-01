@@ -111,6 +111,11 @@ export const crmLeads = {
   // canonical event — reports can WHERE field='reopened' to attribute reactivations.
   reopen: (id: string, body?: { reason?: string }) =>
     api.post<Wrapped<Lead>>(`${BASE}/leads/${id}/reopen`, body || {}),
+  // Approve / reject a lead awaiting manager sign-off (approval_status='pending').
+  // Backend enforces that only a manager / HR-module holder may decide, and
+  // notifies the rep who captured it.
+  decideApproval: (id: string, body: { decision: 'approved' | 'rejected'; note?: string }) =>
+    api.post<Wrapped<Lead>>(`${BASE}/leads/${id}/approval`, body),
   // Append-only Updates timeline. The denormalised `latest_update` columns
   // on `crm_leads` keep the list-view column fast; this endpoint is for the
   // full per-lead history rendered on the detail page.

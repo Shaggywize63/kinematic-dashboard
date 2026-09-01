@@ -27,11 +27,16 @@ interface FieldExecutive {
   supervisor_id?: string; supervisors?: { name: string };
   city_manager_id?: string;
   created_at: string;
+  // Per-FE home-base geofence for attendance check-in (see backend
+  // attendance.controller.ts). When set, check-in is enforced within
+  // geofence_radius_m of (base_lat, base_lng).
+  base_lat?: number | null; base_lng?: number | null; geofence_radius_m?: number | null;
   is_checked_in?: boolean; today_engagements?: number; today_tff?: number; hours_worked?: number;
 }
 interface FormData {
   name: string; mobile: string; password: string; employee_id: string;
   zone_id: string; role: string; supervisor_id: string; joined_date: string; city: string;
+  base_lat: string; base_lng: string; geofence_radius_m: string;
 }
 interface BulkRow {
   name: string; employee_id: string; mobile?: string; password?: string;
@@ -42,6 +47,7 @@ interface BulkRow {
 const EMPTY_FORM: FormData = {
   name:'', mobile:'', password:'', employee_id:'',
   zone_id:'', role:'executive', supervisor_id:'', joined_date:'', city:'',
+  base_lat:'', base_lng:'', geofence_radius_m:'',
 };
 
 /* ── Helpers ── */
@@ -209,14 +215,23 @@ export default function FieldExecutivesPage() {
   /* ── EDIT ── */
   const openEdit = (fe: FieldExecutive) => {
     setEditT(fe);
-    setForm({ name:fe.name, mobile:fe.mobile||'', password:'', employee_id:fe.employee_id||'', zone_id:fe.zone_id||'', role:fe.role, supervisor_id:fe.supervisor_id||'', joined_date:'', city:fe.city||fe.zones?.city||'' });
+    setForm({ name:fe.name, mobile:fe.mobile||'', password:'', employee_id:fe.employee_id||'', zone_id:fe.zone_id||'', role:fe.role, supervisor_id:fe.supervisor_id||'', joined_date:'', city:fe.city||fe.zones?.city||'',
+      base_lat: fe.base_lat != null ? String(fe.base_lat) : '',
+      base_lng: fe.base_lng != null ? String(fe.base_lng) : '',
+      geofence_radius_m: fe.geofence_radius_m != null ? String(fe.geofence_radius_m) : '' });
     setFErr(''); setShowEdit(true);
   };
   const handleEdit = async () => {
     if (!editTarget) return;
     setSaving(true); setFErr('');
     try {
-      await api.patch(`/api/v1/users/${editTarget.id}`,{ name:form.name, zone_id:form.zone_id||null, supervisor_id:form.supervisor_id||null, employee_id:form.employee_id||null, is_active:editTarget.is_active, city:form.city||null });
+      const baseLat = form.base_lat.trim() === '' ? null : Number(form.base_lat);
+      const baseLng = form.base_lng.trim() === '' ? null : Number(form.base_lng);
+      const radius  = form.geofence_radius_m.trim() === '' ? null : Math.round(Number(form.geofence_radius_m));
+      await api.patch(`/api/v1/users/${editTarget.id}`,{ name:form.name, zone_id:form.zone_id||null, supervisor_id:form.supervisor_id||null, employee_id:form.employee_id||null, is_active:editTarget.is_active, city:form.city||null,
+        base_lat: Number.isFinite(baseLat as number) ? baseLat : null,
+        base_lng: Number.isFinite(baseLng as number) ? baseLng : null,
+        geofence_radius_m: Number.isFinite(radius as number) ? radius : null });
       setShowEdit(false); setEditT(null); setSelected(null); fetchData();
     } catch(e:any){ setFErr(e.message||'Failed'); } finally{ setSaving(false); }
   };
@@ -583,11 +598,34 @@ export default function FieldExecutivesPage() {
                 </select>
               </Field>
             </div>
-            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',background:C.s3,border:`1px solid ${C.border}`,borderRadius:11,padding:'12px 14px',marginBottom:20}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',background:C.s3,border:`1px solid ${C.border}`,borderRadius:11,padding:'12px 14px',marginBottom:16}}>
               <div><div style={{fontSize:13,fontWeight:600}}>Account Status</div><div style={{fontSize:11,color:C.gray,marginTop:2}}>{editTarget.is_active?'Currently active':'Currently inactive'}</div></div>
               <div onClick={()=>setEditT(p=>p?{...p,is_active:!p.is_active}:p)} style={{width:44,height:26,borderRadius:13,background:editTarget.is_active?C.green:C.grayd,position:'relative',cursor:'pointer',transition:'background 0.2s',flexShrink:0}}>
                 <div style={{position:'absolute',top:3,left:editTarget.is_active?21:3,width:20,height:20,borderRadius:'50%',background:'#fff',transition:'left 0.2s',boxShadow:'0 1px 4px rgba(0,0,0,0.3)'}}/>
               </div>
+            </div>
+            {/* ── Home-base geofence (attendance check-in) ──
+                When lat/lng + radius are set, the FE can only check in within
+                `radius` metres of this point. Leave all three blank to fall back
+                to the zone's meeting location (record-only). */}
+            <div style={{background:C.s3,border:`1px solid ${C.border}`,borderRadius:11,padding:'14px',marginBottom:20}}>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
+                <div style={{fontSize:13,fontWeight:600}}>Attendance Geofence</div>
+                <button type="button" onClick={()=>{
+                  if(!navigator.geolocation){setFErr('Geolocation not available in this browser');return;}
+                  navigator.geolocation.getCurrentPosition(
+                    pos=>{ setF('base_lat',pos.coords.latitude.toFixed(6)); setF('base_lng',pos.coords.longitude.toFixed(6)); if(!form.geofence_radius_m) setF('geofence_radius_m','150'); },
+                    ()=>setFErr('Could not read current location'),
+                    {enableHighAccuracy:true,timeout:10000}
+                  );
+                }} style={{fontSize:11,fontWeight:700,color:C.blue,background:C.blueD,border:`1px solid rgba(62,158,255,0.2)`,borderRadius:8,padding:'5px 10px',cursor:'pointer'}}>📍 Use my location</button>
+              </div>
+              <div style={{fontSize:11,color:C.gray,marginBottom:12}}>Set the FE&apos;s home base so geofenced attendance check-in works. Leave blank to disable enforcement.</div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
+                <Field label="Base Latitude"><input className="kinp" style={inp} inputMode="decimal" placeholder="e.g. 19.076090" value={form.base_lat} onChange={e=>setF('base_lat',e.target.value)}/></Field>
+                <Field label="Base Longitude"><input className="kinp" style={inp} inputMode="decimal" placeholder="e.g. 72.877426" value={form.base_lng} onChange={e=>setF('base_lng',e.target.value)}/></Field>
+              </div>
+              <Field label="Geofence Radius (metres)"><input className="kinp" style={inp} inputMode="numeric" placeholder="e.g. 150" value={form.geofence_radius_m} onChange={e=>setF('geofence_radius_m',e.target.value)}/></Field>
             </div>
             <div style={{display:'flex',gap:10}}>
               <button onClick={()=>setShowEdit(false)} style={{flex:1,padding:'11px',background:C.s3,border:`1px solid ${C.border}`,color:C.gray,borderRadius:11,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>Cancel</button>

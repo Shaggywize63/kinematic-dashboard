@@ -268,11 +268,8 @@ export default function NewEmailCampaignPage() {
                   {gStatus?.connected ? 'Reconnect Google' : 'Connect Google'}
                 </button>
               )}
-              {gStatus?.connected && gStatus?.has_contacts_scope && (
-                <button type="button" onClick={importGoogle} disabled={syncing} style={{ background: C.red, border: 'none', color: '#fff', padding: '9px 16px', borderRadius: 9, fontSize: 13, fontWeight: 800, cursor: syncing ? 'not-allowed' : 'pointer', opacity: syncing ? 0.6 : 1 }}>
-                  {syncing ? 'Importing…' : 'Import Google contacts'}
-                </button>
-              )}
+              {/* Google Contacts → leads import removed (it flooded the CRM
+                  with every auto-collected address). */}
             </div>
           </div>
           <div style={{ fontSize: 11, color: C.grayd, marginTop: 8, lineHeight: 1.6 }}>

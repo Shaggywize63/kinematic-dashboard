@@ -26,6 +26,10 @@ interface Props {
   // Inline edit: open the edit modal for a single row straight from the
   // list, so a rep can fix one lead without opening its detail page.
   onEdit?: (lead: Lead) => void;
+  // Manager approval: when provided, a lead whose approval_status is 'pending'
+  // shows Approve / Reject buttons in the Action column and a "Pending
+  // approval" badge by its name. Backend enforces who may actually decide.
+  onApprove?: (leadId: string, decision: 'approved' | 'rejected') => Promise<void>;
 }
 
 // Clickable, server-side-sort table header. The actual sorting happens on
@@ -83,7 +87,7 @@ export const LEAD_COLUMNS = [
   { key: 'action', label: 'Action' },
 ] as const;
 
-export default function LeadsTable({ leads, selected, onToggle, onToggleAll, loading, isB2C = false, onAssign, hiddenColumns, viewMode = 'table', sort, onSort, onEdit }: Props) {
+export default function LeadsTable({ leads, selected, onToggle, onToggleAll, loading, isB2C = false, onAssign, hiddenColumns, viewMode = 'table', sort, onSort, onEdit, onApprove }: Props) {
   const [scorePopup, setScorePopup] = useState<Lead | null>(null);
   const allSelected = leads.length > 0 && leads.every((l) => selected.has(l.id));
   const tdStyle: React.CSSProperties = { padding: '12px 14px', fontSize: 13, color: 'var(--text)', borderBottom: '1px solid var(--border)' };
@@ -150,6 +154,7 @@ export default function LeadsTable({ leads, selected, onToggle, onToggleAll, loa
                   onScoreClick={setScorePopup}
                   onAssign={onAssign}
                   onEdit={onEdit}
+                  onApprove={onApprove}
                   isB2C={isB2C}
                   tdStyle={tdStyle}
                   hidden={hidden}
@@ -172,17 +177,25 @@ interface LeadRowProps {
   onScoreClick: (lead: Lead) => void;
   onAssign?: (leadId: string, userId: string | null) => Promise<void>;
   onEdit?: (lead: Lead) => void;
+  onApprove?: (leadId: string, decision: 'approved' | 'rejected') => Promise<void>;
   isB2C: boolean;
   tdStyle: React.CSSProperties;
   hidden: Set<string>;
 }
 
-const LeadRow = memo(function LeadRow({ lead: l, isSelected, onToggle, onScoreClick, onAssign, onEdit, isB2C, tdStyle, hidden }: LeadRowProps) {
+const LeadRow = memo(function LeadRow({ lead: l, isSelected, onToggle, onScoreClick, onAssign, onEdit, onApprove, isB2C, tdStyle, hidden }: LeadRowProps) {
   const fullName = l.full_name || `${l.first_name || ''} ${l.last_name || ''}`.trim() || '—';
   const handleToggle = useCallback(() => onToggle(l.id), [onToggle, l.id]);
   const handleScore  = useCallback(() => onScoreClick(l), [onScoreClick, l]);
   const handleAssign = useCallback((uid: string | null) => onAssign?.(l.id, uid) ?? Promise.resolve(), [onAssign, l.id]);
   const showCompany = !isB2C && !hidden.has('company');
+  const isPending = l.approval_status === 'pending';
+  const [deciding, setDeciding] = useState<null | 'approved' | 'rejected'>(null);
+  const decide = useCallback(async (decision: 'approved' | 'rejected') => {
+    if (!onApprove || deciding) return;
+    setDeciding(decision);
+    try { await onApprove(l.id, decision); } finally { setDeciding(null); }
+  }, [onApprove, l.id, deciding]);
 
   return (
     <tr>
@@ -205,6 +218,16 @@ const LeadRow = memo(function LeadRow({ lead: l, isSelected, onToggle, onScoreCl
           )}
         </div>
         {l.title && <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{l.title}</div>}
+        {isPending && (
+          <span style={{ display: 'inline-block', marginTop: 3, fontSize: 10, fontWeight: 800, letterSpacing: '0.3px', textTransform: 'uppercase', color: '#b45309', background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.4)', borderRadius: 5, padding: '1px 6px' }}>
+            ⏳ Pending approval
+          </span>
+        )}
+        {l.approval_status === 'rejected' && (
+          <span style={{ display: 'inline-block', marginTop: 3, fontSize: 10, fontWeight: 800, letterSpacing: '0.3px', textTransform: 'uppercase', color: '#b91c1c', background: 'rgba(239,68,68,0.13)', border: '1px solid rgba(239,68,68,0.4)', borderRadius: 5, padding: '1px 6px' }}>
+            Rejected
+          </span>
+        )}
       </td>
       {showCompany && <td style={tdStyle} data-label="Company">{l.company || '—'}</td>}
       {!hidden.has('phone') && <td style={tdStyle} data-label="Phone">{l.phone || '—'}</td>}
@@ -244,6 +267,31 @@ const LeadRow = memo(function LeadRow({ lead: l, isSelected, onToggle, onScoreCl
       {!hidden.has('action') && (
         <td style={{ ...tdStyle, textAlign: 'right', whiteSpace: 'nowrap' }} data-label="Action">
           <div style={{ display: 'inline-flex', gap: 6, alignItems: 'center', justifyContent: 'flex-end' }}>
+            {/* Manager approval — approve / reject a lead awaiting sign-off.
+                Only rendered while the lead is pending AND the parent wired an
+                onApprove handler (the backend still enforces who may decide). */}
+            {isPending && onApprove && (
+              <>
+                <button
+                  type="button"
+                  disabled={!!deciding}
+                  onClick={() => decide('approved')}
+                  title="Approve this lead"
+                  style={{ background: '#10b981', border: 'none', color: '#fff', padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: deciding ? 'wait' : 'pointer', opacity: deciding && deciding !== 'approved' ? 0.5 : 1 }}
+                >
+                  {deciding === 'approved' ? '…' : '✓ Approve'}
+                </button>
+                <button
+                  type="button"
+                  disabled={!!deciding}
+                  onClick={() => decide('rejected')}
+                  title="Reject this lead"
+                  style={{ background: 'var(--s3)', border: '1px solid rgba(239,68,68,0.5)', color: '#ef4444', padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: deciding ? 'wait' : 'pointer', opacity: deciding && deciding !== 'rejected' ? 0.5 : 1 }}
+                >
+                  {deciding === 'rejected' ? '…' : '✕ Reject'}
+                </button>
+              </>
+            )}
             {/* Inline edit — opens the edit modal in place so a rep can fix a
                 single record without navigating into its detail page. */}
             {onEdit && (
