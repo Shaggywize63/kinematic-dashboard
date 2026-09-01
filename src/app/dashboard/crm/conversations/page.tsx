@@ -589,15 +589,14 @@ function InsightsView({ insights }: { insights: ConversationInsights }) {
         </Section>
       )}
 
-      {extracted && Object.values(extracted).some((v) => v != null && v !== '') && (
+      {extracted && Object.values(extracted as Record<string, unknown>).some((v) => v != null && v !== '') && (
         <Section title="Extracted fields">
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 8 }}>
-            <Field k="Grade" v={extracted.grade} />
-            <Field k="Quantity (t)" v={extracted.quantity_tonnes} />
-            <Field k="Budget" v={extracted.budget} />
-            <Field k="Timeline" v={extracted.timeline} />
-            <Field k="Project stage" v={extracted.project_stage} />
-            <Field k="Decision maker" v={extracted.decision_maker} />
+            {Object.entries(extracted as Record<string, unknown>)
+              .filter(([, v]) => v != null && v !== '')
+              .map(([k, v]) => (
+                <Field key={k} k={humanizeExtractedKey(k)} v={v as string | number | null} />
+              ))}
           </div>
         </Section>
       )}
@@ -728,6 +727,14 @@ function BulletList({ items, tone }: { items: string[]; tone?: string }) {
       ))}
     </ul>
   );
+}
+
+// Humanise an extracted-fields key (snake_case -> Title Case) so ANY keys the
+// analyst persona emits render — not just a fixed industry-specific set. This
+// lets a per-org persona (e.g. Konica Minolta: machine_model, error_code,
+// amc_status) surface without a code change.
+function humanizeExtractedKey(k: string): string {
+  return k.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 function Field({ k, v }: { k: string; v?: string | number | null }) {
