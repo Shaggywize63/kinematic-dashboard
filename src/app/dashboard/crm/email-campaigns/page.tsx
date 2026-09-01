@@ -154,11 +154,10 @@ export default function EmailCampaignsPage() {
         <div style={{ display: 'flex', gap: 8, whiteSpace: 'nowrap', alignItems: 'center', flexWrap: 'wrap' }}>
           {isSuper && <Link href="/dashboard/settings/email-campaigns" style={{ color: C.gray, fontSize: 12, textDecoration: 'none', marginRight: 4 }}>Manage access →</Link>}
           {enabled && <>
-            {gStatus?.connected && gStatus?.has_contacts_scope ? (
-              <button onClick={importGoogle} disabled={syncing} style={{ background: C.s3, color: C.white, padding: '10px 14px', borderRadius: 10, fontSize: 13, fontWeight: 700, border: `1px solid ${C.border}`, cursor: syncing ? 'not-allowed' : 'pointer', opacity: syncing ? 0.6 : 1 }}>{syncing ? 'Importing…' : 'Import Google contacts'}</button>
-            ) : (
-              <button onClick={connectGoogle} style={{ background: C.s3, color: C.white, padding: '10px 14px', borderRadius: 10, fontSize: 13, fontWeight: 700, border: `1px solid ${C.border}`, cursor: 'pointer' }}>{gStatus?.connected ? 'Reconnect Google' : 'Connect Google'}</button>
-            )}
+            {/* Google Contacts → leads import removed (it flooded the CRM with
+                every auto-collected address). The Google connection control is
+                kept for the OAuth link itself. */}
+            <button onClick={connectGoogle} style={{ background: C.s3, color: C.white, padding: '10px 14px', borderRadius: 10, fontSize: 13, fontWeight: 700, border: `1px solid ${C.border}`, cursor: 'pointer' }}>{gStatus?.connected ? 'Reconnect Google' : 'Connect Google'}</button>
             <Link href="/dashboard/crm/leads/import" style={{ background: C.s3, color: C.white, padding: '10px 14px', borderRadius: 10, fontSize: 13, fontWeight: 700, textDecoration: 'none', border: `1px solid ${C.border}` }}>Import CSV</Link>
             <Link href="/dashboard/crm/email-campaigns/new" style={{ background: C.red, color: '#fff', padding: '10px 18px', borderRadius: 10, fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>+ New campaign</Link>
           </>}
