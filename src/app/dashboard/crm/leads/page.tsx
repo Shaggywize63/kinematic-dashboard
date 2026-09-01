@@ -581,9 +581,12 @@ export default function LeadsListPage() {
         params={smartParams}
       />
       <LeadFilters value={filters} onChange={setFilters} sources={sources.map((s) => ({ id: s.id, name: s.name }))} owners={users} />
-      {/* Manager approval quick-filter. Field-rep-captured leads land in
-          'pending' and must be signed off by a manager (see backend lead
-          approval workflow); this surfaces the queue in one click. */}
+      {/* Manager approval quick-filter. Only shown when approval is actually in
+          use — some non-approved lead is present, or the filter is already
+          active. The workflow is opt-in per org (off by default), so tenants
+          that haven't enabled it have every lead 'approved' and never see this
+          row: their leads page is unchanged. */}
+      {(approvalFilter !== '' || leads.some((l) => (l.approval_status ?? 'approved') !== 'approved')) && (
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '6px 0 2px', flexWrap: 'wrap' }}>
         <span style={{ fontSize: 12, color: 'var(--textSec)', fontWeight: 600, marginRight: 2 }}>Approval</span>
         {([
@@ -609,6 +612,7 @@ export default function LeadsListPage() {
           );
         })}
       </div>
+      )}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0 2px' }}>
         <span style={{ fontSize: 12, color: 'var(--textSec)', fontWeight: 600 }}>Sort by</span>
         <select
