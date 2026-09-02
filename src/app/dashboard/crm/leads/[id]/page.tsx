@@ -13,6 +13,7 @@ import ActivityTimeline from '../../../../../components/crm/ActivityTimeline';
 import LeadUpdatesTimeline from '../../../../../components/crm/LeadUpdatesTimeline';
 import Breadcrumbs from '../../../../../components/crm/shared/Breadcrumbs';
 import LeadConvertModal from '../../../../../components/crm/LeadConvertModal';
+import ProposalBuilder from '../../../../../components/crm/ProposalBuilder';
 import LeadDisqualifyModal, { type LeadDisqualifyOutcome } from '../../../../../components/crm/LeadDisqualifyModal';
 import OwnerAvatar from '../../../../../components/crm/shared/OwnerAvatar';
 import WhatsAppButton from '../../../../../components/crm/shared/WhatsAppButton';
@@ -88,6 +89,7 @@ export default function LeadDetailPage() {
   const [loading, setLoading] = useState(true);
   const [scoring, setScoring] = useState(false);
   const [convertOpen, setConvertOpen] = useState(false);
+  const [proposalOpen, setProposalOpen] = useState(false);
   // Auto-open the Convert modal when the page is reached with ?convert=1
   // (the leads list "→ Deal" action uses this so users don't have to click
   // through the detail page to find Convert).
@@ -310,6 +312,7 @@ export default function LeadDetailPage() {
               {canEditLead && (
                 <button onClick={() => setEditOpen(true)} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>Edit</button>
               )}
+              <button onClick={() => setProposalOpen(true)} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>Generate Proposal</button>
               {!isClosed && (
                 <button
                   onClick={async () => {
@@ -608,6 +611,16 @@ export default function LeadDetailPage() {
         onClose={() => setEditOpen(false)}
         onSaved={(updated) => { setLead(updated as LifecycleLead); reload(); reScore(); }}
       />
+
+      {proposalOpen && lead && (
+        <ProposalBuilder
+          leadId={id}
+          leadName={fullName}
+          leadPhone={(lead as { phone?: string | null }).phone ?? null}
+          leadEmail={(lead as { email?: string | null }).email ?? null}
+          onClose={() => setProposalOpen(false)}
+        />
+      )}
       </div>
     </div>
   );
