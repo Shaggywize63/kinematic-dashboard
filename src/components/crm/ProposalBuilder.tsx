@@ -84,8 +84,17 @@ export default function ProposalBuilder(props: {
     try {
       if (channel === 'whatsapp') {
         if (!waPhone.trim()) { setShareMsg('Enter a WhatsApp number first.'); return; }
-        await proposalsApi.share(result.id, { channel: 'whatsapp', to: waPhone.trim() });
-        setShareMsg('Proposal sent on WhatsApp ✓');
+        // Open WhatsApp Web (or the desktop app) with a prefilled message +
+        // the proposal PDF link. wa.me can't attach a document, so the signed
+        // PDF link rides in the text and the recipient taps to download.
+        const phone = waPhone.replace(/[^\d]/g, '');
+        if (!phone) { setShareMsg('Enter a valid WhatsApp number (with country code).'); return; }
+        const link = result.pdf_url || '';
+        const msg = `Hello${leadName ? ` ${leadName}` : ''}, thank you for your interest.`
+          + ` Please find our proposal ${result.proposal_number ?? ''} (total ${fmt(Number(result.grand_total))}).`
+          + (link ? `\nDownload the PDF: ${link}` : '');
+        window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener,noreferrer');
+        setShareMsg('Opening WhatsApp with the proposal message…');
         return;
       }
       if (channel === 'email') {
@@ -201,7 +210,7 @@ export default function ProposalBuilder(props: {
 
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
               <input value={waPhone} onChange={(e) => setWaPhone(e.target.value)} placeholder="WhatsApp number (with country code)" style={{ flex: 1, padding: '9px 10px', borderRadius: 8, border: '1px solid var(--border,#e5e7eb)' }} />
-              <button onClick={() => doShare('whatsapp')} disabled={!!sharing} style={{ ...btn('#25D366'), opacity: sharing ? 0.6 : 1 }}>{sharing === 'whatsapp' ? 'Sending…' : 'Send on WhatsApp'}</button>
+              <button onClick={() => doShare('whatsapp')} disabled={!!sharing} style={{ ...btn('#25D366'), opacity: sharing ? 0.6 : 1 }}>Open in WhatsApp</button>
             </div>
             {shareMsg && <div style={{ fontSize: 12.5, color: 'var(--text-dim,#6b7280)', marginTop: 4 }}>{shareMsg}</div>}
 
