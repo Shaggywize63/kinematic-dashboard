@@ -30,7 +30,9 @@ export default function ProposalBuilder(props: {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ProposalDetail | null>(null);
   const [waPhone, setWaPhone] = useState(leadPhone || '');
+  const [emailTo, setEmailTo] = useState(leadEmail || '');
   const [shareMsg, setShareMsg] = useState<string | null>(null);
+  const [sharing, setSharing] = useState<'whatsapp' | 'email' | 'link' | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -77,8 +79,8 @@ export default function ProposalBuilder(props: {
   };
 
   const doShare = async (channel: 'whatsapp' | 'email' | 'link') => {
-    if (!result) return;
-    setShareMsg(null);
+    if (!result || sharing) return;
+    setShareMsg(null); setSharing(channel);
     try {
       if (channel === 'whatsapp') {
         if (!waPhone.trim()) { setShareMsg('Enter a WhatsApp number first.'); return; }
@@ -86,20 +88,24 @@ export default function ProposalBuilder(props: {
         setShareMsg('Proposal sent on WhatsApp ✓');
         return;
       }
-      const res = await proposalsApi.share(result.id, { channel });
+      if (channel === 'email') {
+        if (!emailTo.trim()) { setShareMsg('Enter a recipient email first.'); return; }
+        // Backend sends a branded email with the PDF attached + proper subject/body.
+        const res = await proposalsApi.share(result.id, { channel: 'email', to: emailTo.trim() });
+        const sent = (res as unknown as { data?: { sent?: boolean } }).data?.sent;
+        setShareMsg(sent ? `Proposal emailed to ${emailTo.trim()} ✓ (PDF attached)` : 'Email queued.');
+        return;
+      }
+      // link: get a fresh signed URL and copy it.
+      const res = await proposalsApi.share(result.id, { channel: 'link' });
       const url = (res as unknown as { data: { pdf_url: string | null } }).data?.pdf_url || result.pdf_url;
-      if (channel === 'email' && url) {
-        const subject = encodeURIComponent(`Proposal ${result.proposal_number ?? ''}`.trim());
-        const body = encodeURIComponent(`Dear ${leadName || 'Customer'},\n\nPlease find your proposal here:\n${url}\n\nRegards`);
-        window.open(`mailto:${leadEmail || ''}?subject=${subject}&body=${body}`, '_blank');
-        setShareMsg('Opened your email with the proposal link.');
-      } else if (url) {
+      if (url) {
         await navigator.clipboard?.writeText(url).catch(() => {});
         setShareMsg('Proposal link copied to clipboard.');
       }
     } catch (e: unknown) {
       setShareMsg((e as { message?: string })?.message || 'Share failed');
-    }
+    } finally { setSharing(null); }
   };
 
   const card: React.CSSProperties = { background: 'var(--surface, #fff)', color: 'var(--text, #111)', borderRadius: 12, width: 'min(720px, 96vw)', maxHeight: '92vh', overflow: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' };
@@ -185,13 +191,17 @@ export default function ProposalBuilder(props: {
 
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 12 }}>
               {result.pdf_url && <a href={result.pdf_url} target="_blank" rel="noreferrer" style={{ ...btn('#0a3d91'), textDecoration: 'none' }}>Download / Save PDF</a>}
-              <button onClick={() => doShare('email')} style={btn('#374151')}>Email</button>
-              <button onClick={() => doShare('link')} style={btn('#374151')}>Copy link</button>
+              <button onClick={() => doShare('link')} disabled={!!sharing} style={{ ...btn('#374151'), opacity: sharing ? 0.6 : 1 }}>Copy link</button>
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+              <input type="email" value={emailTo} onChange={(e) => setEmailTo(e.target.value)} placeholder="Recipient email" style={{ flex: 1, padding: '9px 10px', borderRadius: 8, border: '1px solid var(--border,#e5e7eb)' }} />
+              <button onClick={() => doShare('email')} disabled={!!sharing} style={{ ...btn('#374151'), opacity: sharing ? 0.6 : 1 }}>{sharing === 'email' ? 'Sending…' : 'Email proposal'}</button>
             </div>
 
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
               <input value={waPhone} onChange={(e) => setWaPhone(e.target.value)} placeholder="WhatsApp number (with country code)" style={{ flex: 1, padding: '9px 10px', borderRadius: 8, border: '1px solid var(--border,#e5e7eb)' }} />
-              <button onClick={() => doShare('whatsapp')} style={btn('#25D366')}>Send on WhatsApp</button>
+              <button onClick={() => doShare('whatsapp')} disabled={!!sharing} style={{ ...btn('#25D366'), opacity: sharing ? 0.6 : 1 }}>{sharing === 'whatsapp' ? 'Sending…' : 'Send on WhatsApp'}</button>
             </div>
             {shareMsg && <div style={{ fontSize: 12.5, color: 'var(--text-dim,#6b7280)', marginTop: 4 }}>{shareMsg}</div>}
 
