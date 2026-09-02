@@ -62,8 +62,8 @@ export const proposalsApi = {
     api.get<Wrapped<ProposalSummary[]>>(`${BASE}/leads/${leadId}/proposals`),
   get: (id: string) =>
     api.get<Wrapped<ProposalDetail>>(`${BASE}/proposals/${id}`),
-  share: (id: string, body: { channel: ShareChannel; to?: string }) =>
-    api.post<Wrapped<{ channel: string; sent: boolean; pdf_url: string | null }>>(`${BASE}/proposals/${id}/share`, body),
+  share: (id: string, body: { channel: ShareChannel; to?: string; subject?: string; message?: string }) =>
+    api.post<Wrapped<{ channel: string; sent: boolean; to?: string; pdf_url: string | null }>>(`${BASE}/proposals/${id}/share`, body),
 };
 
 export default proposalsApi;
