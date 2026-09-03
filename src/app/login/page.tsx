@@ -128,7 +128,13 @@ export default function LoginPage() {
       }) as Parameters<typeof saveSession>[0]['user'];
       saveSession({
         user,
-        access_token: 'demo-token',
+        // Must match the backend's accepted demo token EXACTLY
+        // (auth.ts DEMO token bypass = 'demo-token-jwt-placeholder'). Pages with
+        // no client-side mock (e.g. the whole Distribution/SCM section) fall
+        // through to the real network; with the wrong token the backend 401s and
+        // the page errors even when DEMO_MODE=on. With the canonical token the
+        // backend serves its demo fixtures instead.
+        access_token: 'demo-token-jwt-placeholder',
         expires_at: Math.floor(Date.now() / 1000) + 86400,
       });
       setLoading(false);
