@@ -69,6 +69,13 @@ const PROVIDERS: Array<{
     available: true,
     icon: '📞',
   },
+  {
+    id: 'call_recording',
+    label: 'Call Recording → Analysis',
+    desc: 'Point your telephony provider’s recording callback at the webhook. Each recorded call is transcribed and analysed by KINI on the matching lead.',
+    available: true,
+    icon: '🎙️',
+  },
 ];
 
 const STATUS_STYLES: Record<IntegrationStatus, { bg: string; color: string; label: string }> = {
@@ -746,6 +753,21 @@ function SuccessModal({ integration, onClose }: { integration: Integration; onCl
         </ol>
         <div style={{ marginTop: 8, color: 'var(--text-dim)' }}>
           Both JSON and form-encoded webhooks are accepted. The dialled number, call id, status and time are saved on the lead for reference.
+        </div>
+      </div>
+    ) : provider === 'call_recording' ? (
+      <div style={{
+        background: 'rgba(59, 130, 246, 0.06)', border: '1px solid rgba(59, 130, 246, 0.25)',
+        borderRadius: 8, padding: 12, fontSize: 12, color: 'var(--text)',
+      }}>
+        <div style={{ fontWeight: 700, marginBottom: 8 }}>Send recorded calls here for analysis:</div>
+        <ol style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7 }}>
+          <li>In your telephony console (Exotel, Knowlarity, Ozonetel, Twilio, Plivo…), enable <strong>call recording</strong> and point the <strong>recording / call-completed callback</strong> (the one that carries the recording URL) to the <em>Webhook URL</em> below.</li>
+          <li>We match the call to a lead by the caller&rsquo;s number (<code style={{ background: 'var(--s3)', padding: '1px 4px', borderRadius: 3 }}>CallFrom</code> / <code style={{ background: 'var(--s3)', padding: '1px 4px', borderRadius: 3 }}>From</code>), download the recording (<code style={{ background: 'var(--s3)', padding: '1px 4px', borderRadius: 3 }}>RecordingUrl</code> / <code style={{ background: 'var(--s3)', padding: '1px 4px', borderRadius: 3 }}>recording_url</code>), and run KINI transcription + analysis on the lead&rsquo;s <strong>Conversation Analysis</strong>.</li>
+          <li>The analysed call is attributed to the lead&rsquo;s owner. If a lead has no owner, set a fallback <code>default_user_id</code> in the integration config.</li>
+        </ol>
+        <div style={{ marginTop: 8, color: 'var(--text-dim)' }}>
+          Play a &ldquo;this call is being recorded&rdquo; announcement so consent is captured. Providers that need auth to fetch the file (e.g. Twilio) can supply <code>recording_auth_user</code> / <code>recording_auth_pass</code> in the config. Missed / unanswered calls are ignored here — use the IVR / Missed Call integration for those.
         </div>
       </div>
     ) : provider === 'email_inbound' ? (

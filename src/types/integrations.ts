@@ -14,7 +14,8 @@ export type IntegrationProvider =
   | 'zoho'
   | 'salesforce'
   | 'email_inbound'
-  | 'ivr_missed_call';
+  | 'ivr_missed_call'
+  | 'call_recording';
 
 export type IntegrationStatus = 'pending' | 'active' | 'error' | 'disabled';
 
