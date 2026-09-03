@@ -282,7 +282,15 @@ export default function ConsumerCapturePage() {
               {loading ? (
                 <tr><Td colSpan={3 as any}>Loading…</Td></tr>
               ) : sorted.length === 0 ? (
-                <tr><Td colSpan={3 as any} style={{ textAlign: 'center', color: 'var(--text-dim)' }}>No outlets found.</Td></tr>
+                <tr><Td colSpan={3 as any} style={{ padding: 0, borderBottom: 'none' }}>
+                  <div style={{ padding: '40px 20px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 32, marginBottom: 10 }}>🏪</div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>No outlets yet</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-dim)', maxWidth: 440, margin: '0 auto' }}>
+                      Add your retail outlets (Distributors &rarr; Outlets), then generate a QR / link for each so customers can self-register their purchase &mdash; every scan becomes a tertiary sale and a CRM lead.
+                    </div>
+                  </div>
+                </Td></tr>
               ) : (
                 sorted.map((r) => (
                   <tr key={r.outlet_id}>
