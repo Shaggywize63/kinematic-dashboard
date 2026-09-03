@@ -18,6 +18,7 @@ import LeadDisqualifyModal, { type LeadDisqualifyOutcome } from '../../../../../
 import OwnerAvatar from '../../../../../components/crm/shared/OwnerAvatar';
 import WhatsAppButton from '../../../../../components/crm/shared/WhatsAppButton';
 import CallButton from '../../../../../components/crm/shared/CallButton';
+import RecordedCallButton from '../../../../../components/crm/shared/RecordedCallButton';
 import LeadEditModal from '../../../../../components/crm/LeadEditModal';
 import InlineEditText from '../../../../../components/crm/InlineEditText';
 import LeadDetailsPanel from '../../../../../components/crm/LeadDetailsPanel';
@@ -673,6 +674,7 @@ function PhoneField({ phone, prefill, leadId, displayName, onSave }: { phone?: s
           <span style={{ wordBreak: 'break-word' }}>{phone || '—'}</span>
         )}
         <CallButton phone={phone} prefillSubject={`Call with ${displayName}`} leadId={leadId} size="sm" />
+        <RecordedCallButton leadId={leadId} phone={phone} size="sm" />
         <WhatsAppButton phone={phone} prefillText={prefill} size="sm" />
       </div>
     </div>
