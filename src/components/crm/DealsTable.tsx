@@ -84,13 +84,15 @@ export default function DealsTable({ deals, loading, onAssign, onDelete, onEdit,
   const showSelection = !!onToggle && !!selected;
   const showActions = !!onDelete || !!onEdit;
   const allSelected = showSelection && deals.length > 0 && deals.every((d) => selected!.has(d.id));
-  // Weight / volume is a steel-dealer (Tata / BMW) concept. For every other
-  // tenant (e.g. Kinematic) hide the Volume (kg) column entirely — the copy
-  // below reads hidden.has('volume_kg') in colcount, header and cells.
+  // Dealer + Weight/Volume are steel-dealer (Tata / BMW / SRS) concepts. For
+  // every other tenant (e.g. Kinematic) hide both columns entirely — the copy
+  // below reads hidden.has('dealer') / hidden.has('volume_kg') in colcount,
+  // header and cells. Do NOT surface these bespoke columns on the Kinematic
+  // admin deals list.
   const { user } = useAuth();
   const steel = isTataTiscanActive(user as any);
   const hidden = new Set<string>(hiddenColumns ?? []);
-  if (!steel) hidden.add('volume_kg');
+  if (!steel) { hidden.add('volume_kg'); hidden.add('dealer'); }
   const tableClass = `responsive-cards${viewMode === 'cards' ? ' cards-view' : ''}`;
 
   let colCount = (showSelection ? 1 : 0) + 1; // name always

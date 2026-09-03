@@ -12,7 +12,7 @@ import DealEditModal from '../../../../components/crm/DealEditModal';
 import ViewCustomizer from '../../../../components/crm/shared/ViewCustomizer';
 import { useViewPrefs } from '../../../../lib/crmViewPrefs';
 import { getStoredUser, canAccess, getStoredToken, userHasModule } from '../../../../lib/auth';
-import { isKinematicTenant } from '../../../../lib/clientFeatures';
+import { isKinematicTenant, isTataTiscanActive } from '../../../../lib/clientFeatures';
 import { API_BASE_URL } from '../../../../lib/api';
 
 const DEAL_PAGE_SIZE_OPTIONS = [25, 50, 100, 200] as const;
@@ -341,7 +341,13 @@ function DealsListPage() {
           {view === 'list' && (
             <ViewCustomizer
               entityLabel="Deals"
-              columns={DEAL_COLUMNS as unknown as { key: string; label: string; locked?: boolean }[]}
+              // Dealer + Volume (kg) are steel-dealer-only (Tata / BMW / SRS)
+              // columns — don't even offer them as toggles on other tenants
+              // (e.g. the Kinematic admin), matching DealsTable's render gate.
+              columns={(isTataTiscanActive(getStoredUser())
+                ? DEAL_COLUMNS
+                : DEAL_COLUMNS.filter((c) => c.key !== 'dealer' && c.key !== 'volume_kg')
+              ) as unknown as { key: string; label: string; locked?: boolean }[]}
               hidden={dealView.prefs.hidden}
               mode={dealView.prefs.mode}
               onToggle={dealView.toggleHidden}
