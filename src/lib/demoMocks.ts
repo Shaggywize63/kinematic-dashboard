@@ -654,7 +654,43 @@ const ROUTE_PLANS = (() => {
   const statuses = ['completed', 'in_progress', 'partial', 'pending', 'completed', 'in_progress', 'pending', 'partial', 'completed', 'in_progress'] as const;
   const vehicles = ['2w_petrol', '4w_petrol', '4w_diesel', '2w_ev', '4w_ev', '2w_petrol', 'auto_rickshaw', '4w_petrol', '2w_petrol', 'public_bus'];
 
-  return Array.from({ length: 10 }, (_, i) => {
+  // Permanent demo assignment — a fixed set of outlets that is ALWAYS present
+  // for "today", independent of the date-relative generation below (which
+  // shifts day to day). This mirrors the backend demo mock's own fixed plan
+  // (Arjun Sharma, Bangalore North), so the web route-plan page and the mobile
+  // "My Route Plan" show the same stable, permanently-assigned outlets. Bypasses
+  // the daily-shifting so the demo is never empty for the current day.
+  const _pt = new Date().toISOString().slice(0, 10);
+  const PERMANENT_TODAY = {
+    id: 'demo-plan-permanent',
+    user_id: 'demo-fe-1',
+    plan_date: _pt,
+    total_outlets: 5,
+    visited_outlets: 2,
+    missed_outlets: 0,
+    completion_pct: 40,
+    status: 'partial' as const,
+    notes: 'Permanent demo beat — always assigned for today',
+    frequency: 'daily',
+    territory_label: 'Bangalore North Beat (Demo)',
+    fe_name: 'Arjun Sharma',
+    fe_employee_id: 'FE-1042',
+    fe_mobile: '+91 98201 11111',
+    zone_name: 'Bangalore North',
+    city_name: 'Bengaluru',
+    vehicle_type: '2w_petrol',
+    co2_kg_planned: 1.32,
+    co2_kg_actual: 0.59,
+    outlets: [
+      { id: 'demo-perm-o1', visit_order: 1, target_type: 'order',         target_notes: 'Push festive combo',   target_value: 8500,  status: 'visited', checkin_at: `${_pt}T10:00:00Z`, checkout_at: `${_pt}T10:30:00Z`, order_amount: 6500, actual_duration_min: 28, planned_duration_min: 30, store_id: 'demo-perm-st1', store_name: 'Reliance Fresh - Koramangala',  store_code: 'STR-30001', store_address: '123 Koramangala, Bengaluru',   store_type: 'modern_trade', store_lat: 12.9352, store_lng: 77.6245, store_phone: '+91 98300 10001', store_owner: 'Mr Sharma', zone_name: 'Bangalore North', checkin_distance_m: 12 },
+      { id: 'demo-perm-o2', visit_order: 2, target_type: 'merchandising', target_notes: 'Q4 visibility audit',  target_value: 10700, status: 'visited', checkin_at: `${_pt}T11:15:00Z`, checkout_at: `${_pt}T11:50:00Z`, order_amount: 8350, actual_duration_min: 35, planned_duration_min: 30, store_id: 'demo-perm-st2', store_name: 'Big Bazaar - Indiranagar',      store_code: 'STR-30002', store_address: '456 Indiranagar, Bengaluru',    store_type: 'modern_trade', store_lat: 12.9784, store_lng: 77.6408, store_phone: '+91 98300 10002', store_owner: 'Mrs Iyer',  zone_name: 'Bangalore North', checkin_distance_m: 20 },
+      { id: 'demo-perm-o3', visit_order: 3, target_type: 'survey',        target_notes: 'Display refresh',       target_value: 12900, status: 'pending', planned_duration_min: 20, store_id: 'demo-perm-st3', store_name: 'Star Market - HSR Layout',      store_code: 'STR-30003', store_address: '789 HSR Layout, Bengaluru',     store_type: 'kirana',       store_lat: 12.9116, store_lng: 77.6389, store_phone: '+91 98300 10003', store_owner: 'Mr Kumar',  zone_name: 'Bangalore North' },
+      { id: 'demo-perm-o4', visit_order: 4, target_type: 'collection',    target_notes: 'Collect outstanding',   target_value: 15100, status: 'pending', planned_duration_min: 45, store_id: 'demo-perm-st4', store_name: 'Metro Cash & Carry - Whitefield', store_code: 'STR-30004', store_address: '101 Whitefield, Bengaluru',      store_type: 'wholesaler',   store_lat: 12.9698, store_lng: 77.7500, store_phone: '+91 98300 10004', store_owner: 'Mrs Gupta', zone_name: 'Bangalore North' },
+      { id: 'demo-perm-o5', visit_order: 5, target_type: 'order',         target_notes: 'Push festive combo',    target_value: 17300, status: 'pending', planned_duration_min: 30, store_id: 'demo-perm-st5', store_name: "Spencer's - MG Road",           store_code: 'STR-30005', store_address: '202 MG Road, Bengaluru',        store_type: 'modern_trade', store_lat: 12.9757, store_lng: 77.6050, store_phone: '+91 98300 10005', store_owner: 'Mr Pillai', zone_name: 'Bangalore North' },
+    ],
+  };
+
+  const generated = Array.from({ length: 10 }, (_, i) => {
     const fe = fes[i % fes.length];
     const status = statuses[i];
     const [baseLat, baseLng] = cityCoords[fe.city] ?? [19.0760, 72.8777];
@@ -717,6 +753,8 @@ const ROUTE_PLANS = (() => {
       outlets,
     };
   });
+  // Permanent plan first so it always heads the demo route-plan list for today.
+  return [PERMANENT_TODAY, ...generated];
 })();
 
 const ROUTE_PLAN_SUMMARY = (() => {
