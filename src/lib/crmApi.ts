@@ -144,6 +144,25 @@ export interface LeadUpdate {
   created_at: string;
 }
 
+// Recorded outbound calling ("click-to-call"). The backend bridges the rep
+// and the lead on a telephony provider, records the call, and delivers the
+// recording into Conversation Analysis via the call_recording webhook. The
+// endpoint is email-gated server-side (limited trial), so a 403 here is
+// expected for anyone outside the trial — the button self-hides accordingly.
+export interface ClickToCallResult {
+  ok: boolean;
+  provider: string;
+  call_id: string | null;
+  status: string | null;
+  from: string;
+  to: string;
+  lead_id: string;
+}
+export const crmTelephony = {
+  clickToCall: (body: { lead_id: string; to?: string | null; from?: string | null }) =>
+    api.post<ClickToCallResult>(`${BASE}/telephony/click-to-call`, body),
+};
+
 export const crmContacts = {
   ...crud<Contact>(`${BASE}/contacts`),
   activities: (id: string) => api.get<Wrapped<Activity[]>>(`${BASE}/contacts/${id}/activities`),
