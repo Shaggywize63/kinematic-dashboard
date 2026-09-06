@@ -18,27 +18,28 @@ const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
 // Route a /clients request to the backend.
 //
-// Non-default projects (e.g. Kinematic) bypass the per-project `api-proxy`
-// Supabase edge function: that function drops the X-Kinematic-Project header
-// when it forwards to Railway, so the backend validates the JWT against the
-// default (Tata) project and rejects a Kinematic token with 401. We instead
-// hit the backend directly with the project header — the exact path the rest
-// of the dashboard already uses. The default (Tata) project keeps the original
-// edge-function path byte-for-byte unchanged.
+// ALL projects hit the Express backend directly (the `api-proxy` Supabase edge
+// function is retired in the AWS migration). Non-default projects (e.g.
+// Kinematic) carry the X-Kinematic-Project header so the backend validates the
+// JWT against the right tenant; the default (Tata) project OMITS the header so
+// the backend uses its production fallback — byte-for-byte the same result the
+// old api-proxy path produced (api-proxy dropped the header when forwarding).
+// The edge-function path is kept ONLY as a fallback for a deploy with no
+// BACKEND_URL configured (e.g. local dev).
 function clientsUpstream(
   project: string,
   opts: { method: string; auth: string; orgId: string; body?: string; sub?: string },
 ): Promise<Response> {
   const sub = opts.sub ?? '';
   const hasBody = opts.body !== undefined;
-  if (project !== DEFAULT_PROJECT && BACKEND_URL) {
+  if (BACKEND_URL) {
     return fetch(`${BACKEND_URL}/api/v1/clients${sub}`, {
       method: opts.method,
       headers: {
         ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
         'Authorization': opts.auth,
         'X-Org-Id': opts.orgId,
-        'X-Kinematic-Project': project,
+        ...(project !== DEFAULT_PROJECT ? { 'X-Kinematic-Project': project } : {}),
       },
       ...(hasBody ? { body: opts.body } : {}),
     });

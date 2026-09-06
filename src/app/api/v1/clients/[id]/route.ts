@@ -43,10 +43,12 @@ export async function PATCH(
 
     await seedModules(project);
 
-    // Non-default projects bypass the api-proxy edge function (which drops
-    // X-Kinematic-Project → backend defaults to Tata → 401); call the backend
-    // directly with the project header. Default (Tata) keeps the edge-fn path.
-    const useDirect = project !== DEFAULT_PROJECT && BACKEND_URL;
+    // ALL projects hit the backend directly (the api-proxy edge function is
+    // retired in the AWS migration). Non-default projects carry the project
+    // header; the default (Tata) project omits it so the backend uses its
+    // production fallback — matching the old api-proxy path (which dropped the
+    // header). The edge path remains only as a no-BACKEND_URL fallback.
+    const useDirect = !!BACKEND_URL;
     const target = useDirect
       ? `${BACKEND_URL}/api/v1/clients/${id}`
       : `${serverSupabaseConfig(project).url}/functions/v1/api-proxy/api/v1/clients/${id}`;
@@ -57,7 +59,7 @@ export async function PATCH(
         'Authorization': auth,
         'X-Org-Id': orgId,
         ...(useDirect
-          ? { 'X-Kinematic-Project': project }
+          ? (project !== DEFAULT_PROJECT ? { 'X-Kinematic-Project': project } : {})
           : { 'apikey': serverSupabaseConfig(project).anonKey }),
       },
       body,
