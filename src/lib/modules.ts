@@ -53,7 +53,7 @@ export const ALL_MODULES: ModuleEntry[] = [
   // adherence, leaderboard, etc. Mirrors `crm_reports` for the CRM side.
   // Surfaced under Field Force in the sidebar.
   { id: 'ffm_reports',     l: 'FFM Reports',      group: 'FieldForce', package: 'field_force' },
-  { id: 'live_tracking',   l: 'Live Tracking',    group: 'FieldForce', package: 'field_force' },
+  { id: 'live_tracking',   l: 'Live Trailing',    group: 'FieldForce', package: 'field_force' },
   { id: 'activities',      l: 'Activity Mgmt',    group: 'FieldForce', package: 'field_force' },
   { id: 'planograms',      l: 'Planograms',       group: 'FieldForce', package: 'field_force' },
   { id: 'form_builder',    l: 'Form Builder',     group: 'FieldForce', package: 'field_force' },

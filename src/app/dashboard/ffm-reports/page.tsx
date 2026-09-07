@@ -63,7 +63,7 @@ const REPORTS = [
   },
   {
     href: '/dashboard/live-tracking',
-    title: 'Live Tracking',
+    title: 'Live Trailing',
     desc: 'Real-time map of every rep on the field today plus their breadcrumb trail.',
   },
 ];

@@ -654,7 +654,7 @@ function FieldMockup() {
   return (
     <>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-        <strong style={{ fontSize: 12, color: PALETTE.ink }}>Live Tracking</strong>
+        <strong style={{ fontSize: 12, color: PALETTE.ink }}>Live Trailing</strong>
         <span style={{ fontSize: 10, color: '#22C55E', fontWeight: 800 }}>● 14 active</span>
       </div>
       <div style={{

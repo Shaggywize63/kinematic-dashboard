@@ -1,12 +1,10 @@
 'use client';
-import 'leaflet/dist/leaflet.css';
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import api from '../../../lib/api';
 import * as demoMocks from '../../../lib/demoMocks';
 import { getStoredUser } from '../../../lib/auth';
 import { getStoredIndustryScope } from '../../../context/IndustryScopeContext';
 import { LowBatteryKpi, LowBatteryAlert, LowBatteryFilter } from '../../../components/live-tracking/LowBattery';
-import useOsrmTrail from '../../../components/live-tracking/useOsrmTrail';
 
 const C = {
   bg: 'var(--bg)', s1: 'var(--s1)', s2: 'var(--s2)', s3: 'var(--s3)', s4: 'var(--s4)',
@@ -63,6 +61,38 @@ const STATUS_COLOR: Record<string, string> = {
   checked_out: C.blue,
   absent:      C.grayd,
 };
+
+/* ── Google Maps loader ──
+ * Same Dynamic Library Import bootstrap used by googleGeocode.ts /
+ * GoogleAddressAutocomplete.tsx (defines google.maps.importLibrary). No
+ * <script> tag — the app CSP already allows maps.googleapis.com. */
+const GMAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+
+function bootstrapMaps(key: string) {
+  /* eslint-disable */
+  // @ts-ignore — official Google Maps Dynamic Library Import bootstrap
+  ((g:any)=>{let h:any,a:any,k:any,p="The Google Maps JavaScript API",c="google",l="importLibrary",q="__ib__",m=document,b:any=window;b=b[c]||(b[c]={});let d=b.maps||(b.maps={}),r=new Set<string>(),e=new URLSearchParams(),u=()=>h||(h=new Promise(async(f:any,n:any)=>{a=m.createElement("script");e.set("libraries",[...r]+"");for(k in g)e.set(k.replace(/[A-Z]/g,(t:string)=>"_"+t[0].toLowerCase()),g[k]);e.set("callback",c+".maps."+q);a.src=`https://maps.${c}apis.com/maps/api/js?`+e;d[q]=f;a.onerror=()=>h=n(Error(p+" could not load."));a.nonce=(m.querySelector("script[nonce]") as any)?.nonce||"";m.head.append(a)}));d[l]?console.warn(p+" only loads once. Ignoring:",g):d[l]=(f:any,...n:any[])=>r.add(f)&&u().then(()=>d[l](f,...n))})({key,v:"weekly"});
+  /* eslint-enable */
+}
+
+// Dark basemap approximating the previous CartoDB dark tiles.
+const DARK_MAP_STYLE: any[] = [
+  { elementType: 'geometry', stylers: [{ color: '#1b1b1b' }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: '#1b1b1b' }] },
+  { elementType: 'labels.text.fill', stylers: [{ color: '#8a8a8a' }] },
+  { featureType: 'administrative', elementType: 'geometry', stylers: [{ color: '#3a3a3a' }] },
+  { featureType: 'administrative.country', elementType: 'labels.text.fill', stylers: [{ color: '#9aa0a6' }] },
+  { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#c0c0c0' }] },
+  { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+  { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#16241a' }] },
+  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#2b2b2b' }] },
+  { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#8a8a8a' }] },
+  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#3d3d3d' }] },
+  { featureType: 'road.highway', elementType: 'labels.text.fill', stylers: [{ color: '#c9c9c9' }] },
+  { featureType: 'transit', stylers: [{ visibility: 'off' }] },
+  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0d1622' }] },
+  { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#3d5a80' }] },
+];
 
 /* ── Atoms ── */
 const Spin = () => (
@@ -130,12 +160,16 @@ function LiveMap({
   trail?: TrailPoint[];
   trailColor?: string;
 }) {
-  const mapRef  = useRef<HTMLDivElement>(null);
-  const mapInst = useRef<any>(null);
-  const markers = useRef<any[]>([]);
-  const trailLayer = useRef<any>(null);
-  const trailDotLayer = useRef<any>(null);
+  const mapRef   = useRef<HTMLDivElement>(null);
+  const mapInst  = useRef<any>(null);
+  const infoWin  = useRef<any>(null);
+  const markers  = useRef<any[]>([]);
+  const trailLines = useRef<any[]>([]);
+  const trailDots  = useRef<any[]>([]);
 
+  // Captured GPS pings for the selected FE, drawn as straight segments.
+  // OSRM road-snap was dropped: it is blocked by the prod CSP and already
+  // fell back to straight lines, so the extra dependency bought nothing.
   const trailPoints = useMemo<[number, number][] | null>(() => {
     if (!trail || trail.length < 2) return null;
     const pts = trail
@@ -143,26 +177,34 @@ function LiveMap({
       .map((p) => [p.lat, p.lng] as [number, number]);
     return pts.length > 1 ? pts : null;
   }, [trail]);
-  const { coords: routedCoords, routed: trailRouted } = useOsrmTrail(trailPoints);
 
+  // Map init — one Google map, dark-styled, plus a single shared InfoWindow.
   useEffect(() => {
     if (!mapLoaded || !mapRef.current || mapInst.current) return;
-    const L = (window as any).L;
-    if (!L) return;
-    const map = L.map(mapRef.current, { zoomControl:false, attributionControl:false })
-      .setView([28.6139, 77.209], 10);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom:19 }).addTo(map);
-    L.control.zoom({ position:'bottomright' }).addTo(map);
+    const g = (window as any).google;
+    if (!g?.maps?.Map) return;
+    const map = new g.maps.Map(mapRef.current, {
+      center: { lat: 28.6139, lng: 77.209 },
+      zoom: 10,
+      disableDefaultUI: true,
+      zoomControl: true,
+      zoomControlOptions: { position: g.maps.ControlPosition.RIGHT_BOTTOM },
+      clickableIcons: false,
+      backgroundColor: '#1b1b1b',
+      styles: DARK_MAP_STYLE,
+    });
+    infoWin.current = new g.maps.InfoWindow();
     mapInst.current = map;
   }, [mapLoaded]);
 
   // Resize handler — when the layout flips between desktop (sidebar+map row)
-  // and mobile (sidebar above, map below), the map container changes height
-  // and Leaflet has to be told to recompute its tile grid. Without this the
-  // map renders as a tiny grey square after rotation / resize.
+  // and mobile (sidebar above, map below), the map container changes size.
+  // Google Maps mostly auto-handles this, but nudging a resize event keeps
+  // the tiles from rendering into a stale (grey) box after rotation/resize.
   useEffect(() => {
     if (!mapInst.current) return;
-    const onResize = () => mapInst.current?.invalidateSize();
+    const g = (window as any).google;
+    const onResize = () => { if (mapInst.current) g?.maps?.event?.trigger(mapInst.current, 'resize'); };
     window.addEventListener('resize', onResize);
     window.addEventListener('orientationchange', onResize);
     const t = setTimeout(onResize, 250); // initial pass after first paint
@@ -175,116 +217,118 @@ function LiveMap({
 
   useEffect(() => {
     if (!mapLoaded || !mapInst.current) return;
-    const L = (window as any).L;
-    if (!L) return;
+    const g = (window as any).google;
+    if (!g?.maps?.Marker) return;
+    const map = mapInst.current;
 
-    markers.current.forEach(m => m.remove());
+    infoWin.current?.close();
+    markers.current.forEach(m => m.setMap(null));
     markers.current = [];
 
-    const addMarker = (lat: number, lng: number, html: string, popup: string, id: string, type: string) => {
-      const icon = L.divIcon({ html, className:'', iconSize:[32,32], iconAnchor:[16,16] });
-      const m = L.marker([lat, lng], { icon })
-        .addTo(mapInst.current)
-        .bindPopup(popup, { className:'km-popup' })
-        .on('click', () => onSelect(id, type));
+    const addMarker = (
+      lat: number, lng: number, icon: any, label: any,
+      popup: string, id: string, type: string, zIndex: number,
+    ) => {
+      const m = new g.maps.Marker({ position: { lat, lng }, map, icon, label, zIndex });
+      m.addListener('click', () => {
+        if (infoWin.current) { infoWin.current.setContent(popup); infoWin.current.open(map, m); }
+        onSelect(id, type);
+      });
       markers.current.push(m);
     };
+
+    const circleIcon = (fill: string, scale: number, stroke: string, weight: number) => ({
+      path: g.maps.SymbolPath.CIRCLE, fillColor: fill, fillOpacity: 1,
+      strokeColor: stroke, strokeWeight: weight, scale,
+    });
 
     if (activeLayers.has('fe')) {
       fes.filter(fe => fe.lat && fe.lng).forEach(fe => {
         const c = STATUS_COLOR[fe.status] || '#94a3b8';
         const sel = selectedId === fe.id;
-        const html = `<div style="width:32px;height:32px;border-radius:50%;background:${c};border:${sel?'3px solid var(--text)':'2px solid var(--s1)'};display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;color:#000;box-shadow:0 2px 12px rgba(0,0,0,.6);${sel?'transform:scale(1.2)':''}">${fe.name?.[0] || '?'}</div>`;
+        const icon = circleIcon(c, sel ? 13 : 11, sel ? '#ffffff' : '#1b1b1b', sel ? 3 : 2);
+        const label = { text: fe.name?.[0] || '?', color: '#000', fontSize: '12px', fontWeight: '800' };
         const popup = popupHtml(fe.name, fe.role, c, fe.status, fe.zone_name, fe.checkin_at, fe.today_engagements, fe.today_tff, fe.battery_percentage, fe.last_location_updated_at, fe.device_model, fe.os_version);
-        addMarker(fe.lat!, fe.lng!, html, popup, fe.id, 'fe');
+        addMarker(fe.lat!, fe.lng!, icon, label, popup, fe.id, 'fe', sel ? 60 : 30);
       });
     }
 
     if (activeLayers.has('supervisor')) {
       supervisors.filter(s => s.lat && s.lng).forEach(sup => {
         const c = STATUS_COLOR[sup.status] || C.grayd;
-        const html = `<div style="width:32px;height:32px;border-radius:8px;background:${C.blue};border:2px solid var(--s1);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;color:#fff;box-shadow:0 2px 12px rgba(0,0,0,.6)">${sup.name[0]}</div>`;
+        const icon = circleIcon(C.blue, 12, '#1b1b1b', 2);
+        const label = { text: sup.name?.[0] || '?', color: '#fff', fontSize: '12px', fontWeight: '800' };
         const popup = popupHtml(sup.name, 'Supervisor', c, sup.status, sup.zone_name, sup.checkin_at, undefined, undefined, sup.battery_percentage, sup.last_location_updated_at, sup.device_model, sup.os_version);
-        addMarker(sup.lat!, sup.lng!, html, popup, sup.id, 'supervisor');
+        addMarker(sup.lat!, sup.lng!, icon, label, popup, sup.id, 'supervisor', 25);
       });
     }
 
     if (activeLayers.has('outlet')) {
       outlets.filter(o => o.lat && o.lng).forEach(o => {
-        const html = `<div style="width:28px;height:28px;border-radius:6px;background:${C.yellow};border:2px solid var(--s1);display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 2px 10px rgba(0,0,0,.5)">🏪</div>`;
+        const icon = circleIcon(C.yellow, 11, '#1b1b1b', 2);
+        const label = { text: '🏪', fontSize: '13px' };
         const popup = `<div style="font-family:DM Sans,sans-serif;font-size:12px;color:var(--text);background:var(--s1);padding:10px 12px;border-radius:8px;min-width:150px"><div style="font-weight:700;margin-bottom:4px">${o.name}</div>${o.store_type?`<div style="color:var(--text-dim);font-size:11px">${o.store_type}</div>`:''}<div style="color:var(--text-dim);font-size:11px;margin-top:4px">${o.zone_name||''}</div>${o.address?`<div style="color:var(--text-dim);font-size:10px;margin-top:2px">${o.address}</div>`:''}</div>`;
-        addMarker(o.lat!, o.lng!, html, popup, o.id, 'outlet');
+        addMarker(o.lat!, o.lng!, icon, label, popup, o.id, 'outlet', 15);
       });
     }
 
     if (activeLayers.has('warehouse')) {
       warehouses.filter(w => w.latitude && w.longitude).forEach(w => {
-        const html = `<div style="width:30px;height:30px;border-radius:6px;background:${C.purple};border:2px solid var(--s1);display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 2px 10px rgba(0,0,0,.5)">🏭</div>`;
+        const icon = circleIcon(C.purple, 12, '#1b1b1b', 2);
+        const label = { text: '🏭', fontSize: '13px' };
         const popup = `<div style="font-family:DM Sans,sans-serif;font-size:12px;color:var(--text);background:var(--s1);padding:10px 12px;border-radius:8px;min-width:150px"><div style="font-weight:700;margin-bottom:4px">${w.name}</div>${w.type?`<div style="color:var(--text-dim);font-size:11px">${w.type}</div>`:''}<div style="color:var(--text-dim);font-size:11px;margin-top:4px">${w.city||''}</div></div>`;
-        addMarker(w.latitude!, w.longitude!, html, popup, w.id, 'warehouse');
+        addMarker(w.latitude!, w.longitude!, icon, label, popup, w.id, 'warehouse', 15);
       });
     }
 
-    // Trail polyline + ping markers. Must be `L.featureGroup` (not
-    // `L.layerGroup`) so the outer `fitBounds` can iterate child bounds.
-    if (trailLayer.current) { trailLayer.current.remove(); trailLayer.current = null; }
-    if (trailDotLayer.current) { trailDotLayer.current.remove(); trailDotLayer.current = null; }
-    const polyCoords = routedCoords && routedCoords.length > 1 ? routedCoords : null;
-    if (polyCoords) {
+    // Trail: a subtle wide glow polyline under a solid main polyline, plus
+    // small circle markers at each captured ping (start=green, end=trail
+    // colour, middle=white).
+    trailLines.current.forEach(l => l.setMap(null)); trailLines.current = [];
+    trailDots.current.forEach(d => d.setMap(null)); trailDots.current = [];
+    if (trailPoints && trailPoints.length > 1) {
       const colour = trailColor || '#63B3ED';
-      const glow = L.polyline(polyCoords, {
-        color: colour,
-        weight: 8,
-        opacity: 0.18,
-        lineCap: 'round',
-        lineJoin: 'round',
-      });
-      const main = L.polyline(polyCoords, {
-        color: colour,
-        weight: 4,
-        opacity: 0.95,
-        dashArray: trailRouted ? undefined : '4 6',
-        lineCap: 'round',
-        lineJoin: 'round',
-      });
-      trailLayer.current = L.featureGroup([glow, main]).addTo(mapInst.current);
+      const path = trailPoints.map(([lat, lng]) => ({ lat, lng }));
+      const glow = new g.maps.Polyline({ path, strokeColor: colour, strokeOpacity: 0.18, strokeWeight: 8, map, zIndex: 5 });
+      const main = new g.maps.Polyline({ path, strokeColor: colour, strokeOpacity: 0.95, strokeWeight: 4, map, zIndex: 6 });
+      trailLines.current = [glow, main];
 
-      if (trailPoints && trailPoints.length > 0) {
-        const dots: any[] = [];
-        trailPoints.forEach(([lat, lng], i) => {
-          const isFirst = i === 0;
-          const isLast = i === trailPoints.length - 1;
-          const radius = isFirst || isLast ? 6 : 3;
-          const fill = isLast ? colour : isFirst ? '#10b981' : '#ffffff';
-          const stroke = isLast ? '#ffffff' : isFirst ? '#ffffff' : colour;
-          const dot = L.circleMarker([lat, lng], {
-            radius,
-            color: stroke,
-            weight: 2,
-            fillColor: fill,
-            fillOpacity: 1,
-          });
-          dots.push(dot);
+      trailPoints.forEach(([lat, lng], i) => {
+        const isFirst = i === 0;
+        const isLast  = i === trailPoints.length - 1;
+        const radius  = isFirst || isLast ? 6 : 3;
+        const fill    = isLast ? colour : isFirst ? '#10b981' : '#ffffff';
+        const stroke  = isLast ? '#ffffff' : isFirst ? '#ffffff' : colour;
+        const dot = new g.maps.Marker({
+          position: { lat, lng }, map, clickable: false, zIndex: 7,
+          icon: circleIcon(fill, radius, stroke, 2),
         });
-        trailDotLayer.current = L.featureGroup(dots).addTo(mapInst.current);
+        trailDots.current.push(dot);
+      });
+    }
+
+    // Fit the viewport to every marker + trail point (like the old
+    // fitBounds(...pad(0.15))). A lone point would otherwise zoom to street
+    // level, so recentre + fixed zoom in that case.
+    const bounds = new g.maps.LatLngBounds();
+    let has = false;
+    markers.current.forEach(m => { const p = m.getPosition(); if (p) { bounds.extend(p); has = true; } });
+    if (trailPoints) trailPoints.forEach(([lat, lng]) => { bounds.extend({ lat, lng }); has = true; });
+    if (has) {
+      if (bounds.getNorthEast().equals(bounds.getSouthWest())) {
+        map.setCenter(bounds.getCenter());
+        map.setZoom(14);
+      } else {
+        map.fitBounds(bounds, 60);
       }
     }
 
-    const hasPins = markers.current.length > 0;
-    if (hasPins) {
-      const layers: any[] = [...markers.current];
-      if (trailLayer.current) layers.push(trailLayer.current);
-      if (trailDotLayer.current) layers.push(trailDotLayer.current);
-      const group = L.featureGroup(layers);
-      mapInst.current.fitBounds(group.getBounds().pad(0.15));
-    }
-
-  }, [mapLoaded, fes, supervisors, outlets, warehouses, activeLayers, selectedId, onSelect, trail, trailColor, routedCoords, trailRouted, trailPoints]);
+  }, [mapLoaded, fes, supervisors, outlets, warehouses, activeLayers, selectedId, onSelect, trail, trailColor, trailPoints]);
 
   const popupHtml = (name:string, role:string, color:string, status:string, zone?:string, checkinAt?:string, engagements?:number, tff?:number, battery?:number, lastSeen?:string, device?:string, os?:string) => {
     const diff = lastSeen ? Math.round((new Date().getTime() - new Date(lastSeen).getTime()) / 60000) : null;
     const isStale = diff != null && diff > 10;
-    
+
     return `<div style="font-family:DM Sans,sans-serif;font-size:12px;color:var(--text);background:var(--s1);padding:10px 12px;border-radius:12px;min-width:180px;border:1px solid ${isStale?C.red+'30':C.border}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start">
         <div style="font-weight:700;margin-bottom:2px;color:${isStale?C.gray:C.white}">${name}</div>
@@ -301,7 +345,9 @@ function LiveMap({
 
   return (
     <>
-      <style>{`.km-popup .leaflet-popup-content-wrapper{background:var(--s1);border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.3);padding:0}.km-popup .leaflet-popup-content{margin:0}.km-popup .leaflet-popup-tip{background:var(--s1)}`}</style>
+      {/* Trim Google's default white InfoWindow chrome so the dark popup
+          card sits flush inside it. */}
+      <style>{`.gm-style .gm-style-iw-c{background:var(--s1)!important;border:1px solid var(--border)!important;border-radius:12px!important;box-shadow:0 8px 32px rgba(0,0,0,.35)!important;padding:0!important}.gm-style .gm-style-iw-d{overflow:hidden!important}.gm-style .gm-style-iw-tc::after{background:var(--s1)!important}.gm-style .gm-style-iw-chr{position:absolute;top:0;right:0;height:0}.gm-style .gm-style-iw-chr .gm-ui-hover-effect{opacity:.6}`}</style>
       <div ref={mapRef} style={{ width:'100%', height:'100%' }}/>
       {!mapLoaded && (
         <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center',
@@ -333,19 +379,28 @@ export default function LiveTrackingPage() {
   const [selectedId,   setSelectedId]   = useState<string|null>(null);
   const [selectedType, setSelectedType] = useState<string|null>(null);
   const [selectedTrail, setSelectedTrail] = useState<TrailPoint[]>([]);
+  // Trail time-window: which day's captured pings to draw for the selected FE.
+  const [trailDate,    setTrailDate]    = useState<string>(() => new Date().toISOString().slice(0, 10));
 
   const [lowBatteryFilter,    setLowBatteryFilter]    = useState(false);
   const [lowBatteryDismissed, setLowBatteryDismissed] = useState(false);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    if ((window as any).L) { setMapLoaded(true); return; }
-    // Load Leaflet from the bundled npm package, NOT a CDN — the app's CSP
-    // (next.config.mjs script-src) blocks unpkg.com, so the old <script> tag
-    // never loaded and the map stayed stuck on "Loading map…".
+    const w = window as any;
+    if (w.google?.maps?.Map) { setMapLoaded(true); return; }
+    if (!GMAPS_KEY) { setError('Google Maps is not configured (missing NEXT_PUBLIC_GOOGLE_MAPS_API_KEY)'); return; }
+    // Same Dynamic Library Import bootstrap as googleGeocode.ts — no <script>
+    // tag; the app CSP already allows maps.googleapis.com. Load the `maps`
+    // (Map/Polyline/InfoWindow) and `marker` (Marker) libraries, then flip
+    // mapLoaded once google.maps.Map is available.
     let cancelled = false;
-    import('leaflet')
-      .then((mod) => { if (cancelled) return; (window as any).L = (mod as any).default ?? mod; setMapLoaded(true); })
+    if (!w.google?.maps?.importLibrary) bootstrapMaps(GMAPS_KEY);
+    Promise.all([
+      w.google.maps.importLibrary('maps'),
+      w.google.maps.importLibrary('marker'),
+    ])
+      .then(() => { if (!cancelled) setMapLoaded(true); })
       .catch(() => { if (!cancelled) setError('Could not load the map library'); });
     return () => { cancelled = true; };
   }, []);
@@ -398,7 +453,7 @@ export default function LiveTrackingPage() {
         }
 
         if (outletRes.status === 'fulfilled') {
-          const raw = outletRes.value?.data ?? outletRes.value;
+          const raw = (outletRes.value as any)?.data ?? outletRes.value;
           setOutlets(Array.isArray(raw) ? raw : raw?.data || []);
         }
         if (whRes.status === 'fulfilled') {
@@ -406,7 +461,7 @@ export default function LiveTrackingPage() {
           setWarehouses(Array.isArray(raw) ? raw : raw?.data || []);
         }
         if (zoneRes.status === 'fulfilled') {
-          const raw = zoneRes.value?.data ?? zoneRes.value;
+          const raw = (zoneRes.value as any)?.data ?? zoneRes.value;
           setZones(Array.isArray(raw) ? raw : []);
         }
       }
@@ -441,13 +496,13 @@ export default function LiveTrackingPage() {
       setSelectedTrail([]);
       return;
     }
-    const date = new Date().toISOString().slice(0, 10);
+    const date = trailDate;
     let cancelled = false;
     api.get<{ success: boolean; data: TrailPoint[] }>(`/api/v1/users/${selectedId}/location-trail?date=${date}`)
       .then((r) => { if (!cancelled) setSelectedTrail(r.data ?? []); })
       .catch(() => { if (!cancelled) setSelectedTrail([]); });
     return () => { cancelled = true; };
-  }, [selectedId, selectedType, lastSync]);
+  }, [selectedId, selectedType, lastSync, trailDate]);
 
   const q = search.toLowerCase();
 
@@ -510,13 +565,16 @@ export default function LiveTrackingPage() {
     outline:'none', colorScheme:'dark' as any,
   };
 
+  // Trail time-window quick options (UTC dates, matching the trail fetch).
+  const todayISO     = new Date().toISOString().slice(0, 10);
+  const yesterdayISO = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+
   return (
     <>
       <style>{`
         @keyframes km-fadein { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
         @keyframes kspin     { to{transform:rotate(360deg)} }
         @keyframes kpulse    { 0%,100%{opacity:1} 50%{opacity:.2} }
-        .leaflet-container   { background: var(--bg) !important; }
         .lt-row:hover        { background:${C.s4} !important; }
 
         /* Mobile (<= 768px): stack the FE-list sidebar above the map so
@@ -549,7 +607,7 @@ export default function LiveTrackingPage() {
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-end', flexWrap:'wrap', gap:12, flexShrink:0 }}>
           <div>
             <div className="lt-title" style={{ fontFamily:"'Syne',sans-serif", fontSize:24, fontWeight:800, color:C.white, letterSpacing:'-0.3px' }}>
-              Live Tracking
+              Live Trailing
             </div>
             <div className="lt-subtitle" style={{ fontSize:12, color:C.gray, marginTop:3 }}>
               Real-time field visibility — FEs, supervisors, outlets & warehouses
@@ -814,6 +872,32 @@ export default function LiveTrackingPage() {
                 trail={selectedType === 'fe' ? selectedTrail : undefined}
                 trailColor={selFE ? (STATUS_COLOR[selFE.status] || '#63B3ED') : '#63B3ED'}
               />
+
+              {selectedType === 'fe' && selectedId && (
+                <div style={{ position:'absolute', top:12, right:12, zIndex:5,
+                  background:'var(--s1)', border:`1px solid ${C.border}`, borderRadius:10,
+                  padding:'6px 8px', display:'flex', alignItems:'center', gap:6,
+                  fontFamily:"'DM Sans',sans-serif" }}>
+                  <span style={{ fontSize:11, color:C.gray, fontWeight:600 }}>Trail day</span>
+                  {[{ l:'Today', v:todayISO }, { l:'Yesterday', v:yesterdayISO }].map(d => {
+                    const on = trailDate === d.v;
+                    return (
+                      <button key={d.v} onClick={() => setTrailDate(d.v)}
+                        style={{ padding:'4px 9px', borderRadius:7, cursor:'pointer', fontSize:11, fontWeight:600,
+                          border:`1px solid ${on ? C.blue : C.border}`,
+                          background: on ? `${C.blue}18` : 'transparent',
+                          color: on ? C.blue : C.gray, fontFamily:"'DM Sans',sans-serif" }}>
+                        {d.l}
+                      </button>
+                    );
+                  })}
+                  <input type="date" value={trailDate} max={todayISO}
+                    onChange={e => { if (e.target.value) setTrailDate(e.target.value); }}
+                    style={{ padding:'4px 6px', borderRadius:7, border:`1px solid ${C.border}`,
+                      background:C.s3, color:C.white, fontSize:11, fontFamily:"'DM Sans',sans-serif",
+                      outline:'none', colorScheme:'dark' as any }}/>
+                </div>
+              )}
 
               {!loading && fes.length > 0 && fes.every(f => !f.lat || !f.lng) && (
                 <div style={{ position:'absolute', top:12, left:'50%', transform:'translateX(-50%)',
