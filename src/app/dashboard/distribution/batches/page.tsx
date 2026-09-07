@@ -84,9 +84,22 @@ const batchVal = (b: BatchRow, key: string): unknown => {
   }
 };
 
+const ADMIN_ROLES = ['super_admin', 'admin', 'main_admin', 'sub_admin', 'city_manager', 'client', 'hr'];
+const CONSUME_MODES: Array<{ value: string; label: string }> = [
+  { value: 'off', label: 'Off' },
+  { value: 'advisory', label: 'Advisory (preview only)' },
+  { value: 'enforce', label: 'Enforce (draw down stock)' },
+];
+
 export default function BatchExpiryPage() {
   const { user } = useAuth();
   const canReceive = userHasModule(user, 'distribution_receiving');
+  const isAdmin = ADMIN_ROLES.includes(String((user as { role?: string } | null)?.role || '').toLowerCase());
+
+  // Org-wide "consume on invoice" mode (SCM Phase 2). off=no-op, advisory=FEFO
+  // preview only (no mutation), enforce=actually draw stock down on invoice.
+  const [consumeMode, setConsumeMode] = useState('off');
+  const [modeSaving, setModeSaving] = useState(false);
 
   const [distributors, setDistributors] = useState<any[]>([]);
   const [skus, setSkus] = useState<any[]>([]);
@@ -126,6 +139,29 @@ export default function BatchExpiryPage() {
       setSkus(Array.isArray(d) ? d : []);
     }).catch(() => {});
   }, []);
+
+  // Load the org's consume-on-invoice mode (admins only; endpoint is admin-gated).
+  useEffect(() => {
+    if (!isAdmin) return;
+    api.get('/api/v1/org-settings/scm-dispatch-consume-mode')
+      .then((r: any) => setConsumeMode((r?.data?.scm_dispatch_consume_mode ?? r?.scm_dispatch_consume_mode) || 'off'))
+      .catch(() => {});
+  }, [isAdmin]);
+
+  const saveConsumeMode = async (value: string) => {
+    // 'enforce' actually decrements stock on every future invoice — confirm it.
+    if (value === 'enforce' && !window.confirm('Enforce mode will DRAW DOWN batch stock (FEFO) on every invoice issued for batch-tracked SKUs. Enable for the whole org?')) return;
+    const prev = consumeMode;
+    setConsumeMode(value); setModeSaving(true);
+    try {
+      await api.patch('/api/v1/org-settings/scm-dispatch-consume-mode', { value });
+      toast.success(`Consume-on-invoice set to ${value}`);
+    } catch (e: any) {
+      setConsumeMode(prev);
+      toast.error(e?.response?.data?.error || e?.message || 'Could not update mode');
+    }
+    setModeSaving(false);
+  };
 
   const load = useCallback(async () => {
     if (!distributorId) { setRows([]); setReport({ near_expiry: [], expired: [] }); return; }
@@ -237,7 +273,16 @@ export default function BatchExpiryPage() {
         title="Batch & Expiry"
         subtitle="Per-GRN stock layers with FIFO/FEFO draw-down. Receive goods, track expiry, and consume the right layer first."
         right={
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            {isAdmin && (
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-dim)' }} title="When an invoice is issued for a batch-tracked SKU: Off = no stock change; Advisory = compute a FEFO plan (preview only, no change); Enforce = draw stock down FEFO.">
+                Consume on invoice:
+                <select value={consumeMode} disabled={modeSaving} onChange={(e) => saveConsumeMode(e.target.value)}
+                  style={{ background: 'var(--s2)', border: `1px solid ${consumeMode === 'enforce' ? 'var(--primary)' : 'var(--border)'}`, borderRadius: 8, padding: '6px 10px', color: 'var(--text)', fontSize: 12 }}>
+                  {CONSUME_MODES.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
+                </select>
+              </label>
+            )}
             {canReceive && <Btn onClick={openReceive}>Receive (GRN)</Btn>}
             <Btn variant="ghost" onClick={() => openConsume()}>Consume</Btn>
           </div>
