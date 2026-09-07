@@ -812,6 +812,31 @@ const ROUTE_PLAN_ESG = (() => {
 const list = <T,>(rows: T[]) => ({ success: true, data: rows });
 const wrap = <T,>(body: T)  => ({ success: true, data: body });
 
+// Distribution → Control Tower demo payload. Mirrors the backend's demoTower()
+// shape (spine / kpis / signals / forecast / narrative) so the page renders
+// populated instead of falling through to the empty catch-all (which set an
+// array payload and crashed the strongly-typed render).
+const DEMO_CONTROL_TOWER = {
+  spine: {
+    brand:       { count: 1, skus: 15, price_lists: 2, schemes: 4 },
+    distributor: { count: 3, healthy: 2, at_risk: 1 },
+    retailer:    { count: 28, covered: 17, coverage_pct: 61, dormant: 5 },
+    consumer:    { count: 312, new_this_week: 18 },
+  },
+  kpis: { gmv_today: 428000, gmv_30d: 4200000, orders_30d: 109, outstanding: 190000, coverage_pct: 61, dormant_outlets: 5 },
+  signals: [
+    { type: 'stockout', severity: 'critical', title: 'Demand surge — Nova Atta 5kg', detail: 'Off-take up 22% vs the prior 30 days. Replenish distributor stock before it runs dry.', action: 'Draft primary order' },
+    { type: 'dormant',  severity: 'warning',  title: '5 outlets going dormant', detail: 'No order in 21+ days on Beat 12. Add them to today’s beats before the relationship cools.', action: 'Add to beat' },
+    { type: 'coverage', severity: 'ai',       title: 'Coverage is 61%', detail: '11 of 28 outlets had no order in the last 30 days. Re-balancing beats can lift reach.', action: 'Optimise beats' },
+  ],
+  forecast: [
+    { sku_id: 'demo1', name: 'Nova Atta 5kg', qty30: 340, prior30: 279, trendPct: 22, projectedNext30: 414 },
+    { sku_id: 'demo2', name: 'Nova Poha 1kg', qty30: 190, prior30: 205, trendPct: -7, projectedNext30: 176 },
+  ],
+  narrative: 'Network is broadly healthy — 3 distributors, 28 outlets, ₹4.2L off-take this month. Attention: Nova Atta demand is up 22% and risks a stockout, and 5 outlets on Beat 12 have gone quiet. Highest-value move: draft the Nova Atta replenishment order now.',
+  generated_at: new Date().toISOString(),
+};
+
 // Demo equivalent of the backend's sendPaginated() — slices the
 // in-memory dataset by ?page=X&limit=Y from the original URL and
 // stamps the same {data, pagination} envelope the real backend now
@@ -1140,6 +1165,7 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
     if (path === '/distribution/ledger')                  return wrap({ entries: DIST_LEDGER_ENTRIES }) as unknown as T;
     if (path === '/distribution/ledger/ageing')           return wrap(DIST_AGEING_SUMMARY) as unknown as T;
     if (path === '/distribution/schemes')                 return list(DIST_SCHEMES) as unknown as T;
+    if (path === '/distribution/control-tower')           return wrap(DEMO_CONTROL_TOWER) as unknown as T;
     if (path === '/distribution/secondary-sales')         return list(DIST_SECONDARY_FEED) as unknown as T;
     // Last-mile (Phase 1) — tertiary sales + consumer registrations.
     // Mock data deliberately spans every captured_by / registered_via

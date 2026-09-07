@@ -53,7 +53,11 @@ export default function ControlTowerPage() {
         api.getDistStages().catch(() => null),
       ]);
       const payload = (t?.data ?? t) as Tower;
-      setTower(payload);
+      // Guard against a malformed / empty payload (e.g. an unmocked demo path
+      // that returns []): the render hard-accesses tower.spine / tower.kpis, so
+      // a truthy-but-wrong shape crashes it. Only accept a well-shaped tower;
+      // anything else is treated as "no data" (null short-circuits cleanly).
+      setTower(payload && (payload as any).spine && (payload as any).kpis ? payload : null);
       const st = (s?.data ?? s)?.stages as Stage[] | undefined;
       if (st && st.length) setStages(st);
     } catch (e: any) {
