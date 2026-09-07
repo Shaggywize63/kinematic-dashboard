@@ -1087,6 +1087,15 @@ class ApiClient {
   getStockMovements(params?: Record<string, string>) { return this.get(`/api/v1/distribution/stock/movements${this.sanitizeParams(params)}`); }
   adjustStock(data: object) { return this.post('/api/v1/distribution/stock/adjust', data); }
 
+  // ── Distribution: Batch & Expiry / FIFO-FEFO + Receiving ─────────────
+  // (modules distribution_batches / distribution_receiving). Batches are the
+  // per-GRN stock layers; receiving posts a new layer; consume draws down by
+  // FEFO/FIFO and returns the consumed layers + valuation.
+  getBatches(params?: Record<string, string>) { return this.get(`/api/v1/distribution/batches${this.sanitizeParams(params)}`); }
+  getBatchExpiryReport(params?: Record<string, string>) { return this.get(`/api/v1/distribution/batches/expiry-report${this.sanitizeParams(params)}`); }
+  receiveBatch(data: object) { return this.post('/api/v1/distribution/receiving', data); }
+  consumeBatch(data: object) { return this.post('/api/v1/distribution/batches/consume', data); }
+
   // ── Distribution: Van Sales (module distribution_van) ────────────────
   getVanLoads(params?: Record<string, string>) { return this.get(`/api/v1/distribution/van-loads${this.sanitizeParams(params)}`); }
   getVanLoad(id: string) { return this.get(`/api/v1/distribution/van-loads/${id}`); }

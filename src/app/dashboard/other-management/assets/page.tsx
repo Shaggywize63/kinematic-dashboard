@@ -32,8 +32,8 @@ const C = {
   orange: '#FF7A30'
 };
 
-interface Asset { id:string; name:string; asset_code?:string; category?:string; description?:string; quantity:number; unit?:string; is_active:boolean; client_id?:string; }
-const BLANK = { name:'', asset_code:'', category:'', description:'', quantity:'0', unit:'pcs', is_active:true, client_id:'' };
+interface Asset { id:string; name:string; asset_code?:string; category?:string; description?:string; quantity:number; unit?:string; is_active:boolean; client_id?:string; purchase_date?:string|null; warranty_expiry?:string|null; service_due_at?:string|null; expiry_date?:string|null; is_perishable?:boolean; }
+const BLANK = { name:'', asset_code:'', category:'', description:'', quantity:'0', unit:'pcs', is_active:true, client_id:'', purchase_date:'', warranty_expiry:'', service_due_at:'', expiry_date:'', is_perishable:false };
 const CATEGORIES = ['Display Stand','Promotional Material','Branding Kit','Sampling Kit','Demo Unit','Uniform','Equipment','Vehicle','Other'];
 const UNITS = ['pcs','set','kg','units','carton','box','pair'];
 
@@ -81,14 +81,14 @@ export default function AssetManagement() {
   const openAdd = () => { setEditing(null); setForm({...BLANK}); setFErr(''); setShowModal(true); };
   const openEdit = (a:Asset) => {
     setEditing(a);
-    setForm({ name:a.name, asset_code:a.asset_code||'', category:a.category||'', description:a.description||'', quantity:String(a.quantity), unit:a.unit||'pcs', is_active:a.is_active, client_id:a.client_id||'' });
+    setForm({ name:a.name, asset_code:a.asset_code||'', category:a.category||'', description:a.description||'', quantity:String(a.quantity), unit:a.unit||'pcs', is_active:a.is_active, client_id:a.client_id||'', purchase_date:(a.purchase_date||'').slice(0,10), warranty_expiry:(a.warranty_expiry||'').slice(0,10), service_due_at:(a.service_due_at||'').slice(0,10), expiry_date:(a.expiry_date||'').slice(0,10), is_perishable:!!a.is_perishable });
     setFErr(''); setShowModal(true);
   };
 
   const save = async () => {
     if(!form.name.trim()){setFErr('Asset name is required');return;}
     setSaving(true); setFErr('');
-    const payload:any = { name:form.name.trim(), asset_code:form.asset_code||null, category:form.category||null, description:form.description||null, quantity:parseInt(form.quantity)||0, unit:form.unit||'pcs', is_active:form.is_active, client_id:form.client_id||null };
+    const payload:any = { name:form.name.trim(), asset_code:form.asset_code||null, category:form.category||null, description:form.description||null, quantity:parseInt(form.quantity)||0, unit:form.unit||'pcs', is_active:form.is_active, client_id:form.client_id||null, purchase_date:form.purchase_date||null, warranty_expiry:form.warranty_expiry||null, service_due_at:form.service_due_at||null, expiry_date:form.expiry_date||null, is_perishable:form.is_perishable };
     try {
       if(editing) await api.patch(`/api/v1/assets/${editing.id}`, payload);
       else await api.post('/api/v1/assets', payload);
@@ -213,6 +213,14 @@ export default function AssetManagement() {
               <div><Label t="Quantity"/><input style={inp} type="number" min="0" placeholder="0" value={form.quantity} onChange={e=>setForm(p=>({...p,quantity:e.target.value}))}/></div>
               <div><Label t="Unit"/><select style={inp} value={form.unit} onChange={e=>setForm(p=>({...p,unit:e.target.value}))}>{UNITS.map(u=><option key={u} value={u}>{u}</option>)}</select></div>
               <div style={{gridColumn:'1/-1'}}><Label t="Description"/><textarea style={{...inp,resize:'none'}} rows={3} placeholder="Asset details, condition, notes..." value={form.description} onChange={e=>setForm(p=>({...p,description:e.target.value}))}/></div>
+              <div><Label t="Purchase Date"/><input style={inp} type="date" value={form.purchase_date} onChange={e=>setForm(p=>({...p,purchase_date:e.target.value}))}/></div>
+              <div><Label t="Warranty Expiry"/><input style={inp} type="date" value={form.warranty_expiry} onChange={e=>setForm(p=>({...p,warranty_expiry:e.target.value}))}/></div>
+              <div><Label t="Next Service Due"/><input style={inp} type="date" value={form.service_due_at} onChange={e=>setForm(p=>({...p,service_due_at:e.target.value}))}/></div>
+              <div><Label t="Expiry (Shelf-life)"/><input style={inp} type="date" value={form.expiry_date} onChange={e=>setForm(p=>({...p,expiry_date:e.target.value}))}/></div>
+              <label style={{gridColumn:'1/-1',display:'flex',alignItems:'center',gap:9,cursor:'pointer',fontSize:13,color:C.white}}>
+                <input type="checkbox" checked={form.is_perishable} onChange={e=>setForm(p=>({...p,is_perishable:e.target.checked}))}/>
+                Perishable
+              </label>
               {isPlatformAdmin && (
                 <div style={{gridColumn:'1 / -1'}}>
                   <Label t="Client Organization" req/>

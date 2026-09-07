@@ -30,8 +30,8 @@ const C = {
   purpleD: 'rgba(155,110,255,0.08)',
 };
 
-interface SKU { id:string; sku_code:string; name:string; category?:string; unit?:string; price?:number; description?:string; is_active:boolean; created_at:string; client_id?:string; }
-const BLANK = { sku_code:'', name:'', category:'', unit:'pcs', price:'', description:'', is_active:true, client_id:'' };
+interface SKU { id:string; sku_code:string; name:string; category?:string; unit?:string; price?:number; description?:string; is_active:boolean; created_at:string; client_id?:string; shelf_life_days?:number|null; expiry_alert_days?:number|null; is_perishable?:boolean; track_batches?:boolean; }
+const BLANK = { sku_code:'', name:'', category:'', unit:'pcs', price:'', description:'', is_active:true, client_id:'', shelf_life_days:'', expiry_alert_days:'', is_perishable:false, track_batches:false };
 const UNITS = ['pcs','kg','g','ml','l','box','carton','pack','strip','dozen'];
 
 const Spinner = () => <div style={{width:15,height:15,border:'2.5px solid rgba(255,255,255,0.18)',borderTopColor:'#fff',borderRadius:'50%',animation:'kspin .65s linear infinite',flexShrink:0}}/>;
@@ -75,15 +75,17 @@ export default function SKUManagement() {
   const openAdd = () => { setEditing(null); setForm({...BLANK}); setFErr(''); setShowModal(true); };
   const openEdit = (s:SKU) => {
     setEditing(s);
-    setForm({ sku_code:s.sku_code, name:s.name, category:s.category||'', unit:s.unit||'pcs', price:s.price!=null?String(s.price):'', description:s.description||'', is_active:s.is_active, client_id:s.client_id||'' });
+    setForm({ sku_code:s.sku_code, name:s.name, category:s.category||'', unit:s.unit||'pcs', price:s.price!=null?String(s.price):'', description:s.description||'', is_active:s.is_active, client_id:s.client_id||'', shelf_life_days:s.shelf_life_days!=null?String(s.shelf_life_days):'', expiry_alert_days:s.expiry_alert_days!=null?String(s.expiry_alert_days):'', is_perishable:!!s.is_perishable, track_batches:!!s.track_batches });
     setFErr(''); setShowModal(true);
   };
 
   const save = async () => {
     if(!form.sku_code.trim()||!form.name.trim()){setFErr('SKU code and name are required');return;}
     setSaving(true); setFErr('');
-    const payload:any = { sku_code:form.sku_code.trim(), name:form.name.trim(), category:form.category||null, unit:form.unit||'pcs', description:form.description||null, is_active:form.is_active, client_id:form.client_id||null };
+    const payload:any = { sku_code:form.sku_code.trim(), name:form.name.trim(), category:form.category||null, unit:form.unit||'pcs', description:form.description||null, is_active:form.is_active, client_id:form.client_id||null, is_perishable:form.is_perishable, track_batches:form.track_batches };
     if(form.price) payload.price = parseFloat(form.price);
+    payload.shelf_life_days = form.shelf_life_days!==''?parseInt(form.shelf_life_days,10):null;
+    payload.expiry_alert_days = form.expiry_alert_days!==''?parseInt(form.expiry_alert_days,10):null;
     try {
       if(editing) await api.patch(`/api/v1/skus/${editing.id}`, payload);
       else await api.post('/api/v1/skus', payload);
@@ -231,6 +233,16 @@ export default function SKUManagement() {
               <div><Label t="Category"/><input style={inp} placeholder="e.g. Confectionery" value={form.category} onChange={e=>setForm(p=>({...p,category:e.target.value}))}/></div>
               <div><Label t="MRP Price (₹)"/><input style={inp} type="number" step="0.01" min="0" placeholder="0.00" value={form.price} onChange={e=>setForm(p=>({...p,price:e.target.value}))}/></div>
               <div style={{gridColumn:'1/-1'}}><Label t="Description"/><textarea style={{...inp,resize:'none'}} rows={3} placeholder="Product details, variant info..." value={form.description} onChange={e=>setForm(p=>({...p,description:e.target.value}))}/></div>
+              <div><Label t="Shelf life (days)"/><input style={inp} type="number" min="0" placeholder="e.g. 365" value={form.shelf_life_days} onChange={e=>setForm(p=>({...p,shelf_life_days:e.target.value}))}/></div>
+              <div><Label t="Near-expiry alert (days)"/><input style={inp} type="number" min="0" placeholder="e.g. 30" value={form.expiry_alert_days} onChange={e=>setForm(p=>({...p,expiry_alert_days:e.target.value}))}/></div>
+              <label style={{gridColumn:'1/-1',display:'flex',alignItems:'center',gap:9,cursor:'pointer',fontSize:13,color:C.white}}>
+                <input type="checkbox" checked={form.is_perishable} onChange={e=>setForm(p=>({...p,is_perishable:e.target.checked}))}/>
+                Perishable
+              </label>
+              <label style={{gridColumn:'1/-1',display:'flex',alignItems:'center',gap:9,cursor:'pointer',fontSize:13,color:C.white}}>
+                <input type="checkbox" checked={form.track_batches} onChange={e=>setForm(p=>({...p,track_batches:e.target.checked}))}/>
+                Track batches / expiry
+              </label>
               {isPlatformAdmin && (
                 <div style={{gridColumn:'1 / -1'}}>
                   <Label t="Client Organization" req/>

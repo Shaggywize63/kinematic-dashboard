@@ -102,6 +102,8 @@ export const ALL_MODULES: ModuleEntry[] = [
   // the backend so granting "Consumer" implicitly unlocks last-mile.
   { id: 'distribution_last_mile',      l: 'Last Mile',    group: 'Distribution', package: 'distribution' },
   { id: 'distribution_stock',          l: 'Distributor Stock', group: 'Distribution', package: 'distribution' },
+  { id: 'distribution_receiving',      l: 'Goods Receiving', group: 'Distribution', package: 'distribution' },
+  { id: 'distribution_batches',        l: 'Batch & Expiry', group: 'Distribution', package: 'distribution' },
   { id: 'distribution_van',            l: 'Van Sales',    group: 'Distribution', package: 'distribution' },
   { id: 'distribution_damage',         l: 'Damaged / Expiry', group: 'Distribution', package: 'distribution' },
   { id: 'distribution_claims',         l: 'Claims',       group: 'Distribution', package: 'distribution' },
