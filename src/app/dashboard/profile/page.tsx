@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import api, { API_BASE_URL } from '../../../lib/api';
 import { getStoredToken, getStoredUser } from '../../../lib/auth';
+import SignedImage from '../../../components/shared/SignedImage';
 
 // Per-user profile page. Today the only editable field is the avatar
 // (name + role + email are admin-managed elsewhere). The avatar upload
@@ -108,8 +109,10 @@ export default function ProfilePage() {
           {/* Big circular preview. Falls back to the user's first
               initial so the layout stays stable while uploading. */}
           {avatarUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={avatarUrl} alt="Avatar" style={{ width: 96, height: 96, borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--border)' }} />
+            // kinematic-avatars is a PRIVATE bucket, so the stored URL must be
+            // signed before it renders; SignedImage passes non-signable URLs
+            // (freshly-picked previews) through unchanged.
+            <SignedImage src={avatarUrl} alt="Avatar" style={{ width: 96, height: 96, borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--border)' }} />
           ) : (
             <div style={{
               width: 96, height: 96, borderRadius: '50%',
