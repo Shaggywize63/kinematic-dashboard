@@ -7,6 +7,7 @@ import { getStoredUser, isSessionValid, clearSession, getDesignationLabel } from
 import api, { getActingAs, setActingAs, getImpersonateUser, stopImpersonation } from '../../lib/api';
 import { webChatsApi } from '../../lib/webChatsApi';
 import BrandLogo from '../../components/shared/BrandLogo';
+import SignedImage from '../../components/shared/SignedImage';
 import NewBadge from '../../components/shared/NewBadge';
 import { WHATS_NEW, markSectionSeen } from '../../lib/whatsNew';
 import StagingBoot from './StagingBoot';
@@ -1167,8 +1168,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     never reserves an empty hole. Red is reserved for
                     KINI AI elsewhere — initial chip stays neutral. */}
                 {user?.avatar_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
+                  // kinematic-avatars is PRIVATE — sign the stored URL before
+                  // rendering (SignedImage falls back to the raw URL on failure).
+                  <SignedImage
                     src={user.avatar_url}
                     alt={user?.name || 'Profile'}
                     style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: `1px solid ${C.border}` }}
