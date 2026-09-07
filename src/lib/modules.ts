@@ -26,6 +26,7 @@ export type ModuleGroup =
   | 'FieldForce'
   | 'CRM'
   | 'Distribution'
+  | 'SupplyChain'
   | 'Business'
   | 'System'
   | 'People'
@@ -101,19 +102,25 @@ export const ALL_MODULES: ModuleEntry[] = [
   // consumer_registrations data. Shares the distribution_consumer SKU on
   // the backend so granting "Consumer" implicitly unlocks last-mile.
   { id: 'distribution_last_mile',      l: 'Last Mile',    group: 'Distribution', package: 'distribution' },
-  { id: 'distribution_stock',          l: 'Distributor Stock', group: 'Distribution', package: 'distribution' },
-  { id: 'distribution_receiving',      l: 'Goods Receiving', group: 'Distribution', package: 'distribution' },
-  { id: 'distribution_batches',        l: 'Batch & Expiry', group: 'Distribution', package: 'distribution' },
+  // Stock-side modules live in the Supply Chain group (below) but keep their
+  // distribution package — deny-by-default per module, grantable individually.
+  { id: 'distribution_stock',          l: 'Distributor Stock', group: 'SupplyChain', package: 'distribution' },
+  { id: 'distribution_receiving',      l: 'Goods Receiving', group: 'SupplyChain', package: 'distribution' },
+  { id: 'distribution_batches',        l: 'Batch & Expiry', group: 'SupplyChain', package: 'distribution' },
   { id: 'distribution_van',            l: 'Van Sales',    group: 'Distribution', package: 'distribution' },
-  { id: 'distribution_damage',         l: 'Damaged / Expiry', group: 'Distribution', package: 'distribution' },
+  { id: 'distribution_damage',         l: 'Damaged / Expiry', group: 'SupplyChain', package: 'distribution' },
   { id: 'distribution_claims',         l: 'Claims',       group: 'Distribution', package: 'distribution' },
   { id: 'distribution_reconciliation', l: 'Reconciliation', group: 'Distribution', package: 'distribution' },
 
+  // Supply Chain — core inventory masters (universal, always-on) grouped with
+  // the stock/batch modules above so the whole SCM surface reads as one area.
+  // These stay package:'business' universal, so no tenant loses access.
+  { id: 'inventory', l: 'Warehouse',      group: 'SupplyChain', package: 'business', universal: true },
+  { id: 'skus',      l: 'SKU Management', group: 'SupplyChain', package: 'business', universal: true },
+  { id: 'assets',    l: 'Asset Mgmt',     group: 'SupplyChain', package: 'business', universal: true },
+
   // Business (universal — every client gets these)
   { id: 'clients',   l: 'Clients',        group: 'Business', package: 'business', universal: true },
-  { id: 'inventory', l: 'Warehouse',      group: 'Business', package: 'business', universal: true },
-  { id: 'skus',      l: 'SKU Management', group: 'Business', package: 'business', universal: true },
-  { id: 'assets',    l: 'Asset Mgmt',     group: 'Business', package: 'business', universal: true },
 
   // System (universal but per-toggle per client)
   { id: 'cities',          l: 'Cities',          group: 'System', package: 'system', universal: true },
@@ -137,13 +144,14 @@ export const ALL_MODULES: ModuleEntry[] = [
   { id: 'audit_log', l: 'Activity Log', group: 'Audit', package: 'audit' },
 ];
 
-export const MODULE_GROUPS: ModuleGroup[] = ['FieldForce', 'CRM', 'Distribution', 'Business', 'System', 'People', 'Audit'];
+export const MODULE_GROUPS: ModuleGroup[] = ['FieldForce', 'CRM', 'SupplyChain', 'Distribution', 'Business', 'System', 'People', 'Audit'];
 
 /** Friendly display labels for `MODULE_GROUPS` (used in admin permission UIs). */
 export const MODULE_GROUP_LABELS: Record<ModuleGroup, string> = {
   FieldForce:   'Field Force',
   CRM:          'Lead Management (CRM)',
-  Distribution: 'Supply Chain & Distribution',
+  SupplyChain:  'Supply Chain',
+  Distribution: 'Distribution',
   Business:     'Business',
   System:       'System Management',
   People:       'People & Support',

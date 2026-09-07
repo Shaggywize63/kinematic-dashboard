@@ -639,7 +639,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       { href: '/dashboard/crm/settings',         label: 'Settings',       icon: ICON_SETTINGS, module: 'crm_settings' },
       { href: '/dashboard/crm/help',             label: 'Help',           icon: 'M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3 M12 17h.01 M22 12a10 10 0 11-20 0 10 10 0 0120 0z', module: 'crm_dashboard' },
     ]},
-    { label: 'Supply Chain & Distribution', package: 'distribution', items: [
+    { label: 'Distribution', package: 'distribution', items: [
       { href: '/dashboard/distribution/control-tower',    label: 'Control Tower', icon: 'M12 2a10 10 0 100 20 10 10 0 000-20z M12 6v6l4 2', module: 'distribution' },
       { href: '/dashboard/distribution/ai',               label: 'AI Copilot',    icon: 'M12 2l2.4 5.6L20 8l-4 4 1 6-5-3-5 3 1-6-4-4 5.6-.4z', module: 'distribution' },
       { href: '/dashboard/distribution/setup',            label: 'Network Setup', icon: 'M3 7l9-4 9 4-9 4-9-4z M3 12l9 4 9-4 M3 17l9 4 9-4', module: 'distribution' },
@@ -656,10 +656,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       { href: '/dashboard/distribution/payments',         label: 'Payments',     icon: 'M2 6h20v12H2z M2 10h20', module: 'distribution_payments' },
       { href: '/dashboard/distribution/returns',          label: 'Returns',      icon: 'M9 14l-4-4 4-4 M5 10h11a4 4 0 014 4v0a4 4 0 01-4 4h-3', module: 'distribution_returns' },
       { href: '/dashboard/distribution/ledger',           label: 'Ledger',       icon: 'M3 6l9-3 9 3 M5 6v15h14V6 M9 11h6 M9 15h6', module: 'distribution_ledger' },
-      { href: '/dashboard/distribution/stock',            label: 'Distributor Stock', icon: 'M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z M3.27 6.96L12 12.01l8.73-5.05 M12 22.08V12', module: 'distribution_stock' },
-      { href: '/dashboard/distribution/batches',          label: 'Batch & Expiry', icon: 'M8 2v4 M16 2v4 M3 10h18 M5 4h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z M12 14v3 M12 20h.01', module: 'distribution_batches' },
       { href: '/dashboard/distribution/van-loads',        label: 'Van Sales',    icon: 'M1 3h15v13H1z M16 8h4l3 3v5h-7V8z M5.5 21a2.5 2.5 0 100-5 2.5 2.5 0 000 5z M18.5 21a2.5 2.5 0 100-5 2.5 2.5 0 000 5z', module: 'distribution_van' },
-      { href: '/dashboard/distribution/damage',           label: 'Damaged / Expiry', icon: 'M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z M12 9v4 M12 17h.01', module: 'distribution_damage' },
       { href: '/dashboard/distribution/claims',           label: 'Claims',       icon: 'M9 12l2 2 4-4 M21 12a9 9 0 11-18 0 9 9 0 0118 0z', module: 'distribution_claims' },
       { href: '/dashboard/distribution/reconciliation',   label: 'Reconciliation', icon: 'M21 12a9 9 0 01-9 9m0 0a9 9 0 01-9-9m9 9V3m0 0a9 9 0 019 9M3 12h18', module: 'distribution_reconciliation' },
       { href: '/dashboard/distribution/secondary-sales',  label: 'Consumer',     icon: 'M3 3h18v18H3z M3 9h18 M9 21V9', module: 'distribution_consumer' },
@@ -670,11 +667,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       { href: '/dashboard/distribution/capture',                    label: 'Consumer Capture',   icon: 'M4 4h6v6H4z M14 4h6v6h-6z M4 14h6v6H4z M14 14h3v3h-3z M20 14v6h-3 M17 20h-3', module: 'distribution_consumer' },
       { href: '/dashboard/distribution/integrations',     label: 'Integrations', icon: 'M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71 M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71', module: 'distribution', hiddenForPMC: true },
     ]},
+    // Supply Chain — the stock/inventory surface, unified in one section.
+    // package:'business' keeps it universal (always-visible, and hidden
+    // wholesale for the same MoiSoi/PMC/CRM-only tenants as the old Business
+    // section — no access change). The universal masters (Warehouse/SKU/Asset)
+    // always show; the distribution_* items self-gate deny-by-default via
+    // filterNav, so they appear only for clients granted those SCM modules.
+    { label: 'Supply Chain', package: 'business', items: [
+      { href: '/dashboard/warehouse',                label: 'Warehouse',      icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4', module: 'inventory' },
+      { href: '/dashboard/other-management/skus',    label: 'SKU Management', icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4', module: 'skus' },
+      { href: '/dashboard/other-management/assets',  label: 'Assets',         icon: 'M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z', module: 'assets' },
+      { href: '/dashboard/distribution/stock',       label: 'Distributor Stock', icon: 'M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z M3.27 6.96L12 12.01l8.73-5.05 M12 22.08V12', module: 'distribution_stock' },
+      { href: '/dashboard/distribution/batches',     label: 'Batch & Expiry', icon: 'M8 2v4 M16 2v4 M3 10h18 M5 4h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z M12 14v3 M12 20h.01', module: 'distribution_batches' },
+      { href: '/dashboard/distribution/damage',      label: 'Damaged / Expiry', icon: 'M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z M12 9v4 M12 17h.01', module: 'distribution_damage' },
+    ]},
     { label: 'Business', package: 'business', items: [
       { href: '/dashboard/clients',                  label: 'Clients',   icon: 'M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 7a4 4 0 100-8 4 4 0 000 8z', module: 'clients' },
-      { href: '/dashboard/warehouse',                label: 'Warehouse', icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4', module: 'inventory' },
-      { href: '/dashboard/other-management/assets',  label: 'Assets',    icon: 'M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z', module: 'assets' },
-      { href: '/dashboard/other-management/skus',    label: 'SKU',       icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4', module: 'skus' },
     ]},
     { label: 'People & Support', package: 'people', items: [
       { href: '/dashboard/manpower-directory', label: 'Users',         icon: 'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 7a4 4 0 100-8 4 4 0 000 8z M23 21v-2a4 4 0 00-3-3.87 M16 3.13a4 4 0 010 7.75', module: 'users' },
