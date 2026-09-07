@@ -55,7 +55,10 @@ export const LOW_BATTERY = {
 };
 
 /* ── KPI tile (drop into the existing KPI strip) ───────────────── */
-export function LowBatteryKpi({ fes }: { fes: FELowBatteryShape[] }) {
+// `loading` is accepted for call-site parity with the other KPI tiles
+// (which dim while data loads); this tile derives its count reactively,
+// so it simply ignores the flag.
+export function LowBatteryKpi({ fes }: { fes: FELowBatteryShape[]; loading?: boolean }) {
   const count = fes.filter(LOW_BATTERY.isWarning).length;
   return (
     <div style={{
