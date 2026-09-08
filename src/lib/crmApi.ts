@@ -1,4 +1,4 @@
-import api, { resolveApiUrl } from './api';
+import api, { resolveApiUrl, extractApiError } from './api';
 import type {
   Lead, Contact, Account, Deal, DealContact, DealHistoryEntry,
   Pipeline, Stage, Activity, Note, Task,
@@ -761,6 +761,28 @@ export const crmStatesApi = {
 
 export const crmCitiesApi = crud<CrmCity>(`${BASE}/cities`);
 
+// Robustly parse a multipart-upload response. The backend returns errors as
+// { success:false, error:{ code, message } }, so the old `throw new
+// Error(d.error)` stringified that object to the literal "[object Object]" in
+// the toast (the exact bug this replaces). Read the body once, pull a human
+// string via extractApiError, and fall back to raw text / status — with a
+// plain-language message for a 413 (gateway body-size rejection), which is
+// otherwise an opaque HTML page.
+async function readUploadResponse<T>(r: Response): Promise<Wrapped<T>> {
+  const raw = await r.text();
+  if (!r.ok) {
+    if (r.status === 413) {
+      throw new Error('That file is too large to import in one go. Split it into smaller files (or fewer rows) and try again.');
+    }
+    let msg = `Upload failed (${r.status})`;
+    try { msg = extractApiError(JSON.parse(raw)); }
+    catch { if (raw.trim()) msg = raw.trim().slice(0, 200); }
+    throw new Error(msg);
+  }
+  try { return JSON.parse(raw) as Wrapped<T>; }
+  catch { throw new Error('The server returned an unreadable response to the upload.'); }
+}
+
 export const crmImport = {
   upload: (formData: FormData) => {
     const token = typeof window !== 'undefined' ? localStorage.getItem('kinematic_token') : null;
@@ -773,11 +795,7 @@ export const crmImport = {
       method: 'POST',
       body: formData,
       headers,
-    }).then(async (r) => {
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.error || d.message || 'Upload failed');
-      return d as Wrapped<ImportJob>;
-    });
+    }).then((r) => readUploadResponse<ImportJob>(r));
   },
   preview: (body: { job_id: string; mapping: Record<string, string> }) =>
     api.post<Wrapped<{ job: ImportJob; sample: Array<Record<string, unknown>> }>>(
@@ -806,11 +824,7 @@ export const crmActivityImport = {
       method: 'POST',
       body: formData,
       headers,
-    }).then(async (r) => {
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.error || d.message || 'Upload failed');
-      return d as Wrapped<ImportJob>;
-    });
+    }).then((r) => readUploadResponse<ImportJob>(r));
   },
   preview: (body: { job_id: string; mapping: Record<string, string> }) =>
     api.post<Wrapped<{ mapped_sample: Array<Record<string, unknown>>; warnings: Array<{ row: number; reason: string }> }>>(
