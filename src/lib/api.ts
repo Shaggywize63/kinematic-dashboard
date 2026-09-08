@@ -220,7 +220,7 @@ function lsClear() {
 // some older handlers use a flat `{ error: "msg" }` or `{ message }`. Pull a
 // human string out of any of these shapes (a naive `data.error` would render
 // "[object Object]" for the nested form).
-function extractApiError(data: any): string {
+export function extractApiError(data: any): string {
   if (!data || typeof data !== 'object') return 'Request failed';
   const e = data.error;
   if (typeof e === 'string') return e;
