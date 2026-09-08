@@ -887,8 +887,42 @@ export const crmAnalytics = {
   byState: () => api.get<Wrapped<StateCount[]>>(`${BASE}/analytics/by-state`),
 };
 
+// Structured lead fields returned by POST /crm/ai/extract-lead — the "Fill
+// with voice" backend. Every field is nullable; the client maps the non-empty
+// ones onto the Create Lead form (still gated by the field-override contract,
+// so a value for an admin-hidden field never renders). Mirrors the backend +
+// iOS ExtractedLead shape exactly.
+export interface ExtractedLead {
+  first_name: string | null;
+  last_name: string | null;
+  phone: string | null;                // 10-digit, digits only
+  alternate_mobiles: string[] | null;
+  email: string | null;
+  company: string | null;
+  title: string | null;
+  industry: string | null;
+  date_of_birth: string | null;        // YYYY-MM-DD when derivable
+  gender: 'male' | 'female' | 'other' | 'prefer_not_to_say' | null;
+  address_line1: string | null;
+  city: string | null;
+  state: string | null;
+  postal_code: string | null;
+  country: string | null;
+  preferred_contact_method: 'email' | 'phone' | 'whatsapp' | 'sms' | null;
+  notes: string | null;
+  source_hint: string | null;          // fuzzy-matched to the tenant's source list
+  custom_fields: Record<string, string> | null;
+}
+
 export const crmAi = {
   scoreLead: (id: string) => api.post<Wrapped<LeadScore>>(`${BASE}/ai/score-lead/${id}`, {}),
+  // Voice/text → structured lead fields. POSTs a short spoken description of a
+  // prospect and returns the parsed fields so the lead form can pre-fill for
+  // review. Unwraps `.data` (the api client already reads the body once + throws
+  // a plain-language Error on a non-2xx, e.g. the monthly AI-limit 400). NOT a
+  // KINI chat turn — it does not count against the monthly chat quota.
+  extractLead: (body: { transcript: string; is_b2c: boolean }) =>
+    api.post<Wrapped<ExtractedLead>>(`${BASE}/ai/extract-lead`, body).then((r) => r.data),
   draftReply: (body: { lead_id?: string; deal_id?: string; thread?: string; tone?: string; goal?: string }) =>
     api.post<Wrapped<{ subject: string; body_html: string; body_text: string }>>(
       `${BASE}/ai/draft-reply`,

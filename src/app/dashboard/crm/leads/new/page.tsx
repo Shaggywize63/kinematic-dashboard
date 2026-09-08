@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { crmLeads, crmSettings, crmLeadSources, crmProducts, crmTargets, type MyTarget } from '../../../../../lib/crmApi';
+import { crmLeads, crmSettings, crmLeadSources, crmProducts, crmTargets, type MyTarget, type ExtractedLead } from '../../../../../lib/crmApi';
 import api from '../../../../../lib/api';
 import { reverseGeocode } from '../../../../../lib/googleGeocode';
 import { useClient } from '../../../../../context/ClientContext';
@@ -12,6 +12,7 @@ import CustomFieldsSection from '../../../../../components/crm/CustomFieldsSecti
 import GoogleAddressAutocomplete from '../../../../../components/crm/GoogleAddressAutocomplete';
 import UserSearchSelect, { type UserOption } from '../../../../../components/crm/shared/UserSearchSelect';
 import AlternateMobiles from '../../../../../components/crm/AlternateMobiles';
+import { LeadVoiceCapturePanel } from '../../../../../components/crm/VoiceCaptureOverlay';
 import ClientScopeField from '../../../../../components/ClientScopeField';
 import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '../../../../../lib/crmFieldOverrides';
 import { DataCollectionConsent, NOTICE_VERSION } from '../../../../../components/crm/DataConsent';
@@ -90,6 +91,9 @@ export default function NewLeadPage() {
   const router = useRouter();
   const [form, setForm] = useState<Form>(empty);
   const [busy, setBusy] = useState(false);
+  // KINI "Fill with voice" — opens the distinct voice-capture panel; on confirm
+  // the extracted fields are merged into `form` for review (see applyExtracted).
+  const [showVoice, setShowVoice] = useState(false);
   const [geoBusy, setGeoBusy] = useState(false);
   const [geoError, setGeoError] = useState('');
   // Self-only roles (org_role.data_scope === 'own', e.g. Consumer Champion)
@@ -332,6 +336,53 @@ export default function NewLeadPage() {
         ? f.product_ids.filter((x) => x !== id)
         : [...f.product_ids, id],
     }));
+  };
+
+  // Merge KINI-extracted lead fields onto the form for review. Only non-empty
+  // values overwrite (a partial transcript never wipes what the rep already
+  // typed). Built-in fields only — custom_fields + notes are skipped this cut.
+  // We fill state regardless of a field's visibility; the field-override
+  // contract still governs render + save, so a value for an admin-hidden field
+  // simply never shows and is stripped on submit. Mirrors the iOS apply().
+  const applyExtracted = (e: ExtractedLead) => {
+    const clean = (v: string | null | undefined): string => (typeof v === 'string' ? v.trim() : '');
+    const digits10 = (v: string | null | undefined): string => (v || '').replace(/\D/g, '').slice(0, 10);
+    setForm((f) => {
+      const next = { ...f };
+      const fn = clean(e.first_name); if (fn) next.first_name = fn;
+      const ln = clean(e.last_name); if (ln) next.last_name = ln;
+      const em = clean(e.email); if (em) next.email = em.toLowerCase();
+      const ph = digits10(e.phone); if (ph) next.phone = ph;
+      if (Array.isArray(e.alternate_mobiles)) {
+        const alts = e.alternate_mobiles.map(digits10).filter((d) => d.length === 10);
+        if (alts.length) next.alternate_mobiles = alts;
+      }
+      const co = clean(e.company); if (co) next.company = co;
+      const ti = clean(e.title); if (ti) next.title = ti;
+      const ind = clean(e.industry); if (ind) next.industry = ind;
+      const a1 = clean(e.address_line1); if (a1) next.address_line1 = a1;
+      const ci = clean(e.city); if (ci) next.city = ci;
+      const st = clean(e.state); if (st) next.state = st;
+      const pc = clean(e.postal_code); if (pc) next.postal_code = pc;
+      const cn = clean(e.country); if (cn) next.country = cn;
+      const g = clean(e.gender).toLowerCase();
+      if (g && ['male', 'female', 'other', 'prefer_not_to_say'].includes(g)) next.gender = g as Form['gender'];
+      const ch = clean(e.preferred_contact_method).toLowerCase();
+      if (ch && ['email', 'phone', 'whatsapp', 'sms'].includes(ch)) next.preferred_contact_method = ch as Form['preferred_contact_method'];
+      const dob = clean(e.date_of_birth);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dob)) next.date_of_birth = dob;
+      // Source hint → best-effort match against the tenant's active source list.
+      const hint = clean(e.source_hint).toLowerCase();
+      if (hint) {
+        const match = sources.find((s) => {
+          const n = (s.name || '').toLowerCase();
+          return !!n && (n.includes(hint) || hint.includes(n));
+        });
+        if (match) next.source_id = match.id;
+      }
+      return next;
+    });
+    toast.success('Details filled in from voice — review and save.');
   };
 
   // Scroll the named field into view and focus its input/select so the
@@ -608,11 +659,43 @@ export default function NewLeadPage() {
         : 'Business lead — capture company and decision-maker info.');
 
   return (
+    <>
     <form onSubmit={submit} noValidate style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 24, maxWidth: 820 }}>
       <h2 style={{ marginTop: 0, fontSize: 18, color: 'var(--text)' }}>New Lead</h2>
       <p style={{ margin: '-4px 0 18px', fontSize: 13, color: 'var(--text-dim)' }}>
         {leadTypeLabel}{' '}Fields marked <span style={{ color: '#ef4444' }}>*</span> are required.
       </p>
+
+      {/* KINI "Fill with voice" — dictate a prospect and let KINI auto-fill the
+          form. Fills only the form state (applyExtracted); the field-override
+          contract still governs what renders + saves. Voice is input only. */}
+      <button
+        type="button"
+        onClick={() => setShowVoice(true)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 12, width: '100%',
+          padding: '11px 14px', marginBottom: 18, borderRadius: 12,
+          border: '1px solid var(--border)', background: 'var(--s3)',
+          cursor: 'pointer', textAlign: 'left',
+        }}
+      >
+        <span style={{
+          width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
+          background: 'linear-gradient(135deg, #FF4D4D, #E01E2C)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z" />
+            <path d="M19 10v1a7 7 0 0 1-14 0v-1" />
+            <path d="M12 18v4" /><path d="M8 22h8" />
+          </svg>
+        </span>
+        <span style={{ flex: 1, minWidth: 0 }}>
+          <span style={{ display: 'block', fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>Fill with voice</span>
+          <span style={{ display: 'block', fontSize: 12, color: 'var(--text-dim)' }}>Describe the lead — KINI fills the form</span>
+        </span>
+        <span style={{ fontSize: 16, flexShrink: 0 }}>✨</span>
+      </button>
 
       {myTarget && myTarget.target > 0 && (() => {
         const done = myTarget.achieved >= myTarget.target;
@@ -887,6 +970,19 @@ export default function NewLeadPage() {
         <button type="submit" disabled={busy || (!skipLocation && (!form.latitude || !form.longitude))} title={!skipLocation && (!form.latitude || !form.longitude) ? 'Capture your location to enable' : undefined} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 18px', borderRadius: 8, fontWeight: 700, cursor: (busy || (!skipLocation && (!form.latitude || !form.longitude))) ? 'not-allowed' : 'pointer', opacity: (busy || (!skipLocation && (!form.latitude || !form.longitude))) ? 0.6 : 1 }}>{busy ? 'Saving...' : 'Create Lead'}</button>
       </div>
     </form>
+
+    {/* Distinct full-screen voice-capture panel. Rendered OUTSIDE the <form>
+        so its (defensively type="button") controls can never submit the lead
+        form. On "Use these details" it POSTs the transcript to the extractor
+        and hands the fields to applyExtracted. */}
+    {showVoice && (
+      <LeadVoiceCapturePanel
+        isB2C={isTata || form.is_b2c}
+        onExtracted={applyExtracted}
+        onClose={() => setShowVoice(false)}
+      />
+    )}
+    </>
   );
 }
 
