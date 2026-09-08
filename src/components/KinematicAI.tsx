@@ -84,13 +84,61 @@ function useVisualViewportHeight(active: boolean): number | null {
   return h;
 }
 
-// Web Speech API recogniser. Returns helpers + the `listening` flag.
+// Web Speech API recogniser. Returns helpers + the `listening` flag, plus a
+// live `level` (0…1 mic amplitude) and `interim` (streaming partial transcript)
+// so the voice UI can render an animated orb reacting to the caller's voice.
 // Falls back to a no-op when the browser doesn't support it (Firefox stable,
-// Safari iOS < 14). The mic button hides itself in that case.
+// Safari iOS < 14). The mic button hides itself in that case. The amplitude
+// meter is a best-effort side channel (getUserMedia + AnalyserNode); if it
+// fails, voice still works and the orb just breathes.
 function useSpeechRecognition({ onResult }: { onResult: (text: string) => void }) {
   const [listening, setListening] = useState(false);
   const [supported, setSupported] = useState(false);
+  const [level, setLevel] = useState(0);      // 0…1 smoothed mic amplitude
+  const [interim, setInterim] = useState(''); // live partial transcript
   const recRef = useRef<any>(null);
+  // Amplitude-meter plumbing — separate from the recogniser so a getUserMedia
+  // failure never breaks transcription.
+  const streamRef = useRef<MediaStream | null>(null);
+  const ctxRef = useRef<any>(null);
+  const rafRef = useRef<number | null>(null);
+
+  const stopMeter = useCallback(() => {
+    if (rafRef.current != null) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
+    try { streamRef.current?.getTracks().forEach(t => t.stop()); } catch { /* */ }
+    streamRef.current = null;
+    try { ctxRef.current?.close(); } catch { /* */ }
+    ctxRef.current = null;
+    setLevel(0);
+  }, []);
+
+  const startMeter = useCallback(async () => {
+    try {
+      if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) return;
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      const AC = (window as any).AudioContext || (window as any).webkitAudioContext;
+      if (!AC) return;
+      const ctx = new AC();
+      ctxRef.current = ctx;
+      const src = ctx.createMediaStreamSource(stream);
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 512;
+      src.connect(analyser);
+      const buf = new Uint8Array(analyser.fftSize);
+      const tick = () => {
+        analyser.getByteTimeDomainData(buf);
+        let sum = 0;
+        for (let i = 0; i < buf.length; i++) { const v = (buf[i] - 128) / 128; sum += v * v; }
+        const rms = Math.sqrt(sum / buf.length);
+        // Gain up (speech RMS is small) + low-pass smooth so the orb reads
+        // organic rather than jittery.
+        setLevel(prev => prev * 0.6 + Math.min(1, rms * 3.2) * 0.4);
+        rafRef.current = requestAnimationFrame(tick);
+      };
+      rafRef.current = requestAnimationFrame(tick);
+    } catch { /* amplitude is best-effort */ }
+  }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -99,19 +147,23 @@ function useSpeechRecognition({ onResult }: { onResult: (text: string) => void }
     setSupported(true);
     const rec = new SR();
     rec.continuous = false;
-    rec.interimResults = false;
+    rec.interimResults = true;
     rec.lang = 'en-IN';
     rec.onresult = (e: any) => {
-      const transcript = Array.from(e.results)
-        .map((r: any) => r[0]?.transcript ?? '')
-        .join(' ')
-        .trim();
-      if (transcript) onResult(transcript);
+      let finalText = '';
+      let interimText = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const r = e.results[i];
+        const t = r[0]?.transcript ?? '';
+        if (r.isFinal) finalText += t; else interimText += t;
+      }
+      if (interimText) setInterim(interimText.trim());
+      if (finalText.trim()) { setInterim(''); onResult(finalText.trim()); }
     };
-    rec.onend = () => setListening(false);
-    rec.onerror = () => setListening(false);
+    rec.onend = () => { setListening(false); setInterim(''); stopMeter(); };
+    rec.onerror = () => { setListening(false); setInterim(''); stopMeter(); };
     recRef.current = rec;
-    return () => { try { rec.abort(); } catch { /* */ } };
+    return () => { try { rec.abort(); } catch { /* */ } stopMeter(); };
   // onResult is stable per chat instance; intentionally not in deps to avoid
   // tearing down the recogniser on every keystroke.
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -119,14 +171,24 @@ function useSpeechRecognition({ onResult }: { onResult: (text: string) => void }
 
   const start = useCallback(() => {
     if (!recRef.current || listening) return;
-    try { recRef.current.start(); setListening(true); } catch { /* already running */ }
-  }, [listening]);
+    try { recRef.current.start(); setListening(true); void startMeter(); } catch { /* already running */ }
+  }, [listening, startMeter]);
   const stop = useCallback(() => {
+    // Finalise — flush whatever was captured (fires onresult → onend → send).
     if (!recRef.current) return;
     try { recRef.current.stop(); } catch { /* */ }
-  }, []);
+    stopMeter();
+  }, [stopMeter]);
+  const cancel = useCallback(() => {
+    // Discard — abort without emitting a final result, so nothing is sent.
+    if (!recRef.current) { stopMeter(); setListening(false); setInterim(''); return; }
+    try { recRef.current.abort(); } catch { /* */ }
+    stopMeter();
+    setListening(false);
+    setInterim('');
+  }, [stopMeter]);
 
-  return { listening, supported, start, stop };
+  return { listening, supported, start, stop, cancel, level, interim };
 }
 
 function Icon({ d, size = 18 }: { d: string; size?: number }) {
@@ -800,6 +862,9 @@ Be elite, professional, and data-driven. Use **bold** for key metrics. Proactive
         @keyframes km-ai-slide-up { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         @keyframes km-mic-pulse  { 0%,100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.18); opacity: 0.7; } }
         @keyframes km-ai-spin    { to { transform: rotate(360deg); } }
+        @keyframes km-orb-breathe { 0%,100% { transform: scale(0.97); } 50% { transform: scale(1.03); } }
+        @keyframes km-orb-ripple  { 0% { transform: scale(0.85); opacity: 0.55; } 100% { transform: scale(1.9); opacity: 0; } }
+        @keyframes km-fade-in     { from { opacity: 0; } to { opacity: 1; } }
       `}</style>
 
       <button
@@ -1028,9 +1093,100 @@ Be elite, professional, and data-driven. Use **bold** for key metrics. Proactive
               <Icon d="M5 12h14M12 5l7 7-7 7" size={20} />
             </button>
           </div>
+
+          {/* Full-screen voice-capture overlay — the live-animation surface.
+              Covers the panel while the mic is hot; the orb reacts to the
+              caller's amplitude. Done finalises + sends, X discards. */}
+          {speech.listening && (
+            <KiniVoiceOverlay
+              level={speech.level}
+              interim={speech.interim}
+              isMobile={isMobile}
+              onCancel={() => speech.cancel()}
+              onDone={() => speech.stop()}
+            />
+          )}
         </div>
       )}
     </>
+  );
+}
+
+// Full-screen voice-capture overlay shown over the chat panel while the mic is
+// live. A brand-gradient orb ripples and scales with the caller's microphone
+// amplitude (`level`, 0…1), with the streaming transcript beneath it. Voice is
+// input only — Done finalises + sends, X discards.
+function KiniVoiceOverlay({
+  level, interim, isMobile, onCancel, onDone,
+}: {
+  level: number; interim: string; isMobile: boolean;
+  onCancel: () => void; onDone: () => void;
+}) {
+  const amp = Math.max(0, Math.min(1, level));
+  const orbSize = isMobile ? 150 : 176;
+  const ctrlBtn: React.CSSProperties = {
+    width: 52, height: 52, borderRadius: '50%',
+    border: '1px solid rgba(255,255,255,0.22)', background: 'rgba(255,255,255,0.12)',
+    color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+  };
+  return (
+    <div style={{
+      position: 'absolute', inset: 0, zIndex: 5,
+      background: 'rgba(8,8,12,0.74)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
+      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+      padding: 24, animation: 'km-fade-in 0.2s ease-out',
+    }}>
+      <div style={{
+        position: 'relative', width: orbSize * 1.9, height: orbSize * 1.9,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        {/* Rippling rings — continuous outward ripple. */}
+        {[0, 1, 2].map(i => (
+          <span key={i} style={{
+            position: 'absolute', width: orbSize, height: orbSize, borderRadius: '50%',
+            border: `2px solid rgba(224,30,44,${0.4 - i * 0.1})`,
+            animation: `km-orb-ripple ${2.2 + i * 0.4}s ease-out ${i * 0.5}s infinite`,
+          }} />
+        ))}
+        {/* Core orb — brand radial gradient, scales + glows with amplitude. */}
+        <div style={{
+          width: orbSize, height: orbSize, borderRadius: '50%',
+          background: 'radial-gradient(circle at 38% 34%, #FF6B6B 0%, #E01E2C 45%, #1E3A8A 120%)',
+          boxShadow: `0 0 ${28 + amp * 60}px rgba(224,30,44,${0.5 + amp * 0.4})`,
+          transform: `scale(${1 + amp * 0.28})`,
+          transition: 'transform 0.08s linear, box-shadow 0.08s linear',
+          animation: 'km-orb-breathe 3s ease-in-out infinite',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <KiniMascot size={Math.round(orbSize * 0.5)} />
+        </div>
+      </div>
+
+      <div style={{ marginTop: 26, fontSize: 12, fontWeight: 900, letterSpacing: 1.6, color: '#FF6B6B' }}>
+        LISTENING…
+      </div>
+      <div style={{
+        marginTop: 10, maxWidth: 360, textAlign: 'center',
+        color: interim ? '#fff' : 'rgba(255,255,255,0.6)',
+        fontSize: 18, fontWeight: 600, lineHeight: 1.4, minHeight: 50,
+      }}>
+        {interim || 'Say something like “show my hottest leads”'}
+      </div>
+
+      <div style={{ display: 'flex', gap: 26, alignItems: 'center', marginTop: 28 }}>
+        <button onClick={onCancel} aria-label="Cancel voice" style={ctrlBtn}>
+          <Icon d="M18 6L6 18M6 6l12 12" size={22} />
+        </button>
+        <button onClick={onDone} aria-label="Send" style={{
+          width: 66, height: 66, borderRadius: '50%', border: 'none', cursor: 'pointer',
+          background: 'linear-gradient(135deg, #FF4D4D, #E01E2C)',
+          boxShadow: '0 10px 30px rgba(224,30,44,0.5)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff',
+        }}>
+          <Icon d="M12 19V5M5 12l7-7 7 7" size={26} />
+        </button>
+      </div>
+    </div>
   );
 }
 
