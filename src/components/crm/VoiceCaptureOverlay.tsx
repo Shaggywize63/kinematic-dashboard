@@ -7,13 +7,15 @@
  *  - `KiniVoiceOverlay` — the KINI chat overlay: appears over the chat panel
  *    while the mic is hot, with Done (finalise + send) and X (discard). Voice is
  *    input only. Consumed by KinematicAI.tsx.
- *  - `LeadVoiceCapturePanel` — a distinct full-screen voice panel for the lead
- *    form: an amplitude orb + live transcript + mic/stop + "Use these details".
- *    On confirm it POSTs the transcript to `/crm/ai/extract-lead` and hands the
- *    structured fields back to the caller (which merges them into the form's
- *    state, still gated by the field-override contract). Voice is input only.
+ *  - `InlineLeadVoiceCapture` — an INLINE press-and-hold (walkie-talkie) mic
+ *    control that lives directly inside the New Lead form (no modal). The rep
+ *    presses and HOLDS the mic to record and RELEASES to submit: on release it
+ *    stops the recogniser, POSTs the transcript to `/crm/ai/extract-lead`, and
+ *    hands the structured fields back to the caller (which merges them into the
+ *    form's state, still gated by the field-override contract). A live orb +
+ *    transcript animate in-place on the same page. Voice is input only.
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import KiniMascot from './KiniMascot';
 import { useSpeechRecognition } from '../../lib/useSpeechRecognition';
 import { crmAi, type ExtractedLead } from '../../lib/crmApi';
@@ -152,157 +154,282 @@ function friendlyError(e: unknown): string {
   return "Couldn't read that — please try again, or type the details in instead.";
 }
 
-// A distinct full-screen voice panel for the lead form. The rep taps the mic,
-// describes a prospect, and on "Use these details" the transcript is sent to
-// the extractor; the structured fields come back to `onExtracted`. Manages the
-// speech recogniser, transcript accumulation, extraction call, and errors.
-export function LeadVoiceCapturePanel({
-  isB2C, onExtracted, onClose,
+// Phases of the inline walkie-talkie control:
+//   idle       — a resting mic pill with the "hold to speak" hint.
+//   listening  — the rep is holding the button; orb + live transcript animate
+//                in-place on the page (NOT a modal).
+//   processing — released with a usable transcript; awaiting extract-lead.
+//   success    — fields were filled; a brief confirmation before collapsing.
+//   error      — extraction failed; a friendly inline message, retry by holding.
+type VoicePhase = 'idle' | 'listening' | 'processing' | 'success' | 'error';
+
+// An INLINE press-and-hold ("walkie-talkie") voice control that lives directly
+// inside the New Lead form — no modal, no separate screen. The rep presses and
+// HOLDS the mic to record and RELEASES to submit: on release we stop the
+// recogniser, and if the transcript is usable we POST it to `/crm/ai/extract-
+// lead` and hand the structured fields to `onExtracted` (which merges them into
+// the form, still gated by the field-override contract). The orb + transcript
+// animate in-place on the same page. Voice is input only.
+export function InlineLeadVoiceCapture({
+  isB2C, onExtracted,
 }: {
   isB2C: boolean;
   onExtracted: (e: ExtractedLead) => void;
-  onClose: () => void;
 }) {
   const isMobile = useIsMobile();
-  const [transcript, setTranscript] = useState('');
-  const [extracting, setExtracting] = useState(false);
+  const [phase, setPhase] = useState<VoicePhase>('idle');
+  const [transcriptView, setTranscriptView] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  // Accumulate each finalised utterance so a rep can pause and resume (the Web
-  // Speech recogniser ends after a pause). Interim words render live below.
+  // Accumulate every finalised utterance across the hold. The ref is the source
+  // of truth read synchronously on release (React state lags a tick); the view
+  // state just drives the live preview.
+  const transcriptRef = useRef('');
+  // Continuous recognition so a brief pause mid-sentence doesn't end the hold —
+  // the recogniser stays hot until the rep releases and we call stop().
   const speech = useSpeechRecognition({
-    onResult: (text) => setTranscript((prev) => (prev ? `${prev} ${text}` : text).trim()),
+    continuous: true,
+    onResult: (text) => {
+      transcriptRef.current = (transcriptRef.current ? `${transcriptRef.current} ${text}` : text).trim();
+      setTranscriptView(transcriptRef.current);
+    },
   });
 
-  const orbSize = isMobile ? 150 : 184;
-  const canUse = !!transcript.trim() && !speech.listening && !extracting;
+  // Latest props/handlers behind refs so the stable finalize callback (invoked
+  // from an effect on the listening→idle transition) never closes over stale
+  // values.
+  const isB2CRef = useRef(isB2C);
+  const onExtractedRef = useRef(onExtracted);
+  useEffect(() => { isB2CRef.current = isB2C; }, [isB2C]);
+  useEffect(() => { onExtractedRef.current = onExtracted; }, [onExtracted]);
 
-  const toggleMic = useCallback(() => {
-    if (speech.listening) { speech.stop(); return; }
-    setError(null);
-    speech.start();
-  }, [speech]);
+  // True from pointer-down until release/cancel; distinguishes a natural end
+  // from the rep letting go. `submitRef` marks that a release is awaiting the
+  // recogniser's final flush before we run the extraction.
+  const holdingRef = useRef(false);
+  const submitRef = useRef(false);
+  const successTimerRef = useRef<number | null>(null);
 
-  const handleUseDetails = useCallback(async () => {
-    const t = transcript.trim();
-    if (!t || extracting) return;
-    speech.stop();
-    setExtracting(true);
+  const clearSuccessTimer = () => {
+    if (successTimerRef.current != null) { window.clearTimeout(successTimerRef.current); successTimerRef.current = null; }
+  };
+
+  const resetIdle = useCallback(() => {
+    transcriptRef.current = '';
+    setTranscriptView('');
     setError(null);
+    setPhase('idle');
+  }, []);
+
+  // Run the extraction with whatever the recogniser finalised. Reads refs only,
+  // so it's safe to fire from the listening→idle effect below.
+  const finalizeSubmit = useCallback(async () => {
+    const t = transcriptRef.current.trim();
+    // Too short to be a real dictation → quietly collapse, no API call.
+    if (t.length < 3) { resetIdle(); return; }
+    setError(null);
+    setPhase('processing');
     try {
-      const data = await crmAi.extractLead({ transcript: t, is_b2c: isB2C });
-      onExtracted(data);
-      onClose();
+      const data = await crmAi.extractLead({ transcript: t, is_b2c: isB2CRef.current });
+      onExtractedRef.current(data);
+      setPhase('success');
+      clearSuccessTimer();
+      successTimerRef.current = window.setTimeout(() => resetIdle(), 1600);
     } catch (e) {
       setError(friendlyError(e));
-      setExtracting(false);
+      setPhase('error');
     }
-  }, [transcript, extracting, isB2C, speech, onExtracted, onClose]);
+  }, [resetIdle]);
 
-  const close = useCallback(() => { speech.cancel(); onClose(); }, [speech, onClose]);
+  // The recogniser flushes its final result on stop(), then flips `listening`
+  // false. When that transition follows a release, extract from the now-final
+  // transcript. Kept in a ref so the effect stays dependency-light.
+  const finalizeRef = useRef(finalizeSubmit);
+  useEffect(() => { finalizeRef.current = finalizeSubmit; }, [finalizeSubmit]);
+  const prevListeningRef = useRef(false);
+  useEffect(() => {
+    const was = prevListeningRef.current;
+    prevListeningRef.current = speech.listening;
+    if (was && !speech.listening && submitRef.current) {
+      submitRef.current = false;
+      void finalizeRef.current();
+    }
+  }, [speech.listening]);
 
-  // The transcript preview shows accumulated final text plus the live interim.
-  const preview = [transcript, speech.interim].filter(Boolean).join(' ').trim();
-  const statusLabel = speech.listening ? 'LISTENING…' : (transcript ? 'GOT IT — REVIEW BELOW' : 'TAP THE MIC TO SPEAK');
+  // Cleanup on unmount — drop the mic and any pending success timer.
+  useEffect(() => () => { clearSuccessTimer(); try { speech.cancel(); } catch { /* */ } }, [speech]);
+
+  const beginHold = useCallback(() => {
+    if (!speech.supported) return;
+    if (holdingRef.current || phase === 'processing') return;
+    clearSuccessTimer();
+    holdingRef.current = true;
+    submitRef.current = false;
+    transcriptRef.current = '';
+    setTranscriptView('');
+    setError(null);
+    setPhase('listening');
+    speech.start();
+  }, [speech, phase]);
+
+  // End the hold. submit=true → release (stop + extract); submit=false →
+  // cancel/discard (pointer cancelled or left the button).
+  const endHold = useCallback((submit: boolean) => {
+    if (!holdingRef.current) return;
+    holdingRef.current = false;
+    if (!submit) {
+      submitRef.current = false;
+      try { speech.cancel(); } catch { /* */ }
+      resetIdle();
+      return;
+    }
+    if (speech.listening) {
+      // Wait for the recogniser's final flush; the listening→idle effect fires
+      // the extraction. Show processing now only if we already have words.
+      submitRef.current = true;
+      const hasWords = !!transcriptRef.current.trim() || !!speech.interim.trim();
+      setPhase(hasWords ? 'processing' : 'idle');
+      try { speech.stop(); } catch { /* */ }
+    } else {
+      // Recogniser already idle (e.g. it errored) — extract from what we have.
+      void finalizeSubmit();
+    }
+  }, [speech, resetIdle, finalizeSubmit]);
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    // Suppress text selection / the native long-press callout.
+    e.preventDefault();
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* */ }
+    beginHold();
+  };
+  const onPointerUp = (e: React.PointerEvent) => {
+    try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { /* */ }
+    endHold(true);
+  };
+  const onPointerCancel = () => endHold(false);
+  // Under pointer capture a leave rarely fires, but treat it as a release so a
+  // stray drag-out still submits what was said rather than stranding the mic.
+  const onPointerLeave = () => { if (holdingRef.current) endHold(true); };
+
+  // Keyboard parity: hold Space/Enter to record, release to submit.
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if ((e.key === ' ' || e.key === 'Enter') && !e.repeat) { e.preventDefault(); beginHold(); }
+  };
+  const onKeyUp = (e: React.KeyboardEvent) => {
+    if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); endHold(true); }
+  };
+
+  const listening = phase === 'listening';
+  const processing = phase === 'processing';
+  const success = phase === 'success';
+  const expanded = listening || processing || success;
+  const orbSize = isMobile ? 54 : 62;
+  const preview = [transcriptRef.current, speech.interim].filter(Boolean).join(' ').trim();
+
+  // Not supported → a plain, non-interactive hint. The rep types the form.
+  if (!speech.supported) {
+    return (
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+        padding: '11px 14px', marginBottom: 18, borderRadius: 12,
+        border: '1px solid var(--border)', background: 'var(--s3)',
+        fontSize: 12, color: 'var(--text-dim)',
+      }}>
+        <MicGlyph size={16} />
+        Voice fill isn’t supported in this browser — type the details in below.
+      </div>
+    );
+  }
+
+  const statusLabel = listening ? 'Listening…' : processing ? 'Reading…' : success ? 'Filled in from voice' : '';
+  const statusColor = success ? '#0A8A4E' : '#E01E2C';
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label="Fill with voice"
-      style={{
-        position: 'fixed', inset: 0, zIndex: 1200,
-        background: 'rgba(8,8,12,0.82)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
-        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-        padding: 24, animation: 'kmvc-fade-in 0.2s ease-out',
-      }}
-    >
+    <div style={{ marginBottom: 18 }}>
       <style>{VOICE_KEYFRAMES}</style>
-
-      {/* Header — title + close, matches "a distinct voice panel". */}
-      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 20px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <KiniMascot size={26} />
-          <span style={{ color: '#fff', fontWeight: 800, fontSize: 15 }}>Fill with voice</span>
-        </div>
-        <button
-          type="button"
-          onClick={close}
-          aria-label="Close"
-          style={{
-            width: 38, height: 38, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.22)',
-            background: 'rgba(255,255,255,0.12)', color: '#fff', cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}
-        >
-          <Icon d="M18 6L6 18M6 6l12 12" size={20} />
-        </button>
+      <div
+        role="button"
+        tabIndex={0}
+        aria-label="Hold to fill the form with your voice"
+        aria-pressed={listening}
+        onPointerDown={onPointerDown}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerCancel}
+        onPointerLeave={onPointerLeave}
+        onKeyDown={onKeyDown}
+        onKeyUp={onKeyUp}
+        onContextMenu={(e) => e.preventDefault()}
+        style={{
+          // touchAction:none stops the browser hijacking the hold for scroll;
+          // userSelect:none stops the drag from selecting the label text.
+          touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none',
+          WebkitTouchCallout: 'none',
+          display: 'flex', alignItems: 'center', gap: 14, width: '100%',
+          padding: expanded ? '16px 16px' : '11px 14px', borderRadius: 12,
+          border: `1px solid ${listening ? '#E01E2C' : 'var(--border)'}`,
+          background: listening ? 'rgba(224,30,44,0.06)' : 'var(--s3)',
+          cursor: processing ? 'wait' : 'pointer', textAlign: 'left',
+          boxShadow: listening ? '0 0 0 3px rgba(224,30,44,0.12)' : 'none',
+          transition: 'padding 0.15s ease, background 0.15s ease, border-color 0.15s ease',
+        }}
+      >
+        {expanded ? (
+          <>
+            <VoiceOrb level={processing ? 0.45 : success ? 0.2 : speech.level} size={orbSize} />
+            <span style={{ flex: 1, minWidth: 0 }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 11, fontWeight: 900, letterSpacing: 1.2, textTransform: 'uppercase', color: statusColor }}>
+                  {statusLabel}
+                </span>
+                {processing && (
+                  <span style={{ width: 13, height: 13, border: '2px solid var(--border)', borderTopColor: '#E01E2C', borderRadius: '50%', display: 'inline-block', animation: 'kmvc-spin 0.7s linear infinite' }} />
+                )}
+              </span>
+              <span style={{
+                display: 'block', marginTop: 4, fontSize: 13, lineHeight: 1.4,
+                color: preview ? 'var(--text)' : 'var(--text-dim)',
+                maxHeight: 60, overflowY: 'auto',
+              }}>
+                {success
+                  ? 'Details filled in — review and save.'
+                  : (preview || (listening ? 'Keep talking — release when you’re done.' : 'Reading what you said…'))}
+              </span>
+            </span>
+          </>
+        ) : (
+          <>
+            <span style={{
+              width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
+              background: 'linear-gradient(135deg, #FF4D4D, #E01E2C)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <MicGlyph size={16} color="#fff" />
+            </span>
+            <span style={{ flex: 1, minWidth: 0 }}>
+              <span style={{ display: 'block', fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>Fill with voice</span>
+              <span style={{ display: 'block', fontSize: 12, color: 'var(--text-dim)' }}>Hold to speak · release to fill</span>
+            </span>
+            <span style={{ fontSize: 16, flexShrink: 0 }}>✨</span>
+          </>
+        )}
       </div>
 
-      <VoiceOrb level={speech.level} size={orbSize} />
-
-      <div style={{ marginTop: 24, fontSize: 12, fontWeight: 900, letterSpacing: 1.6, color: '#FF6B6B' }}>
-        {statusLabel}
-      </div>
-      <div style={{
-        marginTop: 12, maxWidth: 420, textAlign: 'center',
-        color: preview ? '#fff' : 'rgba(255,255,255,0.6)',
-        fontSize: 18, fontWeight: preview ? 600 : 500, lineHeight: 1.45, minHeight: 56,
-        maxHeight: 168, overflowY: 'auto',
-      }}>
-        {preview || 'Describe the lead — e.g. “Rajesh Kumar from Acme Steel, mobile 98…, wants TMT bars in Pune”'}
-      </div>
-
-      {!speech.supported && (
-        <div style={{ marginTop: 8, maxWidth: 420, textAlign: 'center', color: 'rgba(255,255,255,0.7)', fontSize: 13 }}>
-          Voice input isn’t supported in this browser. Please type the details in instead.
-        </div>
-      )}
-      {error && (
-        <div style={{ marginTop: 10, maxWidth: 420, textAlign: 'center', color: '#FF8A8A', fontSize: 13.5, lineHeight: 1.45 }}>
+      {phase === 'error' && error && (
+        <div style={{ marginTop: 8, fontSize: 12.5, lineHeight: 1.45, color: '#ef4444' }}>
           {error}
         </div>
       )}
-
-      {/* Controls — mic/stop toggle + "Use these details". */}
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18, marginTop: 26, width: '100%', maxWidth: 340 }}>
-        <button
-          type="button"
-          onClick={toggleMic}
-          disabled={!speech.supported || extracting}
-          aria-label={speech.listening ? 'Stop' : 'Start speaking'}
-          style={{
-            width: 76, height: 76, borderRadius: '50%', cursor: (!speech.supported || extracting) ? 'not-allowed' : 'pointer',
-            border: speech.listening ? 'none' : '1px solid rgba(255,255,255,0.28)',
-            background: speech.listening ? 'linear-gradient(135deg, #FF4D4D, #E01E2C)' : 'rgba(255,255,255,0.12)',
-            color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: speech.listening ? '0 10px 30px rgba(224,30,44,0.5)' : 'none',
-            opacity: (!speech.supported || extracting) ? 0.5 : 1, transition: 'all 0.2s',
-          }}
-        >
-          {speech.listening
-            ? <Icon d="M6 6h12v12H6z" size={26} />
-            : <Icon d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z M19 10v1a7 7 0 0 1-14 0v-1 M12 18v4 M8 22h8" size={26} />}
-        </button>
-
-        <button
-          type="button"
-          onClick={() => void handleUseDetails()}
-          disabled={!canUse}
-          style={{
-            width: '100%', padding: '13px 18px', borderRadius: 999, border: 'none',
-            fontSize: 16, fontWeight: 800, cursor: canUse ? 'pointer' : 'not-allowed',
-            background: canUse ? 'linear-gradient(135deg, #FF4D4D, #E01E2C)' : 'rgba(255,255,255,0.16)',
-            color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
-            boxShadow: canUse ? '0 10px 30px rgba(224,30,44,0.4)' : 'none', transition: 'all 0.2s',
-          }}
-        >
-          {extracting && (
-            <span style={{ width: 15, height: 15, border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', borderRadius: '50%', display: 'inline-block', animation: 'kmvc-spin 0.7s linear infinite' }} />
-          )}
-          {extracting ? 'Reading…' : 'Use these details'}
-        </button>
-      </div>
     </div>
+  );
+}
+
+// The mic outline used by the idle pill and the unsupported hint.
+function MicGlyph({ size = 16, color = 'currentColor' }: { size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+      <path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z" />
+      <path d="M19 10v1a7 7 0 0 1-14 0v-1" />
+      <path d="M12 18v4" /><path d="M8 22h8" />
+    </svg>
   );
 }

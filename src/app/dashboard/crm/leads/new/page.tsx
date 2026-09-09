@@ -12,7 +12,7 @@ import CustomFieldsSection from '../../../../../components/crm/CustomFieldsSecti
 import GoogleAddressAutocomplete from '../../../../../components/crm/GoogleAddressAutocomplete';
 import UserSearchSelect, { type UserOption } from '../../../../../components/crm/shared/UserSearchSelect';
 import AlternateMobiles from '../../../../../components/crm/AlternateMobiles';
-import { LeadVoiceCapturePanel } from '../../../../../components/crm/VoiceCaptureOverlay';
+import { InlineLeadVoiceCapture } from '../../../../../components/crm/VoiceCaptureOverlay';
 import ClientScopeField from '../../../../../components/ClientScopeField';
 import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '../../../../../lib/crmFieldOverrides';
 import { DataCollectionConsent, NOTICE_VERSION } from '../../../../../components/crm/DataConsent';
@@ -91,9 +91,6 @@ export default function NewLeadPage() {
   const router = useRouter();
   const [form, setForm] = useState<Form>(empty);
   const [busy, setBusy] = useState(false);
-  // KINI "Fill with voice" — opens the distinct voice-capture panel; on confirm
-  // the extracted fields are merged into `form` for review (see applyExtracted).
-  const [showVoice, setShowVoice] = useState(false);
   const [geoBusy, setGeoBusy] = useState(false);
   const [geoError, setGeoError] = useState('');
   // Self-only roles (org_role.data_scope === 'own', e.g. Consumer Champion)
@@ -659,43 +656,19 @@ export default function NewLeadPage() {
         : 'Business lead — capture company and decision-maker info.');
 
   return (
-    <>
     <form onSubmit={submit} noValidate style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 24, maxWidth: 820 }}>
       <h2 style={{ marginTop: 0, fontSize: 18, color: 'var(--text)' }}>New Lead</h2>
       <p style={{ margin: '-4px 0 18px', fontSize: 13, color: 'var(--text-dim)' }}>
         {leadTypeLabel}{' '}Fields marked <span style={{ color: '#ef4444' }}>*</span> are required.
       </p>
 
-      {/* KINI "Fill with voice" — dictate a prospect and let KINI auto-fill the
-          form. Fills only the form state (applyExtracted); the field-override
-          contract still governs what renders + saves. Voice is input only. */}
-      <button
-        type="button"
-        onClick={() => setShowVoice(true)}
-        style={{
-          display: 'flex', alignItems: 'center', gap: 12, width: '100%',
-          padding: '11px 14px', marginBottom: 18, borderRadius: 12,
-          border: '1px solid var(--border)', background: 'var(--s3)',
-          cursor: 'pointer', textAlign: 'left',
-        }}
-      >
-        <span style={{
-          width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
-          background: 'linear-gradient(135deg, #FF4D4D, #E01E2C)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z" />
-            <path d="M19 10v1a7 7 0 0 1-14 0v-1" />
-            <path d="M12 18v4" /><path d="M8 22h8" />
-          </svg>
-        </span>
-        <span style={{ flex: 1, minWidth: 0 }}>
-          <span style={{ display: 'block', fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>Fill with voice</span>
-          <span style={{ display: 'block', fontSize: 12, color: 'var(--text-dim)' }}>Describe the lead — KINI fills the form</span>
-        </span>
-        <span style={{ fontSize: 16, flexShrink: 0 }}>✨</span>
-      </button>
+      {/* KINI "Fill with voice" — an INLINE press-and-hold mic. The rep HOLDS
+          to dictate a prospect and RELEASES to submit; on release the transcript
+          is extracted and merged into `form` (applyExtracted). No modal — the
+          orb + transcript animate in-place. The field-override contract still
+          governs what renders + saves. Voice is input only. B2C/B2B scope is
+          passed through so the extractor parses fields for the right lead type. */}
+      <InlineLeadVoiceCapture isB2C={isTata || form.is_b2c} onExtracted={applyExtracted} />
 
       {myTarget && myTarget.target > 0 && (() => {
         const done = myTarget.achieved >= myTarget.target;
@@ -970,19 +943,6 @@ export default function NewLeadPage() {
         <button type="submit" disabled={busy || (!skipLocation && (!form.latitude || !form.longitude))} title={!skipLocation && (!form.latitude || !form.longitude) ? 'Capture your location to enable' : undefined} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 18px', borderRadius: 8, fontWeight: 700, cursor: (busy || (!skipLocation && (!form.latitude || !form.longitude))) ? 'not-allowed' : 'pointer', opacity: (busy || (!skipLocation && (!form.latitude || !form.longitude))) ? 0.6 : 1 }}>{busy ? 'Saving...' : 'Create Lead'}</button>
       </div>
     </form>
-
-    {/* Distinct full-screen voice-capture panel. Rendered OUTSIDE the <form>
-        so its (defensively type="button") controls can never submit the lead
-        form. On "Use these details" it POSTs the transcript to the extractor
-        and hands the fields to applyExtracted. */}
-    {showVoice && (
-      <LeadVoiceCapturePanel
-        isB2C={isTata || form.is_b2c}
-        onExtracted={applyExtracted}
-        onClose={() => setShowVoice(false)}
-      />
-    )}
-    </>
   );
 }
 
