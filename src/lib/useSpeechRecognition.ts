@@ -21,7 +21,9 @@ export interface SpeechRecognitionApi {
   interim: string; // live partial transcript
 }
 
-export function useSpeechRecognition({ onResult }: { onResult: (text: string) => void }): SpeechRecognitionApi {
+export function useSpeechRecognition(
+  { onResult, continuous = false }: { onResult: (text: string) => void; continuous?: boolean },
+): SpeechRecognitionApi {
   const [listening, setListening] = useState(false);
   const [supported, setSupported] = useState(false);
   const [level, setLevel] = useState(0);      // 0…1 smoothed mic amplitude
@@ -31,6 +33,12 @@ export function useSpeechRecognition({ onResult }: { onResult: (text: string) =>
   // teardown on every render) while still calling the current callback.
   const onResultRef = useRef(onResult);
   useEffect(() => { onResultRef.current = onResult; }, [onResult]);
+  // Whether the recogniser keeps running across brief pauses (walkie-talkie
+  // press-and-hold) instead of ending after the first utterance. Read via a
+  // ref so the recogniser is still created once — each consumer passes a fixed
+  // value, so the default-false KINI-chat path is unchanged.
+  const continuousRef = useRef(continuous);
+  useEffect(() => { continuousRef.current = continuous; }, [continuous]);
   // Amplitude-meter plumbing — separate from the recogniser so a getUserMedia
   // failure never breaks transcription.
   const streamRef = useRef<MediaStream | null>(null);
@@ -80,7 +88,7 @@ export function useSpeechRecognition({ onResult }: { onResult: (text: string) =>
     if (!SR) return;
     setSupported(true);
     const rec = new SR();
-    rec.continuous = false;
+    rec.continuous = continuousRef.current;
     rec.interimResults = true;
     rec.lang = 'en-IN';
     rec.onresult = (e: any) => {
