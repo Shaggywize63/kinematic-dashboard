@@ -34,7 +34,7 @@ export function DataCollectionConsent({
         padding: 12,
         background: 'var(--s3)',
         border: '1px solid var(--border)',
-        borderRadius: 10,
+        borderRadius: 8,
       }}
     >
       <div style={{ fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.5 }}>
@@ -44,7 +44,7 @@ export function DataCollectionConsent({
           href="/privacy"
           target="_blank"
           rel="noopener noreferrer"
-          style={{ color: 'var(--accent, #2563eb)', textDecoration: 'underline' }}
+          style={{ color: 'var(--accent)', textDecoration: 'underline' }}
         >
           Privacy Notice
         </a>
@@ -60,7 +60,7 @@ export function DataCollectionConsent({
         <span>
           The individual has been shown this notice and <strong>consents</strong> to the
           collection and processing of their personal data
-          {required ? <span style={{ color: 'var(--danger, #dc2626)' }}> *</span> : null}.
+          {required ? <span style={{ color: 'var(--red)' }}> *</span> : null}.
         </span>
       </label>
     </div>

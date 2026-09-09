@@ -12,6 +12,8 @@ import AlternateMobiles from './AlternateMobiles';
 import UserSearchSelect, { type UserOption } from './shared/UserSearchSelect';
 import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '../../lib/crmFieldOverrides';
 import { useAuth } from '../../hooks/useAuth';
+import { LocateFixed } from 'lucide-react';
+import { Button, Field, Input, Segmented, Select, Textarea, eyebrowStyle, labelStyle, requiredMark } from '../ui';
 
 interface Props { lead: Lead; open: boolean; onClose: () => void; onSaved: (updated: Lead) => void; }
 
@@ -267,15 +269,18 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
   const showToggle = businessType === 'both' && !isTata;
 
   return (
-    <Modal open={open} onClose={onClose} title="Edit Lead"
-      footer={<><button type="button" onClick={onClose} style={btn.secondary}>Cancel</button><button type="button" disabled={busy} onClick={() => submit()} style={btn.primary(busy)}>{busy ? 'Saving…' : 'Save changes'}</button></>}>
-      <p style={{ margin: '0 0 12px', fontSize: 12, color: 'var(--text-dim)' }}>Fields marked <span style={{ color: '#ef4444' }}>*</span> are required.</p>
-      {showToggle && (
-        <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
-          <TB active={form.is_b2c} onClick={() => setForm({ ...form, is_b2c: true })}>B2C (Consumer)</TB>
-          <TB active={!form.is_b2c} onClick={() => setForm({ ...form, is_b2c: false })}>B2B (Business)</TB>
-        </div>
-      )}
+    <Modal open={open} onClose={onClose} title="Edit lead" width={760}
+      footer={<><Button type="button" onClick={onClose}>Cancel</Button><Button type="button" variant="primary" disabled={busy} onClick={() => submit()}>{busy ? 'Saving…' : 'Save changes'}</Button></>}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 4 }}>
+        <p style={{ margin: 0, fontSize: 12.5, color: 'var(--text-dim)' }}>Fields marked {requiredMark} are required.</p>
+        {showToggle && (
+          <Segmented
+            value={form.is_b2c ? 'b2c' : 'b2b'}
+            onChange={(v) => setForm({ ...form, is_b2c: v === 'b2c' })}
+            options={[{ value: 'b2b', label: 'B2B · Business' }, { value: 'b2c', label: 'B2C · Consumer' }]}
+          />
+        )}
+      </div>
       {/* show() returns the inner node when the field isn't hidden by
           the admin overrides, otherwise null. labelFor / requiredFor
           let the override map relabel + flip-required on the fly. */}
@@ -285,7 +290,7 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
                 const anyBizOnB2C = explicitlyShownOnB2C('company') || explicitlyShownOnB2C('title') || explicitlyShownOnB2C('industry');
       return (
         <>
-        <SL>Personal</SL><Grid>
+        <SL first>Contact</SL><Grid>
           {show('first_name', <F label={lbl('first_name', 'First Name')} required={req('first_name', true)} value={form.first_name} onChange={(v) => setForm({ ...form, first_name: v })} />)}
           {show('last_name',  <F label={lbl('last_name',  'Last Name')}  required={req('last_name',  false)} value={form.last_name}  onChange={(v) => setForm({ ...form, last_name:  v })} />)}
           {/* Phone / email default to optional — the form honours the
@@ -312,7 +317,7 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
         )}
 
         {(!fields.isHidden('status') || !fields.isHidden('source_id') || !fields.isHidden('owner_id')) && (
-          <><SL>Lifecycle &amp; Assignment</SL><Grid>
+          <><SL>Assignment</SL><Grid>
             {show('status', <SF label={lbl('status', 'Status')} value={form.status} options={[{ value: 'new', label: 'New' }, { value: 'working', label: 'Working' }, { value: 'qualified', label: 'Qualified' }, { value: 'unqualified', label: 'Unqualified' }, { value: 'converted', label: 'Converted' }, { value: 'lost', label: 'Lost' }]} onChange={(v) => setForm({ ...form, status: v as LeadStatus })} />)}
             {/* Lost-reason capture — appears only when the rep is
                 moving the lead into a terminal status that needs an
@@ -345,12 +350,9 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
                 entirely. Hidden when the /users endpoint comes back empty
                 (e.g. client-role users without manpower read access). */}
             {!fields.isHidden('owner_id') && users.length > 0 && canReassign && (
-              <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {/* The IIFE wrapping this block shadows the module-scope `lbl`
-                    constant with a same-named helper, so we inline the label
-                    style instead of referencing it. */}
-                <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>
-                  {fields.labelFor('owner_id', 'Assign To')}
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
+                <span style={labelStyle}>
+                  {fields.labelFor('owner_id', 'Owner')}
                 </span>
                 <UserSearchSelect
                   options={users}
@@ -366,7 +368,7 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
 
         {!form.is_b2c ? (
           (!fields.isHidden('company') || !fields.isHidden('title') || !fields.isHidden('industry')) && (
-            <><SL>Business Details</SL><Grid>
+            <><SL>Company</SL><Grid>
               {show('company',  <F label={lbl('company',  'Company')}   required={req('company', true)} value={form.company}  onChange={(v) => setForm({ ...form, company:  v })} />)}
               {show('title',    <F label={lbl('title',    'Job Title')} value={form.title}    onChange={(v) => setForm({ ...form, title:    v })} />)}
               {show('industry', <F label={lbl('industry', 'Industry')}  value={form.industry} onChange={(v) => setForm({ ...form, industry: v })} />)}
@@ -378,13 +380,13 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
               un-hid company/title/industry (Settings → Custom Fields writes
               hidden:false). Keeps the B2B-only default for untouched tenants. */}
           {anyBizOnB2C && (
-            <><SL>Business Details</SL><Grid>
+            <><SL>Company</SL><Grid>
               {explicitlyShownOnB2C('company')  && show('company',  <F label={lbl('company',  'Company')}   required={req('company', false)} value={form.company}  onChange={(v) => setForm({ ...form, company:  v })} />)}
               {explicitlyShownOnB2C('title')    && show('title',    <F label={lbl('title',    'Job Title')} required={req('title', false)}   value={form.title}    onChange={(v) => setForm({ ...form, title:    v })} />)}
               {explicitlyShownOnB2C('industry') && show('industry', <F label={lbl('industry', 'Industry')}  required={req('industry', false)} value={form.industry} onChange={(v) => setForm({ ...form, industry: v })} />)}
             </Grid></>
           )}
-          <SL>Customer Details</SL><Grid>
+          <SL>Customer</SL><Grid>
             {show('date_of_birth', <F label={lbl('date_of_birth', 'Date of Birth')} type="date" value={form.date_of_birth} onChange={(v) => setForm({ ...form, date_of_birth: v })} />)}
             {show('gender', <SF label={lbl('gender', 'Gender')} value={form.gender} options={[{ value: '', label: '—' }, { value: 'male', label: 'Male' }, { value: 'female', label: 'Female' }, { value: 'other', label: 'Other' }, { value: 'prefer_not_to_say', label: 'Prefer not to say' }]} onChange={(v) => setForm({ ...form, gender: v })} />)}
             {show('preferred_contact_method', <SF label={lbl('preferred_contact_method', 'Preferred Channel')} value={form.preferred_contact_method} options={[{ value: '', label: '—' }, { value: 'email', label: 'Email' }, { value: 'phone', label: 'Phone' }, { value: 'whatsapp', label: 'WhatsApp' }, { value: 'sms', label: 'SMS' }]} onChange={(v) => setForm({ ...form, preferred_contact_method: v })} />)}
@@ -436,7 +438,7 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
         {isTata && (
           <>
             <SL>Activity</SL>
-            <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '12px 14px', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 8, cursor: 'pointer', marginBottom: 14 }}>
+            <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '10px 12px', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 8, cursor: 'pointer', marginBottom: 14 }}>
               <input
                 type="checkbox"
                 checked={logAsSiteVisit}
@@ -450,11 +452,11 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
                   // to /dashboard/crm/activities/new prefilled for this lead.
                   if (on && !busy) void submit(true);
                 }}
-                style={{ marginTop: 3 }}
+                style={{ marginTop: 3, width: 16, height: 16 }}
               />
               <span>
-                <strong style={{ color: 'var(--text)' }}>Also log a Site Visit activity</strong>
-                <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>
+                <span style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text)' }}>Also log a Site Visit activity</span>
+                <div style={{ fontSize: 12.5, color: 'var(--text-dim)', marginTop: 2, lineHeight: 1.45 }}>
                   Saves this lead and opens the Site Visit activity composer pre-filled.
                   When the First Visit Date custom field is filled in, the activity is recorded as a First Site Visit instead.
                 </div>
@@ -463,46 +465,31 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
           </>
         )}
 
-        <SL>Notes &amp; Tags</SL>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14 }}>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>Notes</span>
-            <textarea
+        <SL>Notes &amp; tags</SL>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 14 }}>
+          <Field label="Notes">
+            <Textarea
               value={form.notes}
               onChange={(e) => setForm({ ...form, notes: e.target.value })}
               rows={3}
               placeholder="Internal notes — visible to other reps."
-              style={{
-                background: 'var(--s2)', border: '1px solid var(--border)',
-                borderRadius: 8, color: 'var(--text)', padding: '10px 12px',
-                fontSize: 13, lineHeight: 1.5, resize: 'vertical', fontFamily: 'inherit',
-              }}
             />
-          </label>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>Tags</span>
-            <input
+          </Field>
+          <Field label="Tags" hint="Comma-separated. Used by the lead list filter chips.">
+            <Input
               value={form.tags_input}
               onChange={(e) => setForm({ ...form, tags_input: e.target.value })}
-              placeholder="comma,separated,tags"
-              style={{
-                background: 'var(--s2)', border: '1px solid var(--border)',
-                borderRadius: 8, color: 'var(--text)', padding: '10px 12px',
-                fontSize: 13,
-              }}
+              placeholder="comma, separated, tags"
             />
-            <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>
-              Comma-separated. Used by the lead list filter chips.
-            </span>
-          </label>
+          </Field>
         </div>
 
         {!isKinematic && <>
-        <SL>Pin Location (map)</SL>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
-          <button type="button" onClick={captureLocation} disabled={geoBusy} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 12.5, fontWeight: 600, cursor: geoBusy ? 'wait' : 'pointer', opacity: geoBusy ? 0.6 : 1, whiteSpace: 'nowrap' }}>📍 {geoBusy ? 'Locating…' : 'Use current location'}</button>
+        <SL>Pin location</SL>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
+          <Button type="button" size="sm" onClick={captureLocation} disabled={geoBusy} icon={<LocateFixed size={14} strokeWidth={2} />}>{geoBusy ? 'Locating…' : 'Use current location'}</Button>
           {(form.latitude || form.longitude) && (
-            <button type="button" onClick={() => setForm({ ...form, latitude: '', longitude: '' })} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '8px 10px', borderRadius: 8, fontSize: 12, cursor: 'pointer' }}>Clear</button>
+            <Button type="button" size="sm" variant="ghost" onClick={() => setForm({ ...form, latitude: '', longitude: '' })}>Clear</Button>
           )}
         </div>
         <Grid>
@@ -553,8 +540,11 @@ function seed(l: Lead) {
       : '',
   };
 }
-function SL({ children }: { children: React.ReactNode }) { return <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, margin: '14px 0 8px' }}>{children}</div>; }
-function Grid({ children }: { children: React.ReactNode }) { return <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>{children}</div>; }
+// Section eyebrow — mono, with a hairline above every section but the first.
+function SL({ children, first }: { children: React.ReactNode; first?: boolean }) {
+  return <div style={{ ...eyebrowStyle, margin: first ? '12px 0 10px' : '20px 0 10px', paddingTop: first ? 0 : 18, borderTop: first ? 0 : '1px solid var(--border)' }}>{children}</div>;
+}
+function Grid({ children }: { children: React.ReactNode }) { return <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '14px 20px' }}>{children}</div>; }
 function F(p: { label: string; value: string; onChange: (v: string) => void; type?: string; required?: boolean; phone?: boolean }) {
   // Phone fields strip non-digit characters on input and cap at 10 so the
   // value held in form state is always a clean 10-digit mobile (or empty).
@@ -563,9 +553,8 @@ function F(p: { label: string; value: string; onChange: (v: string) => void; typ
     p.onChange(v);
   };
   return (
-    <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <span style={lbl}>{p.label}{p.required && <span style={{ color: '#ef4444', marginLeft: 3 }}>*</span>}</span>
-      <input
+    <Field label={p.label} required={p.required}>
+      <Input
         type={p.phone ? 'tel' : (p.type || 'text')}
         inputMode={p.phone ? 'numeric' : undefined}
         pattern={p.phone ? '[0-9]{10}' : undefined}
@@ -575,17 +564,15 @@ function F(p: { label: string; value: string; onChange: (v: string) => void; typ
         onChange={handleChange}
         required={p.required}
         placeholder={p.phone ? '10-digit mobile' : undefined}
-        style={inp}
       />
-    </label>
+    </Field>
   );
 }
-function SF(p: { label: string; value: string; options: Array<{ value: string; label: string }>; onChange: (v: string) => void }) { return <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}><span style={lbl}>{p.label}</span><select value={p.value} onChange={(e) => p.onChange(e.target.value)} style={inp}>{p.options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></label>; }
-function CB({ checked, onChange, children }: { checked: boolean; onChange: (v: boolean) => void; children: React.ReactNode }) { return <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, color: 'var(--text)', marginBottom: 6, cursor: 'pointer' }}><input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />{children}</label>; }
-function TB({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) { return <button type="button" onClick={onClick} style={{ flex: 1, padding: '8px 14px', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer', border: `1px solid ${active ? 'var(--primary)' : 'var(--border)'}`, background: active ? 'var(--primary)' : 'var(--s3)', color: active ? '#fff' : 'var(--text)', minWidth: 120 }}>{children}</button>; }
-const lbl: React.CSSProperties = { fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 };
-const inp: React.CSSProperties = { background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 };
-const btn = {
-  secondary: { background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontSize: 13 } as React.CSSProperties,
-  primary: (busy: boolean): React.CSSProperties => ({ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 18px', borderRadius: 8, cursor: busy ? 'wait' : 'pointer', fontWeight: 700, fontSize: 13, opacity: busy ? 0.7 : 1 }),
-};
+function SF(p: { label: string; value: string; options: Array<{ value: string; label: string }>; onChange: (v: string) => void }) {
+  return (
+    <Field label={p.label}>
+      <Select value={p.value} onChange={(e) => p.onChange(e.target.value)}>{p.options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select>
+    </Field>
+  );
+}
+function CB({ checked, onChange, children }: { checked: boolean; onChange: (v: boolean) => void; children: React.ReactNode }) { return <label style={{ display: 'flex', gap: 10, alignItems: 'center', fontSize: 13.5, color: 'var(--text)', marginBottom: 8, cursor: 'pointer' }}><input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} style={{ width: 16, height: 16 }} />{children}</label>; }

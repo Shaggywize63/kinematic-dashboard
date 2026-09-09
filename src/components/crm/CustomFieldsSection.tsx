@@ -503,14 +503,14 @@ function Wrap({ field, children, fullWidth }: { field: CustomField; children: Re
       // scroll-to / highlight a missing custom field (fail('lead-cf-<key>')).
       id={`lead-cf-${field.field_key}`}
       style={{
-      display: 'flex', flexDirection: 'column', gap: 4,
+      display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0,
       // Long-form / file rows span the whole grid row so they aren't
       // squeezed into a 220px column with the other inputs.
       gridColumn: fullWidth ? '1 / -1' : undefined,
     }}>
-      <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>
+      <span style={{ fontSize: 12.5, fontWeight: 500, color: 'var(--text-dim)', display: 'flex', gap: 4, alignItems: 'center' }}>
         {field.label}
-        {field.required && <span style={{ color: '#E01E2C', marginLeft: 4 }}>*</span>}
+        {field.required && <span style={{ color: 'var(--red)' }}>*</span>}
       </span>
       {children}
     </label>
@@ -518,8 +518,8 @@ function Wrap({ field, children, fullWidth }: { field: CustomField; children: Re
 }
 
 const inputStyle: React.CSSProperties = {
-  background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)',
-  padding: '8px 12px', borderRadius: 8, fontSize: 13, width: '100%', boxSizing: 'border-box',
+  minHeight: 36, background: 'var(--field)', border: '1px solid var(--border)', color: 'var(--text)',
+  padding: '7px 11px', borderRadius: 6, fontSize: 14, fontFamily: 'inherit', width: '100%', boxSizing: 'border-box', outline: 'none',
 };
 
 /**

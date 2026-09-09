@@ -16,6 +16,9 @@ import { InlineLeadVoiceCapture } from '../../../../../components/crm/VoiceCaptu
 import ClientScopeField from '../../../../../components/ClientScopeField';
 import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '../../../../../lib/crmFieldOverrides';
 import { DataCollectionConsent, NOTICE_VERSION } from '../../../../../components/crm/DataConsent';
+import { Button, Eyebrow, Field, FormGrid, Input, PageHeader, Section as FormSection, Segmented, Select, T, cardStyle, requiredMark, useIsCompact } from '../../../../../components/ui';
+import { usePageTitle } from '../../../../../lib/pageTitle';
+import { Check, CheckCircle2, Info, LocateFixed, MapPin, Target } from 'lucide-react';
 
 type UserOpt = UserOption;
 
@@ -89,6 +92,9 @@ const empty: Form = {
 
 export default function NewLeadPage() {
   const router = useRouter();
+  usePageTitle('New lead');
+  // Two-column grid on desktop, one column below 900px.
+  const narrow = useIsCompact(900);
   const [form, setForm] = useState<Form>(empty);
   const [busy, setBusy] = useState(false);
   const [geoBusy, setGeoBusy] = useState(false);
@@ -597,51 +603,48 @@ export default function NewLeadPage() {
     } catch (e: any) { toast.error(e.message || 'Create failed'); setBusy(false); }
   };
 
-  // `text()` builds a labelled <input>. When `opts.phone` is true the
+  // `text()` builds a labelled <Input>. When `opts.phone` is true the
   // input is numeric-only (no letters), capped at 10 digits, and pulls
   // up the phone keypad on mobile.
   // text() / select() consult the admin's field-override map: hidden ⇒
   // omit the field entirely, label override ⇒ render the new label,
   // required override ⇒ flip the asterisk + browser-level required attr.
-  const text = (k: keyof Form, label: string, opts: { type?: string; required?: boolean; phone?: boolean } = {}) => {
+  const text = (k: keyof Form, label: string, opts: { type?: string; required?: boolean; phone?: boolean; placeholder?: string } = {}) => {
     if (fields.isHidden(k as string)) return null;
     const effLabel    = fields.labelFor(k as string, label);
     const effRequired = fields.requiredFor(k as string, !!opts.required);
+    const id = `lead-field-${k as string}`;
     return (
-      <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>
-          {effLabel}{effRequired && <span style={{ color: '#ef4444', marginLeft: 3 }}>*</span>}
-        </span>
-        <input
-          id={`lead-field-${k as string}`}
+      <Field label={effLabel} required={effRequired} htmlFor={id}>
+        <Input
+          id={id}
           type={opts.phone ? 'tel' : (opts.type || 'text')}
           inputMode={opts.phone ? 'numeric' : undefined}
           pattern={opts.phone ? '[0-9]{10}' : undefined}
           maxLength={opts.phone ? 10 : undefined}
           autoComplete={opts.phone ? 'tel-national' : undefined}
-          placeholder={opts.phone ? '10-digit mobile' : undefined}
+          placeholder={opts.phone ? '10-digit mobile' : opts.placeholder}
           value={form[k] as string}
           onChange={(e) => {
             const v = opts.phone ? e.target.value.replace(/\D/g, '').slice(0, 10) : e.target.value;
             setForm({ ...form, [k]: v });
           }}
           required={effRequired}
-          style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 }}
         />
-      </label>
+      </Field>
     );
   };
   const select = (k: keyof Form, label: string, options: Array<{ value: string; label: string }>) => {
     if (fields.isHidden(k as string)) return null;
     const effLabel = fields.labelFor(k as string, label);
+    const id = `lead-field-${k as string}`;
     return (
-      <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>{effLabel}</span>
-        <select id={`lead-field-${k as string}`} value={form[k] as string} onChange={(e) => setForm({ ...form, [k]: e.target.value })} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 }}>
+      <Field label={effLabel} htmlFor={id}>
+        <Select id={id} value={form[k] as string} onChange={(e) => setForm({ ...form, [k]: e.target.value })}>
           <option value="">—</option>
           {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
-      </label>
+        </Select>
+      </Field>
     );
   };
 
@@ -654,303 +657,319 @@ export default function NewLeadPage() {
       : (form.is_b2c
         ? 'Individual consumer lead — capture contact details and preferences.'
         : 'Business lead — capture company and decision-maker info.');
+  const locationMissing = !skipLocation && (!form.latitude || !form.longitude);
+  const submitDisabled = busy || locationMissing;
+
+  // Save / Cancel live in the page header AND under the form so a long form
+  // never strands the rep away from the button. Both submit the same <form>.
+  const actions = (
+    <>
+      <Button type="button" onClick={() => router.back()}>Cancel</Button>
+      <Button
+        type="submit"
+        form="new-lead-form"
+        variant="primary"
+        disabled={submitDisabled}
+        title={locationMissing ? 'Capture your location to enable' : undefined}
+        icon={<Check size={16} strokeWidth={2} />}
+      >
+        {busy ? 'Saving…' : 'Save lead'}
+      </Button>
+    </>
+  );
 
   return (
-    <form onSubmit={submit} noValidate style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 24, maxWidth: 820 }}>
-      <h2 style={{ marginTop: 0, fontSize: 18, color: 'var(--text)' }}>New Lead</h2>
-      <p style={{ margin: '-4px 0 18px', fontSize: 13, color: 'var(--text-dim)' }}>
-        {leadTypeLabel}{' '}Fields marked <span style={{ color: '#ef4444' }}>*</span> are required.
-      </p>
+    <div style={{ maxWidth: 1040, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <PageHeader
+        title="New lead"
+        description={<>{showToggle ? 'Create a lead and assign it to a rep. Hidden fields follow your admin’s form settings.' : leadTypeLabel} Fields marked {requiredMark} are required.</>}
+        actions={actions}
+        compact={narrow}
+      />
 
-      {/* KINI "Fill with voice" — an INLINE press-and-hold mic. The rep HOLDS
-          to dictate a prospect and RELEASES to submit; on release the transcript
-          is extracted and merged into `form` (applyExtracted). No modal — the
-          orb + transcript animate in-place. The field-override contract still
-          governs what renders + saves. Voice is input only. B2C/B2B scope is
-          passed through so the extractor parses fields for the right lead type. */}
-      <InlineLeadVoiceCapture isB2C={isTata || form.is_b2c} onExtracted={applyExtracted} />
-
-      {myTarget && myTarget.target > 0 && (() => {
-        const done = myTarget.achieved >= myTarget.target;
-        const accent = done ? '#0A8A4E' : '#E01E2C';
-        const pct = Math.min(100, Math.round((myTarget.achieved / myTarget.target) * 100));
-        return (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderRadius: 10, background: 'var(--s3)', border: `1px solid ${accent}55`, marginBottom: 18 }}>
-            <span style={{ fontSize: 16 }}>{done ? '✅' : '🎯'}</span>
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>Today&apos;s lead target</span>
-            <div style={{ flex: 1, height: 6, borderRadius: 99, background: 'var(--border)', overflow: 'hidden', minWidth: 60 }}>
-              <div style={{ width: `${pct}%`, height: '100%', background: accent, borderRadius: 99, transition: 'width .3s' }} />
+      <form id="new-lead-form" onSubmit={submit} noValidate style={{ ...cardStyle, padding: narrow ? 16 : 24 }}>
+        {showToggle && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <Eyebrow>Lead type</Eyebrow>
+              <div style={{ fontSize: 13, color: T.dim }}>{leadTypeLabel}</div>
             </div>
-            <span style={{ fontSize: 15, fontWeight: 800, color: accent }}>{myTarget.achieved}/{myTarget.target}</span>
-          </div>
-        );
-      })()}
-
-      {/* Master admin runs the single Kinematic tenant — the client is set
-          automatically, so hide the picker. */}
-      {!isMasterAdmin && (
-        <ClientScopeField value={form.client_id} onChange={(id) => setForm({ ...form, client_id: id })} />
-      )}
-
-      {showToggle && (
-        <div style={{ display: 'flex', gap: 8, marginBottom: 18, flexWrap: 'wrap' }}>
-          <button type="button" onClick={() => setForm({ ...form, is_b2c: true })} style={{ flex: '1 1 140px', padding: '10px 14px', borderRadius: 8, border: `1px solid ${form.is_b2c ? 'var(--primary)' : 'var(--border)'}`, background: form.is_b2c ? 'var(--primary)' : 'var(--s3)', color: form.is_b2c ? '#fff' : 'var(--text)', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>B2C Consumer</button>
-          <button type="button" onClick={() => setForm({ ...form, is_b2c: false })} style={{ flex: '1 1 140px', padding: '10px 14px', borderRadius: 8, border: `1px solid ${!form.is_b2c ? 'var(--primary)' : 'var(--border)'}`, background: !form.is_b2c ? 'var(--primary)' : 'var(--s3)', color: !form.is_b2c ? '#fff' : 'var(--text)', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>B2B Business</button>
-        </div>
-      )}
-
-
-      <Section title="Personal">
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
-          {text('first_name', 'First Name', { required: fields.requiredFor('first_name', true) })}
-          {text('last_name',  'Last Name',  { required: fields.requiredFor('last_name',  true) })}
-          {/* Email field is hidden entirely for Tata Tiscon — their FE
-              walk-in flow doesn't collect email, and prompting for it
-              just to skip it adds friction. */}
-          {!isTata && text('email', 'Email', { type: 'email', required: fields.requiredFor('email', false) })}
-          {text('phone',      'Primary Mobile', { required: fields.requiredFor('phone', true), phone: true })}
-        </div>
-        <AlternateMobiles
-          values={form.alternate_mobiles}
-          primary={form.phone}
-          onChange={(next) => setForm({ ...form, alternate_mobiles: next })}
-        />
-      </Section>
-
-      {(!fields.isHidden('status') || !fields.isHidden('source_id') || !fields.isHidden('owner_id')) && (
-        <Section title="Lifecycle & Assignment">
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
-            {!fields.isHidden('status') && (
-              <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>{fields.labelFor('status', 'Status')}</span>
-                <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 }}>
-                  <option value="new">New</option>
-                  <option value="working">Working</option>
-                  <option value="qualified">Qualified</option>
-                  <option value="unqualified">Unqualified</option>
-                </select>
-              </label>
-            )}
-            {!fields.isHidden('source_id') && (
-              <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>{fields.labelFor('source_id', 'Source')}</span>
-                <select value={form.source_id} onChange={(e) => setForm({ ...form, source_id: e.target.value })} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 }}>
-                  <option value="">— Unspecified —</option>
-                  {sources.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                </select>
-              </label>
-            )}
-            {/* Self-only roles (e.g. Consumer Champion, data_scope='own') always
-                own the leads they create — hide the assign control and default
-                the owner to themselves. */}
-            {!fields.isHidden('owner_id') && !selfOnly && (
-              <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>{fields.labelFor('owner_id', 'Assign To')}</span>
-                <UserSearchSelect
-                  options={users}
-                  value={form.owner_id}
-                  onChange={(id) => setForm({ ...form, owner_id: id })}
-                  placeholder="Search team member…"
-                  emptyLabel="Unassigned (auto-route by rules)"
-                />
-              </label>
-            )}
-          </div>
-        </Section>
-      )}
-
-      {!form.is_b2c ? (
-        <>
-          <Section title="Business Details">
-            {/* Custom fields render inline inside this grid so admin-
-                defined fields look like part of the form, not a tacked-
-                on extension. CustomFieldsSection yields raw <label>
-                children with no wrapper of its own. */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
-              {text('company', 'Company', { required: true })}
-              {text('title', 'Job Title')}
-              {text('industry', 'Industry')}
-              <CustomFieldsSection
-                entity="lead"
-                values={form.custom_fields}
-                onChange={(cf) => setForm({ ...form, custom_fields: cf })}
-                onFieldsChange={setCustomFieldDefs}
-              />
-            </div>
-          </Section>
-          {/* City is required on B2B leads too — the per-user city-scope
-              filter applies to every lead row regardless of B2B/B2C. */}
-          {!fields.isHidden('city') && (
-            <Section title="Location">
-              <div id="lead-field-city" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
-                <LocationPicker stateValue={form.state} cityValue={form.city} onChange={({ state, city }) => setForm({ ...form, state, city })} required={fields.requiredFor('city', true)} />
-              </div>
-            </Section>
-          )}
-        </>
-      ) : (
-        <>
-          {/* Business Details on a B2C lead — only when an admin explicitly
-              un-hid company/title/industry (Settings → Custom Fields writes
-              hidden:false). Keeps the B2B-only default for untouched tenants. */}
-          {anyBizOnB2C && (
-            <Section title="Business Details">
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
-                {explicitlyShownOnB2C('company')  && text('company', 'Company')}
-                {explicitlyShownOnB2C('title')    && text('title', 'Job Title')}
-                {explicitlyShownOnB2C('industry') && text('industry', 'Industry')}
-              </div>
-            </Section>
-          )}
-          <Section title="Customer Details">
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
-              {text('date_of_birth', 'Date of Birth', { type: 'date' })}
-              {select('gender', 'Gender', [{ value: 'male', label: 'Male' }, { value: 'female', label: 'Female' }, { value: 'other', label: 'Other' }, { value: 'prefer_not_to_say', label: 'Prefer not to say' }])}
-              {select('preferred_contact_method', 'Preferred Channel', [{ value: 'email', label: 'Email' }, { value: 'phone', label: 'Phone' }, { value: 'whatsapp', label: 'WhatsApp' }, { value: 'sms', label: 'SMS' }])}
-            </div>
-          </Section>
-          <Section title="Address">
-            {/* Custom fields are inlined into the B2C Address grid for
-                the same reason they're in the B2B grid above — they
-                read as part of the form, not a footnote. */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
-              <GoogleAddressAutocomplete onSelect={(p) => setForm((f) => ({
-                ...f,
-                address_line1: p.address_line1 || f.address_line1,
-                city: p.city || f.city,
-                state: p.state || f.state,
-                postal_code: p.postal_code || f.postal_code,
-                latitude: p.latitude || f.latitude,
-                longitude: p.longitude || f.longitude,
-              }))} />
-              {text('address_line1', 'Address Line 1')}{text('address_line2', 'Address Line 2')}
-              {/* LocationPicker covers state + city. Hide it when the admin
-                  has hidden the city built-in (state alone has no value). */}
-              {!fields.isHidden('city') && (
-                <div id="lead-field-city" style={{ display: 'contents' }}>
-                  <LocationPicker stateValue={form.state} cityValue={form.city} onChange={({ state, city }) => setForm({ ...form, state, city })} required={fields.requiredFor('city', true)} />
-                </div>
-              )}
-              {text('postal_code', 'Postal Code')}{text('country', 'Country')}
-              <CustomFieldsSection
-                entity="lead"
-                values={form.custom_fields}
-                onChange={(cf) => setForm({ ...form, custom_fields: cf })}
-                onFieldsChange={setCustomFieldDefs}
-              />
-            </div>
-          </Section>
-          {(!fields.isHidden('marketing_consent') || !fields.isHidden('whatsapp_consent')) && (
-            <Section title="Consent">
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13, color: 'var(--text)' }}>
-                {!fields.isHidden('marketing_consent') && (
-                  <label style={{ display: 'flex', gap: 8, alignItems: 'center', cursor: 'pointer' }}><input type="checkbox" checked={form.marketing_consent} onChange={(e) => setForm({ ...form, marketing_consent: e.target.checked })} />{fields.labelFor('marketing_consent', 'Customer agreed to receive marketing communications')}</label>
-                )}
-                {!fields.isHidden('whatsapp_consent') && (
-                  <label style={{ display: 'flex', gap: 8, alignItems: 'center', cursor: 'pointer' }}><input type="checkbox" checked={form.whatsapp_consent} onChange={(e) => setForm({ ...form, whatsapp_consent: e.target.checked })} />{fields.labelFor('whatsapp_consent', 'Customer agreed to be contacted via WhatsApp')}</label>
-                )}
-              </div>
-            </Section>
-          )}
-        </>
-      )}
-
-      {/* DPDP §5/§6 — at-collection notice + primary consent for the lead's
-          personal data. Always shown (B2B + B2C); recorded in the consent
-          ledger. Distinct from the marketing/WhatsApp opt-ins above. */}
-      <Section title="Data Collection & Consent">
-        <DataCollectionConsent checked={dataConsent} onChange={setDataConsent} required={consentRequired} />
-      </Section>
-
-      {/* Products of Interest is captured in the Convert dialog (deal_product_lines)
-          for Kaiyo/Tata, not on the lead form — the rep picks products when the
-          lead becomes a deal, so the picker no longer renders here. */}
-
-      {!skipLocation && (
-      <Section title="Pin Location (required)">
-        <div id="lead-field-location" style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 10 }}>
-          The lead is geo-tagged with your current location. This is captured automatically and is required to add a lead.
-        </div>
-        {form.latitude && form.longitude ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 12, background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 10 }}>
-            <span style={{ fontSize: 18 }}>📍</span>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>Location captured</div>
-              {/* Read-only — coordinates can't be edited by hand. */}
-              <div style={{ fontSize: 12, color: 'var(--text-dim)', fontFamily: 'ui-monospace, monospace', marginTop: 2 }}>
-                {form.latitude}, {form.longitude}
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={captureLocation}
-              disabled={geoBusy}
-              style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '8px 12px', borderRadius: 8, fontSize: 12, cursor: geoBusy ? 'wait' : 'pointer' }}
-            >{geoBusy ? 'Updating…' : 'Update'}</button>
-          </div>
-        ) : (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 12, background: 'var(--s3)', border: `1px solid ${geoError ? '#ef4444' : 'var(--border)'}`, borderRadius: 10 }}>
-            <span style={{ fontSize: 18 }}>📍</span>
-            <div style={{ flex: 1, fontSize: 12, color: geoError ? '#ef4444' : 'var(--text-dim)' }}>
-              {geoBusy ? 'Getting your location…' : (geoError || 'Waiting for location…')}
-            </div>
-            <button
-              type="button"
-              onClick={captureLocation}
-              disabled={geoBusy}
-              style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '9px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: geoBusy ? 'wait' : 'pointer', opacity: geoBusy ? 0.6 : 1 }}
-            >📍 {geoBusy ? 'Locating…' : 'Use my current location'}</button>
+            <Segmented
+              value={form.is_b2c ? 'b2c' : 'b2b'}
+              onChange={(v) => setForm({ ...form, is_b2c: v === 'b2c' })}
+              options={[{ value: 'b2b', label: 'B2B · Business' }, { value: 'b2c', label: 'B2C · Consumer' }]}
+            />
           </div>
         )}
-      </Section>
-      )}
 
-      {/* Tata Tiscon: tick to atomically spawn a completed `site_visit`
-          activity tied to the new lead. Default on because most adds
-          happen at the dealer / consumer counter; the toggle stays
-          invisible on every other tenant via the isTata gate. */}
-      {isTata && (
-        <Section title="Activity">
-          <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', cursor: 'pointer' }}>
-            <input
-              type="checkbox"
-              checked={form.log_as_site_visit}
-              onChange={(e) => {
-                const on = e.target.checked;
-                setForm({ ...form, log_as_site_visit: on });
-                // Ticking the toggle is the "save & open the activity
-                // composer" shortcut. We trigger the existing submit
-                // handler — required-field guards still run, so an
-                // empty form surfaces the same validation toasts
-                // (first-name, phone, coordinates) before any save.
-                if (on && !busy) void submit();
-              }}
-              style={{ marginTop: 3 }}
-            />
-            <span>
-              <strong style={{ color: 'var(--text)' }}>Also log this lead as a Site Visit activity</strong>
-              <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>
-                Saves this lead and opens the Site Visit activity composer pre-filled.
-                When the First Visit Date custom field is filled in, the activity is recorded as a First Site Visit instead.
+        {/* KINI "Fill with voice" — an INLINE press-and-hold mic. The rep HOLDS
+            to dictate a prospect and RELEASES to submit; on release the transcript
+            is extracted and merged into `form` (applyExtracted). No modal — the
+            orb + transcript animate in-place. The field-override contract still
+            governs what renders + saves. Voice is input only. B2C/B2B scope is
+            passed through so the extractor parses fields for the right lead type. */}
+        <InlineLeadVoiceCapture isB2C={isTata || form.is_b2c} onExtracted={applyExtracted} />
+
+        {myTarget && myTarget.target > 0 && (() => {
+          const done = myTarget.achieved >= myTarget.target;
+          const pct = Math.min(100, Math.round((myTarget.achieved / myTarget.target) * 100));
+          return (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderRadius: 8, background: done ? T.okWash : 'var(--s3)', border: `1px solid ${done ? T.ok : T.border}`, marginBottom: 16 }}>
+              {done
+                ? <CheckCircle2 size={18} strokeWidth={1.6} style={{ color: T.ok, flexShrink: 0 }} />
+                : <Target size={18} strokeWidth={1.6} style={{ color: T.red, flexShrink: 0 }} />}
+              <span style={{ fontSize: 13, fontWeight: 600, color: T.text, whiteSpace: 'nowrap' }}>Today’s lead target</span>
+              <div style={{ flex: 1, height: 6, borderRadius: 99, background: T.rule, overflow: 'hidden', minWidth: 60 }}>
+                <div style={{ width: `${pct}%`, height: '100%', background: done ? T.ok : T.red, borderRadius: 99, transition: 'width .3s' }} />
               </div>
-            </span>
-          </label>
-        </Section>
-      )}
+              <span style={{ fontSize: 13, fontWeight: 600, fontFamily: T.mono, color: done ? T.ok : T.text }}>{myTarget.achieved}/{myTarget.target}</span>
+            </div>
+          );
+        })()}
 
-      <div style={{ display: 'flex', gap: 8, marginTop: 18, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-        <button type="button" onClick={() => router.back()} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 16px', borderRadius: 8, cursor: 'pointer' }}>Cancel</button>
-        <button type="submit" disabled={busy || (!skipLocation && (!form.latitude || !form.longitude))} title={!skipLocation && (!form.latitude || !form.longitude) ? 'Capture your location to enable' : undefined} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 18px', borderRadius: 8, fontWeight: 700, cursor: (busy || (!skipLocation && (!form.latitude || !form.longitude))) ? 'not-allowed' : 'pointer', opacity: (busy || (!skipLocation && (!form.latitude || !form.longitude))) ? 0.6 : 1 }}>{busy ? 'Saving...' : 'Create Lead'}</button>
-      </div>
-    </form>
+        {/* Master admin runs the single Kinematic tenant — the client is set
+            automatically, so hide the picker. */}
+        {!isMasterAdmin && (
+          <ClientScopeField value={form.client_id} onChange={(id) => setForm({ ...form, client_id: id })} />
+        )}
+
+        <Section title="Contact" hint="Who you’re talking to." first>
+          <FormGrid narrow={narrow}>
+            {text('first_name', 'First name', { required: fields.requiredFor('first_name', true) })}
+            {text('last_name',  'Last name',  { required: fields.requiredFor('last_name',  true) })}
+            {text('phone',      'Primary mobile', { required: fields.requiredFor('phone', true), phone: true })}
+            {/* Email field is hidden entirely for Tata Tiscon — their FE
+                walk-in flow doesn't collect email, and prompting for it
+                just to skip it adds friction. */}
+            {!isTata && text('email', 'Email', { type: 'email', required: fields.requiredFor('email', false), placeholder: 'name@company.com' })}
+          </FormGrid>
+          <AlternateMobiles
+            values={form.alternate_mobiles}
+            primary={form.phone}
+            onChange={(next) => setForm({ ...form, alternate_mobiles: next })}
+          />
+        </Section>
+
+        {(!fields.isHidden('status') || !fields.isHidden('source_id') || !fields.isHidden('owner_id')) && (
+          <Section title="Assignment" hint="Stage, source and owner. The owner sees this lead in their queue.">
+            <FormGrid narrow={narrow}>
+              {!fields.isHidden('status') && (
+                <Field label={fields.labelFor('status', 'Status')} htmlFor="lead-field-status">
+                  <Select id="lead-field-status" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
+                    <option value="new">New</option>
+                    <option value="working">Working</option>
+                    <option value="qualified">Qualified</option>
+                    <option value="unqualified">Unqualified</option>
+                  </Select>
+                </Field>
+              )}
+              {!fields.isHidden('source_id') && (
+                <Field label={fields.labelFor('source_id', 'Source')} htmlFor="lead-field-source_id">
+                  <Select id="lead-field-source_id" value={form.source_id} onChange={(e) => setForm({ ...form, source_id: e.target.value })}>
+                    <option value="">— Unspecified —</option>
+                    {sources.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </Select>
+                </Field>
+              )}
+              {/* Self-only roles (e.g. Consumer Champion, data_scope='own') always
+                  own the leads they create — hide the assign control and default
+                  the owner to themselves. */}
+              {!fields.isHidden('owner_id') && !selfOnly && (
+                <Field label={fields.labelFor('owner_id', 'Owner')}>
+                  <UserSearchSelect
+                    options={users}
+                    value={form.owner_id}
+                    onChange={(id) => setForm({ ...form, owner_id: id })}
+                    placeholder="Search team member…"
+                    emptyLabel="Unassigned (auto-route by rules)"
+                  />
+                </Field>
+              )}
+            </FormGrid>
+          </Section>
+        )}
+
+        {!form.is_b2c ? (
+          <>
+            <Section title="Company" hint="Where they work and how they found you.">
+              {/* Custom fields render inline inside this grid so admin-
+                  defined fields look like part of the form, not a tacked-
+                  on extension. CustomFieldsSection yields raw <label>
+                  children with no wrapper of its own. */}
+              <FormGrid narrow={narrow}>
+                {text('company', 'Company', { required: true })}
+                {text('title', 'Job title')}
+                {text('industry', 'Industry')}
+                <CustomFieldsSection
+                  entity="lead"
+                  values={form.custom_fields}
+                  onChange={(cf) => setForm({ ...form, custom_fields: cf })}
+                  onFieldsChange={setCustomFieldDefs}
+                />
+              </FormGrid>
+            </Section>
+            {/* City is required on B2B leads too — the per-user city-scope
+                filter applies to every lead row regardless of B2B/B2C. */}
+            {!fields.isHidden('city') && (
+              <Section title="Location" hint="Used for city scoping and route planning.">
+                <div id="lead-field-city" style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : 'repeat(2, minmax(0, 1fr))', gap: '16px 20px' }}>
+                  <LocationPicker stateValue={form.state} cityValue={form.city} onChange={({ state, city }) => setForm({ ...form, state, city })} required={fields.requiredFor('city', true)} />
+                </div>
+              </Section>
+            )}
+          </>
+        ) : (
+          <>
+            {/* Business Details on a B2C lead — only when an admin explicitly
+                un-hid company/title/industry (Settings → Custom Fields writes
+                hidden:false). Keeps the B2B-only default for untouched tenants. */}
+            {anyBizOnB2C && (
+              <Section title="Company" hint="Where they work.">
+                <FormGrid narrow={narrow}>
+                  {explicitlyShownOnB2C('company')  && text('company', 'Company')}
+                  {explicitlyShownOnB2C('title')    && text('title', 'Job title')}
+                  {explicitlyShownOnB2C('industry') && text('industry', 'Industry')}
+                </FormGrid>
+              </Section>
+            )}
+            <Section title="Customer" hint="Personal details and the channel they prefer.">
+              <FormGrid narrow={narrow}>
+                {text('date_of_birth', 'Date of birth', { type: 'date' })}
+                {select('gender', 'Gender', [{ value: 'male', label: 'Male' }, { value: 'female', label: 'Female' }, { value: 'other', label: 'Other' }, { value: 'prefer_not_to_say', label: 'Prefer not to say' }])}
+                {select('preferred_contact_method', 'Preferred channel', [{ value: 'email', label: 'Email' }, { value: 'phone', label: 'Phone' }, { value: 'whatsapp', label: 'WhatsApp' }, { value: 'sms', label: 'SMS' }])}
+              </FormGrid>
+            </Section>
+            <Section title="Address" hint="Search an address to fill the pin, or type it in.">
+              {/* Custom fields are inlined into the B2C Address grid for
+                  the same reason they're in the B2B grid above — they
+                  read as part of the form, not a footnote. */}
+              <FormGrid narrow={narrow}>
+                <GoogleAddressAutocomplete onSelect={(p) => setForm((f) => ({
+                  ...f,
+                  address_line1: p.address_line1 || f.address_line1,
+                  city: p.city || f.city,
+                  state: p.state || f.state,
+                  postal_code: p.postal_code || f.postal_code,
+                  latitude: p.latitude || f.latitude,
+                  longitude: p.longitude || f.longitude,
+                }))} />
+                {text('address_line1', 'Address line 1')}{text('address_line2', 'Address line 2')}
+                {/* LocationPicker covers state + city. Hide it when the admin
+                    has hidden the city built-in (state alone has no value). */}
+                {!fields.isHidden('city') && (
+                  <div id="lead-field-city" style={{ display: 'contents' }}>
+                    <LocationPicker stateValue={form.state} cityValue={form.city} onChange={({ state, city }) => setForm({ ...form, state, city })} required={fields.requiredFor('city', true)} />
+                  </div>
+                )}
+                {text('postal_code', 'Postal code')}{text('country', 'Country')}
+                <CustomFieldsSection
+                  entity="lead"
+                  values={form.custom_fields}
+                  onChange={(cf) => setForm({ ...form, custom_fields: cf })}
+                  onFieldsChange={setCustomFieldDefs}
+                />
+              </FormGrid>
+            </Section>
+            {(!fields.isHidden('marketing_consent') || !fields.isHidden('whatsapp_consent')) && (
+              <Section title="Consent" hint="Marketing and WhatsApp opt-ins.">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 13.5, color: T.text }}>
+                  {!fields.isHidden('marketing_consent') && (
+                    <label style={{ display: 'flex', gap: 10, alignItems: 'center', cursor: 'pointer' }}><input type="checkbox" checked={form.marketing_consent} onChange={(e) => setForm({ ...form, marketing_consent: e.target.checked })} style={{ width: 16, height: 16 }} />{fields.labelFor('marketing_consent', 'Customer agreed to receive marketing communications')}</label>
+                  )}
+                  {!fields.isHidden('whatsapp_consent') && (
+                    <label style={{ display: 'flex', gap: 10, alignItems: 'center', cursor: 'pointer' }}><input type="checkbox" checked={form.whatsapp_consent} onChange={(e) => setForm({ ...form, whatsapp_consent: e.target.checked })} style={{ width: 16, height: 16 }} />{fields.labelFor('whatsapp_consent', 'Customer agreed to be contacted via WhatsApp')}</label>
+                  )}
+                </div>
+              </Section>
+            )}
+          </>
+        )}
+
+        {/* DPDP §5/§6 — at-collection notice + primary consent for the lead's
+            personal data. Always shown (B2B + B2C); recorded in the consent
+            ledger. Distinct from the marketing/WhatsApp opt-ins above. */}
+        <Section title="Data consent" hint="Notice shown at collection, recorded in the consent ledger.">
+          <DataCollectionConsent checked={dataConsent} onChange={setDataConsent} required={consentRequired} />
+        </Section>
+
+        {/* Products of Interest is captured in the Convert dialog (deal_product_lines)
+            for Kaiyo/Tata, not on the lead form — the rep picks products when the
+            lead becomes a deal, so the picker no longer renders here. */}
+
+        {!skipLocation && (
+          <Section title="Pin location" hint="The lead is geo-tagged with your current location — captured automatically and required to add a lead.">
+            <div id="lead-field-location">
+              {form.latitude && form.longitude ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', background: T.okWash, border: `1px solid ${T.ok}`, borderRadius: 8 }}>
+                  <MapPin size={18} strokeWidth={1.6} style={{ color: T.ok, flexShrink: 0 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: T.text }}>Location captured</div>
+                    {/* Read-only — coordinates can't be edited by hand. */}
+                    <div style={{ fontSize: 12, color: T.dim, fontFamily: T.mono, marginTop: 2 }}>
+                      {form.latitude}, {form.longitude}
+                    </div>
+                  </div>
+                  <Button type="button" size="sm" onClick={captureLocation} disabled={geoBusy}>{geoBusy ? 'Updating…' : 'Update'}</Button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', background: geoError ? T.redWash : 'var(--s3)', border: `1px solid ${geoError ? T.red : T.border}`, borderRadius: 8, flexWrap: 'wrap' }}>
+                  <LocateFixed size={18} strokeWidth={1.6} style={{ color: geoError ? T.red : T.dim, flexShrink: 0 }} />
+                  <div style={{ flex: 1, minWidth: 200, fontSize: 12.5, lineHeight: 1.45, color: geoError ? T.red : T.dim }}>
+                    {geoBusy ? 'Getting your location…' : (geoError || 'Waiting for location…')}
+                  </div>
+                  <Button type="button" size="sm" variant="primary" onClick={captureLocation} disabled={geoBusy} icon={<LocateFixed size={14} strokeWidth={2} />}>
+                    {geoBusy ? 'Locating…' : 'Use my current location'}
+                  </Button>
+                </div>
+              )}
+            </div>
+          </Section>
+        )}
+
+        {/* Tata Tiscon: tick to atomically spawn a completed `site_visit`
+            activity tied to the new lead. Default on because most adds
+            happen at the dealer / consumer counter; the toggle stays
+            invisible on every other tenant via the isTata gate. */}
+        {isTata && (
+          <Section title="Activity" hint="Log the visit that produced this lead.">
+            <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', cursor: 'pointer', padding: '10px 12px', background: 'var(--s3)', border: `1px solid ${T.border}`, borderRadius: 8 }}>
+              <input
+                type="checkbox"
+                checked={form.log_as_site_visit}
+                onChange={(e) => {
+                  const on = e.target.checked;
+                  setForm({ ...form, log_as_site_visit: on });
+                  // Ticking the toggle is the "save & open the activity
+                  // composer" shortcut. We trigger the existing submit
+                  // handler — required-field guards still run, so an
+                  // empty form surfaces the same validation toasts
+                  // (first-name, phone, coordinates) before any save.
+                  if (on && !busy) void submit();
+                }}
+                style={{ marginTop: 3, width: 16, height: 16 }}
+              />
+              <span>
+                <span style={{ fontSize: 13.5, fontWeight: 600, color: T.text }}>Also log this lead as a Site Visit activity</span>
+                <div style={{ fontSize: 12.5, color: T.dim, marginTop: 2, lineHeight: 1.45 }}>
+                  Saves this lead and opens the Site Visit activity composer pre-filled.
+                  When the First Visit Date custom field is filled in, the activity is recorded as a First Site Visit instead.
+                </div>
+              </span>
+            </label>
+          </Section>
+        )}
+
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, paddingTop: 18, borderTop: `1px solid ${T.border}`, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: T.mute }}>
+            <Info size={14} strokeWidth={1.6} /> Fields your admin hid in Settings don’t appear here.
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>{actions}</div>
+        </div>
+      </form>
+    </div>
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div style={{ marginTop: 18 }}>
-      <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 8 }}>{title}</div>
-      {children}
-    </div>
-  );
+function Section({ title, hint, first, children }: { title: string; hint?: string; first?: boolean; children: React.ReactNode }) {
+  return <FormSection eyebrow={title} hint={hint} first={first}>{children}</FormSection>;
 }

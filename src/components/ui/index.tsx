@@ -1,5 +1,5 @@
 'use client';
-import { forwardRef, type CSSProperties, type ReactNode, type ButtonHTMLAttributes, type InputHTMLAttributes, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react';
+import { forwardRef, useEffect, useState, type CSSProperties, type ReactNode, type ButtonHTMLAttributes, type InputHTMLAttributes, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react';
 import Link from 'next/link';
 
 /**
@@ -46,6 +46,28 @@ export const eyebrowStyle: CSSProperties = {
 
 export function Eyebrow({ children, style }: { children: ReactNode; style?: CSSProperties }) {
   return <div style={{ ...eyebrowStyle, ...style }}>{children}</div>;
+}
+
+/** Control label (the text above an input). Shared by Field and the older
+ *  form sub-components so every form reads as one family. */
+export const labelStyle: CSSProperties = {
+  fontSize: 12.5, fontWeight: 500, color: T.dim, display: 'flex', gap: 4, alignItems: 'center',
+};
+export const hintStyle: CSSProperties = { fontSize: 12, color: T.mute };
+export const requiredMark = <span style={{ color: T.red }}>*</span>;
+
+/** True below `bp` px — the codebase's `narrow` / `isCompact` convention. */
+export function useIsCompact(bp = 900): boolean {
+  const [compact, setCompact] = useState(false);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia(`(max-width: ${bp - 1}px)`);
+    const handler = () => setCompact(mq.matches);
+    handler();
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, [bp]);
+  return compact;
 }
 
 // ── Button ────────────────────────────────────────────────────────────────
