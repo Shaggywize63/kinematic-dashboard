@@ -1,10 +1,10 @@
 'use client';
-import 'leaflet/dist/leaflet.css';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { MapContainer, TileLayer, CircleMarker, Popup, Tooltip, useMap } from 'react-leaflet';
+import { LocateFixed, Search } from 'lucide-react';
 import { INDIA_STATES, INDIA_CENTRE } from '../../../lib/indiaStates';
 import { breakdownFactors } from '../../../lib/crm/scoreFactors';
+import { applyMapTheme, baseMapOptions, circleSymbol, escapeHtml, infoHtml, MAP_COLORS, useDocumentTheme, useGoogleMaps, type GMaps, type MapTheme } from '../../../lib/googleMaps';
+import { Eyebrow, Input, T, useIsCompact } from '../../ui';
 
 // City catalog — coords + state for ~120 Indian cities. Each entry is
 // `[lat, lng, state]`. The state is used to derive a sensible
@@ -165,12 +165,20 @@ const CITY_TO_STATE: Record<string, string> =
 
 const STATE_BY_NAME = new Map(INDIA_STATES.map((s) => [s.name.toLowerCase(), s]));
 
-const STATUS_COLOR: Record<string, string> = {
-  new:         '#3E9EFF',
-  working:     '#F7B538',
-  qualified:   '#7B61FF',
-  converted:   '#28B463',
-  unqualified: '#E01E2C',
+// Status → marker colour, per theme (maps can't read CSS variables). The
+// side panel uses the matching tokens so both read as one legend.
+function statusColor(status: string | null | undefined, theme: MapTheme): string {
+  const c = MAP_COLORS[theme];
+  switch ((status ?? 'new').toLowerCase()) {
+    case 'working': return c.warn;
+    case 'qualified': return c.violet;
+    case 'converted': return c.ok;
+    case 'unqualified': case 'lost': return c.red;
+    default: return c.info;
+  }
+}
+const STATUS_TOKEN: Record<string, string> = {
+  new: 'var(--info)', working: 'var(--warn)', qualified: '#7C3AED', converted: 'var(--ok)', unqualified: 'var(--red)', lost: 'var(--red)',
 };
 
 export interface LeadGeoPoint {
@@ -199,35 +207,9 @@ function hasRealCoords(l: LeadGeoPoint): l is LeadGeoPoint & { latitude: number;
     && !(l.latitude === 0 && l.longitude === 0);
 }
 
-// Zoom thresholds drive the level-of-detail switch.
-const ZOOM_STATE_MAX = 6;     // ≤ this zoom: show state-level chips
-const ZOOM_CITY_MAX  = 9;     // ≤ this zoom: show city-level circles. ≥ 10: individual lead markers.
-
-// Helper child component — exposes the live zoom level to the parent so it
-// can switch aggregation modes without the parent owning a map ref.
-function ZoomTracker({ onZoom }: { onZoom: (z: number) => void }) {
-  const map = useMap();
-  useEffect(() => {
-    onZoom(map.getZoom());
-    const handler = () => onZoom(map.getZoom());
-    map.on('zoomend', handler);
-    return () => { map.off('zoomend', handler); };
-  }, [map, onZoom]);
-  return null;
-}
-
-// Helper child component — flies the map to a target location. Re-runs when
-// the target changes; we use a serialised "key" to dedupe re-flights.
-function FlyTo({ target }: { target: { lat: number; lng: number; zoom: number; key: string } | null }) {
-  const map = useMap();
-  const lastKey = useRef<string | null>(null);
-  useEffect(() => {
-    if (!target || target.key === lastKey.current) return;
-    lastKey.current = target.key;
-    map.flyTo([target.lat, target.lng], target.zoom, { duration: 0.9 });
-  }, [target, map]);
-  return null;
-}
+// Zoom thresholds drive the level-of-detail label in the corner chip.
+const ZOOM_STATE_MAX = 6;
+const ZOOM_CITY_MAX  = 9;
 
 interface SearchHit {
   type: 'state' | 'city';
@@ -239,22 +221,38 @@ interface SearchHit {
   state?: string;
 }
 
+// InfoWindow body for a lead pin — name, place, status pill, score
+// breakdown and a link into the lead.
+function leadPopupHtml(lead: LeadGeoPoint, place: string, color: string): string {
+  const name = [lead.first_name, lead.last_name].filter(Boolean).join(' ') || 'Lead';
+  const status = (lead.status ?? 'new').toLowerCase();
+  let extra = `<span style="display:inline-block;margin-top:6px;padding:1px 8px;border-radius:999px;background:${color}1f;color:${color};font-size:11px;font-weight:600">${escapeHtml(status)}</span>`;
+  if (lead.score != null) {
+    const sc = Math.round(lead.score as number);
+    const gr = lead.score_grade ?? (sc >= 75 ? 'A' : sc >= 50 ? 'B' : sc >= 25 ? 'C' : 'D');
+    const gc = sc >= 70 ? '#0A8A4E' : sc >= 40 ? '#C97A00' : '#D01E2C';
+    const top = breakdownFactors(lead.score_breakdown).slice(0, 4);
+    extra += `<div style="margin-top:8px;padding-top:6px;border-top:1px solid #E4E6EB">`
+      + `<div style="display:flex;align-items:center;gap:6px"><span style="font-family:JetBrains Mono,monospace;font-weight:600;font-size:11px;padding:1px 6px;border-radius:999px;background:${gc}1f;color:${gc}">${gr} · ${sc}</span><span style="color:#94A3B8;font-size:10px;letter-spacing:.06em;text-transform:uppercase;font-family:JetBrains Mono,monospace">Lead score</span></div>`
+      + (top.length ? `<ul style="margin:4px 0 0;padding:0;list-style:none">${top.map((f) => `<li style="display:flex;justify-content:space-between;gap:8px;font-size:11px;color:#64748B"><span>${escapeHtml(f.label)}</span><span style="color:#0A8A4E;font-weight:600">+${escapeHtml(f.value)}</span></li>`).join('')}</ul>` : '')
+      + `</div>`;
+  }
+  extra += `<div style="margin-top:8px"><a href="/dashboard/crm/leads/${encodeURIComponent(lead.id)}" style="color:#0066FF;font-weight:600;font-size:12px;text-decoration:none">Open lead →</a></div>`;
+  return infoHtml(name, [place], extra);
+}
+
 export default function LeadsGeoMap({ leads, height = 620 }: { leads: LeadGeoPoint[]; height?: number }) {
-  const router = useRouter();
   const [zoom, setZoom] = useState<number>(INDIA_CENTRE.zoom);
-  const [target, setTarget] = useState<{ lat: number; lng: number; zoom: number; key: string } | null>(null);
   const [search, setSearch] = useState('');
   // Below this width we stack the map + side panel vertically and shrink the
   // map height so both fit on a phone screen.
-  const [isCompact, setIsCompact] = useState(false);
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const mq = window.matchMedia('(max-width: 820px)');
-    const handler = () => setIsCompact(mq.matches);
-    handler();
-    mq.addEventListener('change', handler);
-    return () => { mq.removeEventListener('change', handler); };
-  }, []);
+  const isCompact = useIsCompact(820);
+  const mapRef = useRef<HTMLDivElement>(null);
+  const mapInst = useRef<GMaps>(null);
+  const infoRef = useRef<GMaps>(null);
+  const markersRef = useRef<GMaps[]>([]);
+  const { maps, error } = useGoogleMaps(['maps']);
+  const theme = useDocumentTheme();
 
   // Bucket leads by state + by city so both layers can read counts O(1).
   const { byState, byCity, unmapped, pinnedLeads } = useMemo(() => {
@@ -304,15 +302,14 @@ export default function LeadsGeoMap({ leads, height = 620 }: { leads: LeadGeoPoi
         .sort((a, b) => b.count - a.count),
       unmapped: unmappedCount,
       // Leads with an exact captured position — plotted precisely (not
-      // jittered) at high zoom. Includes leads whose city has no centroid.
+      // jittered). Includes leads whose city has no centroid.
       pinnedLeads: leads.filter(hasRealCoords),
     };
   }, [leads]);
 
   const totalMapped = byCity.reduce((s, c) => s + c.count, 0);
 
-  // Search hits — dynamic over states + cities (and a synthetic "All India"
-  // entry to snap back).
+  // Search hits — dynamic over states + cities.
   const searchHits = useMemo<SearchHit[]>(() => {
     const q = search.trim().toLowerCase();
     if (!q) return [];
@@ -337,19 +334,55 @@ export default function LeadsGeoMap({ leads, height = 620 }: { leads: LeadGeoPoi
     return hits.slice(0, 30);
   }, [search, byState, byCity]);
 
-  const flyTo = (h: SearchHit) => {
-    setTarget({ lat: h.lat, lng: h.lng, zoom: h.zoom, key: `${h.type}-${h.name}-${Date.now()}` });
-  };
+  // ── Map lifecycle ──────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!maps || !mapRef.current || mapInst.current) return;
+    const map = new maps.Map(mapRef.current, baseMapOptions(theme, {
+      center: { lat: INDIA_CENTRE.lat, lng: INDIA_CENTRE.lng }, zoom: INDIA_CENTRE.zoom, minZoom: 4, maxZoom: 16,
+    }));
+    map.addListener('zoom_changed', () => setZoom(map.getZoom() ?? INDIA_CENTRE.zoom));
+    mapInst.current = map;
+    infoRef.current = new maps.InfoWindow();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [maps]);
 
+  useEffect(() => { applyMapTheme(mapInst.current, theme); }, [theme]);
+
+  // Lead pins — only leads with an exact captured position are plotted (no
+  // city-centroid approximation). Rebuilt when the data or theme changes.
+  useEffect(() => {
+    const map = mapInst.current;
+    if (!maps || !map) return;
+    markersRef.current.forEach((m) => m.setMap(null));
+    markersRef.current = [];
+    for (const lead of pinnedLeads) {
+      const color = statusColor(lead.status, theme);
+      const place = [lead.city, lead.state].filter(Boolean).join(', ') || 'Pinned location';
+      const marker = new maps.Marker({
+        map, position: { lat: lead.latitude, lng: lead.longitude },
+        title: [lead.first_name, lead.last_name].filter(Boolean).join(' ') || 'Lead',
+        icon: circleSymbol(maps, color, 6, MAP_COLORS[theme].stroke),
+      });
+      marker.addListener('click', () => {
+        infoRef.current?.setContent(leadPopupHtml(lead, place, color));
+        infoRef.current?.open({ map, anchor: marker });
+      });
+      markersRef.current.push(marker);
+    }
+  }, [maps, pinnedLeads, theme]);
+
+  const flyTo = (h: { lat: number; lng: number; zoom: number }) => {
+    const map = mapInst.current;
+    if (!map) return;
+    map.panTo({ lat: h.lat, lng: h.lng });
+    map.setZoom(h.zoom);
+  };
   const resetView = () => {
     setSearch('');
-    setTarget({ lat: INDIA_CENTRE.lat, lng: INDIA_CENTRE.lng, zoom: INDIA_CENTRE.zoom, key: `reset-${Date.now()}` });
+    flyTo({ lat: INDIA_CENTRE.lat, lng: INDIA_CENTRE.lng, zoom: INDIA_CENTRE.zoom });
   };
 
-  // Choose which layer to render based on the live zoom level.
-  const showStates = zoom <= ZOOM_STATE_MAX;
-  const showCities = zoom > ZOOM_STATE_MAX && zoom <= ZOOM_CITY_MAX;
-  const showLeads  = zoom > ZOOM_CITY_MAX;
+  const level = zoom <= ZOOM_STATE_MAX ? 'States' : zoom <= ZOOM_CITY_MAX ? 'Cities' : 'Leads';
 
   return (
     <div style={{
@@ -360,131 +393,45 @@ export default function LeadsGeoMap({ leads, height = 620 }: { leads: LeadGeoPoi
     }}>
       {/* Map */}
       <div style={{ background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden', position: 'relative', height: isCompact ? 360 : '100%' }}>
-        <MapContainer
-          center={[INDIA_CENTRE.lat, INDIA_CENTRE.lng]}
-          zoom={INDIA_CENTRE.zoom}
-          minZoom={4}
-          maxZoom={16}
-          scrollWheelZoom
-          style={{ width: '100%', height: '100%' }}
-        >
-          <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          />
-          <ZoomTracker onZoom={setZoom} />
-          <FlyTo target={target} />
-
-          {/* Static city/state aggregate markers are intentionally removed:
-              the map now only plots leads that carry real captured
-              coordinates. Once more leads have coordinates they'll appear
-              here automatically. */}
-
-          {/* Individual lead markers — only leads with an exact captured
-              position are plotted (no city-centroid approximation). Shown from
-              zoom level 5 (roughly the India-wide default) upward, so the pins
-              are visible without having to zoom right in. */}
-          {zoom >= 5 && (() => {
-            const markers: Array<{ lead: LeadGeoPoint; lat: number; lng: number; place: string }> = [];
-            for (const lead of pinnedLeads) {
-              markers.push({
-                lead,
-                lat: lead.latitude,
-                lng: lead.longitude,
-                place: [lead.city, lead.state].filter(Boolean).join(', ') || 'Pinned location',
-              });
-            }
-            return markers.map(({ lead, lat, lng, place }) => {
-              const status = (lead.status ?? 'new').toLowerCase();
-              const color = STATUS_COLOR[status] ?? '#3E9EFF';
-              return (
-                <CircleMarker
-                  key={`lead-${lead.id}`}
-                  center={[lat, lng]}
-                  radius={6}
-                  pathOptions={{ color: '#fff', fillColor: color, fillOpacity: 0.9, weight: 1.5 }}
-                  eventHandlers={{ click: () => router.push(`/dashboard/crm/leads/${lead.id}`) }}
-                >
-                  <Tooltip direction="top" offset={[0, -6]}>
-                    <span style={{ font: '600 11px system-ui' }}>
-                      {[lead.first_name, lead.last_name].filter(Boolean).join(' ') || 'Lead'}
-                    </span>
-                  </Tooltip>
-                  <Popup>
-                    <div style={{ font: '12px/1.4 system-ui' }}>
-                      <strong>{[lead.first_name, lead.last_name].filter(Boolean).join(' ') || 'Lead'}</strong>
-                      <br />
-                      <span style={{ color: '#666' }}>{place}</span>
-                      <br />
-                      <span style={{ display: 'inline-block', marginTop: 4, padding: '1px 6px', borderRadius: 4, background: `${color}33`, color, fontSize: 10, fontWeight: 700 }}>
-                        {status}
-                      </span>
-                      {lead.score != null && (() => {
-                        const sc = Math.round(lead.score as number);
-                        const gr = lead.score_grade ?? (sc >= 75 ? 'A' : sc >= 50 ? 'B' : sc >= 25 ? 'C' : 'D');
-                        const gc = sc >= 70 ? '#10b981' : sc >= 40 ? '#f59e0b' : '#ef4444';
-                        const top = breakdownFactors(lead.score_breakdown).slice(0, 4);
-                        return (
-                          <div style={{ marginTop: 8, paddingTop: 6, borderTop: '1px solid #e5e5e5' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                              <span style={{ fontWeight: 800, fontSize: 10, padding: '1px 6px', borderRadius: 999, background: `${gc}22`, color: gc, border: `1px solid ${gc}55` }}>{gr} · {sc}</span>
-                              <span style={{ color: '#888', fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.4 }}>Lead score</span>
-                            </div>
-                            {top.length > 0 && (
-                              <ul style={{ margin: '4px 0 0', padding: 0, listStyle: 'none' }}>
-                                {top.map((f) => (
-                                  <li key={f.key} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 10, color: '#444' }}>
-                                    <span>{f.label}</span><span style={{ color: '#10b981', fontWeight: 700 }}>+{f.value}</span>
-                                  </li>
-                                ))}
-                              </ul>
-                            )}
-                          </div>
-                        );
-                      })()}
-                      <div style={{ marginTop: 8 }}>
-                        <a href={`/dashboard/crm/leads/${lead.id}`} style={{ color: '#E01E2C', fontWeight: 700, fontSize: 11 }}>Open lead →</a>
-                      </div>
-                    </div>
-                  </Popup>
-                </CircleMarker>
-              );
-            });
-          })()}
-        </MapContainer>
-
-        {/* Bottom-left zoom hint + reset */}
-        <div style={{ position: 'absolute', left: 10, bottom: 10, zIndex: 500, background: 'rgba(20,22,28,0.92)', border: '1px solid var(--border)', borderRadius: 8, padding: '6px 10px', fontSize: 11, color: '#cbd2dd', display: 'flex', gap: 10, alignItems: 'center' }}>
-          <span>Zoom: <strong style={{ color: '#fff' }}>{zoom}</strong></span>
-          <span style={{ color: '#888' }}>·</span>
-          <span>{showStates ? 'States' : showCities ? 'Cities' : 'Leads'}</span>
-          <button onClick={resetView} style={{ background: 'transparent', border: '1px solid #444', color: '#cbd2dd', padding: '2px 8px', borderRadius: 4, cursor: 'pointer', fontSize: 10, fontWeight: 700 }}>Reset</button>
-        </div>
+        <div ref={mapRef} style={{ width: '100%', height: '100%' }} />
+        {error && (
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-dim)', fontSize: 12.5, padding: 16, textAlign: 'center' }}>{error}</div>
+        )}
+        {!error && (
+          <div style={{ position: 'absolute', left: 10, bottom: 10, zIndex: 5, background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8, padding: '4px 4px 4px 10px', fontSize: 11.5, color: 'var(--text-dim)', display: 'flex', gap: 8, alignItems: 'center', boxShadow: 'var(--shadow-pop)' }}>
+            <span style={{ fontFamily: T.mono }}>z{zoom}</span>
+            <span style={{ color: 'var(--text-mute)' }}>·</span>
+            <span>{level}</span>
+            <button type="button" onClick={resetView} className="km-iconbtn" title="Reset view" aria-label="Reset view" style={{ width: 24, height: 24, borderRadius: 5, border: 0, background: 'transparent', color: 'var(--text-dim)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <LocateFixed size={13} strokeWidth={1.8} />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Side panel — search + summary + top cities */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, minHeight: 0 }}>
-        <div style={{ padding: '10px 12px', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 8 }}>
-          <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.5, marginBottom: 6 }}>Find on map</div>
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search state, city, district…"
-            style={{ width: '100%', background: 'var(--s4)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 10px', borderRadius: 8, fontSize: 13, outline: 'none' }}
-          />
+        <div style={{ padding: 12, background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 8 }}>
+          <Eyebrow style={{ marginBottom: 8 }}>Find on map</Eyebrow>
+          <div style={{ position: 'relative' }}>
+            <Search size={14} strokeWidth={1.6} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-mute)', pointerEvents: 'none' }} />
+            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="State, city, district…" style={{ paddingLeft: 30, height: 32, fontSize: 13 }} />
+          </div>
           {searchHits.length > 0 && (
-            <div style={{ marginTop: 8, maxHeight: 180, overflowY: 'auto', background: 'var(--s4)', border: '1px solid var(--border)', borderRadius: 8 }}>
+            <div style={{ marginTop: 8, maxHeight: 180, overflowY: 'auto', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 6, padding: 4 }}>
               {searchHits.map((h, i) => (
                 <button
                   key={`${h.type}-${h.name}-${i}`}
+                  type="button"
                   onClick={() => flyTo(h)}
-                  style={{ display: 'flex', justifyContent: 'space-between', width: '100%', padding: '8px 10px', background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)', cursor: 'pointer', textAlign: 'left' }}>
-                  <span style={{ fontSize: 12, color: 'var(--text)', fontWeight: 600 }}>
-                    <span style={{ display: 'inline-block', minWidth: 38, fontSize: 9, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{h.type === 'state' ? 'State' : 'City'}</span>
+                  className="km-navrow"
+                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, width: '100%', height: 30, padding: '0 8px', borderRadius: 5, background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit' }}>
+                  <span style={{ fontSize: 12.5, color: 'var(--text)', fontWeight: 500, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <span style={{ display: 'inline-block', minWidth: 36, fontFamily: T.mono, fontSize: 9.5, color: 'var(--text-mute)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h.type}</span>
                     {h.name}{h.state ? <span style={{ color: 'var(--text-dim)' }}> · {h.state}</span> : null}
                   </span>
                   {typeof h.count === 'number' && h.count > 0 && (
-                    <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>{h.count} lead{h.count === 1 ? '' : 's'}</span>
+                    <span style={{ fontFamily: T.mono, fontSize: 11, color: 'var(--text-dim)', flexShrink: 0 }}>{h.count}</span>
                   )}
                 </button>
               ))}
@@ -492,33 +439,30 @@ export default function LeadsGeoMap({ leads, height = 620 }: { leads: LeadGeoPoi
           )}
         </div>
 
-        <div style={{ padding: '10px 12px', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 8 }}>
-          <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.5 }}>Geo summary</div>
-          <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text)', marginTop: 2 }}>{totalMapped.toLocaleString()} mapped</div>
-          <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{byState.length} state{byState.length === 1 ? '' : 's'} · {byCity.length} cit{byCity.length === 1 ? 'y' : 'ies'}{unmapped > 0 ? ` · ${unmapped} unmapped` : ''}</div>
+        <div style={{ padding: 12, background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 8 }}>
+          <Eyebrow>Geo summary</Eyebrow>
+          <div style={{ fontFamily: T.heading, fontSize: 22, fontWeight: 700, letterSpacing: '-0.01em', color: 'var(--text)', marginTop: 4, lineHeight: 1.15 }}>{totalMapped.toLocaleString()} <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-dim)', fontFamily: 'inherit' }}>mapped</span></div>
+          <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>{byState.length} state{byState.length === 1 ? '' : 's'} · {byCity.length} cit{byCity.length === 1 ? 'y' : 'ies'}{unmapped > 0 ? ` · ${unmapped} unmapped` : ''}</div>
         </div>
 
-        <div style={{ flex: 1, overflowY: 'auto', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 8 }}>
-          <div style={{ padding: '8px 12px', fontSize: 10, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, borderBottom: '1px solid var(--border)' }}>Top cities</div>
+        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 8 }}>
+          <div style={{ padding: '10px 12px 6px', borderBottom: '1px solid var(--border)' }}><Eyebrow>Top cities</Eyebrow></div>
           {byCity.length === 0 ? (
-            <div style={{ padding: 16, fontSize: 11, color: 'var(--text-dim)' }}>No leads with mapped cities yet.</div>
+            <div style={{ padding: 16, fontSize: 12.5, color: 'var(--text-dim)' }}>No leads with mapped cities yet.</div>
           ) : byCity.map((c) => {
             const dominant = Object.entries(c.statuses).sort(([, a], [, b]) => b - a)[0]?.[0] ?? 'new';
             return (
               <button
                 key={c.city}
-                onClick={() => flyTo({ type: 'city', name: c.city, lat: c.lat, lng: c.lng, zoom: 10, count: c.count, state: c.state })}
-                style={{
-                  width: '100%', textAlign: 'left', background: 'transparent',
-                  border: 'none', borderBottom: '1px solid var(--border)',
-                  padding: '8px 12px', cursor: 'pointer',
-                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                }}>
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: 'var(--text)', fontSize: 12, fontWeight: 600 }}>
-                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: STATUS_COLOR[dominant] }} />
+                type="button"
+                onClick={() => flyTo({ lat: c.lat, lng: c.lng, zoom: 10 })}
+                className="km-navrow"
+                style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)', padding: '0 12px', height: 34, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontFamily: 'inherit' }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: 'var(--text)', fontSize: 13, fontWeight: 500 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: STATUS_TOKEN[dominant] ?? 'var(--text-mute)' }} />
                   {c.city}
                 </span>
-                <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>{c.count}</span>
+                <span style={{ fontFamily: T.mono, fontSize: 11.5, color: 'var(--text-dim)' }}>{c.count}</span>
               </button>
             );
           })}

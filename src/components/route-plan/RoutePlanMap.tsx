@@ -1,6 +1,6 @@
 'use client';
-import 'leaflet/dist/leaflet.css';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
+import { applyMapTheme, baseMapOptions, fitToPoints, infoHtml, MAP_COLORS, useDocumentTheme, useGoogleMaps, type GMaps } from '../../lib/googleMaps';
 
 // Stops we can plot — a subset of the route-plan OutletStop shape.
 export interface RoutePlanStop {
@@ -13,80 +13,80 @@ export interface RoutePlanStop {
   store_lng?: number;
 }
 
-const STATUS_COLOR: Record<string, string> = {
-  visited: '#28B463', completed: '#28B463', in_progress: '#3E9EFF',
-  pending: '#94a3b8', missed: '#E01E2C',
-};
+function statusColor(status: string | undefined, theme: 'light' | 'dark'): string {
+  const c = MAP_COLORS[theme];
+  switch ((status || 'pending').toLowerCase()) {
+    case 'visited': case 'completed': return c.ok;
+    case 'in_progress': return c.info;
+    case 'missed': return c.red;
+    default: return c.mute;
+  }
+}
 
 /**
- * Lightweight Leaflet map for a single route plan — numbered, status-coloured
- * markers in visit order, joined by a route polyline. Loads Leaflet from the
- * bundled npm package (the app CSP blocks CDN script-src).
+ * Google Map for a single route plan — numbered, status-coloured markers in
+ * visit order, joined by a dashed route line. Follows the app theme.
  */
 export default function RoutePlanMap({ stops, height = 300 }: { stops: RoutePlanStop[]; height?: number }) {
   const mapRef = useRef<HTMLDivElement>(null);
-  const mapInst = useRef<any>(null);
-  const layer = useRef<any>(null);
-  const [ready, setReady] = useState(false);
-
-  // Bundled Leaflet (not CDN — CSP-safe).
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    if ((window as any).L) { setReady(true); return; }
-    let cancelled = false;
-    import('leaflet')
-      .then((mod) => { if (cancelled) return; (window as any).L = (mod as any).default ?? mod; setReady(true); })
-      .catch(() => { /* leave placeholder */ });
-    return () => { cancelled = true; };
-  }, []);
+  const mapInst = useRef<GMaps>(null);
+  const infoRef = useRef<GMaps>(null);
+  const overlays = useRef<GMaps[]>([]);
+  const { maps, error } = useGoogleMaps(['maps']);
+  const theme = useDocumentTheme();
 
   useEffect(() => {
-    if (!ready || !mapRef.current || mapInst.current) return;
-    const L = (window as any).L;
-    if (!L) return;
-    const map = L.map(mapRef.current, { zoomControl: true, attributionControl: false }).setView([20.59, 78.96], 5);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
-    mapInst.current = map;
-    setTimeout(() => map.invalidateSize(), 200);
-  }, [ready]);
+    if (!maps || !mapRef.current || mapInst.current) return;
+    mapInst.current = new maps.Map(mapRef.current, baseMapOptions(theme, { center: { lat: 20.59, lng: 78.96 }, zoom: 5 }));
+    infoRef.current = new maps.InfoWindow();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [maps]);
+
+  useEffect(() => { applyMapTheme(mapInst.current, theme); }, [theme]);
 
   useEffect(() => {
-    if (!ready || !mapInst.current) return;
-    const L = (window as any).L;
-    if (!L) return;
-    if (layer.current) { layer.current.remove(); layer.current = null; }
+    const map = mapInst.current;
+    if (!maps || !map) return;
+    overlays.current.forEach((o) => o.setMap(null));
+    overlays.current = [];
 
     const pts = [...stops]
       .filter((s) => typeof s.store_lat === 'number' && typeof s.store_lng === 'number')
       .sort((a, b) => a.visit_order - b.visit_order);
     if (pts.length === 0) return;
 
-    const group: any[] = [];
-    const line: [number, number][] = [];
-    pts.forEach((s) => {
-      const color = STATUS_COLOR[(s.status || 'pending').toLowerCase()] ?? '#94a3b8';
-      const html = `<div style="width:26px;height:26px;border-radius:50%;background:${color};border:2px solid #0b0d12;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;color:#fff;box-shadow:0 2px 8px rgba(0,0,0,.6)">${s.visit_order}</div>`;
-      const icon = L.divIcon({ html, className: '', iconSize: [26, 26], iconAnchor: [13, 13] });
-      const m = L.marker([s.store_lat as number, s.store_lng as number], { icon })
-        .bindPopup(`<div style="font:600 12px system-ui">#${s.visit_order} ${s.store_name ?? ''}<br/><span style="color:#888;font-weight:400">${s.store_address ?? ''}</span></div>`);
-      group.push(m);
-      line.push([s.store_lat as number, s.store_lng as number]);
-    });
-    if (line.length > 1) {
-      group.push(L.polyline(line, { color: '#3E9EFF', weight: 3, opacity: 0.8, dashArray: '6 6' }));
+    const path: Array<{ lat: number; lng: number }> = [];
+    for (const s of pts) {
+      const pos = { lat: s.store_lat as number, lng: s.store_lng as number };
+      path.push(pos);
+      const marker = new maps.Marker({
+        map, position: pos, title: s.store_name || `Stop ${s.visit_order}`,
+        icon: { path: maps.SymbolPath.CIRCLE, scale: 13, fillColor: statusColor(s.status, theme), fillOpacity: 1, strokeColor: MAP_COLORS[theme].stroke, strokeWeight: 2 },
+        label: { text: String(s.visit_order), color: '#FFFFFF', fontSize: '11px', fontWeight: '700', fontFamily: 'JetBrains Mono, monospace' },
+      });
+      marker.addListener('click', () => {
+        infoRef.current?.setContent(infoHtml(`#${s.visit_order} ${s.store_name ?? ''}`, [s.store_address ?? '', (s.status || 'pending').replace(/_/g, ' ')]));
+        infoRef.current?.open({ map, anchor: marker });
+      });
+      overlays.current.push(marker);
     }
-    layer.current = L.featureGroup(group).addTo(mapInst.current);
-    mapInst.current.fitBounds(layer.current.getBounds().pad(0.2));
-  }, [ready, stops]);
+    if (path.length > 1) {
+      overlays.current.push(new maps.Polyline({
+        map, path, strokeOpacity: 0,
+        icons: [{ icon: { path: 'M 0,-1 0,1', strokeOpacity: 0.8, strokeColor: MAP_COLORS[theme].info, scale: 2.5 }, offset: '0', repeat: '12px' }],
+      }));
+    }
+    fitToPoints(maps, map, path, { padding: 40, maxZoom: 14 });
+  }, [maps, stops, theme]);
 
   const plottable = stops.filter((s) => typeof s.store_lat === 'number' && typeof s.store_lng === 'number').length;
 
   return (
     <div style={{ position: 'relative', height, borderRadius: 12, overflow: 'hidden', border: '1px solid var(--border)', background: 'var(--s3)' }}>
       <div ref={mapRef} style={{ width: '100%', height: '100%' }} />
-      {plottable === 0 && (
-        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-dim)', fontSize: 12 }}>
-          No mapped coordinates for this plan&apos;s stops.
+      {(plottable === 0 || error) && (
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-dim)', fontSize: 12.5, padding: 16, textAlign: 'center', background: error ? 'var(--s3)' : 'transparent' }}>
+          {error ? error : 'No mapped coordinates for this plan’s stops.'}
         </div>
       )}
     </div>
