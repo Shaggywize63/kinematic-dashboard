@@ -660,8 +660,10 @@ export default function NewLeadPage() {
   const locationMissing = !skipLocation && (!form.latitude || !form.longitude);
   const submitDisabled = busy || locationMissing;
 
-  // Save / Cancel live in the page header AND under the form so a long form
-  // never strands the rep away from the button. Both submit the same <form>.
+  // One submit button per layout: in the page header on desktop, under the
+  // form on phones (where the rep is at the bottom when they finish typing).
+  // The same node is rendered in exactly one place so nothing is duplicated
+  // for assistive tech or tests.
   const actions = (
     <>
       <Button type="button" onClick={() => router.back()}>Cancel</Button>
@@ -673,7 +675,7 @@ export default function NewLeadPage() {
         title={locationMissing ? 'Capture your location to enable' : undefined}
         icon={<Check size={16} strokeWidth={2} />}
       >
-        {busy ? 'Saving…' : 'Save lead'}
+        {busy ? 'Saving…' : 'Create lead'}
       </Button>
     </>
   );
@@ -683,7 +685,7 @@ export default function NewLeadPage() {
       <PageHeader
         title="New lead"
         description={<>{showToggle ? 'Create a lead and assign it to a rep. Hidden fields follow your admin’s form settings.' : leadTypeLabel} Fields marked {requiredMark} are required.</>}
-        actions={actions}
+        actions={narrow ? undefined : actions}
         compact={narrow}
       />
 
@@ -963,7 +965,7 @@ export default function NewLeadPage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: T.mute }}>
             <Info size={14} strokeWidth={1.6} /> Fields your admin hid in Settings don’t appear here.
           </div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>{actions}</div>
+          {narrow && <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>{actions}</div>}
         </div>
       </form>
     </div>
