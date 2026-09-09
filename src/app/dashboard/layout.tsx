@@ -1,26 +1,21 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { getStoredUser, isSessionValid, clearSession, getDesignationLabel } from '../../lib/auth';
 import api, { getActingAs, setActingAs, getImpersonateUser, stopImpersonation } from '../../lib/api';
 import { webChatsApi } from '../../lib/webChatsApi';
-import BrandLogo from '../../components/shared/BrandLogo';
-import SignedImage from '../../components/shared/SignedImage';
-import NewBadge from '../../components/shared/NewBadge';
 import { WHATS_NEW, markSectionSeen } from '../../lib/whatsNew';
 import StagingBoot from './StagingBoot';
 import StagingDeployModal from './StagingDeployModal';
 import { getStoredProjectKey } from '../../lib/projects';
-import { ClientProvider, useClient } from '../../context/ClientContext';
+import { ClientProvider } from '../../context/ClientContext';
 import { CityScopeProvider } from '../../context/CityScopeContext';
 import { IndustryScopeProvider } from '../../context/IndustryScopeContext';
-import ClientSelect from '../../components/ClientSelect';
-import IndustryScopePicker from '../../components/IndustryScopePicker';
-import NotificationBell from '../../components/crm/NotificationBell';
-import ThemeToggle from '../../components/shared/ThemeToggle';
 import { useNavPrefs, applyNavOrder } from '../../lib/navPrefs';
+import { deriveCrumbs } from '../../lib/pageTitle';
+import Sidebar, { SIDEBAR_W, SIDEBAR_RAIL_W } from '../../components/dashboard/Sidebar';
+import TopBar from '../../components/dashboard/TopBar';
 
 // KINI chat is ~250 lines + 4 card components + markdown helpers; load it on
 // demand so the main dashboard JS stays lean. ssr:false avoids hydration cost.
@@ -28,69 +23,10 @@ const KinematicAI = dynamic(() => import('../../components/KinematicAI'), { ssr:
 // Sidebar "Customise menu" editor (drag-to-reorder). Only mounted when the
 // user opens it, so @dnd-kit stays out of the main dashboard bundle.
 const SidebarEditor = dynamic(() => import('../../components/dashboard/SidebarEditor'), { ssr: false });
-// Floating chat launcher (Messenger-style FAB + popup panel) — replaces the
-// sidebar Inbox entry. Lazy-loaded to keep TTI snappy.
-const ChatLauncher = dynamic(() => import('../../components/messaging/ChatLauncher'), { ssr: false });
 // Global smart-search command palette (⌘/Ctrl-K). Lazy — only pulled in when
 // the shell mounts; the panel itself renders nothing until opened.
 const SmartSearch = dynamic(() => import('../../components/shared/SmartSearch'), { ssr: false });
 
-function GlobalClientFilter({ isPlatformAdmin }: { isPlatformAdmin: boolean }) {
-  const { selectedClientId, setSelectedClientId } = useClient();
-  if (!isPlatformAdmin) return null;
-  return (
-    <div style={{ width: 220, flexShrink: 0 }}>
-      <ClientSelect
-        value={selectedClientId}
-        onChange={(id) => setSelectedClientId(id)}
-        placeholder="Filter by Client..."
-      />
-    </div>
-  );
-}
-
-const C = {
-  bg: 'var(--bg)',
-  side: 'var(--s1)',
-  border: 'var(--border)',
-  borderL: 'var(--border-l)',
-  white: 'var(--text)',
-  gray: 'var(--text-dim)',
-  grayd: 'var(--text-dim)',
-  red: 'var(--primary)',
-  redD: 'rgba(224,30,44,0.12)',
-  redB: 'rgba(224,30,44,0.2)',
-  s1: 'var(--s1)', s2: 'var(--s2)', s3: 'var(--s3)', s4: 'var(--s4)',
-  green: 'var(--green)', blue: 'var(--accent)',
-};
-
-// Per-section accent colours for the sidebar icon tiles. Each nav group gets a
-// distinct hue so the sidebar reads as colourful/grouped instead of a wall of
-// pale grey glyphs. A few marquee items override with their own colour.
-const NAV_GROUP_ACCENT: Record<string, string> = {
-  field_force:  '#3B82F6', // blue
-  crm:          '#8B5CF6', // violet
-  distribution: '#F59E0B', // amber
-  business:     '#14B8A6', // teal
-  people:       '#10B981', // green
-  planograms:   '#EC4899', // pink — retail-execution / shelf IQ
-};
-const NAV_ITEM_ACCENT: Record<string, string> = {
-  '/dashboard/crm/website-chats': '#D01E2C', // KINI brand red
-  '/dashboard/crm/whatsapp':      '#25D366', // WhatsApp green
-};
-function navAccent(pkg: string | undefined, href: string): string {
-  return NAV_ITEM_ACCENT[href] || NAV_GROUP_ACCENT[pkg || ''] || '#3B82F6';
-}
-
-function Icon({ d, size = 18 }: { d: string; size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-      {d.split(' M ').map((p, i) => <path key={i} d={i === 0 ? p : 'M ' + p} />)}
-    </svg>
-  );
-}
 
 function useIsMobile(breakpoint = 1024) {
   const [isMobile, setIsMobile] = useState(false);
@@ -332,8 +268,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     (href === '/dashboard' || href === '/dashboard/planograms')
       ? pathname === href
       : pathname.startsWith(href);
-  const sideW = isMobile ? 0 : (collapsed ? 64 : 220);
-  const drawerW = isMobile ? 240 : (collapsed ? 64 : 220);
+  const sideW = isMobile ? 0 : (collapsed ? SIDEBAR_RAIL_W : SIDEBAR_W);
   const sidebarVisible = isMobile ? drawerOpen : true;
 
   useEffect(() => { if (isMobile) setDrawerOpen(false); }, [pathname, isMobile]);
@@ -547,12 +482,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     return enabledPackages.includes(pkg);
   };
 
+  // WhatsApp keeps its brand glyph as a raw path (NavIcon draws unknown names as paths).
   const ICON_WHATSAPP = 'M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z';
-  const ICON_SETTINGS = 'M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z';
-  // Lucide "indian-rupee" — top + middle horizontal bars, the hook tail
-  // and the diagonal stroke. Replaces the previous USD "$" path so the
-  // Deals nav matches the rupee-denominated business.
-  const ICON_RUPEE = 'M6 3h12 M6 8h12 M6 13h3a4.5 4.5 0 0 0 0-9 M6 13l8 8';
 
   // KEEP-IN-SYNC: every `module` ID below MUST exist in `ALL_MODULES`
   // (src/lib/modules.ts). The module access checklist (settings/page.tsx,
@@ -562,21 +493,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // for non-super-admin roles.
   const rawNavGroups = [
     { label: 'Field Force', package: 'field_force', items: [
-      { href: '/dashboard',                              label: 'Dashboard',           icon: 'M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z M9 22V12h6v10', module: 'dashboard' },
-      { href: '/dashboard/attendance-overview',          label: 'Attendance',          icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z', module: 'attendance' },
-      { href: '/dashboard/analytics',                    label: 'Analytics',           icon: 'M18 20V10 M12 20V4 M6 20v-6', module: 'analytics' },
-      { href: '/dashboard/live-tracking',                label: 'Live Trailing',       icon: 'M12 22s-8-4.5-8-11.8A8 8 0 0112 2a8 8 0 018 8.2c0 7.3-8 11.8-8 11.8z M12 13a3 3 0 100-6 3 3 0 000 6z', module: 'live_tracking' },
-      { href: '/dashboard/other-management/activities',  label: 'Activity Management', icon: 'M12 2v20 M2 12h20', module: 'activities' },
-      { href: '/dashboard/form-builder',                 label: 'Form Builder',        icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2 M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2', module: 'form_builder' },
-      { href: '/dashboard/route-plan',                   label: 'Route Plan',          icon: 'M9 20l-5.44-2.72A2 2 0 013 15.49V4.5a2 2 0 012.89-1.8L9 4 M9 4v16 M15 1l5.44 2.72A2 2 0 0121 5.51v10.98a2 2 0 01-2.89 1.8L15 17 M15 1v16', module: 'orders' },
-      { href: '/dashboard/beat-productivity',            label: 'Beat Productivity',   icon: 'M3 3v18h18 M7 14l3-3 3 3 5-5', module: 'beat_productivity' },
-      { href: '/dashboard/work-activities',              label: 'Work Activities',     icon: 'M12 2v20 M2 12h20 M5 5l14 14 M19 5L5 14', module: 'work_activities' },
+      { href: '/dashboard',                              label: 'Dashboard',           icon: 'home', module: 'dashboard' },
+      { href: '/dashboard/attendance-overview',          label: 'Attendance',          icon: 'calendarCheck', module: 'attendance' },
+      { href: '/dashboard/analytics',                    label: 'Analytics',           icon: 'analytics', module: 'analytics' },
+      { href: '/dashboard/live-tracking',                label: 'Live Trailing',       icon: 'mapPinned', module: 'live_tracking' },
+      { href: '/dashboard/other-management/activities',  label: 'Activity Management', icon: 'activity', module: 'activities' },
+      { href: '/dashboard/form-builder',                 label: 'Form Builder',        icon: 'clipboard', module: 'form_builder' },
+      { href: '/dashboard/route-plan',                   label: 'Route Plan',          icon: 'route', module: 'orders' },
+      { href: '/dashboard/beat-productivity',            label: 'Beat Productivity',   icon: 'trending', module: 'beat_productivity' },
+      { href: '/dashboard/work-activities',              label: 'Work Activities',     icon: 'listChecks', module: 'work_activities' },
       // FFM Reports hub — parity with the Lead Management Reports entry
       // a few groups down. Surfaces attendance, visit coverage, hours &
       // idle time, route adherence, and the rep leaderboard in one place
       // so admins don't have to hop between sidebar surfaces to build a
       // monthly review pack.
-      { href: '/dashboard/ffm-reports',                  label: 'Reports',             icon: 'M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6 M16 13H8 M16 17H8', module: 'ffm_reports' },
+      { href: '/dashboard/ffm-reports',                  label: 'Reports',             icon: 'fileText', module: 'ffm_reports' },
     ]},
     // Planogram — retail-execution module, promoted from a single Field-Force
     // item to its own section. Every item is `module:'planograms'` so the
@@ -585,12 +516,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     // package is NOT an entitlement SKU — sectionVisible() special-cases it to
     // show whenever the module-gated items survive filterNav (see above).
     { label: 'Planogram', package: 'planograms', items: [
-      { href: '/dashboard/planograms',             label: 'Overview',     icon: 'M3 3v18h18 M7 14l4-4 4 4 5-5', module: 'planograms' },
-      { href: '/dashboard/planograms/captures',    label: 'Captures',     icon: 'M3 3h18v18H3z M3 9h18 M9 21V9', module: 'planograms' },
-      { href: '/dashboard/planograms/review',      label: 'Review queue', icon: 'M22 11.08V12a10 10 0 11-5.93-9.14 M22 4L12 14.01l-3-3', module: 'planograms' },
-      { href: '/dashboard/planograms/library',     label: 'Planograms',   icon: 'M3 5h18 M3 12h18 M3 19h18 M7 5v14 M17 5v14', module: 'planograms' },
-      { href: '/dashboard/planograms/competitors', label: 'Competitors',  icon: 'M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z M12 10a3 3 0 100-6 3 3 0 000 6z', module: 'planograms' },
-      { href: '/dashboard/planograms/insights',    label: 'Insights',     icon: 'M18 20V10 M12 20V4 M6 20v-6', module: 'planograms' },
+      { href: '/dashboard/planograms',             label: 'Overview',     icon: 'dashboard', module: 'planograms' },
+      { href: '/dashboard/planograms/captures',    label: 'Captures',     icon: 'camera', module: 'planograms' },
+      { href: '/dashboard/planograms/review',      label: 'Review queue', icon: 'clipboardCheck', module: 'planograms' },
+      { href: '/dashboard/planograms/library',     label: 'Planograms',   icon: 'layers', module: 'planograms' },
+      { href: '/dashboard/planograms/competitors', label: 'Competitors',  icon: 'target', module: 'planograms' },
+      { href: '/dashboard/planograms/insights',    label: 'Insights',     icon: 'lineChart', module: 'planograms' },
     ]},
     { label: 'Lead Management', package: 'crm', items: [
       // Daily mission control — target + near-to-close + next actions
@@ -599,72 +530,72 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       // Hidden for Tata Tiscon (a1f67468-…) while the surface is
       // being tuned for their consumer-only workflow; reachable on
       // every other tenant. Toggle the `tataHideKeys` filter below.
-      { href: '/dashboard/crm/home',             label: 'Home',           icon: 'M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z M9 22V12h6v10', module: 'crm_dashboard', hiddenForTata: true },
-      { href: '/dashboard/crm/dashboard',        label: 'Dashboard',      icon: 'M3 3v18h18 M7 14l4-4 4 4 5-5', module: 'crm_dashboard' },
-      { href: '/dashboard/crm/leads',            label: 'Leads',          icon: 'M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 7a4 4 0 100-8 4 4 0 000 8z', module: 'crm_leads' },
-      { href: '/dashboard/crm/leads/analytics',  label: 'Lead Analytics', icon: 'M18 20V10 M12 20V4 M6 20v-6', module: 'crm_leads' },
+      { href: '/dashboard/crm/home',             label: 'Home',           icon: 'home', module: 'crm_dashboard', hiddenForTata: true },
+      { href: '/dashboard/crm/dashboard',        label: 'Dashboard',      icon: 'dashboard', module: 'crm_dashboard' },
+      { href: '/dashboard/crm/leads',            label: 'Leads',          icon: 'users', module: 'crm_leads' },
+      { href: '/dashboard/crm/leads/analytics',  label: 'Lead Analytics', icon: 'lineChart', module: 'crm_leads' },
       // Conversation Analysis — positioned directly under the lead entries:
       // managers review consented sales / service calls (transcript +
       // diarization + AI insights). Gated by crm_conversation_intel; hidden
       // for the Kaiyo/TATA org.
-      { href: '/dashboard/crm/conversations',    label: 'Conversation Analysis', icon: 'M12 2a3 3 0 00-3 3v7a3 3 0 006 0V5a3 3 0 00-3-3z M19 10v2a7 7 0 01-14 0v-2 M12 19v3 M8 22h8', module: 'crm_conversation_intel', hiddenForTata: true },
-      { href: '/dashboard/crm/market-intelligence', label: 'Market Intelligence', icon: 'M3 3v18h18 M7 14l3-3 3 3 5-6', module: 'crm_lead_analytics' },
-      { href: '/dashboard/crm/contacts',         label: 'Contacts',       icon: 'M20 21v-2a4 4 0 00-3-3.87 M4 21v-2a4 4 0 014-4h4a4 4 0 014 4v2 M16 3.13a4 4 0 010 7.75 M8 11a4 4 0 100-8 4 4 0 000 8z', module: 'crm_contacts', hiddenForTata: true },
+      { href: '/dashboard/crm/conversations',    label: 'Conversation Analysis', icon: 'mic', module: 'crm_conversation_intel', hiddenForTata: true },
+      { href: '/dashboard/crm/market-intelligence', label: 'Market Intelligence', icon: 'trending', module: 'crm_lead_analytics' },
+      { href: '/dashboard/crm/contacts',         label: 'Contacts',       icon: 'contact', module: 'crm_contacts', hiddenForTata: true },
       // Address book for dealers / influencers / referrers — per-client,
       // CRM-Admin gated (the entitlement key matches the module the
       // backend's requireModuleAccess gate honours).
-      { href: '/dashboard/crm/people-directory', label: 'People Directory', icon: 'M17 20v-2a4 4 0 00-3-3.87 M9 7a4 4 0 100-8 4 4 0 000 8z M3 21h12 M19 3l2 2-2 2 M17 5h4', module: 'crm_people_directory', hiddenForKinematic: true },
-      { href: '/dashboard/crm/accounts',         label: 'Accounts',       icon: 'M3 21h18 M3 7v14 M21 7v14 M3 7l9-4 9 4 M9 12h6', module: 'crm_accounts', hiddenForTata: true },
-      { href: '/dashboard/crm/deals',            label: 'Deals',          icon: ICON_RUPEE, module: 'crm_deals' },
-      { href: '/dashboard/crm/pipeline',         label: 'Pipeline',       icon: 'M3 5h6v14H3z M9 9h6v6H9z M15 5h6v14h-6z', module: 'crm_pipeline' },
-      { href: '/dashboard/crm/products',         label: 'Products',       icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4', module: 'crm_products', hiddenForKinematic: true },
-      { href: '/dashboard/crm/activities',       label: 'Activities',     icon: 'M22 11.08V12a10 10 0 11-5.93-9.14 M22 4L12 14.01l-3-3', module: 'crm_activities' },
+      { href: '/dashboard/crm/people-directory', label: 'People Directory', icon: 'book', module: 'crm_people_directory', hiddenForKinematic: true },
+      { href: '/dashboard/crm/accounts',         label: 'Accounts',       icon: 'building', module: 'crm_accounts', hiddenForTata: true },
+      { href: '/dashboard/crm/deals',            label: 'Deals',          icon: 'rupee', module: 'crm_deals' },
+      { href: '/dashboard/crm/pipeline',         label: 'Pipeline',       icon: 'kanban', module: 'crm_pipeline' },
+      { href: '/dashboard/crm/products',         label: 'Products',       icon: 'package', module: 'crm_products', hiddenForKinematic: true },
+      { href: '/dashboard/crm/activities',       label: 'Activities',     icon: 'clipboardCheck', module: 'crm_activities' },
       { href: '/dashboard/crm/whatsapp',         label: 'WhatsApp',       icon: ICON_WHATSAPP, module: 'crm_whatsapp' },
-      { href: '/dashboard/crm/campaigns',        label: 'Campaigns',      icon: 'M3 11l18-5v12L3 14v-3z M11.6 16.8a3 3 0 11-5.8-1.6', module: 'crm_whatsapp' },
-      { href: '/dashboard/crm/email-campaigns',  label: 'Email Campaigns', icon: 'M22 2L11 13 M22 2l-7 20-4-9-9-4 20-7z', module: 'crm_email', hiddenForTata: true },
+      { href: '/dashboard/crm/campaigns',        label: 'Campaigns',      icon: 'megaphone', module: 'crm_whatsapp' },
+      { href: '/dashboard/crm/email-campaigns',  label: 'Email Campaigns', icon: 'send', module: 'crm_email', hiddenForTata: true },
       // KINI website-chatbot conversations from kinematicapp.com + the leads
       // they capture. This is the Kinematic platform's own website funnel, so
       // it's restricted to the Kinematic super admin — no client tenant (BMW,
       // Tata, …) or client-admin should see it. `superAdminOnly` already
       // subsumes the old `hiddenForTata` gate (no super admin is on Tata).
-      { href: '/dashboard/crm/website-chats',    label: 'Website Chats',  icon: 'M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z M8 9h8 M8 13h5', module: 'crm_dashboard', superAdminOnly: true },
+      { href: '/dashboard/crm/website-chats',    label: 'Website Chats',  icon: 'chatText', module: 'crm_dashboard', superAdminOnly: true },
       // Email alerts + verified senders — the marketing-side email surface.
       // Templates live at the existing /crm/email-templates page; alerts
       // composes them with a verified From + scheduler.
-      { href: '/dashboard/crm/email-alerts',     label: 'Email Alerts',   icon: 'M4 4h16a2 2 0 012 2v12a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2z M22 6l-10 7L2 6 M12 13v7', module: 'crm_email', hiddenForTata: true },
-      { href: '/dashboard/crm/email-templates',  label: 'Email Templates', icon: 'M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6 M16 13H8 M16 17H8 M10 9H8', module: 'crm_email', hiddenForTata: true },
-      { href: '/dashboard/crm/email-senders',    label: 'Email Senders',  icon: 'M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 7a4 4 0 100-8 4 4 0 000 8z M20 8l2 2-4 4 M22 10l-4 4', module: 'crm_email', hiddenForTata: true },
-      { href: '/dashboard/crm/reports',          label: 'Reports',        icon: 'M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6 M16 13H8 M16 17H8', module: 'crm_reports' },
-      { href: '/dashboard/crm/settings',         label: 'Settings',       icon: ICON_SETTINGS, module: 'crm_settings' },
-      { href: '/dashboard/crm/help',             label: 'Help',           icon: 'M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3 M12 17h.01 M22 12a10 10 0 11-20 0 10 10 0 0120 0z', module: 'crm_dashboard' },
+      { href: '/dashboard/crm/email-alerts',     label: 'Email Alerts',   icon: 'mailPlus', module: 'crm_email', hiddenForTata: true },
+      { href: '/dashboard/crm/email-templates',  label: 'Email Templates', icon: 'fileText', module: 'crm_email', hiddenForTata: true },
+      { href: '/dashboard/crm/email-senders',    label: 'Email Senders',  icon: 'mailCheck', module: 'crm_email', hiddenForTata: true },
+      { href: '/dashboard/crm/reports',          label: 'Reports',        icon: 'fileSheet', module: 'crm_reports' },
+      { href: '/dashboard/crm/settings',         label: 'Settings',       icon: 'settings', module: 'crm_settings' },
+      { href: '/dashboard/crm/help',             label: 'Help',           icon: 'help', module: 'crm_dashboard' },
     ]},
     { label: 'Distribution', package: 'distribution', items: [
-      { href: '/dashboard/distribution/control-tower',    label: 'Control Tower', icon: 'M12 2a10 10 0 100 20 10 10 0 000-20z M12 6v6l4 2', module: 'distribution' },
-      { href: '/dashboard/distribution/ai',               label: 'AI Copilot',    icon: 'M12 2l2.4 5.6L20 8l-4 4 1 6-5-3-5 3 1-6-4-4 5.6-.4z', module: 'distribution' },
-      { href: '/dashboard/distribution/setup',            label: 'Network Setup', icon: 'M3 7l9-4 9 4-9 4-9-4z M3 12l9 4 9-4 M3 17l9 4 9-4', module: 'distribution' },
-      { href: '/dashboard/distribution',                  label: 'Overview',     icon: 'M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z M9 22V12h6v10', module: 'distribution' },
-      { href: '/dashboard/distribution/brands',           label: 'Brands',       icon: 'M5 3a2 2 0 00-2 2v2a2 2 0 002 2h14a2 2 0 002-2V5a2 2 0 00-2-2H5z M5 11a2 2 0 00-2 2v6a2 2 0 002 2h14a2 2 0 002-2v-6a2 2 0 00-2-2H5z', module: 'distribution_brands' },
-      { href: '/dashboard/distribution/distributors',     label: 'Distributors', icon: 'M3 7l9-4 9 4-9 4-9-4z M3 12l9 4 9-4 M3 17l9 4 9-4', module: 'distribution_distributors' },
-      { href: '/dashboard/distribution/receivables',       label: 'Receivables',  icon: 'M12 1v22 M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6', module: 'distribution_distributors' },
-      { href: '/dashboard/distribution/price-lists',      label: 'Price Lists',  icon: 'M9 7h6 M9 11h6 M9 15h4 M5 5a2 2 0 012-2h10a2 2 0 012 2v14a2 2 0 01-2 2H7a2 2 0 01-2-2z', module: 'distribution_pricing' },
-      { href: '/dashboard/distribution/schemes',          label: 'Schemes',      icon: 'M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z', module: 'distribution_schemes' },
-      { href: '/dashboard/distribution/promotions',       label: 'Promotions',   icon: 'M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z M7 7h.01', module: 'distribution_promotions' },
-      { href: '/dashboard/distribution/orders',           label: 'Orders',       icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2 M9 5a2 2 0 002 2h2a2 2 0 002-2 M9 12h6 M9 16h6', module: 'distribution_orders' },
-      { href: '/dashboard/distribution/invoices',         label: 'Invoices',     icon: 'M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6 M9 13h6 M9 17h6', module: 'distribution_invoicing' },
-      { href: '/dashboard/distribution/dispatches',       label: 'Dispatches',   icon: 'M3 6h18 M16 10l5 5-5 5 M21 15H3', module: 'distribution_invoicing' },
-      { href: '/dashboard/distribution/payments',         label: 'Payments',     icon: 'M2 6h20v12H2z M2 10h20', module: 'distribution_payments' },
-      { href: '/dashboard/distribution/returns',          label: 'Returns',      icon: 'M9 14l-4-4 4-4 M5 10h11a4 4 0 014 4v0a4 4 0 01-4 4h-3', module: 'distribution_returns' },
-      { href: '/dashboard/distribution/ledger',           label: 'Ledger',       icon: 'M3 6l9-3 9 3 M5 6v15h14V6 M9 11h6 M9 15h6', module: 'distribution_ledger' },
-      { href: '/dashboard/distribution/van-loads',        label: 'Van Sales',    icon: 'M1 3h15v13H1z M16 8h4l3 3v5h-7V8z M5.5 21a2.5 2.5 0 100-5 2.5 2.5 0 000 5z M18.5 21a2.5 2.5 0 100-5 2.5 2.5 0 000 5z', module: 'distribution_van' },
-      { href: '/dashboard/distribution/claims',           label: 'Claims',       icon: 'M9 12l2 2 4-4 M21 12a9 9 0 11-18 0 9 9 0 0118 0z', module: 'distribution_claims' },
-      { href: '/dashboard/distribution/reconciliation',   label: 'Reconciliation', icon: 'M21 12a9 9 0 01-9 9m0 0a9 9 0 01-9-9m9 9V3m0 0a9 9 0 019 9M3 12h18', module: 'distribution_reconciliation' },
-      { href: '/dashboard/distribution/secondary-sales',  label: 'Consumer',     icon: 'M3 3h18v18H3z M3 9h18 M9 21V9', module: 'distribution_consumer' },
+      { href: '/dashboard/distribution/control-tower',    label: 'Control Tower', icon: 'gauge', module: 'distribution' },
+      { href: '/dashboard/distribution/ai',               label: 'AI Copilot',    icon: 'sparkles', module: 'distribution' },
+      { href: '/dashboard/distribution/setup',            label: 'Network Setup', icon: 'network', module: 'distribution' },
+      { href: '/dashboard/distribution',                  label: 'Overview',     icon: 'dashboard', module: 'distribution' },
+      { href: '/dashboard/distribution/brands',           label: 'Brands',       icon: 'tag', module: 'distribution_brands' },
+      { href: '/dashboard/distribution/distributors',     label: 'Distributors', icon: 'truck', module: 'distribution_distributors' },
+      { href: '/dashboard/distribution/receivables',       label: 'Receivables',  icon: 'wallet', module: 'distribution_distributors' },
+      { href: '/dashboard/distribution/price-lists',      label: 'Price Lists',  icon: 'receipt', module: 'distribution_pricing' },
+      { href: '/dashboard/distribution/schemes',          label: 'Schemes',      icon: 'badgePercent', module: 'distribution_schemes' },
+      { href: '/dashboard/distribution/promotions',       label: 'Promotions',   icon: 'gift', module: 'distribution_promotions' },
+      { href: '/dashboard/distribution/orders',           label: 'Orders',       icon: 'cart', module: 'distribution_orders' },
+      { href: '/dashboard/distribution/invoices',         label: 'Invoices',     icon: 'fileText', module: 'distribution_invoicing' },
+      { href: '/dashboard/distribution/dispatches',       label: 'Dispatches',   icon: 'send', module: 'distribution_invoicing' },
+      { href: '/dashboard/distribution/payments',         label: 'Payments',     icon: 'creditCard', module: 'distribution_payments' },
+      { href: '/dashboard/distribution/returns',          label: 'Returns',      icon: 'undo', module: 'distribution_returns' },
+      { href: '/dashboard/distribution/ledger',           label: 'Ledger',       icon: 'book', module: 'distribution_ledger' },
+      { href: '/dashboard/distribution/van-loads',        label: 'Van Sales',    icon: 'truck', module: 'distribution_van' },
+      { href: '/dashboard/distribution/claims',           label: 'Claims',       icon: 'claims', module: 'distribution_claims' },
+      { href: '/dashboard/distribution/reconciliation',   label: 'Reconciliation', icon: 'swap', module: 'distribution_reconciliation' },
+      { href: '/dashboard/distribution/secondary-sales',  label: 'Consumer',     icon: 'store', module: 'distribution_consumer' },
       // Last-mile dashboards (Phase 1): retailer → consumer visibility.
-      { href: '/dashboard/distribution/last-mile',                  label: 'Last Mile',          icon: 'M2 12h4l3-9 4 18 3-9h4 M22 12h-3', module: 'distribution_consumer' },
-      { href: '/dashboard/distribution/last-mile/consumers',        label: 'Consumer Registry',  icon: 'M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 7a4 4 0 100 8 4 4 0 000-8z', module: 'distribution_consumer' },
-      { href: '/dashboard/distribution/last-mile/tertiary-sales',   label: 'Retailer Sales',     icon: 'M9 11l3 3L22 4 M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11', module: 'distribution_consumer' },
-      { href: '/dashboard/distribution/capture',                    label: 'Consumer Capture',   icon: 'M4 4h6v6H4z M14 4h6v6h-6z M4 14h6v6H4z M14 14h3v3h-3z M20 14v6h-3 M17 20h-3', module: 'distribution_consumer' },
-      { href: '/dashboard/distribution/integrations',     label: 'Integrations', icon: 'M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71 M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71', module: 'distribution', hiddenForPMC: true },
+      { href: '/dashboard/distribution/last-mile',                  label: 'Last Mile',          icon: 'route', module: 'distribution_consumer' },
+      { href: '/dashboard/distribution/last-mile/consumers',        label: 'Consumer Registry',  icon: 'users', module: 'distribution_consumer' },
+      { href: '/dashboard/distribution/last-mile/tertiary-sales',   label: 'Retailer Sales',     icon: 'check', module: 'distribution_consumer' },
+      { href: '/dashboard/distribution/capture',                    label: 'Consumer Capture',   icon: 'camera', module: 'distribution_consumer' },
+      { href: '/dashboard/distribution/integrations',     label: 'Integrations', icon: 'link', module: 'distribution', hiddenForPMC: true },
     ]},
     // Supply Chain — the stock/inventory surface, unified in one section.
     // package:'business' keeps it universal (always-visible, and hidden
@@ -673,19 +604,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     // always show; the distribution_* items self-gate deny-by-default via
     // filterNav, so they appear only for clients granted those SCM modules.
     { label: 'Supply Chain', package: 'business', items: [
-      { href: '/dashboard/warehouse',                label: 'Warehouse',      icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4', module: 'inventory' },
-      { href: '/dashboard/other-management/skus',    label: 'SKU Management', icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4', module: 'skus' },
-      { href: '/dashboard/other-management/assets',  label: 'Assets',         icon: 'M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z', module: 'assets' },
-      { href: '/dashboard/distribution/stock',       label: 'Distributor Stock', icon: 'M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z M3.27 6.96L12 12.01l8.73-5.05 M12 22.08V12', module: 'distribution_stock' },
-      { href: '/dashboard/distribution/batches',     label: 'Batch & Expiry', icon: 'M8 2v4 M16 2v4 M3 10h18 M5 4h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z M12 14v3 M12 20h.01', module: 'distribution_batches' },
-      { href: '/dashboard/distribution/damage',      label: 'Damaged / Expiry', icon: 'M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z M12 9v4 M12 17h.01', module: 'distribution_damage' },
+      { href: '/dashboard/warehouse',                label: 'Warehouse',      icon: 'warehouse', module: 'inventory' },
+      { href: '/dashboard/other-management/skus',    label: 'SKU Management', icon: 'boxes', module: 'skus' },
+      { href: '/dashboard/other-management/assets',  label: 'Assets',         icon: 'package', module: 'assets' },
+      { href: '/dashboard/distribution/stock',       label: 'Distributor Stock', icon: 'packageCheck', module: 'distribution_stock' },
+      { href: '/dashboard/distribution/batches',     label: 'Batch & Expiry', icon: 'timer', module: 'distribution_batches' },
+      { href: '/dashboard/distribution/damage',      label: 'Damaged / Expiry', icon: 'packageX', module: 'distribution_damage' },
     ]},
     { label: 'Business', package: 'business', items: [
-      { href: '/dashboard/clients',                  label: 'Clients',   icon: 'M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 7a4 4 0 100-8 4 4 0 000 8z', module: 'clients' },
+      { href: '/dashboard/clients',                  label: 'Clients',   icon: 'briefcase', module: 'clients' },
     ]},
     { label: 'People & Support', package: 'people', items: [
-      { href: '/dashboard/manpower-directory', label: 'Users',         icon: 'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 7a4 4 0 100-8 4 4 0 000 8z M23 21v-2a4 4 0 00-3-3.87 M16 3.13a4 4 0 010 7.75', module: 'users' },
-      { href: '/dashboard/hr',                 label: 'HR & Recruitment', icon: 'M20 7H4a2 2 0 00-2 2v11a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16', module: 'hr' },
+      { href: '/dashboard/manpower-directory', label: 'Users',         icon: 'users', module: 'users' },
+      { href: '/dashboard/hr',                 label: 'HR & Recruitment', icon: 'userPlus', module: 'hr' },
       // Leave Management + Attendance Regularization. The top-level entry is
       // universal (every rep applies for leave / sees their balances). The
       // Approvals + Settings surfaces inside the module self-gate to manager /
@@ -696,30 +627,30 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       // `crmVisible` — it must not survive into a CRM-only tenant's nav. Full
       // field-force tenants still see it; `hiddenForTata` removes it for the
       // Kaiyo/TATA org among those.
-      { href: '/dashboard/leave',              label: 'Leave',         icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z M9 16l2 2 4-4', module: 'leave', hiddenForTata: true },
+      { href: '/dashboard/leave',              label: 'Leave',         icon: 'calendar', module: 'leave', hiddenForTata: true },
       // Field Expense / Travel Claims. Non-universal (entitlement-gated), so it
       // only appears for clients granted `field_expenses` — hidden for Tata and
       // any tenant without the grant automatically (no hiddenForTata needed).
-      { href: '/dashboard/expenses',           label: 'Expenses',      icon: 'M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1z M8 7h8 M8 11h8 M8 15h5', module: 'field_expenses' },
-      { href: '/dashboard/grievances',         label: 'Grievances',    icon: 'M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z M12 9v4 M12 17h.01', module: 'grievances' },
-      { href: '/dashboard/visit-logs',         label: 'Visit Logs',    icon: 'M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z', module: 'visit_logs' },
-      { href: '/dashboard/broadcast',          label: 'Broadcast',     icon: 'M12 19V5 M5 12l7-7 7 7', module: 'broadcast' },
-      { href: '/dashboard/notifications',      label: 'Notifications', icon: 'M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9 M13.73 21a2 2 0 01-3.46 0', module: 'notifications' },
+      { href: '/dashboard/expenses',           label: 'Expenses',      icon: 'banknote', module: 'field_expenses' },
+      { href: '/dashboard/grievances',         label: 'Grievances',    icon: 'alert', module: 'grievances' },
+      { href: '/dashboard/visit-logs',         label: 'Visit Logs',    icon: 'mapPin', module: 'visit_logs' },
+      { href: '/dashboard/broadcast',          label: 'Broadcast',     icon: 'radio', module: 'broadcast' },
+      { href: '/dashboard/notifications',      label: 'Notifications', icon: 'bell', module: 'notifications' },
     ]},
     { label: 'System Management', package: 'system', items: [
-      { href: '/dashboard/other-management/cities',  label: 'Cities',          icon: 'M3 21h18 M3 7v1a3 3 0 006 0V7m6 0v1a3 3 0 006 0V7', module: 'cities' },
-      { href: '/dashboard/other-management/zones',   label: 'Zones',           icon: 'M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z M12 10a3 3 0 100-6 3 3 0 000 6z', module: 'zones' },
-      { href: '/dashboard/other-management/stores',  label: 'Outlets',         icon: 'M3 21h18 M9 8h10 M9 12h10 M9 16h10 M3 4h18', module: 'stores' },
-      { href: '/dashboard/security-alerts',          label: 'Security Alerts', icon: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z', module: 'security_alerts' },
-      { href: '/dashboard/settings',                 label: 'Settings',        icon: ICON_SETTINGS, module: 'settings' },
+      { href: '/dashboard/other-management/cities',  label: 'Cities',          icon: 'landmark', module: 'cities' },
+      { href: '/dashboard/other-management/zones',   label: 'Zones',           icon: 'map', module: 'zones' },
+      { href: '/dashboard/other-management/stores',  label: 'Outlets',         icon: 'store', module: 'stores' },
+      { href: '/dashboard/security-alerts',          label: 'Security Alerts', icon: 'shield', module: 'security_alerts' },
+      { href: '/dashboard/settings',                 label: 'Settings',        icon: 'settings', module: 'settings' },
     ]},
     // Messaging is surfaced as a floating chat box at the bottom-right of
     // every dashboard page (see ChatLauncher) — there is intentionally no
     // sidebar entry. The full-page /dashboard/inbox route still works for
     // direct links from notifications but isn't promoted in the nav.
     { label: 'Audit', package: 'audit', items: [
-      { href: '/dashboard/audit-log', label: 'Activity Log', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2 M9 5a2 2 0 002 2h2a2 2 0 002-2 M12 11h4 M12 15h4 M8 11h.01 M8 15h.01', module: 'audit_log', superAdminOnly: true },
-      { href: '/dashboard/audit-log/messages', label: 'Message Log', icon: 'M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z', module: 'audit_log', superAdminOnly: true },
+      { href: '/dashboard/audit-log', label: 'Activity Log', icon: 'audit', module: 'audit_log', superAdminOnly: true },
+      { href: '/dashboard/audit-log/messages', label: 'Message Log', icon: 'chat', module: 'audit_log', superAdminOnly: true },
     ]},
   ];
 
@@ -742,6 +673,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // filtered nav. Unknown (newly added) sections/items append after the
   // remembered ones, so a saved order never hides anything.
   const orderedNavGroups = applyNavOrder(navGroups, navPrefs);
+  // Header breadcrumb: derived from the route + the user's own nav labels.
+  const crumbs = deriveCrumbs(pathname, navReady ? orderedNavGroups : rawNavGroups);
   // Sidebar menu search — filter items by label; drop groups with no match.
   const navFilter = navQuery.trim().toLowerCase();
   const displayNavGroups = navFilter
@@ -779,480 +712,88 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {impersonate && (
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, height: impBannerH,
-          zIndex: 1000, background: '#EA580C', color: '#fff',
+          zIndex: 1000, background: 'var(--warn)', color: '#fff',
           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14,
-          padding: '0 16px', fontSize: 13, fontWeight: 700,
-          boxShadow: '0 2px 12px rgba(0,0,0,0.35)',
+          padding: '0 16px', fontSize: 13, fontWeight: 600,
         }}>
           <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            👤 Viewing as <strong>{impersonate.name || 'user'}</strong>
+            Viewing as <strong>{impersonate.name || 'user'}</strong>
             {impersonate.email ? <> ({impersonate.email})</> : null}
           </span>
           <button
             onClick={exitImpersonation}
             style={{
-              background: '#fff', color: '#EA580C', border: 'none', borderRadius: 8,
-              padding: '5px 14px', fontSize: 12, fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap',
+              background: '#fff', color: 'var(--warn)', border: 'none', borderRadius: 6, height: 28,
+              padding: '0 12px', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit',
             }}
           >
             Exit impersonation
           </button>
         </div>
       )}
-      <div style={{ display:'flex', minHeight:'100vh', background:C.bg, color:C.white, paddingTop: impBannerH }}>
+      <div style={{ display:'flex', minHeight:'100vh', background:'var(--canvas)', color:'var(--text)', paddingTop: impBannerH }}>
         <StagingBoot />
         {showDeploy && actingAs?.staging && actingAs.org_id && (
           <StagingDeployModal project={stagingProject} stagingOrgId={actingAs.org_id} name={actingAs.name} onClose={() => setShowDeploy(false)} />
         )}
         {isMobile && drawerOpen && (
           <div onClick={() => setDrawerOpen(false)} style={{
-            position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:998,
+            position:'fixed', inset:0, background:'rgba(10,14,26,0.45)', zIndex:998,
           }}/>
         )}
 
-        <aside style={{
-          width: isMobile ? drawerW : sideW,
-          background:C.side,
-          borderRight:`1px solid ${C.border}`,
-          position:'fixed', top: impBannerH, left:0, bottom:0,
-          display:'flex', flexDirection:'column',
-          transition:'transform .25s ease, width .2s ease',
-          transform: sidebarVisible ? 'translateX(0)' : `translateX(-${drawerW}px)`,
-          zIndex: isMobile ? 999 : 10,
-          boxShadow: isMobile && drawerOpen ? '4px 0 24px rgba(0,0,0,0.4)' : 'none',
-        }}>
-          {/* Brand row + collapse toggle. The toggle is hidden on mobile
-              (the drawer has its own open/close via the header hamburger). */}
-          <div style={{
-            height:65,
-            display:'flex',
-            alignItems:'center',
-            justifyContent: collapsed && !isMobile ? 'center' : 'space-between',
-            padding: collapsed && !isMobile ? '0' : '0 16px 0 20px',
-            borderBottom:`1px solid ${C.border}`,
-            gap:12,
-          }}>
-            <div style={{ display:'flex', alignItems:'center', gap:12, minWidth:0 }}>
-              <BrandLogo size={28} />
-              {(isMobile || !collapsed) && (
-                <span style={{ fontWeight:800, fontSize:18, letterSpacing:'-0.5px', whiteSpace:'nowrap' }}>Kinematic</span>
-              )}
-            </div>
-            {!isMobile && !collapsed && (
-              <button
-                onClick={toggleCollapsed}
-                aria-label="Collapse sidebar"
-                title="Collapse sidebar"
-                style={{
-                  width:28, height:28, padding:0, borderRadius:8,
-                  background:'transparent', border:`1px solid ${C.border}`,
-                  color:C.gray, cursor:'pointer',
-                  display:'flex', alignItems:'center', justifyContent:'center',
-                  flexShrink:0,
-                  transition:'color .15s, background .15s, border-color .15s',
-                }}
-                onMouseEnter={(e) => { const t = e.currentTarget; t.style.color = C.white; t.style.background = C.s2; }}
-                onMouseLeave={(e) => { const t = e.currentTarget; t.style.color = C.gray; t.style.background = 'transparent'; }}
-              >
-                <Icon d="M15 18l-6-6 6-6" size={14} />
-              </button>
-            )}
-          </div>
-
-          {/* Collapsed-mode expand button sits just under the logo so the
-              rep can re-open the sidebar without hunting for a control. */}
-          {!isMobile && collapsed && (
-            <button
-              onClick={toggleCollapsed}
-              aria-label="Expand sidebar"
-              title="Expand sidebar"
-              style={{
-                margin:'10px auto 0', width:32, height:32, padding:0, borderRadius:8,
-                background:'transparent', border:`1px solid ${C.border}`,
-                color:C.gray, cursor:'pointer',
-                display:'flex', alignItems:'center', justifyContent:'center',
-                transition:'color .15s, background .15s',
-              }}
-              onMouseEnter={(e) => { const t = e.currentTarget; t.style.color = C.white; t.style.background = C.s2; }}
-              onMouseLeave={(e) => { const t = e.currentTarget; t.style.color = C.gray; t.style.background = 'transparent'; }}
-            >
-              <Icon d="M9 18l6-6-6-6" size={14} />
-            </button>
-          )}
-
-          <nav style={{ flex:1, padding: collapsed && !isMobile ? '10px 0' : '15px 0', overflowY:'auto' }}>
-            {!navReady && (
-              <div style={{ padding: '8px 16px', display:'flex', flexDirection:'column', gap:12 }}>
-                {[0,1,2,3,4,5].map(i => (
-                  <div key={i} style={{ height:12, borderRadius:6, background:C.border, opacity:0.45 }} />
-                ))}
-              </div>
-            )}
-            {/* Menu search + a small "customise menu" edit icon. Search filters
-                the nav items by label; the pencil icon opens the drag-to-reorder
-                editor (previously a full-width "Customise menu" button). Shown
-                only in the expanded sidebar (hidden in the icon-only rail), once
-                the nav has resolved so it doesn't flash before entitlements load. */}
-            {navReady && (isMobile || !collapsed) && orderedNavGroups.length > 0 && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '0 10px 10px' }}>
-                <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
-                  <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: C.grayd, display: 'flex', pointerEvents: 'none' }}>
-                    <Icon d="M11 19a8 8 0 100-16 8 8 0 000 16z M21 21l-4.35-4.35" size={13} />
-                  </span>
-                  <input
-                    type="text"
-                    value={navQuery}
-                    onChange={(e) => setNavQuery(e.target.value)}
-                    placeholder="Search menu"
-                    aria-label="Search menu"
-                    style={{
-                      width: '100%', boxSizing: 'border-box',
-                      padding: navQuery ? '7px 24px 7px 30px' : '7px 12px 7px 30px',
-                      borderRadius: 8, background: C.s2, border: `1px solid ${C.border}`,
-                      color: C.white, fontSize: 12, outline: 'none',
-                    }}
-                  />
-                  {navQuery && (
-                    <button
-                      type="button" aria-label="Clear menu search" onClick={() => setNavQuery('')}
-                      style={{ position: 'absolute', right: 5, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: C.grayd, cursor: 'pointer', fontSize: 15, lineHeight: 1, padding: 2 }}
-                    >×</button>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setEditingNav(true)}
-                  title="Customise menu"
-                  aria-label="Customise menu"
-                  style={{
-                    flexShrink: 0, width: 32, height: 32,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    borderRadius: 8, background: 'transparent', border: `1px solid ${C.border}`,
-                    color: C.gray, cursor: 'pointer',
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.color = C.white; e.currentTarget.style.borderColor = C.borderL; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.color = C.gray; e.currentTarget.style.borderColor = C.border; }}
-                >
-                  <Icon d="M12 20h9 M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4 12.5-12.5z" size={14} />
-                </button>
-              </div>
-            )}
-            {navFilter && displayNavGroups.length === 0 && (isMobile || !collapsed) && (
-              <div style={{ padding: '4px 20px 12px', fontSize: 12, color: C.grayd }}>
-                No menu items match “{navQuery.trim()}”.
-              </div>
-            )}
-            {displayNavGroups.map((g, gi) => (
-              <div key={gi} style={{ marginBottom: collapsed && !isMobile ? 10 : 18 }}>
-                {(isMobile || !collapsed) ? (
-                  <button
-                    type="button"
-                    onClick={() => toggleSection(g.label)}
-                    aria-expanded={!collapsedSections[g.label]}
-                    style={{
-                      width:'calc(100% - 8px)',
-                      margin:'0 4px',
-                      display:'flex',
-                      alignItems:'center',
-                      justifyContent:'space-between',
-                      padding:'4px 16px',
-                      background:'transparent',
-                      border:'none',
-                      fontSize:10,
-                      color:C.grayd,
-                      textTransform:'uppercase',
-                      letterSpacing:1.2,
-                      fontWeight:700,
-                      marginBottom:6,
-                      cursor:'pointer',
-                    }}
-                  >
-                    <span>{g.label}</span>
-                    <span style={{
-                      fontSize:9,
-                      transition:'transform .15s ease',
-                      transform: collapsedSections[g.label] ? 'rotate(-90deg)' : 'none',
-                    }}>▾</span>
-                  </button>
-                ) : (
-                  // In collapsed mode, replace the text group label with a
-                  // thin horizontal divider so groups stay visually distinct
-                  // without overflowing the 64px rail.
-                  gi > 0 && (
-                    <div style={{
-                      height:1,
-                      background:C.border,
-                      margin:'0 16px 8px',
-                    }} />
-                  )
-                )}
-                {/* In the rail-collapsed sidebar we always show the icons;
-                    in the expanded sidebar, hide a section's items when the
-                    user has collapsed that section. */}
-                {((collapsed && !isMobile) || !collapsedSections[g.label] || !!navFilter) && g.items.map((i:any) => {
-                  const active = isActive(i.href);
-                  const accent = navAccent(g.package, i.href);
-                  return (
-                    <Link key={i.href} href={i.href} style={{ textDecoration:'none' }}>
-                      <div
-                        title={collapsed && !isMobile ? i.label : undefined}
-                        style={{
-                          position:'relative',
-                          display:'flex',
-                          alignItems:'center',
-                          padding: collapsed && !isMobile ? '10px 0' : '8px 16px 8px 20px',
-                          margin: collapsed && !isMobile ? '2px 8px' : '1px 10px',
-                          borderRadius:8,
-                          gap:12,
-                          color: active ? C.white : C.gray,
-                          background: active ? `${accent}1f` : 'transparent',
-                          cursor:'pointer',
-                          justifyContent: collapsed && !isMobile ? 'center' : 'flex-start',
-                          transition:'background .15s, color .15s',
-                        }}
-                        onMouseEnter={(e) => { if (!active) { e.currentTarget.style.background = C.s2; e.currentTarget.style.color = C.white; } }}
-                        onMouseLeave={(e) => { if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = C.gray; } }}
-                      >
-                        {/* Left-rail accent on active items — replaces the
-                            full-row red wash so the sidebar reads calmer and
-                            the active item still pops. */}
-                        {active && (
-                          <span style={{
-                            position:'absolute',
-                            left: collapsed && !isMobile ? 4 : 0,
-                            top:6, bottom:6,
-                            width:3,
-                            borderRadius:3,
-                            background:accent,
-                          }} />
-                        )}
-                        <span style={{
-                          position:'relative',
-                          display:'flex', alignItems:'center', justifyContent:'center',
-                          width:30, height:30, borderRadius:9, flexShrink:0,
-                          background: active ? accent : `${accent}22`,
-                          color: active ? '#fff' : accent,
-                          boxShadow: active ? `0 2px 8px ${accent}55` : 'none',
-                          transition:'background .15s, color .15s, box-shadow .15s',
-                        }}>
-                          <Icon d={i.icon} size={17} />
-                          {i.href === '/dashboard/crm/website-chats' && webChatUnread > 0 && (
-                            <span
-                              aria-label={`${webChatUnread} new website chat${webChatUnread === 1 ? '' : 's'}`}
-                              style={{
-                                position:'absolute', top:-6, right:-6,
-                                minWidth:16, height:16, padding:'0 4px', borderRadius:8,
-                                background:'#D01E2C', color:'#fff', fontSize:10, fontWeight:700,
-                                display:'flex', alignItems:'center', justifyContent:'center',
-                                lineHeight:1, boxShadow:'0 0 0 2px var(--s1)',
-                              }}
-                            >{webChatUnread > 9 ? '9+' : webChatUnread}</span>
-                          )}
-                          {(collapsed && !isMobile) && <NewBadge href={i.href} dot />}
-                        </span>
-                        {(isMobile || !collapsed) && (
-                          <>
-                            <span style={{ fontSize:13.5, fontWeight: active ? 600 : 500, whiteSpace:'nowrap' }}>{i.label}</span>
-                            <NewBadge href={i.href} />
-                          </>
-                        )}
-                      </div>
-                    </Link>
-                  );
-                })}
-              </div>
-            ))}
-          </nav>
-
-          <div style={{ padding: collapsed && !isMobile ? '12px 8px' : 16, borderTop:`1px solid ${C.border}` }}>
-            {(isMobile || !collapsed) && (
-              <div style={{ marginBottom:10 }}>
-                <div style={{ fontSize:13, fontWeight:700, color:C.white, lineHeight:1.2 }}>{user?.name || 'Admin'}</div>
-                {/* Designation = hierarchy role name (e.g. "Business Manager",
-                    "Consumer Champion"). Falls back to the legacy preset role
-                    label so we never show an empty descriptor. */}
-                <div style={{ fontSize:11, color:C.gray, marginTop:2, lineHeight:1.2 }}>
-                  {/* Show the real hierarchy designation (Business Manager,
-                      Consumer Champion, …). For platform admins with no
-                      org_role assigned, the shared helper resolves to
-                      "Super Admin" / "Admin". Returns "—" only when there
-                      is genuinely no designation — never substitutes a
-                      generic "Team Member" placeholder. */}
-                  {hierarchyRoleName || getDesignationLabel(user)}
-                </div>
-              </div>
-            )}
-            <button
-              onClick={handleLogout}
-              title={collapsed && !isMobile ? 'Sign Out' : undefined}
-              style={{
-                width:'100%',
-                padding: collapsed && !isMobile ? '10px 0' : '10px',
-                background:'transparent',
-                border:`1px solid ${C.border}`,
-                color:C.gray,
-                borderRadius:8,
-                cursor:'pointer',
-                display:'flex',
-                alignItems:'center',
-                justifyContent:'center',
-                gap:8,
-                fontSize:13,
-                transition:'color .15s, border-color .15s, background .15s',
-              }}
-              onMouseEnter={(e) => { const t = e.currentTarget; t.style.color = C.red; t.style.borderColor = 'rgba(224,30,44,0.3)'; t.style.background = C.redD; }}
-              onMouseLeave={(e) => { const t = e.currentTarget; t.style.color = C.gray; t.style.borderColor = C.border; t.style.background = 'transparent'; }}
-            >
-              <Icon d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4 M16 17l5-5-5-5 M21 12H9" size={15} />
-              {(isMobile || !collapsed) && <span>Sign Out</span>}
-            </button>
-
-            {user?.email === 'demo@kinematic.com' && (isMobile || !collapsed) && (
-              <div style={{ marginTop:12, padding:'8px 10px', background:'rgba(255,59,48,0.08)', border:'1px solid rgba(255,59,48,0.2)', borderRadius:8, textAlign:'center' }}>
-                <div style={{ color:C.red, fontSize:9, fontWeight:900, letterSpacing:1 }}>DEMO ACTIVE</div>
-                <div style={{ fontSize:8, color:C.grayd }}>Stable Mock Intercept</div>
-              </div>
-            )}
-          </div>
-        </aside>
+        <Sidebar
+          groups={displayNavGroups as any}
+          hasAnyGroups={orderedNavGroups.length > 0}
+          navReady={navReady}
+          isMobile={isMobile}
+          collapsed={collapsed}
+          visible={sidebarVisible}
+          top={impBannerH}
+          onToggleCollapsed={toggleCollapsed}
+          onCloseDrawer={() => setDrawerOpen(false)}
+          navQuery={navQuery}
+          onNavQuery={setNavQuery}
+          onOpenSearch={() => setSearchOpen(true)}
+          onEditNav={() => setEditingNav(true)}
+          collapsedSections={collapsedSections}
+          onToggleSection={toggleSection}
+          isActive={isActive}
+          webChatUnread={webChatUnread}
+          user={user}
+          roleLabel={hierarchyRoleName || getDesignationLabel(user)}
+          onLogout={handleLogout}
+          isDemo={user?.email === 'demo@kinematic.com'}
+        />
 
         <main style={{ marginLeft:sideW, flex:1, display:'flex', flexDirection:'column', minWidth:0 }}>
-          <header style={{
-            height:65, background:C.s1, borderBottom:`1px solid ${C.border}`,
-            display:'flex', alignItems:'center', justifyContent:'space-between',
-            padding: isMobile ? '0 14px' : '0 25px', gap:10,
-            position: 'relative',
-          }}>
-            {/*
-             * CRM mark sits centred in the header strip when the user is on
-             * a CRM route. Absolute-positioned so left + right groups don't
-             * have to share width with it. Hidden on mobile to keep the
-             * compact name + actions clear.
-             */}
-            {pathname.startsWith('/dashboard/crm') && !isMobile && (
-              <div style={{
-                position: 'absolute', left: 0, right: 0, top: 0, bottom: 0,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                pointerEvents: 'none',
-              }}>
-                <div style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 10,
-                  fontWeight: 900, fontSize: 24, color: C.white, letterSpacing: '-0.5px',
-                }}>
-                  CRM
-                  <span style={{
-                    fontSize: 10, fontWeight: 800, padding: '3px 8px', borderRadius: 999,
-                    background: 'rgba(224,30,44,0.12)', color: C.red,
-                    border: `1px solid rgba(224,30,44,0.3)`, letterSpacing: 1,
-                    textTransform: 'uppercase',
-                  }}>
-                    powered by Kini AI
-                  </span>
-                </div>
-              </div>
-            )}
-            <div style={{ display:'flex', alignItems:'center', gap:12, minWidth:0, flex:1, zIndex: 1 }}>
-              {isMobile && (
-                <button
-                  onClick={() => setDrawerOpen(o => !o)}
-                  aria-label="Open menu"
-                  style={{ background:'transparent', border:'none', color:C.white, cursor:'pointer', padding:6, display:'flex', alignItems:'center' }}
-                >
-                  <Icon d="M3 12h18 M3 6h18 M3 18h18" size={22} />
-                </button>
-              )}
-              {/* User identity badge — name + hierarchy role label. The
-                  hierarchy name comes from /api/v1/roles/:id (cached); falls
-                  back to the legacy preset role label so we never render an
-                  empty descriptor. Tappable: routes to the new /profile
-                  page so the rep can change their avatar. */}
-              <Link
-                href="/dashboard/profile"
-                style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, textDecoration: 'none', color: 'inherit', cursor: 'pointer' }}
-                title="My profile"
-              >
-                {/* Avatar uses the user's uploaded image when available,
-                    falling back to a neutral initial chip so the layout
-                    never reserves an empty hole. Red is reserved for
-                    KINI AI elsewhere — initial chip stays neutral. */}
-                {user?.avatar_url ? (
-                  // kinematic-avatars is PRIVATE — sign the stored URL before
-                  // rendering (SignedImage falls back to the raw URL on failure).
-                  <SignedImage
-                    src={user.avatar_url}
-                    alt={user?.name || 'Profile'}
-                    style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: `1px solid ${C.border}` }}
-                  />
-                ) : (
-                  <div style={{
-                    width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
-                    background: C.s4, color: C.white, display: 'flex',
-                    alignItems: 'center', justifyContent: 'center',
-                    fontWeight: 800, fontSize: 13, border: `1px solid ${C.border}`,
-                  }}>
-                    {(user?.name || 'U').slice(0, 1).toUpperCase()}
-                  </div>
-                )}
-                <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, lineHeight: 1.15 }}>
-                  <span style={{ fontWeight: 700, fontSize: isMobile ? 13 : 14, color: C.white, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
-                    {user?.name || 'Signed in'}
-                  </span>
-                  <span style={{ fontSize: isMobile ? 10 : 11, color: C.gray, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
-                    {/* Hierarchy designation (Business Manager,
-                        Consumer Champion, …) via getDesignationLabel —
-                        falls back to "Super Admin" / "Admin" for platform
-                        roles, else a dash; never substitutes "Team Member". */}
-                  {hierarchyRoleName || getDesignationLabel(user)}
-                  </span>
-                </div>
-              </Link>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, zIndex: 1 }}>
-              {/* Global smart search (⌘/Ctrl-K). On phones it collapses to just
-                  the magnifier; on desktop it shows the "Search" label + hint. */}
-              {token && (
-                <button
-                  onClick={() => setSearchOpen(true)}
-                  aria-label="Search"
-                  title="Search (⌘K / Ctrl-K)"
-                  style={{ display: 'flex', alignItems: 'center', gap: 8, background: C.s3, border: `1px solid ${C.border}`, color: C.gray, borderRadius: 9, height: 34, padding: isMobile ? '0 9px' : '0 10px 0 11px', cursor: 'pointer' }}
-                >
-                  <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M21 21l-4.3-4.3" /><circle cx="11" cy="11" r="8" /></svg>
-                  {!isMobile && <span style={{ fontSize: 13 }}>Search</span>}
-                  {!isMobile && <kbd style={{ fontFamily: 'var(--font-jetbrains)', fontSize: 10.5, color: C.gray, background: C.s4, border: `1px solid ${C.border}`, borderRadius: 5, padding: '1px 5px' }}>⌘K</kbd>}
-                </button>
-              )}
-              {/* Chat trigger lives next to the notification bell — the
-                  previous floating FAB cramped on phones. ChatLauncher
-                  renders an icon button here and pops the panel inline. */}
-              {token && <ChatLauncher />}
-              {/* Header light/dark switch — lets users flip theme without
-                  opening Settings. Shares the exact persistence the Settings
-                  page uses (kinematic-theme cookie + localStorage), so both
-                  stay in sync. */}
-              <ThemeToggle compact={isMobile} />
-              <NotificationBell />
-              {/* Demo-only industry vertical switcher (renders null for
-                  non-demo accounts). Sits next to the client filter. */}
-              <IndustryScopePicker />
-              {/* Hidden inside a staging org, and for orgs that set ui.hide_client_filter. */}
-              {!actingAs?.staging && !hideClientFilter && <GlobalClientFilter isPlatformAdmin={isPlatformAdmin} />}
-            </div>
-          </header>
-          <div style={{ padding: isMobile ? 14 : 25, flex:1, minWidth:0 }}>
+          <TopBar
+            isMobile={isMobile}
+            onOpenDrawer={() => setDrawerOpen(true)}
+            crumbs={crumbs}
+            token={token}
+            onOpenSearch={() => setSearchOpen(true)}
+            user={user}
+            isPlatformAdmin={isPlatformAdmin}
+            showClientFilter={!actingAs?.staging && !hideClientFilter}
+          />
+          <div style={{ padding: isMobile ? '16px 14px 32px' : '24px 32px 40px', flex:1, minWidth:0 }}>
             {/* Impersonation sets acting-as under the hood to scope org/client,
                 so suppress the "Acting as client" banner while impersonating —
                 the fixed top "Viewing as" banner owns that state (and its Exit). */}
             {actingAs && !impersonate && (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '10px 16px', marginBottom: 16, background: actingAs.staging ? '#B45309' : '#7c3aed', color: '#fff', fontSize: 13, fontWeight: 600, borderRadius: 12 }}>
-                <span>{actingAs.staging
-                  ? <>Editing <strong>{actingAs.name || 'Staging'}</strong> — pick changes to deploy to production.</>
-                  : <>Acting as client: <strong>{actingAs.name || 'Unknown'}</strong> — you are viewing their data.</>}</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '10px 14px', marginBottom: 20, background: actingAs.staging ? 'var(--warn-w)' : 'var(--info-w)', color: 'var(--text)', fontSize: 13, borderRadius: 8, border: `1px solid ${actingAs.staging ? 'var(--warn)' : 'var(--info)'}` }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                  <span aria-hidden style={{ width: 8, height: 8, borderRadius: 999, background: actingAs.staging ? 'var(--warn)' : 'var(--info)', flexShrink: 0 }} />
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{actingAs.staging
+                    ? <>Editing <strong>{actingAs.name || 'Staging'}</strong> — pick changes to deploy to production.</>
+                    : <>Acting as client <strong>{actingAs.name || 'Unknown'}</strong> — you are viewing their data.</>}</span>
+                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                 {actingAs.staging && (
                   <button onClick={() => setShowDeploy(true)}
-                    style={{ background: '#fff', border: 'none', color: '#B45309', padding: '5px 14px', borderRadius: 8, fontSize: 12, fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                    Deploy to Production
+                    style={{ background: 'var(--warn)', border: 'none', color: '#fff', height: 28, padding: '0 12px', borderRadius: 6, fontSize: 12.5, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit' }}>
+                    Deploy to production
                   </button>
                 )}
                 <button onClick={() => {
@@ -1272,15 +813,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   localStorage.removeItem('kinematic_su_session');
                   setActingAs(null);
                   window.location.href = '/dashboard/clients';
-                }} style={{ background: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.5)', color: '#fff', padding: '5px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>{actingAs.staging ? 'Exit staging' : 'Exit client view'}</button>
+                }} style={{ background: 'var(--card)', border: '1px solid var(--border-l)', color: 'var(--text)', height: 28, padding: '0 12px', borderRadius: 6, fontSize: 12.5, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit' }}>{actingAs.staging ? 'Exit staging' : 'Exit client view'}</button>
                 </div>
               </div>
             )}
             {children}
           </div>
-          <footer style={{ padding:15, borderTop:`1px solid ${C.border}`, textAlign:'center', fontSize:9, color:C.grayd }}>
-            Kinematic Registry: STABLE-ENV | Interception Enabled
-          </footer>
         </main>
         {token && <KinematicAI token={token} />}
         {token && (

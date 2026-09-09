@@ -105,7 +105,7 @@ export default function ClientScopeField({
   // multi-tenant org never silently loses client scope during an outage.
   if (loaded && !errored && clients.length === 0) {
     return (
-      <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 14 }}>
+      <div style={{ fontSize: 12, color: 'var(--text-mute)', marginBottom: 16 }}>
         Single-tenant organisation — this record is scoped to the whole org.
       </div>
     );
@@ -115,22 +115,26 @@ export default function ClientScopeField({
 
   // No picker: force the admin to pick a client for this record.
   return (
-    <label style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 14 }}>
-      <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>
+    <label style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
+      <span style={{ fontSize: 12.5, fontWeight: 500, color: 'var(--text-dim)', display: 'flex', gap: 4, alignItems: 'center' }}>
         Client
-        {required && <span style={{ color: '#ef4444', marginLeft: 3 }}>*</span>}
+        {required && <span style={{ color: 'var(--red)' }}>*</span>}
       </span>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
         required={required}
+        className="km-input"
         style={{
-          background: 'var(--s3)',
+          height: 36,
+          background: 'var(--field)',
           border: '1px solid var(--border)',
           color: 'var(--text)',
-          padding: '8px 12px',
-          borderRadius: 8,
-          fontSize: 13,
+          padding: '0 11px',
+          borderRadius: 6,
+          fontSize: 14,
+          fontFamily: 'inherit',
+          outline: 'none',
         }}
       >
         <option value="">— Select a client —</option>
@@ -138,7 +142,7 @@ export default function ClientScopeField({
           <option key={c.id} value={c.id}>{c.name}</option>
         ))}
       </select>
-      <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>
+      <span style={{ fontSize: 12, color: 'var(--text-mute)' }}>
         No client selected in the global filter — choose which tenant this record belongs to.
       </span>
     </label>

@@ -10,19 +10,12 @@ export default function CrmLayout({ children }: { children: React.ReactNode }) {
   const { selectedCity } = useCityScope();
   return (
     <div className="crm-area">
-      {/* Per-page h1s stay small so the CRM mark (rendered in the dashboard
-          top header) remains the visual anchor. */}
-      <style jsx>{`
-        :global(.crm-page-area h1) {
-          font-size: 18px !important;
-          font-weight: 700 !important;
-          color: var(--text) !important;
-        }
-      `}</style>
       {/* The duplicate top tab nav was removed — every CRM destination
-          lives in the left sidebar, which is now collapsible. This row
-          keeps only the per-tenant scope chip + the date-range picker. */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+          lives in the left sidebar. This row keeps only the per-tenant
+          scope chip, the city scope and the date-range picker; the page
+          title itself is the biggest thing on screen (header breadcrumb +
+          the page's own h1). */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
         <CrmScopeBadge />
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           {/* CityScopePicker self-hides when the user has <2 cities, so

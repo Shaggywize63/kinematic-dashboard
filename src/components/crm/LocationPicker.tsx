@@ -1,5 +1,7 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
+import { MapPin } from 'lucide-react';
+import { inputStyle, labelStyle, requiredMark } from '../ui';
 import { crmStatesApi } from '../../lib/crmApi';
 import { getStoredUser } from '../../lib/auth';
 import { stateForCity } from '../../lib/cityToState';
@@ -60,14 +62,14 @@ export default function LocationPicker({ stateValue, cityValue, onChange, requir
     return (
       <FieldWrap label="City" required={required}>
         <div style={{
-          display: 'inline-flex', alignItems: 'center', gap: 8,
+          display: 'inline-flex', alignItems: 'center', gap: 8, height: 36,
           background: 'var(--s3)', border: '1px solid var(--border)',
-          borderRadius: 8, padding: '8px 12px', fontSize: 13, color: 'var(--text)',
+          borderRadius: 6, padding: '0 11px', fontSize: 14, color: 'var(--text)',
         }}>
-          <span aria-hidden>📍</span>
-          <strong>{c}</strong>
-          {inferred && <span style={{ color: 'var(--text-dim)', fontSize: 12 }}>· {inferred}</span>}
-          <span style={{ fontSize: 10, color: 'var(--text-dim)', marginLeft: 6, padding: '2px 6px', background: 'var(--s4)', borderRadius: 4, textTransform: 'uppercase', letterSpacing: 0.4, fontWeight: 700 }}>
+          <MapPin size={15} strokeWidth={1.6} style={{ color: 'var(--text-dim)' }} aria-hidden />
+          <strong style={{ fontWeight: 600 }}>{c}</strong>
+          {inferred && <span style={{ color: 'var(--text-dim)', fontSize: 13 }}>· {inferred}</span>}
+          <span style={{ fontFamily: 'var(--font-jetbrains)', fontSize: 10, color: 'var(--text-mute)', marginLeft: 4, padding: '2px 6px', background: 'var(--s4)', borderRadius: 4, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
             your beat
           </span>
         </div>
@@ -80,6 +82,7 @@ export default function LocationPicker({ stateValue, cityValue, onChange, requir
     return (
       <FieldWrap label="City" required={required}>
         <select
+          className="km-input"
           value={cityValue}
           onChange={(e) => {
             const c = e.target.value;
@@ -92,7 +95,7 @@ export default function LocationPicker({ stateValue, cityValue, onChange, requir
             <option key={c} value={c}>{c}{stateForCity(c) ? ` (${stateForCity(c)})` : ''}</option>
           ))}
         </select>
-        <span style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 4 }}>
+        <span style={{ fontSize: 12, color: 'var(--text-mute)' }}>
           Limited to the cities you&apos;re assigned to.
         </span>
       </FieldWrap>
@@ -132,8 +135,8 @@ function FullLocationPicker({ stateValue, cityValue, onChange, required = true }
   if (noStatesYet) {
     return (
       <>
-        <FieldWrap label="State"><input value={stateValue} onChange={(e) => onChange({ state: e.target.value, city: cityValue })} placeholder="e.g. Maharashtra" style={inputStyle} /></FieldWrap>
-        <FieldWrap label="City" required={required}><input value={cityValue} onChange={(e) => onChange({ state: stateValue, city: e.target.value })} placeholder="e.g. Mumbai" style={inputStyle} /></FieldWrap>
+        <FieldWrap label="State"><input className="km-input" value={stateValue} onChange={(e) => onChange({ state: e.target.value, city: cityValue })} placeholder="e.g. Maharashtra" style={inputStyle} /></FieldWrap>
+        <FieldWrap label="City" required={required}><input className="km-input" value={cityValue} onChange={(e) => onChange({ state: stateValue, city: e.target.value })} placeholder="e.g. Mumbai" style={inputStyle} /></FieldWrap>
       </>
     );
   }
@@ -141,13 +144,13 @@ function FullLocationPicker({ stateValue, cityValue, onChange, required = true }
   return (
     <>
       <FieldWrap label="State">
-        <select value={stateValue} onChange={(e) => onChange({ state: e.target.value, city: '' })} style={inputStyle}>
+        <select className="km-input" value={stateValue} onChange={(e) => onChange({ state: e.target.value, city: '' })} style={inputStyle}>
           <option value="">— Select state —</option>
           {states.map((s) => <option key={s.id} value={s.name}>{s.name}</option>)}
         </select>
       </FieldWrap>
       <FieldWrap label="City" required={required}>
-        <select value={cityValue} onChange={(e) => onChange({ state: stateValue, city: e.target.value })} disabled={!stateValue || loadingCities} style={{ ...inputStyle, opacity: !stateValue ? 0.6 : 1 }}>
+        <select className="km-input" value={cityValue} onChange={(e) => onChange({ state: stateValue, city: e.target.value })} disabled={!stateValue || loadingCities} style={{ ...inputStyle, opacity: !stateValue ? 0.6 : 1 }}>
           <option value="">{stateValue ? '— Select city —' : 'Pick a state first'}</option>
           {cities.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
         </select>
@@ -158,14 +161,14 @@ function FullLocationPicker({ stateValue, cityValue, onChange, required = true }
 
 function FieldWrap({ label, children, required }: { label: string; children: React.ReactNode; required?: boolean }) {
   return (
-    <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>
+    <label style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
+      <span style={labelStyle}>
         {label}
-        {required && <span style={{ color: '#E01E2C', marginLeft: 4 }}>*</span>}
+        {required && requiredMark}
       </span>
       {children}
     </label>
   );
 }
 
-const inputStyle: React.CSSProperties = { background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 };
+// Inputs share the app-wide control style (36px, --field, 6px radius) from components/ui.

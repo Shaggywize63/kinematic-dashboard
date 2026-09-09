@@ -40,9 +40,9 @@ export default function UserSearchSelect({
     : options;
 
   const inputStyle: React.CSSProperties = {
-    width: '100%', background: 'var(--s3)', border: '1px solid var(--border)',
-    color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13,
-    boxSizing: 'border-box',
+    width: '100%', height: 36, background: 'var(--field)', border: '1px solid var(--border)',
+    color: 'var(--text)', padding: '0 11px', borderRadius: 6, fontSize: 14, fontFamily: 'inherit',
+    boxSizing: 'border-box', outline: 'none',
   };
 
   return (
@@ -53,17 +53,19 @@ export default function UserSearchSelect({
         onFocus={() => { setQuery(''); setOpen(true); }}
         placeholder={placeholder}
         autoComplete="off"
+        className="km-input"
         style={inputStyle}
       />
       {open && (
         <div style={{
           position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 1000,
-          background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 8,
-          maxHeight: 220, overflowY: 'auto', boxShadow: '0 6px 20px rgba(0,0,0,0.25)',
+          background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8,
+          maxHeight: 220, overflowY: 'auto', boxShadow: 'var(--shadow-pop)', padding: 4,
         }}>
           <div
             onMouseDown={() => { onChange(''); setQuery(''); setOpen(false); }}
-            style={{ padding: '8px 12px', fontSize: 13, color: 'var(--text-dim)', cursor: 'pointer', borderBottom: '1px solid var(--border)' }}
+            className="km-navrow"
+            style={{ padding: '0 8px', height: 32, display: 'flex', alignItems: 'center', borderRadius: 6, fontSize: 13, color: 'var(--text-dim)', cursor: 'pointer' }}
           >
             — {emptyLabel} —
           </div>
@@ -74,10 +76,11 @@ export default function UserSearchSelect({
               <div
                 key={o.id}
                 onMouseDown={() => { onChange(o.id); setQuery(''); setOpen(false); }}
+                className="km-navrow"
                 style={{
-                  padding: '8px 12px', fontSize: 13, cursor: 'pointer',
-                  background: value === o.id ? 'var(--primary)' : 'transparent',
-                  color: value === o.id ? '#fff' : 'var(--text)',
+                  padding: '0 8px', height: 32, display: 'flex', alignItems: 'center', borderRadius: 6, fontSize: 13, cursor: 'pointer',
+                  background: value === o.id ? 'var(--s3)' : 'transparent',
+                  color: 'var(--text)', fontWeight: value === o.id ? 600 : 500,
                 }}
               >
                 {o.name}

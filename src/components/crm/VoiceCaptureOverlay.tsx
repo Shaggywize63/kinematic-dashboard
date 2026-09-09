@@ -331,7 +331,7 @@ export function InlineLeadVoiceCapture({
     return (
       <div style={{
         display: 'flex', alignItems: 'center', gap: 10, width: '100%',
-        padding: '11px 14px', marginBottom: 18, borderRadius: 12,
+        padding: '11px 14px', marginBottom: 18, borderRadius: 8,
         border: '1px solid var(--border)', background: 'var(--s3)',
         fontSize: 12, color: 'var(--text-dim)',
       }}>
@@ -342,7 +342,7 @@ export function InlineLeadVoiceCapture({
   }
 
   const statusLabel = listening ? 'Listening…' : processing ? 'Reading…' : success ? 'Filled in from voice' : '';
-  const statusColor = success ? '#0A8A4E' : '#E01E2C';
+  const statusColor = success ? 'var(--ok)' : 'var(--red)';
 
   return (
     <div style={{ marginBottom: 18 }}>
@@ -365,11 +365,11 @@ export function InlineLeadVoiceCapture({
           touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none',
           WebkitTouchCallout: 'none',
           display: 'flex', alignItems: 'center', gap: 14, width: '100%',
-          padding: expanded ? '16px 16px' : '11px 14px', borderRadius: 12,
-          border: `1px solid ${listening ? '#E01E2C' : 'var(--border)'}`,
-          background: listening ? 'rgba(224,30,44,0.06)' : 'var(--s3)',
+          padding: expanded ? '16px 16px' : '11px 14px', borderRadius: 8,
+          border: `1px solid ${listening ? 'var(--red)' : 'var(--border)'}`,
+          background: listening ? 'var(--red-w)' : 'var(--s3)',
           cursor: processing ? 'wait' : 'pointer', textAlign: 'left',
-          boxShadow: listening ? '0 0 0 3px rgba(224,30,44,0.12)' : 'none',
+          boxShadow: listening ? '0 0 0 3px rgba(208,30,44,0.16)' : 'none',
           transition: 'padding 0.15s ease, background 0.15s ease, border-color 0.15s ease',
         }}
       >
@@ -378,11 +378,11 @@ export function InlineLeadVoiceCapture({
             <VoiceOrb level={processing ? 0.45 : success ? 0.2 : speech.level} size={orbSize} />
             <span style={{ flex: 1, minWidth: 0 }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 11, fontWeight: 900, letterSpacing: 1.2, textTransform: 'uppercase', color: statusColor }}>
+                <span style={{ fontFamily: 'var(--font-jetbrains)', fontSize: 10.5, fontWeight: 500, letterSpacing: '0.08em', textTransform: 'uppercase', color: statusColor }}>
                   {statusLabel}
                 </span>
                 {processing && (
-                  <span style={{ width: 13, height: 13, border: '2px solid var(--border)', borderTopColor: '#E01E2C', borderRadius: '50%', display: 'inline-block', animation: 'kmvc-spin 0.7s linear infinite' }} />
+                  <span style={{ width: 13, height: 13, border: '2px solid var(--border)', borderTopColor: 'var(--red)', borderRadius: '50%', display: 'inline-block', animation: 'kmvc-spin 0.7s linear infinite' }} />
                 )}
               </span>
               <span style={{
@@ -400,22 +400,22 @@ export function InlineLeadVoiceCapture({
           <>
             <span style={{
               width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
-              background: 'linear-gradient(135deg, #FF4D4D, #E01E2C)',
+              background: 'var(--red)', boxShadow: '0 0 0 4px var(--red-w)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
               <MicGlyph size={16} color="#fff" />
             </span>
             <span style={{ flex: 1, minWidth: 0 }}>
-              <span style={{ display: 'block', fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>Fill with voice</span>
-              <span style={{ display: 'block', fontSize: 12, color: 'var(--text-dim)' }}>Hold to speak · release to fill</span>
+              <span style={{ display: 'block', fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>Fill with voice</span>
+              <span style={{ display: 'block', fontSize: 12.5, color: 'var(--text-dim)' }}>Hold to speak · release to fill</span>
             </span>
-            <span style={{ fontSize: 16, flexShrink: 0 }}>✨</span>
+            <span style={{ fontFamily: 'var(--font-jetbrains)', fontSize: 10.5, letterSpacing: '0.08em', color: 'var(--text-mute)', flexShrink: 0 }}>KINI</span>
           </>
         )}
       </div>
 
       {phase === 'error' && error && (
-        <div style={{ marginTop: 8, fontSize: 12.5, lineHeight: 1.45, color: '#ef4444' }}>
+        <div style={{ marginTop: 8, fontSize: 12.5, lineHeight: 1.45, color: 'var(--red)' }}>
           {error}
         </div>
       )}

@@ -199,8 +199,8 @@ export default function GoogleAddressAutocomplete({ onSelect }: { onSelect: (p: 
   if (!KEY) return null;
 
   return (
-    <div style={{ gridColumn: '1 / -1', position: 'relative', display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <label style={{ fontSize: 12, color: 'var(--text-dim)', fontWeight: 600 }}>🔍 Search address (Google)</label>
+    <div style={{ gridColumn: '1 / -1', position: 'relative', display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <label style={{ fontSize: 12.5, color: 'var(--text-dim)', fontWeight: 500 }}>Search address</label>
       <input
         value={query}
         onChange={(e) => setQuery(e.target.value)}
@@ -208,10 +208,12 @@ export default function GoogleAddressAutocomplete({ onSelect }: { onSelect: (p: 
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
         placeholder="Start typing an address — e.g. F 2587 4th Floor Ansal Esencia…"
-        style={{ background: 'var(--s3)', border: `1px solid ${err ? '#ef4444' : 'var(--border)'}`, color: 'var(--text)', padding: '9px 12px', borderRadius: 8, fontSize: 13, width: '100%', boxSizing: 'border-box' }}
+        className="km-input"
+        data-invalid={err ? 'true' : undefined}
+        style={{ height: 36, background: 'var(--field)', border: '1px solid var(--border)', color: 'var(--text)', padding: '0 11px', borderRadius: 6, fontSize: 14, fontFamily: 'inherit', width: '100%', boxSizing: 'border-box', outline: 'none' }}
       />
       {open && suggestions.length > 0 && (
-        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, zIndex: 50, background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 8, maxHeight: 260, overflowY: 'auto', boxShadow: '0 10px 30px rgba(0,0,0,0.35)' }}>
+        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, zIndex: 50, background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8, maxHeight: 260, overflowY: 'auto', boxShadow: 'var(--shadow-pop)', padding: 4 }}>
           {suggestions.map((s, i) => {
             const text = s.placePrediction?.text?.text || '';
             if (!text) return null;
@@ -219,19 +221,18 @@ export default function GoogleAddressAutocomplete({ onSelect }: { onSelect: (p: 
               <div
                 key={i}
                 onMouseDown={(e) => { e.preventDefault(); pick(s); }}
-                style={{ padding: '9px 12px', cursor: 'pointer', fontSize: 13, color: 'var(--text)', borderBottom: i < suggestions.length - 1 ? '1px solid var(--border)' : 'none' }}
-                onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = 'var(--s3)'; }}
-                onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = 'transparent'; }}
+                className="km-navrow"
+                style={{ padding: '7px 8px', cursor: 'pointer', fontSize: 13, color: 'var(--text)', borderRadius: 6, lineHeight: 1.4 }}
               >
-                📍 {text}
+                {text}
               </div>
             );
           })}
         </div>
       )}
       {err
-        ? <span style={{ fontSize: 11, color: '#ef4444' }}>⚠️ {err}</span>
-        : <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>Pick a suggestion to fill the address &amp; pin; you can still edit Address Line 1 below.</span>}
+        ? <span style={{ fontSize: 12, color: 'var(--red)' }}>{err}</span>
+        : <span style={{ fontSize: 12, color: 'var(--text-mute)' }}>Pick a suggestion to fill the address &amp; pin; you can still edit Address line 1 below.</span>}
     </div>
   );
 }

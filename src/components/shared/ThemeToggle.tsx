@@ -82,20 +82,21 @@ export default function ThemeToggle({ compact = false }: { compact?: boolean }) 
       onClick={toggle}
       aria-label={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
       title={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
+      className="km-iconbtn"
       style={{
         width: size, height: size, flexShrink: 0,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: 'var(--s3)', border: '1px solid var(--border)',
-        borderRadius: 8, cursor: 'pointer', color: 'var(--text)',
+        background: 'transparent', border: '1px solid transparent',
+        borderRadius: 6, cursor: 'pointer', color: 'var(--text-dim)',
         padding: 0, visibility: mounted ? 'visible' : 'hidden',
       }}
     >
       {isDark ? (
         // Currently dark → offer the sun (switch to light)
-        <SunIcon size={compact ? 17 : 18} />
+        <SunIcon size={18} />
       ) : (
         // Currently light → offer the moon (switch to dark)
-        <MoonIcon size={compact ? 17 : 18} />
+        <MoonIcon size={18} />
       )}
     </button>
   );
@@ -104,7 +105,7 @@ export default function ThemeToggle({ compact = false }: { compact?: boolean }) 
 function SunIcon({ size = 18 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="12" cy="12" r="4" />
       <path d="M12 2v2 M12 20v2 M4.93 4.93l1.41 1.41 M17.66 17.66l1.41 1.41 M2 12h2 M20 12h2 M6.34 17.66l-1.41 1.41 M19.07 4.93l-1.41 1.41" />
     </svg>
@@ -114,7 +115,7 @@ function SunIcon({ size = 18 }: { size?: number }) {
 function MoonIcon({ size = 18 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
       <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
     </svg>
   );

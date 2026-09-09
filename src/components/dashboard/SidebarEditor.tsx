@@ -10,6 +10,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import type { NavPrefs } from '../../lib/navPrefs';
+import { NavIcon } from '../ui/icons';
 
 /**
  * Drag-and-drop editor for the left sidebar. Lets a user reorder nav sections
@@ -59,13 +60,10 @@ function Row({ id, children }: { id: string; children: React.ReactNode }) {
   );
 }
 
+// Nav items carry an icon NAME from the shared registry (legacy raw paths
+// still draw, see NavIcon).
 function Icon({ d, size = 15 }: { d: string; size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      {d.split(' M').map((seg, i) => <path key={i} d={i === 0 ? seg : `M${seg}`} />)}
-    </svg>
-  );
+  return <NavIcon name={d} size={size} />;
 }
 
 export default function SidebarEditor({

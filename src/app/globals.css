@@ -20,6 +20,14 @@
   --k-caution: #C97A00;
   --k-info:    #0066FF;
 
+  /* ── Surfaces (dark is the default theme) ──────────────────────────────
+     Four steps of ONE navy, separated by contrast rather than hue:
+       canvas  — the page ground              (--bg, --canvas)
+       panel   — sidebar + header chrome      (--s1, --panel)
+       card    — cards, tables, popovers      (--s2, --card)
+       raised  — hover rows, chips, inputs    (--s3), rules/keys (--s4)
+     The short legacy names (--s1…--s4, --text-dim) stay as the same values
+     so nothing already written against them changes meaning. */
   --bg:       #0E1A2E;
   --s1:       #0A0F1D;
   --s2:       #0E1420;
@@ -29,44 +37,215 @@
   --border-l: #253650;
   --text:     #E8EDF8;
   --text-dim: #7A8BA0;
+  --text-mute:#55657D;
+
+  --canvas:   var(--bg);
+  --panel:    var(--s1);
+  --card:     var(--s2);
+  --field:    var(--s3);
+  --dim:      var(--text-dim);
+  --mute:     var(--text-mute);
+
+  /* Functional colours — dark theme lifts them so they stay legible on navy. */
+  --red:      var(--k-red);
+  --red-w:    rgba(208, 30, 44, 0.16);
+  --info:     #4D9DFF;
+  --info-w:   rgba(77, 157, 255, 0.14);
+  --ok:       #2BB673;
+  --ok-w:     rgba(43, 182, 115, 0.14);
+  --warn:     #E0A030;
+  --warn-w:   rgba(224, 160, 48, 0.14);
+  --ring:     rgba(77, 157, 255, 0.28);
+  --shadow-pop: 0 12px 32px rgba(0, 0, 0, 0.45);
+
+  /* Legacy role tokens. --primary is the ONE action colour (brand red);
+     --accent is for links / focus / informational emphasis. */
   --primary:  var(--k-red);
-  --accent:   var(--k-info);
-  --green:    var(--k-success);
+  --accent:   var(--info);
+  --green:    var(--ok);
+
+  /* Aliases for token names a few older pages reach for (they were never
+     defined, so those pages rendered secondary text in the body colour). */
+  --textSec:  var(--text-dim);
+  --textTert: var(--text-mute);
+  --textPri:  var(--text);
+  --text-secondary: var(--text-dim);
+  --borderL:  var(--border-l);
+  --danger:   var(--k-red);
+  --redD:     var(--red-w);
+  --greenD:   var(--ok-w);
+  --blueD:    var(--info-w);
+  --yellowD:  var(--warn-w);
+  --primary-shadow: rgba(208, 30, 44, 0.25);
+  --font-syne: var(--font-manrope);
+  --font-dm-sans: var(--font-inter);
 
   color-scheme: dark;
 }
 
 [data-theme="light"] {
-  --bg:       var(--k-paper);
+  /* Light: stone canvas, white chrome + cards, slate rules. */
+  --bg:       var(--k-stone);
   --s1:       var(--k-paper);
-  --s2:       var(--k-stone);
+  --s2:       var(--k-paper);
   --s3:       #F1F5F9;
   --s4:       #E2E8F0;
   --border:   var(--k-rule);
   --border-l: #CBD5E1;
   --text:     var(--k-ink);
   --text-dim: #64748B;
+  --text-mute:#94A3B8;
+
+  --field:    var(--k-paper);
+
+  --red:      var(--k-red);
+  --red-w:    rgba(208, 30, 44, 0.08);
+  --info:     var(--k-info);
+  --info-w:   rgba(0, 102, 255, 0.08);
+  --ok:       var(--k-success);
+  --ok-w:     rgba(10, 138, 78, 0.10);
+  --warn:     var(--k-caution);
+  --warn-w:   rgba(201, 122, 0, 0.10);
+  --ring:     rgba(0, 102, 255, 0.22);
+  --shadow-pop: 0 12px 32px rgba(10, 14, 26, 0.12);
+
   --primary:  var(--k-red);
-  --accent:   var(--k-info);
-  --green:    var(--k-success);
+  --accent:   var(--info);
+  --green:    var(--ok);
 
   color-scheme: light;
 }
 
 /*
- * CRM area uses the blue accent (--accent) wherever components reach for
- * --primary. Red is reserved exclusively for the KINI AI badge / chat
- * affordance per the brand request — KINI AI is rendered OUTSIDE
- * .crm-area (top header + global chat widget) so its red survives the
- * override below.
- *
- * Anything genuinely tied to brand red inside the CRM area should use
- * an explicit colour (e.g. `#D01E2C` or `var(--k-red)`), not
- * `var(--primary)`.
+ * Brand red is the single action colour across the whole dashboard — the
+ * CRM area used to swap --primary to blue, which left the app with two
+ * competing "primary" colours. Links, focus rings and informational
+ * emphasis use --accent (blue); success / caution use --ok / --warn.
  */
-.crm-area {
-  --primary: var(--k-info);
+
+/* ── Base controls ─────────────────────────────────────────────────────────
+   Low-specificity defaults so every native control picks up the system
+   look even where a page hasn't been rewritten onto the shared primitives.
+   Inline styles on a control still win for whatever they set. */
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+select, textarea {
+  font-family: inherit;
+  color: var(--text);
+  accent-color: var(--primary);
 }
+input::placeholder, textarea::placeholder { color: var(--text-mute); opacity: 1; }
+input[type="checkbox"], input[type="radio"] { accent-color: var(--primary); }
+button, [role="button"] { font-family: inherit; }
+
+.km-input:focus, .km-input:focus-visible {
+  border-color: var(--info) !important;
+  box-shadow: 0 0 0 3px var(--ring);
+  outline: none;
+}
+.km-input[data-invalid="true"] { border-color: var(--red) !important; }
+.km-input:disabled { background: var(--s3); color: var(--text-dim); cursor: not-allowed; }
+
+.km-btn[data-variant="primary"]:not(:disabled):hover { filter: brightness(1.06); box-shadow: 0 1px 2px rgba(10,14,26,.16); }
+.km-btn[data-variant="secondary"]:not(:disabled):hover { background: var(--s3) !important; }
+.km-btn[data-variant="ghost"]:not(:disabled):hover { background: var(--s3) !important; color: var(--text) !important; }
+.km-btn[data-variant="danger"]:not(:disabled):hover { filter: brightness(1.05); }
+.km-btn:focus-visible, .km-iconbtn:focus-visible, .km-chip:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--ring); }
+.km-iconbtn:hover { background: var(--s3) !important; color: var(--text) !important; }
+.km-chip:hover { border-color: var(--border-l) !important; color: var(--text) !important; }
+a.km-btn { text-decoration: none !important; }
+
+/* Keyboard focus on anything else that can take it. */
+:where(button, a, select, summary):focus-visible { outline: 2px solid var(--info); outline-offset: 2px; }
+
+/* ── Legacy inline-style normalisation ────────────────────────────────────
+   ~180 dashboard pages still carry hand-written inline styles from before
+   the design system. These rules key off the exact inline signatures those
+   pages repeat (the same trick the responsive block below uses) so every
+   page picks up the system's shape, density and type while it waits for a
+   proper rewrite onto components/ui. Each rule matches ONE well-known
+   pattern; nothing here reaches into components that already use the
+   primitives (those set their own values and never carry these signatures). */
+
+/* Page titles — every page's h1 reads as the same Manrope 22/700 title. */
+main h1 { font-family: var(--font-manrope); font-size: 22px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.2; color: var(--text); }
+main h2 { font-family: var(--font-manrope); font-weight: 700; letter-spacing: -0.01em; color: var(--text); }
+main h1[style*="font-size: 24"], main h1[style*="font-size: 26"], main h1[style*="font-size: 28"], main h1[style*="font-size: 32"],
+main h2[style*="font-size: 24"], main h2[style*="font-size: 26"], main h2[style*="font-size: 28"] { font-size: 22px !important; font-weight: 700 !important; }
+main h2[style*="font-size: 20"], main h2[style*="font-size: 18"], main h3[style*="font-size: 18"] { font-size: 17px !important; font-weight: 700 !important; }
+main [style*="font-family: 'Syne'"], main [style*="font-family: Syne"] { font-family: var(--font-manrope) !important; }
+
+/* Cards — the s2 + border + 14/16px-radius signature becomes the 12px card. */
+main [style*="background: var(--s2)"][style*="border: 1px solid var(--border)"][style*="border-radius: 14px"],
+main [style*="background: var(--s2)"][style*="border: 1px solid var(--border)"][style*="border-radius: 16px"],
+main [style*="background: var(--s2)"][style*="border: 1px solid var(--border)"][style*="border-radius: 18px"],
+main [style*="background: var(--s2)"][style*="border: 1px solid var(--border)"][style*="border-radius: 20px"] { border-radius: 12px !important; }
+main [style*="background: var(--s3)"][style*="border-radius: 10px"],
+main [style*="background: var(--s3)"][style*="border-radius: 12px"] { border-radius: 8px !important; }
+
+/* Old uppercase 11px control labels → the 12.5/500 dim label. */
+main label > span[style*="text-transform: uppercase"][style*="font-size: 11px"],
+main label[style*="text-transform: uppercase"][style*="font-size: 11px"],
+main label[style*="text-transform: uppercase"][style*="font-size: 10px"] {
+  text-transform: none !important; font-size: 12.5px !important; font-weight: 500 !important; letter-spacing: 0 !important; color: var(--text-dim) !important;
+}
+/* Old 12px/800 uppercase section titles → mono eyebrows. */
+main div[style*="text-transform: uppercase"][style*="font-weight: 800"][style*="font-size: 12px"],
+main div[style*="text-transform: uppercase"][style*="font-weight: 700"][style*="font-size: 11px"][style*="letter-spacing"],
+main div[style*="text-transform: uppercase"][style*="font-weight: 800"][style*="font-size: 11px"] {
+  font-family: var(--font-jetbrains) !important; font-size: 10.5px !important; font-weight: 500 !important; letter-spacing: 0.08em !important; color: var(--text-mute) !important;
+}
+
+/* Inputs / selects / textareas written with the old s3 + 8px-radius signature. */
+main input[style*="background: var(--s3)"][style*="border-radius: 8px"]:not([type="checkbox"]):not([type="radio"]),
+main input[style*="background: var(--s2)"][style*="border-radius: 8px"]:not([type="checkbox"]):not([type="radio"]),
+main input[style*="background: var(--s3)"][style*="border-radius: 10px"]:not([type="checkbox"]):not([type="radio"]),
+main select[style*="background: var(--s3)"][style*="border-radius: 8px"],
+main select[style*="background: var(--s3)"][style*="border-radius: 10px"] {
+  height: 36px; padding: 0 11px !important; border-radius: 6px !important; background: var(--field) !important; font-size: 14px !important; font-family: inherit;
+}
+main textarea[style*="background: var(--s3)"][style*="border-radius: 8px"],
+main textarea[style*="background: var(--s2)"][style*="border-radius: 8px"],
+main textarea[style*="background: var(--s3)"][style*="border-radius: 10px"] {
+  padding: 9px 11px !important; border-radius: 6px !important; background: var(--field) !important; font-size: 14px !important; font-family: inherit; line-height: 1.45;
+}
+main input[style*="background: var(--s3)"]:focus, main select[style*="background: var(--s3)"]:focus, main textarea[style*="background: var(--s3)"]:focus,
+main input[style*="background: var(--s2)"]:focus, main textarea[style*="background: var(--s2)"]:focus {
+  border-color: var(--info) !important; box-shadow: 0 0 0 3px var(--ring); outline: none;
+}
+
+/* Buttons — primary (red) and outlined secondary signatures. */
+main button[style*="background: var(--primary)"],
+main a[style*="background: var(--primary)"] {
+  border-radius: 6px !important; font-weight: 600 !important; font-size: 13.5px !important; font-family: inherit; line-height: 1;
+}
+main button[style*="background: var(--primary)"][style*="padding: 8px"],
+main button[style*="background: var(--primary)"][style*="padding: 9px"],
+main button[style*="background: var(--primary)"][style*="padding: 10px"],
+main a[style*="background: var(--primary)"][style*="padding: 8px"],
+main a[style*="background: var(--primary)"][style*="padding: 10px"] { height: 34px; padding: 0 14px !important; display: inline-flex; align-items: center; gap: 8px; }
+main button[style*="border: 1px solid var(--border)"][style*="border-radius: 8px"],
+main button[style*="border: 1px solid var(--border)"][style*="border-radius: 10px"],
+main button[style*="border: 1px solid var(--border)"][style*="border-radius: 9px"] {
+  border-radius: 6px !important; border-color: var(--border-l) !important; font-weight: 600 !important; font-family: inherit;
+}
+main button[style*="border: 1px solid var(--border)"][style*="border-radius: 8px"][style*="padding: 8px"],
+main button[style*="border: 1px solid var(--border)"][style*="border-radius: 10px"][style*="padding: 8px"],
+main button[style*="border: 1px solid var(--border)"][style*="border-radius: 9px"][style*="padding: 8px"] { height: 34px; padding: 0 14px !important; display: inline-flex; align-items: center; gap: 8px; font-size: 13.5px !important; }
+main button[style*="background: var(--s3)"][style*="border-radius: 8px"],
+main button[style*="background: var(--s3)"][style*="border-radius: 10px"] { border-radius: 6px !important; font-family: inherit; }
+
+/* Tables — mono eyebrow headers, calmer row rules. */
+main table th { font-family: var(--font-jetbrains); font-size: 10.5px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-mute); }
+main table th[style*="font-size"] { font-size: 10.5px !important; font-weight: 500 !important; color: var(--text-mute) !important; letter-spacing: 0.08em !important; }
+main table td { font-size: 13.5px; }
+main table tr[style*="border-bottom: 1px solid var(--border)"]:last-child td { border-bottom-color: transparent; }
+
+/* Hex-red leftovers from before the token layer. */
+main [style*="color: rgb(224, 30, 44)"], main [style*="color: #E01E2C"], main [style*="color: #e01e2c"] { color: var(--red) !important; }
+main [style*="background: rgb(224, 30, 44)"], main [style*="background: #E01E2C"], main [style*="background: #e01e2c"] { background: var(--red) !important; }
+
+/* Native select chevrons on dark surfaces render black in some engines. */
+select option { background: var(--card); color: var(--text); }
 
 /*
  * Brand-logo theme swap (see components/shared/BrandLogo.tsx). The mark
@@ -141,10 +320,10 @@ html, body {
 h1, h2, h3, h4, h5, h6 { font-family: var(--font-manrope); letter-spacing: -0.01em; }
 .font-mono, code, kbd, samp, pre { font-family: var(--font-jetbrains); }
 
-::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #1E2D45; border-radius: 2px; }
-::-webkit-scrollbar-thumb:hover { background: #253650; }
+::-webkit-scrollbar-thumb { background: var(--border-l); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-mute); }
 
 /* Predictive-insight ⓘ methodology popover — reveal on hover/focus of the icon. */
 .kini-info:hover .kini-info-pop,
@@ -523,9 +702,9 @@ input, textarea, select {
 }
 
 /* CRM: visible affordance for clickable links */
-.crm-area a:not([class*="active"]):not([role="button"]) {
+.crm-area a:not([class*="active"]):not([role="button"]):not(.km-btn) {
   text-decoration: underline;
-  text-decoration-color: rgba(255,255,255,0.18);
+  text-decoration-color: var(--border-l);
   text-underline-offset: 2px;
   transition: text-decoration-color 0.15s ease, color 0.15s ease;
 }
@@ -579,8 +758,8 @@ summary {
 .km-clickable:hover {
   background: var(--s3);
   transform: translateY(-1px);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
-  border-color: var(--primary, #0066ff);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+  border-color: var(--border-l);
 }
 .km-clickable:active {
   transform: translateY(0);
@@ -634,8 +813,8 @@ textarea:disabled {
  * Apply via className="km-entity-link" on the <Link>. */
 .km-entity-link,
 .crm-area .km-entity-link {
-  color: var(--primary) !important;
-  font-weight: 700;
+  color: var(--accent) !important;
+  font-weight: 600;
   text-decoration: none !important;
   border-bottom: 1px dotted transparent;
   padding-bottom: 1px;
@@ -644,13 +823,12 @@ textarea:disabled {
 }
 .km-entity-link:hover,
 .crm-area .km-entity-link:hover {
-  color: var(--primary) !important;
+  color: var(--accent) !important;
   text-decoration: underline !important;
-  border-bottom-color: var(--primary);
-  filter: brightness(1.15);
+  border-bottom-color: var(--accent);
 }
 .km-entity-link:visited {
-  color: var(--primary) !important;
+  color: var(--accent) !important;
 }
 
 /* Forced card-stack layout — same visual as the responsive-cards

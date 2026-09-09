@@ -1,5 +1,7 @@
 'use client';
 import { useState } from 'react';
+import { X } from 'lucide-react';
+import { Button, Input, labelStyle } from '../ui';
 
 // Chip-based alternate-mobile input. The primary mobile/phone stays in its
 // own dedicated field; this component manages the parallel array of extras
@@ -33,30 +35,32 @@ export default function AlternateMobiles({
   const remove = (i: number) => onChange(values.filter((_, idx) => idx !== i));
 
   return (
-    <div style={{ marginTop: 14 }}>
-      <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.5, marginBottom: 8 }}>
-        Alternate Mobile Numbers
-      </div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8, minHeight: values.length ? 36 : 0 }}>
-        {values.map((v, i) => (
-          <span key={`${v}-${i}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--s4)', border: '1px solid var(--border)', color: 'var(--text)', padding: '4px 8px 4px 12px', borderRadius: 999, fontSize: 12, fontWeight: 600 }}>
-            {v}
-            <button type="button" onClick={() => remove(i)} aria-label="Remove" style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 14, lineHeight: 1, padding: 0 }}>×</button>
-          </span>
-        ))}
-      </div>
-      <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-        <input
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <div style={labelStyle}>Alternate mobile numbers</div>
+      {values.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {values.map((v, i) => (
+            <span key={`${v}-${i}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 26, background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '0 6px 0 10px', borderRadius: 999, fontSize: 12.5, fontWeight: 500, fontFamily: 'var(--font-jetbrains)' }}>
+              {v}
+              <button type="button" onClick={() => remove(i)} aria-label={`Remove ${v}`} style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', display: 'flex', padding: 2 }}><X size={12} strokeWidth={2} /></button>
+            </span>
+          ))}
+        </div>
+      )}
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <Input
           value={draft}
+          invalid={!!error}
           onChange={(e) => { setDraft(e.target.value); if (error) setError(null); }}
           onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } }}
           placeholder="+91 98xxxxxxxx"
-          style={{ background: 'var(--s3)', border: `1px solid ${error ? '#E01E2C' : 'var(--border)'}`, color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13, minWidth: 200 }}
+          inputMode="tel"
+          style={{ width: 220 }}
         />
-        <button type="button" onClick={add} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>+ Add</button>
-        {error && <span style={{ fontSize: 11, color: '#E01E2C' }}>{error}</span>}
+        <Button type="button" onClick={add}>Add</Button>
+        {error && <span style={{ fontSize: 12, color: 'var(--red)' }}>{error}</span>}
       </div>
-      <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 4 }}>
+      <div style={{ fontSize: 12, color: 'var(--text-mute)' }}>
         The primary mobile is unique per organisation; alternates are extra reach numbers.
       </div>
     </div>
