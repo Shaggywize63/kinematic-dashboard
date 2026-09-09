@@ -221,7 +221,7 @@ const LeadRow = memo(function LeadRow({ lead: l, isSelected, onToggle, onScoreCl
   }, [onApprove, l.id, deciding]);
 
   return (
-    <tr style={isSelected ? { background: 'var(--s3)' } : undefined}>
+    <tr className="km-row" style={isSelected ? { background: 'var(--s3)' } : undefined}>
       <td style={{ ...tdStyle, paddingRight: 0 }} data-label=""><input type="checkbox" checked={isSelected} onChange={handleToggle} aria-label={`Select ${fullName}`} style={{ width: 15, height: 15, display: 'block' }} /></td>
       <td style={tdStyle} data-label="Name">
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>

@@ -941,3 +941,12 @@ table.cards-view .latest-update-cell .latest-update-body {
     max-height: 50vh !important;
   }
 }
+
+/* ── List-table rows ─────────────────────────────────────────────────────
+   Shared hover affordance for the CRM list tables (leads / contacts /
+   accounts / deals). Opt in with `km-row` on the <tr>; the card-stack
+   layout on phones keeps the hover off so cards don't flash on scroll. */
+table.responsive-cards tbody tr.km-row td { transition: background-color .12s ease; }
+@media (hover: hover) and (min-width: 641px) {
+  table.responsive-cards:not(.cards-view) tbody tr.km-row:hover td { background: var(--s3); }
+}

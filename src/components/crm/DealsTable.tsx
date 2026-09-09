@@ -156,7 +156,7 @@ export default function DealsTable({ deals, loading, onAssign, onDelete, onEdit,
               </td></tr>
             )}
             {deals.map((d) => (
-              <tr key={d.id}>
+              <tr key={d.id} className="km-row">
                 {showSelection && (
                   <td style={td} data-label="">
                     <input type="checkbox" checked={selected!.has(d.id)} onChange={() => onToggle!(d.id)} aria-label={`Select ${d.name}`} style={{ width: 15, height: 15, margin: 0, display: 'block' }} />

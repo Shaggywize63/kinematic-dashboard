@@ -1,7 +1,11 @@
 'use client';
 import Link from 'next/link';
+import { Users } from 'lucide-react';
 import type { Contact } from '../../types/crm';
 import InlineOwnerAssign from './shared/InlineOwnerAssign';
+import OwnerAvatar from './shared/OwnerAvatar';
+import { EmptyRow, LoadingRow, SortTh, subStyle, tdStyle, thStyle, type SortState } from './shared/tableBits';
+import { Card, T } from '../ui';
 
 interface Props {
   contacts: Contact[];
@@ -12,39 +16,8 @@ interface Props {
   viewMode?: 'table' | 'cards';
   // Server-side sort. `sort.key` is a real crm_contacts column; `onSort(key)`
   // asks the parent to toggle/switch and refetch. Undefined = non-sortable UI.
-  sort?: { key: string; order: 'asc' | 'desc' };
+  sort?: SortState;
   onSort?: (key: string) => void;
-}
-
-// Clickable, server-side-sort header. Sorting happens on the backend via
-// onSort → parent refetch; this only renders label + asc/desc/idle arrow.
-function SortTh({ label, sortKey, sort, onSort, thStyle, align = 'left' }: {
-  label: string;
-  sortKey: string;
-  sort?: { key: string; order: 'asc' | 'desc' };
-  onSort?: (key: string) => void;
-  thStyle: React.CSSProperties;
-  align?: 'left' | 'right';
-}) {
-  const th: React.CSSProperties = { ...thStyle, textAlign: align };
-  if (!onSort) return <th style={th}>{label}</th>;
-  const active = !!sort && sort.key === sortKey;
-  const arrow = active ? (sort!.order === 'asc' ? '▲' : '▼') : '⇅';
-  return (
-    <th style={th}>
-      <span
-        role="button"
-        tabIndex={0}
-        onClick={() => onSort(sortKey)}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSort(sortKey); } }}
-        title="Sort"
-        style={{ display: 'inline-flex', alignItems: 'center', gap: 5, cursor: 'pointer', userSelect: 'none', color: active ? 'var(--primary)' : 'inherit', justifyContent: align === 'right' ? 'flex-end' : 'flex-start' }}
-      >
-        {label}
-        <span aria-hidden style={{ fontSize: 9, lineHeight: 1, opacity: active ? 1 : 0.4 }}>{arrow}</span>
-      </span>
-    </th>
-  );
 }
 
 export const CONTACT_COLUMNS = [
@@ -66,8 +39,6 @@ export const CONTACT_COLUMNS = [
  * gets the same treatment.
  */
 export default function ContactsTable({ contacts, loading, isB2C = false, onAssign, hiddenColumns, viewMode = 'table', sort, onSort }: Props) {
-  const td: React.CSSProperties = { padding: '12px 14px', fontSize: 13, color: 'var(--text)', borderBottom: '1px solid var(--border)' };
-  const th: React.CSSProperties = { padding: '10px 14px', fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', textAlign: 'left', borderBottom: '1px solid var(--border)', background: 'var(--s2)', fontWeight: 700, letterSpacing: 0.6 };
   const hidden = hiddenColumns ?? new Set<string>();
   const showAccount = !isB2C && !hidden.has('account');
   const tableClass = `responsive-cards${viewMode === 'cards' ? ' cards-view' : ''}`;
@@ -77,60 +48,83 @@ export default function ContactsTable({ contacts, loading, isB2C = false, onAssi
   if (!hidden.has('phone'))  colCount += 1;
   if (!hidden.has('owner'))  colCount += 1;
   return (
-    <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, overflow: 'hidden' }}>
+    <Card padding={0} style={{ overflow: 'hidden' }}>
       <div style={{ overflowX: 'auto' }}>
         <table className={tableClass} style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
               {/* Name column → real column first_name (single-column server sort). */}
-              <SortTh label="Name" sortKey="first_name" sort={sort} onSort={onSort} thStyle={th} />
+              <SortTh label="Name" sortKey="first_name" sort={sort} onSort={onSort} />
               {/* Account shows the joined account_name (not a real crm_contacts
                   column) → non-sortable. */}
-              {showAccount         && <th style={th}>Account</th>}
-              {!hidden.has('email') && <SortTh label="Email" sortKey="email" sort={sort} onSort={onSort} thStyle={th} />}
-              {!hidden.has('phone') && <SortTh label="Phone" sortKey="phone" sort={sort} onSort={onSort} thStyle={th} />}
+              {showAccount         && <th style={thStyle}>Account</th>}
+              {!hidden.has('email') && <SortTh label="Email" sortKey="email" sort={sort} onSort={onSort} />}
+              {!hidden.has('phone') && <SortTh label="Phone" sortKey="phone" sort={sort} onSort={onSort} />}
               {/* Owner shows owner_name (stamped, not a real column) → non-sortable. */}
-              {!hidden.has('owner') && <th style={th}>Owner</th>}
+              {!hidden.has('owner') && <th style={thStyle}>Owner</th>}
             </tr>
           </thead>
           <tbody>
-            {loading && <tr><td colSpan={colCount} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)' }} data-label="">Loading...</td></tr>}
-            {!loading && contacts.length === 0 && <tr><td colSpan={colCount} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)' }} data-label="">No contacts found.</td></tr>}
-            {contacts.map((c) => (
-              <tr key={c.id}>
-                <td style={td} data-label="Name">
-                  <Link href={`/dashboard/crm/contacts/${c.id}`} className="km-entity-link" title="Open contact detail">
-                    {c.full_name || `${c.first_name || ''} ${c.last_name || ''}`.trim() || c.email}
-                  </Link>
-                  {c.title && <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{c.title}</div>}
-                </td>
-                {showAccount && (
-                  <td style={td} data-label="Account">
-                    {c.account_id && c.account_name
-                      ? <Link href={`/dashboard/crm/accounts/${c.account_id}`} className="km-entity-link" title="Open account detail">{c.account_name}</Link>
-                      : (c.account_name || '—')}
+            {loading && <LoadingRow colSpan={colCount} label="Loading contacts…" />}
+            {!loading && contacts.length === 0 && (
+              <EmptyRow
+                colSpan={colCount}
+                icon={<Users size={18} strokeWidth={1.8} />}
+                title="No contacts yet"
+                description={isB2C
+                  ? 'Consumer contacts appear here once a lead is converted or a profile is imported.'
+                  : 'Add people at the accounts you sell to, or import a list to get started.'}
+              />
+            )}
+            {contacts.map((c) => {
+              const name = c.full_name || `${c.first_name || ''} ${c.last_name || ''}`.trim() || c.email;
+              return (
+                <tr key={c.id} className="km-row">
+                  <td style={tdStyle} data-label="Name">
+                    <Link href={`/dashboard/crm/contacts/${c.id}`} className="km-entity-link" title="Open contact detail" style={{ fontWeight: 600 }}>
+                      {name}
+                    </Link>
+                    {c.title && <div style={subStyle}>{c.title}</div>}
                   </td>
-                )}
-                {!hidden.has('email') && <td style={td} data-label="Email">{c.email || '—'}</td>}
-                {!hidden.has('phone') && <td style={td} data-label="Phone">{c.phone || '—'}</td>}
-                {!hidden.has('owner') && (
-                  <td style={td} data-label="Owner">
-                    {onAssign ? (
-                      <InlineOwnerAssign
-                        currentOwnerId={c.owner_id}
-                        currentOwnerName={c.owner_name}
-                        onAssign={(uid) => onAssign(c.id, uid)}
-                      />
-                    ) : (
-                      <span style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12 }}>{c.owner_name || 'Unassigned'}</span>
-                    )}
-                  </td>
-                )}
-              </tr>
-            ))}
+                  {showAccount && (
+                    <td style={tdStyle} data-label="Account">
+                      {c.account_id && c.account_name
+                        ? <Link href={`/dashboard/crm/accounts/${c.account_id}`} className="km-entity-link" title="Open account detail">{c.account_name}</Link>
+                        : <span style={{ color: c.account_name ? T.text : T.mute }}>{c.account_name || '—'}</span>}
+                    </td>
+                  )}
+                  {!hidden.has('email') && (
+                    <td style={tdStyle} data-label="Email">
+                      {c.email ? <a href={`mailto:${c.email}`} style={{ color: T.text, textDecoration: 'none' }}>{c.email}</a> : <span style={{ color: T.mute }}>—</span>}
+                    </td>
+                  )}
+                  {!hidden.has('phone') && (
+                    <td style={{ ...tdStyle, fontFamily: c.phone ? T.mono : undefined, fontSize: c.phone ? 12.5 : undefined }} data-label="Phone">
+                      {c.phone ? <a href={`tel:${c.phone}`} style={{ color: T.text, textDecoration: 'none' }}>{c.phone}</a> : <span style={{ color: T.mute }}>—</span>}
+                    </td>
+                  )}
+                  {!hidden.has('owner') && (
+                    <td style={tdStyle} data-label="Owner">
+                      {onAssign ? (
+                        <InlineOwnerAssign
+                          currentOwnerId={c.owner_id}
+                          currentOwnerName={c.owner_name}
+                          onAssign={(uid) => onAssign(c.id, uid)}
+                        />
+                      ) : (
+                        <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center', fontSize: 12.5, color: c.owner_name ? T.text : T.mute }}>
+                          <OwnerAvatar name={c.owner_name} size={22} />
+                          {c.owner_name || 'Unassigned'}
+                        </span>
+                      )}
+                    </td>
+                  )}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
-    </div>
+    </Card>
   );
 }
