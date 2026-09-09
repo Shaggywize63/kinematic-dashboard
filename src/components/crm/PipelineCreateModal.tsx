@@ -1,7 +1,10 @@
 'use client';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { ArrowDown, ArrowUp, Plus, X } from 'lucide-react';
 import { crmPipelines, crmStages } from '../../lib/crmApi';
+import Modal from './shared/Modal';
+import { Button, Field, IconButton, Input, Select, T, eyebrowStyle, labelStyle, requiredMark, type Tone } from '../ui';
 
 interface Props {
   open: boolean;
@@ -29,15 +32,14 @@ const DEFAULT_STAGES: DraftStage[] = [
 let _tmpKey = 100;
 const newKey = () => `s${_tmpKey++}`;
 
-// Per-stage-type colour palette. Used by the "+ Open / + Won / + Lost"
-// add buttons (so each kind reads visually distinct) and as a left-edge
-// accent on each stage row in the draft list (so reps can see at a
-// glance which rows are open / won / lost).
+// Per-stage-type semantic colour. Used as a left-edge accent on each draft
+// row so reps can see at a glance which rows are open / won / lost.
 const TYPE_COLOR: Record<DraftStage['stage_type'], string> = {
-  open: '#3E9EFF',   // blue — same as the current-stage chevron
-  won: '#10b981',    // green
-  lost: '#ef4444',   // red
+  open: T.info,
+  won: T.ok,
+  lost: T.red,
 };
+const TYPE_TONE: Record<DraftStage['stage_type'], Tone> = { open: 'info', won: 'ok', lost: 'red' };
 
 /**
  * Create-pipeline modal that builds the pipeline AND its stages in one
@@ -111,110 +113,90 @@ export default function PipelineCreateModal({ open, onClose, onCreated, isFirstP
     }
   };
 
-  // Per-type add button — colours so reps can find Won/Lost without reading.
-  const addBtn = (type: 'open' | 'won' | 'lost', label: string): React.CSSProperties => ({
-    background: 'transparent',
-    border: `1px solid ${TYPE_COLOR[type]}`,
-    color: TYPE_COLOR[type],
-    padding: '4px 10px',
-    borderRadius: 6,
-    fontSize: 11,
-    fontWeight: 800,
-    cursor: 'pointer',
-    letterSpacing: 0.3,
-    whiteSpace: 'nowrap',
-  });
+  const namedCount = stages.filter((s) => s.name.trim()).length;
+  // Compact controls inside the stage grid.
+  const cell: React.CSSProperties = { height: 32, fontSize: 13 };
+  const cols = '28px minmax(160px, 1fr) 110px 90px 96px';
 
   return (
-    <div onClick={(e) => { if (e.target === e.currentTarget && !saving) onClose(); }}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}>
-      <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 22, width: 720, maxWidth: '100%', maxHeight: '92vh', overflowY: 'auto' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14, gap: 12, flexWrap: 'wrap' }}>
-          <div>
-            <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.6, marginBottom: 4 }}>New Pipeline</div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text)' }}>Define name + stages in one go</div>
-          </div>
-          <button onClick={onClose} disabled={saving} style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', fontSize: 22, cursor: 'pointer' }}>×</button>
-        </div>
+    <Modal
+      open={open}
+      onClose={() => { if (!saving) onClose(); }}
+      title="New pipeline"
+      subtitle="Define the name and its stages in one go."
+      width={760}
+      footer={
+        <>
+          <Button type="button" onClick={onClose} disabled={saving}>Cancel</Button>
+          <Button type="button" variant="primary" onClick={submit} disabled={saving || !name.trim()}>
+            {saving ? 'Creating…' : `Create pipeline · ${namedCount} stage${namedCount === 1 ? '' : 's'}`}
+          </Button>
+        </>
+      }
+    >
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <Field label="Pipeline name" required htmlFor="pipeline-name">
+          <Input id="pipeline-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Enterprise Sales, B2B TMT, Channel Partners" autoFocus />
+        </Field>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span style={lblCss}>Pipeline name <span style={{ color: '#ef4444' }}>*</span></span>
-            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Enterprise Sales, B2B TMT, Channel Partners" style={inputCss} />
-          </label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13.5, color: T.text, cursor: 'pointer' }}>
+          <input type="checkbox" checked={isDefault} onChange={(e) => setIsDefault(e.target.checked)} style={{ width: 16, height: 16 }} />
+          Set as default pipeline — new deals land here unless told otherwise
+        </label>
 
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text)', cursor: 'pointer' }}>
-            <input type="checkbox" checked={isDefault} onChange={(e) => setIsDefault(e.target.checked)} />
-            Set as default pipeline (new deals land here unless told otherwise)
-          </label>
-
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 8, flexWrap: 'wrap' }}>
-              <span style={lblCss}>Stages <span style={{ color: '#ef4444' }}>*</span></span>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                <button type="button" onClick={() => addStage('open')} style={addBtn('open', '+ Open')}>+ Open stage</button>
-                <button type="button" onClick={() => addStage('won')}  style={addBtn('won', '+ Won')}>+ Won</button>
-                <button type="button" onClick={() => addStage('lost')} style={addBtn('lost', '+ Lost')}>+ Lost</button>
-              </div>
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 8, flexWrap: 'wrap' }}>
+            <span style={labelStyle}>Stages{requiredMark}</span>
+            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+              <Button type="button" size="sm" variant="ghost" onClick={() => addStage('open')} icon={<Plus size={14} strokeWidth={2} />}>Open stage</Button>
+              <Button type="button" size="sm" variant="ghost" onClick={() => addStage('won')}  icon={<Plus size={14} strokeWidth={2} />} style={{ color: T.ok }}>Won</Button>
+              <Button type="button" size="sm" variant="ghost" onClick={() => addStage('lost')} icon={<Plus size={14} strokeWidth={2} />} style={{ color: T.red }}>Lost</Button>
             </div>
-            <div style={{ background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 10, padding: 10, overflowX: 'auto' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '24px 1fr 110px 100px 70px', gap: 8, padding: '4px 8px', fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.5, minWidth: 540 }}>
-                <span>#</span><span>Name</span><span>Type</span><span>Win %</span><span></span>
+          </div>
+          <div style={{ border: `1px solid ${T.border}`, borderRadius: T.radius.md, overflowX: 'auto' }}>
+            <div style={{ minWidth: 540 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: cols, gap: 8, padding: '8px 10px', ...eyebrowStyle, background: T.raised, borderBottom: `1px solid ${T.border}` }}>
+                <span>#</span><span>Name</span><span>Type</span><span>Win %</span><span />
               </div>
               {stages.map((s, i) => (
                 <div key={s.id} style={{
-                  display: 'grid', gridTemplateColumns: '24px 1fr 110px 100px 70px', gap: 8,
-                  padding: '6px 8px', alignItems: 'center', borderTop: '1px solid var(--border)',
-                  borderLeft: `3px solid ${TYPE_COLOR[s.stage_type]}`,
-                  background: `${TYPE_COLOR[s.stage_type]}08`,
-                  minWidth: 540,
+                  display: 'grid', gridTemplateColumns: cols, gap: 8,
+                  padding: '6px 10px', alignItems: 'center',
+                  borderTop: i === 0 ? 0 : `1px solid ${T.border}`,
+                  boxShadow: `inset 3px 0 0 ${TYPE_COLOR[s.stage_type]}`,
                 }}>
-                  <span style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 700 }}>{i + 1}</span>
-                  <input value={s.name} onChange={(e) => updateStage(s.id, { name: e.target.value })} placeholder="Stage name" style={{ ...inputCss, padding: '6px 10px' }} />
-                  <select value={s.stage_type} onChange={(e) => updateStage(s.id, { stage_type: e.target.value as any })}
-                    style={{
-                      ...inputCss, padding: '6px 8px',
-                      color: TYPE_COLOR[s.stage_type], fontWeight: 700,
-                      borderColor: TYPE_COLOR[s.stage_type],
-                    }}>
-                    <option value="open">open</option>
-                    <option value="won">won</option>
-                    <option value="lost">lost</option>
-                  </select>
-                  <input type="number" min={0} max={100} step={5} value={Math.round((s.probability || 0) * 100)}
+                  <span style={{ fontFamily: T.mono, fontSize: 11.5, color: T.mute }}>{String(i + 1).padStart(2, '0')}</span>
+                  <Input value={s.name} onChange={(e) => updateStage(s.id, { name: e.target.value })} placeholder="Stage name" style={cell} aria-label={`Stage ${i + 1} name`} />
+                  <Select value={s.stage_type} onChange={(e) => updateStage(s.id, { stage_type: e.target.value as any })} style={{ ...cell, color: TYPE_COLOR[s.stage_type], fontWeight: 500 }} aria-label={`Stage ${i + 1} type`}>
+                    <option value="open">Open</option>
+                    <option value="won">Won</option>
+                    <option value="lost">Lost</option>
+                  </Select>
+                  <Input type="number" min={0} max={100} step={5} value={Math.round((s.probability || 0) * 100)}
                     onChange={(e) => updateStage(s.id, { probability: Math.max(0, Math.min(100, Number(e.target.value))) / 100 })}
-                    style={{ ...inputCss, padding: '6px 8px', textAlign: 'right' }} />
-                  <div style={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
-                    <button type="button" onClick={() => moveStage(s.id, -1)} disabled={i === 0} style={miniBtn}>↑</button>
-                    <button type="button" onClick={() => moveStage(s.id, 1)} disabled={i === stages.length - 1} style={miniBtn}>↓</button>
-                    <button type="button" onClick={() => removeStage(s.id)} style={{ ...miniBtn, color: '#ef4444', borderColor: '#ef4444' }}>×</button>
+                    style={{ ...cell, textAlign: 'right', fontFamily: T.mono, fontSize: 12.5 }} aria-label={`Stage ${i + 1} win probability`} />
+                  <div style={{ display: 'flex', gap: 0, justifyContent: 'flex-end' }}>
+                    <IconButton label="Move up" onClick={() => moveStage(s.id, -1)} disabled={i === 0} style={{ width: 28, height: 28 }}><ArrowUp size={14} strokeWidth={1.8} /></IconButton>
+                    <IconButton label="Move down" onClick={() => moveStage(s.id, 1)} disabled={i === stages.length - 1} style={{ width: 28, height: 28 }}><ArrowDown size={14} strokeWidth={1.8} /></IconButton>
+                    <IconButton label="Remove stage" onClick={() => removeStage(s.id)} style={{ width: 28, height: 28, color: T.red }}><X size={14} strokeWidth={1.8} /></IconButton>
                   </div>
                 </div>
               ))}
-              {stages.length === 0 && <div style={{ padding: 16, textAlign: 'center', color: 'var(--text-dim)', fontSize: 12 }}>No stages yet — add at least one open + one closed.</div>}
-            </div>
-            <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 6, lineHeight: 1.5 }}>
-              <strong style={{ color: TYPE_COLOR.open }}>Open</strong> stages live in the pipeline (Discovery, Qualification…).
-              <strong style={{ color: TYPE_COLOR.won, marginLeft: 6 }}>Won</strong> marks a sale;
-              <strong style={{ color: TYPE_COLOR.lost, marginLeft: 6 }}>Lost</strong> is a closed-lost terminus.
-              Win% is the default win probability when a deal enters this stage; KINI AI overrides it per-deal as activity flows in.
+              {stages.length === 0 && <div style={{ padding: 16, textAlign: 'center', color: T.mute, fontSize: 12.5 }}>No stages yet — add at least one open + one closed.</div>}
             </div>
           </div>
-
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
-            <button onClick={onClose} disabled={saving} style={btnSecondary}>Cancel</button>
-            <button onClick={submit} disabled={saving || !name.trim()} style={btnPrimary}>
-              {saving ? 'Creating…' : `Create pipeline + ${stages.filter((s) => s.name.trim()).length} stage${stages.filter((s) => s.name.trim()).length === 1 ? '' : 's'}`}
-            </button>
+          <div style={{ fontSize: 12.5, color: T.dim, marginTop: 8, lineHeight: 1.5 }}>
+            <span style={{ color: TYPE_COLOR.open }}>Open</span> stages live in the pipeline (Discovery, Qualification…);
+            <span style={{ color: TYPE_COLOR.won, marginLeft: 4 }}>Won</span> marks a sale;
+            <span style={{ color: TYPE_COLOR.lost, marginLeft: 4 }}>Lost</span> is a closed-lost terminus.
+            Win % is the default probability when a deal enters the stage; KINI AI overrides it per deal as activity flows in.
           </div>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }
 
-const lblCss: React.CSSProperties = { fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.4 };
-const inputCss: React.CSSProperties = { background: 'var(--s4)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13, width: '100%', boxSizing: 'border-box' };
-const btnPrimary: React.CSSProperties = { background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 18px', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer' };
-const btnSecondary: React.CSSProperties = { background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 16px', borderRadius: 8, fontSize: 13, cursor: 'pointer' };
-const miniBtn: React.CSSProperties = { background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '2px 6px', borderRadius: 4, fontSize: 11, cursor: 'pointer', minWidth: 22 };
+// Keep the tone map referenced so the semantic badge colours stay in one place
+// should the stage rows grow a type pill later.
+void TYPE_TONE;

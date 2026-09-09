@@ -1,36 +1,16 @@
 'use client';
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { Download, FileUp, Pencil, Plus, Power, RefreshCw, Search, Trash2, Upload, Users, X } from 'lucide-react';
 import api from '../../../lib/api';
 import CitySelect from '../../../components/CitySelect';
 import ClientSelect from '../../../components/ClientSelect';
 import ConfirmModal from '../../../components/ConfirmModal';
+import Modal from '../../../components/crm/shared/Modal';
 import { useAuth } from '../../../hooks/useAuth';
 import { useClient } from '../../../context/ClientContext';
 import { fmtHrs } from '../../../lib/utils';
-
-const C = {
-  red: '#E01E2C', 
-  redD: 'var(--redD)', 
-  redB: 'rgba(224,30,44,0.2)',
-  green: '#00D97E', 
-  greenD: 'var(--greenD)',
-  yellow: '#FFB800', 
-  yellowD: 'var(--yellowD)',
-  blue: '#3E9EFF', 
-  blueD: 'var(--blueD)',
-  purple: '#9B6EFF', 
-  purpleD: 'rgba(155,110,255,0.08)',
-  gray: 'var(--textSec)', 
-  grayd: 'var(--textTert)', 
-  graydd: 'var(--border)',
-  s1: 'var(--bg)', 
-  s2: 'var(--s2)', 
-  s3: 'var(--s3)', 
-  s4: 'var(--s4)',
-  border: 'var(--border)', 
-  borderL: 'var(--borderL)',
-  white: 'var(--text)',
-};
+import { usePageTitle } from '../../../lib/pageTitle';
+import { Avatar, Badge, Button, Card, EmptyState, Eyebrow, Field, IconButton, Input, PageHeader, Segmented, Select, T, useIsCompact } from '../../../components/ui';
 
 interface Zone { id: string; name: string; city?: string; }
 interface FieldExecutive {
@@ -72,27 +52,19 @@ const EMPTY_FORM: FormData = {
 
 /* ── Helpers ── */
 const Spin = () => (
-  <div style={{width:16,height:16,border:'2px solid rgba(255,255,255,0.2)',borderTopColor:'#fff',borderRadius:'50%',animation:'spin 0.7s linear infinite',flexShrink:0}}/>
+  <span aria-hidden style={{ width: 14, height: 14, border: '2px solid currentColor', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.7s linear infinite', flexShrink: 0, opacity: 0.8 }} />
 );
-const Modal = ({onClose, children}: {onClose:()=>void, children:React.ReactNode}) => (
-  <div onClick={e=>{if(e.target===e.currentTarget)onClose();}}
-    style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.82)',zIndex:400,display:'flex',alignItems:'center',justifyContent:'center',padding:24,backdropFilter:'blur(4px)'}}>
-    {children}
-  </div>
+
+/** Error / notice strip used inside the modals. */
+const ErrorNote = ({ children }: { children: React.ReactNode }) => (
+  <div role="alert" style={{ background: T.redWash, border: `1px solid ${T.red}`, borderRadius: 8, padding: '10px 12px', fontSize: 13, color: T.red }}>{children}</div>
 );
-const Field = ({label, required, children}: {label:string, required?:boolean, children:React.ReactNode}) => (
-  <div style={{marginBottom:14}}>
-    <div style={{fontSize:11,fontWeight:700,color:C.gray,letterSpacing:'0.8px',textTransform:'uppercase' as const,marginBottom:6}}>
-      {label}{required && <span style={{color:C.red}}> *</span>}
-    </div>
-    {children}
-  </div>
-);
-const inp: React.CSSProperties = {
-  width:'100%', background:C.s3, border:`1px solid ${C.border}`, color:C.white,
-  borderRadius:10, padding:'10px 13px', fontSize:13, outline:'none',
-  fontFamily:"'DM Sans',sans-serif", transition:'border-color 0.15s',
-};
+
+/* ── Table cell styles ── */
+const th: React.CSSProperties = { padding: '12px 14px', textAlign: 'left', fontFamily: T.mono, fontSize: 10.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: T.mute, fontWeight: 500, borderBottom: `1px solid ${T.border}`, whiteSpace: 'nowrap' };
+const td: React.CSSProperties = { padding: '12px 14px', fontSize: 13.5, color: T.text, borderBottom: `1px solid ${T.border}`, verticalAlign: 'middle' };
+
+const roleLabel = (r: string) => (r || '').replace(/[_-]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 
 /* ── CSV export ── */
 function exportCSV(data: FieldExecutive[], supMap: Record<string,string>) {
@@ -143,6 +115,8 @@ function parseCSV(text: string): Record<string,string>[] {
 
 /* ══════════════════════════════════════════════════════ */
 export default function ManpowerDirectoryPage() {
+  usePageTitle('Manpower directory');
+  const narrow = useIsCompact(900);
   const [staff,    setStaff]   = useState<FieldExecutive[]>([]);
   const [clients,  setClients] = useState<any[]>([]);
   const [zones,    setZones]   = useState<Zone[]>([]);
@@ -182,7 +156,7 @@ export default function ManpowerDirectoryPage() {
   const [deleteConfirm, setDeleteConfirm] = useState<{show:boolean; item:FieldExecutive|null}>({show:false, item:null});
   const [deleting, setDeleting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
-  
+
   const { user, isPlatformAdmin, token } = useAuth();
   const { selectedClientId } = useClient();
 
@@ -206,7 +180,7 @@ export default function ManpowerDirectoryPage() {
         if (Array.isArray(r?.data?.data)) return r.data.data;
         return [];
       };
-      setStaff(pick(uR).filter((u:any) => 
+      setStaff(pick(uR).filter((u:any) =>
         ['executive', 'fe', 'field_executive', 'supervisor'].includes((u.role || '').toLowerCase().trim())
       ));
       setZones(pick(zR));
@@ -238,8 +212,8 @@ export default function ManpowerDirectoryPage() {
     const q = search.toLowerCase();
     const ms = !q||fe.name?.toLowerCase().includes(q)||(fe.employee_id||'').toLowerCase().includes(q)||(fe.zones?.name||'').toLowerCase().includes(q)||(fe.mobile||'').includes(q);
     const mf = filter==='all'||(filter==='active'&&fe.is_active)||(filter==='inactive'&&!fe.is_active)||(filter==='checked_in'&&fe.is_checked_in);
-    const mr = fRole==='all' 
-      || (fRole==='executive' && (fe.role==='executive'||fe.role==='field_executive'||fe.role==='field-executive')) 
+    const mr = fRole==='all'
+      || (fRole==='executive' && (fe.role==='executive'||fe.role==='field_executive'||fe.role==='field-executive'))
       || (fRole==='supervisor' && fe.role==='supervisor');
     const mc = !fCity||(fe.zones?.city||fe.city)===fCity;
     const ms2= !fSup||fe.supervisor_id===fSup;
@@ -247,11 +221,11 @@ export default function ManpowerDirectoryPage() {
     return ms&&mf&&mr&&mc&&ms2&&mc2;
   });
 
-  const stats = { 
-    total: staff.length, 
+  const stats = {
+    total: staff.length,
     executives: staff.filter(u=>u.role==='executive'||u.role==='field_executive').length,
     supervisors: staff.filter(u=>u.role==='supervisor').length,
-    active: staff.filter(f=>f.is_active).length 
+    active: staff.filter(f=>f.is_active).length
   };
 
   /* ── ADD ── */
@@ -291,9 +265,9 @@ export default function ManpowerDirectoryPage() {
   /* ── EDIT ── */
   const openEdit = (fe: FieldExecutive) => {
     setEditT(fe);
-    setForm({ 
-      name:fe.name, mobile:fe.mobile||'', password:'', employee_id:fe.employee_id||'', 
-      zone_id:fe.zone_id||'', role:fe.role, supervisor_id:fe.supervisor_id||'', 
+    setForm({
+      name:fe.name, mobile:fe.mobile||'', password:'', employee_id:fe.employee_id||'',
+      zone_id:fe.zone_id||'', role:fe.role, supervisor_id:fe.supervisor_id||'',
       joined_date:'', city:fe.city||fe.zones?.city||'', app_password:fe.app_password||'',
       permissions: fe.permissions || [],
       assigned_cities: fe.assigned_cities || [],
@@ -323,8 +297,8 @@ export default function ManpowerDirectoryPage() {
       if (dupMobile) { setFErr(`Mobile number ${form.mobile} is already registered with ${dupMobile.name}.`); setSaving(false); return; }
       if (dupEmail) { setFErr(`Email ${form.email} is already registered with ${dupEmail.name}.`); setSaving(false); return; }
 
-      await api.patch(`/api/v1/users/${editTarget.id}`,{ 
-        name:form.name, zone_id:form.zone_id||null, supervisor_id:form.supervisor_id||null, 
+      await api.patch(`/api/v1/users/${editTarget.id}`,{
+        name:form.name, zone_id:form.zone_id||null, supervisor_id:form.supervisor_id||null,
         employee_id:form.employee_id||null, is_active:editTarget.is_active, city:form.city||null,
         role:form.role, app_password:form.app_password||undefined,
         permissions: form.permissions, assigned_cities: form.assigned_cities,
@@ -367,7 +341,7 @@ export default function ManpowerDirectoryPage() {
         const name = r['name']?.trim() || '';
         const eid = r['employee_id']?.trim() || '';
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        
+
         let err = '';
         if (!name || !eid) err = 'Name and Employee ID required';
         else if (m && !/^\d{10}$/.test(m)) err = 'Mobile must be 10 digits';
@@ -393,14 +367,14 @@ export default function ManpowerDirectoryPage() {
     for (let i=0; i<rows.length; i++) {
       if (rows[i]._status!=='pending') continue;
       try {
-        await api.post('/api/v1/users',{ 
-          name:rows[i].name, 
-          employee_id:rows[i].employee_id, 
-          mobile:rows[i].mobile||undefined, 
+        await api.post('/api/v1/users',{
+          name:rows[i].name,
+          employee_id:rows[i].employee_id,
+          mobile:rows[i].mobile||undefined,
           email:rows[i].email||undefined,
-          password:rows[i].password||undefined, 
-          role:rows[i].role||'executive', 
-          city:rows[i].city||undefined 
+          password:rows[i].password||undefined,
+          role:rows[i].role||'executive',
+          city:rows[i].city||undefined
         });
         rows[i]={...rows[i],_status:'success'};
       } catch(e:any){ rows[i]={...rows[i],_status:'error',_error:e.message||'Failed'}; }
@@ -413,380 +387,371 @@ export default function ManpowerDirectoryPage() {
 
   /* ── Render ── */
   const pendingBulk = bulkRows.filter(r=>r._status==='pending').length;
+  const hasFilters = !!(fCity||fSup||fCM);
+  const clientName = (id?: string) => (id ? (clients.find(c => c.id === id)?.name || id.slice(0,8).toUpperCase()) : '');
+
+  const statusOf = (u: FieldExecutive): { label: string; tone: 'ok' | 'neutral' | 'warn' } =>
+    u.is_checked_in ? { label: 'Checked in', tone: 'ok' } : !u.is_active ? { label: 'Inactive', tone: 'neutral' } : { label: 'Absent', tone: 'warn' };
 
   return (
     <>
-      <style>{`
-        @keyframes spin { to { transform: rotate(360deg); } }
-        @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
-        .fe-card { transition: all 0.15s; }
-        .fe-card:hover { background: ${C.s3} !important; border-color: ${C.borderL} !important; }
-        .kinp:focus { border-color: ${C.blue} !important; }
-        .btn-icon { transition: all 0.15s; }
-        .btn-icon:hover { opacity:0.8; transform:scale(0.96); }
-        .brow-ok  { background: rgba(0,217,126,0.06)  !important; }
-        .brow-err { background: rgba(224,30,44,0.06) !important; }
-      `}</style>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
 
-      <div style={{display:'flex',flexDirection:'column',gap:20,animation:'fadeIn 0.3s ease'}}>
+      <div style={{display:'flex',flexDirection:'column',gap:20}}>
+        <PageHeader
+          title="Manpower directory"
+          description="Field executives and supervisors across your workspace — add, edit and activate members."
+          compact={narrow}
+          actions={
+            <>
+              <Button onClick={()=>setShowBulk(true)} icon={<Upload size={16} strokeWidth={1.6} />}>Bulk upload</Button>
+              <Button variant="primary" onClick={()=>{setForm(EMPTY_FORM);setFErr('');setShowAdd(true);}} icon={<Plus size={16} strokeWidth={2} />}>Add member</Button>
+            </>
+          }
+        />
 
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-          <div>
-            <h1 style={{fontFamily:"'Syne',sans-serif",fontSize:24,fontWeight:800,margin:0,color:C.white}}>Manpower Directory</h1>
-            <p style={{fontSize:13,color:C.gray,marginTop:4}}>Manage both Field Executives and Supervisors</p>
-          </div>
-          <div style={{display:'flex',gap:10}}>
-             <button onClick={()=>setShowBulk(true)}
-                style={{display:'flex',alignItems:'center',gap:7,padding:'10px 16px',background:C.s2,border:`1px solid ${C.border}`,borderRadius:12,color:C.blue,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>
-                <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.3} strokeLinecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                Bulk Upload
-              </button>
-              <button onClick={()=>{setForm(EMPTY_FORM);setFErr('');setShowAdd(true);}}
-                style={{display:'flex',alignItems:'center',gap:8,padding:'10px 20px',background:C.red,border:'none',borderRadius:12,color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:"'DM Sans',sans-serif",boxShadow:`0 4px 16px rgba(224,30,44,0.3)`}}>
-                <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                Add Member
-              </button>
-          </div>
-        </div>
-
-        {error && <div style={{background:C.redD,border:`1px solid ${C.redB}`,borderRadius:12,padding:'12px 16px',fontSize:13,color:C.red}}>⚠ {error}</div>}
+        {error && <ErrorNote>{error}</ErrorNote>}
 
         {/* Stats */}
-        <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:14}}>
-          {[{l:'Total Manpower',v:stats.total,c:C.blue,i:'👥'},{l:'Executives',v:stats.executives,c:C.purple,i:'👤'},{l:'Supervisors',v:stats.supervisors,c:C.yellow,i:'🛡️'},{l:'Currently Active',v:stats.active,c:C.green,i:'✓'}].map((s,i)=>(
-            <div key={i} style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:16,padding:'18px 20px',position:'relative',overflow:'hidden'}}>
-              <div style={{position:'absolute',top:12,right:14,fontSize:20,opacity:0.15}}>{s.i}</div>
-              <div style={{fontFamily:"'Syne',sans-serif",fontSize:32,fontWeight:800,color:s.c,lineHeight:1}}>{s.v}</div>
-              <div style={{fontSize:11,color:C.gray,marginTop:6,fontWeight:600}}>{s.l}</div>
-            </div>
+        <div style={{display:'grid',gridTemplateColumns:narrow?'repeat(2, minmax(0,1fr))':'repeat(4, minmax(0,1fr))',gap:14}}>
+          {[
+            { l:'Total manpower', v:stats.total },
+            { l:'Executives', v:stats.executives },
+            { l:'Supervisors', v:stats.supervisors },
+            { l:'Currently active', v:stats.active, c:T.ok },
+          ].map((s)=>(
+            <Card key={s.l} padding={16}>
+              <Eyebrow>{s.l}</Eyebrow>
+              <div style={{fontFamily:T.heading,fontSize:26,fontWeight:700,letterSpacing:'-0.01em',color:s.c||T.text,lineHeight:1.1,marginTop:8,fontVariantNumeric:'tabular-nums'}}>{s.v}</div>
+            </Card>
           ))}
         </div>
 
         {/* Toolbar */}
-        <div style={{display:'flex',flexDirection:'column',gap:10}}>
-          {/* Row 1 */}
-          <div style={{display:'flex',gap:10,alignItems:'center',flexWrap:'wrap'}}>
-            <div style={{flex:1,position:'relative',minWidth:250}}>
-              <svg style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',opacity:0.3}} width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2.5} strokeLinecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-              <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search name, ID, mobile or zone..."
-                style={{...inp,paddingLeft:34,borderRadius:12}} className="kinp"/>
-            </div>
-            
-            <div style={{display:'flex',gap:6,background:C.s2,padding:3,borderRadius:12,border:`1px solid ${C.border}`}}>
-              {[['all','All'],['executive','Executives'],['supervisor','Supervisors']].map(([r,l])=>(
-                <button key={r} onClick={()=>setFRole(r)} style={{padding:'7px 16px',borderRadius:9,border:'none',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:"'DM Sans',sans-serif",transition:'all 0.2s',background:fRole===r?C.s4:'transparent',color:fRole===r?C.white:C.gray}}>{l}</button>
-              ))}
-            </div>
-
-            <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
-              {[['all','All Status'],['active','Active'],['inactive','Inactive']].map(([f,l])=>(
-                <button key={f} onClick={()=>setFilter(f)} style={{padding:'9px 14px',borderRadius:10,border:`1px solid ${filter===f?C.red:C.border}`,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:"'DM Sans',sans-serif",transition:'all 0.15s',background:filter===f?C.red:C.s2,color:filter===f?'#fff':C.gray,whiteSpace:'nowrap' as const}}>{l}</button>
-              ))}
-            </div>
-            
-            <button onClick={()=>exportCSV(shown,supMap)} title="Download CSV"
-                style={{display:'flex',alignItems:'center',gap:7,padding:'9px 14px',background:C.s2,border:`1px solid ${C.border}`,borderRadius:10,color:C.green,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>
-                <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.3} strokeLinecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                Export
-            </button>
-            <button onClick={fetchData} style={{padding:'9px 12px',background:C.s2,border:`1px solid ${C.border}`,color:C.gray,borderRadius:10,fontSize:13,cursor:'pointer'}}>↻</button>
+        <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
+          <div style={{flex:'1 1 240px',position:'relative',minWidth:200}}>
+            <Search size={16} strokeWidth={1.6} style={{position:'absolute',left:10,top:'50%',transform:'translateY(-50%)',color:T.mute,pointerEvents:'none'}} />
+            <Input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search name, ID, mobile or zone" aria-label="Search staff" style={{paddingLeft:32}} />
           </div>
-
-          {/* Row 2 — Filters */}
-          <div style={{display:'flex',gap:10,alignItems:'center',flexWrap:'wrap'}}>
-            <span style={{fontSize:11,fontWeight:700,color:C.grayd,letterSpacing:'0.8px'}}>FILTER BY</span>
-            <select value={fCity} onChange={e=>setFCity(e.target.value)} className="kinp"
-              style={{...inp,width:'auto',minWidth:130,borderRadius:10,fontSize:12,background:fCity?C.s4:C.s2,borderColor:fCity?C.blue:C.border}}>
-              <option value="">All Cities</option>
-              {allCities.map(c=><option key={c} value={c}>{c}</option>)}
-            </select>
-            {fRole !== 'supervisor' && (
-              <select value={fSup} onChange={e=>setFSup(e.target.value)} className="kinp"
-                style={{...inp,width:'auto',minWidth:155,borderRadius:10,fontSize:12,background:fSup?C.s4:C.s2,borderColor:fSup?C.blue:C.border}}>
-                <option value="">All Supervisors</option>
-                {sups.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
-            )}
-            <select value={fCM} onChange={e=>setFCM(e.target.value)} className="kinp"
-              style={{...inp,width:'auto',minWidth:170,borderRadius:10,fontSize:12,background:fCM?C.s4:C.s2,borderColor:fCM?C.blue:C.border}}>
-              <option value="">All City Managers</option>
-              {cms.map(cm=><option key={cm.id} value={cm.id}>{cm.name}</option>)}
-            </select>
-            {(fCity||fSup||fCM) && (
-              <button onClick={()=>{setFCity('');setFSup('');setFCM('');}} style={{fontSize:12,color:C.red,background:'none',border:'none',cursor:'pointer',fontWeight:600}}>✕ Clear</button>
-            )}
-            <span style={{marginLeft:'auto',fontSize:12,color:C.grayd,fontWeight:600}}>{shown.length} staff found</span>
-          </div>
+          <Segmented value={fRole} onChange={setFRole} options={[{value:'all',label:'All'},{value:'executive',label:'Executives'},{value:'supervisor',label:'Supervisors'}]} />
+          <Select value={filter} onChange={e=>setFilter(e.target.value)} aria-label="Status" style={{width:140}}>
+            <option value="all">All statuses</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </Select>
+          <Select value={fCity} onChange={e=>setFCity(e.target.value)} aria-label="City" style={{width:150}}>
+            <option value="">All cities</option>
+            {allCities.map(c=><option key={c} value={c}>{c}</option>)}
+          </Select>
+          {fRole !== 'supervisor' && (
+            <Select value={fSup} onChange={e=>setFSup(e.target.value)} aria-label="Supervisor" style={{width:170}}>
+              <option value="">All supervisors</option>
+              {sups.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
+            </Select>
+          )}
+          <Select value={fCM} onChange={e=>setFCM(e.target.value)} aria-label="City manager" style={{width:180}}>
+            <option value="">All city managers</option>
+            {cms.map(cm=><option key={cm.id} value={cm.id}>{cm.name}</option>)}
+          </Select>
+          {hasFilters && (
+            <Button variant="ghost" onClick={()=>{setFCity('');setFSup('');setFCM('');}} icon={<X size={14} strokeWidth={1.8} />}>Clear</Button>
+          )}
+          <Button onClick={()=>exportCSV(shown,supMap)} title="Download CSV" icon={<Download size={16} strokeWidth={1.6} />}>Export</Button>
+          <IconButton label="Refresh" onClick={fetchData}><RefreshCw size={16} strokeWidth={1.6} /></IconButton>
         </div>
 
-        {/* Cards */}
-        {loading ? (
-          <div style={{padding:60,textAlign:'center',color:C.grayd,fontSize:14}}>Loading directory...</div>
-        ) : shown.length===0 ? (
-          <div style={{padding:60,textAlign:'center',color:C.grayd,fontSize:14}}>No staff members match your current filters.</div>
-        ) : (
-          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(310px,1fr))',gap:14}}>
-            {shown.map(u=>(
-              <div key={u.id} className="fe-card"
-                style={{background:C.s2,border:`1px solid ${u.is_checked_in?C.green+'28':u.is_active?C.border:'rgba(122,139,160,0.15)'}`,borderRadius:16,padding:18,cursor:'pointer',opacity:u.is_active?1:0.65}}
-                onClick={()=>setSelected(u)}>
-                <div style={{display:'flex',gap:12,alignItems:'center',marginBottom:14}}>
-                  <div style={{width:44,height:44,borderRadius:13,background:u.role==='supervisor'?C.yellowD:C.blueD,display:'flex',alignItems:'center',justifyContent:'center',fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:18,color:u.role==='supervisor'?C.yellow:C.blue,flexShrink:0}}>{u.name?.[0]||u.role?.[0].toUpperCase()}</div>
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontSize:14,fontWeight:700,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{u.name}</div>
-                    <div style={{fontSize:11,color:C.grayd,marginTop:2}}>
-                      {u.role.replace('_',' ')} · {u.employee_id||u.id.slice(0,8)}
-                      {isPlatformAdmin && u.client_id && (
-                        <span style={{ marginLeft:8, display:'inline-flex', padding:'1px 6px', borderRadius:4, background:C.purpleD, color:C.purple, fontSize:9, fontWeight:800 }}>
-                          {clients.find(c => c.id === u.client_id)?.name || u.client_id.slice(0,8).toUpperCase()}
-                        </span>
-                      ) }
-                    </div>
-                  </div>
-                  <span style={{fontSize:10,fontWeight:700,padding:'3px 8px',borderRadius:20,flexShrink:0,background:u.is_checked_in?'rgba(0,217,126,0.12)':!u.is_active?'rgba(122,139,160,0.1)':'rgba(224,30,44,0.1)',color:u.is_checked_in?C.green:!u.is_active?C.gray:C.red}}>{u.is_checked_in?'● Active':!u.is_active?'Inactive':'Absent'}</span>
-                </div>
-                
-                <div style={{display:'flex',flexDirection:'column',gap:4,marginBottom:12}}>
-                   <div style={{fontSize:11,color:C.gray,display:'flex',justifyContent:'space-between'}}>
-                      <span>City: <strong>{u.zones?.city||u.city||'—'}</strong></span>
-                      {u.role!=='supervisor' && <span>Sup: <strong>{u.supervisors?.name||'—'}</strong></span>}
-                   </div>
-                   <div style={{fontSize:11,color:C.gray}}>Zone: <strong>{u.zones?.name||'No zone'}</strong></div>
-                </div>
-
-                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:7,marginBottom:12}}>
-                  {[{l:'TFF Today',v:u.today_ecc??'—',c:C.green},{l:'Hours',v:fmtHrs(u.hours_worked),c:C.yellow}].map(s=>(
-                    <div key={s.l} style={{background:C.s3,borderRadius:9,padding:'8px 0',textAlign:'center'}}>
-                      <div style={{fontFamily:"'Syne',sans-serif",fontSize:17,fontWeight:800,color:s.c}}>{s.v}</div>
-                      <div style={{fontSize:10,color:C.grayd,marginTop:1}}>{s.l}</div>
-                    </div>
-                  ))}
-                </div>
-                
-                <div style={{display:'flex',justifyContent:'flex-end',gap:6}} onClick={e=>e.stopPropagation()}>
-                    {isPlatformAdmin && (
-                      <button className="btn-icon" onClick={()=>openEdit(u)} style={{width:28,height:28,borderRadius:8,background:C.blueD,border:`1px solid rgba(62,158,255,0.2)`,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color:C.blue}}>
-                        <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                      </button>
-                    )}
-                    <button className="btn-icon" onClick={()=>toggleActive(u)} style={{width:28,height:28,borderRadius:8,background:u.is_active?'rgba(0,217,126,0.1)':'rgba(122,139,160,0.1)',border:`1px solid ${u.is_active?'rgba(0,217,126,0.2)':'rgba(122,139,160,0.2)'}`,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color:u.is_active?C.green:C.gray}}>
-                      <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round"><path d="M18.36 6.64a9 9 0 11-12.73 0M12 2v10"/></svg>
-                    </button>
-                    {isPlatformAdmin && (
-                      <button className="btn-icon" onClick={()=>setDeleteConfirm({show:true, item:u})} style={{width:28,height:28,borderRadius:8,background:C.s3,border:`1px solid ${C.border}`,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color:C.gray}}>
-                        <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" onMouseEnter={e=>e.currentTarget.parentElement!.style.color=C.red} onMouseLeave={e=>e.currentTarget.parentElement!.style.color=C.gray}><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
-                      </button>
-                    )}
-                </div>
-              </div>
-            ))}
+        {/* Table */}
+        <Card padding={0}>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,padding:'12px 16px',borderBottom:`1px solid ${T.border}`}}>
+            <div style={{display:'flex',alignItems:'baseline',gap:8}}>
+              <div style={{fontFamily:T.heading,fontSize:15,fontWeight:700,letterSpacing:'-0.01em'}}>Members</div>
+              <span style={{fontFamily:T.mono,fontSize:11,color:T.mute}}>{shown.length} of {staff.length}</span>
+            </div>
           </div>
-        )}
+          {loading ? (
+            <div style={{padding:'48px 24px',textAlign:'center',color:T.mute,fontSize:13.5}}>Loading directory…</div>
+          ) : shown.length===0 ? (
+            <EmptyState
+              icon={<Users size={20} strokeWidth={1.6} />}
+              title={staff.length === 0 ? 'No members yet' : 'No staff match these filters'}
+              description={staff.length === 0 ? 'Add a field executive or supervisor, or bulk upload a CSV.' : 'Try a different search, role or status.'}
+              action={staff.length === 0
+                ? <Button variant="primary" size="sm" onClick={()=>{setForm(EMPTY_FORM);setFErr('');setShowAdd(true);}} icon={<Plus size={14} strokeWidth={2} />}>Add member</Button>
+                : (hasFilters || search || filter !== 'all' || fRole !== 'all')
+                  ? <Button size="sm" onClick={()=>{setSearch('');setFilter('all');setFRole('all');setFCity('');setFSup('');setFCM('');}}>Clear filters</Button>
+                  : undefined}
+            />
+          ) : (
+            <div style={{overflowX:'auto'}}>
+              <table style={{width:'100%',borderCollapse:'collapse',minWidth:900}}>
+                <thead>
+                  <tr>
+                    <th style={th}>Member</th>
+                    <th style={th}>Role</th>
+                    <th style={th}>City</th>
+                    <th style={th}>Zone</th>
+                    <th style={th}>Supervisor</th>
+                    <th style={th}>Status</th>
+                    <th style={{...th,textAlign:'right'}}>TFF today</th>
+                    <th style={{...th,textAlign:'right'}}>Hours</th>
+                    <th style={{...th,textAlign:'right'}} aria-label="Actions" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {shown.map(u=>{
+                    const st = statusOf(u);
+                    return (
+                      <tr key={u.id} data-clickable="true" onClick={()=>setSelected(u)} style={{opacity:u.is_active?1:0.6}}>
+                        <td style={td}>
+                          <div style={{display:'flex',alignItems:'center',gap:10,minWidth:0}}>
+                            <Avatar name={u.name} size={30} />
+                            <div style={{minWidth:0}}>
+                              <div className="km-entity-link" style={{fontSize:13.5,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{u.name}</div>
+                              <div style={{fontFamily:T.mono,fontSize:11.5,color:T.mute,marginTop:2,display:'flex',alignItems:'center',gap:8}}>
+                                {u.employee_id||u.id.slice(0,8)}
+                                {isPlatformAdmin && u.client_id && <Badge tone="neutral" style={{height:18,fontSize:10.5}}>{clientName(u.client_id)}</Badge>}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                        <td style={td}><Badge tone={u.role==='supervisor'?'info':'neutral'}>{roleLabel(u.role)}</Badge></td>
+                        <td style={{...td,color:T.dim}}>{u.zones?.city||u.city||'—'}</td>
+                        <td style={{...td,color:T.dim}}>{u.zones?.name||'—'}</td>
+                        <td style={{...td,color:T.dim}}>{u.role!=='supervisor' ? (u.supervisors?.name||'—') : <span style={{color:T.mute}}>n/a</span>}</td>
+                        <td style={td}><Badge tone={st.tone} dot={st.tone==='ok'}>{st.label}</Badge></td>
+                        <td style={{...td,textAlign:'right',fontFamily:T.mono,fontSize:12.5,fontVariantNumeric:'tabular-nums'}}>{u.today_ecc??'—'}</td>
+                        <td style={{...td,textAlign:'right',fontFamily:T.mono,fontSize:12.5,fontVariantNumeric:'tabular-nums',color:T.dim}}>{fmtHrs(u.hours_worked)}</td>
+                        <td style={{...td,textAlign:'right'}} onClick={e=>e.stopPropagation()}>
+                          <div style={{display:'inline-flex',gap:2}}>
+                            {isPlatformAdmin && (
+                              <IconButton label="Edit" onClick={()=>openEdit(u)}><Pencil size={15} strokeWidth={1.6} /></IconButton>
+                            )}
+                            <IconButton label={u.is_active?'Deactivate':'Activate'} onClick={()=>toggleActive(u)} style={{color:u.is_active?T.ok:T.mute}}><Power size={15} strokeWidth={1.6} /></IconButton>
+                            {isPlatformAdmin && (
+                              <IconButton label="Delete" onClick={()=>setDeleteConfirm({show:true, item:u})}><Trash2 size={15} strokeWidth={1.6} /></IconButton>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
       </div>
 
       {/* ADD MODAL */}
-      {showAdd && (
-        <Modal onClose={()=>setShowAdd(false)}>
-          <div style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:22,width:'100%',maxWidth:540,padding:28,maxHeight:'92vh',overflowY:'auto'}}>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:24}}>
-              <div>
-                <div style={{fontFamily:"'Syne',sans-serif",fontSize:20,fontWeight:800}}>Add Staff Member</div>
-                <div style={{fontSize:12,color:C.gray,marginTop:3}}>Register a new Field Executive or Supervisor</div>
-              </div>
-              <button onClick={()=>setShowAdd(false)} style={{width:32,height:32,borderRadius:9,background:C.s3,border:`1px solid ${C.border}`,cursor:'pointer',color:C.gray,fontSize:16,display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
-            </div>
-            {formErr && <div style={{background:C.redD,border:`1px solid ${C.redB}`,borderRadius:10,padding:'10px 14px',fontSize:13,color:C.red,marginBottom:16}}>{formErr}</div>}
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
-              <div style={{gridColumn:'1/-1'}}><Field label="Full Name" required><input className="kinp" style={inp} placeholder="e.g. Rajiv Kumar" value={form.name} onChange={e=>setF('name',e.target.value)}/></Field></div>
-              <Field label="Employee ID" required><input className="kinp" style={inp} placeholder="e.g. FE-001 or SUP-001" value={form.employee_id} onChange={e=>setF('employee_id',e.target.value)}/></Field>
-              <Field label="Role">
-                <select className="kinp" style={{...inp,appearance:'none' as const}} value={form.role} onChange={e=>setF('role',e.target.value)}>
-                  <option value="executive">Field Executive</option>
-                  <option value="supervisor">Supervisor</option>
-                </select>
+      <Modal open={showAdd} onClose={()=>setShowAdd(false)} title="Add staff member" subtitle="Register a new field executive or supervisor" width={560}
+        footer={
+          <>
+            <Button onClick={()=>setShowAdd(false)}>Cancel</Button>
+            <Button variant="primary" onClick={handleAdd} disabled={saving} icon={saving?<Spin/>:undefined}>{saving?'Creating…':'Create member'}</Button>
+          </>
+        }
+      >
+        <div style={{display:'flex',flexDirection:'column',gap:16}}>
+          {formErr && <ErrorNote>{formErr}</ErrorNote>}
+          <div style={{display:'grid',gridTemplateColumns:narrow?'1fr':'repeat(2, minmax(0,1fr))',gap:'14px 16px'}}>
+            <Field label="Full name" required style={{gridColumn:'1/-1'}}><Input placeholder="e.g. Rajiv Kumar" value={form.name} onChange={e=>setF('name',e.target.value)}/></Field>
+            <Field label="Employee ID" required><Input placeholder="e.g. FE-001 or SUP-001" value={form.employee_id} onChange={e=>setF('employee_id',e.target.value)}/></Field>
+            <Field label="Role">
+              <Select value={form.role} onChange={e=>setF('role',e.target.value)}>
+                <option value="executive">Field Executive</option>
+                <option value="supervisor">Supervisor</option>
+              </Select>
+            </Field>
+            <Field label="Mobile number" style={{gridColumn:'1/-1'}}><Input placeholder="10-digit mobile (optional)" value={form.mobile} onChange={e=>setF('mobile',e.target.value)} maxLength={10}/></Field>
+            <Field label="Email address" style={{gridColumn:'1/-1'}}><Input type="email" placeholder="e.g. rajiv@kinematic.com" value={form.email} onChange={e=>setF('email',e.target.value)}/></Field>
+            <Field label="Login password" required style={{gridColumn:'1/-1'}}><Input type="text" placeholder="Enter password for app/web login" value={form.password} onChange={e=>{setF('password',e.target.value); setF('app_password',e.target.value);}}/></Field>
+            <Field label="City">
+              <CitySelect value={form.city} onChange={(v, c) => setF('city', v)} placeholder="e.g. Mumbai" />
+            </Field>
+            <Field label="Zone">
+              <Select value={form.zone_id} onChange={e=>setF('zone_id',e.target.value)}>
+                <option value="">No zone</option>
+                {zones.map(z=><option key={z.id} value={z.id}>{z.name}{z.city?` — ${z.city}`:''}</option>)}
+              </Select>
+            </Field>
+            {form.role === 'executive' && (
+              <Field label="Supervisor">
+                <Select value={form.supervisor_id} onChange={e=>setF('supervisor_id',e.target.value)}>
+                  <option value="">No supervisor</option>
+                  {sups.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
+                </Select>
               </Field>
-              <div style={{gridColumn:'1/-1'}}><Field label="Mobile Number"><input className="kinp" style={inp} placeholder="10-digit mobile (optional)" value={form.mobile} onChange={e=>setF('mobile',e.target.value)} maxLength={10}/></Field></div>
-              <div style={{gridColumn:'1/-1'}}><Field label="Email Address"><input className="kinp" style={inp} type="email" placeholder="e.g. rajiv@kinematic.com" value={form.email} onChange={e=>setF('email',e.target.value)}/></Field></div>
-              <div style={{gridColumn:'1/-1'}}><Field label="Login Password" required><input className="kinp" style={inp} type="text" placeholder="Enter password for app/web login" value={form.password} onChange={e=>{setF('password',e.target.value); setF('app_password',e.target.value);}}/></Field></div>
-              <Field label="City">
-                <CitySelect value={form.city} onChange={(v, c) => setF('city', v)} placeholder="e.g. Mumbai" />
+            )}
+            {isPlatformAdmin && (
+              <Field label="Client organisation" style={{gridColumn:'1/-1'}}>
+                <ClientSelect
+                  value={form.client_id || ''}
+                  onChange={(id) => setF('client_id', id)}
+                />
               </Field>
-              <Field label="Zone">
-                <select className="kinp" style={{...inp,appearance:'none' as const}} value={form.zone_id} onChange={e=>setF('zone_id',e.target.value)}>
-                  <option value="">No zone</option>
-                  {zones.map(z=><option key={z.id} value={z.id}>{z.name}{z.city?` — ${z.city}`:''}</option>)}
-                </select>
-              </Field>
-              {form.role === 'executive' && (
-                <Field label="Supervisor">
-                  <select className="kinp" style={{...inp,appearance:'none' as const}} value={form.supervisor_id} onChange={e=>setF('supervisor_id',e.target.value)}>
-                    <option value="">No supervisor</option>
-                    {sups.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
-                  </select>
-                </Field>
-              )}
-              {isPlatformAdmin && (
-                <div style={{gridColumn:'1/-1', marginTop: 8}}>
-                   <Field label="Client Organization">
-                      <ClientSelect 
-                        value={form.client_id || ''} 
-                        onChange={(id) => setF('client_id', id)} 
-                      />
-                   </Field>
-                </div>
-              )}
-            </div>
-            <div style={{display:'flex',gap:10,marginTop:20}}>
-              <button onClick={()=>setShowAdd(false)} style={{flex:1,padding:'12px',background:C.s3,border:`1px solid ${C.border}`,color:C.gray,borderRadius:12,fontSize:13,fontWeight:600,cursor:'pointer'}}>Cancel</button>
-              <button onClick={handleAdd} disabled={saving} style={{flex:2,padding:'12px',background:C.red,border:'none',color:'#fff',borderRadius:12,fontSize:13,fontWeight:700,cursor:saving?'not-allowed':'pointer',opacity:saving?0.7:1}}>
-                {saving?<Spin/>:'Create Member'}
-              </button>
-            </div>
+            )}
           </div>
-        </Modal>
-      )}
+        </div>
+      </Modal>
 
       {/* EDIT MODAL */}
-      {showEdit && editTarget && (
-        <Modal onClose={()=>setShowEdit(false)}>
-          <div style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:22,width:'100%',maxWidth:520,padding:28,maxHeight:'90vh',overflowY:'auto'}}>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:24}}>
-              <div><div style={{fontFamily:"'Syne',sans-serif",fontSize:20,fontWeight:800}}>Edit Member</div><div style={{fontSize:12,color:C.gray,marginTop:3}}>{editTarget.name}</div></div>
-              <button onClick={()=>setShowEdit(false)} style={{width:32,height:32,borderRadius:9,background:C.s3,border:`1px solid ${C.border}`,cursor:'pointer',color:C.gray,fontSize:16}}>✕</button>
-            </div>
-            {formErr && <div style={{background:C.redD,border:`1px solid ${C.redB}`,borderRadius:10,padding:'10px 14px',fontSize:13,color:C.red,marginBottom:16}}>{formErr}</div>}
-            
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
-              <div style={{gridColumn:'1/-1'}}><Field label="Full Name" required><input className="kinp" style={inp} value={form.name} onChange={e=>setF('name',e.target.value)}/></Field></div>
-              <div style={{gridColumn:'1/-1'}}><Field label="Email Address"><input className="kinp" style={inp} type="email" placeholder="e.g. rajiv@kinematic.com" value={form.email} onChange={e=>setF('email',e.target.value)}/></Field></div>
-              <div style={{gridColumn:'1/-1'}}><Field label="Mobile Number"><input className="kinp" style={inp} value={form.mobile} onChange={e=>setF('mobile',e.target.value)} maxLength={10}/></Field></div>
-              
-              <Field label="Employee ID" required><input className="kinp" style={inp} value={form.employee_id} onChange={e=>setF('employee_id',e.target.value)}/></Field>
-              <Field label="Role">
-                <select className="kinp" style={{...inp,appearance:'none' as const}} value={form.role} onChange={e=>setF('role',e.target.value)}>
-                  <option value="executive">Field Executive</option>
-                  <option value="supervisor">Supervisor</option>
-                  <option value="client_manager">Client Manager</option>
-                  <option value="admin">Admin</option>
-                </select>
-              </Field>
-              <Field label="Zone">
-                <select className="kinp" style={{...inp,appearance:'none' as const}} value={form.zone_id} onChange={e=>setF('zone_id',e.target.value)}>
-                  <option value="">No zone</option>
-                  {zones.map(z=><option key={z.id} value={z.id}>{z.name}</option>)}
-                </select>
-              </Field>
-              <Field label="City">
-                <CitySelect value={form.city} onChange={(v, c) => setF('city', v)} placeholder="e.g. Mumbai" />
-              </Field>
-              {form.role === 'executive' && (
-                <Field label="Supervisor">
-                  <select className="kinp" style={{...inp,appearance:'none' as const}} value={form.supervisor_id} onChange={e=>setF('supervisor_id',e.target.value)}>
-                    <option value="">No supervisor</option>
-                    {sups.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
-                  </select>
-                </Field>
-              )}
-              <div style={{gridColumn:'1/-1'}}><Field label="Login Password"><input className="kinp" style={inp} type="text" placeholder="Mobile app/web password" value={form.app_password} onChange={e=>{setF('app_password',e.target.value); setF('password', e.target.value);}}/></Field></div>
+      <Modal open={showEdit && !!editTarget} onClose={()=>setShowEdit(false)} title="Edit member" subtitle={editTarget?.name} width={560}
+        footer={
+          <>
+            <Button onClick={()=>setShowEdit(false)}>Cancel</Button>
+            <Button variant="primary" onClick={handleEdit} disabled={saving} icon={saving?<Spin/>:undefined}>{saving?'Saving…':'Save changes'}</Button>
+          </>
+        }
+      >
+        <div style={{display:'flex',flexDirection:'column',gap:16}}>
+          {formErr && <ErrorNote>{formErr}</ErrorNote>}
 
-              {/* RBAC Section Edit */}
-              {(form.role === 'sub_admin' || form.role === 'city_manager' || form.role === 'admin') && (
-                <div style={{gridColumn:'1/-1', borderTop:`1px solid ${C.border}`, paddingTop:16, marginTop:8}}>
-                  <div style={{fontSize:12, fontWeight:800, color:C.white, marginBottom:12, fontFamily:"'Syne',sans-serif"}}>Module Access & Scope</div>
-                  
-                  <div style={{display:'flex', flexWrap:'wrap', gap:10, marginBottom:16}}>
-                    {['orders','users','analytics','inventory','reports'].map(m => (
-                      <label key={m} style={{display:'flex', alignItems:'center', gap:6, background:C.s3, padding:'6px 10px', borderRadius:8, cursor:'pointer', border:`1px solid ${form.permissions.includes(m)?C.blue:C.border}`}}>
-                        <input type="checkbox" checked={form.permissions.includes(m)} 
+          <div style={{display:'grid',gridTemplateColumns:narrow?'1fr':'repeat(2, minmax(0,1fr))',gap:'14px 16px'}}>
+            <Field label="Full name" required style={{gridColumn:'1/-1'}}><Input value={form.name} onChange={e=>setF('name',e.target.value)}/></Field>
+            <Field label="Email address" style={{gridColumn:'1/-1'}}><Input type="email" placeholder="e.g. rajiv@kinematic.com" value={form.email} onChange={e=>setF('email',e.target.value)}/></Field>
+            <Field label="Mobile number" style={{gridColumn:'1/-1'}}><Input value={form.mobile} onChange={e=>setF('mobile',e.target.value)} maxLength={10}/></Field>
+
+            <Field label="Employee ID" required><Input value={form.employee_id} onChange={e=>setF('employee_id',e.target.value)}/></Field>
+            <Field label="Role">
+              <Select value={form.role} onChange={e=>setF('role',e.target.value)}>
+                <option value="executive">Field Executive</option>
+                <option value="supervisor">Supervisor</option>
+                <option value="client_manager">Client Manager</option>
+                <option value="admin">Admin</option>
+              </Select>
+            </Field>
+            <Field label="Zone">
+              <Select value={form.zone_id} onChange={e=>setF('zone_id',e.target.value)}>
+                <option value="">No zone</option>
+                {zones.map(z=><option key={z.id} value={z.id}>{z.name}</option>)}
+              </Select>
+            </Field>
+            <Field label="City">
+              <CitySelect value={form.city} onChange={(v, c) => setF('city', v)} placeholder="e.g. Mumbai" />
+            </Field>
+            {form.role === 'executive' && (
+              <Field label="Supervisor">
+                <Select value={form.supervisor_id} onChange={e=>setF('supervisor_id',e.target.value)}>
+                  <option value="">No supervisor</option>
+                  {sups.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
+                </Select>
+              </Field>
+            )}
+            <Field label="Login password" style={{gridColumn:'1/-1'}}><Input type="text" placeholder="Mobile app/web password" value={form.app_password} onChange={e=>{setF('app_password',e.target.value); setF('password', e.target.value);}}/></Field>
+
+            {/* RBAC Section Edit */}
+            {(form.role === 'sub_admin' || form.role === 'city_manager' || form.role === 'admin') && (
+              <div style={{gridColumn:'1/-1', borderTop:`1px solid ${T.border}`, paddingTop:16, marginTop:4, display:'flex', flexDirection:'column', gap:12}}>
+                <div style={{display:'flex',flexDirection:'column',gap:4}}>
+                  <Eyebrow>Module access & scope</Eyebrow>
+                  <div style={{fontSize:13,color:T.dim}}>Modules this member can open.</div>
+                </div>
+
+                <div style={{display:'flex', flexWrap:'wrap', gap:8}}>
+                  {['orders','users','analytics','inventory','reports'].map(m => {
+                    const on = form.permissions.includes(m);
+                    return (
+                      <label key={m} style={{display:'inline-flex', alignItems:'center', gap:8, height:28, padding:'0 10px', borderRadius:999, cursor:'pointer', background:on?T.infoWash:T.card, border:`1px solid ${on?T.info:T.border}`, fontSize:12.5, fontWeight:500, color:on?T.text:T.dim, textTransform:'capitalize'}}>
+                        <input type="checkbox" checked={on}
                           onChange={e => {
                             const next = e.target.checked ? [...form.permissions, m] : form.permissions.filter(p => p !== m);
                             setForm(p => ({...p, permissions: next}));
-                          }} 
-                          style={{accentColor:C.blue}}
+                          }}
+                          style={{width:14,height:14,margin:0}}
                         />
-                        <span style={{fontSize:12, color:form.permissions.includes(m)?C.white:C.gray, textTransform:'capitalize'}}>{m}</span>
+                        {m}
                       </label>
-                    ))}
-                  </div>
+                    );
+                  })}
+                </div>
 
-                  {form.role === 'city_manager' && (
-                    <div style={{marginTop:12}}>
-                      <div style={{fontSize:11, fontWeight:700, color:C.gray, letterSpacing:'0.8px', textTransform:'uppercase', marginBottom:6}}>Assigned Cities</div>
-                      <div style={{display:'flex', flexWrap:'wrap', gap:6, background:C.s3, padding:8, borderRadius:10, border:`1px solid ${C.border}`}}>
-                        {allCities.map(c => (
+                {form.role === 'city_manager' && (
+                  <Field label="Assigned cities">
+                    <div style={{display:'flex', flexWrap:'wrap', gap:6, background:T.raised, padding:8, borderRadius:8, border:`1px solid ${T.border}`}}>
+                      {allCities.map(c => {
+                        const on = form.assigned_cities.includes(c);
+                        return (
                           <button key={c} onClick={() => {
-                            const next = form.assigned_cities.includes(c) ? form.assigned_cities.filter(x => x !== c) : [...form.assigned_cities, c];
+                            const next = on ? form.assigned_cities.filter(x => x !== c) : [...form.assigned_cities, c];
                             setForm(p => ({...p, assigned_cities: next}));
-                          }} type="button"
-                            style={{padding:'4px 10px', borderRadius:6, border:'none', fontSize:11, fontWeight:600, cursor:'pointer', background:form.assigned_cities.includes(c)?C.blue:C.s4, color:form.assigned_cities.includes(c)?'#fff':C.gray}}>
+                          }} type="button" aria-pressed={on}
+                            style={{height:26, padding:'0 10px', borderRadius:999, border:`1px solid ${on?T.info:T.border}`, fontSize:12, fontWeight:500, cursor:'pointer', fontFamily:'inherit', background:on?T.infoWash:T.card, color:on?T.text:T.dim}}>
                             {c}
                           </button>
-                        ))}
-                      </div>
+                        );
+                      })}
                     </div>
-                  )}
-                </div>
-              )}
-              
-              {isPlatformAdmin && (
-                <div style={{gridColumn:'1/-1', marginTop: 8}}>
-                  <label style={{ display: 'block', color: C.gray, fontSize: 11, marginBottom: 8, fontWeight: 700, textTransform: 'uppercase' }}>CLIENT</label>
-                  <ClientSelect 
-                    value={form.client_id || ''} 
-                    onChange={(id) => setForm(p => ({ ...p, client_id: id }))} 
-                  />
-                </div>
-              )}
-            </div>
-            <div style={{display:'flex',gap:10,marginTop:20}}>
-              <button onClick={()=>setShowEdit(false)} style={{flex:1,padding:'11px',background:C.s3,border:`1px solid ${C.border}`,color:C.gray,borderRadius:11,fontSize:13,fontWeight:600}}>Cancel</button>
-              <button onClick={handleEdit} disabled={saving} style={{flex:2,padding:'11px',background:C.blue,border:'none',color:'#fff',borderRadius:11,fontSize:13,fontWeight:700,cursor:saving?'not-allowed':'pointer'}}>
-                {saving?<Spin/>:'Save Changes'}
-              </button>
-            </div>
+                  </Field>
+                )}
+              </div>
+            )}
+
+            {isPlatformAdmin && (
+              <Field label="Client" style={{gridColumn:'1/-1'}}>
+                <ClientSelect
+                  value={form.client_id || ''}
+                  onChange={(id) => setForm(p => ({ ...p, client_id: id }))}
+                />
+              </Field>
+            )}
           </div>
-        </Modal>
-      )}
+        </div>
+      </Modal>
 
       {/* DETAIL MODAL */}
       {selected && !showEdit && (
-        <Modal onClose={()=>setSelected(null)}>
-          <div style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:22,width:'100%',maxWidth:480,padding:28,position:'relative'}}>
-            <button onClick={()=>setSelected(null)} style={{position:'absolute',top:16,right:16,background:C.s3,border:`1px solid ${C.border}`,borderRadius:9,width:32,height:32,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color:C.gray,fontSize:16}}>✕</button>
-            <div style={{display:'flex',gap:16,alignItems:'center',marginBottom:22}}>
-              <div style={{width:60,height:60,borderRadius:18,background:selected.role==='supervisor'?C.yellowD:C.blueD,border:`1.5px solid ${selected.role==='supervisor'?'rgba(255,184,0,0.2)':'rgba(62,158,255,0.2)'}`,display:'flex',alignItems:'center',justifyContent:'center',fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:26,color:selected.role==='supervisor'?C.yellow:C.blue}}>{selected.name?.[0]||'?'}</div>
-              <div>
-                <div style={{fontFamily:"'Syne',sans-serif",fontSize:20,fontWeight:800}}>{selected.name}</div>
-                <div style={{fontSize:12,color:C.gray,marginTop:3}}>{selected.role.toUpperCase()} · {selected.employee_id}</div>
-                <span style={{fontSize:10,fontWeight:700,padding:'3px 9px',borderRadius:20,marginTop:6,display:'inline-block',background:selected.is_active?C.greenD:C.redD,color:selected.is_active?C.green:C.red}}>{selected.is_active?'● Active':'Inactive'}</span>
+        <Modal open onClose={()=>setSelected(null)} title={selected.name} subtitle={`${roleLabel(selected.role)} · ${selected.employee_id || selected.id.slice(0,8)}`} width={520}
+          footer={
+            <>
+              {isPlatformAdmin && (
+                <Button onClick={()=>{openEdit(selected);setSelected(null);}} icon={<Pencil size={15} strokeWidth={1.6} />}>Edit profile</Button>
+              )}
+              <Button variant={selected.is_active?'danger':'primary'} onClick={()=>{toggleActive(selected);setSelected(null);}} icon={<Power size={15} strokeWidth={1.6} />}>
+                {selected.is_active?'Deactivate':'Activate'}
+              </Button>
+            </>
+          }
+        >
+          <div style={{display:'flex',flexDirection:'column',gap:16}}>
+            <div style={{display:'flex',gap:14,alignItems:'center'}}>
+              <Avatar name={selected.name} size={48} />
+              <div style={{display:'flex',flexDirection:'column',gap:6,minWidth:0}}>
+                <div style={{fontSize:14,fontWeight:600,color:T.text,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{selected.name}</div>
+                <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+                  <Badge tone={selected.role==='supervisor'?'info':'neutral'}>{roleLabel(selected.role)}</Badge>
+                  <Badge tone={selected.is_active?'ok':'neutral'} dot={selected.is_active}>{selected.is_active?'Active':'Inactive'}</Badge>
+                </div>
               </div>
             </div>
 
-            <div style={{marginBottom:'24px',border:'1px solid #e5e7eb',borderRadius:'12px',padding:'16px',background:'#f9fafb'}}>
-              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'12px'}}>
-                <h3 style={{fontSize:'14px',fontWeight:600}}>App Credentials</h3>
+            <div style={{border:`1px solid ${T.border}`,borderRadius:8,padding:14,background:T.raised,display:'flex',flexDirection:'column',gap:12}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:12}}>
+                <Eyebrow>App credentials</Eyebrow>
                 {!showPwReset ? (
-                  <button onClick={() => { setShowPwReset(true); setNewAppPw(selected.app_password || ''); }} style={{fontSize:'12px',color:'#007bff',background:'white',padding:'4px 10px',borderRadius:'6px',border:'1px solid #e5e7eb',cursor:'pointer'}}>Manage</button>
+                  <Button size="sm" onClick={() => { setShowPwReset(true); setNewAppPw(selected.app_password || ''); }}>Manage</Button>
                 ) : (
-                  <button onClick={() => setShowPwReset(false)} style={{fontSize:'12px',color:'#6b7280',background:'white',padding:'4px 10px',borderRadius:'6px',border:'1px solid #e5e7eb',cursor:'pointer'}}>Cancel</button>
+                  <Button size="sm" variant="ghost" onClick={() => setShowPwReset(false)}>Cancel</Button>
                 )}
               </div>
-              
+
               {!showPwReset ? (
-                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'12px'}}>
-                  <Field label="App Password">
-                    <div style={{fontSize:'14px',fontFamily:'monospace',color:'#374151'}}>{selected.app_password || 'Not set'}</div>
-                  </Field>
-                  <Field label="Login Mobile">
-                    <div style={{fontSize:'14px',color:'#374151'}}>{selected.mobile || 'Not set'}</div>
-                  </Field>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
+                  <div>
+                    <div style={{fontSize:12,color:T.dim,marginBottom:4}}>App password</div>
+                    <div style={{fontSize:13.5,fontFamily:T.mono,color:T.text}}>{selected.app_password || <span style={{color:T.mute}}>Not set</span>}</div>
+                  </div>
+                  <div>
+                    <div style={{fontSize:12,color:T.dim,marginBottom:4}}>Login mobile</div>
+                    <div style={{fontSize:13.5,fontFamily:T.mono,color:T.text}}>{selected.mobile || <span style={{color:T.mute}}>Not set</span>}</div>
+                  </div>
                 </div>
               ) : (
-                <div style={{display:'flex',flexDirection:'column' as const,gap:'12px'}}>
-                  <div style={{fontSize:'12px',color:'#6b7280'}}>Set a new password for mobile app login.</div>
-                  <div style={{display:'flex',gap:'8px'}}>
-                    <input className="kinp" style={{...inp,flex:1}} type="text" placeholder="New App Password" value={newAppPw} onChange={e => setNewAppPw(e.target.value)} />
-                    <button 
+                <div style={{display:'flex',flexDirection:'column',gap:10}}>
+                  <div style={{fontSize:12.5,color:T.dim}}>Set a new password for mobile app login.</div>
+                  <div style={{display:'flex',gap:8}}>
+                    <Input type="text" placeholder="New app password" value={newAppPw} onChange={e => setNewAppPw(e.target.value)} style={{flex:1}} />
+                    <Button
+                      variant="primary"
                       disabled={pwUpdating}
                       onClick={async () => {
                         setPwUpdating(true);
@@ -804,118 +769,101 @@ export default function ManpowerDirectoryPage() {
                           setPwUpdating(false);
                         }
                       }}
-                      style={{backgroundColor:'#007bff',color:'white',padding:'8px 16px',borderRadius:'8px',border:'none',fontSize:'13px',fontWeight:600,cursor:pwUpdating?'not-allowed':'pointer',opacity:pwUpdating?0.7:1}}
                     >
-                      {pwUpdating ? 'Saving...' : 'Save'}
-                    </button>
+                      {pwUpdating ? 'Saving…' : 'Save'}
+                    </Button>
                   </div>
                 </div>
               )}
             </div>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:20}}>
-               <div style={{gridColumn:'1/-1', background:C.s3,borderRadius:12,padding:12}}>
-                  <div style={{fontSize:10,color:C.gray,textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:4}}>Email Address</div>
-                  <div style={{fontSize:13,fontWeight:600}}>{selected.email||'—'}</div>
-               </div>
-               <div style={{background:C.s3,borderRadius:12,padding:12}}>
-                  <div style={{fontSize:10,color:C.gray,textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:4}}>Mobile</div>
-                  <div style={{fontSize:13,fontWeight:600}}>{selected.mobile||'—'}</div>
-               </div>
-               <div style={{background:C.s3,borderRadius:12,padding:12}}>
-                  <div style={{fontSize:10,color:C.gray,textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:4}}>City</div>
-                  <div style={{fontSize:13,fontWeight:600}}>{selected.zones?.city||selected.city||'—'}</div>
-               </div>
-               <div style={{background:C.s3,borderRadius:12,padding:12}}>
-                  <div style={{fontSize:10,color:C.gray,textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:4}}>Zone</div>
-                  <div style={{fontSize:13,fontWeight:600}}>{selected.zones?.name||'—'}</div>
-               </div>
-               <div style={{background:C.s3,borderRadius:12,padding:12}}>
-                  <div style={{fontSize:10,color:C.gray,textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:4}}>Supervisor</div>
-                  <div style={{fontSize:13,fontWeight:600}}>{selected.supervisors?.name||'—'}</div>
-               </div>
-            </div>
-            <div style={{display:'flex',gap:10}}>
-              {isPlatformAdmin && (
-                <button onClick={()=>{openEdit(selected);setSelected(null);}} style={{flex:1,padding:'12px',background:C.blueD,border:`1px solid rgba(62,158,255,0.2)`,color:C.blue,borderRadius:12,fontSize:13,fontWeight:700}}>Edit Profile</button>
-              )}
-              <button onClick={()=>{toggleActive(selected);setSelected(null);}} style={{flex:1,padding:'12px',background:selected.is_active?C.redD:'rgba(0,217,126,0.1)',border:`1px solid ${selected.is_active?C.redB:'rgba(0,217,126,0.2)'}`,color:selected.is_active?C.red:C.green,borderRadius:12,fontSize:13,fontWeight:700}}>
-                {selected.is_active?'Deactivate':'Activate'}
-              </button>
+
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+              {[
+                { l:'Email address', v:selected.email, span:true },
+                { l:'Mobile', v:selected.mobile, mono:true },
+                { l:'City', v:selected.zones?.city||selected.city },
+                { l:'Zone', v:selected.zones?.name },
+                { l:'Supervisor', v:selected.supervisors?.name },
+              ].map((r) => (
+                <div key={r.l} style={{gridColumn:r.span?'1/-1':undefined, background:T.raised, borderRadius:8, padding:'10px 12px'}}>
+                  <Eyebrow style={{marginBottom:4}}>{r.l}</Eyebrow>
+                  <div style={{fontSize:13.5,color:r.v?T.text:T.mute,fontFamily:r.mono?T.mono:undefined,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r.v||'—'}</div>
+                </div>
+              ))}
             </div>
           </div>
         </Modal>
       )}
 
       {/* BULK MODAL */}
-      {showBulk && (
-        <Modal onClose={resetBulk}>
-          <div style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:22,width:'100%',maxWidth:700,padding:28,maxHeight:'92vh',overflowY:'auto'}}>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:20}}>
-              <div>
-                <div style={{fontFamily:"'Syne',sans-serif",fontSize:20,fontWeight:800}}>Bulk Upload Manpower</div>
-                <div style={{fontSize:12,color:C.gray,marginTop:3}}>Upload a CSV to add multiple members at once</div>
-              </div>
-              <button onClick={resetBulk} style={{width:32,height:32,borderRadius:9,background:C.s3,border:`1px solid ${C.border}`,color:C.gray,fontSize:16,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer'}}>✕</button>
-            </div>
-            
-            {bulkErr && <div style={{background:C.redD,border:`1px solid ${C.redB}`,borderRadius:10,padding:'10px 14px',fontSize:13,color:C.red,marginBottom:16}}>{bulkErr}</div>}
-
-            {bulkRows.length===0 ? (
-               <div onClick={()=>fileRef.current?.click()}
-                  style={{border:`2px dashed ${C.border}`,borderRadius:16,padding:'48px 24px',textAlign:'center',cursor:'pointer',transition:'all 0.2s',marginBottom:16}}>
-                  <div style={{fontSize:34,marginBottom:12}}>📂</div>
-                  <div style={{fontSize:14,fontWeight:700,marginBottom:6}}>Select CSV file</div>
-                  <div style={{fontSize:12,color:C.gray,marginBottom:14}}>Click to browse or drag and drop</div>
-                  <input ref={fileRef} type="file" accept=".csv" style={{display:'none'}} onChange={onFile}/>
-                  <button onClick={(e)=>{e.stopPropagation(); downloadTemplate();}} style={{fontSize:12,color:C.blue,background:'none',border:'none',cursor:'pointer',textDecoration:'underline'}}>Download Template</button>
-                </div>
+      <Modal open={showBulk} onClose={resetBulk} title="Bulk upload manpower" subtitle="Upload a CSV to add multiple members at once" width={760}
+        footer={bulkRows.length===0 ? (
+          <Button onClick={resetBulk}>Cancel</Button>
+        ) : (
+          <>
+            <Button onClick={resetBulk} disabled={bulkBusy}>Cancel</Button>
+            {!bulkDone ? (
+              <Button variant="primary" onClick={runBulk} disabled={bulkBusy} icon={bulkBusy?<Spin/>:<Upload size={15} strokeWidth={1.8} />}>
+                {bulkBusy?'Processing…':`Start upload${pendingBulk?` (${pendingBulk})`:''}`}
+              </Button>
             ) : (
-              <div style={{display:'flex',flexDirection:'column',gap:16}}>
-                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:13,color:C.gray,background:C.s3,padding:'10px 14px',borderRadius:12}}>
-                  <div><strong style={{color:C.white}}>{bulkRows.length}</strong> rows found</div>
-                  <div><strong style={{color:C.green}}>{bulkRows.filter(r=>r._status==='success').length}</strong> successful</div>
-                </div>
-
-                <div style={{maxHeight:300,overflowY:'auto',border:`1px solid ${C.border}`,borderRadius:12}}>
-                  {/* Header */}
-                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 100px 120px',gap:10,padding:'10px 14px',background:C.s3,borderBottom:`1px solid ${C.border}`,fontSize:11,fontWeight:700,color:C.gray,letterSpacing:'0.5px',textTransform:'uppercase'}}>
-                    <div>Name</div>
-                    <div>Employee ID</div>
-                    <div>Role</div>
-                    <div>Status</div>
-                  </div>
-                  {/* Rows */}
-                  {bulkRows.map((r,i) => (
-                    <div key={i} className={r._status==='error'?'brow-err':r._status==='success'?'brow-ok':''}
-                      style={{display:'grid',gridTemplateColumns:'1fr 1fr 100px 120px',gap:10,padding:'12px 14px',borderBottom:i<bulkRows.length-1?`1px solid ${C.border}`:'none',fontSize:13,alignItems:'center'}}>
-                      <div style={{fontWeight:600}}>{r.name || '—'}</div>
-                      <div style={{fontFamily:'monospace',color:C.gray}}>{r.employee_id || '—'}</div>
-                      <div>{r.role || 'executive'}</div>
-                      <div style={{fontSize:11,fontWeight:700,color:r._status==='error'?C.red:r._status==='success'?C.green:C.yellow}}>
-                        {r._status.toUpperCase()}
-                        {r._error && <div style={{fontSize:10,fontWeight:400,color:C.red,marginTop:2}}>{r._error}</div>}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <div style={{display:'flex',gap:10,marginTop:10}}>
-                   <button onClick={resetBulk} disabled={bulkBusy} style={{flex:1,padding:12,background:C.s3,border:`1px solid ${C.border}`,color:C.gray,borderRadius:12,fontSize:13,fontWeight:600,cursor:bulkBusy?'not-allowed':'pointer'}}>Cancel</button>
-                   {!bulkDone ? (
-                     <button onClick={runBulk} disabled={bulkBusy} style={{flex:2,padding:12,background:C.red,border:'none',color:'#fff',borderRadius:12,fontSize:13,fontWeight:700,cursor:bulkBusy?'not-allowed':'pointer',opacity:bulkBusy?0.7:1}}>
-                       {bulkBusy?<><Spin/> Processing...</>:'Start Upload'}
-                     </button>
-                   ) : (
-                     <button onClick={resetBulk} style={{flex:2,padding:12,background:C.green,border:'none',color:'#fff',borderRadius:12,fontSize:13,fontWeight:700,cursor:'pointer'}}>
-                       Done
-                     </button>
-                   )}
-                </div>
-              </div>
+              <Button variant="primary" onClick={resetBulk}>Done</Button>
             )}
-          </div>
-        </Modal>
-      )}
+          </>
+        )}
+      >
+        <div style={{display:'flex',flexDirection:'column',gap:16}}>
+          {bulkErr && <ErrorNote>{bulkErr}</ErrorNote>}
+
+          {bulkRows.length===0 ? (
+            <div onClick={()=>fileRef.current?.click()} role="button" tabIndex={0}
+              onKeyDown={(e)=>{ if (e.key==='Enter'||e.key===' ') { e.preventDefault(); fileRef.current?.click(); } }}
+              style={{border:`1px dashed ${T.borderStrong}`,borderRadius:12,padding:'40px 24px',textAlign:'center',cursor:'pointer',background:T.raised,display:'flex',flexDirection:'column',alignItems:'center',gap:8}}>
+              <div style={{width:40,height:40,borderRadius:10,background:T.card,border:`1px solid ${T.border}`,display:'flex',alignItems:'center',justifyContent:'center',color:T.dim,marginBottom:4}}>
+                <FileUp size={20} strokeWidth={1.6} />
+              </div>
+              <div style={{fontSize:14,fontWeight:600,color:T.text}}>Select CSV file</div>
+              <div style={{fontSize:13,color:T.dim}}>Click to browse. Columns: name, employee ID, mobile, password, role, zone, supervisor, city.</div>
+              <input ref={fileRef} type="file" accept=".csv" style={{display:'none'}} onChange={onFile}/>
+              <Button size="sm" variant="ghost" onClick={(e)=>{e.stopPropagation(); downloadTemplate();}} icon={<Download size={14} strokeWidth={1.6} />} style={{marginTop:4}}>Download template</Button>
+            </div>
+          ) : (
+            <div style={{display:'flex',flexDirection:'column',gap:12}}>
+              <div style={{display:'flex',gap:16,alignItems:'center',fontSize:13,color:T.dim,background:T.raised,padding:'10px 14px',borderRadius:8}}>
+                <span><span style={{fontFamily:T.mono,color:T.text}}>{bulkRows.length}</span> rows found</span>
+                <span><span style={{fontFamily:T.mono,color:T.ok}}>{bulkRows.filter(r=>r._status==='success').length}</span> successful</span>
+                <span><span style={{fontFamily:T.mono,color:T.red}}>{bulkRows.filter(r=>r._status==='error').length}</span> failed</span>
+              </div>
+
+              <div style={{maxHeight:320,overflow:'auto',border:`1px solid ${T.border}`,borderRadius:8}}>
+                <table style={{width:'100%',borderCollapse:'collapse',minWidth:520}}>
+                  <thead>
+                    <tr>
+                      <th style={{...th,position:'sticky',top:0,background:T.card}}>Name</th>
+                      <th style={{...th,position:'sticky',top:0,background:T.card}}>Employee ID</th>
+                      <th style={{...th,position:'sticky',top:0,background:T.card}}>Role</th>
+                      <th style={{...th,position:'sticky',top:0,background:T.card}}>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {bulkRows.map((r,i) => (
+                      <tr key={i} style={{background:r._status==='error'?T.redWash:r._status==='success'?T.okWash:'transparent'}}>
+                        <td style={{...td,borderBottom:i<bulkRows.length-1?td.borderBottom:0}}>{r.name || '—'}</td>
+                        <td style={{...td,borderBottom:i<bulkRows.length-1?td.borderBottom:0,fontFamily:T.mono,fontSize:12.5,color:T.dim}}>{r.employee_id || '—'}</td>
+                        <td style={{...td,borderBottom:i<bulkRows.length-1?td.borderBottom:0,color:T.dim}}>{roleLabel(r.role || 'executive')}</td>
+                        <td style={{...td,borderBottom:i<bulkRows.length-1?td.borderBottom:0}}>
+                          <Badge tone={r._status==='error'?'red':r._status==='success'?'ok':'warn'}>{r._status==='error'?'Error':r._status==='success'?'Added':'Pending'}</Badge>
+                          {r._error && <div style={{fontSize:12,color:T.red,marginTop:4}}>{r._error}</div>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      </Modal>
 
       <ConfirmModal
         show={deleteConfirm.show}

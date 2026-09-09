@@ -1,9 +1,9 @@
 'use client';
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
-import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
+import { ChevronFirst, ChevronLast, ChevronLeft, ChevronRight, Download, KanbanSquare, Trash2 } from 'lucide-react';
 import { crmDeals, crmPipelines, type Pagination } from '../../../../lib/crmApi';
 import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
 import type { Deal, Pipeline } from '../../../../types/crm';
@@ -14,6 +14,8 @@ import { useViewPrefs } from '../../../../lib/crmViewPrefs';
 import { getStoredUser, canAccess, getStoredToken, userHasModule } from '../../../../lib/auth';
 import { isKinematicTenant, isTataTiscanActive } from '../../../../lib/clientFeatures';
 import { API_BASE_URL } from '../../../../lib/api';
+import { Button, Card, EmptyState, Eyebrow, IconButton, Input, PageHeader, Segmented, Select, T, useIsCompact } from '../../../../components/ui';
+import { usePageTitle } from '../../../../lib/pageTitle';
 
 const DEAL_PAGE_SIZE_OPTIONS = [25, 50, 100, 200] as const;
 const DEAL_DEFAULT_PAGE_SIZE = 50;
@@ -29,7 +31,7 @@ type ViewMode = 'list' | 'kanban';
 // component in <Suspense> so the build stays static-friendly.
 export default function DealsListPageWrapper() {
   return (
-    <Suspense fallback={<div style={{ color: 'var(--text-dim)' }}>Loading deals…</div>}>
+    <Suspense fallback={<div style={{ color: T.dim, fontSize: 13.5 }}>Loading deals…</div>}>
       <DealsListPage />
     </Suspense>
   );
@@ -38,6 +40,8 @@ export default function DealsListPageWrapper() {
 function DealsListPage() {
   const router = useRouter();
   const search = useSearchParams();
+  usePageTitle('Deals');
+  const narrow = useIsCompact(900);
   const initialView: ViewMode = search.get('view') === 'kanban' ? 'kanban' : 'list';
   const initialPipelineId = search.get('pipeline_id') || '';
 
@@ -237,154 +241,153 @@ function DealsListPage() {
     reload();
   };
 
+  const switchView = (v: ViewMode) => {
+    // Kanban needs a concrete pipeline; if none is picked (List
+    // default = "All"), fall back to the default pipeline.
+    const nextPid = v === 'kanban' && !pipelineId ? defaultPipelineId : pipelineId;
+    setView(v);
+    if (nextPid !== pipelineId) setPipelineId(nextPid);
+    setSelected(new Set());
+    syncUrl(v, nextPid);
+  };
+
+  const statusLabel = status ? status[0]!.toUpperCase() + status.slice(1) : '';
+
   return (
-    <div>
-      <div style={{ marginBottom: 14, padding: '12px 16px', background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 10 }}>
-        <div style={{ fontSize: 13, color: 'var(--text-dim)', lineHeight: 1.6 }}>
-          Revenue opportunities progressing through your sales pipeline. Each deal tracks value, expected close date, and AI-powered win probability. Toggle <strong style={{ color: 'var(--text)' }}>Kanban</strong> to drag deals between stages, or stay on <strong style={{ color: 'var(--text)' }}>List</strong> for bulk edits and filters.
-        </div>
-      </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* New Deal button intentionally absent — deals are created
+          exclusively via the lead-conversion flow (Lead detail → Convert)
+          so the deal inherits the lead's qualification, source, and history. */}
+      <PageHeader
+        title="Deals"
+        description="Revenue opportunities moving through your pipeline. Kanban drags deals between stages; List is for filters, sorting and bulk edits."
+        compact={narrow}
+        actions={
+          <>
+            {view === 'list' && (
+              <ViewCustomizer
+                entityLabel="Deals"
+                // Dealer + Volume (kg) are steel-dealer-only (Tata / BMW / SRS)
+                // columns — don't even offer them as toggles on other tenants
+                // (e.g. the Kinematic admin), matching DealsTable's render gate.
+                columns={(isTataTiscanActive(getStoredUser())
+                  ? DEAL_COLUMNS
+                  : DEAL_COLUMNS.filter((c) => c.key !== 'dealer' && c.key !== 'volume_kg')
+                ) as unknown as { key: string; label: string; locked?: boolean }[]}
+                hidden={dealView.prefs.hidden}
+                mode={dealView.prefs.mode}
+                onToggle={dealView.toggleHidden}
+                onSetMode={dealView.setMode}
+                onReset={dealView.reset}
+              />
+            )}
+            {/* Export CSV is always visible (admin or not). */}
+            <Button
+              type="button"
+              onClick={handleExport}
+              disabled={exporting}
+              title="Download deals as CSV (respects current search / status filter)"
+              icon={<Download size={16} strokeWidth={1.6} />}
+            >
+              {exporting ? 'Exporting…' : 'Export CSV'}
+            </Button>
+          </>
+        }
+      />
 
       {/* Total value + volume across the current filter (all pages). */}
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
-        <div style={{ flex: '1 1 200px', minWidth: 180, padding: '12px 16px', background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Total Deal Value{status ? ` · ${status}` : ''}</div>
-          <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--text)', marginTop: 2 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : 'repeat(auto-fit, minmax(220px, 280px))', gap: 12 }}>
+        <Card padding={16}>
+          <Eyebrow>Total deal value{statusLabel ? ` · ${statusLabel}` : ''}</Eyebrow>
+          <div style={{ fontFamily: T.heading, fontSize: 26, fontWeight: 700, letterSpacing: '-0.01em', color: T.text, lineHeight: 1.15, marginTop: 8, fontVariantNumeric: 'tabular-nums' }}>
             {totals ? `₹${Math.round(totals.value).toLocaleString('en-IN')}` : '—'}
           </div>
-        </div>
+          <div style={{ fontSize: 12.5, color: T.dim, marginTop: 4 }}>{pagination?.total != null && view === 'list' ? `${pagination.total.toLocaleString('en-IN')} deal${pagination.total === 1 ? '' : 's'} in scope` : 'Across every page of the current filter'}</div>
+        </Card>
         {!!(totals && totals.volume_kg > 0) && (
-          <div style={{ flex: '1 1 200px', minWidth: 180, padding: '12px 16px', background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Total Volume</div>
-            <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--text)', marginTop: 2 }}>
+          <Card padding={16}>
+            <Eyebrow>Total volume</Eyebrow>
+            <div style={{ fontFamily: T.heading, fontSize: 26, fontWeight: 700, letterSpacing: '-0.01em', color: T.text, lineHeight: 1.15, marginTop: 8, fontVariantNumeric: 'tabular-nums' }}>
               {totals.volume_kg >= 1000
                 ? `${(totals.volume_kg / 1000).toLocaleString('en-IN', { maximumFractionDigits: 1 })} MT`
                 : `${Math.round(totals.volume_kg).toLocaleString('en-IN')} kg`}
             </div>
-          </div>
+            <div style={{ fontSize: 12.5, color: T.dim, marginTop: 4 }}>Summed from each deal&apos;s volume</div>
+          </Card>
         )}
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 8, flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          {/* View toggle — segmented control */}
-          <div style={{ display: 'inline-flex', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 8, padding: 2 }}>
-            {(['list', 'kanban'] as ViewMode[]).map((v) => {
-              const active = view === v;
-              return (
-                <button
-                  key={v}
-                  onClick={() => {
-                    // Kanban needs a concrete pipeline; if none is picked (List
-                    // default = "All"), fall back to the default pipeline.
-                    const nextPid = v === 'kanban' && !pipelineId ? defaultPipelineId : pipelineId;
-                    setView(v);
-                    if (nextPid !== pipelineId) setPipelineId(nextPid);
-                    setSelected(new Set());
-                    syncUrl(v, nextPid);
-                  }}
-                  style={{
-                    background: active ? 'var(--primary)' : 'transparent',
-                    color: active ? '#fff' : 'var(--text-dim)',
-                    border: 'none', padding: '6px 12px', borderRadius: 6,
-                    fontSize: 12, fontWeight: 700, cursor: 'pointer', textTransform: 'capitalize',
-                  }}>
-                  {v === 'list' ? '☰ List' : '▦ Kanban'}
-                </button>
-              );
-            })}
-          </div>
+      {/* Toolbar — view switch, pipeline, search, status, bulk actions. */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <Segmented<ViewMode>
+          value={view}
+          onChange={switchView}
+          options={[{ value: 'list', label: 'List' }, { value: 'kanban', label: 'Kanban' }]}
+        />
 
-          {/* Pipeline selector — in Kanban it picks the board; in List it
-              filters the deals (with an "All pipelines" escape hatch). */}
-          {pipelines.length > 0 && (
-            <select
+        {/* Pipeline selector — in Kanban it picks the board; in List it
+            filters the deals (with an "All pipelines" escape hatch). */}
+        {pipelines.length > 0 && (
+          <div style={{ width: narrow ? '100%' : 220 }}>
+            <Select
               value={pipelineId}
+              aria-label="Pipeline"
               onChange={(e) => { setPipelineId(e.target.value); syncUrl(view, e.target.value); }}
-              style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 }}>
+            >
               {view === 'list' && <option value="">All pipelines</option>}
               {pipelines.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}{p.is_default ? ' (default)' : ''}
                 </option>
               ))}
-            </select>
-          )}
+            </Select>
+          </div>
+        )}
 
-          {view === 'list' && (
-            <>
-              <input placeholder="Search deals..." value={q} onChange={(e) => setQ(e.target.value)} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13, minWidth: 240 }} />
-              <select value={status} onChange={(e) => setStatus(e.target.value)} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13 }}>
-                <option value="">All</option><option value="open">Open</option><option value="won">Won</option><option value="lost">Lost</option>
-              </select>
-            </>
-          )}
+        {view === 'list' && (
+          <>
+            <Input placeholder="Search deals..." value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search deals" style={{ width: narrow ? '100%' : 260 }} />
+            <div style={{ width: narrow ? '100%' : 140 }}>
+              <Select value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Status">
+                <option value="">All statuses</option><option value="open">Open</option><option value="won">Won</option><option value="lost">Lost</option>
+              </Select>
+            </div>
+          </>
+        )}
 
-          {view === 'list' && selected.size > 0 && (
-            <>
-              <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>· {selected.size} selected</span>
-              <button
-                onClick={bulkDelete}
-                disabled={bulkBusy}
-                style={{ background: 'transparent', border: '1px solid #ef4444', color: '#ef4444', padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-                {bulkBusy ? 'Deleting…' : `🗑 Delete ${selected.size}`}
-              </button>
-            </>
-          )}
-        </div>
-        {/* Right-hand toolbar — Export CSV is always visible (admin or
-            not). New Deal button removed by design — deals are created
-            exclusively via the lead-conversion flow (Lead detail →
-            Convert) so the deal inherits the lead's qualification,
-            source, and history. */}
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          {view === 'list' && (
-            <ViewCustomizer
-              entityLabel="Deals"
-              // Dealer + Volume (kg) are steel-dealer-only (Tata / BMW / SRS)
-              // columns — don't even offer them as toggles on other tenants
-              // (e.g. the Kinematic admin), matching DealsTable's render gate.
-              columns={(isTataTiscanActive(getStoredUser())
-                ? DEAL_COLUMNS
-                : DEAL_COLUMNS.filter((c) => c.key !== 'dealer' && c.key !== 'volume_kg')
-              ) as unknown as { key: string; label: string; locked?: boolean }[]}
-              hidden={dealView.prefs.hidden}
-              mode={dealView.prefs.mode}
-              onToggle={dealView.toggleHidden}
-              onSetMode={dealView.setMode}
-              onReset={dealView.reset}
-            />
-          )}
-          <button
-            type="button"
-            onClick={handleExport}
-            disabled={exporting}
-            title="Download deals as CSV (respects current search / status filter)"
-            style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: exporting ? 'wait' : 'pointer', opacity: exporting ? 0.6 : 1 }}>
-            {exporting ? 'Exporting…' : '⬇ Export CSV'}
-          </button>
-        </div>
+        {view === 'list' && selected.size > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: narrow ? 0 : 'auto' }}>
+            <span style={{ fontFamily: T.mono, fontSize: 12, color: T.dim }}>{selected.size} selected</span>
+            <Button variant="danger" size="sm" onClick={bulkDelete} disabled={bulkBusy} icon={<Trash2 size={14} strokeWidth={1.8} />}>
+              {bulkBusy ? 'Deleting…' : `Delete ${selected.size}`}
+            </Button>
+          </div>
+        )}
       </div>
 
       {view === 'kanban' ? (
         loading ? (
-          <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-dim)' }}>Loading kanban…</div>
+          <div style={{ padding: 32, textAlign: 'center', color: T.dim, fontSize: 13.5 }}>Loading kanban…</div>
         ) : !activePipeline ? (
-          <div style={{ padding: 40, textAlign: 'center', background: 'var(--s2)', border: '1px dashed var(--border)', borderRadius: 14 }}>
-            <div style={{ fontSize: 28, marginBottom: 10 }}>📋</div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>No pipeline yet</div>
-            <div style={{ fontSize: 13, color: 'var(--text-dim)', marginBottom: 14 }}>
-              The Kanban view groups open deals by stage. Create a pipeline first.
-            </div>
-            <Link href="/dashboard/crm/pipeline" style={{ background: 'var(--primary)', color: '#fff', padding: '8px 16px', borderRadius: 8, fontWeight: 700, fontSize: 13 }}>Go to Pipeline →</Link>
-          </div>
+          <Card padding={0}>
+            <EmptyState
+              icon={<KanbanSquare size={20} strokeWidth={1.6} />}
+              title="No pipeline yet"
+              description="The Kanban view groups open deals by stage. Create a pipeline first."
+              action={<Button variant="primary" href="/dashboard/crm/pipeline">Go to Pipeline</Button>}
+            />
+          </Card>
         ) : stages.length === 0 ? (
-          <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-dim)', background: 'var(--s2)', border: '1px dashed var(--border)', borderRadius: 14 }}>
-            Pipeline “{activePipeline.name}” has no stages yet.
-            {userHasModule(getStoredUser(), 'crm_settings') && (
-              <> <Link href={`/dashboard/crm/settings/stages?pipeline_id=${activePipeline.id}`} style={{ color: 'var(--primary)' }}>Add stages →</Link></>
-            )}
-          </div>
+          <Card padding={0}>
+            <EmptyState
+              icon={<KanbanSquare size={20} strokeWidth={1.6} />}
+              title={`“${activePipeline.name}” has no stages yet`}
+              description="Add at least one open stage before deals can be placed on the board."
+              action={userHasModule(getStoredUser(), 'crm_settings')
+                ? <Button href={`/dashboard/crm/settings/stages?pipeline_id=${activePipeline.id}`}>Add stages</Button>
+                : undefined}
+            />
+          </Card>
         ) : (
           <DealKanban stages={stages} initialDeals={filtered} />
         )
@@ -464,41 +467,33 @@ function DealsPaginationBar({
   const canPrev = !!p?.hasPrev && !disabled;
   const canNext = !!p?.hasNext && !disabled;
 
-  const btn = (active: boolean): React.CSSProperties => ({
-    background: 'var(--s3)', border: '1px solid var(--border)', color: active ? 'var(--text)' : 'var(--text-dim)',
-    padding: '6px 10px', borderRadius: 6, fontSize: 12, fontWeight: 600,
-    cursor: active ? 'pointer' : 'not-allowed', opacity: active ? 1 : 0.5, minWidth: 32,
-  });
-
   return (
-    <div style={{
-      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-      marginTop: 14, padding: '10px 14px', background: 'var(--s2)',
-      border: '1px solid var(--border)', borderRadius: 10,
-      flexWrap: 'wrap', gap: 10,
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, color: 'var(--text-dim)' }}>
-        <span>Rows per page:</span>
-        <select
-          value={pageSize}
-          onChange={(e) => onPageSizeChange(Number(e.target.value))}
-          disabled={disabled}
-          style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '4px 8px', borderRadius: 6, fontSize: 12 }}
-        >
-          {DEAL_PAGE_SIZE_OPTIONS.map((n) => <option key={n} value={n}>{n}</option>)}
-        </select>
-        <span>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginTop: -8, padding: '0 4px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12.5, color: T.dim }}>
+        <span>Rows per page</span>
+        <div style={{ width: 84 }}>
+          <Select
+            value={pageSize}
+            onChange={(e) => onPageSizeChange(Number(e.target.value))}
+            disabled={disabled}
+            aria-label="Rows per page"
+            style={{ height: 30, fontSize: 12.5, padding: '0 8px', paddingRight: 28 }}
+          >
+            {DEAL_PAGE_SIZE_OPTIONS.map((n) => <option key={n} value={n}>{n}</option>)}
+          </Select>
+        </div>
+        <span style={{ fontFamily: T.mono, fontSize: 12, color: T.mute, fontVariantNumeric: 'tabular-nums' }}>
           {total === 0 ? 'No results' : `${start.toLocaleString()}–${end.toLocaleString()} of ${total.toLocaleString()}`}
         </span>
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <button type="button" onClick={() => onPageChange(1)} disabled={!canPrev} style={btn(canPrev)} title="First page">«</button>
-        <button type="button" onClick={() => onPageChange(currentPage - 1)} disabled={!canPrev} style={btn(canPrev)} title="Previous page">‹</button>
-        <span style={{ fontSize: 12, color: 'var(--text)', padding: '0 8px' }}>
-          Page <strong>{currentPage}</strong> of {totalPages}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+        <IconButton label="First page" onClick={() => onPageChange(1)} disabled={!canPrev}><ChevronFirst size={16} strokeWidth={1.6} /></IconButton>
+        <IconButton label="Previous page" onClick={() => onPageChange(currentPage - 1)} disabled={!canPrev}><ChevronLeft size={16} strokeWidth={1.6} /></IconButton>
+        <span style={{ fontFamily: T.mono, fontSize: 12, color: T.dim, padding: '0 10px', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+          {currentPage} / {totalPages}
         </span>
-        <button type="button" onClick={() => onPageChange(currentPage + 1)} disabled={!canNext} style={btn(canNext)} title="Next page">›</button>
-        <button type="button" onClick={() => onPageChange(totalPages)} disabled={!canNext} style={btn(canNext)} title="Last page">»</button>
+        <IconButton label="Next page" onClick={() => onPageChange(currentPage + 1)} disabled={!canNext}><ChevronRight size={16} strokeWidth={1.6} /></IconButton>
+        <IconButton label="Last page" onClick={() => onPageChange(totalPages)} disabled={!canNext}><ChevronLast size={16} strokeWidth={1.6} /></IconButton>
       </div>
     </div>
   );

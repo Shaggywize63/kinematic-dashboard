@@ -2,12 +2,14 @@
 import { useEffect, useState } from 'react';
 import { DndContext, useDroppable, useDraggable, type DragEndEvent, PointerSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { toast } from 'sonner';
+import { Hand } from 'lucide-react';
 import type { Deal, Stage } from '../../types/crm';
 import { crmDeals } from '../../lib/crmApi';
 import { useCrmKanbanStore } from '../../stores/crmKanbanStore';
 import DealCard from './DealCard';
 import LogoSpinner from '../shared/LogoSpinner';
 import { formatINR } from '../../lib/formatCurrency';
+import { T, cardStyle } from '../ui';
 
 function StageColumn({ stage, deals, showWeighted }: { stage: Stage; deals: Deal[]; showWeighted: boolean }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
@@ -22,9 +24,10 @@ function StageColumn({ stage, deals, showWeighted }: { stage: Stage; deals: Deal
       ref={setNodeRef}
       className="kanban-column"
       style={{
-        background: isOver ? 'rgba(123,97,255,0.08)' : 'var(--s3)',
-        border: '1px solid var(--border)',
-        borderRadius: 12,
+        ...cardStyle,
+        // Drop target: info wash + stronger border while a card hovers over it.
+        background: isOver ? T.infoWash : T.card,
+        borderColor: isOver ? T.info : T.border,
         padding: 10,
         minWidth: 260,
         maxWidth: 280,
@@ -33,16 +36,21 @@ function StageColumn({ stage, deals, showWeighted }: { stage: Stage; deals: Deal
         flexDirection: 'column',
         maxHeight: '70vh',
         scrollSnapAlign: 'start',
+        transition: 'background .12s ease, border-color .12s ease',
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, padding: '4px 6px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 10, padding: '4px 4px 8px', borderBottom: `1px solid ${T.border}` }}>
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: 0.5, wordBreak: 'break-word' }}>{stage.name}</div>
-          <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{deals.length} · {formatINR(total)}</div>
+          <div style={{ fontSize: 13.5, fontWeight: 600, color: T.text, wordBreak: 'break-word', lineHeight: 1.3 }}>{stage.name}</div>
+          <div style={{ fontFamily: T.mono, fontSize: 11.5, fontVariantNumeric: 'tabular-nums', color: T.mute, marginTop: 2 }}>{formatINR(total)}</div>
         </div>
+        <span style={{ fontFamily: T.mono, fontSize: 11.5, color: T.dim, background: T.raised, borderRadius: 999, padding: '1px 8px', flexShrink: 0, lineHeight: '18px' }}>{deals.length}</span>
       </div>
       <div style={{ overflowY: 'auto', flex: 1 }}>
         {deals.map((d) => <DraggableCard key={d.id} deal={d} />)}
+        {deals.length === 0 && (
+          <div style={{ padding: '18px 8px', textAlign: 'center', fontSize: 12.5, color: T.mute, border: `1px dashed ${T.border}`, borderRadius: T.radius.md }}>Drop a deal here</div>
+        )}
       </div>
     </div>
   );
@@ -119,13 +127,16 @@ export default function DealKanban({ stages, initialDeals, showWeighted = false 
 
   return (
     <DndContext sensors={sensors} onDragEnd={onDragEnd}>
+      {/* Hidden on desktop; globals.css shows it on phones / tablets where
+          the board stacks vertically. */}
       <div className="kanban-touch-hint" style={{
         display: 'none',
-        fontSize: 11, color: 'var(--text-dim)', padding: '6px 10px',
-        background: 'var(--s3)', border: '1px solid var(--border)',
-        borderRadius: 8, marginBottom: 8, textAlign: 'center',
+        fontSize: 12.5, color: T.dim, padding: '8px 12px',
+        background: T.raised, border: `1px solid ${T.border}`,
+        borderRadius: T.radius.md, marginBottom: 8, textAlign: 'center',
       }}>
-        💡 Long-press a card to drag it. Scroll down to see all stages.
+        <Hand size={14} strokeWidth={1.6} style={{ verticalAlign: '-2px', marginRight: 6 }} />
+        Long-press a card to drag it. Scroll down to see all stages.
       </div>
       <div style={{ position: 'relative' }}>
         <div

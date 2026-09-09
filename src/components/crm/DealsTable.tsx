@@ -1,5 +1,6 @@
 'use client';
 import Link from 'next/link';
+import { ArrowDown, ArrowUp, ChevronsUpDown, Pencil, Trash2 } from 'lucide-react';
 import type { Deal } from '../../types/crm';
 import StageBadge from './shared/StageBadge';
 import InlineOwnerAssign from './shared/InlineOwnerAssign';
@@ -7,6 +8,7 @@ import LogoSpinner from '../shared/LogoSpinner';
 import { formatINR } from '../../lib/formatCurrency';
 import { useAuth } from '../../hooks/useAuth';
 import { isTataTiscanActive } from '../../lib/clientFeatures';
+import { Badge, Button, EmptyState, T, cardStyle, type Tone } from '../ui';
 
 interface Props {
   deals: Deal[];
@@ -26,6 +28,14 @@ interface Props {
   onSort?: (key: string) => void;
 }
 
+// Table header cell — mono eyebrow per the design system.
+const TH: React.CSSProperties = {
+  padding: '12px 14px', textAlign: 'left', whiteSpace: 'nowrap',
+  fontFamily: T.mono, fontSize: 10.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: T.mute, fontWeight: 500,
+  borderBottom: `1px solid ${T.border}`,
+};
+const TD: React.CSSProperties = { padding: '12px 14px', fontSize: 13.5, color: T.text, borderBottom: `1px solid ${T.border}`, verticalAlign: 'middle' };
+
 // Clickable, server-side-sort header. Sorting happens on the backend via
 // onSort → parent refetch; this only renders label + asc/desc/idle arrow.
 function SortTh({ label, sortKey, sort, onSort, thStyle, align = 'left' }: {
@@ -39,19 +49,20 @@ function SortTh({ label, sortKey, sort, onSort, thStyle, align = 'left' }: {
   const th: React.CSSProperties = { ...thStyle, textAlign: align };
   if (!onSort) return <th style={th}>{label}</th>;
   const active = !!sort && sort.key === sortKey;
-  const arrow = active ? (sort!.order === 'asc' ? '▲' : '▼') : '⇅';
   return (
-    <th style={th}>
+    <th style={th} aria-sort={active ? (sort!.order === 'asc' ? 'ascending' : 'descending') : 'none'}>
       <span
         role="button"
         tabIndex={0}
         onClick={() => onSort(sortKey)}
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSort(sortKey); } }}
         title="Sort"
-        style={{ display: 'inline-flex', alignItems: 'center', gap: 5, cursor: 'pointer', userSelect: 'none', color: active ? 'var(--primary)' : 'inherit', justifyContent: align === 'right' ? 'flex-end' : 'flex-start' }}
+        style={{ display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'pointer', userSelect: 'none', color: active ? T.text : 'inherit', justifyContent: align === 'right' ? 'flex-end' : 'flex-start' }}
       >
         {label}
-        <span aria-hidden style={{ fontSize: 9, lineHeight: 1, opacity: active ? 1 : 0.4 }}>{arrow}</span>
+        <span aria-hidden style={{ display: 'inline-flex', opacity: active ? 1 : 0.5 }}>
+          {active ? (sort!.order === 'asc' ? <ArrowUp size={12} strokeWidth={1.8} /> : <ArrowDown size={12} strokeWidth={1.8} />) : <ChevronsUpDown size={12} strokeWidth={1.8} />}
+        </span>
       </span>
     </th>
   );
@@ -78,9 +89,11 @@ function volumeKgCell(d: Deal): string {
   return Number.isFinite(n) ? n.toLocaleString('en-IN') : '';
 }
 
+const STATUS_TONE: Record<string, Tone> = { open: 'info', won: 'ok', lost: 'red' };
+
 export default function DealsTable({ deals, loading, onAssign, onDelete, onEdit, selected, onToggle, onToggleAll, hiddenColumns, viewMode = 'table', sort, onSort }: Props) {
-  const td: React.CSSProperties = { padding: '12px 14px', fontSize: 13, color: 'var(--text)', borderBottom: '1px solid var(--border)' };
-  const th: React.CSSProperties = { padding: '10px 14px', fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', textAlign: 'left', borderBottom: '1px solid var(--border)', background: 'var(--s2)', fontWeight: 700, letterSpacing: 0.6 };
+  const td = TD;
+  const th = TH;
   const showSelection = !!onToggle && !!selected;
   const showActions = !!onDelete || !!onEdit;
   const allSelected = showSelection && deals.length > 0 && deals.every((d) => selected!.has(d.id));
@@ -105,46 +118,52 @@ export default function DealsTable({ deals, loading, onAssign, onDelete, onEdit,
   if (!hidden.has('owner'))      colCount += 1;
   if (showActions)               colCount += 1;
 
+  const num: React.CSSProperties = { ...td, fontFamily: T.mono, fontSize: 12.5, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' };
+
   return (
-    <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, overflow: 'hidden' }}>
+    <div style={{ ...cardStyle, overflow: 'hidden' }}>
       <div style={{ overflowX: 'auto' }}>
         <table className={tableClass} style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
               {showSelection && (
                 <th style={{ ...th, width: 40 }}>
-                  <input type="checkbox" checked={allSelected} onChange={onToggleAll} />
+                  <input type="checkbox" checked={allSelected} onChange={onToggleAll} aria-label="Select all deals" style={{ width: 15, height: 15, margin: 0, display: 'block' }} />
                 </th>
               )}
               <SortTh label="Name" sortKey="name" sort={sort} onSort={onSort} thStyle={th} />
               {/* Dealer shows dealer_name (stamped, not a real column) → non-sortable. */}
               {!hidden.has('dealer')     && <th style={th}>Dealer</th>}
-              {!hidden.has('amount')     && <SortTh label="Amount" sortKey="amount" sort={sort} onSort={onSort} thStyle={th} />}
+              {!hidden.has('amount')     && <SortTh label="Amount" sortKey="amount" sort={sort} onSort={onSort} thStyle={th} align="right" />}
               {/* Volume lives inside the custom_fields jsonb → non-sortable. */}
-              {!hidden.has('volume_kg')  && <th style={th}>Volume (kg)</th>}
+              {!hidden.has('volume_kg')  && <th style={{ ...th, textAlign: 'right' }}>Volume (kg)</th>}
               {/* Stage renders via a join (crm_deal_stages.name); the deals row
                   has only stage_id (a UUID), so it's left non-sortable. */}
               {!hidden.has('stage')      && <th style={th}>Stage</th>}
               {!hidden.has('status')     && <SortTh label="Status" sortKey="status" sort={sort} onSort={onSort} thStyle={th} />}
               {/* Close Date column → real column expected_close_date. */}
-              {!hidden.has('close_date') && <SortTh label="Close Date" sortKey="expected_close_date" sort={sort} onSort={onSort} thStyle={th} />}
+              {!hidden.has('close_date') && <SortTh label="Close date" sortKey="expected_close_date" sort={sort} onSort={onSort} thStyle={th} />}
               {/* Owner shows owner_name (stamped, not a real column) → non-sortable. */}
               {!hidden.has('owner')      && <th style={th}>Owner</th>}
-              {showActions               && <th style={{ ...th, textAlign: 'right' }}>Action</th>}
+              {showActions               && <th style={{ ...th, textAlign: 'right' }}><span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>Actions</span></th>}
             </tr>
           </thead>
           <tbody>
-            {loading && <tr><td colSpan={colCount} style={{ ...td, textAlign: 'center' }} data-label=""><div style={{ display: 'flex', justifyContent: 'center', padding: '24px 0' }}><LogoSpinner size={38} label="Loading deals…" /></div></td></tr>}
-            {!loading && deals.length === 0 && <tr><td colSpan={colCount} style={{ ...td, textAlign: 'center', color: 'var(--text-dim)' }} data-label="">No deals.</td></tr>}
+            {loading && <tr><td colSpan={colCount} style={{ ...td, textAlign: 'center', borderBottom: 0 }} data-label=""><div style={{ display: 'flex', justifyContent: 'center', padding: '24px 0' }}><LogoSpinner size={38} label="Loading deals…" /></div></td></tr>}
+            {!loading && deals.length === 0 && (
+              <tr><td colSpan={colCount} style={{ ...td, padding: 0, borderBottom: 0 }} data-label="">
+                <EmptyState title="No deals" description="Deals are created from a lead's Convert action. Change the pipeline, status or date range to see more." />
+              </td></tr>
+            )}
             {deals.map((d) => (
               <tr key={d.id}>
                 {showSelection && (
                   <td style={td} data-label="">
-                    <input type="checkbox" checked={selected!.has(d.id)} onChange={() => onToggle!(d.id)} />
+                    <input type="checkbox" checked={selected!.has(d.id)} onChange={() => onToggle!(d.id)} aria-label={`Select ${d.name}`} style={{ width: 15, height: 15, margin: 0, display: 'block' }} />
                   </td>
                 )}
                 <td style={td} data-label="Name">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
                     <Link href={`/dashboard/crm/deals/${d.id}`} className="km-entity-link" title="Open deal detail">{d.name}</Link>
                     {/* Always-visible inline-edit pencil so editing is
                         discoverable without scrolling to the Action column. */}
@@ -154,20 +173,22 @@ export default function DealsTable({ deals, loading, onAssign, onDelete, onEdit,
                         onClick={() => onEdit(d)}
                         title="Edit this deal"
                         aria-label="Edit deal"
-                        style={{ background: 'transparent', border: 'none', padding: 2, cursor: 'pointer', color: 'var(--primary)', lineHeight: 0, flexShrink: 0, opacity: 0.8 }}
+                        className="km-iconbtn"
+                        style={{ background: 'transparent', border: '1px solid transparent', padding: 0, width: 22, height: 22, borderRadius: 5, cursor: 'pointer', color: T.mute, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
                       >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+                        <Pencil size={13} strokeWidth={1.8} />
                       </button>
                     )}
                   </div>
+                  {d.account_name && <div style={{ fontSize: 12, color: T.dim, marginTop: 2 }}>{d.account_name}</div>}
                 </td>
-                {!hidden.has('dealer')     && <td style={td} data-label="Dealer">{d.dealer_name ?? '—'}</td>}
-                {!hidden.has('amount')     && <td style={td} data-label="Amount">{formatINR(d.amount)}</td>}
-                {!hidden.has('volume_kg')  && <td style={td} data-label="Volume (kg)">{volumeKgCell(d)}</td>}
+                {!hidden.has('dealer')     && <td style={{ ...td, color: d.dealer_name ? T.text : T.mute }} data-label="Dealer">{d.dealer_name ?? '—'}</td>}
+                {!hidden.has('amount')     && <td style={{ ...num, textAlign: 'right' }} data-label="Amount">{formatINR(d.amount)}</td>}
+                {!hidden.has('volume_kg')  && <td style={{ ...num, textAlign: 'right' }} data-label="Volume (kg)">{volumeKgCell(d)}</td>}
                 {!hidden.has('stage')      && <td style={td} data-label="Stage"><StageBadge name={d.stage_name} won={d.status === 'won'} lost={d.status === 'lost'} /></td>}
-                {!hidden.has('status')     && <td style={td} data-label="Status"><span style={{ textTransform: 'capitalize' }}>{d.status}</span></td>}
+                {!hidden.has('status')     && <td style={td} data-label="Status"><Badge tone={STATUS_TONE[d.status] ?? 'neutral'} dot style={{ textTransform: 'capitalize' }}>{d.status}</Badge></td>}
                 {!hidden.has('close_date') && (
-                  <td style={td} data-label="Close Date">
+                  <td style={{ ...num, color: T.dim }} data-label="Close date">
                     {(() => {
                       // For a won / lost deal, prefer actual_close_date
                       // (set by winDeal / loseDeal) so the column shows
@@ -176,7 +197,7 @@ export default function DealsTable({ deals, loading, onAssign, onDelete, onEdit,
                       const closed = (d.status === 'won' || d.status === 'lost')
                         ? (d.actual_close_date as string | null | undefined) ?? d.expected_close_date
                         : d.expected_close_date;
-                      return closed ? new Date(closed).toLocaleDateString() : '—';
+                      return closed ? new Date(closed).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
                     })()}
                   </td>
                 )}
@@ -190,36 +211,20 @@ export default function DealsTable({ deals, loading, onAssign, onDelete, onEdit,
                         recordLabel={d.name}
                       />
                     ) : (
-                      <span style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12 }}>{d.owner_name || 'Unassigned'}</span>
+                      <span style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, color: d.owner_name ? T.text : T.mute }}>{d.owner_name || 'Unassigned'}</span>
                     )}
                   </td>
                 )}
                 {showActions && (
-                  <td style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap' }} data-label="Action">
-                    <div style={{ display: 'inline-flex', gap: 6, alignItems: 'center', justifyContent: 'flex-end' }}>
+                  <td style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap' }} data-label="">
+                    <div style={{ display: 'inline-flex', gap: 4, alignItems: 'center', justifyContent: 'flex-end' }}>
                       {/* Inline edit — opens the edit modal in place so a rep
                           can fix one deal without leaving the list. */}
                       {onEdit && (
-                        <button
-                          type="button"
-                          onClick={() => onEdit(d)}
-                          title="Edit this deal"
-                          aria-label={`Edit ${d.name}`}
-                          style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
-                        >
-                          Edit
-                        </button>
+                        <Button size="sm" variant="ghost" onClick={() => onEdit(d)} title="Edit this deal" aria-label={`Edit ${d.name}`} icon={<Pencil size={14} strokeWidth={1.8} />}>Edit</Button>
                       )}
                       {onDelete && (
-                        <button
-                          type="button"
-                          onClick={() => onDelete(d.id)}
-                          title="Delete this deal"
-                          aria-label={`Delete ${d.name}`}
-                          style={{ background: 'transparent', border: '1px solid #ef4444', color: '#ef4444', padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
-                        >
-                          🗑 Delete
-                        </button>
+                        <Button size="sm" variant="ghost" onClick={() => onDelete(d.id)} title="Delete this deal" aria-label={`Delete ${d.name}`} icon={<Trash2 size={14} strokeWidth={1.8} />} style={{ color: T.red }}>Delete</Button>
                       )}
                     </div>
                   </td>

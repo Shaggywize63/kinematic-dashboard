@@ -1,14 +1,17 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
+import { useState, useEffect, useCallback, useRef, Suspense, type CSSProperties } from 'react';
 import { parseISO, isValid } from 'date-fns';
+import { CalendarDays, Check, Download, ExternalLink, Eye, Loader2, Pencil, Plus, RefreshCw, Search, Upload, UserX, X } from 'lucide-react';
 import api from '../../../lib/api';
 import SignedImage, { openSignedUrl } from '@/components/shared/SignedImage';
-import ConfirmModal from '../../../components/ConfirmModal';
+import Modal from '../../../components/crm/shared/Modal';
 import { useAuth } from '../../../hooks/useAuth';
 import { useClient } from '../../../context/ClientContext';
 import { useRealtimeAttendance } from '../../../hooks/useRealtimeAttendance';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
+import { usePageTitle } from '../../../lib/pageTitle';
+import { Avatar, Badge, Button, Card, EmptyState, Eyebrow, Field, IconButton, Input, PageHeader, Section, Segmented, Select, T, Textarea, useIsCompact, type Tone } from '../../../components/ui';
 
 /* ── DateRangePicker component ── */
 function DateRangePicker({ from, to, onChange }: { from: string; to: string; onChange: (f: string, t: string) => void }) {
@@ -24,28 +27,34 @@ function DateRangePicker({ from, to, onChange }: { from: string; to: string; onC
   const presets = [
     { l: 'Today', f: new Date(Date.now() + 5.5 * 3600000).toISOString().split('T')[0], t: new Date(Date.now() + 5.5 * 3600000).toISOString().split('T')[0] },
     { l: 'Yesterday', f: new Date(Date.now() + 5.5 * 3600000 - 86400000).toISOString().split('T')[0], t: new Date(Date.now() + 5.5 * 3600000 - 86400000).toISOString().split('T')[0] },
-    { l: 'Last 7 Days', f: new Date(Date.now() + 5.5 * 3600000 - 6 * 86400000).toISOString().split('T')[0], t: new Date(Date.now() + 5.5 * 3600000).toISOString().split('T')[0] },
-    { l: 'Last 30 Days', f: new Date(Date.now() + 5.5 * 3600000 - 29 * 86400000).toISOString().split('T')[0], t: new Date(Date.now() + 5.5 * 3600000).toISOString().split('T')[0] },
+    { l: 'Last 7 days', f: new Date(Date.now() + 5.5 * 3600000 - 6 * 86400000).toISOString().split('T')[0], t: new Date(Date.now() + 5.5 * 3600000).toISOString().split('T')[0] },
+    { l: 'Last 30 days', f: new Date(Date.now() + 5.5 * 3600000 - 29 * 86400000).toISOString().split('T')[0], t: new Date(Date.now() + 5.5 * 3600000).toISOString().split('T')[0] },
   ];
+
+  const label = from === to
+    ? new Date(from).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })
+    : `${new Date(from).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })} – ${new Date(to).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}`;
 
   return (
     <div ref={ref} style={{ position: 'relative' }}>
-      <button onClick={() => setOpen(!open)}
-        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 14px', background: C.s2, border: `1px solid ${C.border}`, borderRadius: 10, color: C.white, fontSize: 13, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
-        📅 {from === to ? new Date(from).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : `${new Date(from).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })} - ${new Date(to).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}`}
-      </button>
+      <Button onClick={() => setOpen(!open)} icon={<CalendarDays size={16} strokeWidth={1.6} />} style={{ height: 36 }} aria-expanded={open}>
+        <span style={{ fontFamily: T.mono, fontSize: 12.5, fontWeight: 500 }}>{label}</span>
+      </Button>
       {open && (
-        <div style={{ position: 'absolute', top: '110%', left: 0, zIndex: 600, background: C.s2, border: `1px solid ${C.border}`, borderRadius: 12, padding: 16, width: 280, boxShadow: '0 10px 40px rgba(0,0,0,0.5)' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
-            {presets.map(p => (
-              <button key={p.l} onClick={() => { onChange(p.f, p.t); setOpen(false); }}
-                style={{ padding: '7px 10px', background: 'transparent', border: 'none', color: C.gray, fontSize: 12, textAlign: 'left', cursor: 'pointer', borderRadius: 6 }}>{p.l}</button>
-            ))}
+        <div style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 600, background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: 12, width: 280, boxShadow: 'var(--shadow-pop)' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginBottom: 10 }}>
+            {presets.map(p => {
+              const on = p.f === from && p.t === to;
+              return (
+                <button key={p.l} type="button" onClick={() => { onChange(p.f, p.t); setOpen(false); }} className="km-navrow"
+                  style={{ height: 32, padding: '0 10px', background: on ? 'var(--s3)' : 'transparent', border: 'none', color: on ? T.text : T.dim, fontSize: 13.5, fontWeight: 500, textAlign: 'left', cursor: 'pointer', borderRadius: 6, fontFamily: 'inherit' }}>{p.l}</button>
+              );
+            })}
           </div>
-          <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 12 }}>
+          <div style={{ borderTop: `1px solid ${T.border}`, paddingTop: 12 }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-              <div><div style={{ fontSize: 10, color: C.grayd, marginBottom: 4 }}>FROM</div><input type="date" value={from} onChange={e => onChange(e.target.value, to)} style={{ width: '100%', background: C.s3, border: `1px solid ${C.border}`, borderRadius: 6, padding: '4px', color: '#fff', fontSize: 11 }} /></div>
-              <div><div style={{ fontSize: 10, color: C.grayd, marginBottom: 4 }}>TO</div><input type="date" value={to} onChange={e => onChange(from, e.target.value)} style={{ width: '100%', background: C.s3, border: `1px solid ${C.border}`, borderRadius: 6, padding: '4px', color: '#fff', fontSize: 11 }} /></div>
+              <Field label="From"><Input type="date" value={from} onChange={e => onChange(e.target.value, to)} style={{ fontSize: 12.5, padding: '0 8px' }} /></Field>
+              <Field label="To"><Input type="date" value={to} onChange={e => onChange(from, e.target.value)} style={{ fontSize: 12.5, padding: '0 8px' }} /></Field>
             </div>
           </div>
         </div>
@@ -53,18 +62,6 @@ function DateRangePicker({ from, to, onChange }: { from: string; to: string; onC
     </div>
   );
 }
-
-const C = {
-  bg: 'var(--bg)', s1: 'var(--s1)', s2: 'var(--s2)', s3: 'var(--s3)', s4: 'var(--s4)',
-  border: 'var(--border)', borderL: 'var(--border-l)',
-  white: 'var(--text)', gray: 'var(--text-dim)', grayd: 'var(--text-dim)', graydd: 'var(--text-dim)',
-  red: 'var(--primary)', redD: 'rgba(224,30,44,0.08)', redB: 'rgba(224,30,44,0.2)',
-  green: 'var(--green)', greenD: 'rgba(0,217,126,0.08)', greenB: 'rgba(0,217,126,0.2)',
-  blue: 'var(--accent)', blueD: 'rgba(62,158,255,0.10)',
-  yellow: '#FFB800', yellowD: 'rgba(255,184,0,0.08)',
-  purple: '#9B6EFF', purpleD: 'rgba(155,110,255,0.08)',
-  orange: '#FF7B35', orangeD: 'rgba(255,123,53,0.10)',
-};
 
 /* ── types ── */
 interface AttendanceRecord {
@@ -125,35 +122,14 @@ const BLANK: FormData = {
 };
 
 /* ── helpers ── */
-const Spinner = () => (
-  <div style={{ width: 15, height: 15, border: `2.5px solid ${C.border}`, borderTopColor: C.white, borderRadius: '50%', animation: 'kspin .65s linear infinite', flexShrink: 0 }} />
-);
+const Spinner = () => <Loader2 size={15} strokeWidth={1.8} style={{ animation: 'kspin .8s linear infinite', flexShrink: 0 }} />;
 
-const Label = ({ text, req }: { text: string; req?: boolean }) => (
-  <div style={{ fontSize: 11, fontWeight: 700, color: C.gray, letterSpacing: '0.7px', textTransform: 'uppercase' as const, marginBottom: 7 }}>
-    {text}{req && <span style={{ color: C.red }}> *</span>}
-  </div>
-);
-
-const baseInp: React.CSSProperties = {
-  width: '100%', background: C.s3, border: `1.5px solid ${C.border}`, color: C.white,
-  borderRadius: 11, padding: '10px 13px', fontSize: 13, outline: 'none',
-  fontFamily: "'DM Sans',sans-serif", transition: 'border-color .15s',
-};
-
-const Overlay = ({ onClose, children }: { onClose: () => void; children: React.ReactNode }) => (
-  <div onClick={e => { if (e.target === e.currentTarget) onClose(); }}
-    style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.78)', zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, backdropFilter: 'blur(6px)' }}>
-    {children}
-  </div>
-);
-
-const statusMeta: Record<string, { label: string; color: string; bg: string }> = {
-  checked_in:  { label: 'Checked In',  color: C.green,  bg: C.greenD  },
-  checked_out: { label: 'Checked Out', color: C.blue,   bg: C.blueD   },
-  absent:      { label: 'Absent',      color: C.red,    bg: C.redD    },
-  half_day:    { label: 'Half Day',    color: C.yellow, bg: C.yellowD },
-  on_leave:    { label: 'On Leave',    color: C.purple, bg: C.purpleD },
+const statusMeta: Record<string, { label: string; tone: Tone }> = {
+  checked_in:  { label: 'Checked in',  tone: 'ok' },
+  checked_out: { label: 'Checked out', tone: 'info' },
+  absent:      { label: 'Absent',      tone: 'red' },
+  half_day:    { label: 'Half day',    tone: 'warn' },
+  on_leave:    { label: 'On leave',    tone: 'neutral' },
 };
 
 const fmt = (iso?: string) => {
@@ -207,9 +183,27 @@ const parseDate = (iso?: string | null): number | null => {
   return isValid(d) ? d.getTime() : null;
 };
 
+/* ── table styles ── */
+const th: CSSProperties = { padding: '12px 14px', textAlign: 'left', fontFamily: T.mono, fontSize: 10.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: T.mute, fontWeight: 500, borderBottom: `1px solid ${T.border}`, whiteSpace: 'nowrap' };
+const td: CSSProperties = { padding: '12px 14px', fontSize: 13.5, color: T.text, borderBottom: `1px solid ${T.border}`, verticalAlign: 'middle' };
+const tdMono: CSSProperties = { ...td, fontFamily: T.mono, fontSize: 12.5, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' };
+
+/* ── selfie thumbnail with "open" affordance ── */
+const SelfieThumb = ({ src, alt, tone }: { src: string; alt: string; tone: 'ok' | 'info' }) => (
+  <div style={{ position: 'relative', flexShrink: 0 }}>
+    <SignedImage src={src} alt={alt} style={{ width: 40, height: 40, borderRadius: 8, objectFit: 'cover', border: `1px solid ${T.border}`, display: 'block' }} />
+    <a href={src} onClick={(e) => openSignedUrl(e, src)} target="_blank" rel="noreferrer" title={`Open ${alt.toLowerCase()} selfie`}
+       style={{ position: 'absolute', bottom: -4, right: -4, background: T.card, border: `1px solid ${T.border}`, borderRadius: '50%', width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', color: tone === 'ok' ? T.ok : T.info, textDecoration: 'none' }}>
+      <Eye size={10} strokeWidth={2} />
+    </a>
+  </div>
+);
+
 /* ═══════════════════════════════════════════════════ */
 /* ═══════════════════════════════════════════════════ */
 function AttendanceContent() {
+  usePageTitle('Attendance');
+  const narrow = useIsCompact(1100);
   const { user } = useAuth();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -312,10 +306,10 @@ function AttendanceContent() {
       setLoading(true);
       const f = fromDate.trim();
       const t = toDate.trim();
-      
+
       // UNIVERSAL PARAMETERS: from and to
       let qs = `from=${f}&to=${t}`;
-      
+
       if (selectedClientId && selectedClientId !== 'all') {
         qs += `&client_id=${selectedClientId}`;
       }
@@ -555,18 +549,18 @@ function AttendanceContent() {
     if (rec.total_hours != null) return rec.total_hours;
     const ci = parseDate(rec.checkin_at);
     if (ci == null) return null;
-    
+
     // Fallback to current time if checked_in but not yet checked_out
     let coStr = rec.checkout_at;
     if (!coStr && rec.status === 'checked_in') coStr = new Date().toISOString();
-    
+
     const co = parseDate(coStr);
     if (co == null) return null;
 
     // Midnight crossover: checkout is earlier than checkin
     let durationMs = co - ci;
     if (co < ci) durationMs += 24 * 60 * 60 * 1000;
-    
+
     const h = durationMs / 3_600_000 - (rec.break_minutes || 0) / 60;
     return Math.min(Math.max(h, 0), 24);
   };
@@ -790,8 +784,8 @@ function AttendanceContent() {
   /* 3. final shown list */
   const shown = currentRoleRecords.filter(r => {
     const s = search.toLowerCase();
-    const matchSearch = !s || 
-      (r.users?.name || '').toLowerCase().includes(s) || 
+    const matchSearch = !s ||
+      (r.users?.name || '').toLowerCase().includes(s) ||
       (r.users?.employee_id || '').toLowerCase().includes(s) ||
       (r.users?.zones?.name || '').toLowerCase().includes(s);
 
@@ -800,144 +794,111 @@ function AttendanceContent() {
   });
 
   const isRange = fromDate.trim() !== toDate.trim();
+  const rangeLabel = isRange ? `${fmtDate(fromDate)} – ${fmtDate(toDate)}` : fmtDate(fromDate);
+
+  /* ── selfie field (label + url input + upload button + preview) ── */
+  const selfieField = (field: 'checkin_selfie_url' | 'checkout_selfie_url', label: string) => {
+    const which = field === 'checkin_selfie_url' ? 'checkin' : 'checkout';
+    return (
+      <Field label={label} style={{ gridColumn: '1 / -1' }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <Input type="url" placeholder="Paste a URL or upload" value={form[field]} onChange={e => setF(field, e.target.value)} style={{ flex: 1 }} />
+          <label style={{ flexShrink: 0 }}>
+            <span className="km-btn" data-variant="secondary" style={{ height: 36, padding: '0 12px', borderRadius: 6, border: `1px solid ${T.borderStrong}`, background: T.card, color: T.text, fontSize: 13, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+              {uploading === which ? <Spinner /> : <Upload size={15} strokeWidth={1.6} />}
+              {uploading === which ? 'Uploading…' : 'Upload'}
+            </span>
+            <input type="file" accept="image/*" style={{ display: 'none' }}
+              onChange={e => { const f = e.target.files?.[0]; if (f) uploadSelfie(field, f); e.target.value = ''; }} />
+          </label>
+        </div>
+        {form[field] && (
+          <div style={{ position: 'relative', marginTop: 4 }}>
+            <SignedImage src={form[field]} alt={`${label} preview`}
+              style={{ width: '100%', maxHeight: 140, objectFit: 'cover', borderRadius: 8, border: `1px solid ${T.border}`, display: 'block' }}
+              onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+            <IconButton label="Remove selfie" onClick={() => setF(field, '')} style={{ position: 'absolute', top: 6, right: 6, width: 26, height: 26, background: T.card, border: `1px solid ${T.border}` }}>
+              <X size={14} strokeWidth={1.8} />
+            </IconButton>
+          </div>
+        )}
+      </Field>
+    );
+  };
 
   /* ── inline form fields (NOT a component — avoids remount-on-render bug) ── */
   const sharedFormFields = (
     <>
       {/* Date + Status */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
-        <div>
-          <Label text="Attendance Date" req />
-          <input className="kinp" type="date"
-            style={{ ...baseInp, opacity: editRec ? 0.6 : 1 }}
-            value={form.date} onChange={e => setF('date', e.target.value)}
-            readOnly={!!editRec} />
+      <Section eyebrow="Record" hint="Attendance date and the status to record." first={false}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px 16px' }}>
+          <Field label="Attendance date" required>
+            <Input type="date" value={form.date} onChange={e => setF('date', e.target.value)} readOnly={!!editRec} disabled={!!editRec} />
+          </Field>
+          <Field label="Status" required>
+            <Select value={form.status} onChange={e => setF('status', e.target.value)}>
+              <option value="checked_in">Checked in</option>
+              <option value="checked_out">Checked out</option>
+              <option value="on_leave">On leave</option>
+              <option value="absent">Absent</option>
+              <option value="half_day">Half day</option>
+            </Select>
+          </Field>
         </div>
-        <div>
-          <Label text="Status" req />
-          <select className="kinp" style={{ ...baseInp, appearance: 'none' as const }}
-            value={form.status} onChange={e => setF('status', e.target.value)}>
-            <option value="checked_in">Checked In</option>
-            <option value="checked_out">Checked Out</option>
-            <option value="on_leave">On Leave</option>
-            <option value="absent">Absent</option>
-            <option value="half_day">Half Day</option>
-          </select>
-        </div>
-      </div>
+      </Section>
 
       {/* Check-in section */}
-      <div style={{ background: 'rgba(0,217,126,0.04)', border: '1px solid rgba(0,217,126,0.14)', borderRadius: 10, padding: '14px 14px 10px', marginBottom: 12 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: C.green, letterSpacing: '0.8px', textTransform: 'uppercase' as const, marginBottom: 10 }}>Check-in Details</div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
-          <div>
-            <Label text="Check-in Date" />
-            <input className="kinp" type="date" style={baseInp}
-              value={form.checkin_date} onChange={e => setF('checkin_date', e.target.value)} />
-          </div>
-          <div>
-            <Label text="Check-in Time" />
-            <input className="kinp" type="time" style={baseInp}
-              value={form.checkin_at} onChange={e => setF('checkin_at', e.target.value)} />
-          </div>
+      <Section eyebrow="Check-in" hint="When and where the shift started.">
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px 16px' }}>
+          <Field label="Check-in date">
+            <Input type="date" value={form.checkin_date} onChange={e => setF('checkin_date', e.target.value)} />
+          </Field>
+          <Field label="Check-in time">
+            <Input type="time" value={form.checkin_at} onChange={e => setF('checkin_at', e.target.value)} />
+          </Field>
+          {selfieField('checkin_selfie_url', 'Check-in selfie')}
+          <Field label="Latitude" hint="Optional">
+            <Input type="number" step="any" placeholder="19.0760" value={form.checkin_lat} onChange={e => setF('checkin_lat', e.target.value)} style={{ fontFamily: T.mono, fontSize: 13 }} />
+          </Field>
+          <Field label="Longitude" hint="Optional">
+            <Input type="number" step="any" placeholder="72.8777" value={form.checkin_lng} onChange={e => setF('checkin_lng', e.target.value)} style={{ fontFamily: T.mono, fontSize: 13 }} />
+          </Field>
         </div>
-        <Label text="Check-in Selfie" />
-        <div style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
-          <input className="kinp" type="url" style={{ ...baseInp, flex: 1, marginBottom: 0 }}
-            placeholder="Paste URL or upload →"
-            value={form.checkin_selfie_url} onChange={e => setF('checkin_selfie_url', e.target.value)} />
-          <label style={{ flexShrink: 0, padding: '0 14px', height: 38, background: C.s3, border: `1px solid ${C.border}`, borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.gray, whiteSpace: 'nowrap' as const }}>
-            {uploading === 'checkin' ? '⏳' : '📷 Upload'}
-            <input type="file" accept="image/*" style={{ display: 'none' }}
-              onChange={e => { const f = e.target.files?.[0]; if (f) uploadSelfie('checkin_selfie_url', f); e.target.value = ''; }} />
-          </label>
-        </div>
-        {form.checkin_selfie_url && (
-          <div style={{ marginBottom: 10, position: 'relative' }}>
-            <SignedImage src={form.checkin_selfie_url} alt="Check-in selfie preview"
-              style={{ width: '100%', maxHeight: 140, objectFit: 'cover', borderRadius: 8, border: `1px solid ${C.green}40` }}
-              onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-            <button onClick={() => setF('checkin_selfie_url', '')}
-              style={{ position: 'absolute', top: 6, right: 6, background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: '50%', width: 22, height: 22, color: '#fff', cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
-          </div>
-        )}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          <div>
-            <Label text="Lat (opt)" />
-            <input className="kinp" type="number" step="any" style={baseInp} placeholder="19.0760"
-              value={form.checkin_lat} onChange={e => setF('checkin_lat', e.target.value)} />
-          </div>
-          <div>
-            <Label text="Lng (opt)" />
-            <input className="kinp" type="number" step="any" style={baseInp} placeholder="72.8777"
-              value={form.checkin_lng} onChange={e => setF('checkin_lng', e.target.value)} />
-          </div>
-        </div>
-      </div>
+      </Section>
 
       {/* Check-out section */}
-      <div style={{ background: 'rgba(62,158,255,0.04)', border: '1px solid rgba(62,158,255,0.14)', borderRadius: 10, padding: '14px 14px 10px', marginBottom: 12 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: C.blue, letterSpacing: '0.8px', textTransform: 'uppercase' as const, marginBottom: 10 }}>Check-out Details</div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
-          <div>
-            <Label text="Check-out Date" />
-            <input className="kinp" type="date" style={baseInp}
-              value={form.checkout_date} onChange={e => setF('checkout_date', e.target.value)} />
-          </div>
-          <div>
-            <Label text="Check-out Time" />
-            <input className="kinp" type="time" style={baseInp}
-              value={form.checkout_at} onChange={e => setF('checkout_at', e.target.value)} />
-          </div>
+      <Section eyebrow="Check-out" hint="When and where the shift ended.">
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px 16px' }}>
+          <Field label="Check-out date">
+            <Input type="date" value={form.checkout_date} onChange={e => setF('checkout_date', e.target.value)} />
+          </Field>
+          <Field label="Check-out time">
+            <Input type="time" value={form.checkout_at} onChange={e => setF('checkout_at', e.target.value)} />
+          </Field>
+          {selfieField('checkout_selfie_url', 'Check-out selfie')}
+          <Field label="Latitude" hint="Optional">
+            <Input type="number" step="any" placeholder="19.0760" value={form.checkout_lat} onChange={e => setF('checkout_lat', e.target.value)} style={{ fontFamily: T.mono, fontSize: 13 }} />
+          </Field>
+          <Field label="Longitude" hint="Optional">
+            <Input type="number" step="any" placeholder="72.8777" value={form.checkout_lng} onChange={e => setF('checkout_lng', e.target.value)} style={{ fontFamily: T.mono, fontSize: 13 }} />
+          </Field>
         </div>
-        <Label text="Check-out Selfie" />
-        <div style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
-          <input className="kinp" type="url" style={{ ...baseInp, flex: 1, marginBottom: 0 }}
-            placeholder="Paste URL or upload →"
-            value={form.checkout_selfie_url} onChange={e => setF('checkout_selfie_url', e.target.value)} />
-          <label style={{ flexShrink: 0, padding: '0 14px', height: 38, background: C.s3, border: `1px solid ${C.border}`, borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.gray, whiteSpace: 'nowrap' as const }}>
-            {uploading === 'checkout' ? '⏳' : '📷 Upload'}
-            <input type="file" accept="image/*" style={{ display: 'none' }}
-              onChange={e => { const f = e.target.files?.[0]; if (f) uploadSelfie('checkout_selfie_url', f); e.target.value = ''; }} />
-          </label>
-        </div>
-        {form.checkout_selfie_url && (
-          <div style={{ marginBottom: 10, position: 'relative' }}>
-            <SignedImage src={form.checkout_selfie_url} alt="Check-out selfie preview"
-              style={{ width: '100%', maxHeight: 140, objectFit: 'cover', borderRadius: 8, border: `1px solid ${C.blue}40` }}
-              onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-            <button onClick={() => setF('checkout_selfie_url', '')}
-              style={{ position: 'absolute', top: 6, right: 6, background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: '50%', width: 22, height: 22, color: '#fff', cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
-          </div>
-        )}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          <div>
-            <Label text="Lat (opt)" />
-            <input className="kinp" type="number" step="any" style={baseInp} placeholder="19.0760"
-              value={form.checkout_lat} onChange={e => setF('checkout_lat', e.target.value)} />
-          </div>
-          <div>
-            <Label text="Lng (opt)" />
-            <input className="kinp" type="number" step="any" style={baseInp} placeholder="72.8777"
-              value={form.checkout_lng} onChange={e => setF('checkout_lng', e.target.value)} />
-          </div>
-        </div>
-      </div>
+      </Section>
 
       {/* Notes + Reason */}
-      <Label text="Notes (optional)" />
-      <input className="kinp" type="text" style={{ ...baseInp, marginBottom: 12 }}
-        placeholder="Any notes for this record"
-        value={form.notes} onChange={e => setF('notes', e.target.value)} />
-
-      <Label text="Override Reason" />
-      <textarea className="kinp" rows={2} style={{ ...baseInp, resize: 'none' as const, marginBottom: 6 }}
-        placeholder="Why is this being set manually? (optional)"
-        value={form.override_reason} onChange={e => setF('override_reason', e.target.value)} />
-      <div style={{ fontSize: 11, color: C.grayd, marginBottom: 16 }}>
-        If left blank, &quot;Manual override by admin&quot; will be recorded.
-      </div>
+      <Section eyebrow="Notes" hint="Why this record is being set by hand." style={{ paddingBottom: 0 }}>
+        <Field label="Notes" hint="Optional">
+          <Input type="text" placeholder="Any notes for this record" value={form.notes} onChange={e => setF('notes', e.target.value)} />
+        </Field>
+        <Field label="Override reason" hint='If left blank, "Manual override by admin" will be recorded.'>
+          <Textarea rows={2} placeholder="Why is this being set manually? (optional)" value={form.override_reason} onChange={e => setF('override_reason', e.target.value)} style={{ minHeight: 64 }} />
+        </Field>
+      </Section>
     </>
+  );
+
+  const errorBox = (msg: string) => (
+    <div role="alert" style={{ background: T.redWash, borderRadius: 8, padding: '10px 12px', fontSize: 13, color: T.red, marginBottom: 16 }}>{msg}</div>
   );
 
   /* ══════════════════════════ RENDER ══════════════════════════ */
@@ -946,39 +907,47 @@ function AttendanceContent() {
       <style dangerouslySetInnerHTML={{ __html: `
         @keyframes kspin { to { transform: rotate(360deg); } }
         @keyframes kfade { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
-        .kcard { transition: background .14s, border-color .14s; }
-        .kcard:hover { background: ${C.s3} !important; border-color: ${C.borderL} !important; }
-        .kinp:focus { border-color: ${C.blue} !important; }
-        .kbtn { transition: opacity .13s, transform .13s; cursor: pointer; }
-        .kbtn:hover { opacity: .82; }
-        .kbtn:active { transform: scale(.96); }
       ` }} />
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 22, animation: 'kfade .3s ease', color: C.white }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 20, animation: 'kfade .3s ease' }}>
+        <PageHeader
+          title="Attendance"
+          description={<>Who&apos;s in, out, on leave or absent for <span style={{ fontFamily: T.mono, fontSize: 12.5 }}>{rangeLabel}</span> — updates live every 15 s.</>}
+          actions={
+            <>
+              <IconButton label="Refresh" onClick={load}><RefreshCw size={16} strokeWidth={1.6} style={loading ? { animation: 'kspin 1s linear infinite' } : undefined} /></IconButton>
+              <Button onClick={() => { setExpErr(''); setShowExport(true); }} icon={<Download size={16} strokeWidth={1.6} />}>Export</Button>
+              <Button variant="primary" onClick={() => { setForm(BLANK); setFErr(''); setShowAdd(true); }} icon={<Plus size={16} strokeWidth={1.8} />}>Add override</Button>
+            </>
+          }
+          compact={narrow}
+        />
 
         {/* error banner */}
         {err && (
-          <div style={{ background: C.redD, border: `1px solid ${C.redB}`, borderRadius: 12, padding: '11px 16px', fontSize: 13, color: C.red, display: 'flex', gap: 9, alignItems: 'center' }}>
-            ⚠ {err}
-            <button onClick={() => setErr('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: C.red, cursor: 'pointer', fontSize: 16 }}>✕</button>
+          <div role="alert" style={{ background: T.redWash, borderRadius: 8, padding: '10px 14px', fontSize: 13, color: T.red, display: 'flex', gap: 10, alignItems: 'center' }}>
+            <span style={{ flex: 1 }}>{err}</span>
+            <IconButton label="Dismiss" onClick={() => setErr('')} style={{ color: T.red, width: 26, height: 26 }}><X size={14} strokeWidth={1.8} /></IconButton>
           </div>
         )}
 
         {/* ── stat cards ── */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6,1fr)', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: narrow ? 'repeat(3, minmax(0, 1fr))' : 'repeat(6, minmax(0, 1fr))', gap: 12 }}>
           {[
-            { l: 'Total',       v: stats.total,   c: C.blue,   },
-            { l: 'Checked In',  v: stats.in,      c: C.green,  },
-            { l: 'Checked Out', v: stats.out,     c: C.blue,   },
-            { l: 'On Leave',    v: stats.onLeave, c: C.purple, },
-            { l: 'Absent',      v: stats.absent,  c: C.red,    },
-            { l: 'Half Day',    v: stats.half,    c: C.yellow, },
+            { l: 'Total',       v: stats.total,   c: undefined },
+            { l: 'Checked in',  v: stats.in,      c: T.ok },
+            { l: 'Checked out', v: stats.out,     c: T.info },
+            { l: 'On leave',    v: stats.onLeave, c: T.mute },
+            { l: 'Absent',      v: stats.absent,  c: T.red },
+            { l: 'Half day',    v: stats.half,    c: T.warn },
           ].map(s => (
-            <div key={s.l} style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 16, padding: '16px 18px', position: 'relative', overflow: 'hidden' }}>
-              <div style={{ position: 'absolute', top: 0, left: 0, bottom: 0, width: 3, borderRadius: '3px 0 0 3px', background: s.c, opacity: .55 }} />
-              <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 30, fontWeight: 800, color: s.c, lineHeight: 1 }}>{s.v}</div>
-              <div style={{ fontSize: 11, color: C.gray, marginTop: 5, fontWeight: 600 }}>{s.l}</div>
-            </div>
+            <Card key={s.l} padding={16}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                {s.c && <span style={{ width: 6, height: 6, borderRadius: 999, background: s.c, flexShrink: 0 }} />}
+                <Eyebrow>{s.l}</Eyebrow>
+              </div>
+              <div style={{ fontFamily: T.heading, fontSize: 26, fontWeight: 700, letterSpacing: '-0.01em', color: T.text, lineHeight: 1.1, marginTop: 8, fontVariantNumeric: 'tabular-nums' }}>{s.v}</div>
+            </Card>
           ))}
         </div>
 
@@ -1000,547 +969,422 @@ function AttendanceContent() {
           const onTimePct = present ? Math.round((onTime / present) * 100) : 0;
           const fmtH = (h: number) => `${Math.floor(h)}h ${Math.round((h % 1) * 60)}m`;
           const metrics = [
-            { l: 'Attendance Rate', v: `${attendanceRate}%`,        c: C.green },
-            { l: 'Avg Hours / Day', v: fmtH(avgHours),              c: C.blue },
-            { l: 'On-time Check-ins', v: `${onTimePct}%`,           c: C.purple },
-            { l: 'Total Hours',     v: fmtH(totalHours),            c: C.yellow },
+            { l: 'Attendance rate',   v: `${attendanceRate}%` },
+            { l: 'Avg hours / day',   v: fmtH(avgHours) },
+            { l: 'On-time check-ins', v: `${onTimePct}%` },
+            { l: 'Total hours',       v: fmtH(totalHours) },
           ];
           return (
-            <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 16, padding: '16px 18px' }}>
-              <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 14, fontWeight: 800, color: C.white, marginBottom: 14 }}>Attendance Analysis</div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
+            <Card padding={16}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 14 }}>
+                <div style={{ fontFamily: T.heading, fontSize: 15, fontWeight: 700, letterSpacing: '-0.01em', color: T.text }}>Attendance analysis</div>
+                <div style={{ fontSize: 12.5, color: T.dim }}>Derived from every record loaded for {rangeLabel}; approved leave is excluded from the rate.</div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: narrow ? 'repeat(2, minmax(0, 1fr))' : 'repeat(4, minmax(0, 1fr))', gap: 12 }}>
                 {metrics.map(m => (
-                  <div key={m.l}>
-                    <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 24, fontWeight: 800, color: m.c, lineHeight: 1 }}>{m.v}</div>
-                    <div style={{ fontSize: 11, color: C.gray, marginTop: 5, fontWeight: 600 }}>{m.l}</div>
+                  <div key={m.l} style={{ background: T.raised, borderRadius: 8, padding: '12px 14px' }}>
+                    <Eyebrow>{m.l}</Eyebrow>
+                    <div style={{ fontFamily: T.heading, fontSize: 22, fontWeight: 700, letterSpacing: '-0.01em', color: T.text, lineHeight: 1.1, marginTop: 6, fontVariantNumeric: 'tabular-nums' }}>{m.v}</div>
                   </div>
                 ))}
               </div>
-            </div>
+            </Card>
           );
         })()}
 
-        {/* ── Role Tabs ── */}
-        <div style={{ display: 'flex', gap: 10, borderBottom: `1px solid ${C.border}`, paddingBottom: 10 }}>
-          <button
-            onClick={() => setRoleFilter('executive')}
-            style={{
-              padding: '8px 16px', background: roleFilter === 'executive' ? C.s3 : 'transparent',
-              border: `1px solid ${roleFilter === 'executive' ? C.border : 'transparent'}`,
-              borderRadius: 10, color: roleFilter === 'executive' ? C.white : C.gray,
-              fontSize: 14, fontWeight: 700, fontFamily: "'DM Sans',sans-serif", cursor: 'pointer', transition: 'all 0.2s'
-            }}
-          >
-            Field Executives
-          </button>
-          <button
-            onClick={() => setRoleFilter('supervisor')}
-            style={{
-              padding: '8px 16px', background: roleFilter === 'supervisor' ? C.s3 : 'transparent',
-              border: `1px solid ${roleFilter === 'supervisor' ? C.border : 'transparent'}`,
-              borderRadius: 10, color: roleFilter === 'supervisor' ? C.white : C.gray,
-              fontSize: 14, fontWeight: 700, fontFamily: "'DM Sans',sans-serif", cursor: 'pointer', transition: 'all 0.2s'
-            }}
-          >
-            Supervisors
-          </button>
-        </div>
-
         {/* ── toolbar ── */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-
-          {/* Row 1: date + search + action buttons */}
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-
-            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-               <DateRangePicker from={fromDate} to={toDate} onChange={(f,t) => { setFrom(f); setTo(t); }} />
-            </div>
-
-            {/* search */}
-            <div style={{ flex: 1, position: 'relative', minWidth: 180 }}>
-              <svg style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', opacity: .3 }}
-                width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round">
-                <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-              </svg>
-              <input className="kinp" value={search} onChange={e => setSearch(e.target.value)}
-                placeholder="Search name, ID or zone…"
-                style={{ ...baseInp, paddingLeft: 34, borderRadius: 10 }} />
-            </div>
-
-            {/* right-side action buttons — always visible */}
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
-              {/* export */}
-              <button className="kbtn" onClick={() => { setExpErr(''); setShowExport(true); }}
-                style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 16px', background: C.s2, border: `1px solid ${C.green}50`, borderRadius: 10, color: C.green, fontSize: 13, fontWeight: 700, fontFamily: "'DM Sans',sans-serif", whiteSpace: 'nowrap' as const, boxShadow: '0 2px 12px rgba(0,217,126,0.12)' }}>
-                <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.3} strokeLinecap="round">
-                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-                </svg>
-                DOWNLOAD DATA
-              </button>
-
-              {/* add override */}
-              <button className="kbtn" onClick={() => { setForm(BLANK); setFErr(''); setShowAdd(true); }}
-                style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 16px', background: C.red, border: 'none', borderRadius: 10, color: '#fff', fontSize: 13, fontWeight: 700, fontFamily: "'DM Sans',sans-serif", boxShadow: '0 4px 18px rgba(224,30,44,0.28)', whiteSpace: 'nowrap' as const }}>
-                <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.8} strokeLinecap="round">
-                  <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-                </svg>
-                Add Override
-              </button>
-
-              <button className="kbtn" onClick={load}
-                style={{ padding: '9px 12px', background: C.s2, border: `1px solid ${C.border}`, color: C.gray, borderRadius: 10, fontSize: 13, fontFamily: "'DM Sans',sans-serif" }}>
-                ↻
-              </button>
-            </div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <Segmented
+            value={roleFilter}
+            onChange={setRoleFilter}
+            options={[{ value: 'executive', label: 'Field executives' }, { value: 'supervisor', label: 'Supervisors' }]}
+          />
+          <DateRangePicker from={fromDate} to={toDate} onChange={(f,t) => { setFrom(f); setTo(t); }} />
+          <div style={{ flex: 1, position: 'relative', minWidth: narrow ? '100%' : 220 }}>
+            <Search size={15} strokeWidth={1.6} style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: T.mute, pointerEvents: 'none' }} />
+            <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name, ID or zone…" style={{ paddingLeft: 34 }} aria-label="Search attendance" />
           </div>
-
-          {/* Row 2: status filter pills */}
-          <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
-            {(['all', 'checked_in', 'checked_out', 'on_leave', 'absent', 'half_day'] as const).map(f => (
-              <button key={f} className="kbtn" onClick={() => setSF(f)}
-                style={{ padding: '7px 14px', borderRadius: 9, border: `1px solid ${statusFilter === f ? C.red : C.border}`, fontSize: 12, fontWeight: 600, fontFamily: "'DM Sans',sans-serif", whiteSpace: 'nowrap' as const, background: statusFilter === f ? C.red : C.s2, color: statusFilter === f ? '#fff' : C.gray, transition: 'all .15s' }}>
-                {f === 'all' ? 'All' : f === 'checked_in' ? '● Checked In' : f === 'checked_out' ? '✓ Checked Out' : f === 'on_leave' ? '🌴 On Leave' : f === 'half_day' ? '⚠ Half Day' : '✕ Absent'}
-              </button>
-            ))}
-            <span style={{ marginLeft: 'auto', fontSize: 12, color: C.grayd, alignSelf: 'center', fontWeight: 600 }}>
-              {shown.length} of {currentRoleRecords.length} records
-            </span>
+          <div style={{ width: narrow ? '100%' : 170 }}>
+            <Select value={statusFilter} onChange={e => setSF(e.target.value)} aria-label="Filter by status">
+              <option value="all">All statuses</option>
+              <option value="checked_in">Checked in</option>
+              <option value="checked_out">Checked out</option>
+              <option value="on_leave">On leave</option>
+              <option value="absent">Absent</option>
+              <option value="half_day">Half day</option>
+            </Select>
           </div>
+          <span style={{ fontFamily: T.mono, fontSize: 11.5, color: T.mute, whiteSpace: 'nowrap' }}>
+            {shown.length} / {currentRoleRecords.length}
+          </span>
         </div>
 
         {/* ── table ── */}
-        <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 18, overflow: 'hidden' }}>
-
-          {/* table header */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: !isRange ? '2fr 1.2fr 1fr 1fr 1fr 1fr 1.2fr 80px' : '1.8fr 1.1fr 1fr 0.8fr 0.9fr 1fr 0.9fr 1fr 80px',
-            gap: 10, padding: '11px 20px', borderBottom: `1px solid ${C.border}`, background: C.s3
-          }}>
-            {(!isRange
-              ? ['Executive', 'Status', 'Selfie', 'Check-in', 'Check-out', 'Hours', 'Zone', 'Actions']
-              : ['Executive', 'Date', 'Status', 'Selfie', 'Check-in', 'Check-out', 'Hours', 'Zone', 'Actions']
-            ).map(h => (
-              <div key={h} style={{ fontSize: 11, fontWeight: 700, color: C.grayd, letterSpacing: '0.7px', textTransform: 'uppercase' as const }}>{h}</div>
-            ))}
-          </div>
-
-          {loading ? (
-            <div style={{ padding: 50, textAlign: 'center', color: C.grayd, fontSize: 14 }}>Loading…</div>
-          ) : shown.length === 0 ? (
-            <div style={{ padding: 50, textAlign: 'center', color: C.grayd, fontSize: 14 }}>
-              {currentRoleRecords.length === 0 ? `No attendance records for ${isRange ? `${fmtDate(fromDate)} - ${fmtDate(toDate)}` : fmtDate(fromDate)}` : 'No results match your filters.'}
-            </div>
-          ) : (
-            <div>
-              {shown.map((r, i) => {
-                const sm = statusMeta[r.status] || statusMeta.absent;
-                return (
-                  <div key={r.id || `${r.user_id}_${r.date || r.checkin_at || i}`} className="kcard" onClick={() => setDetail(r)}
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: !isRange ? '2fr 1.2fr 1fr 1fr 1fr 1fr 1.2fr 80px' : '1.8fr 1.1fr 1fr 0.8fr 0.9fr 1fr 0.9fr 1fr 80px',
-                      gap: 10, padding: '13px 20px', borderBottom: i < shown.length - 1 ? `1px solid ${C.border}` : 'none', cursor: 'pointer', alignItems: 'center', background: C.s2
-                    }}>
-
-                    {/* name */}
-                    <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                      <div style={{ width: 34, height: 34, borderRadius: 10, background: C.blueD, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 14, color: C.blue, flexShrink: 0 }}>
-                        {r.users?.name?.[0] || '?'}
-                      </div>
-                      <div style={{ overflow: 'hidden' }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: C.white, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{r.users?.name || r.user_id.slice(0, 8)}</div>
-                        <div style={{ fontSize: 11, color: C.grayd }}>{r.users?.role || ''}</div>
-                      </div>
+        <Card padding={0} style={{ overflow: 'hidden' }}>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: isRange ? 980 : 880 }}>
+              <thead>
+                <tr>
+                  <th style={th}>Executive</th>
+                  {isRange && <th style={th}>Date</th>}
+                  <th style={th}>Status</th>
+                  <th style={th}>Selfie</th>
+                  <th style={th}>Check-in</th>
+                  <th style={th}>Check-out</th>
+                  <th style={{ ...th, textAlign: 'right' }}>Hours</th>
+                  <th style={th}>Zone</th>
+                  <th style={{ ...th, textAlign: 'right' }} />
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr><td colSpan={9} style={{ ...td, borderBottom: 0, padding: 0 }}>
+                    <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                      {[0, 1, 2, 3].map((i) => (
+                        <div key={i} style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                          <div style={{ width: 32, height: 32, borderRadius: 999, background: 'var(--s3)' }} />
+                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            <div style={{ height: 10, width: `${35 + (i * 13) % 30}%`, borderRadius: 5, background: 'var(--s3)' }} />
+                            <div style={{ height: 8, width: `${20 + (i * 17) % 25}%`, borderRadius: 4, background: 'var(--s3)', opacity: 0.7 }} />
+                          </div>
+                        </div>
+                      ))}
                     </div>
+                  </td></tr>
+                ) : shown.length === 0 ? (
+                  <tr><td colSpan={9} style={{ ...td, borderBottom: 0, padding: 0 }}>
+                    <EmptyState
+                      icon={<CalendarDays size={20} strokeWidth={1.6} />}
+                      title={currentRoleRecords.length === 0 ? `No attendance records for ${rangeLabel}` : 'No results match your filters'}
+                      description={currentRoleRecords.length === 0 ? 'Records appear here as soon as the team checks in from the app.' : 'Try another status or clear the search.'}
+                      action={currentRoleRecords.length > 0 ? <Button size="sm" onClick={() => { setSearch(''); setSF('all'); }}>Clear filters</Button> : undefined}
+                    />
+                  </td></tr>
+                ) : shown.map((r, i) => {
+                  const sm = statusMeta[r.status] || statusMeta.absent;
+                  const last = i === shown.length - 1;
+                  const rowTd = last ? { ...td, borderBottom: 0 } : td;
+                  const rowMono = last ? { ...tdMono, borderBottom: 0 } : tdMono;
+                  const hrs = calcHours(r);
+                  return (
+                    <tr key={r.id || `${r.user_id}_${r.date || r.checkin_at || i}`} data-clickable="true" onClick={() => setDetail(r)}>
+                      {/* name */}
+                      <td style={rowTd}>
+                        <div style={{ display: 'flex', gap: 10, alignItems: 'center', minWidth: 0 }}>
+                          <Avatar name={r.users?.name || '?'} size={32} />
+                          <div style={{ overflow: 'hidden', minWidth: 0 }}>
+                            <div style={{ fontWeight: 500, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{r.users?.name || r.user_id.slice(0, 8)}</div>
+                            <div style={{ fontSize: 12, color: T.mute, marginTop: 1, textTransform: 'capitalize' }}>{(r.users?.role || '').replace(/[_-]/g, ' ')}{r.users?.employee_id ? <> · <span style={{ fontFamily: T.mono }}>{r.users.employee_id}</span></> : null}</div>
+                          </div>
+                        </div>
+                      </td>
 
-                    {/* date if range */}
-                    {isRange && (
-                      <div style={{ fontSize: 12, fontWeight: 600, color: C.gray }}>
-                        {fmtDate(r.date || toISTDate(r.checkin_at))}
-                      </div>
-                    )}
-
-                    {/* status */}
-                    <span title={JSON.stringify(r, null, 2)} style={{ fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 20, display: 'inline-flex', alignItems: 'center', gap: 5, background: sm.bg, color: sm.color, width: 'fit-content', cursor: 'help' }}>
-                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: sm.color, flexShrink: 0 }} />
-                      {sm.label}
-                    </span>
-
-                    {/* selfie preview */}
-                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                      {/* Face-recognition verdict (module face_attendance). */}
-                      {r.checkin_face_verified != null && (
-                        <span title={r.checkin_face_score != null ? `On-device face match: ${Math.round(r.checkin_face_score * 100)}%` : (r.checkin_face_verified ? 'Face verified' : 'Face not matched')}
-                          style={{ fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 6, whiteSpace: 'nowrap', flexShrink: 0,
-                            color: r.checkin_face_verified ? C.green : C.yellow,
-                            background: r.checkin_face_verified ? C.greenD : C.yellowD,
-                            border: `1px solid ${(r.checkin_face_verified ? C.green : C.yellow)}40` }}>
-                          {r.checkin_face_verified ? '✓ Face' : 'Face ?'}
-                        </span>
+                      {/* date if range */}
+                      {isRange && (
+                        <td style={rowMono}>{fmtDate(r.date || toISTDate(r.checkin_at))}</td>
                       )}
-                      {r.checkin_selfie_url ? (
-                        <div style={{ position: 'relative' }}>
-                          <SignedImage src={r.checkin_selfie_url} alt="In" style={{ width: 40, height: 40, borderRadius: 8, objectFit: 'cover', border: `1px solid ${C.green}40` }} />
-                          <a href={r.checkin_selfie_url} onClick={(e) => openSignedUrl(e, r.checkin_selfie_url)} target="_blank" rel="noreferrer" 
-                             style={{ position: 'absolute', bottom: -2, right: -2, background: C.s3, border: `1px solid ${C.border}`, borderRadius: '50%', width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, textDecoration: 'none' }}>
-                            👁️
-                          </a>
+
+                      {/* status */}
+                      <td style={rowTd}>
+                        <span title={JSON.stringify(r, null, 2)} style={{ cursor: 'help', display: 'inline-flex' }}>
+                          <Badge tone={sm.tone} dot>{sm.label}</Badge>
+                        </span>
+                      </td>
+
+                      {/* selfie preview */}
+                      <td style={rowTd}>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                          {/* Face-recognition verdict (module face_attendance). */}
+                          {r.checkin_face_verified != null && (
+                            <span title={r.checkin_face_score != null ? `On-device face match: ${Math.round(r.checkin_face_score * 100)}%` : (r.checkin_face_verified ? 'Face verified' : 'Face not matched')} style={{ display: 'inline-flex' }}>
+                              <Badge tone={r.checkin_face_verified ? 'ok' : 'warn'}>{r.checkin_face_verified ? <><Check size={11} strokeWidth={2.4} /> Face</> : 'Face ?'}</Badge>
+                            </span>
+                          )}
+                          {r.checkin_selfie_url ? (
+                            <SelfieThumb src={r.checkin_selfie_url} alt="Check-in" tone="ok" />
+                          ) : <div style={{ width: 40, height: 40, borderRadius: 8, background: T.raised, border: `1px solid ${T.border}`, flexShrink: 0 }} />}
+                          {r.checkout_selfie_url ? (
+                            <SelfieThumb src={r.checkout_selfie_url} alt="Check-out" tone="info" />
+                          ) : null}
                         </div>
-                      ) : <div style={{ width: 40, height: 40, borderRadius: 8, background: C.s3, border: `1px solid ${C.border}` }} />}
-                      
-                      {r.checkout_selfie_url ? (
-                        <div style={{ position: 'relative' }}>
-                          <SignedImage src={r.checkout_selfie_url} alt="Out" style={{ width: 40, height: 40, borderRadius: 8, objectFit: 'cover', border: `1px solid ${C.blue}40` }} />
-                          <a href={r.checkout_selfie_url} onClick={(e) => openSignedUrl(e, r.checkout_selfie_url)} target="_blank" rel="noreferrer" 
-                             style={{ position: 'absolute', bottom: -2, right: -2, background: C.s3, border: `1px solid ${C.border}`, borderRadius: '50%', width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, textDecoration: 'none' }}>
-                            👁️
-                          </a>
+                      </td>
+
+                      {/* check-in */}
+                      <td style={{ ...rowMono, color: r.checkin_at ? T.text : T.mute }}>{fmt(r.checkin_at)}</td>
+
+                      {/* check-out */}
+                      <td style={{ ...rowMono, color: r.checkout_at ? T.text : T.mute }}>{fmt(r.checkout_at)}</td>
+
+                      {/* hours */}
+                      <td style={{ ...rowMono, textAlign: 'right', color: (r.total_hours || hrs) ? T.text : T.mute }}>
+                        {fmtHrs(hrs)}
+                      </td>
+
+                      {/* zone */}
+                      <td style={{ ...rowTd, color: T.dim, fontSize: 13 }}>{r.users?.zones?.name || '—'}</td>
+
+                      {/* actions */}
+                      <td style={{ ...rowTd, textAlign: 'right' }} onClick={e => e.stopPropagation()}>
+                        <div style={{ display: 'inline-flex', gap: 2 }}>
+                          <IconButton label="Edit" onClick={() => openEdit(r)}><Pencil size={15} strokeWidth={1.6} /></IconButton>
+                          <IconButton label="Mark absent" onClick={() => setDelRec(r)} style={{ color: T.red }}><UserX size={15} strokeWidth={1.6} /></IconButton>
                         </div>
-                      ) : null}
-                    </div>
-
-                    {/* check-in */}
-                    <div style={{ fontSize: 13, color: r.checkin_at ? C.white : C.grayd }}>{fmt(r.checkin_at)}</div>
-
-                    {/* check-out */}
-                    <div style={{ fontSize: 13, color: r.checkout_at ? C.white : C.grayd }}>{fmt(r.checkout_at)}</div>
-
-                    {/* hours */}
-                    <div style={{ fontSize: 13, fontWeight: 700, color: (r.total_hours || calcHours(r)) ? C.green : C.grayd }}>
-                      {fmtHrs(calcHours(r))}
-                    </div>
-
-                    {/* zone */}
-                    <div style={{ fontSize: 12, color: C.gray }}>{r.users?.zones?.name || '—'}</div>
-
-                    {/* actions */}
-                    <div style={{ display: 'flex', gap: 6 }} onClick={e => e.stopPropagation()}>
-                      <button className="kbtn" onClick={() => openEdit(r)} style={{ padding: 8, background: C.s3, border: `1px solid ${C.border}`, borderRadius: 8, color: C.blue }} title="Edit"><svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" /></svg></button>
-                      <button className="kbtn" onClick={() => setDelRec(r)} style={{ padding: 8, background: C.s3, border: `1px solid ${C.border}`, borderRadius: 8, color: C.red }} title="Mark Absent"><svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round"><path d="M21 4H8l-7 8 7 8h13a2 2 0 002-2V6a2 2 0 00-2-2z" /><line x1="18" y1="9" x2="12" y2="15" /><line x1="12" y1="9" x2="18" y2="15" /></svg></button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Card>
 
         {/* row count */}
         {!loading && shown.length > 0 && (
-          <div style={{ fontSize: 12, color: C.grayd, textAlign: 'right' }}>
-            Showing {shown.length} of {currentRoleRecords.length} records for {fromDate === toDate ? fmtDate(fromDate) : `${fmtDate(fromDate)} - ${fmtDate(toDate)}`}
+          <div style={{ fontSize: 12, color: T.mute, textAlign: 'right', fontFamily: T.mono }}>
+            {shown.length} of {currentRoleRecords.length} records · {rangeLabel}
           </div>
         )}
       </div>
 
       {/* ══════ ADD OVERRIDE MODAL ══════ */}
-      {showAdd && (
-        <Overlay onClose={() => setShowAdd(false)}>
-          <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 24, padding: 32, width: '100%', maxWidth: 500, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 40px rgba(0,0,0,0.4)', position:'relative' }}>
-            <button onClick={() => setShowAdd(false)} style={{ position:'absolute', top:22, right:22, width:36, height:36, borderRadius:12, border:'none', background:C.s3, color:C.gray, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}
-              onMouseEnter={e => { e.currentTarget.style.color = C.white; e.currentTarget.style.background = C.border; }}
-              onMouseLeave={e => { e.currentTarget.style.color = C.gray; e.currentTarget.style.background = C.s3; }}>✕</button>
-            <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 20, fontWeight: 800, marginBottom: 8 }}>Manual Attendance</div>
-            <p style={{ fontSize: 13, color: C.gray, marginBottom: 24 }}>Manually mark attendance session for an executive</p>
-
-            {fErr && <div style={{ background: C.redD, border: `1px solid ${C.redB}`, borderRadius: 10, padding: '10px 14px', fontSize: 13, color: C.red, marginBottom: 16 }}>{fErr}</div>}
-
-            <Label text="Field Executive" req />
-            <select className="kinp" style={{ ...baseInp, appearance: 'none' as const, marginBottom: 14 }}
-              value={form.user_id} onChange={e => setF('user_id', e.target.value)}>
+      <Modal
+        open={showAdd}
+        onClose={() => setShowAdd(false)}
+        title="Manual attendance"
+        subtitle="Record an attendance session for an executive by hand."
+        width={560}
+        footer={
+          <>
+            <Button onClick={() => setShowAdd(false)}>Cancel</Button>
+            <Button variant="primary" onClick={handleCreate} disabled={saving} icon={saving ? <Spinner /> : undefined}>{saving ? 'Saving…' : 'Save override'}</Button>
+          </>
+        }
+      >
+        {fErr && errorBox(fErr)}
+        <Section eyebrow="Executive" hint="Who this record is for." first>
+          <Field label="Field executive" required>
+            <Select value={form.user_id} onChange={e => setF('user_id', e.target.value)}>
               <option value="">Select executive…</option>
               {users.map(u => <option key={u.id} value={u.id}>{u.name}{u.employee_id ? ` (${u.employee_id})` : ''}</option>)}
-            </select>
-            {sharedFormFields}
-
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button className="kbtn" onClick={() => setShowAdd(false)}
-                style={{ flex: 1, padding: '11px', background: C.s3, border: `1px solid ${C.border}`, color: C.gray, borderRadius: 11, fontSize: 13, fontWeight: 600, fontFamily: "'DM Sans',sans-serif" }}>
-                Cancel
-              </button>
-              <button className="kbtn" onClick={handleCreate} disabled={saving}
-                style={{ flex: 2, padding: '11px', background: C.red, border: 'none', color: '#fff', borderRadius: 11, fontSize: 13, fontWeight: 700, fontFamily: "'DM Sans',sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, opacity: saving ? 0.7 : 1, boxShadow: '0 4px 18px rgba(224,30,44,0.3)' }}>
-                {saving ? <><Spinner />Saving…</> : 'Save Override'}
-              </button>
-            </div>
-          </div>
-        </Overlay>
-      )}
+            </Select>
+          </Field>
+        </Section>
+        {sharedFormFields}
+      </Modal>
 
       {/* ══════ EDIT MODAL ══════ */}
-      {editRec && (
-        <Overlay onClose={() => setEditRec(null)}>
-          <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 24, padding: 32, width: '100%', maxWidth: 500, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 40px rgba(0,0,0,0.4)', position:'relative' }}>
-            <button onClick={() => setEditRec(null)} style={{ position:'absolute', top:22, right:22, width:36, height:36, borderRadius:12, border:'none', background:C.s3, color:C.gray, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}
-              onMouseEnter={e => { e.currentTarget.style.color = C.white; e.currentTarget.style.background = C.border; }}
-              onMouseLeave={e => { e.currentTarget.style.color = C.gray; e.currentTarget.style.background = C.s3; }}>✕</button>
-            <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 20, fontWeight: 800, marginBottom: 8 }}>Update Record</div>
-            <p style={{ fontSize: 13, color: C.gray, marginBottom: 24 }}>Modify attendance for <strong style={{ color: C.white }}>{editRec.users?.name}</strong></p>
-
-            {fErr && <div style={{ background: C.redD, border: `1px solid ${C.redB}`, borderRadius: 10, padding: '10px 14px', fontSize: 13, color: C.red, marginBottom: 16 }}>{fErr}</div>}
-
-            {sharedFormFields}
-
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button className="kbtn" onClick={() => setEditRec(null)}
-                style={{ flex: 1, padding: '11px', background: C.s3, border: `1px solid ${C.border}`, color: C.gray, borderRadius: 11, fontSize: 13, fontWeight: 600, fontFamily: "'DM Sans',sans-serif" }}>
-                Cancel
-              </button>
-              <button className="kbtn" onClick={handleUpdate} disabled={saving}
-                style={{ flex: 2, padding: '11px', background: C.blue, border: 'none', color: '#fff', borderRadius: 11, fontSize: 13, fontWeight: 700, fontFamily: "'DM Sans',sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, opacity: saving ? 0.7 : 1, boxShadow: '0 4px 18px rgba(62,158,255,0.25)' }}>
-                {saving ? <><Spinner />Saving…</> : 'Save Changes'}
-              </button>
-            </div>
-          </div>
-        </Overlay>
-      )}
+      <Modal
+        open={!!editRec}
+        onClose={() => setEditRec(null)}
+        title="Update record"
+        subtitle={editRec ? `Modify attendance for ${editRec.users?.name || 'this executive'} · ${fmtDate(editRec.date)}` : undefined}
+        width={560}
+        footer={
+          <>
+            <Button onClick={() => setEditRec(null)}>Cancel</Button>
+            <Button variant="primary" onClick={handleUpdate} disabled={saving} icon={saving ? <Spinner /> : undefined}>{saving ? 'Saving…' : 'Save changes'}</Button>
+          </>
+        }
+      >
+        {fErr && errorBox(fErr)}
+        <div style={{ marginTop: -22 }}>{sharedFormFields}</div>
+      </Modal>
 
       {/* ══════ DETAIL MODAL ══════ */}
-      {detail && !editRec && (
-        <Overlay onClose={() => setDetail(null)}>
-          <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 22, width: '100%', maxWidth: 440, padding: 28, color: C.white }}>
-            <button onClick={() => setDetail(null)} style={{ float: 'right', background: C.s3, border: `1px solid ${C.border}`, borderRadius: 9, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: C.gray, fontSize: 15 }}>✕</button>
-
-            <div style={{ display: 'flex', gap: 14, alignItems: 'center', marginBottom: 22, marginTop: 4 }}>
-              <div style={{ width: 54, height: 54, borderRadius: 16, background: C.blueD, border: '1.5px solid rgba(62,158,255,0.18)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 22, color: C.blue, flexShrink: 0 }}>
-                {detail.users?.name?.[0] || '?'}
-              </div>
-              <div>
-                <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 19, fontWeight: 800 }}>{detail.users?.name}</div>
-                <div style={{ fontSize: 12, color: C.gray, marginTop: 2 }}>{fmtDate(detail.date)} · {detail.users?.zones?.name || 'No zone'}</div>
-                {(() => { const sm = statusMeta[detail.status]; return (
-                  <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 20, marginTop: 6, display: 'inline-block', background: sm.bg, color: sm.color }}>
-                    {sm.label}
-                  </span>
-                ); })()}
-              </div>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9, marginBottom: 14 }}>
-              {[
-                { l: 'Check-in',  v: fmt(detail.checkin_at) },
-                { l: 'Check-out', v: fmt(detail.checkout_at) },
-                { l: 'Hours',     v: fmtHrs(calcHours(detail)) },
-                { l: 'Break',     v: detail.break_minutes ? `${detail.break_minutes}m` : '—' },
-              ].map(r => (
-                <div key={r.l} style={{ background: C.s3, borderRadius: 11, padding: '11px 13px' }}>
-                  <div style={{ fontSize: 10, color: C.grayd, marginBottom: 4, textTransform: 'uppercase' as const, letterSpacing: '0.5px' }}>{r.l}</div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: C.white }}>{r.v}</div>
+      <Modal
+        open={!!detail && !editRec}
+        onClose={() => setDetail(null)}
+        title={detail?.users?.name || 'Attendance record'}
+        subtitle={detail ? `${fmtDate(detail.date)} · ${detail.users?.zones?.name || 'No zone'}` : undefined}
+        width={480}
+        footer={detail ? (
+          <>
+            <Button onClick={() => { openEdit(detail); setDetail(null); }} icon={<Pencil size={15} strokeWidth={1.6} />}>Edit</Button>
+            <Button variant="danger" onClick={() => { setDelRec(detail); setDetail(null); }} icon={<UserX size={15} strokeWidth={1.6} />}>Mark absent</Button>
+          </>
+        ) : undefined}
+      >
+        {detail && (() => {
+          const sm = statusMeta[detail.status] || statusMeta.absent;
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                <Avatar name={detail.users?.name || '?'} size={44} />
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 13.5, color: T.dim }}>{(detail.users?.role || '').replace(/[_-]/g, ' ') || 'Executive'}{detail.users?.employee_id ? <> · <span style={{ fontFamily: T.mono, fontSize: 12.5 }}>{detail.users.employee_id}</span></> : null}</div>
+                  <div style={{ marginTop: 6 }}><Badge tone={sm.tone} dot>{sm.label}</Badge></div>
                 </div>
-              ))}
-            </div>
+              </div>
 
-            {/* Coordinates / Locations */}
-            {(detail.checkin_lat || detail.checkout_lat) && (
-              <div style={{ marginBottom: 14, padding: '12px', background: C.s3, borderRadius: 11 }}>
-                <div style={{ fontSize: 10, color: C.grayd, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Location Data</div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  {detail.checkin_lat ? (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                {[
+                  { l: 'Check-in',  v: fmt(detail.checkin_at) },
+                  { l: 'Check-out', v: fmt(detail.checkout_at) },
+                  { l: 'Hours',     v: fmtHrs(calcHours(detail)) },
+                  { l: 'Break',     v: detail.break_minutes ? `${detail.break_minutes}m` : '—' },
+                ].map(r => (
+                  <div key={r.l} style={{ background: T.raised, borderRadius: 8, padding: '10px 12px' }}>
+                    <Eyebrow>{r.l}</Eyebrow>
+                    <div style={{ fontFamily: T.mono, fontSize: 14, color: T.text, marginTop: 4, fontVariantNumeric: 'tabular-nums' }}>{r.v}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Coordinates / Locations */}
+              {(detail.checkin_lat || detail.checkout_lat) && (
+                <div style={{ padding: 12, background: T.raised, borderRadius: 8 }}>
+                  <Eyebrow style={{ marginBottom: 8 }}>Location</Eyebrow>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    {detail.checkin_lat ? (
+                      <div>
+                        <div style={{ fontSize: 12, color: T.dim, marginBottom: 2 }}>Check-in</div>
+                        <a href={`https://maps.google.com/?q=${detail.checkin_lat},${detail.checkin_lng}`} target="_blank" rel="noreferrer" style={{ fontSize: 12, fontFamily: T.mono, color: T.info, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                          {detail.checkin_lat.toFixed(5)}, {detail.checkin_lng?.toFixed(5)} <ExternalLink size={11} strokeWidth={1.8} />
+                        </a>
+                      </div>
+                    ) : <div />}
+                    {detail.checkout_lat ? (
+                      <div>
+                        <div style={{ fontSize: 12, color: T.dim, marginBottom: 2 }}>Check-out</div>
+                        <a href={`https://maps.google.com/?q=${detail.checkout_lat},${detail.checkout_lng}`} target="_blank" rel="noreferrer" style={{ fontSize: 12, fontFamily: T.mono, color: T.info, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                          {detail.checkout_lat.toFixed(5)}, {detail.checkout_lng?.toFixed(5)} <ExternalLink size={11} strokeWidth={1.8} />
+                        </a>
+                      </div>
+                    ) : <div />}
+                  </div>
+                </div>
+              )}
+
+              {/* Selfie thumbnails */}
+              {(detail.checkin_selfie_url || detail.checkout_selfie_url) && (
+                <div style={{ display: 'grid', gridTemplateColumns: detail.checkin_selfie_url && detail.checkout_selfie_url ? '1fr 1fr' : '1fr', gap: 10 }}>
+                  {detail.checkin_selfie_url && (
                     <div>
-                      <div style={{ fontSize: 11, color: C.gray, marginBottom: 2 }}>Check-in</div>
-                      <a href={`https://maps.google.com/?q=${detail.checkin_lat},${detail.checkin_lng}`} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: C.blue, textDecoration: 'none' }}>
-                        {detail.checkin_lat.toFixed(5)}, {detail.checkin_lng?.toFixed(5)} ↗
+                      <Eyebrow style={{ marginBottom: 6 }}>Check-in selfie</Eyebrow>
+                      <a href={detail.checkin_selfie_url} onClick={(e) => openSignedUrl(e, detail.checkin_selfie_url)} target="_blank" rel="noreferrer">
+                        <SignedImage src={detail.checkin_selfie_url} alt="Check-in selfie"
+                          style={{ width: '100%', height: 110, objectFit: 'cover', borderRadius: 8, border: `1px solid ${T.border}`, display: 'block' }}
+                          onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                       </a>
                     </div>
-                  ) : <div />}
-                  {detail.checkout_lat ? (
+                  )}
+                  {detail.checkout_selfie_url && (
                     <div>
-                      <div style={{ fontSize: 11, color: C.gray, marginBottom: 2 }}>Check-out</div>
-                      <a href={`https://maps.google.com/?q=${detail.checkout_lat},${detail.checkout_lng}`} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: C.blue, textDecoration: 'none' }}>
-                        {detail.checkout_lat.toFixed(5)}, {detail.checkout_lng?.toFixed(5)} ↗
+                      <Eyebrow style={{ marginBottom: 6 }}>Check-out selfie</Eyebrow>
+                      <a href={detail.checkout_selfie_url} onClick={(e) => openSignedUrl(e, detail.checkout_selfie_url)} target="_blank" rel="noreferrer">
+                        <SignedImage src={detail.checkout_selfie_url} alt="Check-out selfie"
+                          style={{ width: '100%', height: 110, objectFit: 'cover', borderRadius: 8, border: `1px solid ${T.border}`, display: 'block' }}
+                          onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                       </a>
                     </div>
-                  ) : <div />}
+                  )}
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Selfie thumbnails */}
-            {(detail.checkin_selfie_url || detail.checkout_selfie_url) && (
-              <div style={{ display: 'grid', gridTemplateColumns: detail.checkin_selfie_url && detail.checkout_selfie_url ? '1fr 1fr' : '1fr', gap: 10, marginBottom: 14 }}>
-                {detail.checkin_selfie_url && (
-                  <div>
-                    <div style={{ fontSize: 10, color: C.grayd, marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Check-in Selfie</div>
-                    <a href={detail.checkin_selfie_url} onClick={(e) => openSignedUrl(e, detail.checkin_selfie_url)} target="_blank" rel="noreferrer">
-                      <SignedImage src={detail.checkin_selfie_url} alt="Check-in selfie"
-                        style={{ width: '100%', height: 110, objectFit: 'cover', borderRadius: 10, border: `1px solid rgba(0,217,126,0.25)`, display: 'block' }}
-                        onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                    </a>
-                  </div>
-                )}
-                {detail.checkout_selfie_url && (
-                  <div>
-                    <div style={{ fontSize: 10, color: C.grayd, marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Check-out Selfie</div>
-                    <a href={detail.checkout_selfie_url} onClick={(e) => openSignedUrl(e, detail.checkout_selfie_url)} target="_blank" rel="noreferrer">
-                      <SignedImage src={detail.checkout_selfie_url} alt="Check-out selfie"
-                        style={{ width: '100%', height: 110, objectFit: 'cover', borderRadius: 10, border: `1px solid rgba(62,158,255,0.25)`, display: 'block' }}
-                        onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                    </a>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {detail.override_reason && (
-              <div style={{ background: C.yellowD, border: `1px solid rgba(255,184,0,0.2)`, borderRadius: 11, padding: '11px 13px', marginBottom: 14, fontSize: 12, color: C.yellow }}>
-                <span style={{ fontWeight: 700 }}>Override note: </span>{detail.override_reason}
-              </div>
-            )}
-
-            {detail.is_regularised && (
-              <div style={{ background: 'rgba(155,110,255,0.08)', border: '1px solid rgba(155,110,255,0.2)', borderRadius: 11, padding: '10px 13px', marginBottom: 14, fontSize: 12, color: '#9B6EFF', display: 'flex', gap: 8, alignItems: 'center' }}>
-                ✎ Regularised by admin
-              </div>
-            )}
-
-            {/* Face-recognition verdict (module face_attendance). */}
-            {(detail.checkin_face_verified != null || detail.checkout_face_verified != null) && (
-              <div style={{ background: C.s3, border: `1px solid ${C.border}`, borderRadius: 11, padding: '10px 13px', marginBottom: 14, fontSize: 12, color: C.gray, display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
-                <span style={{ fontWeight: 700, color: C.white }}>Face match</span>
-                {detail.checkin_face_verified != null && (
-                  <span style={{ color: detail.checkin_face_verified ? C.green : C.yellow, fontWeight: 600 }}>
-                    In: {detail.checkin_face_verified ? '✓ verified' : 'not matched'}
-                    {detail.checkin_face_score != null && ` (${Math.round(detail.checkin_face_score * 100)}%)`}
-                  </span>
-                )}
-                {detail.checkout_face_verified != null && (
-                  <span style={{ color: detail.checkout_face_verified ? C.green : C.yellow, fontWeight: 600 }}>
-                    Out: {detail.checkout_face_verified ? '✓ verified' : 'not matched'}
-                    {detail.checkout_face_score != null && ` (${Math.round(detail.checkout_face_score * 100)}%)`}
-                  </span>
-                )}
-              </div>
-            )}
-
-            <div style={{ display: 'flex', gap: 9 }}>
-              <button className="kbtn" onClick={() => { openEdit(detail); setDetail(null); }}
-                style={{ flex: 1, padding: '11px', background: C.blueD, border: '1px solid rgba(62,158,255,0.18)', color: C.blue, borderRadius: 11, fontSize: 13, fontWeight: 700, fontFamily: "'DM Sans',sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
-                ✎ Edit
-              </button>
-              <button className="kbtn" onClick={() => { setDelRec(detail); setDetail(null); }}
-                style={{ flex: 1, padding: '11px', background: C.redD, border: `1px solid ${C.redB}`, color: C.red, borderRadius: 11, fontSize: 13, fontWeight: 700, fontFamily: "'DM Sans',sans-serif" }}>
-                Mark Absent
-              </button>
-            </div>
-          </div>
-        </Overlay>
-      )}
-
-      {/* ══════ DELETE CONFIRM ══════ */}
-      {delRec && (
-        <Overlay onClose={() => setDelRec(null)}>
-          <div style={{ background: C.s2, border: `1px solid ${C.redB}`, borderRadius: 22, width: '100%', maxWidth: 400, padding: 28, color: C.white }}>
-            <div style={{ width: 52, height: 52, borderRadius: 16, background: C.redD, border: `1px solid ${C.redB}`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
-              <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke={C.red} strokeWidth={2} strokeLinecap="round">
-                <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
-              </svg>
-            </div>
-            <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 18, fontWeight: 800, marginBottom: 8 }}>Mark as Absent?</div>
-            <div style={{ fontSize: 13, color: C.gray, lineHeight: 1.6, marginBottom: 22 }}>
-              This will override <span style={{ color: C.white, fontWeight: 600 }}>{delRec.users?.name}</span>&apos;s attendance for {fmtDate(delRec.date)} to <span style={{ color: C.red, fontWeight: 600 }}>Absent</span>.
-            </div>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button className="kbtn" onClick={() => setDelRec(null)}
-                style={{ flex: 1, padding: '11px', background: C.s3, border: `1px solid ${C.border}`, color: C.gray, borderRadius: 11, fontSize: 13, fontWeight: 600, fontFamily: "'DM Sans',sans-serif" }}>
-                Cancel
-              </button>
-              <button className="kbtn" onClick={handleDelete} disabled={saving}
-                style={{ flex: 1, padding: '11px', background: C.red, border: 'none', color: '#fff', borderRadius: 11, fontSize: 13, fontWeight: 700, fontFamily: "'DM Sans',sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, opacity: saving ? 0.7 : 1 }}>
-                {saving ? <><Spinner />Working…</> : 'Confirm'}
-              </button>
-            </div>
-          </div>
-        </Overlay>
-      )}
-      {/* ══════ EXPORT MODAL ══════ */}
-      {showExport && (
-        <Overlay onClose={() => setShowExport(false)}>
-          <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 22, width: '100%', maxWidth: 520, padding: 28, color: C.white }}>
-            {/* header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 22 }}>
-              <div>
-                <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 20, fontWeight: 800 }}>Export Attendance</div>
-                <div style={{ fontSize: 12, color: C.gray, marginTop: 3 }}>Downloads a CSV with city-wise, role-wise & executive-wise breakdown</div>
-              </div>
-            </div>
-
-            {expErr && (
-              <div style={{ background: C.redD, border: `1px solid ${C.redB}`, borderRadius: 10, padding: '10px 14px', fontSize: 13, color: C.red, marginBottom: 16 }}>{expErr}</div>
-            )}
-
-            <button onClick={() => setShowExport(false)} style={{ position:'absolute', top:22, right:22, width:36, height:36, borderRadius:12, border:'none', background:C.s3, color:C.gray, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}
-              onMouseEnter={e => { e.currentTarget.style.color = C.white; e.currentTarget.style.background = C.border; }}
-              onMouseLeave={e => { e.currentTarget.style.color = C.gray; e.currentTarget.style.background = C.s3; }}>✕</button>
-
-            {/* date range */}
-            <div style={{ fontSize: 11, fontWeight: 700, color: C.gray, letterSpacing: '0.8px', textTransform: 'uppercase' as const, marginBottom: 8 }}>Date Range</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 18 }}>
-              <div>
-                <div style={{ fontSize: 11, color: C.grayd, marginBottom: 5 }}>From</div>
-                <input className="kinp" type="date" value={expFrom} onChange={e => setExpFrom(e.target.value)}
-                  style={{ width: '100%', background: C.s3, border: `1px solid ${C.border}`, color: C.white, borderRadius: 10, padding: '10px 13px', fontSize: 13, outline: 'none', fontFamily: "'DM Sans',sans-serif" }} />
-              </div>
-              <div>
-                <div style={{ fontSize: 11, color: C.grayd, marginBottom: 5 }}>To</div>
-                <input className="kinp" type="date" value={expTo} onChange={e => setExpTo(e.target.value)}
-                  style={{ width: '100%', background: C.s3, border: `1px solid ${C.border}`, color: C.white, borderRadius: 10, padding: '10px 13px', fontSize: 13, outline: 'none', fontFamily: "'DM Sans',sans-serif" }} />
-              </div>
-            </div>
-
-            {/* what&apos;s included */}
-            <div style={{ fontSize: 11, fontWeight: 700, color: C.gray, letterSpacing: '0.8px', textTransform: 'uppercase' as const, marginBottom: 10 }}>What&apos;s Included (5 sheets)</div>
-            <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 8, marginBottom: 20 }}>
-              {[
-                { icon: '📊', title: 'Summary',      desc: 'Per-executive: total days, present, half days, hours worked' },
-                { icon: '🏙️', title: 'City Wise',    desc: 'Grouped by city — total execs, attendance rates, total hours' },
-                { icon: '👥', title: 'Role Wise',     desc: 'Executives vs Supervisors vs City Managers breakdown' },
-                { icon: '📅', title: 'Day Detail',    desc: 'Every record with check-in/out times, hours, midnight flag' },
-                { icon: '📋', title: 'Policy Notes',  desc: 'Midnight crossover & half-day calculation rules documented' },
-              ].map(s => (
-                <div key={s.title} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', padding: '10px 14px', background: C.s3, borderRadius: 11, border: `1px solid ${C.border}` }}>
-                  <span style={{ fontSize: 18, flexShrink: 0, marginTop: 1 }}>{s.icon}</span>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 2 }}>{s.title}</div>
-                    <div style={{ fontSize: 11, color: C.gray, lineHeight: 1.5 }}>{s.desc}</div>
-                  </div>
+              {detail.override_reason && (
+                <div style={{ background: T.warnWash, borderRadius: 8, padding: '10px 12px', fontSize: 12.5, color: T.warn }}>
+                  <span style={{ fontWeight: 600 }}>Override note: </span>{detail.override_reason}
                 </div>
-              ))}
-            </div>
+              )}
 
-            {/* midnight crossover note */}
-            <div style={{ background: 'rgba(255,184,0,0.07)', border: `1px solid rgba(255,184,0,0.2)`, borderRadius: 12, padding: '12px 15px', marginBottom: 20, fontSize: 12, color: C.yellow, lineHeight: 1.7 }}>
-              <div style={{ fontWeight: 700, marginBottom: 4 }}>⚠ Midnight Crossover Handling</div>
-              If checkout is earlier than check-in on the same record (e.g. in at <strong>9 PM</strong>, out at <strong>2 AM</strong>), the system adds <strong>+24 hours</strong> to the checkout before calculating duration. These records are flagged <em>&quot;YES — checkout next day&quot;</em> in the Day Detail sheet. Capped at 24h to guard bad data.
-              <div style={{ marginTop: 6, fontWeight: 600 }}>Half Day rule: any shift under 4 hours is auto-classified as Half Day.</div>
-            </div>
+              {detail.is_regularised && (
+                <div><Badge tone="info" dot>Regularised by admin</Badge></div>
+              )}
 
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button className="kbtn" onClick={() => setShowExport(false)}
-                style={{ flex: 1, padding: '12px', background: C.s3, border: `1px solid ${C.border}`, color: C.gray, borderRadius: 11, fontSize: 13, fontWeight: 600, fontFamily: "'DM Sans',sans-serif" }}>
-                Cancel
-              </button>
-              <button className="kbtn" onClick={runExport} disabled={expLoading || !expFrom || !expTo}
-                style={{ flex: 2, padding: '12px', background: C.green, border: 'none', color: '#000', borderRadius: 11, fontSize: 13, fontWeight: 800, fontFamily: "'DM Sans',sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, opacity: (expLoading || !expFrom || !expTo) ? 0.6 : 1, cursor: (expLoading || !expFrom || !expTo) ? 'not-allowed' : 'pointer', boxShadow: '0 4px 18px rgba(0,217,126,0.25)' }}>
-                {expLoading
-                  ? <><Spinner />Fetching data…</>
-                  : <><svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Download CSV</>
-                }
-              </button>
+              {/* Face-recognition verdict (module face_attendance). */}
+              {(detail.checkin_face_verified != null || detail.checkout_face_verified != null) && (
+                <div style={{ background: T.raised, borderRadius: 8, padding: '10px 12px', fontSize: 12.5, color: T.dim, display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <Eyebrow>Face match</Eyebrow>
+                  {detail.checkin_face_verified != null && (
+                    <Badge tone={detail.checkin_face_verified ? 'ok' : 'warn'}>
+                      In: {detail.checkin_face_verified ? 'verified' : 'not matched'}
+                      {detail.checkin_face_score != null && ` (${Math.round(detail.checkin_face_score * 100)}%)`}
+                    </Badge>
+                  )}
+                  {detail.checkout_face_verified != null && (
+                    <Badge tone={detail.checkout_face_verified ? 'ok' : 'warn'}>
+                      Out: {detail.checkout_face_verified ? 'verified' : 'not matched'}
+                      {detail.checkout_face_score != null && ` (${Math.round(detail.checkout_face_score * 100)}%)`}
+                    </Badge>
+                  )}
+                </div>
+              )}
             </div>
-          </div>
-        </Overlay>
-      )}
+          );
+        })()}
+      </Modal>
 
-      <ConfirmModal
-        show={!!delRec}
+      {/* ══════ MARK ABSENT CONFIRM ══════ */}
+      <Modal
+        open={!!delRec}
         onClose={() => setDelRec(null)}
-        onConfirm={handleDelete}
-        title="Delete Record"
-        message="Are you sure you want to delete this attendance record? This will mark the user as absent for this date."
-        itemName={delRec?.users?.name}
-        loading={saving}
-      />
+        title="Mark as absent?"
+        width={420}
+        footer={
+          <>
+            <Button onClick={() => setDelRec(null)}>Cancel</Button>
+            <Button variant="danger" onClick={handleDelete} disabled={saving} icon={saving ? <Spinner /> : <UserX size={15} strokeWidth={1.6} />}>{saving ? 'Working…' : 'Mark absent'}</Button>
+          </>
+        }
+      >
+        {delRec && (
+          <div style={{ fontSize: 13.5, color: T.dim, lineHeight: 1.6 }}>
+            This overrides <span style={{ color: T.text, fontWeight: 500 }}>{delRec.users?.name}</span>&apos;s attendance for <span style={{ fontFamily: T.mono, fontSize: 12.5 }}>{fmtDate(delRec.date)}</span> to Absent. The change is recorded as an admin override.
+          </div>
+        )}
+      </Modal>
+
+      {/* ══════ EXPORT MODAL ══════ */}
+      <Modal
+        open={showExport}
+        onClose={() => setShowExport(false)}
+        title="Export attendance"
+        subtitle="Downloads a CSV with city-wise, role-wise and executive-wise breakdowns."
+        width={520}
+        footer={
+          <>
+            <Button onClick={() => setShowExport(false)}>Cancel</Button>
+            <Button variant="primary" onClick={runExport} disabled={expLoading || !expFrom || !expTo} icon={expLoading ? <Spinner /> : <Download size={16} strokeWidth={1.6} />}>
+              {expLoading ? 'Fetching data…' : 'Download CSV'}
+            </Button>
+          </>
+        }
+      >
+        {expErr && errorBox(expErr)}
+
+        <Section eyebrow="Date range" hint="Up to 62 days per export." first>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <Field label="From"><Input type="date" value={expFrom} onChange={e => setExpFrom(e.target.value)} /></Field>
+            <Field label="To"><Input type="date" value={expTo} onChange={e => setExpTo(e.target.value)} /></Field>
+          </div>
+        </Section>
+
+        <Section eyebrow="What's included" hint="Five sheets, separated by section headers in the CSV.">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {[
+              { title: 'Summary',      desc: 'Per-executive: total days, present, half days, hours worked' },
+              { title: 'City wise',    desc: 'Grouped by city — total execs, attendance rates, total hours' },
+              { title: 'Role wise',    desc: 'Executives vs supervisors vs city managers breakdown' },
+              { title: 'Day detail',   desc: 'Every record with check-in/out times, hours, midnight flag' },
+              { title: 'Policy notes', desc: 'Midnight crossover & half-day calculation rules documented' },
+            ].map((s, i) => (
+              <div key={s.title} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', padding: '8px 12px', background: T.raised, borderRadius: 8 }}>
+                <span style={{ fontFamily: T.mono, fontSize: 11, color: T.mute, marginTop: 2, minWidth: 14 }}>{i + 1}</span>
+                <div>
+                  <div style={{ fontSize: 13.5, fontWeight: 500, color: T.text }}>{s.title}</div>
+                  <div style={{ fontSize: 12.5, color: T.dim, marginTop: 1 }}>{s.desc}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Section>
+
+        <Section eyebrow="Midnight crossover" hint="How working hours are calculated." style={{ paddingBottom: 0 }}>
+          <div style={{ background: T.warnWash, borderRadius: 8, padding: '10px 12px', fontSize: 12.5, color: T.warn, lineHeight: 1.6 }}>
+            If checkout is earlier than check-in on the same record (in at 9 PM, out at 2 AM), 24 hours are added to the checkout before calculating duration. These records are flagged &quot;YES — checkout next day&quot; in the Day detail sheet and capped at 24h. Any shift under 4 hours is auto-classified as a half day.
+          </div>
+        </Section>
+      </Modal>
     </>
   );
 }
@@ -1548,13 +1392,11 @@ function AttendanceContent() {
 export default function AttendancePage() {
   return (
     <Suspense fallback={
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: 'var(--text-dim)', fontSize: 14 }}>
-        Loading dashboard…
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh', color: 'var(--dim)', fontSize: 14 }}>
+        Loading attendance…
       </div>
     }>
       <AttendanceContent />
     </Suspense>
   );
 }
-
-

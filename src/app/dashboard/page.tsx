@@ -1,25 +1,14 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, type CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
+import { RefreshCw } from 'lucide-react';
 import api from '../../lib/api';
 import { getStoredUser, landingRouteFor } from '../../lib/auth';
 import { getStoredIndustryScope } from '../../context/IndustryScopeContext';
 import { useClient } from '../../context/ClientContext';
-
-/* ── palette ─────────────────────────────────────────────── */
-const C = {
-  bg: 'var(--bg)', s1: 'var(--s1)', s2: 'var(--s2)', s3: 'var(--s3)', s4: 'var(--s4)',
-  border: 'var(--border)', borderL: 'var(--border-l)',
-  white: 'var(--text)', gray: 'var(--text-dim)', grayd: 'var(--text-dim)', graydd: 'var(--text-dim)',
-  red: 'var(--primary)', redD: 'rgba(224,30,44,0.08)', redB: 'rgba(224,30,44,0.2)',
-  green: 'var(--green)', greenD: 'rgba(0,217,126,0.08)',
-  blue: 'var(--accent)', blueD: 'rgba(62,158,255,0.10)',
-  yellow: '#FFB800', yellowD: 'rgba(255,184,0,0.08)',
-  purple: '#9B6EFF', purpleD: 'rgba(155,110,255,0.08)',
-  teal: '#00C9B1', tealD: 'rgba(0,201,177,0.08)',
-  orange: '#FF7A30',
-};
+import { usePageTitle } from '../../lib/pageTitle';
+import { Button, Card, Eyebrow, Input, PageHeader, Segmented, T, useIsCompact } from '../../components/ui';
 
 /* ── types ─────────────────────────────────────────────────── */
 interface AttSummary {
@@ -32,8 +21,6 @@ interface AttSummary {
   total_days_worked?:number;
   total_leaves?:number;
 }
-
-/* ... existing tiny atoms ... */
 
 interface WeekDay {
   date:string;
@@ -65,38 +52,49 @@ interface OutletRow {
   tff_rate:number;
 }
 
-
-
 /* ── tiny atoms ─────────────────────────────────────────────── */
-const Shimmer = ({ w='100%', h=16, br=6 }:{ w?:string|number; h?:number; br?:number }) => (
-  <div style={{ width:w, height:h, borderRadius:br, background:C.s3, overflow:'hidden', position:'relative' }}>
-    <div style={{ position:'absolute', inset:0, background:`linear-gradient(90deg,transparent 0%,${C.border} 50%,transparent 100%)`, animation:'km-shimmer 1.3s ease-in-out infinite' }}/>
+const Shimmer = ({ w='100%', h=16, br=6, style }:{ w?:string|number; h?:number; br?:number; style?:CSSProperties }) => (
+  <div style={{ width:w, height:h, borderRadius:br, background:T.raised, overflow:'hidden', position:'relative', ...style }}>
+    <div style={{ position:'absolute', inset:0, background:`linear-gradient(90deg,transparent 0%,${T.border} 50%,transparent 100%)`, animation:'km-shimmer 1.3s ease-in-out infinite' }}/>
   </div>
 );
 
-const Dot = ({ color, size=8 }:{ color:string; size?:number }) => (
-  <div style={{ position:'relative', width:size, height:size, flexShrink:0 }}>
-    <div style={{ position:'absolute', inset:0, borderRadius:'50%', background:color, opacity:.35, animation:'km-pulse 2s infinite' }}/>
-    <div style={{ position:'absolute', inset:0, borderRadius:'50%', background:color }}/>
-  </div>
-);
-
-const StatCard = ({ label, value, color, sub, loading }:{
+/** KPI stat tile — eyebrow label, Manrope value, optional dim sub-line. */
+const StatTile = ({ label, value, sub, loading }:{
   label:string;
   value:string|number;
-  color:string;
   sub?:string;
   loading?:boolean;
 }) => (
-  <div style={{ background:C.s2, border:`1px solid ${C.border}`, borderRadius:16, padding:'18px 20px' }}>
+  <Card padding={16}>
+    <Eyebrow>{label}</Eyebrow>
     {loading ? (
-      <Shimmer h={28} br={5} w="55%"/>
+      <Shimmer h={26} br={5} w="55%" style={{ marginTop:10 }}/>
     ) : (
-      <div style={{ fontFamily:"'Syne',sans-serif", fontSize:30, fontWeight:800, color, lineHeight:1 }}>{value}</div>
+      <div style={{ fontFamily:T.heading, fontSize:26, fontWeight:700, letterSpacing:'-0.01em', color:T.text, lineHeight:1.1, marginTop:8, fontVariantNumeric:'tabular-nums' }}>{value}</div>
     )}
-    <div style={{ fontSize:11, color:C.gray, marginTop:6, fontWeight:600, letterSpacing:'0.3px' }}>{label}</div>
-    {sub && <div style={{ fontSize:10, color:C.grayd, marginTop:2 }}>{sub}</div>}
+    {sub && <div style={{ fontSize:12, color:T.dim, marginTop:4 }}>{sub}</div>}
+  </Card>
+);
+
+/** Card heading: Manrope title + one-line dim sub, optional right slot. */
+const CardTitle = ({ title, sub, right }:{ title:string; sub?:string; right?:React.ReactNode }) => (
+  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:12, marginBottom:14, flexWrap:'wrap' }}>
+    <div style={{ minWidth:0 }}>
+      <div style={{ fontFamily:T.heading, fontSize:15, fontWeight:700, letterSpacing:'-0.01em', color:T.text }}>{title}</div>
+      {sub && <div style={{ fontSize:12.5, color:T.dim, marginTop:2 }}>{sub}</div>}
+    </div>
+    {right}
   </div>
+);
+
+const th: CSSProperties = { padding:'12px 16px', textAlign:'left', fontFamily:T.mono, fontSize:10.5, letterSpacing:'0.08em', textTransform:'uppercase', color:T.mute, fontWeight:500, borderBottom:`1px solid ${T.border}`, whiteSpace:'nowrap' };
+const td: CSSProperties = { padding:'12px 16px', fontSize:13.5, color:T.text, borderBottom:`1px solid ${T.border}`, verticalAlign:'middle' };
+const tdNum: CSSProperties = { ...td, textAlign:'right', fontFamily:T.mono, fontSize:12.5, fontVariantNumeric:'tabular-nums', whiteSpace:'nowrap' };
+const thNum: CSSProperties = { ...th, textAlign:'right' };
+
+const Empty = ({ children }:{ children:React.ReactNode }) => (
+  <div style={{ textAlign:'center', padding:'32px 0', color:T.dim, fontSize:13 }}>{children}</div>
 );
 
 /* ── PIE CHART ─────────────────────────────────────────────── */
@@ -109,10 +107,10 @@ const PieChart = ({ present, on_break, checked_out, absent, total }:{
 }) => {
   const R = 52, cx = 70, cy = 70, gap = 1.5;
   const segments = [
-    { value: present,     color: C.green,  label: 'Active' },
-    { value: on_break,    color: C.yellow, label: 'On Break' },
-    { value: checked_out, color: C.blue,   label: 'Checked Out' },
-    { value: absent,      color: C.grayd,  label: 'Absent' },
+    { value: present,     color: T.ok,   label: 'Active' },
+    { value: on_break,    color: T.warn, label: 'On break' },
+    { value: checked_out, color: T.info, label: 'Checked out' },
+    { value: absent,      color: T.mute, label: 'Absent' },
   ].filter(s => s.value > 0);
 
   const totalVal = segments.reduce((s,x) => s + x.value, 0) || 1;
@@ -137,53 +135,38 @@ const PieChart = ({ present, on_break, checked_out, absent, total }:{
   });
 
   return (
-    <div style={{ display:'flex', alignItems:'center', gap:20 }}>
-      <svg width={140} height={140} viewBox="0 0 140 140">
-        <circle cx={cx} cy={cy} r={R+4} fill={C.s3}/>
+    <div style={{ display:'flex', alignItems:'center', gap:20, flexWrap:'wrap' }}>
+      <svg width={140} height={140} viewBox="0 0 140 140" style={{ flexShrink:0 }}>
+        <circle cx={cx} cy={cy} r={R+4} style={{ fill:T.raised }}/>
         {arcs.map((arc,i) => (
           <path
             key={i}
             d={arc.d}
-            fill={arc.color}
-            style={{ transition:'opacity .2s' }}
+            style={{ fill:arc.color, transition:'opacity .2s' }}
             onMouseEnter={e => (e.currentTarget.style.opacity = '.75')}
             onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
           />
         ))}
-        <circle cx={cx} cy={cy} r={32} fill={C.s2}/>
-        <text
-          x={cx}
-          y={cy-6}
-          textAnchor="middle"
-          fill={C.white}
-          fontSize={18}
-          fontWeight={800}
-          fontFamily="Syne,sans-serif"
-        >
+        <circle cx={cx} cy={cy} r={32} style={{ fill:T.card }}/>
+        <text x={cx} y={cy-4} textAnchor="middle" style={{ fill:T.text, fontSize:18, fontWeight:700, fontFamily:T.heading, letterSpacing:'-0.01em' }}>
           {total}
         </text>
-        <text
-          x={cx}
-          y={cy+10}
-          textAnchor="middle"
-          fill={C.gray}
-          fontSize={9}
-        >
+        <text x={cx} y={cy+11} textAnchor="middle" style={{ fill:T.mute, fontSize:8.5, fontFamily:T.mono, letterSpacing:'0.08em' }}>
           TOTAL
         </text>
       </svg>
-      <div style={{ display:'flex', flexDirection:'column', gap:8, flex:1 }}>
+      <div style={{ display:'flex', flexDirection:'column', gap:8, flex:1, minWidth:160 }}>
         {[
-          { l:'Active',       v:present,     c:C.green  },
-          { l:'On Break',     v:on_break,    c:C.yellow },
-          { l:'Checked Out',  v:checked_out, c:C.blue   },
-          { l:'Absent',       v:absent,      c:C.grayd  },
+          { l:'Active',       v:present,     c:T.ok   },
+          { l:'On break',     v:on_break,    c:T.warn },
+          { l:'Checked out',  v:checked_out, c:T.info },
+          { l:'Absent',       v:absent,      c:T.mute },
         ].map(s => (
           <div key={s.l} style={{ display:'flex', alignItems:'center', gap:8 }}>
             <div style={{ width:8, height:8, borderRadius:'50%', background:s.c, flexShrink:0 }}/>
-            <div style={{ flex:1, fontSize:12, color:C.gray }}>{s.l}</div>
-            <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:14, color:s.v>0?C.white:C.grayd }}>{s.v}</div>
-            <div style={{ fontSize:10, color:C.grayd, width:28, textAlign:'right' }}>
+            <div style={{ flex:1, fontSize:13, color:T.dim }}>{s.l}</div>
+            <div style={{ fontFamily:T.mono, fontSize:13, color:s.v>0?T.text:T.mute, fontVariantNumeric:'tabular-nums' }}>{s.v}</div>
+            <div style={{ fontFamily:T.mono, fontSize:11.5, color:T.mute, width:36, textAlign:'right', fontVariantNumeric:'tabular-nums' }}>
               {total > 0 ? Math.round((s.v/total)*100) : 0}%
             </div>
           </div>
@@ -194,19 +177,20 @@ const PieChart = ({ present, on_break, checked_out, absent, total }:{
 };
 
 /* ── BAR CHART (weekly TFF) ────────────────────────────────── */
+const SKELETON_HEIGHTS = [42, 66, 30, 76, 52, 60, 46];
 const WeeklyBar = ({ days, loading }:{ days:WeekDay[]; loading:boolean }) => {
   const [hover, setHover] = useState<number|null>(null);
   if (loading) {
     return (
       <div style={{ display:'flex', gap:6, alignItems:'flex-end', height:90 }}>
-        {Array.from({length:7}).map((_,i) => (
-          <Shimmer key={i} w="100%" h={Math.random()*60+20} br={4}/>
+        {SKELETON_HEIGHTS.map((h,i) => (
+          <Shimmer key={i} w="100%" h={h} br={4}/>
         ))}
       </div>
     );
   }
   if (!days.length) {
-    return <div style={{ textAlign:'center', padding:'24px 0', color:C.grayd, fontSize:13 }}>No data</div>;
+    return <Empty>No data</Empty>;
   }
   const maxTFF = Math.max(...days.map(d => d.tff), 1);
 
@@ -215,7 +199,7 @@ const WeeklyBar = ({ days, loading }:{ days:WeekDay[]; loading:boolean }) => {
       {days.map((d,i) => (
         <div
           key={d.date}
-          style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:3, position:'relative' }}
+          style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:4, position:'relative' }}
           onMouseEnter={() => setHover(i)}
           onMouseLeave={() => setHover(null)}
         >
@@ -226,21 +210,21 @@ const WeeklyBar = ({ days, loading }:{ days:WeekDay[]; loading:boolean }) => {
                 bottom:'100%',
                 left:'50%',
                 transform:'translateX(-50%)',
-                background:C.s2,
-                border:`1px solid ${C.borderL}`,
-                borderRadius:9,
+                background:T.card,
+                border:`1px solid ${T.border}`,
+                borderRadius:8,
                 padding:'8px 10px',
-                fontSize:11,
-                color:C.white,
+                fontSize:12,
+                color:T.text,
                 whiteSpace:'nowrap',
                 zIndex:50,
                 pointerEvents:'none',
                 marginBottom:4,
-                boxShadow:'0 8px 24px rgba(0,0,0,.6)',
+                boxShadow:'var(--shadow-pop)',
               }}
             >
-              <div style={{ fontWeight:700, marginBottom:3 }}>{d.label}</div>
-              <div style={{ color:C.green }}>TFF: {d.tff}</div>
+              <div style={{ fontWeight:500, marginBottom:2 }}>{d.label}</div>
+              <div style={{ color:T.dim, fontFamily:T.mono, fontSize:11.5 }}>TFF {d.tff}</div>
             </div>
           )}
           <div
@@ -253,7 +237,7 @@ const WeeklyBar = ({ days, loading }:{ days:WeekDay[]; loading:boolean }) => {
               position:'relative',
               borderRadius:4,
               overflow:'hidden',
-              background:C.s3,
+              background:T.raised,
             }}
           >
             <div
@@ -263,139 +247,62 @@ const WeeklyBar = ({ days, loading }:{ days:WeekDay[]; loading:boolean }) => {
                 left:0,
                 right:0,
                 height:`${(d.tff/maxTFF)*100}%`,
-                background:C.green,
+                background:T.ok,
                 borderRadius:4,
-                opacity:.85,
-                transition:'height .5s ease',
+                opacity:hover===i?1:.85,
+                transition:'height .5s ease, opacity .12s ease',
               }}
             />
           </div>
-          <div style={{ fontSize:9, color:hover===i?C.white:C.grayd, fontWeight:600 }}>{d.short_label}</div>
+          <div style={{ fontFamily:T.mono, fontSize:10, color:hover===i?T.text:T.mute, letterSpacing:'0.04em' }}>{d.short_label}</div>
         </div>
       ))}
     </div>
   );
 };
 
-/* ── HELPERS ─────────────────────────────────────────────── */
-const HOURS = Array.from({ length: 24 }, (_, i) => i);
-function heatColor(value: number, max: number): string {
-  if (max === 0) return C.s2;
-  const ratio = value / max;
-  if (ratio === 0)   return C.s2;
-  if (ratio < 0.25)  return '#0d2e3e';
-  if (ratio < 0.5)   return '#0a4a6e';
-  if (ratio < 0.75)  return '#076b9e';
-  return '#009dff';
-}
-
-
-
-/* ── LEAFLET MAP ───────────────────────────────────────────── */
-
-
 /* ── DATE RANGE PICKER ────────────────────────────────────── */
+const PRESETS = [
+  { label:'Today',  days:0  },
+  { label:'7d',     days:7  },
+  { label:'14d',    days:14 },
+  { label:'30d',    days:30 },
+];
 const DateRangePicker = ({ from, to, onChange }:{
   from:string;
   to:string;
   onChange:(f:string,t:string)=>void;
 }) => {
-  const presets = [
-    { label:'Today',  days:0  },
-    { label:'7d',     days:7  },
-    { label:'14d',    days:14 },
-    { label:'30d',    days:30 },
-  ];
   const today = new Date().toISOString().split('T')[0];
   const calcFrom = (days:number) => {
     const d = new Date();
     d.setDate(d.getDate() - days);
     return d.toISOString().split('T')[0];
   };
+  const presetFrom = (days:number) => (days === 0 ? today : calcFrom(days - 1));
+  const active = PRESETS.find(p => from === presetFrom(p.days) && to === today)?.label ?? 'custom';
 
   return (
     <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
-      {presets.map(p => {
-        const pFrom = p.days === 0 ? today : calcFrom(p.days - 1);
-        const active = from === pFrom && to === today;
-        return (
-          <button
-            key={p.label}
-            onClick={() => onChange(pFrom, today)}
-            style={{
-              padding:'6px 12px',
-              borderRadius:9,
-              border:`1px solid ${active ? C.blue : C.border}`,
-              background:active ? C.blueD : C.s3,
-              color:active ? C.blue : C.gray,
-              fontSize:12,
-              fontWeight:600,
-              cursor:'pointer',
-              fontFamily:"'DM Sans',sans-serif",
-              transition:'all .15s',
-            }}
-          >
-            {p.label}
-          </button>
-        );
-      })}
-      <input
-        type="date"
-        value={from}
-        onChange={e => onChange(e.target.value, to)}
-        style={{
-          padding:'6px 10px',
-          borderRadius:9,
-          border:`1px solid ${C.border}`,
-          background:C.s3,
-          color:C.white,
-          fontSize:12,
-          cursor:'pointer',
-          fontFamily:"'DM Sans',sans-serif",
-          colorScheme:'dark',
-        }}
+      <Segmented
+        value={active}
+        onChange={(v) => { const p = PRESETS.find(x => x.label === v); if (p) onChange(presetFrom(p.days), today); }}
+        options={PRESETS.map(p => ({ value:p.label, label:p.label }))}
       />
-      <span style={{ fontSize:12, color:C.grayd }}>→</span>
-      <input
-        type="date"
-        value={to}
-        onChange={e => onChange(from, e.target.value)}
-        style={{
-          padding:'6px 10px',
-          borderRadius:9,
-          border:`1px solid ${C.border}`,
-          background:C.s3,
-          color:C.white,
-          fontSize:12,
-          cursor:'pointer',
-          fontFamily:"'DM Sans',sans-serif",
-          colorScheme:'dark',
-        }}
-      />
+      <Input type="date" aria-label="From date" value={from} onChange={e => onChange(e.target.value, to)} style={{ width:150 }} />
+      <span style={{ fontSize:12, color:T.mute }}>→</span>
+      <Input type="date" aria-label="To date" value={to} onChange={e => onChange(from, e.target.value)} style={{ width:150 }} />
     </div>
   );
 };
-
-/* ── SECTION HEADER ─────────────────────────────────────────── */
-const SectionHeader = ({ title, sub }:{ title:string; sub?:string }) => (
-  <div style={{ marginBottom:14 }}>
-    <div style={{ fontFamily:"'Syne',sans-serif", fontSize:15, fontWeight:800, color:C.white }}>{title}</div>
-    {sub && <div style={{ fontSize:11, color:C.gray, marginTop:2 }}>{sub}</div>}
-  </div>
-);
-
-/* ── CARD WRAPPER ────────────────────────────────────────────── */
-const Card = ({ children, style }:{ children:React.ReactNode; style?:React.CSSProperties }) => (
-  <div style={{ background:C.s2, border:`1px solid ${C.border}`, borderRadius:18, padding:'20px 22px', ...style }}>
-    {children}
-  </div>
-);
 
 /* ══════════════════════════════════════════════════════════
    MAIN ANALYTICS DASHBOARD (NO HR TOGGLE)
 ══════════════════════════════════════════════════════════ */
 export default function DashboardPage() {
   const router = useRouter();
+  usePageTitle('Dashboard');
+  const narrow = useIsCompact(900);
 
   // Guard: this page calls /analytics/* endpoints that require the
   // `analytics` module. Users without it (e.g. client-level CRM users)
@@ -481,10 +388,6 @@ export default function DashboardPage() {
     setLWeek(false); setLCity(false); setLOutlet(false); setLSumm(false);
   }, [isInitialLoad, selectedClientId]);
 
-
-
-
-
   useEffect(() => {
     const u = getStoredUser();
     setCurrUser(u);
@@ -499,8 +402,8 @@ export default function DashboardPage() {
   }, [router]);
 
   useEffect(() => { loadInit(); }, [loadInit]);
-  useEffect(() => { 
-    if (!isInitialLoad) loadRange(from, to); 
+  useEffect(() => {
+    if (!isInitialLoad) loadRange(from, to);
   }, [from, to, loadRange, isInitialLoad, selectedClientId]);
 
   const handleRefresh = () => {
@@ -516,63 +419,35 @@ export default function DashboardPage() {
       <style>{`
         @keyframes km-shimmer { 0%{transform:translateX(-100%)} 100%{transform:translateX(100%)} }
         @keyframes km-fadein  { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
-        @keyframes km-pulse   { 0%,100%{opacity:1} 50%{opacity:.25} }
-        @keyframes kspin      { to{transform:rotate(360deg)} }
-        .kbtn { transition:opacity .13s,transform .13s; cursor:pointer; }
-        .kbtn:hover { opacity:.82; }
-        .kbtn:active { transform:scale(.97); }
-        .km-tr:hover { background:${C.s4} !important; }
-        .km-tr { border-bottom: 1px solid ${C.border} !important; }
-        .leaflet-container { background: var(--bg); }
       `}</style>
 
-      <div style={{ display:'flex', flexDirection:'column', gap:22, animation:'km-fadein .3s ease' }}>
-        {/* Header – analytics only, no toggle */}
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-end', flexWrap:'wrap', gap:12 }}>
-          <div>
-            <div style={{ fontSize:11, color:C.gray, fontWeight:600, letterSpacing:1, textTransform:'uppercase', marginBottom:2 }}>Operational Overview</div>
-            <div style={{ fontFamily:"'Syne',sans-serif", fontSize:24, fontWeight:800, color:C.white, letterSpacing:'-0.3px' }}>
-              Hello, {userName}
-            </div>
-          </div>
-          <div style={{ display:'flex', alignItems:'center', gap:10, flexWrap:'wrap' }}>
-            <DateRangePicker from={from} to={to} onChange={(f,t)=>{ setFrom(f); setTo(t); }}/>
-            <button
-              className="kbtn"
-              onClick={handleRefresh}
-              style={{
-                padding:'8px 14px',
-                background:C.s2,
-                border:`1px solid ${C.border}`,
-                borderRadius:10,
-                color:C.gray,
-                fontSize:12,
-                fontWeight:600,
-                display:'flex',
-                alignItems:'center',
-                gap:6,
-                fontFamily:"'DM Sans',sans-serif",
-              }}
-            >
-              ↺ Refresh
-              {lastSync && <span style={{ color:C.grayd }}>· {lastSync}</span>}
-            </button>
-          </div>
-        </div>
+      <div style={{ display:'flex', flexDirection:'column', gap:20, animation:'km-fadein .3s ease' }}>
+        <PageHeader
+          eyebrow="Operational overview"
+          title={`Hello, ${userName}`}
+          description={<>Field-force activity for <span style={{ fontFamily:T.mono, fontSize:12.5 }}>{from}</span> → <span style={{ fontFamily:T.mono, fontSize:12.5 }}>{to}</span>{lastSync ? <> · synced <span style={{ fontFamily:T.mono, fontSize:12.5 }}>{lastSync}</span></> : null}</>}
+          actions={
+            <>
+              <DateRangePicker from={from} to={to} onChange={(f,t)=>{ setFrom(f); setTo(t); }}/>
+              <Button onClick={handleRefresh} icon={<RefreshCw size={16} strokeWidth={1.6} />}>Refresh</Button>
+            </>
+          }
+          compact={narrow}
+        />
 
         {/* KPI Row - Phase 2 */}
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(5, 1fr)', gap:10 }}>
-          <StatCard label="Total Forms Filled" value={summData?.kpis?.total_tff ?? '—'} color={C.green} loading={loadingSumm} />
-          <StatCard label="Total Hours" value={summData?.kpis?.total_hours_worked != null ? `${Math.floor(summData.kpis.total_hours_worked)}h ${Math.round((summData.kpis.total_hours_worked % 1) * 60)}m` : '—'} color={C.purple} loading={loadingSumm} />
-          <StatCard label="Days Worked" value={summData?.kpis?.total_days_worked ?? '—'} color={C.blue} loading={loadingSumm} />
-          <StatCard label="Total Leaves" value={summData?.kpis?.total_leaves ?? '—'} color={C.red} loading={loadingSumm} />
-          <StatCard label="Avg Attendance" value={summData?.kpis?.avg_attendance != null ? `${Math.round(summData.kpis.avg_attendance)}%` : '—'} color={C.yellow} loading={loadingSumm} />
+        <div style={{ display:'grid', gridTemplateColumns:narrow ? 'repeat(2, minmax(0, 1fr))' : 'repeat(5, minmax(0, 1fr))', gap:12 }}>
+          <StatTile label="Total forms filled" value={summData?.kpis?.total_tff ?? '—'} loading={loadingSumm} />
+          <StatTile label="Total hours" value={summData?.kpis?.total_hours_worked != null ? `${Math.floor(summData.kpis.total_hours_worked)}h ${Math.round((summData.kpis.total_hours_worked % 1) * 60)}m` : '—'} loading={loadingSumm} />
+          <StatTile label="Days worked" value={summData?.kpis?.total_days_worked ?? '—'} loading={loadingSumm} />
+          <StatTile label="Total leaves" value={summData?.kpis?.total_leaves ?? '—'} loading={loadingSumm} />
+          <StatTile label="Avg attendance" value={summData?.kpis?.avg_attendance != null ? `${Math.round(summData.kpis.avg_attendance)}%` : '—'} loading={loadingSumm} />
         </div>
 
         {/* Row 2: Attendance + Weekly Activity */}
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1.5fr', gap:16 }}>
+        <div style={{ display:'grid', gridTemplateColumns:narrow ? '1fr' : 'minmax(0, 1fr) minmax(0, 1.5fr)', gap:16 }}>
           <Card>
-            <SectionHeader title="Attendance Today" sub="Active · On break · Absent" />
+            <CardTitle title="Attendance today" sub="Active · On break · Checked out · Absent" />
             {loadingAtt ? (
               <div style={{ display:'flex', gap:16, alignItems:'center' }}>
                 <Shimmer w={140} h={140} br={70}/>
@@ -591,15 +466,14 @@ export default function DashboardPage() {
                 total={att.total}
               />
             ) : (
-              <div style={{ textAlign:'center', padding:'24px 0', color:C.grayd, fontSize:13 }}>No attendance data</div>
+              <Empty>No attendance data</Empty>
             )}
-
           </Card>
 
           <Card>
-            <SectionHeader
-              title="Weekly Activity"
-              sub="Total forms filled (TFF) · (green)"
+            <CardTitle
+              title="Weekly activity"
+              sub="Total forms filled (TFF) per day"
             />
             <WeeklyBar days={weekData?.days || []} loading={loadingWeek}/>
             {!loadingWeek && weekData && (
@@ -609,24 +483,17 @@ export default function DashboardPage() {
                   gap:16,
                   marginTop:14,
                   paddingTop:14,
-                  borderTop:`1px solid ${C.border}`,
+                  borderTop:`1px solid ${T.border}`,
                 }}
               >
                 {[
-                  { l:'Total forms filled (TFF)', v:weekData.total_tff, c:C.green  },
+                  { l:'Total forms filled (TFF)', v:weekData.total_tff },
                 ].map(s => (
                   <div key={s.l}>
-                    <div
-                      style={{
-                        fontFamily:"'Syne',sans-serif",
-                        fontSize:22,
-                        fontWeight:800,
-                        color:s.c,
-                      }}
-                    >
+                    <div style={{ fontFamily:T.heading, fontSize:22, fontWeight:700, letterSpacing:'-0.01em', color:T.text, lineHeight:1.1, fontVariantNumeric:'tabular-nums' }}>
                       {s.v}
                     </div>
-                    <div style={{ fontSize:10, color:C.gray, marginTop:2 }}>{s.l}</div>
+                    <div style={{ fontSize:12, color:T.dim, marginTop:4 }}>{s.l}</div>
                   </div>
                 ))}
               </div>
@@ -634,336 +501,137 @@ export default function DashboardPage() {
           </Card>
         </div>
 
-
-        <Card>
-          <SectionHeader
-            title="City-wise Performance"
-            sub={`${from} → ${to} · based on check-ins & form submissions`}
-          />
+        <Card padding={0}>
+          <div style={{ padding:'16px 16px 0' }}>
+            <CardTitle
+              title="City-wise performance"
+              sub={`${from} → ${to} · based on check-ins & form submissions`}
+            />
+          </div>
           {(() => {
             const visibleCities = (cityData?.cities ?? []).filter(c => c.city?.toLowerCase() !== 'gurugram');
             const maxTFF = Math.max(...visibleCities.map(c => c.tff), 1);
             return loadingCity ? (
-              <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+              <div style={{ display:'flex', flexDirection:'column', gap:8, padding:'0 16px 16px' }}>
                 {[...Array(3)].map((_,i) => (
-                  <Shimmer key={i} h={52} br={10}/>
+                  <Shimmer key={i} h={44} br={8}/>
                 ))}
               </div>
             ) : visibleCities.length ? (
-              <>
-                <div
-                  style={{
-                    display:'grid',
-                    gridTemplateColumns:'1fr 70px 70px 70px 70px',
-                    gap:8,
-                    padding:'8px 12px',
-                    fontSize:10,
-                    color:C.grayd,
-                    fontWeight:700,
-                    letterSpacing:'0.6px',
-                    textTransform:'uppercase',
-                    borderBottom:`1px solid ${C.border}`,
-                    marginBottom:6,
-                  }}
-                >
-                  <div>City</div>
-                  <div style={{ textAlign:'center' }}>{isIns ? 'Advisors' : 'FEs'}</div>
-                  <div style={{ textAlign:'center' }}>{isIns ? 'Visits' : 'Check-ins'}</div>
-                  <div style={{ textAlign:'center' }}>{isIns ? 'Meetings' : 'TFF'}</div>
-                  <div style={{ textAlign:'center' }}>{isIns ? 'Policies' : 'Outlets'}</div>
-                </div>
-                {visibleCities.map((city, i) => {
-                  const barW = (city.tff / maxTFF) * 100;
-                  return (
-                    <div
-                      key={city.city}
-                      className="km-tr"
-                      style={{
-                        display:'grid',
-                        gridTemplateColumns:'1fr 70px 70px 70px 70px',
-                        gap:8,
-                        padding:'12px 12px',
-                        borderRadius:10,
-                        borderBottom:i < visibleCities.length - 1 ? `1px solid ${C.border}` : 'none',
-                        transition:'background .15s',
-                        position:'relative',
-                        overflow:'hidden',
-                      }}
-                    >
-                    <div
-                      style={{
-                        position:'absolute',
-                        left:0,
-                        top:0,
-                        bottom:0,
-                        width:`${barW}%`,
-                        background:`${C.blue}07`,
-                        pointerEvents:'none',
-                        borderRadius:10,
-                      }}
-                    />
-                    <div style={{ position:'relative' }}>
-                      <div
-                        style={{
-                          fontWeight:700,
-                          fontSize:13,
-                          color:C.white,
-                        }}
-                      >
-                        {city.city}
-                      </div>
-                      <div style={{ fontSize:10, color:C.grayd, marginTop:2 }}>
-                        {city.zones} zone{city.zones !== 1 ? 's' : ''}
-                      </div>
-                    </div>
-                    <div
-                      style={{
-                        textAlign:'center',
-                        fontFamily:"'Syne',sans-serif",
-                        fontWeight:800,
-                        fontSize:16,
-                        color:C.blue,
-                        display:'flex',
-                        alignItems:'center',
-                        justifyContent:'center',
-                      }}
-                    >
-                      {city.active_fes}
-                    </div>
-                    <div
-                      style={{
-                        textAlign:'center',
-                        fontFamily:"'Syne',sans-serif",
-                        fontWeight:800,
-                        fontSize:16,
-                        color:C.white,
-                        display:'flex',
-                        alignItems:'center',
-                        justifyContent:'center',
-                      }}
-                    >
-                      {city.checkins ?? '—'}
-                    </div>
-                    <div
-                      style={{
-                        textAlign:'center',
-                        fontFamily:"'Syne',sans-serif",
-                        fontWeight:800,
-                        fontSize:16,
-                        color:C.green,
-                        display:'flex',
-                        alignItems:'center',
-                        justifyContent:'center',
-                      }}
-                    >
-                      {city.tff}
-                    </div>
-                    <div
-                      style={{
-                        textAlign:'center',
-                        fontFamily:"'Syne',sans-serif",
-                        fontWeight:700,
-                        fontSize:14,
-                        color:C.teal,
-                        display:'flex',
-                        alignItems:'center',
-                        justifyContent:'center',
-                      }}
-                    >
-                      {city.unique_outlets}
-                    </div>
-                  </div>
-                  );
-                })}
-              </>
-            ) : (
-              <div style={{ textAlign:'center', padding:'32px 0', color:C.grayd, fontSize:13 }}>
-                No city data for this period
+              <div style={{ overflowX:'auto' }}>
+                <table style={{ width:'100%', borderCollapse:'collapse', minWidth:560 }}>
+                  <thead>
+                    <tr>
+                      <th style={th}>City</th>
+                      <th style={thNum}>{isIns ? 'Advisors' : 'FEs'}</th>
+                      <th style={thNum}>{isIns ? 'Visits' : 'Check-ins'}</th>
+                      <th style={{ ...thNum, minWidth:160 }}>{isIns ? 'Meetings' : 'TFF'}</th>
+                      <th style={thNum}>{isIns ? 'Policies' : 'Outlets'}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visibleCities.map((city, i) => {
+                      const barW = (city.tff / maxTFF) * 100;
+                      const last = i === visibleCities.length - 1;
+                      return (
+                        <tr key={city.city}>
+                          <td style={{ ...td, borderBottom: last ? 0 : td.borderBottom }}>
+                            <div style={{ fontWeight:500 }}>{city.city}</div>
+                            <div style={{ fontSize:12, color:T.mute, marginTop:2 }}>
+                              {city.zones} zone{city.zones !== 1 ? 's' : ''}
+                            </div>
+                          </td>
+                          <td style={{ ...tdNum, borderBottom: last ? 0 : td.borderBottom }}>{city.active_fes}</td>
+                          <td style={{ ...tdNum, borderBottom: last ? 0 : td.borderBottom }}>{city.checkins ?? '—'}</td>
+                          <td style={{ ...tdNum, borderBottom: last ? 0 : td.borderBottom }}>
+                            <div style={{ display:'flex', alignItems:'center', gap:10, justifyContent:'flex-end' }}>
+                              <div style={{ width:80, height:5, background:T.rule, borderRadius:3, overflow:'hidden' }}>
+                                <div style={{ width:`${barW}%`, height:'100%', background:T.ok, borderRadius:3 }} />
+                              </div>
+                              <span style={{ minWidth:28, textAlign:'right' }}>{city.tff}</span>
+                            </div>
+                          </td>
+                          <td style={{ ...tdNum, borderBottom: last ? 0 : td.borderBottom }}>{city.unique_outlets}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
+            ) : (
+              <Empty>No city data for this period</Empty>
             );
           })()}
         </Card>
 
         {/* Row 5: Outlet Coverage — hidden for the insurance vertical (no outlets) */}
         {!isIns && (
-        <Card>
-          <div
-            style={{
-              display:'flex',
-              justifyContent:'space-between',
-              alignItems:'flex-start',
-              marginBottom:14,
-            }}
-          >
-            <SectionHeader
-              title="Outlet Coverage"
+        <Card padding={0}>
+          <div style={{ padding:'16px 16px 0' }}>
+            <CardTitle
+              title="Outlet coverage"
               sub={`Unique outlets contacted · ${from} → ${to}`}
-            />
-            {outletData?.summary && (
-              <div style={{ display:'flex', gap:16 }}>
-                {[
-                  {
-                    l:'Unique Outlets',
-                    v:outletData.summary.total_outlets,
-                    c:C.teal,
-                  },
-                  {
-                    l:'Total Check-ins',
-                    v:outletData.summary.total_checkins,
-                    c:C.blue,
-                  },
-                  {
-                    l:'Total TFF',
-                    v:outletData.summary.total_tff,
-                    c:C.green,
-                  },
-                ].map(s => (
-                  <div key={s.l} style={{ textAlign:'right' }}>
-                    <div
-                      style={{
-                        fontFamily:"'Syne',sans-serif",
-                        fontWeight:800,
-                        fontSize:22,
-                        color:s.c,
-                      }}
-                    >
-                      {s.v}
+              right={outletData?.summary && (
+                <div style={{ display:'flex', gap:20, flexWrap:'wrap' }}>
+                  {[
+                    { l:'Unique outlets', v:outletData.summary.total_outlets },
+                    { l:'Total check-ins', v:outletData.summary.total_checkins },
+                    { l:'Total TFF', v:outletData.summary.total_tff },
+                  ].map(s => (
+                    <div key={s.l} style={{ textAlign:'right' }}>
+                      <div style={{ fontFamily:T.heading, fontSize:20, fontWeight:700, letterSpacing:'-0.01em', color:T.text, lineHeight:1.1, fontVariantNumeric:'tabular-nums' }}>
+                        {s.v}
+                      </div>
+                      <Eyebrow style={{ marginTop:4 }}>{s.l}</Eyebrow>
                     </div>
-                    <div style={{ fontSize:10, color:C.gray, marginTop:1 }}>{s.l}</div>
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              )}
+            />
           </div>
           {loadingOutlet ? (
-            <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+            <div style={{ display:'flex', flexDirection:'column', gap:6, padding:'0 16px 16px' }}>
               {[...Array(5)].map((_,i) => (
-                <Shimmer key={i} h={38} br={8}/>
+                <Shimmer key={i} h={36} br={8}/>
               ))}
             </div>
           ) : outletData?.outlets?.length ? (
-            <>
-              <div
-                style={{
-                  display:'grid',
-                  gridTemplateColumns:'1fr 60px 80px 70px',
-                  gap:8,
-                  padding:'6px 12px',
-                  fontSize:10,
-                  color:C.grayd,
-                  fontWeight:700,
-                  letterSpacing:'0.6px',
-                  textTransform:'uppercase',
-                  borderBottom:`1px solid ${C.border}`,
-                  marginBottom:6,
-                }}
-              >
-                <div>Outlet</div>
-                <div style={{ textAlign:'center' }}>Check-ins</div>
-                <div style={{ textAlign:'center' }}>TFF</div>
-                <div style={{ textAlign:'center' }}>TFF Rate</div>
-              </div>
-              <div style={{ maxHeight:280, overflowY:'auto' }}>
-                {outletData.outlets.map((o, i) => (
-                  <div
-                    key={i}
-                    className="km-tr"
-                    style={{
-                      display:'grid',
-                      gridTemplateColumns:'1fr 60px 80px 70px',
-                      gap:8,
-                      padding:'9px 12px',
-                      borderRadius:8,
-                      transition:'background .15s',
-                      borderBottom:
-                        i < outletData.outlets.length - 1
-                          ? `1px solid ${C.border}`
-                          : 'none',
-                    }}
-                  >
-                    <div>
-                      <div
-                        style={{
-                          fontSize:13,
-                          fontWeight:600,
-                          color:C.white,
-                        }}
-                      >
-                        {o.name}
-                      </div>
-                      {o.city && (
-                        <div style={{ fontSize:10, color:C.grayd }}>{o.city}</div>
-                      )}
-                    </div>
-                    <div
-                      style={{
-                        textAlign:'center',
-                        fontFamily:"'Syne',sans-serif",
-                        fontWeight:700,
-                        fontSize:14,
-                        color:C.blue,
-                        display:'flex',
-                        alignItems:'center',
-                        justifyContent:'center',
-                      }}
-                    >
-                      {o.checkins}
-                    </div>
-                    <div
-                      style={{
-                        textAlign:'center',
-                        fontFamily:"'Syne',sans-serif",
-                        fontWeight:700,
-                        fontSize:14,
-                        color:C.green,
-                        display:'flex',
-                        alignItems:'center',
-                        justifyContent:'center',
-                      }}
-                    >
-                      {o.tff ?? '—'}
-                    </div>
-                    <div
-                      style={{
-                        textAlign:'center',
-                        display:'flex',
-                        alignItems:'center',
-                        justifyContent:'center',
-                      }}
-                    >
-                      {o.tff_rate != null ? (
-                        <span
-                          style={{
-                            fontFamily:"'Syne',sans-serif",
-                            fontWeight:700,
-                            fontSize:12,
-                            color:
-                              o.tff_rate >= 60
-                                ? C.green
-                                : o.tff_rate >= 30
-                                ? C.yellow
-                                : C.grayd,
-                          }}
-                        >
-                          {o.tff_rate}%
-                        </span>
-                      ) : (
-                        <span style={{ fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:12, color:C.grayd }}>—</span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </>
-          ) : (
-            <div style={{ textAlign:'center', padding:'32px 0', color:C.grayd, fontSize:13 }}>
-              No outlet data for this period
+            <div style={{ overflowX:'auto', maxHeight:320, overflowY:'auto' }}>
+              <table style={{ width:'100%', borderCollapse:'collapse', minWidth:520 }}>
+                <thead>
+                  <tr>
+                    <th style={{ ...th, position:'sticky', top:0, background:T.card }}>Outlet</th>
+                    <th style={{ ...thNum, position:'sticky', top:0, background:T.card }}>Check-ins</th>
+                    <th style={{ ...thNum, position:'sticky', top:0, background:T.card }}>TFF</th>
+                    <th style={{ ...thNum, position:'sticky', top:0, background:T.card }}>TFF rate</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {outletData.outlets.map((o, i) => {
+                    const last = i === outletData.outlets.length - 1;
+                    const rateColor = o.tff_rate == null ? T.mute : o.tff_rate >= 60 ? T.ok : o.tff_rate >= 30 ? T.warn : T.mute;
+                    return (
+                      <tr key={i}>
+                        <td style={{ ...td, borderBottom: last ? 0 : td.borderBottom }}>
+                          <div style={{ fontWeight:500 }}>{o.name}</div>
+                          {o.city && <div style={{ fontSize:12, color:T.mute, marginTop:2 }}>{o.city}</div>}
+                        </td>
+                        <td style={{ ...tdNum, borderBottom: last ? 0 : td.borderBottom }}>{o.checkins}</td>
+                        <td style={{ ...tdNum, borderBottom: last ? 0 : td.borderBottom }}>{o.tff ?? '—'}</td>
+                        <td style={{ ...tdNum, borderBottom: last ? 0 : td.borderBottom, color:rateColor }}>
+                          {o.tff_rate != null ? `${o.tff_rate}%` : '—'}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
+          ) : (
+            <Empty>No outlet data for this period</Empty>
           )}
         </Card>
         )}
-
-
       </div>
     </>
   );

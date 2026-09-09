@@ -45,8 +45,9 @@ test.describe('Leads list (demo mode)', () => {
     await expect(page).toHaveURL(/\/dashboard\/crm\/leads\/demo-lead-1/);
   });
 
-  test('"+ New Lead" navigates to the create form', async ({ page }) => {
-    await page.getByRole('link', { name: '+ New Lead' }).click();
+  test('"New lead" navigates to the create form', async ({ page }) => {
+    // The header CTA is a lucide "+" icon followed by "New lead".
+    await page.getByRole('link', { name: /new lead/i }).first().click();
     await expect(page).toHaveURL(/\/dashboard\/crm\/leads\/new$/);
     await expect(page.getByRole('heading', { name: 'New Lead' })).toBeVisible();
   });

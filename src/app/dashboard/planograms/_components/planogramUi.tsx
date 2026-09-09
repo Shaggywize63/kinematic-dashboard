@@ -1,33 +1,36 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ComponentProps, type CSSProperties, type ReactNode } from 'react';
+import { Badge, Button, Card, EmptyState, T, eyebrowStyle, type ButtonVariant, type ButtonSize } from '../../../../components/ui';
 
 /**
- * Shared visual language for the redesigned planogram module (Overview /
- * Captures / Review queue). Maps the approved prototype's tokens onto the
- * dashboard's theme CSS vars, plus semantic good/warn/bad tones kept separate
- * from brand red. Every screen composes these primitives so the module reads
- * as one system in both light and dark themes.
+ * Shared visual language for the planogram module (Overview / Captures /
+ * Review queue / Library / Competitors / Insights / editor). Every screen
+ * composes these primitives, which are thin wrappers over the dashboard
+ * design system in `components/ui`, so the module reads as one family with
+ * the rest of the app and flips light/dark from the tokens in globals.css.
  */
 
+/** Module palette — every key resolves to a design-system token. Semantic
+ *  good / warn / bad map to `--ok` / `--warn` / `--red`; brand red is the
+ *  same red as the primary action. Never append a hex alpha to these. */
 export const PC = {
-  brand: '#E01E2C',
-  good: '#00D97E',
-  warn: '#FFB800',
-  bad: '#F04438',
-  info: '#3E9EFF',
-  // Low-alpha washes read acceptably on both light (--s1 #fff) and dark surfaces.
-  goodWash: 'rgba(0,217,126,0.14)',
-  warnWash: 'rgba(255,184,0,0.16)',
-  badWash: 'rgba(240,68,56,0.14)',
-  infoWash: 'rgba(62,158,255,0.14)',
-  brandWash: 'rgba(224,30,44,0.11)',
-  // Surfaces + text via theme vars (theme-aware, defined in globals.css).
-  surface: 'var(--s1)',
-  surface2: 'var(--s2)',
-  surface3: 'var(--s3)',
-  border: 'var(--border)',
-  text: 'var(--text)',
-  muted: 'var(--text-dim)',
+  brand: T.red,
+  good: T.ok,
+  warn: T.warn,
+  bad: T.red,
+  info: T.info,
+  goodWash: T.okWash,
+  warnWash: T.warnWash,
+  badWash: T.redWash,
+  infoWash: T.infoWash,
+  brandWash: T.redWash,
+  surface: T.card,
+  surface2: T.raised,
+  surface3: T.rule,
+  border: T.border,
+  text: T.text,
+  muted: T.dim,
+  mute: T.mute,
 } as const;
 
 /** Viewport flag — the module's responsive breakpoint (mirrors the prototype's
@@ -55,6 +58,9 @@ export function toneColor(t: Tone): string {
 }
 export function toneWash(t: Tone): string {
   return t === 'good' ? PC.goodWash : t === 'warn' ? PC.warnWash : PC.badWash;
+}
+function toneBadge(t: Tone): 'ok' | 'warn' | 'red' {
+  return t === 'good' ? 'ok' : t === 'warn' ? 'warn' : 'red';
 }
 
 // ── Formatters ───────────────────────────────────────────────────────────────
@@ -85,55 +91,27 @@ export function fmtDateTime(iso: string | null | undefined): string {
 /** A compliance-score pill (tabular-nums, tone-coloured). */
 export function ScorePill({ score }: { score: number | null | undefined }) {
   if (score == null)
-    return <span style={{ fontSize: 12, color: PC.muted, fontVariantNumeric: 'tabular-nums' }}>—</span>;
+    return <span style={{ fontSize: 12, color: PC.muted, fontFamily: T.mono, fontVariantNumeric: 'tabular-nums' }}>—</span>;
   const t = scoreTone(score);
   return (
-    <span
-      style={{
-        fontSize: 12,
-        fontWeight: 800,
-        padding: '3px 10px',
-        borderRadius: 100,
-        color: toneColor(t),
-        background: toneWash(t),
-        fontVariantNumeric: 'tabular-nums',
-        display: 'inline-block',
-        minWidth: 34,
-        textAlign: 'center',
-      }}
-    >
+    <Badge tone={toneBadge(t)} mono style={{ minWidth: 38, justifyContent: 'center', fontVariantNumeric: 'tabular-nums' }}>
       {Math.round(score)}
-    </span>
+    </Badge>
   );
 }
 
 export type FlagKind = 'recovered' | 'review' | 'competitor' | 'lowscore';
-const FLAG_META: Record<FlagKind, { label: string; color: string; wash: string }> = {
-  recovered: { label: 'recovered', color: PC.info, wash: PC.infoWash },
-  review: { label: 'review', color: PC.warn, wash: PC.warnWash },
-  competitor: { label: 'competitor', color: PC.brand, wash: PC.brandWash },
-  lowscore: { label: 'low', color: PC.warn, wash: PC.warnWash },
+const FLAG_META: Record<FlagKind, { label: string; tone: 'info' | 'warn' | 'red' }> = {
+  recovered: { label: 'recovered', tone: 'info' },
+  review: { label: 'review', tone: 'warn' },
+  competitor: { label: 'competitor', tone: 'red' },
+  lowscore: { label: 'low', tone: 'warn' },
 };
 
 /** A small semantic badge for capture flags (recovered / review / competitor). */
 export function FlagBadge({ kind, label }: { kind: FlagKind; label?: string }) {
   const m = FLAG_META[kind];
-  return (
-    <span
-      style={{
-        fontSize: 10.5,
-        fontWeight: 700,
-        padding: '2px 8px',
-        borderRadius: 100,
-        color: m.color,
-        background: m.wash,
-        display: 'inline-block',
-        whiteSpace: 'nowrap',
-      }}
-    >
-      {label ?? m.label}
-    </span>
-  );
+  return <Badge tone={m.tone}>{label ?? m.label}</Badge>;
 }
 
 /** The set of flag badges a capture-like row should show. */
@@ -146,7 +124,7 @@ export function CaptureFlags({
   needs_review?: boolean;
   competitor_present?: boolean;
 }) {
-  const flags: React.ReactNode[] = [];
+  const flags: ReactNode[] = [];
   if (recovered_count && recovered_count > 0)
     flags.push(<FlagBadge key="rec" kind="recovered" label={`${recovered_count} recovered`} />);
   if (needs_review) flags.push(<FlagBadge key="rev" kind="review" />);
@@ -155,123 +133,113 @@ export function CaptureFlags({
   return <span style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap' }}>{flags}</span>;
 }
 
-/** A titled card container matching the prototype's `.card .sec`. */
+/** A titled card container: Manrope 15/700 title, dim caption, actions on the
+ *  right, then the body (`bodyPad={false}` for tables / lists). */
 export function SectionCard({
   title,
   caption,
   right,
   children,
   bodyPad = true,
+  style,
 }: {
-  title?: string;
-  caption?: string;
-  right?: React.ReactNode;
-  children: React.ReactNode;
+  title?: ReactNode;
+  caption?: ReactNode;
+  right?: ReactNode;
+  children: ReactNode;
   bodyPad?: boolean;
+  style?: CSSProperties;
 }) {
+  const hasHead = !!(title || right);
   return (
-    <div
-      style={{
-        background: PC.surface,
-        border: `1px solid ${PC.border}`,
-        borderRadius: 14,
-        boxShadow: '0 1px 2px rgba(16,20,30,0.04)',
-        overflow: 'hidden',
-      }}
-    >
-      {(title || right) && (
+    <Card padding={0} style={{ overflow: 'hidden', ...style }}>
+      {hasHead && (
         <div
           style={{
-            padding: '15px 18px 12px',
+            padding: '14px 16px',
             display: 'flex',
-            alignItems: 'flex-start',
+            alignItems: 'center',
             justifyContent: 'space-between',
             gap: 12,
             flexWrap: 'wrap',
+            borderBottom: bodyPad ? 0 : `1px solid ${T.border}`,
           }}
         >
           <div style={{ minWidth: 0 }}>
             {title && (
-              <div
-                style={{
-                  fontFamily: 'var(--font-manrope)',
-                  fontSize: 14.5,
-                  fontWeight: 800,
-                  color: PC.text,
-                }}
-              >
-                {title}
-              </div>
+              <div style={{ fontFamily: T.heading, fontSize: 15, fontWeight: 700, letterSpacing: '-0.01em', color: T.text }}>{title}</div>
             )}
-            {caption && <div style={{ fontSize: 12, color: PC.muted, marginTop: 3 }}>{caption}</div>}
+            {caption && <div style={{ fontSize: 12.5, color: T.dim, marginTop: 2 }}>{caption}</div>}
           </div>
-          {right}
+          {right && <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>{right}</div>}
         </div>
       )}
-      <div style={{ padding: bodyPad ? (title ? '0 18px 16px' : 16) : 0 }}>{children}</div>
-    </div>
+      <div style={{ padding: bodyPad ? (hasHead ? '0 16px 16px' : 16) : 0 }}>{children}</div>
+    </Card>
   );
 }
 
 /** Loading / empty / error message block used inside cards + tables. */
-export function StateBlock({ children, tone }: { children: React.ReactNode; tone?: 'error' }) {
+export function StateBlock({ children, tone }: { children: ReactNode; tone?: 'error' }) {
   if (tone === 'error')
     return (
       <div
+        role="alert"
         style={{
-          background: PC.badWash,
-          border: `1px solid ${PC.bad}55`,
-          borderRadius: 12,
-          padding: '12px 16px',
+          background: T.redWash,
+          borderRadius: T.radius.md,
+          padding: '10px 14px',
           fontSize: 13,
-          color: PC.bad,
+          color: T.red,
         }}
       >
         {children}
       </div>
     );
-  return (
-    <div style={{ padding: '32px 8px', textAlign: 'center', color: PC.muted, fontSize: 13 }}>
-      {children}
-    </div>
-  );
+  return <EmptyState title={children} style={{ padding: '36px 16px' }} />;
 }
 
-/** Small pill/select styled like the prototype's `.sely` scope chips. */
-export const selyStyle: React.CSSProperties = {
-  background: PC.surface,
-  border: `1px solid ${PC.border}`,
-  borderRadius: 9,
-  padding: '7px 10px',
-  fontSize: 12.5,
-  color: PC.text,
-  fontWeight: 600,
+/** Compact select styled like the design-system `Select` (36px, 6px radius)
+ *  — kept as a style object because the module's pages spread it onto raw
+ *  `<select>`s. Prefer `Select` from `components/ui` in new code. */
+export const selyStyle: CSSProperties = {
+  height: 36,
+  boxSizing: 'border-box',
+  background: T.field,
+  border: `1px solid ${T.border}`,
+  borderRadius: T.radius.sm,
+  padding: '0 11px',
+  fontSize: 13.5,
+  color: T.text,
+  fontFamily: 'inherit',
   cursor: 'pointer',
   outline: 'none',
 };
 
+/** Module button — a re-export of the design-system Button so pages that
+ *  compose their own buttons can pick the right variant. */
+export function ModBtn({ variant = 'secondary', size, ...rest }: ComponentProps<typeof Button> & { variant?: ButtonVariant; size?: ButtonSize }) {
+  return <Button variant={variant} size={size} {...rest} />;
+}
+
 /** Wide-table wrapper — horizontal scroll stays inside the card. */
-export function TableScroll({ children }: { children: React.ReactNode }) {
+export function TableScroll({ children }: { children: ReactNode }) {
   return <div style={{ overflowX: 'auto' }}>{children}</div>;
 }
 
-export const th: React.CSSProperties = {
+export const th: CSSProperties = {
+  ...eyebrowStyle,
   textAlign: 'left',
-  fontSize: 10.5,
-  textTransform: 'uppercase',
-  letterSpacing: '0.05em',
-  color: PC.muted,
-  fontWeight: 700,
-  padding: '9px 12px',
-  borderBottom: `1px solid ${PC.border}`,
+  padding: '12px 14px',
+  borderBottom: `1px solid ${T.border}`,
   whiteSpace: 'nowrap',
 };
-export const thR: React.CSSProperties = { ...th, textAlign: 'right' };
-export const td: React.CSSProperties = {
-  padding: '11px 12px',
-  borderBottom: `1px solid ${PC.border}`,
+export const thR: CSSProperties = { ...th, textAlign: 'right' };
+export const td: CSSProperties = {
+  padding: '12px 14px',
+  borderBottom: `1px solid ${T.border}`,
   fontSize: 13.5,
-  color: PC.text,
+  color: T.text,
   verticalAlign: 'middle',
 };
-export const tdR: React.CSSProperties = { ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' };
+export const tdR: CSSProperties = { ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' };

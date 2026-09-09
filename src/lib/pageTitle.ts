@@ -23,6 +23,8 @@ const SEGMENT_LABELS: Record<string, string> = {
   new: 'New', edit: 'Edit', import: 'Import', analytics: 'Analytics', settings: 'Settings',
   reports: 'Reports', history: 'History', roles: 'Roles', 'custom-fields': 'Custom fields',
   messages: 'Message log', approvals: 'Approvals', calendar: 'Calendar',
+  crm: 'CRM', ffm: 'FFM', hr: 'HR', ai: 'AI', dsr: 'DSR', skus: 'SKUs', whatsapp: 'WhatsApp',
+  'ffm-reports': 'Field reports', 'ffm-analytics': 'Field analytics',
 };
 
 export function humanizeSegment(seg: string): string {

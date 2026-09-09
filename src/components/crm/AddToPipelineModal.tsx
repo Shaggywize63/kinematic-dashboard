@@ -1,8 +1,11 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { Info } from 'lucide-react';
 import { crmPipelines, crmDeals } from '../../lib/crmApi';
 import type { Pipeline, Deal } from '../../types/crm';
+import Modal from './shared/Modal';
+import { Badge, Button, T } from '../ui';
 
 interface Props {
   deal: Deal;
@@ -56,66 +59,69 @@ export default function AddToPipelineModal({ deal, pipelines, open, onClose, onU
   };
 
   return (
-    <div onClick={(e) => { if (e.target === e.currentTarget && !busy) onClose(); }}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-      <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 24, width: 480, maxWidth: '100%' }}>
-        <div style={{ marginBottom: 14 }}>
-          <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.5, marginBottom: 4 }}>{deal.pipeline_id ? 'Move pipeline' : 'Add to pipeline'}</div>
-          <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>{deal.name}</div>
-        </div>
-
-        {pipelines.length === 0 ? (
-          <div style={{ background: 'var(--s3)', borderRadius: 8, padding: 14, fontSize: 13, color: 'var(--text-dim)' }}>
-            No pipelines exist yet. Create one from <strong style={{ color: 'var(--text)' }}>CRM → Pipeline</strong> first.
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 380, overflowY: 'auto' }}>
-            {pipelines.map((p) => {
-              const stagesCount = (p.stages || []).length;
-              const openStages = (p.stages || []).filter((s) => s.stage_type === 'open').length;
-              const active = selected === p.id;
-              const isCurrent = deal.pipeline_id === p.id;
-              return (
-                <label key={p.id}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 12,
-                    padding: 12, borderRadius: 10, cursor: 'pointer',
-                    background: active ? 'rgba(224,30,44,0.12)' : 'var(--s3)',
-                    border: `1px solid ${active ? 'var(--primary)' : 'var(--border)'}`,
-                  }}>
-                  <input
-                    type="radio"
-                    name="pipeline"
-                    value={p.id}
-                    checked={active}
-                    onChange={() => setSelected(p.id)}
-                  />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                      {p.name}
-                      {p.is_default && <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 4, background: 'var(--s4)', color: 'var(--text-dim)', fontWeight: 800, letterSpacing: 0.4 }}>DEFAULT</span>}
-                      {isCurrent && <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 4, background: 'var(--primary)', color: '#fff', fontWeight: 800, letterSpacing: 0.4 }}>CURRENT</span>}
-                    </div>
-                    <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2 }}>{stagesCount} stage{stagesCount === 1 ? '' : 's'} · {openStages} open</div>
-                  </div>
-                </label>
-              );
-            })}
-          </div>
-        )}
-
-        <div style={{ background: 'var(--s3)', borderRadius: 8, padding: 10, fontSize: 11, color: 'var(--text-dim)', marginTop: 14, lineHeight: 1.5 }}>
-          The deal will move to the first <strong style={{ color: 'var(--text)' }}>open</strong> stage of the chosen pipeline. Its win probability resets to that stage&rsquo;s default and the breadcrumb path repaints below.
-        </div>
-
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 14 }}>
-          <button onClick={onClose} disabled={busy} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 16px', borderRadius: 8, fontSize: 13, cursor: 'pointer' }}>Cancel</button>
-          <button onClick={submit} disabled={busy || !selected || pipelines.length === 0 || selected === deal.pipeline_id}
-            style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 18px', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer', opacity: (busy || !selected || selected === deal.pipeline_id) ? 0.6 : 1 }}>
+    <Modal
+      open={open}
+      onClose={() => { if (!busy) onClose(); }}
+      title={deal.pipeline_id ? 'Move pipeline' : 'Add to pipeline'}
+      subtitle={deal.name}
+      width={520}
+      footer={
+        <>
+          <Button type="button" onClick={onClose} disabled={busy}>Cancel</Button>
+          <Button type="button" variant="primary" onClick={submit} disabled={busy || !selected || pipelines.length === 0 || selected === deal.pipeline_id}>
             {busy ? 'Saving…' : deal.pipeline_id ? 'Move' : 'Add'}
-          </button>
+          </Button>
+        </>
+      }
+    >
+      {pipelines.length === 0 ? (
+        <div style={{ background: T.raised, borderRadius: T.radius.md, padding: 14, fontSize: 13.5, color: T.dim }}>
+          No pipelines exist yet. Create one from <span style={{ color: T.text }}>CRM → Pipelines</span> first.
         </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 380, overflowY: 'auto' }}>
+          {pipelines.map((p) => {
+            const stagesCount = (p.stages || []).length;
+            const openStages = (p.stages || []).filter((s) => s.stage_type === 'open').length;
+            const active = selected === p.id;
+            const isCurrent = deal.pipeline_id === p.id;
+            return (
+              <label key={p.id}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  padding: '10px 12px', borderRadius: T.radius.md, cursor: 'pointer',
+                  background: active ? T.infoWash : T.raised,
+                  border: `1px solid ${active ? T.info : 'transparent'}`,
+                  transition: 'background .12s ease, border-color .12s ease',
+                }}>
+                <input
+                  type="radio"
+                  name="pipeline"
+                  value={p.id}
+                  checked={active}
+                  onChange={() => setSelected(p.id)}
+                  style={{ width: 15, height: 15, margin: 0 }}
+                />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, color: T.text, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                    {p.name}
+                    {p.is_default && <Badge tone="neutral">Default</Badge>}
+                    {isCurrent && <Badge tone="red">Current</Badge>}
+                  </div>
+                  <div style={{ fontSize: 12.5, color: T.dim, marginTop: 2 }}>
+                    <span style={{ fontFamily: T.mono }}>{stagesCount}</span> stage{stagesCount === 1 ? '' : 's'} · <span style={{ fontFamily: T.mono }}>{openStages}</span> open
+                  </div>
+                </div>
+              </label>
+            );
+          })}
+        </div>
+      )}
+
+      <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', background: T.raised, borderRadius: T.radius.md, padding: '10px 12px', fontSize: 12.5, color: T.dim, marginTop: 14, lineHeight: 1.5 }}>
+        <Info size={14} strokeWidth={1.6} style={{ flexShrink: 0, marginTop: 2 }} />
+        <span>The deal moves to the first <span style={{ color: T.text }}>open</span> stage of the chosen pipeline. Its win probability resets to that stage&rsquo;s default and the stage progress repaints.</span>
       </div>
-    </div>
+    </Modal>
   );
 }
