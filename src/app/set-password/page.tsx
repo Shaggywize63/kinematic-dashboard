@@ -2,8 +2,11 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { KeyRound, Loader2 } from 'lucide-react';
 import api from '../../lib/api';
 import { getStoredToken, getStoredUser, landingRouteFor } from '../../lib/auth';
+import BrandLogo from '../../components/shared/BrandLogo';
+import { Button, Card, Field, Input, T } from '../../components/ui';
 
 /**
  * Forced "set a new password" screen. The dashboard layout routes here when
@@ -48,42 +51,41 @@ export default function SetPasswordPage() {
     }
   };
 
+  const mismatch = confirm.length > 0 && confirm !== pw;
+
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg, #0b0d12)', padding: 20 }}>
-      <div style={{ width: 420, maxWidth: '100%', background: 'var(--s2, #14171f)', border: '1px solid var(--border, #262a33)', borderRadius: 16, padding: 28 }}>
-        <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text, #fff)', margin: 0 }}>Set a new password</h1>
-        <p style={{ fontSize: 13, color: 'var(--text-dim, #9aa0aa)', marginTop: 8, marginBottom: 20 }}>
-          For your security, please choose a new password before continuing.
+    <main style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: T.canvas, color: T.text, padding: 20 }}>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      <Card padding={28} style={{ width: 420, maxWidth: '100%', boxShadow: 'var(--shadow-pop)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+          <BrandLogo size={26} />
+          <span style={{ fontFamily: T.heading, fontWeight: 800, fontSize: 16, letterSpacing: '-0.01em' }}>Kinematic</span>
+        </div>
+        <div style={{ width: 40, height: 40, borderRadius: 10, background: T.raised, display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.dim, marginBottom: 14 }}>
+          <KeyRound size={18} strokeWidth={1.7} />
+        </div>
+        <h1 style={{ margin: 0, fontFamily: T.heading, fontSize: 22, fontWeight: 700, letterSpacing: '-0.01em', lineHeight: 1.2 }}>Set a new password</h1>
+        <p style={{ fontSize: 13.5, color: T.dim, margin: '6px 0 22px', lineHeight: 1.5 }}>
+          You signed in with a temporary password. Choose your own before continuing.
         </p>
-        <form onSubmit={submit}>
-          <Field label="New password">
-            <input type="password" value={pw} onChange={(e) => setPw(e.target.value)} autoFocus autoComplete="new-password" placeholder="At least 6 characters" style={inp} />
+        <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <Field label="New password" hint="At least 6 characters." htmlFor="new-password">
+            <Input id="new-password" type="password" value={pw} onChange={(e) => setPw(e.target.value)} autoFocus autoComplete="new-password" placeholder="At least 6 characters" style={{ height: 40 }} />
           </Field>
-          <Field label="Confirm new password">
-            <input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" placeholder="Re-enter password" style={inp} />
+          <Field label="Confirm new password" error={mismatch ? 'Passwords do not match.' : undefined} htmlFor="confirm-password">
+            <Input id="confirm-password" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" placeholder="Re-enter password" invalid={mismatch} style={{ height: 40 }} />
           </Field>
-          <button type="submit" disabled={busy} style={{
-            width: '100%', marginTop: 8, padding: '11px 16px', borderRadius: 10, border: 'none',
-            background: 'var(--primary, #3E9EFF)', color: '#fff', fontWeight: 700, fontSize: 14,
-            cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.7 : 1,
-          }}>{busy ? 'Saving…' : 'Update password & continue'}</button>
+          <Button
+            type="submit"
+            variant="primary"
+            disabled={busy}
+            style={{ height: 40, width: '100%', fontSize: 14, marginTop: 4 }}
+            icon={busy ? <Loader2 size={16} strokeWidth={2} style={{ animation: 'spin 0.8s linear infinite' }} /> : undefined}
+          >
+            {busy ? 'Saving…' : 'Update password & continue'}
+          </Button>
         </form>
-      </div>
-    </div>
+      </Card>
+    </main>
   );
 }
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label style={{ display: 'block', marginBottom: 14 }}>
-      <div style={{ fontSize: 11, color: 'var(--text-dim, #9aa0aa)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 6 }}>{label}</div>
-      {children}
-    </label>
-  );
-}
-
-const inp: React.CSSProperties = {
-  width: '100%', boxSizing: 'border-box', background: 'var(--s3, #1b1f28)',
-  border: '1px solid var(--border, #262a33)', color: 'var(--text, #fff)',
-  padding: '10px 12px', borderRadius: 10, fontSize: 14,
-};
