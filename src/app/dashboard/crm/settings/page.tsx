@@ -121,7 +121,12 @@ export default function SettingsIndex() {
           setConfig(cfg);
           if (typeof cfg.default_role_id === 'string') setDefaultRoleId(cfg.default_role_id);
         }
-        if (r.status === 'fulfilled') setRoles(((r.value as any) ?? []) as OrgRole[]);
+        if (r.status === 'fulfilled') {
+          // Accept a bare array or an envelope — never let a shape change
+          // take the whole settings hub down on `roles.map`.
+          const v: any = r.value;
+          setRoles((Array.isArray(v) ? v : Array.isArray(v?.data) ? v.data : []) as OrgRole[]);
+        }
       } catch { /* defaults are fine */ }
       finally { setLoaded(true); }
     })();
