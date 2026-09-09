@@ -6,6 +6,7 @@ import type { CustomField, Lead, Product } from '../../types/crm';
 import { evaluateClientFormula } from './CustomFieldsSection';
 import { PRODUCT_LINE_KEYS } from './ProductLinesSection';
 import InlineEditText from './InlineEditText';
+import type { FieldHelpers } from '../../lib/crmFieldOverrides';
 
 interface LeadWithCustomFields extends Lead {
   custom_fields?: Record<string, unknown> | null;
@@ -22,22 +23,22 @@ interface Props {
    * Edit popup so we don't force otherwise-hidden sections open.
    */
   onPatch?: (patch: Partial<LeadWithCustomFields>) => Promise<void>;
+  /**
+   * Per-tenant built-in field overrides (hidden / relabelled). The detail
+   * view is a render site like Create and Edit: a field the admin hid must
+   * not show here either, and a relabel must carry through.
+   */
+  fields?: FieldHelpers;
 }
 
-// Accent colours per section — cycles through CSS vars so both light + dark themes work.
-const SECTION_ACCENTS = [
-  'var(--primary)',
-  '#06b6d4',
-  '#8b5cf6',
-  '#f59e0b',
-  '#10b981',
-  '#ec4899',
-  '#3b82f6',
-  '#f97316',
-];
-
-export default function LeadDetailsPanel({ lead, onPatch }: Props) {
+export default function LeadDetailsPanel({ lead, onPatch, fields }: Props) {
   const isB2C = !!lead.is_b2c;
+  // Gate + relabel one built-in row. Hidden → null (the section-hide logic
+  // below then drops it like an empty value).
+  const g = (key: string, label: string, value: React.ReactNode): [string, React.ReactNode] => [
+    fields ? fields.labelFor(key, label) : label,
+    fields?.isHidden(key) ? null : value,
+  ];
 
   // Render an existing built-in value as a click-to-edit field when the
   // parent wired `onPatch`; otherwise plain text. Empty values return
@@ -153,36 +154,36 @@ export default function LeadDetailsPanel({ lead, onPatch }: Props) {
 
   // Email + Primary Mobile are already shown in the page header — skip here.
   const contactItems: Array<[string, React.ReactNode]> = [
-    ['Alternate Mobiles', altMobiles.length ? <ChipList items={altMobiles} /> : null],
-    ['Preferred Channel', lead.preferred_contact_method
+    g('alternate_mobiles', 'Alternate mobiles', altMobiles.length ? <ChipList items={altMobiles} /> : null),
+    g('preferred_contact_method', 'Preferred channel', lead.preferred_contact_method
       ? cap(lead.preferred_contact_method.replace(/_/g, ' '))
-      : null],
+      : null),
   ];
 
   const businessItems: Array<[string, React.ReactNode]> = [
-    ['Company',   editable('company', lead.company, 'Edit company')],
-    ['Job Title', editable('title', lead.title, 'Edit job title')],
-    ['Industry',  lead.industry || null],
+    g('company',  'Company',   editable('company', lead.company, 'Edit company')),
+    g('title',    'Job title', editable('title', lead.title, 'Edit job title')),
+    g('industry', 'Industry',  lead.industry || null),
   ];
 
   const personalItems: Array<[string, React.ReactNode]> = [
-    ['Date of Birth', lead.date_of_birth ? formatDate(lead.date_of_birth) : null],
-    ['Gender',        lead.gender ? cap(lead.gender.replace(/_/g, ' ')) : null],
+    g('date_of_birth', 'Date of birth', lead.date_of_birth ? formatDate(lead.date_of_birth) : null),
+    g('gender',        'Gender',        lead.gender ? cap(lead.gender.replace(/_/g, ' ')) : null),
   ];
 
   const addressItems: Array<[string, React.ReactNode]> = [
-    ['Line 1',      lead.address_line1 || null],
-    ['Line 2',      lead.address_line2 || null],
-    ['City',        editable('city', lead.city, 'Edit city')],
-    ['State',       lead.state || null],
-    ['Postal Code', lead.postal_code || null],
-    ['Country',     lead.country || null],
+    g('address_line1', 'Line 1',      lead.address_line1 || null),
+    g('address_line2', 'Line 2',      lead.address_line2 || null),
+    g('city',          'City',        editable('city', lead.city, 'Edit city')),
+    g('state',         'State',       lead.state || null),
+    g('postal_code',   'Postal code', lead.postal_code || null),
+    g('country',       'Country',     lead.country || null),
     ['Map', (lead.latitude != null && lead.longitude != null) ? (
       <span>
         <Mono>{lead.latitude.toFixed(4)}, {lead.longitude.toFixed(4)}</Mono>
         {mapHref && (
           <> &nbsp;<a href={mapHref} target="_blank" rel="noreferrer"
-            style={{ color: 'var(--primary)', textDecoration: 'none', fontSize: 12 }}>
+            style={{ color: 'var(--accent)', textDecoration: 'none', fontSize: 12 }}>
             View ↗
           </a></>
         )}
@@ -200,8 +201,8 @@ export default function LeadDetailsPanel({ lead, onPatch }: Props) {
   ];
 
   const consentItems: Array<[string, React.ReactNode]> = [
-    ['Marketing', formatConsent(lead.marketing_consent)],
-    ['WhatsApp',  formatConsent(lead.whatsapp_consent)],
+    g('marketing_consent', 'Marketing', formatConsent(lead.marketing_consent)),
+    g('whatsapp_consent',  'WhatsApp',  formatConsent(lead.whatsapp_consent)),
   ];
 
   const customItems: Array<[string, React.ReactNode]> = customDefs
@@ -278,8 +279,8 @@ export default function LeadDetailsPanel({ lead, onPatch }: Props) {
   }, [cf, productMap]);
 
   const notesAndTagsItems: Array<[string, React.ReactNode]> = [
-    ['Tags',  tags.length ? <ChipList items={tags} /> : null],
-    ['Notes', lead.notes ? <NoteValue note={lead.notes} /> : null],
+    g('tags',  'Tags',  tags.length ? <ChipList items={tags} /> : null),
+    g('notes', 'Notes', lead.notes ? <NoteValue note={lead.notes} /> : null),
   ];
 
   // Render product_lines as one labelled item per line so the section
@@ -298,15 +299,15 @@ export default function LeadDetailsPanel({ lead, onPatch }: Props) {
   }
 
   const sections: Array<{ title: string; items: Array<[string, React.ReactNode]>; show: boolean }> = [
-    { title: 'Contact Preferences',      items: contactItems,      show: true },
-    { title: 'Business Details',        items: businessItems,     show: !isB2C },
-    { title: 'Personal Details',        items: personalItems,     show: isB2C },
-    { title: 'Address & Location',      items: addressItems,      show: true },
-    { title: 'Products of Interest',    items: productItems,      show: productItems.length > 0 },
-    { title: 'Score & Dates',            items: lifecycleItems,    show: true },
-    { title: 'Custom Fields',           items: customItems,       show: customItems.length > 0 },
-    { title: 'Consent & Preferences',   items: consentItems,      show: isB2C },
-    { title: 'Notes & Tags',            items: notesAndTagsItems, show: true },
+    { title: 'Contact preferences',      items: contactItems,      show: true },
+    { title: 'Company',                  items: businessItems,     show: !isB2C },
+    { title: 'Personal',                 items: personalItems,     show: isB2C },
+    { title: 'Address & location',       items: addressItems,      show: true },
+    { title: 'Products of interest',     items: productItems,      show: productItems.length > 0 },
+    { title: 'Score & dates',            items: lifecycleItems,    show: true },
+    { title: 'Custom fields',            items: customItems,       show: customItems.length > 0 },
+    { title: 'Consent',                  items: consentItems,      show: isB2C },
+    { title: 'Notes & tags',             items: notesAndTagsItems, show: true },
   ];
 
   const visible = sections.filter((s) => s.show);
@@ -318,13 +319,8 @@ export default function LeadDetailsPanel({ lead, onPatch }: Props) {
         gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
         gap: 12,
       }}>
-        {visible.map((s, i) => (
-          <SectionCard
-            key={s.title}
-            title={s.title}
-            items={s.items}
-            accent={SECTION_ACCENTS[i % SECTION_ACCENTS.length]}
-          />
+        {visible.map((s) => (
+          <SectionCard key={s.title} title={s.title} items={s.items} />
         ))}
       </div>
     </div>
@@ -334,52 +330,20 @@ export default function LeadDetailsPanel({ lead, onPatch }: Props) {
 // ─── Section card ──────────────────────────────────────────────────
 
 function SectionCard({
-  title, items, accent,
+  title, items,
 }: {
   title: string;
   items: Array<[string, React.ReactNode]>;
-  accent: string;
 }) {
   const visible = items.filter(([, v]) => v !== null && v !== undefined && v !== '');
   if (visible.length === 0) return null;
 
   return (
-    <div style={{
-      background: 'var(--s2)',
-      border: '1px solid var(--border)',
-      borderRadius: 10,
-      overflow: 'hidden',
-    }}>
-      {/* Header strip */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 8,
-        padding: '10px 14px',
-        borderBottom: '1px solid var(--border)',
-        background: 'var(--s1)',
-      }}>
-        <span style={{
-          display: 'inline-block',
-          width: 3,
-          height: 14,
-          borderRadius: 2,
-          background: accent,
-          flexShrink: 0,
-        }} />
-        <span style={{
-          fontSize: 11,
-          fontWeight: 700,
-          color: 'var(--text-dim)',
-          textTransform: 'uppercase',
-          letterSpacing: 0.8,
-        }}>
-          {title}
-        </span>
+    <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
+      <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', fontFamily: 'var(--font-jetbrains)', fontSize: 10.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-mute)', fontWeight: 500 }}>
+        {title}
       </div>
-
-      {/* Fields */}
-      <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ padding: '12px 16px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
         {visible.map(([label, value]) => (
           <FieldRow key={label} label={label} value={value} />
         ))}
@@ -390,13 +354,9 @@ function SectionCard({
 
 function FieldRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-        {label}
-      </span>
-      <span style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.5, wordBreak: 'break-word' }}>
-        {value}
-      </span>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+      <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-dim)' }}>{label}</span>
+      <span style={{ fontSize: 13.5, color: 'var(--text)', lineHeight: 1.5, wordBreak: 'break-word' }}>{value}</span>
     </div>
   );
 }
@@ -404,14 +364,14 @@ function FieldRow({ label, value }: { label: string; value: React.ReactNode }) {
 // ─── Specialised value renderers ──────────────────────────────────
 
 const STATUS_COLOURS: Record<string, { bg: string; color: string }> = {
-  new:          { bg: '#dbeafe', color: '#1d4ed8' },
-  contacted:    { bg: '#e0e7ff', color: '#4338ca' },
-  qualified:    { bg: '#d1fae5', color: '#065f46' },
-  proposal:     { bg: '#fef3c7', color: '#92400e' },
-  negotiation:  { bg: '#fce7f3', color: '#9d174d' },
-  won:          { bg: '#d1fae5', color: '#065f46' },
-  lost:         { bg: '#fee2e2', color: '#991b1b' },
-  converted:    { bg: '#d1fae5', color: '#065f46' },
+  new:          { bg: 'var(--info-w)', color: 'var(--info)' },
+  contacted:    { bg: 'var(--info-w)', color: 'var(--info)' },
+  qualified:    { bg: 'var(--ok-w)',   color: 'var(--ok)' },
+  proposal:     { bg: 'var(--warn-w)', color: 'var(--warn)' },
+  negotiation:  { bg: 'var(--warn-w)', color: 'var(--warn)' },
+  won:          { bg: 'var(--ok-w)',   color: 'var(--ok)' },
+  lost:         { bg: 'var(--red-w)',  color: 'var(--red)' },
+  converted:    { bg: 'var(--ok-w)',   color: 'var(--ok)' },
 };
 
 function StatusBadge({ status }: { status: string }) {
@@ -433,14 +393,12 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 function ScoreBadge({ score, grade }: { score: number; grade?: string | null }) {
-  const hue = Math.min(score, 100);
-  const bg = `hsl(${hue}, 60%, 92%)`;
-  const color = `hsl(${hue}, 60%, 30%)`;
+  const tone = score >= 70 ? ['var(--ok-w)', 'var(--ok)'] : score >= 40 ? ['var(--warn-w)', 'var(--warn)'] : ['var(--red-w)', 'var(--red)'];
   return (
     <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
       <span style={{
-        background: bg, color, padding: '2px 10px',
-        borderRadius: 999, fontSize: 12, fontWeight: 700,
+        background: tone[0], color: tone[1], padding: '2px 10px',
+        borderRadius: 999, fontSize: 12, fontWeight: 600, fontFamily: 'var(--font-jetbrains)',
       }}>
         {score}
       </span>
@@ -458,7 +416,7 @@ function ScoreBadge({ score, grade }: { score: number; grade?: string | null }) 
 
 function PhoneValue({ phone }: { phone: string }) {
   return (
-    <a href={`tel:${phone}`} style={{ color: 'var(--text)', textDecoration: 'none', fontFamily: 'ui-monospace, monospace', fontSize: 13 }}>
+    <a href={`tel:${phone}`} style={{ color: 'var(--text)', textDecoration: 'none', fontFamily: 'var(--font-jetbrains)', fontSize: 13 }}>
       {phone}
     </a>
   );
@@ -468,7 +426,7 @@ function NoteValue({ note }: { note: string }) {
   return (
     <span style={{
       display: 'block',
-      background: 'var(--s1)',
+      background: 'var(--s3)',
       border: '1px solid var(--border)',
       borderRadius: 6,
       padding: '8px 10px',
@@ -500,7 +458,7 @@ function ChipList({ items }: { items: string[] }) {
 }
 
 function Mono({ children }: { children: React.ReactNode }) {
-  return <span style={{ fontFamily: 'ui-monospace, monospace', fontSize: 12 }}>{children}</span>;
+  return <span style={{ fontFamily: 'var(--font-jetbrains)', fontSize: 12 }}>{children}</span>;
 }
 
 // ─── Formatters ────────────────────────────────────────────────────
@@ -524,8 +482,8 @@ function formatConsent(v: boolean | undefined | null): React.ReactNode {
   return (
     <span style={{
       display: 'inline-block',
-      background: v ? '#d1fae5' : '#fee2e2',
-      color: v ? '#065f46' : '#991b1b',
+      background: v ? 'var(--ok-w)' : 'var(--red-w)',
+      color: v ? 'var(--ok)' : 'var(--red)',
       padding: '1px 8px', borderRadius: 999,
       fontSize: 12, fontWeight: 600,
     }}>
@@ -548,7 +506,7 @@ function formatCustomValue(v: unknown, type: CustomField['field_type']): React.R
   if (type === 'number') return Number(v).toLocaleString('en-IN');
   if (type === 'url') return (
     <a href={String(v)} target="_blank" rel="noreferrer"
-      style={{ color: 'var(--primary)', textDecoration: 'none' }}>
+      style={{ color: 'var(--accent)', textDecoration: 'none' }}>
       {String(v)} ↗
     </a>
   );
