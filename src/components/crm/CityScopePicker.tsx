@@ -24,23 +24,30 @@ import api from '../../lib/api';
  * only narrow within an already-allowed set.
  */
 
+// Scope chip — same 28px pill as the header's client chip so the two scopes
+// read as one family wherever they sit.
 const STYLE = {
   wrap: {
-    display: 'inline-flex', alignItems: 'center', gap: 6,
-    background: 'var(--s3)', border: '1px solid var(--border)',
-    borderRadius: 8, padding: '4px 4px 4px 10px', fontSize: 12,
+    display: 'inline-flex', alignItems: 'center', gap: 6, height: 28,
+    background: 'var(--card)', border: '1px solid var(--border)',
+    borderRadius: 999, padding: '0 4px 0 10px', fontSize: 12.5,
     color: 'var(--text-dim)',
   } as React.CSSProperties,
   label: {
-    fontWeight: 700, color: 'var(--text-dim)', letterSpacing: 0.4,
-    textTransform: 'uppercase' as const, fontSize: 10,
+    display: 'inline-flex', alignItems: 'center', color: 'var(--text-mute)',
   } as React.CSSProperties,
   select: {
     background: 'transparent', border: 'none', color: 'var(--text)',
-    padding: '4px 6px', fontSize: 13, fontWeight: 600, outline: 'none',
-    cursor: 'pointer', minWidth: 120,
+    padding: '0 4px', fontSize: 12.5, fontWeight: 500, outline: 'none',
+    cursor: 'pointer', minWidth: 90, height: 26, fontFamily: 'inherit',
   } as React.CSSProperties,
 };
+
+const PIN = (
+  <svg aria-hidden width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z" /><circle cx="12" cy="10" r="3" />
+  </svg>
+);
 
 export default function CityScopePicker() {
   const { selectedCity, setSelectedCity } = useCityScope();
@@ -97,7 +104,7 @@ export default function CityScopePicker() {
 
   return (
     <div style={STYLE.wrap} title="Filter CRM data by city">
-      <span style={STYLE.label}>📍 City</span>
+      <span style={STYLE.label}>{PIN}</span>
       <select
         value={selectedCity}
         onChange={(e) => setSelectedCity(e.target.value)}

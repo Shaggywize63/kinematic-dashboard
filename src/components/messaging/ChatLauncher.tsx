@@ -142,27 +142,27 @@ export default function ChatLauncher() {
         id="chat-trigger-btn"
         aria-label="Open chat"
         onClick={() => { setOpen((o) => !o); if (!open) reloadThreads(); }}
+        className="km-iconbtn"
+        title="Messages"
         style={{
           position: 'relative',
-          background: 'transparent', border: 'none', cursor: 'pointer',
-          color: 'var(--text)', padding: 0,
-          width: 36, height: 36, borderRadius: 8,
+          background: open ? 'var(--s3)' : 'transparent', border: '1px solid transparent', cursor: 'pointer',
+          color: open ? 'var(--text)' : 'var(--text-dim)', padding: 0,
+          width: 32, height: 32, borderRadius: 6,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}
-        onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--s2)'; }}
-        onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
       >
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
           <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
         </svg>
         {totalUnread > 0 && (
           <span style={{
-            position: 'absolute', top: 2, right: 2,
-            minWidth: 16, height: 16, padding: '0 4px',
-            background: 'var(--primary)', color: '#fff',
-            borderRadius: 999, fontSize: 9, fontWeight: 800,
+            position: 'absolute', top: 1, right: 1,
+            minWidth: 15, height: 15, padding: '0 4px',
+            background: 'var(--red)', color: '#fff',
+            borderRadius: 999, fontSize: 9.5, fontWeight: 700, fontFamily: 'var(--font-jetbrains)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            border: '2px solid var(--s1)',
+            boxShadow: '0 0 0 2px var(--panel)',
           }}>{totalUnread > 99 ? '99+' : totalUnread}</span>
         )}
       </button>

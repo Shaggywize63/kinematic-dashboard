@@ -18,19 +18,19 @@ import { DEMO_USER_EMAIL } from '../lib/demoMocks';
 
 const STYLE = {
   wrap: {
-    display: 'inline-flex', alignItems: 'center', gap: 6,
-    background: 'var(--s3)', border: '1px solid var(--border)',
-    borderRadius: 8, padding: '4px 4px 4px 10px', fontSize: 12,
+    display: 'inline-flex', alignItems: 'center', gap: 6, height: 28,
+    background: 'var(--card)', border: '1px solid var(--border)',
+    borderRadius: 999, padding: '0 4px 0 10px', fontSize: 12.5,
     color: 'var(--text-dim)',
   } as React.CSSProperties,
   label: {
-    fontWeight: 700, color: 'var(--text-dim)', letterSpacing: 0.4,
+    fontFamily: 'var(--font-jetbrains)', color: 'var(--text-mute)', letterSpacing: '0.06em',
     textTransform: 'uppercase' as const, fontSize: 10,
   } as React.CSSProperties,
   select: {
     background: 'transparent', border: 'none', color: 'var(--text)',
-    padding: '4px 6px', fontSize: 13, fontWeight: 600, outline: 'none',
-    cursor: 'pointer', minWidth: 120,
+    padding: '0 4px', fontSize: 12.5, fontWeight: 500, outline: 'none',
+    cursor: 'pointer', minWidth: 90, height: 26, fontFamily: 'inherit',
   } as React.CSSProperties,
 };
 
@@ -52,7 +52,7 @@ export default function IndustryScopePicker() {
 
   return (
     <div style={STYLE.wrap} title="Switch the demo to an industry vertical">
-      <span style={STYLE.label}>🏭 Industry</span>
+      <span style={STYLE.label}>Industry</span>
       <select
         value={selectedIndustry}
         onChange={(e) => onChange(e.target.value)}

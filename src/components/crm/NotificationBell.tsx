@@ -223,30 +223,28 @@ export default function NotificationBell() {
       <button
         onClick={() => setOpen((o) => !o)}
         title="Notifications"
-        aria-label="Notifications"
+        aria-label={badgeCount > 0 ? `Notifications (${badgeCount})` : 'Notifications'}
+        className="km-iconbtn"
         style={{
-          // Bigger tap target — was ~28 px which fell under the 44 px iOS /
-          // Android minimum and made the bell feel unresponsive on phones.
-          position: 'relative', background: 'transparent',
-          border: '1px solid var(--border)', borderRadius: 10,
-          width: 40, height: 40, padding: 0,
-          color: 'var(--text)', cursor: 'pointer',
+          position: 'relative', background: open ? 'var(--s3)' : 'transparent',
+          border: '1px solid transparent', borderRadius: 6,
+          width: 32, height: 32, padding: 0,
+          color: open ? 'var(--text)' : 'var(--text-dim)', cursor: 'pointer',
           display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
         }}
       >
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
           <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
           <path d="M13.73 21a2 2 0 0 1-3.46 0" />
         </svg>
         {badgeCount > 0 && (
-          <span style={{
-            position: 'absolute', top: -4, right: -4,
-            minWidth: 16, height: 16, padding: '0 4px',
-            borderRadius: 999,
-            background: badgeRed ? '#E01E2C' : '#3E9EFF',
-            color: '#fff', fontSize: 10, fontWeight: 800,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>{badgeCount}</span>
+          // A dot, not a number — the count lives in the panel header. Red when
+          // something needs attention now, blue for plain upcoming reminders.
+          <span aria-hidden style={{
+            position: 'absolute', top: 5, right: 5, width: 8, height: 8, borderRadius: 999,
+            background: badgeRed ? 'var(--red)' : 'var(--info)',
+            boxShadow: '0 0 0 2px var(--panel)',
+          }} />
         )}
       </button>
 
@@ -262,30 +260,37 @@ export default function NotificationBell() {
           // bell so the rest of the header isn't redesigned.
           position: narrow ? 'fixed' : 'absolute',
           ...(narrow
-            ? { top: 70, right: 8, left: 8, width: 'auto' }
-            : { right: 0, top: 'calc(100% + 8px)', width: 360, maxWidth: 'calc(100vw - 32px)' }),
-          background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12,
+            ? { top: 62, right: 8, left: 8, width: 'auto' }
+            : { right: 0, top: 'calc(100% + 8px)', width: 380, maxWidth: 'calc(100vw - 32px)' }),
+          background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12,
           // Above Leaflet/OSM map panes (which sit up to z-index ~700–1000) so
           // the dropdown is never painted under the dashboard map.
-          boxShadow: '0 12px 36px rgba(0,0,0,0.45)', zIndex: 4000,
-          maxHeight: narrow ? 'calc(100vh - 88px)' : 480, overflowY: 'auto',
+          boxShadow: 'var(--shadow-pop)', zIndex: 4000,
+          maxHeight: narrow ? 'calc(100vh - 80px)' : 480, overflowY: 'auto',
         }}>
-          <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-            <strong style={{ fontSize: 13, color: 'var(--text)' }}>Notifications</strong>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>
-                {unreadCount > 0 ? `${unreadCount} unread · ` : ''}{overdueCount > 0 ? `${overdueCount} overdue · ` : ''}{totalItems} total
+          <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, position: 'sticky', top: 0, background: 'var(--card)', zIndex: 1 }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+              <strong style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text)' }}>Notifications</strong>
+              <span style={{ fontSize: 11, color: 'var(--text-dim)', fontFamily: 'var(--font-jetbrains)' }}>
+                {unreadCount > 0 ? `${unreadCount} unread` : ''}{unreadCount > 0 && overdueCount > 0 ? ' · ' : ''}{overdueCount > 0 ? `${overdueCount} overdue` : ''}
               </span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               {totalItems > 0 && (
                 <button
                   onClick={clearAll}
                   disabled={clearing}
                   title="Mark everything as read / done"
-                  style={{ background: 'transparent', border: '1px solid var(--border)', color: '#E01E2C', fontSize: 10, fontWeight: 800, padding: '3px 8px', borderRadius: 6, cursor: clearing ? 'wait' : 'pointer', textTransform: 'uppercase', letterSpacing: 0.3 }}
+                  className="km-btn"
+                  data-variant="ghost"
+                  style={{ background: 'transparent', border: '1px solid transparent', color: 'var(--text-dim)', fontSize: 12, fontWeight: 600, height: 26, padding: '0 8px', borderRadius: 6, cursor: clearing ? 'wait' : 'pointer', fontFamily: 'inherit' }}
                 >
-                  {clearing ? 'Clearing…' : 'Clear all'}
+                  {clearing ? 'Clearing…' : 'Mark all read'}
                 </button>
               )}
+              <Link href="/dashboard/notifications" onClick={() => setOpen(false)} style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent)', textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                Open inbox
+              </Link>
             </div>
           </div>
 

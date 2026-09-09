@@ -1,15 +1,18 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
+import { Check, ChevronDown, Search } from 'lucide-react';
 import api from '../lib/api';
-
-const C = {
-  s3: 'var(--s3)', border: 'var(--border)', white: 'var(--text)', gray: 'var(--textSec)', grayd: 'var(--textTert)',
-  blue: '#3E9EFF', red: '#E01E2C', bg: 'var(--bg)'
-};
 
 interface Client { id: string; name: string; }
 
-export default function ClientSelect({ value, onChange, placeholder = "Select Client..." }: { value: string, onChange: (id: string, name: string) => void, placeholder?: string }) {
+/**
+ * Client picker. Two looks, one behaviour:
+ *   - `field` (default) — a 36px input-style trigger for forms and filter bars.
+ *   - `chip`            — the 28px pill used in the dashboard header scope row.
+ */
+export default function ClientSelect({ value, onChange, placeholder = 'Select client…', variant = 'field' }: {
+  value: string; onChange: (id: string, name: string) => void; placeholder?: string; variant?: 'field' | 'chip';
+}) {
   const [clients, setClients] = useState<Client[]>([]);
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -25,63 +28,92 @@ export default function ClientSelect({ value, onChange, placeholder = "Select Cl
   }, []);
 
   useEffect(() => {
-    const click = (e: MouseEvent) => { if(ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    const click = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
     document.addEventListener('mousedown', click);
-    return () => document.removeEventListener('mousedown', click);
+    document.addEventListener('keydown', key);
+    return () => { document.removeEventListener('mousedown', click); document.removeEventListener('keydown', key); };
   }, []);
 
-  const filtered = clients.filter(c => c.name.toLowerCase().includes(search.toLowerCase()));
-  const selectedObj = clients.find(c => c.id === value || c.name === value);
+  const filtered = clients.filter((c) => c.name.toLowerCase().includes(search.toLowerCase()));
+  const selectedObj = clients.find((c) => c.id === value || c.name === value);
+  const label = selectedObj ? selectedObj.name : (value ? placeholder : 'All clients');
+  const chip = variant === 'chip';
 
   return (
-    <div ref={ref} style={{ position: 'relative', width: '100%' }}>
-      <div 
+    <div ref={ref} style={{ position: 'relative', width: chip ? 'auto' : '100%' }}>
+      <button
+        type="button"
         onClick={() => setOpen(!open)}
-        style={{ width:'100%', background:C.s3, border:`1px solid ${C.border}`, color: value ? C.white : C.grayd, borderRadius:11, padding:'10px 13px', fontSize:13, outline:'none', fontFamily:"'DM Sans',sans-serif", cursor:'pointer', display:'flex', justifyContent:'space-between', alignItems:'center' }}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        title="Filter by client"
+        className={chip ? 'km-chip' : 'km-input'}
+        style={chip ? {
+          height: 28, padding: '0 10px', borderRadius: 999, border: '1px solid var(--border)', background: 'var(--card)',
+          fontSize: 12.5, fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 6, maxWidth: 220,
+          color: 'var(--text)', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
+        } : {
+          width: '100%', height: 36, background: 'var(--field)', border: '1px solid var(--border)', color: value ? 'var(--text)' : 'var(--text-mute)',
+          borderRadius: 6, padding: '0 11px', fontSize: 14, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8,
+          fontFamily: 'inherit', textAlign: 'left',
+        }}
       >
-        <span>{selectedObj ? selectedObj.name : (value ? placeholder : 'All Clients')}</span>
-        <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', opacity: 0.6 }}><path d="M6 9l6 6 6-6"/></svg>
-      </div>
+        {chip && <span aria-hidden style={{ width: 6, height: 6, borderRadius: 999, background: value ? 'var(--ok)' : 'var(--text-mute)', flexShrink: 0 }} />}
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{label}</span>
+        <ChevronDown size={14} strokeWidth={1.6} style={{ color: 'var(--text-mute)', flexShrink: 0, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
+      </button>
 
       {open && (
-        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 6, background: C.s3, border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden', zIndex: 100, boxShadow: '0 8px 30px rgba(0,0,0,0.5)' }}>
-          <div style={{ padding: '10px 12px', borderBottom: `1px solid ${C.border}` }}>
-            <input 
+        <div role="listbox" style={{
+          position: 'absolute', top: 'calc(100% + 6px)', ...(chip ? { right: 0, width: 260 } : { left: 0, right: 0 }),
+          background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', zIndex: 100, boxShadow: 'var(--shadow-pop)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderBottom: '1px solid var(--border)' }}>
+            <Search size={14} strokeWidth={1.6} style={{ color: 'var(--text-mute)', flexShrink: 0 }} />
+            <input
               autoFocus
-              value={search} 
-              onChange={e => setSearch(e.target.value)} 
-              placeholder="Search clients..."
-              style={{ width: '100%', background: 'transparent', border: 'none', color: C.white, fontSize: 13, outline: 'none', fontFamily:"'DM Sans',sans-serif" }}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search clients"
+              aria-label="Search clients"
+              style={{ width: '100%', background: 'transparent', border: 'none', color: 'var(--text)', fontSize: 13, outline: 'none', fontFamily: 'inherit', padding: 0 }}
             />
           </div>
-          <div style={{ maxHeight: 240, overflowY: 'auto' }}>
-            {/* "All Clients" row — clears the filter so org-admins see
-                cross-client data instead of being stuck on whichever client
-                was last picked. */}
-            <div
-              onClick={() => { onChange('', ''); setOpen(false); setSearch(''); }}
-              style={{ padding: '10px 14px', fontSize: 13, color: !value ? C.blue : C.white, background: !value ? 'rgba(62,158,255,0.1)' : 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, borderBottom: `1px solid ${C.border}` }}
-            >
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: !value ? C.blue : C.gray }} />
-              <span style={{ fontWeight: !value ? 700 : 600 }}>All Clients</span>
-              <span style={{ marginLeft: 'auto', fontSize: 11, color: C.gray }}>org-wide view</span>
-            </div>
+          <div style={{ maxHeight: 260, overflowY: 'auto', padding: 4 }}>
+            {/* "All clients" row — clears the filter so org-admins see cross-client data. */}
+            <Row selected={!value} onClick={() => { onChange('', ''); setOpen(false); setSearch(''); }} sub="Org-wide view">
+              All clients
+            </Row>
             {filtered.length === 0 ? (
-              <div style={{ padding: '12px', fontSize: 12, color: C.gray, textAlign: 'center' }}>No clients found</div>
-            ) : (
-              filtered.map(c => (
-                <div
-                  key={c.id}
-                  onClick={() => { onChange(c.id, c.name); setOpen(false); setSearch(''); }}
-                  style={{ padding: '10px 14px', fontSize: 13, color: (value === c.id) ? C.blue : C.white, background: (value === c.id) ? 'rgba(62,158,255,0.1)' : 'transparent', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-                >
-                  <span style={{ fontWeight: (value === c.id) ? 700 : 500 }}>{c.name}</span>
-                </div>
-              ))
-            )}
+              <div style={{ padding: '10px 12px', fontSize: 12.5, color: 'var(--text-dim)', textAlign: 'center' }}>No clients found</div>
+            ) : filtered.map((c) => (
+              <Row key={c.id} selected={value === c.id} onClick={() => { onChange(c.id, c.name); setOpen(false); setSearch(''); }}>
+                {c.name}
+              </Row>
+            ))}
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function Row({ selected, onClick, children, sub }: { selected: boolean; onClick: () => void; children: React.ReactNode; sub?: string }) {
+  return (
+    <div
+      role="option"
+      aria-selected={selected}
+      onClick={onClick}
+      className="km-navrow"
+      style={{
+        display: 'flex', alignItems: 'center', gap: 8, padding: '0 8px', height: 32, borderRadius: 6, fontSize: 13, cursor: 'pointer',
+        color: 'var(--text)', background: selected ? 'var(--s3)' : 'transparent', fontWeight: selected ? 600 : 500,
+      }}
+    >
+      <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{children}</span>
+      {sub && <span style={{ fontSize: 11, color: 'var(--text-mute)', flexShrink: 0 }}>{sub}</span>}
+      {selected && <Check size={14} strokeWidth={1.8} style={{ color: 'var(--info)', flexShrink: 0 }} />}
     </div>
   );
 }

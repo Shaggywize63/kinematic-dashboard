@@ -17,6 +17,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { searchApi, type SearchResultGroup } from '../../lib/crmApi';
 import KiniMascot from '../crm/KiniMascot';
+import { NavIcon } from '../ui/icons';
 
 type NavItemLike = { href: string; label: string; icon?: string };
 type NavGroupLike = { label: string; items: NavItemLike[] };
@@ -289,7 +290,9 @@ export default function SmartSearch({ open, onClose, navGroups, userId }: Props)
                   >
                     {kini
                       ? <KiniMascot size={24} />
-                      : <span style={{ color: isActive ? accent : 'var(--text-dim)', display: 'flex', transition: 'color 0.12s ease' }}><Glyph d={iconPath} size={18} /></span>}
+                      : <span style={{ color: isActive ? accent : 'var(--text-dim)', display: 'flex', transition: 'color 0.12s ease' }}>
+                          {row.kind === 'nav' ? <NavIcon name={row.icon} size={18} /> : <Glyph d={iconPath} size={18} />}
+                        </span>}
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <div style={{ fontSize: 14, color: kini ? '#E01E2C' : 'var(--text)', fontWeight: kini ? 700 : 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {kini ? row.label : <Highlight text={row.label} term={debouncedQ} />}
