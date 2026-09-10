@@ -12,7 +12,7 @@ test.describe('Authentication', () => {
     await expect(page.getByPlaceholder('you@company.com')).toBeVisible();
     await expect(page.getByPlaceholder('Enter your password')).toBeVisible();
     await expect(page.getByRole('button', { name: /Sign In/ })).toBeVisible();
-    await expect(page.getByRole('heading', { name: /Motion Made/ })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Motion, made/i })).toBeVisible();
   });
 
   test('submit is disabled until email + password are valid', async ({ page }) => {

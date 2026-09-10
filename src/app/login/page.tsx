@@ -182,7 +182,7 @@ export default function LoginPage() {
               Field force · CRM · Distribution
             </div>
             <h1 style={{ margin: 0, color: '#FFFFFF', fontFamily: T.heading, fontSize: narrow ? 26 : 36, fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.12, textWrap: 'balance' as any }}>
-              Motion Made <span style={{ color: PANE.red }}>Measurable</span>.
+              Motion, made <span style={{ color: PANE.red }}>measurable</span>
             </h1>
             {!narrow && (
               <p style={{ margin: '14px 0 0', fontSize: 15, lineHeight: 1.55, color: PANE.dim }}>
