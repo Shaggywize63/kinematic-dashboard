@@ -8,6 +8,7 @@ import * as demo from '../../lib/demoMocks';
 import { saveSession, landingRouteFor, detectIdentitySwitch, recordLoginIdentity } from '../../lib/auth';
 import { resolveProjectForEmail, setStoredProjectKey, DEFAULT_PROJECT } from '../../lib/projects';
 import BrandLogo from '../../components/shared/BrandLogo';
+import KiniMascot from '../../components/crm/KiniMascot';
 import { Button, Field, Input, T, useIsCompact } from '../../components/ui';
 
 /**
@@ -178,6 +179,16 @@ export default function LoginPage() {
 
         <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: narrow ? 8 : 28, maxWidth: 480 }}>
           <div>
+            <div style={{ marginBottom: narrow ? 12 : 20, display: 'flex', alignItems: 'center', gap: 12 }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: narrow ? 52 : 68, height: narrow ? 52 : 68, borderRadius: 18, background: 'rgba(255,255,255,0.06)', border: `1px solid ${PANE.rule}`, flexShrink: 0 }}>
+                <KiniMascot size={narrow ? 38 : 50} />
+              </span>
+              {!narrow && (
+                <span style={{ fontFamily: T.mono, fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase', color: PANE.dim, lineHeight: 1.5 }}>
+                  Meet KINI —<br />your AI copilot
+                </span>
+              )}
+            </div>
             <div style={{ fontFamily: T.mono, fontSize: 10.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: PANE.dim, marginBottom: 12 }}>
               Field force · CRM · Distribution
             </div>
