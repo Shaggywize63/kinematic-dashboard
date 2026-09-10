@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import { toast } from 'sonner';
+import { Plus, Search } from 'lucide-react';
 import { crmAccounts } from '../../../../lib/crmApi';
 import type { Account } from '../../../../types/crm';
 import AccountsTable, { ACCOUNT_COLUMNS } from '../../../../components/crm/AccountsTable';
@@ -9,6 +9,7 @@ import { usePagination } from '../../../../components/shared/Pagination';
 import ViewCustomizer from '../../../../components/crm/shared/ViewCustomizer';
 import { useViewPrefs } from '../../../../lib/crmViewPrefs';
 import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
+import { Badge, Button, Input, PageHeader, T, useIsCompact } from '../../../../components/ui';
 
 export default function AccountsListPage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -21,6 +22,7 @@ export default function AccountsListPage() {
   const hiddenSet = useMemo(() => new Set(view.prefs.hidden), [view.prefs.hidden]);
   // Global CRM date range (header). City scope is handled by the layout remount.
   const range = useCrmDateRange((s) => ({ from: s.from, to: s.to }));
+  const narrow = useIsCompact(760);
 
   useEffect(() => {
     (async () => {
@@ -41,28 +43,51 @@ export default function AccountsListPage() {
   const filtered = accounts.filter((a) => !q || `${a.name} ${a.industry || ''}`.toLowerCase().includes(q.toLowerCase()));
   const { pageItems: pagedAccounts, bar } = usePagination(filtered);
 
+  const actions = (
+    <>
+      <ViewCustomizer
+        entityLabel="Accounts"
+        columns={ACCOUNT_COLUMNS as unknown as { key: string; label: string; locked?: boolean }[]}
+        hidden={view.prefs.hidden}
+        mode={view.prefs.mode}
+        onToggle={view.toggleHidden}
+        onSetMode={view.setMode}
+        onReset={view.reset}
+      />
+      <Button href="/dashboard/crm/accounts/new" variant="primary" icon={<Plus size={16} strokeWidth={2} />}>New account</Button>
+    </>
+  );
+
   return (
-    <div>
-      <div style={{ marginBottom: 14, padding: '12px 16px', background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 10 }}>
-        <div style={{ fontSize: 13, color: 'var(--text-dim)', lineHeight: 1.6 }}>
-          Company-level records that group contacts, deals, and activity history. Each account tracks industry, annual revenue, and territory, giving your team a 360° view of every business relationship. Use AI summaries to get a quick brief before a meeting.
-        </div>
-      </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 8, flexWrap: 'wrap' }}>
-        <input placeholder="Search accounts..." value={q} onChange={(e) => setQ(e.target.value)} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13, minWidth: 240 }} />
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <ViewCustomizer
-            entityLabel="Accounts"
-            columns={ACCOUNT_COLUMNS as unknown as { key: string; label: string; locked?: boolean }[]}
-            hidden={view.prefs.hidden}
-            mode={view.prefs.mode}
-            onToggle={view.toggleHidden}
-            onSetMode={view.setMode}
-            onReset={view.reset}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <PageHeader
+        title={
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
+            Accounts
+            {!loading && <Badge mono style={{ fontSize: 11.5 }}>{accounts.length.toLocaleString()} {accounts.length === 1 ? 'account' : 'accounts'}</Badge>}
+          </span>
+        }
+        description="Companies you work with. Each account groups its contacts, deals and activity, with industry, revenue and territory."
+        actions={actions}
+        compact={narrow}
+      />
+
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        <div style={{ position: 'relative', flex: '0 1 320px', minWidth: 220 }}>
+          <Search size={15} strokeWidth={1.8} style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: T.mute, pointerEvents: 'none' }} />
+          <Input
+            placeholder="Search accounts..."
+            aria-label="Search accounts"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            style={{ paddingLeft: 34 }}
           />
-          <Link href="/dashboard/crm/accounts/new" style={{ background: 'var(--primary)', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700 }}>+ New Account</Link>
         </div>
+        {q && filtered.length !== accounts.length && (
+          <span style={{ fontSize: 12.5, color: T.dim }}>{filtered.length.toLocaleString()} of {accounts.length.toLocaleString()} match</span>
+        )}
       </div>
+
       <AccountsTable
         accounts={pagedAccounts}
         loading={loading}

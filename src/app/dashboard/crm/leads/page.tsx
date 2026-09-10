@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
+import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Download, Loader2, MapPin, Plus, Trash2, Upload, UserCheck, UserPlus } from 'lucide-react';
 import { crmLeads, crmLeadSources, crmSettings, type Pagination } from '../../../../lib/crmApi';
 import api, { API_BASE_URL } from '../../../../lib/api';
 import { getStoredToken, getStoredUser } from '../../../../lib/auth';
@@ -14,6 +15,8 @@ import LeadFilters, { type LeadFiltersValue } from '../../../../components/crm/L
 import SmartFilterBar from '../../../../components/crm/SmartFilterBar';
 import ViewCustomizer from '../../../../components/crm/shared/ViewCustomizer';
 import { useViewPrefs } from '../../../../lib/crmViewPrefs';
+import { usePageTitle } from '../../../../lib/pageTitle';
+import { Badge, Button, Card, IconButton, PageHeader, Segmented, Select, T, useIsCompact } from '../../../../components/ui';
 
 type UserOption = { id: string; name: string };
 
@@ -22,27 +25,8 @@ type UserOption = { id: string; name: string };
 const PAGE_SIZE_OPTIONS = [25, 50, 100, 200] as const;
 const DEFAULT_PAGE_SIZE = 50;
 
-/**
- * Phone-width viewport flag. Per kinematic-dashboard/CLAUDE.md the
- * dashboard uses a `narrow` / `isCompact` JS flag for responsiveness
- * instead of CSS media queries (because every style on this page is
- * inline). Breakpoint matches "phone or smaller" — at 640 px the
- * toolbar row (ViewCustomizer · Export · Import · + New Lead) wraps
- * onto multiple lines and the New Lead CTA can end up below the page
- * header where reps don't see it.
- */
-function useIsCompact(breakpoint = 640): boolean {
-  const [v, setV] = useState(false);
-  useEffect(() => {
-    const check = () => setV(window.innerWidth < breakpoint);
-    check();
-    window.addEventListener('resize', check);
-    return () => window.removeEventListener('resize', check);
-  }, [breakpoint]);
-  return v;
-}
-
 export default function LeadsListPage() {
+  usePageTitle('Leads');
   const [leads, setLeads] = useState<Lead[]>([]);
   const [sources, setSources] = useState<LeadSource[]>([]);
   const [filters, setFilters] = useState<LeadFiltersValue>({});
@@ -94,8 +78,12 @@ export default function LeadsListPage() {
   );
   const view = useViewPrefs('leads');
   const hiddenSet = useMemo(() => new Set(view.prefs.hidden), [view.prefs.hidden]);
-  // Phone-width flag — drives the floating "+ New Lead" CTA below.
-  const isCompact = useIsCompact();
+  // Phone-width flag — drives the floating "+ New Lead" CTA below. At 640px
+  // the header action cluster wraps and the New Lead button can end up
+  // below the fold, so a sticky FAB keeps the primary action one tap away.
+  const isCompact = useIsCompact(640);
+  // Tablet-and-below flag for the header / toolbar wrapping.
+  const narrow = useIsCompact(900);
 
   // CSV download — calls the backend export endpoint with the same
   // server-side filters the list is already using, then triggers a
@@ -430,276 +418,212 @@ export default function LeadsListPage() {
     reload();
   };
 
+  // Row count: server's total matches all current filters
+  // (state/city/district/block/status/source/owner/grade).
+  // `filtered.length` is the subset visible on this page after
+  // the client-side q (text-search) filter.
+  const totalCount = pagination ? pagination.total : filtered.length;
+  const locationCrumb = [filters.block, filters.district, filters.city, filters.state].filter(Boolean).join(' › ');
+  // Manager approval quick-filter. Only shown when approval is actually in
+  // use — some non-approved lead is present, or the filter is already
+  // active. The workflow is opt-in per org (off by default), so tenants
+  // that haven't enabled it have every lead 'approved' and never see this
+  // control: their leads page is unchanged.
+  const showApproval = approvalFilter !== '' || leads.some((l) => (l.approval_status ?? 'approved') !== 'approved');
+
+  const headerActions = (
+    <>
+      <ViewCustomizer
+        entityLabel="Leads"
+        columns={LEAD_COLUMNS as unknown as { key: string; label: string; locked?: boolean }[]}
+        hidden={view.prefs.hidden}
+        mode={view.prefs.mode}
+        onToggle={view.toggleHidden}
+        onSetMode={view.setMode}
+        onReset={view.reset}
+      />
+      {/* Export — the server doesn't stream per-row counts, so the button
+          shows a spinner + elapsed seconds to say "still working" without
+          lying about progress. */}
+      <Button
+        type="button"
+        onClick={handleExport}
+        disabled={exporting}
+        title="Download leads as CSV (current filters apply)"
+        icon={exporting ? <Loader2 size={16} strokeWidth={1.8} style={{ animation: 'spin 0.8s linear infinite' }} /> : <Download size={16} strokeWidth={1.8} />}
+        style={{ cursor: exporting ? 'wait' : undefined }}
+      >
+        {exporting ? <span style={{ fontFamily: T.mono, fontSize: 12.5 }}>Exporting… {exportElapsed}s</span> : 'Export'}
+      </Button>
+      <Button href="/dashboard/crm/leads/import" icon={<Upload size={16} strokeWidth={1.8} />}>Import</Button>
+      <Button href="/dashboard/crm/leads/new" variant="primary" icon={<Plus size={16} strokeWidth={2} />}>New lead</Button>
+    </>
+  );
+
   return (
-    <div>
-      {/* Keyframes for the Export CSV button's indeterminate progress bar. */}
-      <style jsx global>{`
-        @keyframes kn-export-progress {
-          0%   { transform: translateX(-100%); }
-          100% { transform: translateX(350%); }
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <PageHeader
+        title={
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
+            Leads
+            <Badge mono style={{ fontSize: 11.5 }}>{totalCount.toLocaleString()} leads</Badge>
+          </span>
         }
-      `}</style>
-      <div style={{ marginBottom: 14, padding: '12px 16px', background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 10 }}>
-        <div style={{ fontSize: 13, color: 'var(--text-dim)', lineHeight: 1.6 }}>
-          Track and nurture potential customers before they become deals. Use AI scoring to prioritise hot leads, qualify them with your team, and convert top prospects to contacts, accounts, and deals in one click. Bulk-import from CSV or capture individually.
+        description="Track and qualify prospects, then convert the best ones to contacts, accounts and deals."
+        actions={headerActions}
+        compact={narrow}
+      />
+
+      {/* Toolbar — one wrapping row: KINI smart filter, free-text search, the
+          server-side selects, and the sort order. The smart-filter chips /
+          "Interpreted as" line drop to their own line below (order: 10). */}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        <SmartFilterBar
+          query={smartQuery}
+          setQuery={setSmartQuery}
+          onRun={runSmartFilter}
+          onClear={clearSmartFilter}
+          loading={smartLoading}
+          explanation={smartExplain}
+          params={smartParams}
+        />
+        <LeadFilters value={filters} onChange={setFilters} sources={sources.map((s) => ({ id: s.id, name: s.name }))} owners={users} />
+        {showApproval && (
+          <Segmented
+            value={approvalFilter}
+            onChange={setApprovalFilter}
+            options={[
+              { value: '', label: 'All' },
+              { value: 'pending', label: 'Pending approval' },
+              { value: 'rejected', label: 'Rejected' },
+            ]}
+          />
+        )}
+        <div style={{ flex: '0 1 200px', minWidth: 170 }}>
+          <Select
+            aria-label="Sort by"
+            title="Sort by"
+            value={`${sort.key}:${sort.order}`}
+            onChange={(e) => { const [key, order] = e.target.value.split(':'); setSort({ key, order: order as 'asc' | 'desc' }); }}
+          >
+            <option value="recent:desc">Sort: Most recent activity</option>
+            <option value="created:desc">Sort: Date added (newest)</option>
+            <option value="created:asc">Sort: Date added (oldest)</option>
+            <option value="name:asc">Sort: Name (A–Z)</option>
+            <option value="name:desc">Sort: Name (Z–A)</option>
+            <option value="company:asc">Sort: Company (A–Z)</option>
+            <option value="score:desc">Sort: Score (high–low)</option>
+            <option value="score:asc">Sort: Score (low–high)</option>
+            <option value="updated:desc">Sort: Last updated</option>
+            <option value="status:asc">Sort: Status</option>
+          </Select>
         </div>
       </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 8, flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          {/* Row count: server's total matches all current filters
-              (state/city/district/block/status/source/owner/grade).
-              `filtered.length` is the subset visible on this page after
-              the client-side q (text-search) filter. */}
-          <span style={{ fontSize: 13, color: 'var(--text-dim)', display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            {/* Highlighted total — the headline number for the leads page. */}
-            <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--primary)', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 999, padding: '3px 12px', whiteSpace: 'nowrap' }}>
-              {(pagination ? pagination.total : filtered.length).toLocaleString()} leads
-            </span>
-            {filters.q && pagination && filtered.length !== leads.length && (
-              <span style={{ color: 'var(--text)' }}>
-                · {filtered.length} match “{filters.q}” on this page
+
+      <Card padding={0} style={{ overflow: 'hidden' }}>
+        {/* Context strip — only when there's something to say: a client-side
+            search narrowing the page, an active location scope, or a
+            selection with bulk actions. */}
+        {(selected.size > 0 || locationCrumb || (filters.q && pagination && filtered.length !== leads.length)) && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '10px 16px', borderBottom: `1px solid ${T.border}`, background: 'var(--s3)', minHeight: 48 }}>
+            {selected.size > 0 ? (
+              <>
+                <span style={{ fontSize: 13, color: T.text, fontWeight: 500 }}>
+                  <span style={{ fontFamily: T.mono }}>{selected.size}</span> selected
+                </span>
+                <Button size="sm" onClick={bulkAssignToMe} disabled={bulkBusy} icon={<UserCheck size={14} strokeWidth={1.8} />}>Assign to me</Button>
+                <div ref={assignMenuRef} style={{ position: 'relative' }}>
+                  <Button size="sm" onClick={() => { setShowAssignMenu((m) => !m); loadUsers(); }} disabled={bulkBusy} icon={<UserPlus size={14} strokeWidth={1.8} />}>Assign to…</Button>
+                  {showAssignMenu && (
+                    <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, background: T.card, border: `1px solid ${T.border}`, borderRadius: T.radius.md, boxShadow: 'var(--shadow-pop)', zIndex: 200, minWidth: 200, maxHeight: 240, overflowY: 'auto', padding: 4 }}>
+                      {usersLoading && <div style={{ padding: '8px 10px', fontSize: 12.5, color: T.dim }}>Loading users…</div>}
+                      {!usersLoading && users.length === 0 && <div style={{ padding: '8px 10px', fontSize: 12.5, color: T.dim }}>No users found</div>}
+                      {users.map((u) => (
+                        <button
+                          key={u.id}
+                          type="button"
+                          onClick={() => bulkAssignTo(u.id, u.name)}
+                          className="km-navrow"
+                          style={{ width: '100%', display: 'block', padding: '7px 10px', background: 'transparent', border: 'none', borderRadius: 6, color: T.text, textAlign: 'left', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit' }}
+                        >
+                          {u.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <Button size="sm" variant="danger" onClick={bulkDelete} disabled={bulkBusy} title="Soft-delete the selected leads" icon={<Trash2 size={14} strokeWidth={1.8} />}>
+                  {bulkBusy ? 'Deleting…' : `Delete ${selected.size}`}
+                </Button>
+              </>
+            ) : (
+              <span style={{ fontSize: 12.5, color: T.dim, display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                {filters.q && pagination && filtered.length !== leads.length && (
+                  <span><span style={{ fontFamily: T.mono, color: T.text }}>{filtered.length}</span> match “{filters.q}” on this page</span>
+                )}
+                {locationCrumb && (
+                  <Badge tone="info" style={{ gap: 5 }}><MapPin size={12} strokeWidth={1.8} />{locationCrumb}</Badge>
+                )}
               </span>
             )}
-          </span>
-          {(filters.state || filters.city || filters.district || filters.block) && (
-            <span style={{ fontSize: 11, color: 'var(--primary)', background: 'var(--s3)', padding: '3px 8px', borderRadius: 6 }}>
-              📍 {[filters.block, filters.district, filters.city, filters.state].filter(Boolean).join(' › ')}
-            </span>
-          )}
-          {selected.size > 0 && (
-            <>
-              <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>• {selected.size} selected</span>
-              <button
-                onClick={bulkAssignToMe}
-                disabled={bulkBusy}
-                style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px 12px', borderRadius: 8, fontSize: 12, cursor: bulkBusy ? 'not-allowed' : 'pointer', opacity: bulkBusy ? 0.6 : 1 }}
-              >
-                Assign to me
-              </button>
-              <div ref={assignMenuRef} style={{ position: 'relative' }}>
-                <button
-                  onClick={() => { setShowAssignMenu((m) => !m); loadUsers(); }}
-                  disabled={bulkBusy}
-                  style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px 12px', borderRadius: 8, fontSize: 12, cursor: bulkBusy ? 'not-allowed' : 'pointer', opacity: bulkBusy ? 0.6 : 1 }}
-                >
-                  Assign to...
-                </button>
-                {showAssignMenu && (
-                  <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.2)', zIndex: 200, minWidth: 180, maxHeight: 220, overflowY: 'auto' }}>
-                    {usersLoading && <div style={{ padding: '10px 14px', fontSize: 12, color: 'var(--text-dim)' }}>Loading users...</div>}
-                    {!usersLoading && users.length === 0 && <div style={{ padding: '10px 14px', fontSize: 12, color: 'var(--text-dim)' }}>No users found</div>}
-                    {users.map((u) => (
-                      <button
-                        key={u.id}
-                        onClick={() => bulkAssignTo(u.id, u.name)}
-                        style={{ width: '100%', display: 'block', padding: '10px 14px', background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)', color: 'var(--text)', textAlign: 'left', cursor: 'pointer', fontSize: 13 }}
-                      >
-                        {u.name}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-              <button
-                onClick={bulkDelete}
-                disabled={bulkBusy}
-                title="Soft-delete the selected leads"
-                style={{ background: 'transparent', border: '1px solid #dc2626', color: '#dc2626', padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: bulkBusy ? 'not-allowed' : 'pointer', opacity: bulkBusy ? 0.6 : 1 }}
-              >
-                {bulkBusy ? 'Deleting…' : `🗑 Delete ${selected.size}`}
-              </button>
-            </>
-          )}
-        </div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <ViewCustomizer
-            entityLabel="Leads"
-            columns={LEAD_COLUMNS as unknown as { key: string; label: string; locked?: boolean }[]}
-            hidden={view.prefs.hidden}
-            mode={view.prefs.mode}
-            onToggle={view.toggleHidden}
-            onSetMode={view.setMode}
-            onReset={view.reset}
-          />
-          <button
-            type="button"
-            onClick={handleExport}
-            disabled={exporting}
-            title="Download leads as CSV (current filters apply)"
-            style={{
-              position: 'relative',
-              background: 'var(--s3)',
-              border: '1px solid var(--border)',
-              color: 'var(--text)',
-              padding: '8px 14px',
-              borderRadius: 8,
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: exporting ? 'wait' : 'pointer',
-              opacity: exporting ? 0.85 : 1,
-              overflow: 'hidden',
-              minWidth: exporting ? 200 : 'auto',
-            }}
-          >
-            {/* Indeterminate progress bar — the server doesn't stream per-row
-                counts, so we can't show real %. The bar pulses left-to-right
-                while elapsed seconds tick up next to the label. Tells the rep
-                "still working" without lying about progress. */}
-            {exporting && (
-              <span
-                aria-hidden
-                style={{
-                  position: 'absolute',
-                  left: 0,
-                  top: 0,
-                  bottom: 0,
-                  width: '40%',
-                  background: 'var(--primary)',
-                  opacity: 0.25,
-                  animation: 'kn-export-progress 1.4s ease-in-out infinite',
-                }}
-              />
-            )}
-            <span style={{ position: 'relative' }}>
-              {exporting
-                ? `Exporting… ${exportElapsed}s`
-                : '⬇ Export CSV'}
-            </span>
-          </button>
-          <Link href="/dashboard/crm/leads/import" style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600 }}>Import</Link>
-          <Link href="/dashboard/crm/leads/new" style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700 }}>+ New Lead</Link>
-        </div>
-      </div>
-      {/* AI Smart Filters — plain-English → validated lead filters (KINI). */}
-      <SmartFilterBar
-        query={smartQuery}
-        setQuery={setSmartQuery}
-        onRun={runSmartFilter}
-        onClear={clearSmartFilter}
-        loading={smartLoading}
-        explanation={smartExplain}
-        params={smartParams}
-      />
-      <LeadFilters value={filters} onChange={setFilters} sources={sources.map((s) => ({ id: s.id, name: s.name }))} owners={users} />
-      {/* Manager approval quick-filter. Only shown when approval is actually in
-          use — some non-approved lead is present, or the filter is already
-          active. The workflow is opt-in per org (off by default), so tenants
-          that haven't enabled it have every lead 'approved' and never see this
-          row: their leads page is unchanged. */}
-      {(approvalFilter !== '' || leads.some((l) => (l.approval_status ?? 'approved') !== 'approved')) && (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '6px 0 2px', flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 12, color: 'var(--textSec)', fontWeight: 600, marginRight: 2 }}>Approval</span>
-        {([
-          { key: '' as const, label: 'All' },
-          { key: 'pending' as const, label: '⏳ Pending' },
-          { key: 'rejected' as const, label: 'Rejected' },
-        ]).map((opt) => {
-          const active = approvalFilter === opt.key;
-          return (
-            <button
-              key={opt.key || 'all'}
-              type="button"
-              onClick={() => setApprovalFilter(opt.key)}
-              style={{
-                background: active ? (opt.key === 'pending' ? 'rgba(245,158,11,0.18)' : 'var(--primary)') : 'var(--s3)',
-                border: `1px solid ${active ? (opt.key === 'pending' ? 'rgba(245,158,11,0.55)' : 'var(--primary)') : 'var(--border)'}`,
-                color: active ? (opt.key === 'pending' ? '#b45309' : '#fff') : 'var(--text)',
-                borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
-              }}
-            >
-              {opt.label}
-            </button>
-          );
-        })}
-      </div>
-      )}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0 2px' }}>
-        <span style={{ fontSize: 12, color: 'var(--textSec)', fontWeight: 600 }}>Sort by</span>
-        <select
-          value={`${sort.key}:${sort.order}`}
-          onChange={(e) => { const [key, order] = e.target.value.split(':'); setSort({ key, order: order as 'asc' | 'desc' }); }}
-          style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '7px 10px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
-        >
-          <option value="recent:desc">Most recent activity</option>
-          <option value="created:desc">Date added (newest)</option>
-          <option value="created:asc">Date added (oldest)</option>
-          <option value="name:asc">Name (A–Z)</option>
-          <option value="name:desc">Name (Z–A)</option>
-          <option value="company:asc">Company (A–Z)</option>
-          <option value="score:desc">Score (high–low)</option>
-          <option value="score:asc">Score (low–high)</option>
-          <option value="updated:desc">Last updated</option>
-          <option value="status:asc">Status</option>
-        </select>
-      </div>
-      <LeadsTable
-        leads={filtered}
-        selected={selected}
-        onToggle={toggle}
-        onToggleAll={toggleAll}
-        loading={loading}
-        isB2C={isB2C}
-        hiddenColumns={hiddenSet}
-        viewMode={view.prefs.mode}
-        sort={sort}
-        // Header click: switch to this column asc, or flip asc↔desc if it's
-        // already the active sort. Feeds the same server-side `sort` state the
-        // "Sort by" dropdown uses, so both stay in lock-step and refetch.
-        onSort={(key) => setSort((s) => s.key === key ? { key, order: s.order === 'asc' ? 'desc' : 'asc' } : { key, order: 'asc' })}
-        onAssign={async (leadId, userId) => {
-          await crmLeads.update(leadId, { owner_id: userId } as any);
-          toast.success(userId ? 'Lead reassigned' : 'Lead unassigned');
-          reload();
-        }}
-        onEdit={setEditingLead}
-        onApprove={async (leadId, decision) => {
-          try {
-            await crmLeads.decideApproval(leadId, { decision });
-            toast.success(decision === 'approved' ? 'Lead approved' : 'Lead rejected');
+          </div>
+        )}
+        <LeadsTable
+          leads={filtered}
+          selected={selected}
+          onToggle={toggle}
+          onToggleAll={toggleAll}
+          loading={loading}
+          isB2C={isB2C}
+          hiddenColumns={hiddenSet}
+          viewMode={view.prefs.mode}
+          sort={sort}
+          // Header click: switch to this column asc, or flip asc↔desc if it's
+          // already the active sort. Feeds the same server-side `sort` state the
+          // "Sort by" dropdown uses, so both stay in lock-step and refetch.
+          onSort={(key) => setSort((s) => s.key === key ? { key, order: s.order === 'asc' ? 'desc' : 'asc' } : { key, order: 'asc' })}
+          onAssign={async (leadId, userId) => {
+            await crmLeads.update(leadId, { owner_id: userId } as any);
+            toast.success(userId ? 'Lead reassigned' : 'Lead unassigned');
             reload();
-          } catch (e: any) {
-            toast.error(e?.message || 'Could not update approval');
-          }
-        }}
-      />
-      <PaginationBar
-        pagination={pagination}
-        pageSize={pageSize}
-        onPageChange={setPage}
-        onPageSizeChange={setPageSize}
-        loading={loading}
-      />
-      {/* Phone-only floating "+ New Lead" CTA. The toolbar version is
-          still rendered above for desktop / tablet, but on a 360-560 px
-          screen the 5-button cluster wraps onto multiple lines and the
-          New Lead button can land off-screen below the page header.
-          A sticky FAB at the bottom-right guarantees the primary
-          action is always one tap away regardless of scroll position. */}
+          }}
+          onEdit={setEditingLead}
+          onApprove={async (leadId, decision) => {
+            try {
+              await crmLeads.decideApproval(leadId, { decision });
+              toast.success(decision === 'approved' ? 'Lead approved' : 'Lead rejected');
+              reload();
+            } catch (e: any) {
+              toast.error(e?.message || 'Could not update approval');
+            }
+          }}
+        />
+        <PaginationBar
+          pagination={pagination}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+          loading={loading}
+        />
+      </Card>
+
+      {/* Phone-only floating "New lead" CTA. The header version is still
+          rendered above for desktop / tablet, but on a 360-560 px screen the
+          action cluster wraps onto multiple lines and the New Lead button can
+          land off-screen. A sticky FAB at the bottom-right guarantees the
+          primary action is always one tap away regardless of scroll position. */}
       {isCompact && (
         <Link
           href="/dashboard/crm/leads/new"
           aria-label="New lead"
           style={{
-            position: 'fixed',
-            right: 18,
-            bottom: 84,
-            zIndex: 50,
-            background: 'var(--primary)',
-            color: '#fff',
-            width: 56,
-            height: 56,
-            borderRadius: 28,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: 28,
-            fontWeight: 700,
-            lineHeight: 1,
-            textDecoration: 'none',
+            position: 'fixed', right: 18, bottom: 84, zIndex: 50,
+            background: T.red, color: '#FFFFFF', width: 52, height: 52, borderRadius: 999,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none',
             boxShadow: '0 12px 28px -8px rgba(208, 30, 44, 0.55), 0 2px 6px rgba(0,0,0,0.2)',
           }}
         >
-          +
+          <Plus size={24} strokeWidth={2} />
         </Link>
       )}
 
@@ -719,9 +643,10 @@ export default function LeadsListPage() {
 
 /**
  * Pagination footer: page-size picker on the left, current-page
- * indicator + first/prev/next/last + jump-to-page on the right.
- * Renders even when pagination is null so the layout doesn't jump on
- * the very first render — controls are just disabled.
+ * indicator + first/prev/next/last on the right. Sits inside the table
+ * card (hairline above). Renders even when pagination is null so the
+ * layout doesn't jump on the very first render — controls are just
+ * disabled.
  */
 function PaginationBar({
   pagination, pageSize, onPageChange, onPageSizeChange, loading,
@@ -743,41 +668,33 @@ function PaginationBar({
   const canPrev = !!p?.hasPrev && !disabled;
   const canNext = !!p?.hasNext && !disabled;
 
-  const btn = (active: boolean): React.CSSProperties => ({
-    background: 'var(--s3)', border: '1px solid var(--border)', color: active ? 'var(--text)' : 'var(--text-dim)',
-    padding: '6px 10px', borderRadius: 6, fontSize: 12, fontWeight: 600,
-    cursor: active ? 'pointer' : 'not-allowed', opacity: active ? 1 : 0.5, minWidth: 32,
-  });
-
   return (
-    <div style={{
-      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-      marginTop: 14, padding: '10px 14px', background: 'var(--s2)',
-      border: '1px solid var(--border)', borderRadius: 10,
-      flexWrap: 'wrap', gap: 10,
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, color: 'var(--text-dim)' }}>
-        <span>Rows per page:</span>
-        <select
-          value={pageSize}
-          onChange={(e) => onPageSizeChange(Number(e.target.value))}
-          disabled={disabled}
-          style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '4px 8px', borderRadius: 6, fontSize: 12 }}
-        >
-          {PAGE_SIZE_OPTIONS.map((n) => <option key={n} value={n}>{n}</option>)}
-        </select>
-        <span>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 16px', borderTop: `1px solid ${T.border}`, flexWrap: 'wrap', gap: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12.5, color: T.dim }}>
+        <span>Rows per page</span>
+        <div style={{ width: 84 }}>
+          <Select
+            aria-label="Rows per page"
+            value={pageSize}
+            onChange={(e) => onPageSizeChange(Number(e.target.value))}
+            disabled={disabled}
+            style={{ height: 30, fontSize: 12.5, paddingLeft: 9 }}
+          >
+            {PAGE_SIZE_OPTIONS.map((n) => <option key={n} value={n}>{n}</option>)}
+          </Select>
+        </div>
+        <span style={{ fontFamily: T.mono, fontSize: 12, color: T.mute }}>
           {total === 0 ? 'No results' : `${start.toLocaleString()}–${end.toLocaleString()} of ${total.toLocaleString()}`}
         </span>
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <button type="button" onClick={() => onPageChange(1)} disabled={!canPrev} style={btn(canPrev)} title="First page">«</button>
-        <button type="button" onClick={() => onPageChange(currentPage - 1)} disabled={!canPrev} style={btn(canPrev)} title="Previous page">‹</button>
-        <span style={{ fontSize: 12, color: 'var(--text)', padding: '0 8px' }}>
-          Page <strong>{currentPage}</strong> of {totalPages}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+        <IconButton label="First page" onClick={() => onPageChange(1)} disabled={!canPrev}><ChevronsLeft size={16} strokeWidth={1.6} /></IconButton>
+        <IconButton label="Previous page" onClick={() => onPageChange(currentPage - 1)} disabled={!canPrev}><ChevronLeft size={16} strokeWidth={1.6} /></IconButton>
+        <span style={{ fontSize: 12.5, color: T.dim, padding: '0 8px', fontFamily: T.mono }}>
+          <span style={{ color: T.text }}>{currentPage}</span> / {totalPages}
         </span>
-        <button type="button" onClick={() => onPageChange(currentPage + 1)} disabled={!canNext} style={btn(canNext)} title="Next page">›</button>
-        <button type="button" onClick={() => onPageChange(totalPages)} disabled={!canNext} style={btn(canNext)} title="Last page">»</button>
+        <IconButton label="Next page" onClick={() => onPageChange(currentPage + 1)} disabled={!canNext}><ChevronRight size={16} strokeWidth={1.6} /></IconButton>
+        <IconButton label="Last page" onClick={() => onPageChange(totalPages)} disabled={!canNext}><ChevronsRight size={16} strokeWidth={1.6} /></IconButton>
       </div>
     </div>
   );

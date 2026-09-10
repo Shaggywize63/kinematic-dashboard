@@ -163,10 +163,13 @@ export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputE
 export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSelectElement> & { invalid?: boolean }>(function Select(
   { style, invalid, children, ...rest }, ref,
 ) {
+  // Sizing props (width / flex) belong to the wrapper so a Select can sit in
+  // a toolbar row at a fixed width; the native control always fills it.
+  const { width, minWidth, maxWidth, flex, ...inner } = style || {};
   return (
-    <div style={{ position: 'relative', width: '100%' }}>
+    <div style={{ position: 'relative', width: width ?? '100%', minWidth, maxWidth, flex, flexShrink: width != null ? 0 : undefined }}>
       <select ref={ref} className="km-input" data-invalid={invalid ? 'true' : undefined}
-        style={{ ...inputStyle, appearance: 'none', WebkitAppearance: 'none', paddingRight: 32, cursor: 'pointer', ...style }} {...rest}>
+        style={{ ...inputStyle, appearance: 'none', WebkitAppearance: 'none', paddingRight: 32, cursor: 'pointer', ...inner }} {...rest}>
         {children}
       </select>
       <svg aria-hidden width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round"

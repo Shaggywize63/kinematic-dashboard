@@ -1,12 +1,15 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
+import { ChevronRight, KanbanSquare, Plus, SlidersHorizontal, Star, Trash2 } from 'lucide-react';
 import { crmPipelines, crmDeals } from '../../../../lib/crmApi';
 import type { Pipeline, Deal } from '../../../../types/crm';
 import PipelineCreateModal from '../../../../components/crm/PipelineCreateModal';
 import { formatINR } from '../../../../lib/formatCurrency';
 import { getStoredUser, userHasModule } from '../../../../lib/auth';
+import { Badge, Button, Card, EmptyState, Eyebrow, PageHeader, T, useIsCompact, type Tone } from '../../../../components/ui';
+import { usePageTitle } from '../../../../lib/pageTitle';
 
 /**
  * Pipeline section, records-list view.
@@ -19,6 +22,8 @@ import { getStoredUser, userHasModule } from '../../../../lib/auth';
  * pipeline + stages in one shot.
  */
 export default function PipelinePage() {
+  usePageTitle('Pipelines');
+  const narrow = useIsCompact(900);
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [dealsByPipeline, setDealsByPipeline] = useState<Record<string, Deal[]>>({});
   const [loading, setLoading] = useState(true);
@@ -75,34 +80,34 @@ export default function PipelinePage() {
     } catch (e: any) { toast.error(e.message || 'Delete failed'); }
   };
 
-  return (
-    <div>
-      <div style={{ marginBottom: 14, padding: '12px 16px', background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 10 }}>
-        <div style={{ fontSize: 13, color: 'var(--text-dim)', lineHeight: 1.6 }}>
-          Sales pipelines — each is a named, ordered set of stages a deal moves through (e.g. <em>Discovery → Qualification → Proposal → Negotiation → Closed Won</em>). Use multiple pipelines when you sell into clearly different motions (Enterprise vs SMB, India vs Export). The kanban view of any pipeline now lives on the <Link href="/dashboard/crm/deals" style={{ color: 'var(--primary)' }}>Deals</Link> page — toggle <strong style={{ color: 'var(--text)' }}>Kanban</strong> there.
-        </div>
-      </div>
+  const STAGE_TONE: Record<string, Tone> = { open: 'info', won: 'ok', lost: 'red' };
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, gap: 8, flexWrap: 'wrap' }}>
-        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>
-          {pipelines.length} pipeline{pipelines.length === 1 ? '' : 's'}
-        </div>
-        <button onClick={() => setShowCreate(true)} style={btnPrimary}>+ New Pipeline</button>
-      </div>
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <PageHeader
+        title="Pipelines"
+        description={<>An ordered set of stages a deal moves through. Use several for clearly different motions; the board view lives on <Link href="/dashboard/crm/deals?view=kanban" style={{ color: T.info }}>Deals → Kanban</Link>.</>}
+        compact={narrow}
+        actions={<Button variant="primary" onClick={() => setShowCreate(true)} icon={<Plus size={16} strokeWidth={2} />}>New pipeline</Button>}
+      />
 
       {loading ? (
-        <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-dim)' }}>Loading pipelines…</div>
+        <div style={{ padding: 32, textAlign: 'center', color: T.dim, fontSize: 13.5 }}>Loading pipelines…</div>
       ) : pipelines.length === 0 ? (
-        <div style={{ padding: 40, textAlign: 'center', background: 'var(--s2)', border: '1px dashed var(--border)', borderRadius: 14 }}>
-          <div style={{ fontSize: 28, marginBottom: 10 }}>📋</div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>No pipelines yet</div>
-          <div style={{ fontSize: 13, color: 'var(--text-dim)', marginBottom: 14, maxWidth: 480, marginLeft: 'auto', marginRight: 'auto', lineHeight: 1.5 }}>
-            A pipeline groups your stages (Discovery, Qualification, Proposal, Negotiation, Closed Won). Once you have one, deals move through its stages and the Deals → Kanban view groups them by column.
-          </div>
-          <button onClick={() => setShowCreate(true)} style={btnPrimary}>+ Create your first pipeline</button>
-        </div>
+        <Card padding={0}>
+          <EmptyState
+            icon={<KanbanSquare size={20} strokeWidth={1.6} />}
+            title="No pipelines yet"
+            description="A pipeline groups your stages (Discovery, Qualification, Proposal, Negotiation, Closed Won). Once you have one, deals move through its stages and the Deals → Kanban view groups them by column."
+            action={<Button variant="primary" onClick={() => setShowCreate(true)} icon={<Plus size={16} strokeWidth={2} />}>Create your first pipeline</Button>}
+          />
+        </Card>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <Card padding={0} style={{ overflow: 'hidden' }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '14px 16px', borderBottom: `1px solid ${T.border}` }}>
+            <div style={{ fontFamily: T.heading, fontSize: 15, fontWeight: 700, color: T.text }}>All pipelines</div>
+            <span style={{ fontFamily: T.mono, fontSize: 11, color: T.mute }}>{pipelines.length}</span>
+          </div>
           {/*
            * The list can contain both a shared "Default Sales Pipeline"
            * (client_id IS NULL, set by the platform) AND a tenant-owned
@@ -110,8 +115,7 @@ export default function PipelinePage() {
            * own default. Backend deal-lookup follows the same rule
            * (resolveDefaultPipeline in deals.service.ts).
            */}
-          {(() => null)()}
-          {pipelines.map((p, _idx, all) => {
+          {pipelines.map((p, idx, all) => {
             const stages = (p.stages || []).slice().sort((a, b) => a.position - b.position);
             const dealsHere = dealsByPipeline[p.id] || [];
             const openValue = dealsHere.reduce((sum, d) => sum + Number((d as any).amount || 0), 0);
@@ -122,86 +126,87 @@ export default function PipelinePage() {
               ?? null;
             const isEffectiveDefault = p.id === effectiveDefaultId;
             return (
-              <div key={p.id} className="pipeline-row" style={{
-                // Highlight only the effective default — thicker primary
-                // border + a left accent strip. Other is_default rows (e.g.
-                // a leftover shared one) render normally.
-                background: 'var(--s2)',
-                border: `1px solid ${isEffectiveDefault ? 'var(--primary)' : 'var(--border)'}`,
-                borderLeft: `4px solid ${isEffectiveDefault ? 'var(--primary)' : 'var(--border)'}`,
-                borderRadius: 12,
-                // Subtle outline that picks up the CRM accent colour
-                // (blue inside .crm-area; red is reserved for KINI AI).
-                boxShadow: isEffectiveDefault ? '0 0 0 2px rgba(0,102,255,0.10)' : 'none',
-              }}>
+              <div key={p.id} className="pipeline-row" style={{ borderBottom: idx < all.length - 1 ? `1px solid ${T.border}` : 0 }}>
                 {/* Row layout: chevron + title block + actions. On mobile
                     (≤640px) the actions wrap below the title via the
                     `pipeline-row-actions` rule in globals.css so 4
                     chips don't squish into 30px each. */}
-                <div className="pipeline-row-head" style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: 14, cursor: 'pointer', flexWrap: 'wrap' }} onClick={() => setExpanded(isOpen ? null : p.id)}>
-                  <span style={{ fontSize: 16, color: 'var(--text-dim)', transform: isOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s', flexShrink: 0, marginTop: 2 }}>▸</span>
+                <div
+                  className="pipeline-row-head"
+                  role="button"
+                  tabIndex={0}
+                  aria-expanded={isOpen}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpanded(isOpen ? null : p.id); } }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', cursor: 'pointer', flexWrap: 'wrap', background: isOpen ? T.raised : 'transparent', transition: 'background .12s ease' }}
+                  onClick={() => setExpanded(isOpen ? null : p.id)}
+                >
+                  <ChevronRight size={16} strokeWidth={1.6} style={{ color: T.mute, transform: isOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s', flexShrink: 0 }} />
                   <div style={{ flex: '1 1 220px', minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                      {isEffectiveDefault && <span title="Default pipeline" style={{ fontSize: 18, color: '#f5a623', lineHeight: 1 }}>★</span>}
-                      <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>{p.name}</span>
-                      {isEffectiveDefault && <span style={{ fontSize: 9, padding: '2px 8px', borderRadius: 4, background: 'var(--primary)', color: '#fff', fontWeight: 800, letterSpacing: 0.4 }}>DEFAULT</span>}
+                      <span style={{ fontSize: 14, fontWeight: 600, color: T.text }}>{p.name}</span>
+                      {isEffectiveDefault && <Badge tone="red"><Star size={11} strokeWidth={2} /> Default</Badge>}
                     </div>
-                    <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>
-                      {stages.length} stage{stages.length === 1 ? '' : 's'} · {dealsHere.length} open deal{dealsHere.length === 1 ? '' : 's'} · {formatINR(openValue)}
+                    <div style={{ display: 'flex', gap: 12, marginTop: 3, fontSize: 12.5, color: T.dim, flexWrap: 'wrap' }}>
+                      <span><span style={{ fontFamily: T.mono, color: T.text }}>{stages.length}</span> stage{stages.length === 1 ? '' : 's'}</span>
+                      <span><span style={{ fontFamily: T.mono, color: T.text }}>{dealsHere.length}</span> open deal{dealsHere.length === 1 ? '' : 's'}</span>
+                      <span style={{ fontFamily: T.mono, color: T.text, fontVariantNumeric: 'tabular-nums' }}>{formatINR(openValue)}</span>
                     </div>
                   </div>
-                  <div className="pipeline-row-actions" style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }} onClick={(e) => e.stopPropagation()}>
-                    <Link href={`/dashboard/crm/deals?pipeline_id=${p.id}&view=kanban`} title="Open Kanban for this pipeline"
-                      style={chip('#3E9EFF')}>Kanban →</Link>
+                  <div className="pipeline-row-actions" style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }} onClick={(e) => e.stopPropagation()}>
+                    <Button size="sm" variant="ghost" href={`/dashboard/crm/deals?pipeline_id=${p.id}&view=kanban`} title="Open Kanban for this pipeline" icon={<KanbanSquare size={14} strokeWidth={1.6} />}>Kanban</Button>
                     {!isEffectiveDefault && (
-                      <button onClick={() => makeDefault(p)} disabled={busyDefault === p.id} style={chip('var(--text-dim)')}>
+                      <Button size="sm" variant="ghost" onClick={() => makeDefault(p)} disabled={busyDefault === p.id} icon={<Star size={14} strokeWidth={1.6} />}>
                         {busyDefault === p.id ? 'Saving…' : 'Make default'}
-                      </button>
+                      </Button>
                     )}
                     {canEditStages && (
-                      <Link href={`/dashboard/crm/settings/stages?pipeline_id=${p.id}`} style={chip('var(--text-dim)')}>Edit stages</Link>
+                      <Button size="sm" variant="ghost" href={`/dashboard/crm/settings/stages?pipeline_id=${p.id}`} icon={<SlidersHorizontal size={14} strokeWidth={1.6} />}>Edit stages</Button>
                     )}
-                    <button onClick={() => deletePipeline(p)} style={chip('#ef4444')}>Delete</button>
+                    <Button size="sm" variant="ghost" onClick={() => deletePipeline(p)} icon={<Trash2 size={14} strokeWidth={1.6} />} style={{ color: T.red }}>Delete</Button>
                   </div>
                 </div>
                 {isOpen && (
-                  <div style={{ borderTop: '1px solid var(--border)', padding: 14, background: 'var(--s1)' }}>
+                  <div style={{ borderTop: `1px solid ${T.border}`, padding: 16 }}>
                     {stages.length === 0 ? (
-                      <div style={{ fontSize: 13, color: 'var(--text-dim)' }}>
+                      <div style={{ fontSize: 13, color: T.dim }}>
                         No stages in this pipeline yet.
                         {canEditStages && (
-                          <> <Link href={`/dashboard/crm/settings/stages?pipeline_id=${p.id}`} style={{ color: 'var(--primary)' }}>Add stages →</Link></>
+                          <> <Link href={`/dashboard/crm/settings/stages?pipeline_id=${p.id}`} style={{ color: T.info }}>Add stages →</Link></>
                         )}
                       </div>
                     ) : (
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8 }}>
-                        {stages.map((s) => {
-                          const count = dealsHere.filter((d) => (d as any).stage_id === s.id).length;
-                          const value = dealsHere.filter((d) => (d as any).stage_id === s.id).reduce((sum, d) => sum + Number((d as any).amount || 0), 0);
-                          const typeColor = s.stage_type === 'won' ? '#10b981' : s.stage_type === 'lost' ? '#ef4444' : 'var(--primary)';
-                          return (
-                            <div key={s.id} style={{ background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 8, padding: 10 }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>{s.name}</span>
-                                <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 3, background: `${typeColor}22`, color: typeColor, fontWeight: 800, letterSpacing: 0.4 }}>{s.stage_type.toUpperCase()}</span>
+                      <>
+                        <Eyebrow style={{ marginBottom: 10 }}>Stages</Eyebrow>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: 8 }}>
+                          {stages.map((s, si) => {
+                            const count = dealsHere.filter((d) => (d as any).stage_id === s.id).length;
+                            const value = dealsHere.filter((d) => (d as any).stage_id === s.id).reduce((sum, d) => sum + Number((d as any).amount || 0), 0);
+                            return (
+                              <div key={s.id} style={{ background: T.raised, borderRadius: T.radius.md, padding: '10px 12px', minWidth: 0 }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                                  <span style={{ fontSize: 13, fontWeight: 600, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    <span style={{ fontFamily: T.mono, fontSize: 11, color: T.mute, marginRight: 6 }}>{String(si + 1).padStart(2, '0')}</span>{s.name}
+                                  </span>
+                                  <Badge tone={STAGE_TONE[s.stage_type] ?? 'neutral'} style={{ textTransform: 'capitalize', height: 20, fontSize: 11 }}>{s.stage_type}</Badge>
+                                </div>
+                                <div style={{ fontSize: 12.5, color: T.dim }}>
+                                  <span style={{ fontFamily: T.mono, color: T.text }}>{count}</span> deal{count === 1 ? '' : 's'} · <span style={{ fontFamily: T.mono, color: T.text, fontVariantNumeric: 'tabular-nums' }}>{formatINR(value)}</span>
+                                </div>
+                                <div style={{ fontSize: 12, color: T.mute, marginTop: 2 }}>
+                                  Win probability <span style={{ fontFamily: T.mono }}>{Math.round((Number((s as any).probability) || 0) * 100)}%</span>
+                                </div>
                               </div>
-                              <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>
-                                {count} deal{count === 1 ? '' : 's'} · {formatINR(value)}
-                              </div>
-                              <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 2 }}>
-                                Default win prob: {Math.round((Number((s as any).probability) || 0) * 100)}%
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
+                            );
+                          })}
+                        </div>
+                      </>
                     )}
                   </div>
                 )}
               </div>
             );
           })}
-        </div>
+        </Card>
       )}
 
       <PipelineCreateModal
@@ -213,8 +218,3 @@ export default function PipelinePage() {
     </div>
   );
 }
-
-const btnPrimary: React.CSSProperties = { background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 16px', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer' };
-const chip = (color: string): React.CSSProperties => ({
-  background: 'transparent', border: `1px solid ${color}`, color, padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer', textDecoration: 'none', whiteSpace: 'nowrap',
-});

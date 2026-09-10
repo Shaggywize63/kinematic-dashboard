@@ -1,12 +1,14 @@
 'use client';
 import { memo, useCallback, useState } from 'react';
 import Link from 'next/link';
+import { ArrowDown, ArrowRight, ArrowUp, ArrowUpDown, Check, Hourglass, Pencil, X } from 'lucide-react';
 import type { Lead } from '../../types/crm';
 import LeadScoreBadge from './LeadScoreBadge';
 import { breakdownFactors, llmAdjustmentOf } from '../../lib/crm/scoreFactors';
 import OwnerAvatar from './shared/OwnerAvatar';
 import InlineOwnerAssign from './shared/InlineOwnerAssign';
 import LogoSpinner from '../shared/LogoSpinner';
+import { Badge, Button, EmptyState, Eyebrow, IconButton, T, type Tone } from '../ui';
 
 interface Props {
   leads: Lead[];
@@ -32,34 +34,53 @@ interface Props {
   onApprove?: (leadId: string, decision: 'approved' | 'rejected') => Promise<void>;
 }
 
+// Table header cell — mono eyebrow, 12px vertical padding, hairline below.
+const thStyle: React.CSSProperties = {
+  padding: '12px 14px', textAlign: 'left', whiteSpace: 'nowrap',
+  fontFamily: T.mono, fontSize: 10.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: T.mute, fontWeight: 500,
+  borderBottom: `1px solid ${T.border}`, background: T.card,
+};
+const tdStyle: React.CSSProperties = { padding: '12px 14px', fontSize: 13.5, color: T.text, borderBottom: `1px solid ${T.border}`, verticalAlign: 'middle' };
+
+// Lead status → badge tone. Unknown statuses fall back to neutral.
+function statusTone(status?: string | null): Tone {
+  switch ((status || '').toLowerCase()) {
+    case 'new': return 'info';
+    case 'working': return 'warn';
+    case 'qualified': return 'ok';
+    case 'converted': return 'ok';
+    case 'lost': return 'red';
+    default: return 'neutral';
+  }
+}
+
 // Clickable, server-side-sort table header. The actual sorting happens on
 // the backend via onSort → parent refetch; this only renders the label +
 // asc/desc/idle affordance. Non-sortable columns pass no onSort and render
 // a plain <th>.
-function SortTh({ label, sortKey, sort, onSort, thStyle, align = 'left' }: {
+function SortTh({ label, sortKey, sort, onSort, align = 'left' }: {
   label: string;
   sortKey: string;
   sort?: { key: string; order: 'asc' | 'desc' };
   onSort?: (key: string) => void;
-  thStyle: React.CSSProperties;
   align?: 'left' | 'right';
 }) {
   const th: React.CSSProperties = { ...thStyle, textAlign: align };
   if (!onSort) return <th style={th}>{label}</th>;
   const active = !!sort && sort.key === sortKey;
-  const arrow = active ? (sort!.order === 'asc' ? '▲' : '▼') : '⇅';
+  const Icon = active ? (sort!.order === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown;
   return (
-    <th style={th}>
+    <th style={th} aria-sort={active ? (sort!.order === 'asc' ? 'ascending' : 'descending') : 'none'}>
       <span
         role="button"
         tabIndex={0}
         onClick={() => onSort(sortKey)}
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSort(sortKey); } }}
         title="Sort"
-        style={{ display: 'inline-flex', alignItems: 'center', gap: 5, cursor: 'pointer', userSelect: 'none', color: active ? 'var(--primary)' : 'inherit', justifyContent: align === 'right' ? 'flex-end' : 'flex-start' }}
+        style={{ display: 'inline-flex', alignItems: 'center', gap: 5, cursor: 'pointer', userSelect: 'none', color: active ? T.text : 'inherit', justifyContent: align === 'right' ? 'flex-end' : 'flex-start' }}
       >
         {label}
-        <span aria-hidden style={{ fontSize: 9, lineHeight: 1, opacity: active ? 1 : 0.4 }}>{arrow}</span>
+        <Icon size={12} strokeWidth={1.8} aria-hidden style={{ opacity: active ? 1 : 0.45, flexShrink: 0 }} />
       </span>
     </th>
   );
@@ -87,11 +108,15 @@ export const LEAD_COLUMNS = [
   { key: 'action', label: 'Action' },
 ] as const;
 
+/**
+ * Leads list table. Renders bare (no card) so the page can wrap it in a
+ * `Card padding={0}` together with its selection strip and pagination
+ * footer. Keeps the `responsive-cards` / `cards-view` classes + `data-label`s
+ * that globals.css uses for the phone card-stack layout.
+ */
 export default function LeadsTable({ leads, selected, onToggle, onToggleAll, loading, isB2C = false, onAssign, hiddenColumns, viewMode = 'table', sort, onSort, onEdit, onApprove }: Props) {
   const [scorePopup, setScorePopup] = useState<Lead | null>(null);
   const allSelected = leads.length > 0 && leads.every((l) => selected.has(l.id));
-  const tdStyle: React.CSSProperties = { padding: '12px 14px', fontSize: 13, color: 'var(--text)', borderBottom: '1px solid var(--border)' };
-  const thStyle: React.CSSProperties = { padding: '10px 14px', fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6, textAlign: 'left', borderBottom: '1px solid var(--border)', background: 'var(--s2)', fontWeight: 700 };
 
   const hidden = hiddenColumns ?? new Set<string>();
   const isVisible = (key: string) => !hidden.has(key);
@@ -116,53 +141,52 @@ export default function LeadsTable({ leads, selected, onToggle, onToggleAll, loa
 
   return (
     <>
-      <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, overflow: 'hidden' }}>
-        <div style={{ overflowX: 'auto' }}>
-          <table className={tableClass} style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr>
-                <th style={{ ...thStyle, width: 40 }}>
-                  <input type="checkbox" checked={allSelected} onChange={onToggleAll} />
-                </th>
-                <SortTh label="Name" sortKey="name" sort={sort} onSort={onSort} thStyle={thStyle} />
-                {showCompany && <SortTh label="Company" sortKey="company" sort={sort} onSort={onSort} thStyle={thStyle} />}
-                {isVisible('phone') && <th style={thStyle}>Phone</th>}
-                {isVisible('status') && <SortTh label="Status" sortKey="status" sort={sort} onSort={onSort} thStyle={thStyle} />}
-                {isVisible('score') && <SortTh label="Score" sortKey="score" sort={sort} onSort={onSort} thStyle={thStyle} />}
-                {isVisible('latest_update') && <th style={thStyle}>Latest Update</th>}
-                {isVisible('source') && <th style={thStyle}>Source</th>}
-                {isVisible('owner') && <th style={thStyle}>Owner</th>}
-                {isVisible('created_by') && <th style={thStyle}>Uploaded By</th>}
-                {/* created_at column → backend sort key 'created' (leads whitelist maps created→created_at). */}
-                {isVisible('created_at') && <SortTh label="Uploaded On" sortKey="created" sort={sort} onSort={onSort} thStyle={thStyle} />}
-                {isVisible('action') && <th style={{ ...thStyle, textAlign: 'right' }}>Action</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {loading && (
-                <tr><td colSpan={colCount} style={{ ...tdStyle, textAlign: 'center' }} data-label=""><div style={{ display: 'flex', justifyContent: 'center', padding: '24px 0' }}><LogoSpinner size={38} label="Loading leads…" /></div></td></tr>
-              )}
-              {!loading && leads.length === 0 && (
-                <tr><td colSpan={colCount} style={{ ...tdStyle, textAlign: 'center', color: 'var(--text-dim)' }} data-label="">No leads found.</td></tr>
-              )}
-              {leads.map((l) => (
-                <LeadRow
-                  key={l.id}
-                  lead={l}
-                  isSelected={selected.has(l.id)}
-                  onToggle={onToggle}
-                  onScoreClick={setScorePopup}
-                  onAssign={onAssign}
-                  onEdit={onEdit}
-                  onApprove={onApprove}
-                  isB2C={isB2C}
-                  tdStyle={tdStyle}
-                  hidden={hidden}
-                />
-              ))}
-            </tbody>
-          </table>
-        </div>
+      <div style={{ overflowX: 'auto' }}>
+        <table className={tableClass} style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr>
+              <th style={{ ...thStyle, width: 40, paddingRight: 0 }}>
+                <input type="checkbox" checked={allSelected} onChange={onToggleAll} aria-label="Select all on this page" style={{ width: 15, height: 15, display: 'block' }} />
+              </th>
+              <SortTh label="Name" sortKey="name" sort={sort} onSort={onSort} />
+              {showCompany && <SortTh label="Company" sortKey="company" sort={sort} onSort={onSort} />}
+              {isVisible('phone') && <th style={thStyle}>Phone</th>}
+              {isVisible('status') && <SortTh label="Status" sortKey="status" sort={sort} onSort={onSort} />}
+              {isVisible('score') && <SortTh label="Score" sortKey="score" sort={sort} onSort={onSort} />}
+              {isVisible('latest_update') && <th style={thStyle}>Latest update</th>}
+              {isVisible('source') && <th style={thStyle}>Source</th>}
+              {isVisible('owner') && <th style={thStyle}>Owner</th>}
+              {isVisible('created_by') && <th style={thStyle}>Uploaded by</th>}
+              {/* created_at column → backend sort key 'created' (leads whitelist maps created→created_at). */}
+              {isVisible('created_at') && <SortTh label="Uploaded on" sortKey="created" sort={sort} onSort={onSort} />}
+              {isVisible('action') && <th style={{ ...thStyle, textAlign: 'right' }}>Action</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {loading && (
+              <tr><td colSpan={colCount} style={{ ...tdStyle, textAlign: 'center', borderBottom: 0 }} data-label=""><div style={{ display: 'flex', justifyContent: 'center', padding: '32px 0' }}><LogoSpinner size={38} label="Loading leads…" /></div></td></tr>
+            )}
+            {!loading && leads.length === 0 && (
+              <tr><td colSpan={colCount} style={{ ...tdStyle, padding: 0, borderBottom: 0 }} data-label="">
+                <EmptyState title="No leads match" description="Try widening the date range or clearing a filter. New leads land here as soon as they're captured." />
+              </td></tr>
+            )}
+            {leads.map((l) => (
+              <LeadRow
+                key={l.id}
+                lead={l}
+                isSelected={selected.has(l.id)}
+                onToggle={onToggle}
+                onScoreClick={setScorePopup}
+                onAssign={onAssign}
+                onEdit={onEdit}
+                onApprove={onApprove}
+                isB2C={isB2C}
+                hidden={hidden}
+              />
+            ))}
+          </tbody>
+        </table>
       </div>
 
       {scorePopup && <ScoreBreakdownModal lead={scorePopup} onClose={() => setScorePopup(null)} />}
@@ -179,11 +203,10 @@ interface LeadRowProps {
   onEdit?: (lead: Lead) => void;
   onApprove?: (leadId: string, decision: 'approved' | 'rejected') => Promise<void>;
   isB2C: boolean;
-  tdStyle: React.CSSProperties;
   hidden: Set<string>;
 }
 
-const LeadRow = memo(function LeadRow({ lead: l, isSelected, onToggle, onScoreClick, onAssign, onEdit, onApprove, isB2C, tdStyle, hidden }: LeadRowProps) {
+const LeadRow = memo(function LeadRow({ lead: l, isSelected, onToggle, onScoreClick, onAssign, onEdit, onApprove, isB2C, hidden }: LeadRowProps) {
   const fullName = l.full_name || `${l.first_name || ''} ${l.last_name || ''}`.trim() || '—';
   const handleToggle = useCallback(() => onToggle(l.id), [onToggle, l.id]);
   const handleScore  = useCallback(() => onScoreClick(l), [onScoreClick, l]);
@@ -198,8 +221,8 @@ const LeadRow = memo(function LeadRow({ lead: l, isSelected, onToggle, onScoreCl
   }, [onApprove, l.id, deciding]);
 
   return (
-    <tr>
-      <td style={tdStyle} data-label=""><input type="checkbox" checked={isSelected} onChange={handleToggle} /></td>
+    <tr className="km-row" style={isSelected ? { background: 'var(--s3)' } : undefined}>
+      <td style={{ ...tdStyle, paddingRight: 0 }} data-label=""><input type="checkbox" checked={isSelected} onChange={handleToggle} aria-label={`Select ${fullName}`} style={{ width: 15, height: 15, display: 'block' }} /></td>
       <td style={tdStyle} data-label="Name">
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <Link href={`/dashboard/crm/leads/${l.id}`} className="km-entity-link" title="Open lead detail">{fullName}</Link>
@@ -211,57 +234,58 @@ const LeadRow = memo(function LeadRow({ lead: l, isSelected, onToggle, onScoreCl
               onClick={() => onEdit(l)}
               title="Edit this lead"
               aria-label="Edit lead"
-              style={{ background: 'transparent', border: 'none', padding: 2, cursor: 'pointer', color: 'var(--primary)', lineHeight: 0, flexShrink: 0, opacity: 0.8 }}
+              className="km-iconbtn"
+              style={{ background: 'transparent', border: 'none', padding: 2, cursor: 'pointer', color: T.mute, lineHeight: 0, flexShrink: 0, borderRadius: 4, display: 'inline-flex' }}
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+              <Pencil size={13} strokeWidth={1.8} />
             </button>
           )}
         </div>
-        {l.title && <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{l.title}</div>}
+        {l.title && <div style={{ fontSize: 12, color: T.dim, marginTop: 1 }}>{l.title}</div>}
         {isPending && (
-          <span style={{ display: 'inline-block', marginTop: 3, fontSize: 10, fontWeight: 800, letterSpacing: '0.3px', textTransform: 'uppercase', color: '#b45309', background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.4)', borderRadius: 5, padding: '1px 6px' }}>
-            ⏳ Pending approval
-          </span>
+          <div style={{ marginTop: 4 }}><Badge tone="warn" style={{ gap: 4 }}><Hourglass size={11} strokeWidth={1.8} />Pending approval</Badge></div>
         )}
         {l.approval_status === 'rejected' && (
-          <span style={{ display: 'inline-block', marginTop: 3, fontSize: 10, fontWeight: 800, letterSpacing: '0.3px', textTransform: 'uppercase', color: '#b91c1c', background: 'rgba(239,68,68,0.13)', border: '1px solid rgba(239,68,68,0.4)', borderRadius: 5, padding: '1px 6px' }}>
-            Rejected
-          </span>
+          <div style={{ marginTop: 4 }}><Badge tone="red">Rejected</Badge></div>
         )}
       </td>
-      {showCompany && <td style={tdStyle} data-label="Company">{l.company || '—'}</td>}
-      {!hidden.has('phone') && <td style={tdStyle} data-label="Phone">{l.phone || '—'}</td>}
-      {!hidden.has('status') && <td style={tdStyle} data-label="Status"><span style={{ textTransform: 'capitalize' }}>{l.status}</span></td>}
+      {showCompany && <td style={tdStyle} data-label="Company">{l.company || <Dash />}</td>}
+      {!hidden.has('phone') && <td style={{ ...tdStyle, fontFamily: T.mono, fontSize: 12.5, whiteSpace: 'nowrap' }} data-label="Phone">{l.phone || <Dash />}</td>}
+      {!hidden.has('status') && (
+        <td style={tdStyle} data-label="Status">
+          {l.status ? <Badge tone={statusTone(l.status)} dot style={{ textTransform: 'capitalize' }}>{String(l.status).replace(/_/g, ' ')}</Badge> : <Dash />}
+        </td>
+      )}
       {!hidden.has('score') && (
         <td style={tdStyle} data-label="Score">
-          <button type="button" onClick={handleScore} title="Click to see score breakdown" style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer' }}>
+          <button type="button" onClick={handleScore} title="Click to see score breakdown" style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', display: 'inline-flex' }}>
             <LeadScoreBadge score={l.score} grade={l.score_grade} />
           </button>
         </td>
       )}
-      {!hidden.has('latest_update') && <LatestUpdateCell lead={l} tdStyle={tdStyle} />}
-      {!hidden.has('source') && <td style={tdStyle} data-label="Source">{l.source_name || '—'}</td>}
+      {!hidden.has('latest_update') && <LatestUpdateCell lead={l} />}
+      {!hidden.has('source') && <td style={{ ...tdStyle, color: T.dim }} data-label="Source">{l.source_name || <Dash />}</td>}
       {!hidden.has('owner') && (
         <td style={tdStyle} data-label="Owner">
           {onAssign ? (
             <InlineOwnerAssign currentOwnerId={l.owner_id} currentOwnerName={l.owner_name} onAssign={handleAssign} />
           ) : (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><OwnerAvatar name={l.owner_name} size={24} /> <span style={{ fontSize: 12 }}>{l.owner_name || 'Unassigned'}</span></div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><OwnerAvatar name={l.owner_name} size={24} /> <span style={{ fontSize: 13 }}>{l.owner_name || 'Unassigned'}</span></div>
           )}
         </td>
       )}
       {!hidden.has('created_by') && (
-        <td style={tdStyle} data-label="Uploaded By">
-          {(l as { created_by_name?: string | null }).created_by_name || <span style={{ color: 'var(--text-dim)' }}>—</span>}
+        <td style={{ ...tdStyle, color: T.dim }} data-label="Uploaded By">
+          {(l as { created_by_name?: string | null }).created_by_name || <Dash />}
         </td>
       )}
       {!hidden.has('created_at') && (
-        <td style={tdStyle} data-label="Uploaded On">
+        <td style={{ ...tdStyle, fontFamily: T.mono, fontSize: 12, color: T.dim, whiteSpace: 'nowrap' }} data-label="Uploaded On">
           {l.created_at ? (
             <span title={new Date(l.created_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}>
               {new Date(l.created_at).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', year: 'numeric' })}
             </span>
-          ) : <span style={{ color: 'var(--text-dim)' }}>—</span>}
+          ) : <Dash />}
         </td>
       )}
       {!hidden.has('action') && (
@@ -272,42 +296,38 @@ const LeadRow = memo(function LeadRow({ lead: l, isSelected, onToggle, onScoreCl
                 onApprove handler (the backend still enforces who may decide). */}
             {isPending && onApprove && (
               <>
-                <button
-                  type="button"
+                <Button
+                  size="sm"
                   disabled={!!deciding}
                   onClick={() => decide('approved')}
                   title="Approve this lead"
-                  style={{ background: '#10b981', border: 'none', color: '#fff', padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: deciding ? 'wait' : 'pointer', opacity: deciding && deciding !== 'approved' ? 0.5 : 1 }}
+                  icon={<Check size={14} strokeWidth={2} />}
+                  style={{ background: T.okWash, color: T.ok, borderColor: 'transparent', opacity: deciding && deciding !== 'approved' ? 0.5 : undefined }}
                 >
-                  {deciding === 'approved' ? '…' : '✓ Approve'}
-                </button>
-                <button
-                  type="button"
+                  {deciding === 'approved' ? '…' : 'Approve'}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="danger"
                   disabled={!!deciding}
                   onClick={() => decide('rejected')}
                   title="Reject this lead"
-                  style={{ background: 'var(--s3)', border: '1px solid rgba(239,68,68,0.5)', color: '#ef4444', padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: deciding ? 'wait' : 'pointer', opacity: deciding && deciding !== 'rejected' ? 0.5 : 1 }}
+                  icon={<X size={14} strokeWidth={2} />}
+                  style={{ opacity: deciding && deciding !== 'rejected' ? 0.5 : undefined }}
                 >
-                  {deciding === 'rejected' ? '…' : '✕ Reject'}
-                </button>
+                  {deciding === 'rejected' ? '…' : 'Reject'}
+                </Button>
               </>
             )}
             {/* Inline edit — opens the edit modal in place so a rep can fix a
                 single record without navigating into its detail page. */}
             {onEdit && (
-              <button
-                type="button"
-                onClick={() => onEdit(l)}
-                title="Edit this lead"
-                style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
-              >
-                Edit
-              </button>
+              <Button size="sm" onClick={() => onEdit(l)} title="Edit this lead">Edit</Button>
             )}
             {l.status === 'converted' ? (
-              <span style={{ fontSize: 11, color: '#10b981', fontWeight: 700 }}>✓ Converted</span>
+              <Badge tone="ok" style={{ gap: 4 }}><Check size={12} strokeWidth={2} />Converted</Badge>
             ) : (
-              <Link href={`/dashboard/crm/leads/${l.id}?convert=1`} style={{ background: 'var(--primary)', color: '#fff', padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, textDecoration: 'none' }} title="Convert this lead to a deal">→ Deal</Link>
+              <Button size="sm" variant="primary" href={`/dashboard/crm/leads/${l.id}?convert=1`} title="Convert this lead to a deal" icon={<ArrowRight size={14} strokeWidth={2} />}>Deal</Button>
             )}
           </div>
         </td>
@@ -315,6 +335,8 @@ const LeadRow = memo(function LeadRow({ lead: l, isSelected, onToggle, onScoreCl
     </tr>
   );
 });
+
+function Dash() { return <span style={{ color: T.mute }}>—</span>; }
 
 /**
  * Latest-update column cell. Reads from `crm_leads.latest_update*` which is
@@ -325,13 +347,13 @@ const LeadRow = memo(function LeadRow({ lead: l, isSelected, onToggle, onScoreCl
  * `latest_update*` aren't on the shared Lead type yet (added by the
  * lead-NBA-and-Updates backend PR) so we read defensively.
  */
-function LatestUpdateCell({ lead, tdStyle }: { lead: Lead; tdStyle: React.CSSProperties }) {
+function LatestUpdateCell({ lead }: { lead: Lead }) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const l = lead as any;
   const text = (l.latest_update ?? '') as string;
   const at = (l.latest_update_at ?? null) as string | null;
   if (!text) {
-    return <td style={tdStyle} data-label="Latest Update"><span style={{ color: 'var(--text-dim)' }}>—</span></td>;
+    return <td style={tdStyle} data-label="Latest Update"><Dash /></td>;
   }
   const rel = at ? formatRelativeTime(at) : '';
   const tooltip = at ? `${text}\n\n${new Date(at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}` : text;
@@ -342,7 +364,7 @@ function LatestUpdateCell({ lead, tdStyle }: { lead: Lead; tdStyle: React.CSSPro
     <td style={tdStyle} data-label="Latest Update" title={tooltip}>
       <div className="latest-update-cell">
         <div className="latest-update-body">{text}</div>
-        {rel && <div className="latest-update-time">{rel}</div>}
+        {rel && <div className="latest-update-time" style={{ fontFamily: T.mono }}>{rel}</div>}
       </div>
     </td>
   );
@@ -374,76 +396,76 @@ function ScoreBreakdownModal({ lead, onClose }: { lead: Lead; onClose: () => voi
   // `contact_complete`, etc.), so no manual labels dict is needed here.
   const factors = breakdownFactors(breakdown);
   const llmAdjustment = llmAdjustmentOf(breakdown);
+  const scoreColor = score >= 70 ? T.ok : score >= 40 ? T.warn : T.red;
 
   return (
     <div
       onClick={onClose}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(10,14,26,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Lead score explanation"
         onClick={(e) => e.stopPropagation()}
-        style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 24, maxWidth: 480, width: '100%', maxHeight: '85vh', overflowY: 'auto' }}
+        style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: T.radius.lg, boxShadow: 'var(--shadow-pop)', maxWidth: 480, width: '100%', maxHeight: '85vh', overflowY: 'auto' }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
-          <div>
-            <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, marginBottom: 4 }}>Lead Score Explanation</div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>{lead.full_name || `${lead.first_name || ''} ${lead.last_name || ''}`.trim() || lead.email || 'Lead'}</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, padding: '16px 20px', borderBottom: `1px solid ${T.border}` }}>
+          <div style={{ minWidth: 0 }}>
+            <Eyebrow>Lead score</Eyebrow>
+            <div style={{ fontFamily: T.heading, fontSize: 17, fontWeight: 700, letterSpacing: '-0.01em', color: T.text, marginTop: 4 }}>{lead.full_name || `${lead.first_name || ''} ${lead.last_name || ''}`.trim() || lead.email || 'Lead'}</div>
           </div>
-          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', fontSize: 22, cursor: 'pointer', padding: 0, lineHeight: 1 }}>×</button>
+          <IconButton label="Close" onClick={onClose}><X size={18} strokeWidth={1.6} /></IconButton>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: 14, background: 'var(--s3)', borderRadius: 10, marginBottom: 14 }}>
-          <div style={{ fontSize: 36, fontWeight: 800, color: score >= 70 ? '#10b981' : score >= 40 ? '#f59e0b' : '#ef4444' }}>{score}</div>
-          <div>
-            <div style={{ fontSize: 12, color: 'var(--text-dim)', fontWeight: 700, textTransform: 'uppercase' }}>Total Score / 100</div>
-            {grade && <div style={{ fontSize: 13, color: 'var(--text)', marginTop: 2 }}>Grade <strong>{grade}</strong></div>}
+        <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: 14, background: 'var(--s3)', borderRadius: T.radius.md }}>
+            <div style={{ fontFamily: T.heading, fontSize: 34, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1, color: scoreColor, fontVariantNumeric: 'tabular-nums' }}>{score}</div>
+            <div>
+              <Eyebrow>Total score / 100</Eyebrow>
+              {grade && <div style={{ fontSize: 13, color: T.text, marginTop: 4 }}>Grade <span style={{ fontFamily: T.mono }}>{grade}</span></div>}
+            </div>
           </div>
-        </div>
 
-        <div style={{ marginBottom: 12, fontSize: 12, color: 'var(--text-dim)' }}>
-          Score is computed from a heuristic model that weighs key lead attributes. Higher scores indicate hotter leads worth prioritizing first.
-        </div>
-
-        {factors.length === 0 ? (
-          <div style={{ padding: 16, background: 'var(--s3)', borderRadius: 8, fontSize: 13, color: 'var(--text-dim)', textAlign: 'center' }}>
-            No detailed breakdown available yet. Click <em>Rescore</em> on the lead detail page to compute one.
+          <div style={{ fontSize: 12.5, color: T.dim, lineHeight: 1.5 }}>
+            Score is computed from a heuristic model that weighs key lead attributes. Higher scores indicate hotter leads worth prioritising first.
           </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {factors.map(({ key, label, value }) => {
-              const max = Math.max(20, ...factors.map((f) => f.value));
-              const pct = Math.max(0, Math.min(100, (value / max) * 100));
-              const color = value >= 15 ? '#10b981' : value >= 8 ? '#f59e0b' : '#6366f1';
-              return (
-                <div key={key} style={{ background: 'var(--s3)', borderRadius: 8, padding: '10px 12px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                    <span style={{ fontSize: 12, color: 'var(--text)', fontWeight: 600 }}>{label}</span>
-                    <span style={{ fontSize: 12, color, fontWeight: 700 }}>+{value}</span>
+
+          {factors.length === 0 ? (
+            <div style={{ padding: 16, background: 'var(--s3)', borderRadius: T.radius.md, fontSize: 13, color: T.dim, textAlign: 'center' }}>
+              No detailed breakdown available yet. Click <em>Rescore</em> on the lead detail page to compute one.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {factors.map(({ key, label, value }) => {
+                const max = Math.max(20, ...factors.map((f) => f.value));
+                const pct = Math.max(0, Math.min(100, (value / max) * 100));
+                const color = value >= 15 ? T.ok : value >= 8 ? T.warn : T.info;
+                return (
+                  <div key={key} style={{ background: 'var(--s3)', borderRadius: T.radius.md, padding: '10px 12px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                      <span style={{ fontSize: 13, color: T.text }}>{label}</span>
+                      <span style={{ fontSize: 12, color, fontFamily: T.mono }}>+{value}</span>
+                    </div>
+                    <div style={{ height: 5, background: T.rule, borderRadius: 3, overflow: 'hidden' }}>
+                      <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: 3 }} />
+                    </div>
                   </div>
-                  <div style={{ height: 6, background: 'var(--s2)', borderRadius: 3, overflow: 'hidden' }}>
-                    <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: 3 }} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+                );
+              })}
+            </div>
+          )}
 
-        {llmAdjustment != null && llmAdjustment !== 0 && (
-          <div style={{ marginTop: 10, fontSize: 12, color: 'var(--text-dim)', display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--s3)', borderRadius: 8 }}>
-            <span>AI rerank adjustment</span>
-            <span style={{ fontWeight: 700, color: llmAdjustment > 0 ? '#10b981' : '#ef4444' }}>{llmAdjustment > 0 ? '+' : ''}{llmAdjustment}</span>
-          </div>
-        )}
+          {llmAdjustment != null && llmAdjustment !== 0 && (
+            <div style={{ fontSize: 12.5, color: T.dim, display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--s3)', borderRadius: T.radius.md }}>
+              <span>AI rerank adjustment</span>
+              <span style={{ fontFamily: T.mono, color: llmAdjustment > 0 ? T.ok : T.red }}>{llmAdjustment > 0 ? '+' : ''}{llmAdjustment}</span>
+            </div>
+          )}
 
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
-          <Link
-            href={`/dashboard/crm/leads/${lead.id}`}
-            onClick={onClose}
-            style={{ background: 'var(--primary)', color: '#fff', padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, textDecoration: 'none' }}
-          >
-            View Lead →
-          </Link>
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <Button variant="primary" href={`/dashboard/crm/leads/${lead.id}`} icon={<ArrowRight size={16} strokeWidth={2} />}>View lead</Button>
+          </div>
         </div>
       </div>
     </div>

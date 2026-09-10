@@ -2,6 +2,10 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
+import {
+  Blocks, Boxes, ChevronRight, Database, GitBranch, Layers, ListChecks, MapPinned, Moon, Network, Phone, Plug, Shuffle,
+  Sparkles, Sun, Target, Users, Workflow, Zap,
+} from 'lucide-react';
 import { crmSettings } from '../../../../lib/crmApi';
 import api from '../../../../lib/api';
 import NewBadge from '../../../../components/shared/NewBadge';
@@ -9,23 +13,27 @@ import { rolesApi, type OrgRole } from '../../../../lib/rolesApi';
 import type { BusinessType } from '../../../../types/crm';
 import { useAuth } from '../../../../hooks/useAuth';
 import { isTataTiscanActive } from '../../../../lib/clientFeatures';
+import { Button, Card, Eyebrow, Field, PageHeader, Segmented, Select, T, useIsCompact } from '../../../../components/ui';
+import { usePageTitle } from '../../../../lib/pageTitle';
+
+const ICON_PROPS = { size: 18, strokeWidth: 1.6 } as const;
 
 const SECTIONS = [
-  { href: '/dashboard/crm/settings/users', title: 'Team Members', desc: 'Create CRM users scoped to the active client. Synced with global Settings → Users.', icon: '👥' },
-  { href: '/dashboard/crm/settings/locations', title: 'States, Cities & Blocks', desc: 'Master list of states, cities, districts + the per-district block catalogue that powers the lead form picker.', icon: '🌍' },
-  { href: '/dashboard/crm/settings/pipelines', title: 'Pipelines', desc: 'Configure deal pipelines.', icon: '🔀' },
-  { href: '/dashboard/crm/settings/stages', title: 'Stages', desc: 'Manage stages within pipelines.', icon: '📊' },
-  { href: '/dashboard/crm/settings/sources', title: 'Lead Sources', desc: 'Where your leads come from.', icon: '🎯' },
-  { href: '/dashboard/crm/settings/activity-types', title: 'Activity Types', desc: 'Configure the call/meeting/email/task types reps can log.', icon: '📞' },
-  { href: '/dashboard/crm/settings/activity-subjects', title: 'Activity Subjects', desc: 'Curate the subject dropdown reps pick from on activity compose. Meeting first by position.', icon: '📝' },
-  { href: '/dashboard/crm/settings/integrations', title: 'Integrations', desc: 'Connect web forms, Facebook, Google Ads, Zoho. Cross-channel dedup baked in.', icon: '🔌' },
-  { href: '/dashboard/crm/settings/automations', title: 'Automations', desc: 'Rules (instant when→then) and Sequences (timed multi-step drips) in one place, fired on lead/deal events.', icon: '⚡' },
-  { href: '/dashboard/crm/settings/assignment-rules', title: 'Assignment Rules', desc: 'Auto-assign new leads.', icon: '🎲' },
-  { href: '/dashboard/crm/settings/territories', title: 'Territories', desc: 'Sales territory hierarchy.', icon: '🗺️' },
-  { href: '/dashboard/crm/settings/targets', title: 'Targets', desc: 'Set daily lead targets per field executive — or the same for everyone.', icon: '🥅' },
-  { href: '/dashboard/crm/settings/scoring', title: 'Scoring Model', desc: 'Tune the AI lead scoring weights.', icon: '⭐' },
-  { href: '/dashboard/crm/settings/custom-fields', title: 'Custom Fields', desc: 'Add fields per entity + override built-in field labels and required flags.', icon: '🧩' },
-  { href: '/dashboard/crm/settings/custom-objects', title: 'Custom Objects', desc: 'Define your own record types (Property, Vehicle, Policy…) with their own fields, beyond leads/contacts/deals/accounts.', icon: '🗂️' },
+  { href: '/dashboard/crm/settings/users', title: 'Team Members', desc: 'Create CRM users scoped to the active client. Synced with global Settings → Users.', icon: <Users {...ICON_PROPS} /> },
+  { href: '/dashboard/crm/settings/locations', title: 'States, Cities & Blocks', desc: 'Master list of states, cities, districts + the per-district block catalogue that powers the lead form picker.', icon: <MapPinned {...ICON_PROPS} /> },
+  { href: '/dashboard/crm/settings/pipelines', title: 'Pipelines', desc: 'Configure deal pipelines.', icon: <GitBranch {...ICON_PROPS} /> },
+  { href: '/dashboard/crm/settings/stages', title: 'Stages', desc: 'Manage stages within pipelines.', icon: <Layers {...ICON_PROPS} /> },
+  { href: '/dashboard/crm/settings/sources', title: 'Lead Sources', desc: 'Where your leads come from.', icon: <Target {...ICON_PROPS} /> },
+  { href: '/dashboard/crm/settings/activity-types', title: 'Activity Types', desc: 'Configure the call/meeting/email/task types reps can log.', icon: <Phone {...ICON_PROPS} /> },
+  { href: '/dashboard/crm/settings/activity-subjects', title: 'Activity Subjects', desc: 'Curate the subject dropdown reps pick from on activity compose. Meeting first by position.', icon: <ListChecks {...ICON_PROPS} /> },
+  { href: '/dashboard/crm/settings/integrations', title: 'Integrations', desc: 'Connect web forms, Facebook, Google Ads, Zoho. Cross-channel dedup baked in.', icon: <Plug {...ICON_PROPS} /> },
+  { href: '/dashboard/crm/settings/automations', title: 'Automations', desc: 'Rules (instant when→then) and Sequences (timed multi-step drips) in one place, fired on lead/deal events.', icon: <Zap {...ICON_PROPS} /> },
+  { href: '/dashboard/crm/settings/assignment-rules', title: 'Assignment Rules', desc: 'Auto-assign new leads.', icon: <Shuffle {...ICON_PROPS} /> },
+  { href: '/dashboard/crm/settings/territories', title: 'Territories', desc: 'Sales territory hierarchy.', icon: <Network {...ICON_PROPS} /> },
+  { href: '/dashboard/crm/settings/targets', title: 'Targets', desc: 'Set daily lead targets per field executive — or the same for everyone.', icon: <Target {...ICON_PROPS} /> },
+  { href: '/dashboard/crm/settings/scoring', title: 'Scoring Model', desc: 'Tune the AI lead scoring weights.', icon: <Sparkles {...ICON_PROPS} /> },
+  { href: '/dashboard/crm/settings/custom-fields', title: 'Custom Fields', desc: 'Add fields per entity + override built-in field labels and required flags.', icon: <Blocks {...ICON_PROPS} /> },
+  { href: '/dashboard/crm/settings/custom-objects', title: 'Custom Objects', desc: 'Define your own record types (Property, Vehicle, Policy…) with their own fields, beyond leads/contacts/deals/accounts.', icon: <Boxes {...ICON_PROPS} /> },
 ];
 
 const BUSINESS_OPTIONS: Array<{ value: BusinessType; label: string; desc: string }> = [
@@ -47,6 +55,8 @@ function applyTheme(t: ThemeChoice) {
 }
 
 export default function SettingsIndex() {
+  usePageTitle('Settings');
+  const narrow = useIsCompact(900);
   // Weight/tonnage is a steel-dealer (Tata / BMW) concept only — the
   // Weight-based Pricing card is hidden for Kinematic and every other tenant.
   const { user } = useAuth();
@@ -62,7 +72,6 @@ export default function SettingsIndex() {
   // Theme is mirrored from the org-level Settings page (same localStorage key
   // + same data-theme attribute) so CRM-only clients (e.g. Tata Tiscon) who
   // can't reach /dashboard/settings still get a way to switch themes.
-  // Default is 'system' so the dashboard follows the OS for first-time users.
   // Default 'dark' so the theme doesn't follow OS-level auto-switching
   // (admins reported the "system" setting flipping the dashboard with
   // every macOS Auto / Windows Night Light transition). Once they pick a
@@ -112,7 +121,12 @@ export default function SettingsIndex() {
           setConfig(cfg);
           if (typeof cfg.default_role_id === 'string') setDefaultRoleId(cfg.default_role_id);
         }
-        if (r.status === 'fulfilled') setRoles(((r.value as any) ?? []) as OrgRole[]);
+        if (r.status === 'fulfilled') {
+          // Accept a bare array or an envelope — never let a shape change
+          // take the whole settings hub down on `roles.map`.
+          const v: any = r.value;
+          setRoles((Array.isArray(v) ? v : Array.isArray(v?.data) ? v.data : []) as OrgRole[]);
+        }
       } catch { /* defaults are fine */ }
       finally { setLoaded(true); }
     })();
@@ -158,39 +172,79 @@ export default function SettingsIndex() {
     catch (e: any) { toast.error(e.message || 'Seeding failed'); }
   };
 
-  const themeBtn = (value: ThemeChoice, label: string, icon: string) => (
-    <button onClick={() => toggleTheme(value)} style={{ padding: '8px 16px', borderRadius: 8, background: theme === value ? 'var(--s4)' : 'transparent', border: 'none', color: theme === value ? 'var(--text)' : 'var(--text-dim)', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-      <span>{icon}</span> {label}
-    </button>
-  );
+  const cardTitle: React.CSSProperties = { fontFamily: T.heading, fontSize: 15, fontWeight: 700, letterSpacing: '-0.01em', color: T.text };
+  const cardHint: React.CSSProperties = { fontSize: 13, color: T.dim, marginTop: 2, lineHeight: 1.5 };
 
   return (
-    <div>
-      {/* Theme — same toggle as the org Settings page, surfaced here so
-          CRM-only clients (Tata Tiscon etc.) without the `settings` module
-          can still switch themes. Uses the same localStorage key + DOM
-          attribute, so changing it in either place is global. */}
-      <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 16, marginBottom: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-        <div>
-          <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>Appearance</div>
-          <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>Choose Light, Dark, or follow the operating system.</div>
-        </div>
-        <div style={{ display: 'inline-flex', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 10, padding: 4 }}>
-          {themeBtn('light',  'Light',  '☀️')}
-          {themeBtn('dark',   'Dark',   '🌙')}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <PageHeader
+        title="Settings"
+        description="Workspace-wide CRM configuration. Changes here apply to every user on this client."
+        compact={narrow}
+        actions={<Button onClick={seed} icon={<Database size={16} strokeWidth={1.6} />} title="Seed the default pipeline, stages and lead sources">Seed defaults</Button>}
+      />
+
+      <div style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : 'repeat(2, minmax(0, 1fr))', gap: 12, alignItems: 'stretch' }}>
+        {/* Theme — same toggle as the org Settings page, surfaced here so
+            CRM-only clients (Tata Tiscon etc.) without the `settings` module
+            can still switch themes. Uses the same localStorage key + DOM
+            attribute, so changing it in either place is global. */}
+        <Card padding={20} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={cardTitle}>Appearance</div>
+            <div style={cardHint}>Choose Light or Dark. The choice sticks across refreshes.</div>
+          </div>
+          <Segmented
+            value={theme}
+            onChange={toggleTheme}
+            options={[
+              { value: 'light', label: <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Sun size={14} strokeWidth={1.8} /> Light</span> },
+              { value: 'dark', label: <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Moon size={14} strokeWidth={1.8} /> Dark</span> },
+            ]}
+          />
           {/* System mode removed — followed OS-level light/dark auto-switching
               which admins called "random theme changes". Stick to an explicit
               dark/light choice that survives every refresh. */}
-        </div>
+        </Card>
+
+        {/* Default Role Hierarchy — what role new users get unless overridden.
+            Saved into crm_settings.config.default_role_id, scoped per client by
+            the existing X-Client-Id auto-attach. The Role Hierarchy page reads
+            this and shows a ★ Default badge on the selected role. */}
+        <Card padding={20} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={cardTitle}>Default role</div>
+              <div style={cardHint}>
+                The org-role new users (or invitees) are placed under unless an explicit role is chosen.
+                Saves per client when one is active in the global picker; otherwise it&rsquo;s the org-level default.
+              </div>
+            </div>
+            <Button size="sm" href="/dashboard/settings/roles" icon={<ChevronRight size={14} strokeWidth={1.8} />}>Manage hierarchy</Button>
+          </div>
+          <Field hint={savingRole ? 'Saving…' : (defaultRoleId ? 'Marked as default in Role Hierarchy.' : undefined)}>
+            <Select
+              value={defaultRoleId}
+              disabled={!loaded || savingRole}
+              onChange={(e) => saveDefaultRole(e.target.value)}
+              style={{ maxWidth: 320 }}
+            >
+              <option value="">— No default —</option>
+              {roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+            </Select>
+          </Field>
+        </Card>
       </div>
 
-      <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 14 }}>
-        <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)', marginBottom: 4 }}>Business Type</div>
-        <p style={{ fontSize: 12, color: 'var(--text-dim)', margin: '0 0 12px' }}>
-          Tells the CRM whether you sell to companies (B2B), consumers (B2C), or both. Affects which fields are shown by default on lead and contact forms.
-        </p>
+      <Card padding={20} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div>
+          <div style={cardTitle}>Business type</div>
+          <div style={cardHint}>
+            Tells the CRM whether you sell to companies (B2B), consumers (B2C), or both. Affects which fields are shown by default on lead and contact forms.
+          </div>
+        </div>
         {!loaded ? (
-          <div style={{ height: 84, display: 'flex', alignItems: 'center', color: 'var(--text-dim)', fontSize: 12 }}>Loading current selection…</div>
+          <div style={{ height: 84, display: 'flex', alignItems: 'center', color: T.dim, fontSize: 13 }}>Loading current selection…</div>
         ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
           {BUSINESS_OPTIONS.map((o) => {
@@ -200,99 +254,78 @@ export default function SettingsIndex() {
                 key={o.value}
                 type="button"
                 disabled={!loaded || saving}
+                aria-pressed={active}
                 onClick={() => saveType(o.value)}
                 style={{
-                  textAlign: 'left', padding: 14, borderRadius: 10, cursor: 'pointer',
-                  background: active ? 'var(--primary)' : 'var(--s3)',
-                  border: `1px solid ${active ? 'var(--primary)' : 'var(--border)'}`,
-                  color: active ? '#fff' : 'var(--text)',
+                  textAlign: 'left', padding: 14, borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit',
+                  background: active ? T.redWash : 'var(--s3)',
+                  border: `1px solid ${active ? T.red : T.border}`,
+                  color: T.text, transition: 'background .12s ease, border-color .12s ease',
                 }}
               >
-                <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 3 }}>{o.label}</div>
-                <div style={{ fontSize: 11, color: active ? 'rgba(255,255,255,0.85)' : 'var(--text-dim)', lineHeight: 1.4 }}>{o.desc}</div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
+                  <span style={{ fontSize: 13.5, fontWeight: 600 }}>{o.label}</span>
+                  <span aria-hidden style={{ width: 14, height: 14, borderRadius: 999, border: `1px solid ${active ? T.red : T.borderStrong}`, background: active ? T.red : 'transparent', boxShadow: active ? 'inset 0 0 0 3px var(--card)' : 'none', flexShrink: 0 }} />
+                </div>
+                <div style={{ fontSize: 12.5, color: T.dim, lineHeight: 1.45 }}>{o.desc}</div>
               </button>
             );
           })}
         </div>
         )}
-      </div>
+      </Card>
 
       {/* Weight-based pricing — per-product (price + weight_kg → amount from a
           volume in kg). Steel-dealer (Tata / BMW) only; hidden for Kinematic
           and every other tenant, which don't price by weight. */}
       {steel && (
-      <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 14 }}>
-        <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)', marginBottom: 4 }}>Weight-based Pricing</div>
-        <p style={{ fontSize: 12, color: 'var(--text-dim)', margin: '0 0 8px', maxWidth: 600 }}>
-          Pricing is configured <strong style={{ color: 'var(--text)' }}>per product</strong> — each product carries its own price and weight per unit. On a deal, pick the product and enter the volume in kilograms; amount auto-calculates.
-        </p>
-        <Link href="/dashboard/crm/products" style={{ display: 'inline-block', background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700, textDecoration: 'none' }}>Manage Products →</Link>
-      </div>
+        <Card padding={20} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={cardTitle}>Weight-based pricing</div>
+            <div style={{ ...cardHint, maxWidth: 640 }}>
+              Pricing is configured per product — each product carries its own price and weight per unit. On a deal, pick the product and enter the volume in kilograms; amount auto-calculates.
+            </div>
+          </div>
+          <Button href="/dashboard/crm/products" icon={<ChevronRight size={16} strokeWidth={1.6} />}>Manage products</Button>
+        </Card>
       )}
 
-      {/* Default Role Hierarchy — what role new users get unless overridden.
-          Saved into crm_settings.config.default_role_id, scoped per client by
-          the existing X-Client-Id auto-attach. The Role Hierarchy page reads
-          this and shows a ★ Default badge on the selected role. */}
-      <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 14 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
-          <div>
-            <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)', marginBottom: 4 }}>Default Role Hierarchy</div>
-            <p style={{ fontSize: 12, color: 'var(--text-dim)', margin: 0, maxWidth: 560 }}>
-              The org-role new users (or invitees) are placed under unless an explicit role is chosen.
-              When a client is active in the global picker this saves per client; otherwise it&rsquo;s the org-level default visible to admins.
-            </p>
-          </div>
-          <Link href="/dashboard/settings/roles" style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 12, textDecoration: 'none' }}>Manage hierarchy →</Link>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 12, flexWrap: 'wrap' }}>
-          <select
-            value={defaultRoleId}
-            disabled={!loaded || savingRole}
-            onChange={(e) => saveDefaultRole(e.target.value)}
-            style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13, minWidth: 240 }}
-          >
-            <option value="">— No default —</option>
-            {roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-          </select>
-          {savingRole && <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>Saving…</span>}
-          {!savingRole && defaultRoleId && (
-            <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>★ marked as default in Role Hierarchy</span>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <Eyebrow>Configuration</Eyebrow>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
+          {SECTIONS.map((s) => (
+            <SettingCard key={s.href} href={s.href} title={s.title} desc={s.desc} icon={s.icon} />
+          ))}
+          {hierarchyEnabled && (
+            <SettingCard
+              href="/dashboard/crm/settings/hierarchy"
+              title="Org Hierarchy"
+              desc="Define management levels and assign users + supervisors. Replaces role-based scoping for opted-in clients."
+              icon={<Workflow {...ICON_PROPS} />}
+            />
           )}
         </div>
       </div>
-
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
-        <button onClick={seed} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 12, cursor: 'pointer' }}>Seed Default Pipeline + Stages + Sources</button>
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12 }}>
-        {SECTIONS.map((s) => (
-          <Link key={s.href} href={s.href} style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, padding: 16, textDecoration: 'none', display: 'flex', gap: 12 }}>
-            <div style={{ fontSize: 22, lineHeight: 1, flexShrink: 0 }} aria-hidden>{s.icon}</div>
-            <div style={{ minWidth: 0, flex: 1 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{s.title}</span>
-                <NewBadge href={s.href} />
-              </div>
-              <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>{s.desc}</div>
-            </div>
-          </Link>
-        ))}
-        {hierarchyEnabled && (
-          <Link
-            href="/dashboard/crm/settings/hierarchy"
-            style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, padding: 16, textDecoration: 'none', display: 'flex', gap: 12 }}
-          >
-            <div style={{ fontSize: 22, lineHeight: 1, flexShrink: 0 }} aria-hidden>🏢</div>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>Org Hierarchy</div>
-              <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>
-                Define management levels and assign users + supervisors. Replaces role-based scoping for opted-in clients.
-              </div>
-            </div>
-          </Link>
-        )}
-      </div>
     </div>
+  );
+}
+
+function SettingCard({ href, title, desc, icon }: { href: string; title: string; desc: string; icon: React.ReactNode }) {
+  return (
+    <Link
+      href={href}
+      className="km-clickable"
+      style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: 16, textDecoration: 'none', display: 'flex', gap: 12, alignItems: 'flex-start', color: 'inherit' }}
+    >
+      <span aria-hidden style={{ width: 36, height: 36, borderRadius: 8, background: 'var(--s3)', color: T.dim, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{icon}</span>
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+          <span style={{ fontSize: 14, fontWeight: 600, color: T.text }}>{title}</span>
+          <NewBadge href={href} />
+        </div>
+        <div style={{ fontSize: 12.5, color: T.dim, lineHeight: 1.45 }}>{desc}</div>
+      </div>
+      <ChevronRight size={16} strokeWidth={1.6} style={{ color: T.mute, flexShrink: 0, marginTop: 2 }} />
+    </Link>
   );
 }

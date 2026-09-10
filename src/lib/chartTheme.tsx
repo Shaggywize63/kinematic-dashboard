@@ -38,19 +38,19 @@ export function GradientDefs({ colors, top = 0.95, bottom = 0.25 }: { colors: st
 }
 
 // Drop-in replacement for the old per-chart `contentStyle` object so every
-// recharts default tooltip gets the glassy blurred look in one swap.
+// recharts default tooltip reads as a popover from the card system.
 export const GLASS_TOOLTIP: CSSProperties = {
-  background: 'color-mix(in srgb, var(--s2) 86%, transparent)',
-  backdropFilter: 'blur(8px)',
-  WebkitBackdropFilter: 'blur(8px)',
+  background: 'var(--card)',
   border: '1px solid var(--border)',
-  borderRadius: 10,
-  boxShadow: '0 10px 28px rgba(0,0,0,0.38)',
+  borderRadius: 8,
+  boxShadow: 'var(--shadow-pop)',
+  fontSize: 12.5,
+  color: 'var(--text)',
 };
 
 export const CHART = {
   grid: { stroke: 'var(--border)', strokeDasharray: '4 4', vertical: false },
-  axis: { stroke: 'var(--text-dim)', fontSize: 11, tickLine: false, axisLine: false },
+  axis: { stroke: 'var(--mute)', fontSize: 11, tickLine: false, axisLine: false },
   barRadius: [8, 8, 0, 0] as [number, number, number, number],
   hBarRadius: [0, 8, 8, 0] as [number, number, number, number],
   margin: { top: 10, right: 18, left: 0, bottom: 6 },
@@ -63,60 +63,54 @@ function fmt(v: unknown, unit?: string) {
   return v.toLocaleString('en-IN');
 }
 
-/** Glassy custom tooltip — pass as `content={<ChartTooltip unit="inr" />}`. */
+/** Custom tooltip in the card-system popover style — pass as `content={<ChartTooltip unit="inr" />}`. */
 export function ChartTooltip(props: any) {
   const { active, payload, label, unit } = props;
   if (!active || !payload?.length) return null;
   return (
-    <div style={{
-      background: 'color-mix(in srgb, var(--s2) 86%, transparent)',
-      backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
-      border: '1px solid var(--border)', borderRadius: 10, padding: '9px 11px',
-      fontSize: 12, color: 'var(--text)', boxShadow: '0 10px 28px rgba(0,0,0,0.38)',
-    }}>
-      {label != null && label !== '' && <div style={{ fontWeight: 800, marginBottom: 5 }}>{label}</div>}
+    <div style={{ ...GLASS_TOOLTIP, padding: '8px 10px' }}>
+      {label != null && label !== '' && <div style={{ fontWeight: 600, marginBottom: 4, fontSize: 12.5 }}>{label}</div>}
       {payload.map((p: any, i: number) => (
         <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, lineHeight: 1.8 }}>
-          <span style={{ width: 9, height: 9, borderRadius: 3, background: p.color || p.fill || seriesColor(i), flex: '0 0 auto' }} />
-          <span style={{ color: 'var(--text-dim)' }}>{p.name}</span>
-          <span style={{ marginLeft: 16, fontWeight: 700 }}>{fmt(p.value, unit)}</span>
+          <span style={{ width: 8, height: 8, borderRadius: 2, background: p.color || p.fill || seriesColor(i), flex: '0 0 auto' }} />
+          <span style={{ color: 'var(--dim)' }}>{p.name}</span>
+          <span style={{ marginLeft: 'auto', paddingLeft: 16, fontFamily: 'var(--font-jetbrains)', fontSize: 12, color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{fmt(p.value, unit)}</span>
         </div>
       ))}
     </div>
   );
 }
 
-/** Animated, gradient-accented card frame for any chart. */
+/** Card frame for any chart — the shared `Card` surface with a Manrope title. */
 export function ChartCard({ title, subtitle, right, children, delay = 0, minHeight }: {
   title?: string; subtitle?: string; right?: ReactNode; children: ReactNode; delay?: number; minHeight?: number;
 }) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 14 }}
-      whileInView={{ opacity: 1, y: 0 }}
+      initial={{ opacity: 0 }}
+      whileInView={{ opacity: 1 }}
       viewport={{ once: true, margin: '-40px' }}
-      transition={{ duration: 0.45, delay, ease: [0.22, 1, 0.36, 1] }}
+      transition={{ duration: 0.3, delay, ease: 'easeOut' }}
       style={{
-        position: 'relative', background: 'var(--s2)', border: '1px solid var(--border)',
-        borderRadius: 16, padding: 16, display: 'flex', flexDirection: 'column', gap: 10,
-        minHeight, overflow: 'hidden',
+        position: 'relative', background: 'var(--card)', border: '1px solid var(--border)',
+        borderRadius: 12, padding: 16, display: 'flex', flexDirection: 'column', gap: 12,
+        minHeight, overflow: 'hidden', minWidth: 0,
       }}
     >
-      <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(120% 90% at 100% 0%, rgba(99,102,241,0.08), transparent 55%)', pointerEvents: 'none' }} />
       {(title || right) && (
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, zIndex: 1 }}>
-          <div>
-            {title && <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)' }}>{title}</div>}
-            {subtitle && <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2 }}>{subtitle}</div>}
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+          <div style={{ minWidth: 0 }}>
+            {title && <div style={{ fontFamily: 'var(--font-manrope)', fontSize: 15, fontWeight: 700, letterSpacing: '-0.01em', color: 'var(--text)' }}>{title}</div>}
+            {subtitle && <div style={{ fontSize: 12.5, color: 'var(--dim)', marginTop: 2 }}>{subtitle}</div>}
           </div>
           {right}
         </div>
       )}
-      <div style={{ zIndex: 1, flex: 1, minWidth: 0 }}>{children}</div>
+      <div style={{ flex: 1, minWidth: 0 }}>{children}</div>
     </motion.div>
   );
 }
 
 export function ChartEmpty({ message = 'No data yet' }: { message?: string }) {
-  return <div style={{ height: '100%', minHeight: 160, display: 'grid', placeItems: 'center', color: 'var(--text-dim)', fontSize: 12.5 }}>{message}</div>;
+  return <div style={{ height: '100%', minHeight: 160, display: 'grid', placeItems: 'center', color: 'var(--dim)', fontSize: 13 }}>{message}</div>;
 }

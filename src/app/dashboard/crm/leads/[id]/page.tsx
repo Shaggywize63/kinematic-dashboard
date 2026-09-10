@@ -1,9 +1,9 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { crmLeads, crmAi } from '../../../../../lib/crmApi';
+import { crmLeads, crmAi, crmSettings } from '../../../../../lib/crmApi';
 import api from '../../../../../lib/api';
 import { conversationsApi, statusMeta, sentimentColor, intentColor, fmtDateTime, type ConversationRow } from '../../../../../lib/conversationsApi';
 import type { Lead, Activity, Deal, LeadScore, NextBestAction } from '../../../../../types/crm';
@@ -11,7 +11,6 @@ import LeadScoreBreakdown from '../../../../../components/crm/LeadScoreBreakdown
 import NextBestActionCard from '../../../../../components/crm/NextBestActionCard';
 import ActivityTimeline from '../../../../../components/crm/ActivityTimeline';
 import LeadUpdatesTimeline from '../../../../../components/crm/LeadUpdatesTimeline';
-import Breadcrumbs from '../../../../../components/crm/shared/Breadcrumbs';
 import LeadConvertModal from '../../../../../components/crm/LeadConvertModal';
 import ProposalBuilder from '../../../../../components/crm/ProposalBuilder';
 import LeadDisqualifyModal, { type LeadDisqualifyOutcome } from '../../../../../components/crm/LeadDisqualifyModal';
@@ -28,6 +27,10 @@ import { useAuth } from '../../../../../hooks/useAuth';
 import { isConsumerChampion, isTataTiscanActive } from '../../../../../lib/clientFeatures';
 import { isHorizonOrg } from '../../../../../lib/crmFeatureGates';
 import { ConsentCard } from '../../../../../components/crm/DataConsent';
+import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '../../../../../lib/crmFieldOverrides';
+import { Avatar, Badge, Button, Card, EmptyState, Eyebrow, IconButton, PageHeader, T, cardStyle, useIsCompact } from '../../../../../components/ui';
+import { usePageTitle } from '../../../../../lib/pageTitle';
+import { ArrowRightLeft, ChevronDown, FileText, Pencil, RotateCcw, Trash2, UserPlus, XCircle } from 'lucide-react';
 
 type UserOption = { id: string; name: string };
 
@@ -72,6 +75,20 @@ export default function LeadDetailPage() {
   const [tataConverting, setTataConverting] = useState(false);
   const id = params?.id as string;
   const [lead, setLead] = useState<LifecycleLead | null>(null);
+  const narrow = useIsCompact(960);
+  // Per-tenant built-in field overrides — the detail view is a render site
+  // like Create and Edit, so hidden fields stay hidden and relabels apply.
+  const [fieldOverrides, setFieldOverrides] = useState<FieldOverrides>({});
+  useEffect(() => {
+    crmSettings.get()
+      .then((r) => setFieldOverrides(extractFieldOverrides(r.data)))
+      .catch(() => { /* defaults: nothing hidden */ });
+  }, []);
+  const fields = useMemo(
+    () => buildFieldHelpers(fieldOverrides, 'lead', lead?.is_b2c ? 'b2c' : 'b2b'),
+    [fieldOverrides, lead?.is_b2c],
+  );
+  usePageTitle(lead ? (lead.full_name || `${lead.first_name || ''} ${lead.last_name || ''}`.trim() || lead.email || 'Lead') : null);
   const canEditLead =
     isAdminTier ||
     (!!user?.id && lead?.created_by != null && lead.created_by === user.id);
@@ -245,8 +262,16 @@ export default function LeadDetailPage() {
     }
   };
 
-  if (loading) return <div style={{ padding: 24, color: 'var(--text-dim)' }}>Loading...</div>;
-  if (!lead) return <div style={{ padding: 24, color: 'var(--text-dim)' }}>Lead not found.</div>;
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <div style={{ height: 26, width: 260, borderRadius: 6, background: 'var(--s3)' }} />
+        <div style={{ ...cardStyle, height: 160 }} />
+        <div style={{ ...cardStyle, height: 240 }} />
+      </div>
+    );
+  }
+  if (!lead) return <EmptyState title="Lead not found" description="It may have been deleted, or you may not have access to it." action={<Button href="/dashboard/crm/leads">Back to leads</Button>} />;
 
   const fullName = lead.full_name || `${lead.first_name || ''} ${lead.last_name || ''}`.trim() || lead.email || 'Unnamed';
   const firstName = (lead.first_name || fullName).split(' ')[0];
@@ -257,337 +282,324 @@ export default function LeadDetailPage() {
   const isLost = lead.status === 'lost';
   const isClosed = isConverted || isUnqualified || isLost;
 
-  // Responsive layout — flex+wrap so the right column drops below the
-  // left on narrow screens instead of squashing into 280px. Left gets
-  // `flex 2 1 380px`, right `flex 1 1 280px`. Both wrap onto a single
-  // column on mobile.
+  // Subtitle under the name — every piece is a built-in field, so each one
+  // honours the admin's hide list.
+  const subtitle = isB2C
+    ? [!fields.isHidden('city') && lead.city, !fields.isHidden('country') && lead.country].filter(Boolean).join(', ')
+    : [!fields.isHidden('title') && lead.title, !fields.isHidden('company') && lead.company].filter(Boolean).join(' · ');
+
+  const onConvert = async () => {
+    // Tata Tiscon: bypass the create-account / create-deal popup entirely.
+    // TATA's flow records the deal directly (with line items managed on the
+    // deal page), so we call convert with account=false and route straight
+    // to the new deal.
+    if (isTataActive) {
+      setTataConverting(true);
+      try {
+        const defaultName = fullName || lead.company || 'New deal';
+        const r = await crmLeads.convert(id, { create_account: false, create_deal: true, deal_name: defaultName });
+        const data: any = (r as any)?.data ?? r;
+        const dealId = data?.deal?.id || data?.deal_id;
+        toast.success('Lead converted to deal');
+        await reload();
+        if (dealId) router.push(`/dashboard/crm/deals/${dealId}`);
+        else router.push('/dashboard/crm/deals');
+      } catch (e: any) {
+        toast.error(e.message || 'Conversion failed');
+      } finally {
+        setTataConverting(false);
+      }
+      return;
+    }
+    setConvertOpen(true);
+  };
+
+  const actions = (
+    <>
+      {canEditLead && <Button onClick={() => setEditOpen(true)} icon={<Pencil size={15} strokeWidth={1.8} />}>Edit</Button>}
+      <Button onClick={() => setProposalOpen(true)} icon={<FileText size={15} strokeWidth={1.8} />}>Proposal</Button>
+      {canReassign && (
+        <div ref={assignRef} style={{ position: 'relative' }}>
+          <Button onClick={() => { setAssignOpen((o) => !o); loadUsers(); }} icon={<UserPlus size={15} strokeWidth={1.8} />}>
+            Assign <ChevronDown size={14} strokeWidth={1.8} style={{ color: T.mute, marginLeft: -2 }} />
+          </Button>
+          {assignOpen && (
+            <div role="menu" style={{ position: 'absolute', top: 'calc(100% + 6px)', right: 0, background: T.card, border: `1px solid ${T.border}`, borderRadius: 8, boxShadow: 'var(--shadow-pop)', zIndex: 200, minWidth: 220, maxHeight: 260, overflowY: 'auto', padding: 4 }}>
+              {usersLoading && <div style={{ padding: '8px 10px', fontSize: 12.5, color: T.dim }}>Loading users…</div>}
+              {!usersLoading && users.length === 0 && <div style={{ padding: '8px 10px', fontSize: 12.5, color: T.dim }}>No users found</div>}
+              {users.map((u) => (
+                <button key={u.id} type="button" role="menuitem" onClick={() => handleAssign(u.id, u.name)} className="km-navrow"
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, height: 32, padding: '0 8px', borderRadius: 6, background: 'transparent', border: 'none', color: T.text, textAlign: 'left', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit' }}>
+                  <Avatar name={u.name} size={20} />{u.name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+      {!isClosed && (
+        <>
+          <Button variant="ghost" onClick={() => openDisqualify('unqualified')} style={{ color: T.warn }} icon={<XCircle size={15} strokeWidth={1.8} />}>Unqualified</Button>
+          <Button variant="danger" onClick={() => openDisqualify('lost')} icon={<XCircle size={15} strokeWidth={1.8} />}>Lost</Button>
+          <Button variant="primary" onClick={onConvert} disabled={tataConverting} icon={<ArrowRightLeft size={15} strokeWidth={1.8} />}>
+            {tataConverting ? 'Converting…' : 'Convert'}
+          </Button>
+        </>
+      )}
+      {isClosed && (
+        <Button variant="primary" onClick={handleReopen} disabled={reopening} icon={<RotateCcw size={15} strokeWidth={1.8} />}>
+          {reopening ? 'Re-opening…' : 'Re-open lead'}
+        </Button>
+      )}
+      <IconButton label={deleting ? 'Deleting…' : 'Delete lead'} onClick={handleDelete} disabled={deleting} style={{ color: T.red }}>
+        <Trash2 size={16} strokeWidth={1.6} />
+      </IconButton>
+    </>
+  );
+
   return (
-    <div>
-      <Breadcrumbs items={[
-        { label: 'CRM', href: '/dashboard/crm/dashboard' },
-        { label: 'Leads', href: '/dashboard/crm/leads' },
-        { label: fullName || 'Lead' },
-      ]} />
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 18, alignItems: 'flex-start' }}>
-      <div style={{ flex: '2 1 380px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 18 }}>
-        <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 22 }}>
-          {/* Header — avatar + name on the left, action buttons on the
-              right; both wrap to their own rows on narrow screens. */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 14, flexWrap: 'wrap' }}>
-            <OwnerAvatar name={fullName} size={52} />
-            <div style={{ flex: '1 1 200px', minWidth: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                {/* Inline per-field edit — change just the name in place
-                    (no full edit popup). Saves first/last only. */}
-                <InlineEditText
-                  value={fullName}
-                  ariaLabel="Edit name"
-                  displayStyle={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', wordBreak: 'break-word' }}
-                  inputStyle={{ fontSize: 20, fontWeight: 800, minWidth: 200 }}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <PageHeader
+        eyebrow={isB2C ? 'Consumer lead' : 'Business lead'}
+        title={
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            {/* Inline per-field edit — change just the name in place. Saves first/last only. */}
+            <InlineEditText
+              value={fullName}
+              ariaLabel="Edit name"
+              displayStyle={{ fontFamily: T.heading, fontSize: 22, fontWeight: 700, letterSpacing: '-0.01em', color: T.text, wordBreak: 'break-word' }}
+              inputStyle={{ fontSize: 20, fontWeight: 700, minWidth: 220 }}
+              onSave={async (next) => {
+                const parts = next.split(/\s+/).filter(Boolean);
+                const first = parts.shift() || next.trim();
+                const last = parts.join(' ');
+                try {
+                  const r = await crmLeads.update(lead.id, { first_name: first, last_name: last } as any);
+                  setLead({ ...(r.data as any), full_name: `${first} ${last}`.trim() } as LifecycleLead);
+                  toast.success('Name updated');
+                } catch (e: any) {
+                  toast.error(e?.message || 'Update failed');
+                  throw e; // keep the inline editor open so the rep can retry
+                }
+              }}
+            />
+            <Badge tone={isB2C ? 'neutral' : 'info'}>{isB2C ? 'B2C' : 'B2B'}</Badge>
+            {isConverted && <Badge tone="ok" dot>Converted</Badge>}
+            {isUnqualified && <Badge tone="warn" dot>Unqualified</Badge>}
+            {isLost && <Badge tone="red" dot>Lost</Badge>}
+          </span>
+        }
+        description={subtitle || undefined}
+        actions={actions}
+        compact={narrow}
+      />
+
+      <div style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : 'minmax(0, 1fr) 320px', gap: 20, alignItems: 'start' }}>
+        <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {/* Header facts — the fields a rep reaches for first. Every built-in
+              one is gated through the admin's field overrides. */}
+          <Card padding={20}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 18 }}>
+              <OwnerAvatar name={fullName} size={44} />
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: T.text }}>{fullName}</div>
+                {!fields.isHidden('owner_id') && <div style={{ fontSize: 12.5, color: T.dim }}>Owner: {lead.owner_name || 'Unassigned'}</div>}
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr 1fr' : 'repeat(auto-fit, minmax(180px, 1fr))', gap: '14px 20px' }}>
+              {!isTataActive && !fields.isHidden('email') && (
+                <Fact
+                  label={fields.labelFor('email', 'Email')}
+                  value={lead.email}
+                  type="email"
                   onSave={async (next) => {
-                    const parts = next.split(/\s+/).filter(Boolean);
-                    const first = parts.shift() || next.trim();
-                    const last = parts.join(' ');
                     try {
-                      const r = await crmLeads.update(lead.id, { first_name: first, last_name: last } as any);
-                      setLead({ ...(r.data as any), full_name: `${first} ${last}`.trim() } as LifecycleLead);
-                      toast.success('Name updated');
+                      const r = await crmLeads.update(lead.id, { email: next || null } as any);
+                      setLead(r.data as LifecycleLead);
+                      toast.success('Email updated');
                     } catch (e: any) {
                       toast.error(e?.message || 'Update failed');
-                      throw e; // keep the inline editor open so the rep can retry
+                      throw e;
                     }
                   }}
                 />
-                <Badge tone={isB2C ? 'consumer' : 'business'}>{isB2C ? 'B2C' : 'B2B'}</Badge>
-                {isConverted && <Badge tone="success">Converted</Badge>}
-                {isUnqualified && <Badge tone="warning">Unqualified</Badge>}
-                {isLost && <Badge tone="danger">Lost</Badge>}
-              </div>
-              <div style={{ fontSize: 13, color: 'var(--text-dim)', wordBreak: 'break-word' }}>
-                {isB2C
-                  ? [lead.city, lead.country].filter(Boolean).join(', ') || '—'
-                  : (lead.title ? `${lead.title}${lead.company ? ` · ${lead.company}` : ''}` : (lead.company || '—'))}
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-              {canEditLead && (
-                <button onClick={() => setEditOpen(true)} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>Edit</button>
               )}
-              <button onClick={() => setProposalOpen(true)} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>Generate Proposal</button>
-              {!isClosed && (
-                <button
-                  onClick={async () => {
-                    // Tata Tiscon: bypass the create-account / create-deal
-                    // popup entirely. TATA's flow records the deal directly
-                    // (with line items managed on the deal page), so we
-                    // call convert with account=false and route straight to
-                    // the new deal.
-                    if (isTataActive) {
-                      setTataConverting(true);
-                      try {
-                        const defaultName = fullName || lead.company || 'New deal';
-                        const r = await crmLeads.convert(id, {
-                          create_account: false,
-                          create_deal: true,
-                          deal_name: defaultName,
-                        });
-                        const data: any = (r as any)?.data ?? r;
-                        const dealId = data?.deal?.id || data?.deal_id;
-                        toast.success('Lead converted to deal');
-                        await reload();
-                        if (dealId) router.push(`/dashboard/crm/deals/${dealId}`);
-                        else router.push('/dashboard/crm/deals');
-                      } catch (e: any) {
-                        toast.error(e.message || 'Conversion failed');
-                      } finally {
-                        setTataConverting(false);
-                      }
-                      return;
+              {!fields.isHidden('phone') && (
+                <PhoneFact
+                  label={fields.labelFor('phone', 'Phone')}
+                  phone={lead.phone}
+                  prefill={waPrefill}
+                  leadId={lead.id}
+                  displayName={fullName}
+                  onSave={async (next) => {
+                    try {
+                      const r = await crmLeads.update(lead.id, { phone: next || null } as any);
+                      setLead(r.data as LifecycleLead);
+                      toast.success('Phone updated');
+                    } catch (e: any) {
+                      toast.error(e?.message || 'Update failed');
+                      throw e;
                     }
-                    setConvertOpen(true);
                   }}
-                  disabled={tataConverting}
-                  style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: tataConverting ? 'not-allowed' : 'pointer', opacity: tataConverting ? 0.7 : 1 }}
-                >{tataConverting ? 'Converting…' : 'Convert'}</button>
+                />
               )}
-              {canReassign && (
-              <div ref={assignRef} style={{ position: 'relative' }}>
-                <button
-                  onClick={() => { setAssignOpen((o) => !o); loadUsers(); }}
-                  style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer' }}
-                >
-                  Assign
-                </button>
-                {assignOpen && (
-                  <div style={{ position: 'absolute', top: 'calc(100% + 4px)', right: 0, background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.2)', zIndex: 200, minWidth: 180, maxHeight: 240, overflowY: 'auto' }}>
-                    {usersLoading && <div style={{ padding: '10px 14px', fontSize: 12, color: 'var(--text-dim)' }}>Loading users...</div>}
-                    {!usersLoading && users.length === 0 && <div style={{ padding: '10px 14px', fontSize: 12, color: 'var(--text-dim)' }}>No users found</div>}
-                    {users.map((u) => (
-                      <button
-                        key={u.id}
-                        onClick={() => handleAssign(u.id, u.name)}
-                        style={{ width: '100%', display: 'block', padding: '10px 14px', background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)', color: 'var(--text)', textAlign: 'left', cursor: 'pointer', fontSize: 13 }}
-                      >
-                        {u.name}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-              )}
-              {!isClosed && (
-                <>
-                  <button onClick={() => openDisqualify('unqualified')} style={{ background: 'transparent', border: '1px solid #f59e0b', color: '#f59e0b', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>
-                    Mark Unqualified
-                  </button>
-                  <button onClick={() => openDisqualify('lost')} style={{ background: 'transparent', border: '1px solid #ef4444', color: '#ef4444', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>
-                    Mark Lost
-                  </button>
-                </>
-              )}
-              {isClosed && (
-                <button onClick={handleReopen} disabled={reopening} style={{ background: '#10b981', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: reopening ? 'not-allowed' : 'pointer', opacity: reopening ? 0.7 : 1 }}>
-                  {reopening ? 'Re-opening…' : 'Re-open Lead'}
-                </button>
-              )}
-              <button onClick={handleDelete} disabled={deleting} style={{ background: 'transparent', border: '1px solid #ef4444', color: '#ef4444', padding: '8px 14px', borderRadius: 8, cursor: deleting ? 'not-allowed' : 'pointer', opacity: deleting ? 0.6 : 1 }}>
-                {deleting ? 'Deleting...' : 'Delete'}
-              </button>
-              <button onClick={() => router.back()} style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer' }}>Back</button>
+              {!fields.isHidden('status') && <Fact label={fields.labelFor('status', 'Status')} value={<StatusPill status={lead.status} />} />}
+              {!fields.isHidden('source_id') && <Fact label={fields.labelFor('source_id', 'Source')} value={lead.source_name} />}
+              {!fields.isHidden('owner_id') && <Fact label={fields.labelFor('owner_id', 'Owner')} value={lead.owner_name || 'Unassigned'} />}
+              <Fact label="Created" value={<span style={{ fontFamily: T.mono, fontSize: 12.5 }}>{new Date(lead.created_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' })}</span>} />
             </div>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 14, fontSize: 13 }}>
-            <Field
-              label="Email"
-              value={lead.email}
-              type="email"
-              onSave={async (next) => {
-                try {
-                  const r = await crmLeads.update(lead.id, { email: next || null } as any);
-                  setLead(r.data as LifecycleLead);
-                  toast.success('Email updated');
-                } catch (e: any) {
-                  toast.error(e?.message || 'Update failed');
-                  throw e; // keep the inline editor open so the rep can retry
-                }
-              }}
+          </Card>
+
+          {/* Lifecycle status banner — lost_reason + disqualified_at so the rep
+              sees the closed-out context above the fold. */}
+          {(isUnqualified || isLost) && (
+            <DisqualifiedBanner
+              outcome={isLost ? 'lost' : 'unqualified'}
+              lostReason={lead.lost_reason || null}
+              disqualifiedAt={lead.disqualified_at || null}
+              onReopen={handleReopen}
+              reopening={reopening}
             />
-            <PhoneField
-              phone={lead.phone}
-              prefill={waPrefill}
-              leadId={lead.id}
-              displayName={fullName}
-              onSave={async (next) => {
-                try {
-                  const r = await crmLeads.update(lead.id, { phone: next || null } as any);
-                  setLead(r.data as LifecycleLead);
-                  toast.success('Phone updated');
-                } catch (e: any) {
-                  toast.error(e?.message || 'Update failed');
-                  throw e; // keep the inline editor open so the rep can retry
-                }
-              }}
+          )}
+
+          {/* Comprehensive categorised detail panel — every lead field grouped
+              by Contact / Company / Personal / Address / Custom / Consent, hiding
+              any group with no populated values. Gated through `fields`. */}
+          <LeadDetailsPanel
+            lead={lead}
+            fields={fields}
+            onPatch={async (patch) => {
+              try {
+                const r = await crmLeads.update(lead.id, patch as any);
+                setLead(r.data as LifecycleLead);
+                toast.success('Updated');
+              } catch (e: any) {
+                toast.error(e?.message || 'Update failed');
+                throw e; // keep the inline editor open so the rep can retry
+              }
+            }}
+          />
+
+          {deals.length > 0 && (
+            <Section title="Deals" count={deals.length}>
+              {/* Rollup strip — Total / Won / Balance across this lead's deals.
+                  Won deals carry their won amount (the win flow overwrites
+                  `amount` with the closed figure), and open deals — including
+                  the "(Balance)" deals spawned by partial closes — ARE the
+                  outstanding balance, so summing plain `amount` per status is
+                  exactly the split we want. */}
+              {(() => {
+                const sum = (rows: Deal[]) => rows.reduce((s, d) => s + (Number(d.amount) || 0), 0);
+                const total = sum(deals);
+                const won = sum(deals.filter((d) => d.status === 'won'));
+                const balance = sum(deals.filter((d) => d.status === 'open'));
+                const fmt = (n: number) => `₹${n.toLocaleString('en-IN')}`;
+                const cell = (label: string, value: number, color?: string) => (
+                  <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 6 }}>
+                    <Eyebrow>{label}</Eyebrow>
+                    <span style={{ fontSize: 13, fontWeight: 600, fontFamily: T.mono, color: color || T.text, whiteSpace: 'nowrap' }}>{fmt(value)}</span>
+                  </span>
+                );
+                return (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', background: 'var(--s3)', borderRadius: 8, padding: '8px 12px', marginBottom: 10 }}>
+                    {cell('Total', total)}
+                    {cell('Won', won, T.ok)}
+                    {cell('Balance', balance, T.warn)}
+                  </div>
+                );
+              })()}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {deals.map((d) => (
+                  <Link key={d.id} href={`/dashboard/crm/deals/${d.id}`} style={rowLink} className="km-navrow">
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ color: T.text, fontWeight: 500, wordBreak: 'break-word' }}>{d.name}</div>
+                      <div style={{ fontSize: 12, color: T.dim }}>{d.stage_name} · {d.status}</div>
+                    </div>
+                    <div style={{ color: T.text, fontWeight: 600, fontFamily: T.mono, whiteSpace: 'nowrap' }}>{formatINR(d.amount || 0)}</div>
+                  </Link>
+                ))}
+              </div>
+            </Section>
+          )}
+
+          {!hideConversations && conversations.length > 0 && (
+            <Section title="Conversations" count={conversations.length}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {conversations.map((c) => {
+                  const sm = statusMeta(c.status);
+                  const sc = sentimentColor(c.sentiment);
+                  const ic = intentColor(c.intent_score);
+                  return (
+                    <Link key={c.id} href="/dashboard/crm/conversations" style={rowLink} className="km-navrow">
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ color: T.text, fontWeight: 500 }}>
+                          {c.champion_name || 'Consumer Champion'}
+                          <span style={{ fontWeight: 400, color: T.mute, fontSize: 11.5, marginLeft: 8, fontFamily: T.mono }}>{fmtDateTime(c.created_at)}</span>
+                        </div>
+                        {c.summary && (
+                          <div style={{ fontSize: 12.5, color: T.dim, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.summary}</div>
+                        )}
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
+                          {(c.intent || c.intent_score != null) && (
+                            <span style={{ fontSize: 11, fontWeight: 500, padding: '1px 8px', borderRadius: 999, background: ic.bg, color: ic.fg }}>
+                              {c.intent || 'Intent'}{c.intent_score != null ? ` · ${c.intent_score}` : ''}
+                            </span>
+                          )}
+                          {c.sentiment && (
+                            <span style={{ fontSize: 11, fontWeight: 500, padding: '1px 8px', borderRadius: 999, background: sc.bg, color: sc.fg }}>{c.sentiment}</span>
+                          )}
+                          <span style={{ fontSize: 11, fontWeight: 500, padding: '1px 8px', borderRadius: 999, background: sm.bg, color: sm.fg }}>{sm.label}</span>
+                        </div>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            </Section>
+          )}
+
+          <Section title="Updates">
+            <LeadUpdatesTimeline
+              leadId={id}
+              // Each new update server-side invalidates the lead's NBA cache
+              // AND denormalises onto crm_leads.latest_update*. Re-loading the
+              // lead picks the fresh latest_update so the header field updates
+              // without a full page reload; clearing nba forces a fresh
+              // recommendation next time the user clicks Suggest.
+              onAdded={() => { reload(); setNba(null); }}
             />
-            <Field label="Status" value={lead.status} />
-            <Field label="Source" value={lead.source_name} />
-            <Field label="Owner" value={lead.owner_name || 'Unassigned'} />
-            <Field label="Created" value={new Date(lead.created_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} />
-          </div>
+          </Section>
+          <Section title="Activity"><ActivityTimeline activities={activities} addHref={`/dashboard/crm/activities/new?lead_id=${id}`} /></Section>
         </div>
 
-        {/* Lifecycle status banner — surfaces lost_reason + disqualified_at
-            (added in Step 1) and the converted-to links inline so the rep
-            sees the closed-out context above the fold. */}
-        {(isUnqualified || isLost) && (
-          <DisqualifiedBanner
-            outcome={isLost ? 'lost' : 'unqualified'}
-            lostReason={lead.lost_reason || null}
-            disqualifiedAt={lead.disqualified_at || null}
-            onReopen={handleReopen}
-            reopening={reopening}
-          />
-        )}
-
-        {/* Comprehensive categorised detail panel — supersedes the old
-            B2C-only Customer Profile card. Renders every lead field
-            grouped by Contact / Business / Personal / Address /
-            Lifecycle / Custom Fields / Consent / System, and hides
-            any group with no populated values. */}
-        <LeadDetailsPanel
-          lead={lead}
-          onPatch={async (patch) => {
-            try {
-              const r = await crmLeads.update(lead.id, patch as any);
-              setLead(r.data as LifecycleLead);
-              toast.success('Updated');
-            } catch (e: any) {
-              toast.error(e?.message || 'Update failed');
-              throw e; // keep the inline editor open so the rep can retry
-            }
-          }}
-        />
-
-        {deals.length > 0 && (
-          <Card title={`Deals (${deals.length})`}>
-            {/* Rollup strip — Total / Won / Balance across this lead's deals.
-                Won deals carry their won amount (the win flow overwrites
-                `amount` with the closed figure), and open deals — including
-                the "(Balance)" deals spawned by partial closes — ARE the
-                outstanding balance, so summing plain `amount` per status is
-                exactly the split we want. */}
-            {(() => {
-              const sum = (rows: Deal[]) => rows.reduce((s, d) => s + (Number(d.amount) || 0), 0);
-              const total = sum(deals);
-              const won = sum(deals.filter((d) => d.status === 'won'));
-              const balance = sum(deals.filter((d) => d.status === 'open'));
-              const fmt = (n: number) => `₹${n.toLocaleString('en-IN')}`;
-              const cell = (label: string, value: number, color?: string) => (
-                <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 5 }}>
-                  <span style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.5 }}>{label}</span>
-                  <span style={{ fontSize: 13, fontWeight: 800, color: color || 'var(--text)', whiteSpace: 'nowrap' }}>{fmt(value)}</span>
-                </span>
-              );
-              return (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', marginBottom: 10 }}>
-                  {cell('Total', total)}
-                  <span style={{ color: 'var(--text-dim)' }}>·</span>
-                  {cell('Won', won, '#10b981')}
-                  <span style={{ color: 'var(--text-dim)' }}>·</span>
-                  {cell('Balance', balance, '#f59e0b')}
-                </div>
-              );
-            })()}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {deals.map((d) => (
-                <Link key={d.id} href={`/dashboard/crm/deals/${d.id}`} style={rowLink}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ color: 'var(--text)', fontWeight: 600, wordBreak: 'break-word' }}>{d.name}</div>
-                    <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{d.stage_name} · {d.status}</div>
-                  </div>
-                  <div style={{ color: 'var(--text)', fontWeight: 700, whiteSpace: 'nowrap' }}>{formatINR(d.amount || 0)}</div>
-                </Link>
-              ))}
-            </div>
-          </Card>
-        )}
-
-        {!hideConversations && conversations.length > 0 && (
-          <Card title={`Conversations (${conversations.length})`}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {conversations.map((c) => {
-                const sm = statusMeta(c.status);
-                const sc = sentimentColor(c.sentiment);
-                const ic = intentColor(c.intent_score);
-                return (
-                  <Link key={c.id} href="/dashboard/crm/conversations" style={rowLink}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ color: 'var(--text)', fontWeight: 600 }}>
-                        {c.champion_name || 'Consumer Champion'}
-                        <span style={{ fontWeight: 500, color: 'var(--text-dim)', fontSize: 11, marginLeft: 8 }}>{fmtDateTime(c.created_at)}</span>
-                      </div>
-                      {c.summary && (
-                        <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.summary}</div>
-                      )}
-                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
-                        {(c.intent || c.intent_score != null) && (
-                          <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 7px', borderRadius: 999, background: ic.bg, color: ic.fg, textTransform: 'uppercase', letterSpacing: 0.4 }}>
-                            {c.intent || 'Intent'}{c.intent_score != null ? ` · ${c.intent_score}` : ''}
-                          </span>
-                        )}
-                        {c.sentiment && (
-                          <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 7px', borderRadius: 999, background: sc.bg, color: sc.fg, textTransform: 'uppercase', letterSpacing: 0.4 }}>{c.sentiment}</span>
-                        )}
-                        <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 7px', borderRadius: 999, background: sm.bg, color: sm.fg, textTransform: 'uppercase', letterSpacing: 0.4 }}>{sm.label}</span>
-                      </div>
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
-          </Card>
-        )}
-
-        <Card title="Updates">
-          <LeadUpdatesTimeline
-            leadId={id}
-            // Each new update server-side invalidates the lead's NBA cache
-            // AND denormalises onto crm_leads.latest_update*. Re-loading the
-            // lead picks the fresh latest_update so the header field updates
-            // without a full page reload; clearing nba forces a fresh
-            // recommendation next time the user clicks Suggest.
-            onAdded={() => { reload(); setNba(null); }}
-          />
-        </Card>
-        <Card title="Activity Timeline"><ActivityTimeline activities={activities} addHref={`/dashboard/crm/activities/new?lead_id=${id}`} /></Card>
-      </div>
-
-      <div style={{ flex: '1 1 280px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 18 }}>
-        {/* LeadScoreBreakdown + ScoreBoostSuggestions hidden for Consumer
-            Champion reps AND for the Tata Tiscon tenant — their flow
-            doesn't use the AI score-boost loop. NBA card stays visible
-            since it's an action prompt the FE can act on directly. */}
-        {!isChampion && !isTataActive && (
-          <>
-            <LeadScoreBreakdown
-              score={score?.score ?? lead.score}
-              grade={(score?.grade ?? lead.score_grade) as any}
-              factors={score?.factors}
-              onRefresh={reScore}
-              loading={scoring}
-            />
-            <ScoreBoostSuggestions
-              lead={lead as any}
-              onEdit={() => { if (canEditLead) setEditOpen(true); }}
-              onQualify={markQualified}
-              busy={qualifying || scoring}
-            />
-          </>
-        )}
-        {/* Next Best Action — AI manager-tier surface; hidden for the
-            Consumer Champion FE flow since they don't act on it. */}
-        {!isChampion && <NextBestActionCard action={nba} onLoad={loadNba} loading={nbaLoading} leadId={id} />}
-        {/* DPDP §6(4)-(6) — consent status + in-app withdrawal for this lead. */}
-        <ConsentCard subjectType="lead" subjectId={id} />
+        <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {/* LeadScoreBreakdown + ScoreBoostSuggestions hidden for Consumer
+              Champion reps AND for the Tata Tiscon tenant — their flow
+              doesn't use the AI score-boost loop. NBA card stays visible
+              since it's an action prompt the FE can act on directly. */}
+          {!isChampion && !isTataActive && (
+            <>
+              <LeadScoreBreakdown
+                score={score?.score ?? lead.score}
+                grade={(score?.grade ?? lead.score_grade) as any}
+                factors={score?.factors}
+                onRefresh={reScore}
+                loading={scoring}
+              />
+              <ScoreBoostSuggestions
+                lead={lead as any}
+                onEdit={() => { if (canEditLead) setEditOpen(true); }}
+                onQualify={markQualified}
+                busy={qualifying || scoring}
+              />
+            </>
+          )}
+          {/* Next Best Action — AI manager-tier surface; hidden for the
+              Consumer Champion FE flow since they don't act on it. */}
+          {!isChampion && <NextBestActionCard action={nba} onLoad={loadNba} loading={nbaLoading} leadId={id} />}
+          {/* DPDP §6(4)-(6) — consent status + in-app withdrawal for this lead. */}
+          <ConsentCard subjectType="lead" subjectId={id} />
+        </div>
       </div>
 
       <LeadConvertModal
@@ -622,56 +634,57 @@ export default function LeadDetailPage() {
           onClose={() => setProposalOpen(false)}
         />
       )}
+    </div>
+  );
+}
+
+/** Card with a title row — the detail page's section surface. */
+function Section({ title, count, children }: { title: string; count?: number; children: React.ReactNode }) {
+  return (
+    <Card padding={0}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '12px 18px', borderBottom: `1px solid ${T.border}` }}>
+        <div style={{ fontFamily: T.heading, fontSize: 15, fontWeight: 700, letterSpacing: '-0.01em', color: T.text }}>{title}</div>
+        {typeof count === 'number' && <span style={{ fontFamily: T.mono, fontSize: 11.5, color: T.mute }}>{count}</span>}
       </div>
-    </div>
+      <div style={{ padding: 18 }}>{children}</div>
+    </Card>
   );
 }
 
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
+function Fact({ label, value, onSave, type }: { label: string; value?: React.ReactNode; onSave?: (next: string) => Promise<void>; type?: string }) {
   return (
-    <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
-      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 12 }}>{title}</div>
-      {children}
-    </div>
-  );
-}
-
-function Field({ label, value, onSave, type }: { label: string; value?: string | null; onSave?: (next: string) => Promise<void>; type?: string }) {
-  return (
-    <div style={{ minWidth: 0 }}>
-      <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.6 }}>{label}</div>
+    <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
+      <div style={{ fontSize: 12, fontWeight: 500, color: T.dim }}>{label}</div>
       {onSave ? (
-        <div style={{ marginTop: 2 }}>
-          <InlineEditText
-            value={value || ''}
-            type={type}
-            ariaLabel={`Edit ${label}`}
-            onSave={onSave}
-            displayStyle={{ color: 'var(--text)', wordBreak: 'break-word' }}
-          />
-        </div>
+        <InlineEditText
+          value={typeof value === 'string' ? value : ''}
+          type={type}
+          ariaLabel={`Edit ${label}`}
+          onSave={onSave}
+          displayStyle={{ color: T.text, fontSize: 13.5, wordBreak: 'break-word' }}
+        />
       ) : (
-        <div style={{ color: 'var(--text)', marginTop: 2, wordBreak: 'break-word' }}>{value || '—'}</div>
+        <div style={{ color: T.text, fontSize: 13.5, wordBreak: 'break-word' }}>{value || '—'}</div>
       )}
     </div>
   );
 }
 
-function PhoneField({ phone, prefill, leadId, displayName, onSave }: { phone?: string | null; prefill: string; leadId: string; displayName: string; onSave?: (next: string) => Promise<void> }) {
+function PhoneFact({ label, phone, prefill, leadId, displayName, onSave }: { label: string; phone?: string | null; prefill: string; leadId: string; displayName: string; onSave?: (next: string) => Promise<void> }) {
   return (
-    <div style={{ minWidth: 0 }}>
-      <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.6 }}>Phone</div>
-      <div style={{ color: 'var(--text)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+    <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
+      <div style={{ fontSize: 12, fontWeight: 500, color: T.dim }}>{label}</div>
+      <div style={{ color: T.text, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         {onSave ? (
           <InlineEditText
             value={phone || ''}
             type="tel"
             ariaLabel="Edit phone"
             onSave={onSave}
-            displayStyle={{ color: 'var(--text)', wordBreak: 'break-word' }}
+            displayStyle={{ color: T.text, fontSize: 13.5, fontFamily: T.mono, wordBreak: 'break-word' }}
           />
         ) : (
-          <span style={{ wordBreak: 'break-word' }}>{phone || '—'}</span>
+          <span style={{ wordBreak: 'break-word', fontFamily: T.mono, fontSize: 13.5 }}>{phone || '—'}</span>
         )}
         <CallButton phone={phone} prefillSubject={`Call with ${displayName}`} leadId={leadId} size="sm" />
         <RecordedCallButton leadId={leadId} phone={phone} size="sm" />
@@ -681,18 +694,11 @@ function PhoneField({ phone, prefill, leadId, displayName, onSave }: { phone?: s
   );
 }
 
-function Badge({ children, tone }: { children: React.ReactNode; tone: 'business' | 'consumer' | 'success' | 'muted' | 'warning' | 'danger' }) {
-  const colors = {
-    business: { bg: '#3b82f6', fg: '#fff' },
-    consumer: { bg: '#8b5cf6', fg: '#fff' },
-    success:  { bg: '#10b981', fg: '#fff' },
-    warning:  { bg: '#f59e0b', fg: '#fff' },
-    danger:   { bg: '#ef4444', fg: '#fff' },
-    muted:    { bg: 'var(--s3)', fg: 'var(--text-dim)' },
-  }[tone];
-  return (
-    <span style={{ background: colors.bg, color: colors.fg, fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 5, textTransform: 'uppercase', letterSpacing: 0.4 }}>{children}</span>
-  );
+function StatusPill({ status }: { status?: string | null }) {
+  const s = (status || 'new').toLowerCase();
+  const tone: 'info' | 'ok' | 'warn' | 'red' | 'neutral' =
+    s === 'converted' || s === 'qualified' ? 'ok' : s === 'lost' || s === 'unqualified' ? 'red' : s === 'working' ? 'warn' : s === 'new' ? 'info' : 'neutral';
+  return <Badge tone={tone} dot>{s.replace(/_/g, ' ')}</Badge>;
 }
 
 function DisqualifiedBanner({
@@ -704,58 +710,20 @@ function DisqualifiedBanner({
   onReopen: () => void;
   reopening: boolean;
 }) {
-  const tone = outcome === 'lost'
-    ? { bg: 'rgba(239,68,68,0.10)', border: '#ef4444', label: 'LEAD MARKED AS LOST', accent: '#ef4444' }
-    : { bg: 'rgba(245,158,11,0.10)', border: '#f59e0b', label: 'LEAD DISQUALIFIED', accent: '#f59e0b' };
+  const lost = outcome === 'lost';
   return (
-    <div style={{ background: tone.bg, border: `1px solid ${tone.border}`, borderRadius: 14, padding: 16, display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+    <div style={{ background: lost ? T.redWash : T.warnWash, border: `1px solid ${lost ? T.red : T.warn}`, borderRadius: 12, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
       <div style={{ flex: 1, minWidth: 220 }}>
-        <div style={{ fontSize: 10, fontWeight: 800, color: tone.accent, letterSpacing: 0.6 }}>{tone.label}</div>
-        {lostReason && <div style={{ color: 'var(--text)', marginTop: 4, fontSize: 14 }}>Reason: {lostReason}</div>}
-        {disqualifiedAt && <div style={{ color: 'var(--text-dim)', marginTop: 2, fontSize: 12 }}>On {new Date(disqualifiedAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}</div>}
+        <Eyebrow style={{ color: lost ? T.red : T.warn }}>{lost ? 'Lead marked as lost' : 'Lead disqualified'}</Eyebrow>
+        {lostReason && <div style={{ color: T.text, marginTop: 4, fontSize: 13.5 }}>Reason: {lostReason}</div>}
+        {disqualifiedAt && <div style={{ color: T.dim, marginTop: 2, fontSize: 12.5, fontFamily: T.mono }}>{new Date(disqualifiedAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' })}</div>}
       </div>
-      <button onClick={onReopen} disabled={reopening} style={{ background: '#10b981', border: 'none', color: '#fff', padding: '8px 16px', borderRadius: 8, fontWeight: 700, cursor: reopening ? 'not-allowed' : 'pointer', opacity: reopening ? 0.7 : 1 }}>
-        {reopening ? 'Re-opening…' : 'Re-open Lead'}
-      </button>
+      <Button onClick={onReopen} disabled={reopening} icon={<RotateCcw size={15} strokeWidth={1.8} />}>{reopening ? 'Re-opening…' : 'Re-open lead'}</Button>
     </div>
   );
 }
 
-function ConvertedBanner({
-  convertedAt, accountId, contactId, dealId, onReopen, reopening,
-}: {
-  convertedAt: string | null;
-  accountId: string | null;
-  contactId: string | null;
-  dealId: string | null;
-  onReopen: () => void;
-  reopening: boolean;
-}) {
-  return (
-    <div style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid #10b981', borderRadius: 14, padding: 16 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-        <div style={{ flex: 1, minWidth: 220 }}>
-          <div style={{ fontSize: 10, fontWeight: 800, color: '#10b981', letterSpacing: 0.6 }}>LEAD CONVERTED</div>
-          {convertedAt && <div style={{ color: 'var(--text-dim)', marginTop: 2, fontSize: 12 }}>On {new Date(convertedAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}</div>}
-        </div>
-        <button onClick={onReopen} disabled={reopening} title="Disconnects this lead from the deal/contact/account so it can be re-worked. The other records stay intact." style={{ background: 'transparent', border: '1px solid #10b981', color: '#10b981', padding: '8px 16px', borderRadius: 8, fontWeight: 700, cursor: reopening ? 'not-allowed' : 'pointer', opacity: reopening ? 0.7 : 1 }}>
-          {reopening ? 'Re-opening…' : 'Re-open Lead'}
-        </button>
-      </div>
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 12 }}>
-        {contactId && (<Link href={`/dashboard/crm/contacts/${contactId}`} style={chipLink}>→ Contact</Link>)}
-        {accountId && (<Link href={`/dashboard/crm/accounts/${accountId}`} style={chipLink}>→ Account</Link>)}
-        {dealId    && (<Link href={`/dashboard/crm/deals/${dealId}`}       style={chipLink}>→ Deal</Link>)}
-      </div>
-    </div>
-  );
-}
-
-const chipLink: React.CSSProperties = {
-  background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--primary)',
-  padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: 'none',
-};
 const rowLink: React.CSSProperties = {
   display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px',
-  background: 'var(--s3)', borderRadius: 8, textDecoration: 'none', fontSize: 13,
+  background: 'var(--s3)', borderRadius: 8, textDecoration: 'none', fontSize: 13.5,
 };

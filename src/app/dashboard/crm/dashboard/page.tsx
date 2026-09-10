@@ -2,14 +2,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { toast } from 'sonner';
+import { LayoutGrid, X } from 'lucide-react';
 import { crmAnalytics, crmSettings, crmLeads } from '../../../../lib/crmApi';
 import { fmtValue, fmtValueCompact, type DashboardUnit } from '../../../../lib/formatCurrency';
 import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
 import { useCityScope } from '../../../../context/CityScopeContext';
 import { useClient } from '../../../../context/ClientContext';
-import StatCard from '../../../../components/crm/shared/StatCard';
 import PinnedOverviewSection from '../../../../components/crm/analytics/PinnedOverviewSection';
 import { getStoredUser, canAccess } from '../../../../lib/auth';
+import { ChartCard, ChartEmpty } from '../../../../lib/chartTheme';
+import { Button, Card, EmptyState, Eyebrow, IconButton, PageHeader, Segmented, T, useIsCompact } from '../../../../components/ui';
+import { usePageTitle } from '../../../../lib/pageTitle';
 
 // Weight/INR toggle is bespoke for Tata Tiscon — they bill in metric
 // tonnes of TMT bar so the dashboard re-aggregates monetary numbers as
@@ -21,7 +24,7 @@ const KINEMATIC_CLIENT_ID = '7ecd47d7-9268-4ea2-a8ce-384978c13667';
 
 // Recharts is heavy (~150 KB gzipped). Lazy-load each chart so the dashboard
 // initial bundle stays small and charts only download when their card paints.
-const ChartLoading = () => <div style={{ height: 280, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-dim)', fontSize: 12 }}>Loading…</div>;
+const ChartLoading = () => <div style={{ height: 280, display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.dim, fontSize: 13 }}>Loading…</div>;
 const PipelineFunnelChart = dynamic(() => import('../../../../components/crm/charts/PipelineFunnelChart'), { ssr: false, loading: ChartLoading });
 const PipelineValueByStageChart = dynamic(() => import('../../../../components/crm/charts/PipelineValueByStageChart'), { ssr: false, loading: ChartLoading });
 const WinRateByRepChart = dynamic(() => import('../../../../components/crm/charts/WinRateByRepChart'), { ssr: false, loading: ChartLoading });
@@ -67,19 +70,32 @@ const CHART_WIDGETS: Array<{ id: WidgetId; label: string }> = [
 
 const ALL_WIDGETS: WidgetId[] = [...STAT_WIDGETS, ...CHART_WIDGETS].map((w) => w.id);
 
-function Card({ title, action, children }: { title: string; action?: React.ReactNode; children: React.ReactNode }) {
+/**
+ * Dashboard KPI tile — Card + mono eyebrow + Manrope value + dim hint.
+ * The value uses clamp() so a long Indian-grouped amount still fits the
+ * tile on narrow viewports instead of overflowing.
+ */
+function StatTile({ label, value, hint, valueTitle, loading, tone }: {
+  label: string; value: string | number; hint?: string; valueTitle?: string; loading?: boolean; tone?: 'ok' | 'warn' | 'red' | 'info';
+}) {
+  const toneColor = tone === 'ok' ? T.ok : tone === 'warn' ? T.warn : tone === 'red' ? T.red : tone === 'info' ? T.info : T.text;
   return (
-    <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{title}</div>
-        {action}
+    <Card padding={16} style={{ display: 'flex', flexDirection: 'column', gap: 10, minWidth: 0 }}>
+      <Eyebrow style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</Eyebrow>
+      <div title={valueTitle} style={{
+        fontFamily: T.heading, fontSize: 'clamp(20px, 2.2vw, 26px)', fontWeight: 700, letterSpacing: '-0.01em', lineHeight: 1.1,
+        color: loading ? T.mute : toneColor, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+      }}>
+        {loading ? '—' : value}
       </div>
-      {children}
-    </div>
+      {hint && <div style={{ fontSize: 12.5, color: T.dim, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{hint}</div>}
+    </Card>
   );
 }
 
 export default function CrmDashboardPage() {
+  usePageTitle('Dashboard');
+  const narrow = useIsCompact(900);
   const [summary, setSummary] = useState<AnalyticsSummary | null>(null);
   const [funnel, setFunnel] = useState<FunnelPoint[]>([]);
   const [pipelineValue, setPipelineValue] = useState<PipelineValuePoint[]>([]);
@@ -236,55 +252,45 @@ export default function CrmDashboardPage() {
   const visibleStatCount = STAT_WIDGETS.filter((w) => isVisible(w.id)).length;
   const visibleChartCount = CHART_WIDGETS.filter((w) => isVisible(w.id)).length;
 
+  const emptyChart = <ChartEmpty message="No data yet. Once you log activity, this chart will populate." />;
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-        {allowWeightToggle && (
-          <div
-            role="tablist"
-            aria-label="Display unit"
-            style={{ display: 'inline-flex', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 8, padding: 3 }}
-          >
-            <button
-              role="tab"
-              aria-selected={unit === 'inr'}
-              onClick={() => setUnitPersisted('inr')}
-              style={{ padding: '4px 14px', borderRadius: 6, background: unit === 'inr' ? 'var(--s4)' : 'transparent', border: 'none', color: unit === 'inr' ? 'var(--text)' : 'var(--text-dim)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
-              title="Show monetary values in rupees"
-            >
-              ₹ Cost
-            </button>
-            <button
-              role="tab"
-              aria-selected={unit === 'weight'}
-              onClick={() => setUnitPersisted('weight')}
-              style={{ padding: '4px 14px', borderRadius: 6, background: unit === 'weight' ? 'var(--s4)' : 'transparent', border: 'none', color: unit === 'weight' ? 'var(--text)' : 'var(--text-dim)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
-              title="Show metrics as weight (kg / tonnes), aggregated from deal line items"
-            >
-              ⚖ Weight
-            </button>
-          </div>
-        )}
-        {canCustomize && (
-          <button
-            onClick={() => setShowCustomizer(true)}
-            style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
-          >
-            ⚙ Customize Dashboard
-          </button>
-        )}
-      </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <PageHeader
+        title="Dashboard"
+        description="Pipeline, revenue and lead health for the selected window."
+        compact={narrow}
+        actions={
+          <>
+            {allowWeightToggle && (
+              <div role="tablist" aria-label="Display unit">
+                <Segmented
+                  value={unit}
+                  onChange={(v) => setUnitPersisted(v)}
+                  options={[
+                    { value: 'inr', label: <span title="Show monetary values in rupees">₹ Cost</span> },
+                    { value: 'weight', label: <span title="Show metrics as weight (kg / tonnes), aggregated from deal line items">Weight</span> },
+                  ]}
+                />
+              </div>
+            )}
+            {canCustomize && (
+              <Button onClick={() => setShowCustomizer(true)} icon={<LayoutGrid size={16} strokeWidth={1.6} />}>Customize</Button>
+            )}
+          </>
+        }
+      />
 
       {visibleStatCount > 0 && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
           {isVisible('stat_open_pipeline') && (
             // In weight mode the pipeline aggregates kg from deal line items.
             // When the open deals carry no weighted products the total is a
             // legitimate 0 — surface a hint so it doesn't read as a broken
             // metric, and point the user at the fix (add products to deals).
             unit === 'weight' && !(summary?.open_deal_value)
-              ? <StatCard label="Open Pipeline" value="—" hint={`No weight on ${summary?.open_deals || 0} open deals — add products`} loading={loading} />
-              : <StatCard
+              ? <StatTile label="Open Pipeline" value="—" hint={`No weight on ${summary?.open_deals || 0} open deals — add products`} loading={loading} />
+              : <StatTile
                   label="Open Pipeline"
                   value={fmtMoney(summary?.open_deal_value)}
                   valueTitle={fmtMoneyFull(summary?.open_deal_value)}
@@ -294,27 +300,21 @@ export default function CrmDashboardPage() {
                   loading={loading}
                 />
           )}
-          {isVisible('stat_won') && <StatCard label="Won (window)" value={fmtMoney(summary?.won_revenue_30d)} valueTitle={fmtMoneyFull(summary?.won_revenue_30d)} hint={`${summary?.won_deals_30d || 0} deals`} deltaTone="up" loading={loading} />}
-          {isVisible('stat_win_rate') && <StatCard label="Win Rate" value={fmtPct(summary?.win_rate_30d)} loading={loading} />}
-          {isVisible('stat_avg_deal') && <StatCard label="Avg Deal Size" value={fmtMoney(summary?.avg_deal_size)} valueTitle={fmtMoneyFull(summary?.avg_deal_size)} loading={loading} />}
-          {isVisible('stat_sales_cycle') && <StatCard label="Sales Cycle" value={`${Math.round(summary?.avg_sales_cycle_days || 0)}d`} loading={loading} />}
-          {isVisible('stat_new_leads') && <StatCard label="New Leads" value={summary?.new_leads_30d || 0} hint={`${summary?.total_leads || 0} total`} loading={loading} />}
-          {isVisible('stat_activities') && <StatCard label="Activities (7d)" value={summary?.activities_7d || 0} loading={loading} />}
-          {isVisible('stat_conversion') && <StatCard label="Conversion" value={fmtPct(summary?.conversion_rate)} loading={loading} />}
+          {isVisible('stat_won') && <StatTile label="Won (window)" value={fmtMoney(summary?.won_revenue_30d)} valueTitle={fmtMoneyFull(summary?.won_revenue_30d)} hint={`${summary?.won_deals_30d || 0} deals`} tone="ok" loading={loading} />}
+          {isVisible('stat_win_rate') && <StatTile label="Win Rate" value={fmtPct(summary?.win_rate_30d)} loading={loading} />}
+          {isVisible('stat_avg_deal') && <StatTile label="Avg Deal Size" value={fmtMoney(summary?.avg_deal_size)} valueTitle={fmtMoneyFull(summary?.avg_deal_size)} loading={loading} />}
+          {isVisible('stat_sales_cycle') && <StatTile label="Sales Cycle" value={`${Math.round(summary?.avg_sales_cycle_days || 0)}d`} loading={loading} />}
+          {isVisible('stat_new_leads') && <StatTile label="New Leads" value={summary?.new_leads_30d || 0} hint={`${summary?.total_leads || 0} total`} loading={loading} />}
+          {isVisible('stat_activities') && <StatTile label="Activities (7d)" value={summary?.activities_7d || 0} loading={loading} />}
+          {isVisible('stat_conversion') && <StatTile label="Conversion" value={fmtPct(summary?.conversion_rate)} loading={loading} />}
         </div>
       )}
 
       {/* Map gets full width so the bubbles + legend + side panel fit cleanly. */}
       {!kinematicActive && isVisible('chart_geo_map') && (
-        <div style={{ display: 'block' }}>
-          <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>Leads on Map</div>
-              <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>Hover or click a city to drill in</div>
-            </div>
-            {geoLeads.length === 0 ? <Empty /> : <LeadsGeoMap leads={geoLeads} />}
-          </div>
-        </div>
+        <ChartCard title="Leads on Map" subtitle="Hover or click a city to drill in">
+          {geoLeads.length === 0 ? emptyChart : <LeadsGeoMap leads={geoLeads} />}
+        </ChartCard>
       )}
 
       {/* Pinned analytics widgets sit just below the map: KPIs the rep
@@ -324,105 +324,87 @@ export default function CrmDashboardPage() {
       <PinnedOverviewSection />
 
       {visibleChartCount > 0 && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(420px, 100%), 1fr))', gap: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(420px, 100%), 1fr))', gap: 12 }}>
           {isVisible('chart_funnel') && (
-            <Card title="Pipeline Funnel">
-              {funnel.length ? <PipelineFunnelChart data={funnel} /> : <Empty />}
-            </Card>
+            <ChartCard title="Pipeline Funnel">
+              {funnel.length ? <PipelineFunnelChart data={funnel} /> : emptyChart}
+            </ChartCard>
           )}
           {isVisible('chart_pipeline_value') && (
-            <Card title={unit === 'weight' ? 'Pipeline Volume by Stage' : 'Pipeline Value by Stage'}>
-              {pipelineValue.length ? <PipelineValueByStageChart data={pipelineValue} unit={unit} /> : <Empty />}
-            </Card>
+            <ChartCard title={unit === 'weight' ? 'Pipeline Volume by Stage' : 'Pipeline Value by Stage'}>
+              {pipelineValue.length ? <PipelineValueByStageChart data={pipelineValue} unit={unit} /> : emptyChart}
+            </ChartCard>
           )}
           {isVisible('chart_win_rate') && (
-            <Card title="Win Rate by Rep">
-              {winRate.length ? <WinRateByRepChart data={winRate} /> : <Empty />}
-            </Card>
+            <ChartCard title="Win Rate by Rep">
+              {winRate.length ? <WinRateByRepChart data={winRate} /> : emptyChart}
+            </ChartCard>
           )}
           {isVisible('chart_forecast') && (
-            <Card title="Forecast">
-              {forecast.length ? <ForecastChart data={forecast} unit={unit} /> : <Empty />}
-            </Card>
+            <ChartCard title="Forecast">
+              {forecast.length ? <ForecastChart data={forecast} unit={unit} /> : emptyChart}
+            </ChartCard>
           )}
           {isVisible('chart_score_dist') && (
-            <Card title="Lead Score Distribution">
-              {scoreDist.length ? <LeadScoreDistributionChart data={scoreDist} /> : <Empty />}
-            </Card>
+            <ChartCard title="Lead Score Distribution">
+              {scoreDist.length ? <LeadScoreDistributionChart data={scoreDist} /> : emptyChart}
+            </ChartCard>
           )}
           {isVisible('chart_revenue') && (
-            <Card title={unit === 'weight' ? 'Volume Trend' : 'Revenue Trend'}>
-              {revenueTrend.length ? <RevenueTrendChart data={revenueTrend} unit={unit} /> : <Empty />}
-            </Card>
+            <ChartCard title={unit === 'weight' ? 'Volume Trend' : 'Revenue Trend'}>
+              {revenueTrend.length ? <RevenueTrendChart data={revenueTrend} unit={unit} /> : emptyChart}
+            </ChartCard>
           )}
         </div>
       )}
 
       {visibleStatCount === 0 && visibleChartCount === 0 && (
-        <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 32, textAlign: 'center', color: 'var(--text-dim)' }}>
-          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Empty dashboard</div>
-          <div style={{ fontSize: 12 }}>All widgets are hidden. Click <strong>Customize Dashboard</strong> to enable some.</div>
-        </div>
+        <Card padding={0}>
+          <EmptyState
+            icon={<LayoutGrid size={20} strokeWidth={1.6} />}
+            title="Empty dashboard"
+            description="All widgets are hidden. Use Customize to enable some."
+            action={canCustomize ? <Button size="sm" onClick={() => setShowCustomizer(true)}>Customize dashboard</Button> : undefined}
+          />
+        </Card>
       )}
 
       {showCustomizer && (
-        <div onClick={() => !savingLayout && setShowCustomizer(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 24, maxWidth: 560, width: '100%', maxHeight: '85vh', overflowY: 'auto' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
-              <div>
-                <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, marginBottom: 4 }}>Customize Dashboard</div>
-                <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>Pick widgets to show</div>
+        <div onClick={() => !savingLayout && setShowCustomizer(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(10,14,26,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}>
+          <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, boxShadow: 'var(--shadow-pop)', maxWidth: 560, width: '100%', maxHeight: '85vh', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, padding: '18px 20px 14px', borderBottom: `1px solid ${T.border}` }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <Eyebrow>Customize dashboard</Eyebrow>
+                <div style={{ fontFamily: T.heading, fontSize: 17, fontWeight: 700, letterSpacing: '-0.01em', color: T.text }}>Pick widgets to show</div>
+                <div style={{ fontSize: 12.5, color: T.dim }}>Layout is saved per organisation and applies to all CRM users. Hidden widgets won’t appear or load data.</div>
               </div>
-              <button onClick={() => !savingLayout && setShowCustomizer(false)} style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', fontSize: 22, cursor: 'pointer', padding: 0, lineHeight: 1 }}>×</button>
+              <IconButton label="Close" onClick={() => !savingLayout && setShowCustomizer(false)}><X size={16} strokeWidth={1.6} /></IconButton>
             </div>
 
-            <div style={{ background: 'var(--s3)', borderRadius: 8, padding: 10, fontSize: 12, color: 'var(--text-dim)', marginBottom: 14 }}>
-              Layout is saved per organisation and applies to all CRM users. Hidden widgets won't appear or load data.
+            <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 18 }}>
+              <WidgetGroup
+                label="Stat tiles"
+                widgets={STAT_WIDGETS}
+                isVisible={isVisible}
+                onToggle={toggleWidget}
+                onAll={() => setVisibleWidgets(new Set([...Array.from(visibleWidgets), ...STAT_WIDGETS.map((w) => w.id)]))}
+                onNone={() => { const next = new Set(visibleWidgets); STAT_WIDGETS.forEach((w) => next.delete(w.id)); setVisibleWidgets(next); }}
+              />
+              <WidgetGroup
+                label="Charts"
+                widgets={CHART_WIDGETS}
+                isVisible={isVisible}
+                onToggle={toggleWidget}
+                onAll={() => setVisibleWidgets(new Set([...Array.from(visibleWidgets), ...CHART_WIDGETS.map((w) => w.id)]))}
+                onNone={() => { const next = new Set(visibleWidgets); CHART_WIDGETS.forEach((w) => next.delete(w.id)); setVisibleWidgets(next); }}
+              />
             </div>
 
-            <div style={{ marginBottom: 14 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6 }}>Stat Cards</div>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <button onClick={() => setVisibleWidgets(new Set([...Array.from(visibleWidgets), ...STAT_WIDGETS.map((w) => w.id)]))} style={btnTiny}>All</button>
-                  <button onClick={() => { const next = new Set(visibleWidgets); STAT_WIDGETS.forEach((w) => next.delete(w.id)); setVisibleWidgets(next); }} style={btnTiny}>None</button>
-                </div>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 6 }}>
-                {STAT_WIDGETS.map((w) => (
-                  <label key={w.id} style={pillStyle(isVisible(w.id))}>
-                    <input type="checkbox" checked={isVisible(w.id)} onChange={() => toggleWidget(w.id)} />
-                    {w.label}
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <div style={{ marginBottom: 14 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6 }}>Charts</div>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <button onClick={() => setVisibleWidgets(new Set([...Array.from(visibleWidgets), ...CHART_WIDGETS.map((w) => w.id)]))} style={btnTiny}>All</button>
-                  <button onClick={() => { const next = new Set(visibleWidgets); CHART_WIDGETS.forEach((w) => next.delete(w.id)); setVisibleWidgets(next); }} style={btnTiny}>None</button>
-                </div>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 6 }}>
-                {CHART_WIDGETS.map((w) => (
-                  <label key={w.id} style={pillStyle(isVisible(w.id))}>
-                    <input type="checkbox" checked={isVisible(w.id)} onChange={() => toggleWidget(w.id)} />
-                    {w.label}
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginTop: 16 }}>
-              <button onClick={() => setVisibleWidgets(new Set(ALL_WIDGETS))} style={btnTiny}>Reset to all</button>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, padding: '14px 20px', borderTop: `1px solid ${T.border}`, flexWrap: 'wrap' }}>
+              <Button size="sm" variant="ghost" onClick={() => setVisibleWidgets(new Set(ALL_WIDGETS))}>Reset to all</Button>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button onClick={() => setShowCustomizer(false)} disabled={savingLayout} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontSize: 13 }}>Cancel</button>
-                <button onClick={saveLayout} disabled={savingLayout} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 18px', borderRadius: 8, fontWeight: 700, cursor: 'pointer', fontSize: 13 }}>
-                  {savingLayout ? 'Saving…' : 'Save Layout'}
-                </button>
+                <Button onClick={() => setShowCustomizer(false)} disabled={savingLayout}>Cancel</Button>
+                <Button variant="primary" onClick={saveLayout} disabled={savingLayout}>{savingLayout ? 'Saving…' : 'Save layout'}</Button>
               </div>
             </div>
           </div>
@@ -432,22 +414,33 @@ export default function CrmDashboardPage() {
   );
 }
 
-function pillStyle(active: boolean): React.CSSProperties {
-  return {
-    display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px',
-    background: active ? 'var(--primary)' : 'var(--s3)',
-    color: active ? '#fff' : 'var(--text)',
-    borderRadius: 6, fontSize: 12, cursor: 'pointer',
-    border: `1px solid ${active ? 'var(--primary)' : 'var(--border)'}`,
-  };
-}
-
-const btnTiny: React.CSSProperties = { background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '4px 10px', borderRadius: 6, cursor: 'pointer', fontSize: 11, fontWeight: 600 };
-
-function Empty() {
+function WidgetGroup({ label, widgets, isVisible, onToggle, onAll, onNone }: {
+  label: string; widgets: Array<{ id: WidgetId; label: string }>; isVisible: (id: WidgetId) => boolean;
+  onToggle: (id: WidgetId) => void; onAll: () => void; onNone: () => void;
+}) {
   return (
-    <div style={{ height: 280, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-dim)', fontSize: 13 }}>
-      No data yet. Once you log activity, this chart will populate.
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+        <Eyebrow>{label}</Eyebrow>
+        <div style={{ display: 'flex', gap: 4 }}>
+          <Button size="sm" variant="ghost" onClick={onAll}>All</Button>
+          <Button size="sm" variant="ghost" onClick={onNone}>None</Button>
+        </div>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: 6 }}>
+        {widgets.map((w) => {
+          const on = isVisible(w.id);
+          return (
+            <label key={w.id} style={{
+              display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', borderRadius: 8, cursor: 'pointer',
+              background: on ? T.redWash : 'var(--s3)', border: `1px solid ${on ? T.red : T.border}`, color: T.text, fontSize: 13,
+            }}>
+              <input type="checkbox" checked={on} onChange={() => onToggle(w.id)} style={{ width: 14, height: 14, accentColor: 'var(--red)' }} />
+              {w.label}
+            </label>
+          );
+        })}
+      </div>
     </div>
   );
 }
