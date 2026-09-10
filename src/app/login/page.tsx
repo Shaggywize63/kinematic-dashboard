@@ -181,7 +181,7 @@ export default function LoginPage() {
             <div style={{ fontFamily: T.mono, fontSize: 10.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: PANE.dim, marginBottom: 12 }}>
               Field force · CRM · Distribution
             </div>
-            <h1 style={{ margin: 0, fontFamily: T.heading, fontSize: narrow ? 26 : 36, fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.12, textWrap: 'balance' as any }}>
+            <h1 style={{ margin: 0, color: '#FFFFFF', fontFamily: T.heading, fontSize: narrow ? 26 : 36, fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.12, textWrap: 'balance' as any }}>
               Motion Made <span style={{ color: PANE.red }}>Measurable</span>.
             </h1>
             {!narrow && (
