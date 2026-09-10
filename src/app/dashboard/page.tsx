@@ -9,6 +9,7 @@ import { getStoredIndustryScope } from '../../context/IndustryScopeContext';
 import { useClient } from '../../context/ClientContext';
 import { usePageTitle } from '../../lib/pageTitle';
 import { Button, Card, Eyebrow, Input, PageHeader, Segmented, T, useIsCompact } from '../../components/ui';
+import KiniMascot from '../../components/crm/KiniMascot';
 
 /* ── types ─────────────────────────────────────────────────── */
 interface AttSummary {
@@ -424,7 +425,14 @@ export default function DashboardPage() {
       <div style={{ display:'flex', flexDirection:'column', gap:20, animation:'km-fadein .3s ease' }}>
         <PageHeader
           eyebrow="Operational overview"
-          title={`Hello, ${userName}`}
+          title={
+            <span style={{ display:'inline-flex', alignItems:'center', gap:12 }}>
+              <span aria-hidden style={{ display:'inline-flex', alignItems:'center', justifyContent:'center', width:46, height:46, borderRadius:14, background:'var(--s3)', border:`1px solid ${T.border}`, flexShrink:0 }}>
+                <KiniMascot size={34} />
+              </span>
+              Hello, {userName}
+            </span>
+          }
           description={<>Field-force activity for <span style={{ fontFamily:T.mono, fontSize:12.5 }}>{from}</span> → <span style={{ fontFamily:T.mono, fontSize:12.5 }}>{to}</span>{lastSync ? <> · synced <span style={{ fontFamily:T.mono, fontSize:12.5 }}>{lastSync}</span></> : null}</>}
           actions={
             <>
