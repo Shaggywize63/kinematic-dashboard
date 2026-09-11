@@ -20,6 +20,14 @@ export const TATA_TISCON_CLIENT_ID = 'a1f67468-526e-4734-be3a-2cb132cc2804';
  * lead-report CSV export) but keeps its own navigation. */
 export const BMW_CLIENT_ID = '2ee5e03a-3a56-41c9-aaa0-16468920f871';
 
+/** PASA — the third steel-dealer tenant, onboarded to match SRS's behaviour
+ * set (tonne/kg deal pricing, product-basket at convert, the deals Volume
+ * column + Total Volume tile, the SRS lead report). The backend recognises
+ * PASA via the data-driven `steel_dealer_deal_amount` client flag; the
+ * dashboard has no flag lookup, so PASA is listed in STEEL_DEALER_CLIENT_IDS
+ * below so every steel-dealer web surface turns on for it too. */
+export const PASA_CLIENT_ID = '1fcda02a-8af6-4019-bef9-2a9dfacae4a3';
+
 /** The parent Kinematic tenant. Used to trim CRM surfaces Kinematic
  * doesn't use (Pipeline, Products, People Directory, leads-on-map). */
 export const KINEMATIC_CLIENT_ID = '7ecd47d7-9268-4ea2-a8ce-384978c13667';
@@ -33,11 +41,12 @@ export const KINEMATIC_CLIENT_ID = '7ecd47d7-9268-4ea2-a8ce-384978c13667';
 export const KINEMATIC_ORG_ID = '11111111-1111-4111-8111-111111111111';
 
 /** Tenants that run the steel-dealer feature set (weight-based deal
- * pricing, product-basket capture at convert, SRS lead report). Tata
- * Tiscon was the original; BMW is folded in as the second one. Gate
- * every steel-dealer-specific surface on membership in this set rather
- * than a bare `=== TATA_TISCON_CLIENT_ID` so both tenants stay in sync. */
-const STEEL_DEALER_CLIENT_IDS = [TATA_TISCON_CLIENT_ID, BMW_CLIENT_ID];
+ * pricing, product-basket capture at convert, the deals Volume column +
+ * Total Volume summary, the SRS lead report). Tata Tiscon was the original;
+ * BMW and then PASA are folded in. Gate every steel-dealer-specific surface
+ * on membership in this set rather than a bare `=== TATA_TISCON_CLIENT_ID`
+ * so all three tenants stay in sync. */
+const STEEL_DEALER_CLIENT_IDS = [TATA_TISCON_CLIENT_ID, BMW_CLIENT_ID, PASA_CLIENT_ID];
 
 type AnyUser = {
   client_id?: string | null;
