@@ -304,7 +304,12 @@ function DealsListPage() {
           </div>
           <div style={{ fontSize: 12.5, color: T.dim, marginTop: 4 }}>{pagination?.total != null && view === 'list' ? `${pagination.total.toLocaleString('en-IN')} deal${pagination.total === 1 ? '' : 's'} in scope` : 'Across every page of the current filter'}</div>
         </Card>
-        {!!(totals && totals.volume_kg > 0) && (
+        {/* Volume (kg / MT) is a steel-dealer concept (weight-priced deals —
+            Tata / SRS, BMW, PASA). It's meaningless for other tenants like
+            Kinematic, so gate the tile on steel-dealer status — the same way
+            as the volume_kg column above. (The backend also sums volume_kg to
+            0 for non-steel tenants, so this is belt-and-suspenders.) */}
+        {isTataTiscanActive(getStoredUser()) && !!(totals && totals.volume_kg > 0) && (
           <Card padding={16}>
             <Eyebrow>Total volume</Eyebrow>
             <div style={{ fontFamily: T.heading, fontSize: 26, fontWeight: 700, letterSpacing: '-0.01em', color: T.text, lineHeight: 1.15, marginTop: 8, fontVariantNumeric: 'tabular-nums' }}>
