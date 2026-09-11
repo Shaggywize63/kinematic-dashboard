@@ -232,6 +232,10 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
       const bizOnB2C = form.is_b2c && (explicitlyShownOnB2C('company') || explicitlyShownOnB2C('title') || explicitlyShownOnB2C('industry'));
       if (!form.is_b2c || bizOnB2C) { Object.assign(body, { company: form.company || null, title: form.title || null, industry: form.industry || null }); }
       if (form.is_b2c) { Object.assign(body, { date_of_birth: form.date_of_birth || null, gender: form.gender || null, address_line1: form.address_line1 || null, city: form.city || null, state: form.state || null, postal_code: form.postal_code || null, country: form.country || null, preferred_contact_method: form.preferred_contact_method || null, marketing_consent: form.marketing_consent, whatsapp_consent: form.whatsapp_consent }); }
+      // City / state / country are editable on B2B leads too (the Location
+      // section above) — persist them when city isn't admin-hidden, so an
+      // inbound Google-Ads / web-form lead can get a real city on triage.
+      if (!form.is_b2c && !fields.isHidden('city')) { Object.assign(body, { city: form.city || null, state: form.state || null, country: form.country || null }); }
       // Tata: backend reads this flag and spawns a fresh site_visit
       // activity tied to the lead. Reset the toggle each save so the
       // rep doesn't accidentally create duplicate visits on next edit.
@@ -367,13 +371,24 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
         )}
 
         {!form.is_b2c ? (
-          (!fields.isHidden('company') || !fields.isHidden('title') || !fields.isHidden('industry')) && (
+          <>
+          {(!fields.isHidden('company') || !fields.isHidden('title') || !fields.isHidden('industry')) && (
             <><SL>Company</SL><Grid>
               {show('company',  <F label={lbl('company',  'Company')}   required={req('company', true)} value={form.company}  onChange={(v) => setForm({ ...form, company:  v })} />)}
               {show('title',    <F label={lbl('title',    'Job Title')} value={form.title}    onChange={(v) => setForm({ ...form, title:    v })} />)}
               {show('industry', <F label={lbl('industry', 'Industry')}  value={form.industry} onChange={(v) => setForm({ ...form, industry: v })} />)}
             </Grid></>
-          )
+          )}
+          {/* Location on a B2B lead too. Inbound leads (Google Ads / web form)
+              land as B2B and often arrive with no city — without this the city
+              could never be set. Gated on the same city override as B2C. */}
+          {!fields.isHidden('city') && (
+            <><SL>Location</SL><Grid>
+              <LocationPicker stateValue={form.state} cityValue={form.city} onChange={({ state, city }) => setForm({ ...form, state, city })} />
+              {show('country', <F label={lbl('country', 'Country')} value={form.country} onChange={(v) => setForm({ ...form, country: v })} />)}
+            </Grid></>
+          )}
+          </>
         ) : (
           <>
           {/* Business Details on a B2C lead — only when an admin explicitly

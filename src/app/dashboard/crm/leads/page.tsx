@@ -6,7 +6,7 @@ import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Download, Loade
 import { crmLeads, crmLeadSources, crmSettings, type Pagination } from '../../../../lib/crmApi';
 import api, { API_BASE_URL } from '../../../../lib/api';
 import { getStoredToken, getStoredUser } from '../../../../lib/auth';
-import { isKinematicTenant } from '../../../../lib/clientFeatures';
+import { isTataTiscon } from '../../../../lib/clientFeatures';
 import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
 import type { Lead, LeadSource } from '../../../../types/crm';
 import LeadsTable, { LEAD_COLUMNS } from '../../../../components/crm/LeadsTable';
@@ -69,12 +69,16 @@ export default function LeadsListPage() {
   const [pagination, setPagination] = useState<Pagination | null>(null);
   // Server-side sort. `recent` (default) keeps the latest-update-first order;
   // every other key maps to a backend column via ?sort=&order=.
-  // Default sort: the Kinematic tenant asked for "Date added (newest)" as the
-  // resting order; every other client keeps the "most recent activity" default.
-  // isKinematicTenant (not isKinematicActive) so the tenant's super-admin —
-  // client_id null, org-level — gets it too, regardless of the client picker.
+  // Default sort: "Date added (newest)" is the resting order for everyone —
+  // a freshly captured lead should surface at the top. Only the steel-dealer
+  // tenants (Tata / BMW) keep the older "most recent activity" default, since
+  // their reps work an aging pipeline rather than a fresh-lead queue.
+  // (Detected via isTataTiscon on the JWT client_id, so it holds whatever the
+  // client picker is set to; the Kinematic super-admin — org-level, client_id
+  // null — falls through to newest-added, which is what the earlier
+  // org-id-based check missed.)
   const [sort, setSort] = useState<{ key: string; order: 'asc' | 'desc' }>(() =>
-    isKinematicTenant(getStoredUser()) ? { key: 'created', order: 'desc' } : { key: 'recent', order: 'desc' },
+    isTataTiscon(getStoredUser()) ? { key: 'recent', order: 'desc' } : { key: 'created', order: 'desc' },
   );
   const view = useViewPrefs('leads');
   const hiddenSet = useMemo(() => new Set(view.prefs.hidden), [view.prefs.hidden]);
