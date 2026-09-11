@@ -792,34 +792,17 @@ class ApiClient {
     return this.get('/api/v1/analytics/activity-feed');
   }
   getLiveLocations(params?: Record<string, string>) {
-    // This method uses a raw fetch (bypasses request()), so the demo mock
-    // intercept must be applied here too — otherwise the demo account hits the
-    // network with a fake token and the live map never gets locations.
-    if (this.getUserEmail() === demo.DEMO_USER_EMAIL) {
-      const m = demo.matchDemoMock<unknown>('/api/v1/analytics/live-locations', 'GET');
-      if (m !== undefined) return Promise.resolve(m);
-    }
-    const base = typeof window !== 'undefined' ? window.location.origin : this.baseUrl;
-    const token = this.getToken();
-    const orgId = this.getOrgId();
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-    if (orgId) headers['X-Org-Id'] = orgId;
-    const imp = getImpersonateUser();
-    if (imp?.id) headers['X-Impersonate-User-Id'] = imp.id;
-    // Raw fetch bypasses request(), so attach the multi-project header manually
-    // — without it a non-default (e.g. Kinematic) session routes to the default
-    // project, its JWT fails to verify there, and the call 401s ("Unauthorized").
-    const project = getStoredProjectKey();
-    if (project && project !== DEFAULT_PROJECT) headers['X-Kinematic-Project'] = project;
+    // Route through request() like every other call, rather than a bespoke raw
+    // fetch. The old raw fetch hit `window.location.origin` (a leftover from the
+    // now-retired dashboard api-proxy) and hand-rolled its headers — so after
+    // the AWS migration it hit the dashboard origin instead of the API base and
+    // dropped X-Client-Id, making Live Trailing fail with "Failed to load live
+    // locations: Unauthorized". request() attaches the correct base, the
+    // Authorization / X-Org-Id / X-Client-Id / X-Kinematic-Project headers and
+    // the 401-refresh, and handles the demo-mock intercept, so all of that is
+    // now consistent. Bypass the GET response cache so positions stay live.
     const qs = this.sanitizeParams(params);
-    return fetch(`${base}/api/v1/analytics/live-locations${qs}`, { headers, cache: 'no-store' })
-      .then(async res => {
-        if (res.status === 401) throw new Error('Unauthorized');
-        const data = await res.json();
-        if (!res.ok) throw new Error(extractApiError(data));
-        return data;
-      });
+    return this.request<any>(`/api/v1/analytics/live-locations${qs}`);
   }
 
   getFieldExecutives(params?: Record<string, string>) {
