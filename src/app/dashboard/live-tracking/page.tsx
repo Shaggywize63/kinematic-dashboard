@@ -27,6 +27,12 @@ interface FELoc {
   lat: number|null; lng: number|null;
   checkin_at?: string; checkout_at?: string;
   last_location_updated_at?: string;
+  // Device location state (see locationOff()): 'on' | 'services_off' | 'denied'
+  // | 'restricted' | 'unknown' | null. When off, lat/lng is the last KNOWN fix,
+  // rendered stale — never live.
+  location_status?: string | null;
+  location_precise?: boolean | null;
+  location_status_updated_at?: string | null;
   total_hours?: number; address?: string;
   today_engagements?: number; today_tff?: number;
   battery_percentage?: number;
@@ -61,6 +67,34 @@ const STATUS_COLOR: Record<string, string> = {
   checked_out: C.blue,
   absent:      C.grayd,
 };
+
+/* ── Location-off helper ──
+ * The device reports its permission/services state to the backend (there is no
+ * way to read GPS when it's turned off, and we don't try). We flag ONLY the
+ * explicit off states; 'on' and an unknown/null status (older app builds that
+ * don't report yet) are left un-flagged to avoid false alarms. When off, the
+ * rep's lat/lng is the LAST KNOWN fix and must be shown as stale, never live. */
+const LOC_OFF_LABEL: Record<string, string> = {
+  services_off: 'Location off',
+  denied:       'Location denied',
+  restricted:   'Location blocked',
+};
+function shortSince(ts?: string | null): string {
+  if (!ts) return '';
+  const mins = Math.round((Date.now() - new Date(ts).getTime()) / 60000);
+  if (!isFinite(mins) || mins < 0) return '';
+  if (mins < 60) return `${mins}m`;
+  const h = Math.floor(mins / 60);
+  if (h < 24) return `${h}h`;
+  return `${Math.floor(h / 24)}d`;
+}
+/** Off-state + human label for a rep, or null when location is on/unknown. */
+function locationOff(fe: { location_status?: string | null; location_status_updated_at?: string | null }):
+  { label: string; since: string } | null {
+  const s = fe.location_status;
+  if (!s || !(s in LOC_OFF_LABEL)) return null;
+  return { label: LOC_OFF_LABEL[s], since: shortSince(fe.location_status_updated_at) };
+}
 
 /* ── Google Maps loader ──
  * Same Dynamic Library Import bootstrap used by googleGeocode.ts /
@@ -237,8 +271,8 @@ function LiveMap({
       markers.current.push(m);
     };
 
-    const circleIcon = (fill: string, scale: number, stroke: string, weight: number) => ({
-      path: g.maps.SymbolPath.CIRCLE, fillColor: fill, fillOpacity: 1,
+    const circleIcon = (fill: string, scale: number, stroke: string, weight: number, opacity = 1) => ({
+      path: g.maps.SymbolPath.CIRCLE, fillColor: fill, fillOpacity: opacity,
       strokeColor: stroke, strokeWeight: weight, scale,
     });
 
@@ -246,9 +280,14 @@ function LiveMap({
       fes.filter(fe => fe.lat && fe.lng).forEach(fe => {
         const c = STATUS_COLOR[fe.status] || '#94a3b8';
         const sel = selectedId === fe.id;
-        const icon = circleIcon(c, sel ? 13 : 11, sel ? '#ffffff' : '#1b1b1b', sel ? 3 : 2);
-        const label = { text: fe.name?.[0] || '?', color: '#000', fontSize: '12px', fontWeight: '800' };
-        const popup = popupHtml(fe.name, fe.role, c, fe.status, fe.zone_name, fe.checkin_at, fe.today_engagements, fe.today_tff, fe.battery_percentage, fe.last_location_updated_at, fe.device_model, fe.os_version);
+        const off = locationOff(fe);
+        // Location off → the fix is stale (last known). Draw it hollow + faded,
+        // grey stroke, so it never reads as a live position.
+        const icon = off
+          ? circleIcon(C.grayd, sel ? 12 : 10, sel ? '#ffffff' : C.grayd, sel ? 3 : 2, 0.35)
+          : circleIcon(c, sel ? 13 : 11, sel ? '#ffffff' : '#1b1b1b', sel ? 3 : 2);
+        const label = { text: fe.name?.[0] || '?', color: off ? C.grayd : '#000', fontSize: '12px', fontWeight: '800' };
+        const popup = popupHtml(fe.name, fe.role, c, fe.status, fe.zone_name, fe.checkin_at, fe.today_engagements, fe.today_tff, fe.battery_percentage, fe.last_location_updated_at, fe.device_model, fe.os_version, off);
         addMarker(fe.lat!, fe.lng!, icon, label, popup, fe.id, 'fe', sel ? 60 : 30);
       });
     }
@@ -256,9 +295,12 @@ function LiveMap({
     if (activeLayers.has('supervisor')) {
       supervisors.filter(s => s.lat && s.lng).forEach(sup => {
         const c = STATUS_COLOR[sup.status] || C.grayd;
-        const icon = circleIcon(C.blue, 12, '#1b1b1b', 2);
-        const label = { text: sup.name?.[0] || '?', color: '#fff', fontSize: '12px', fontWeight: '800' };
-        const popup = popupHtml(sup.name, 'Supervisor', c, sup.status, sup.zone_name, sup.checkin_at, undefined, undefined, sup.battery_percentage, sup.last_location_updated_at, sup.device_model, sup.os_version);
+        const supOff = locationOff(sup);
+        const icon = supOff
+          ? circleIcon(C.grayd, 11, C.grayd, 2, 0.35)
+          : circleIcon(C.blue, 12, '#1b1b1b', 2);
+        const label = { text: sup.name?.[0] || '?', color: supOff ? C.grayd : '#fff', fontSize: '12px', fontWeight: '800' };
+        const popup = popupHtml(sup.name, 'Supervisor', c, sup.status, sup.zone_name, sup.checkin_at, undefined, undefined, sup.battery_percentage, sup.last_location_updated_at, sup.device_model, sup.os_version, supOff);
         addMarker(sup.lat!, sup.lng!, icon, label, popup, sup.id, 'supervisor', 25);
       });
     }
@@ -325,16 +367,18 @@ function LiveMap({
 
   }, [mapLoaded, fes, supervisors, outlets, warehouses, activeLayers, selectedId, onSelect, trail, trailColor, trailPoints]);
 
-  const popupHtml = (name:string, role:string, color:string, status:string, zone?:string, checkinAt?:string, engagements?:number, tff?:number, battery?:number, lastSeen?:string, device?:string, os?:string) => {
+  const popupHtml = (name:string, role:string, color:string, status:string, zone?:string, checkinAt?:string, engagements?:number, tff?:number, battery?:number, lastSeen?:string, device?:string, os?:string, off?:{label:string;since:string}|null) => {
     const diff = lastSeen ? Math.round((new Date().getTime() - new Date(lastSeen).getTime()) / 60000) : null;
-    const isStale = diff != null && diff > 10;
+    const isStale = off != null || (diff != null && diff > 10);
 
     return `<div style="font-family:DM Sans,sans-serif;font-size:12px;color:var(--text);background:var(--s1);padding:10px 12px;border-radius:12px;min-width:180px;border:1px solid ${isStale?C.red+'30':C.border}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start">
         <div style="font-weight:700;margin-bottom:2px;color:${isStale?C.gray:C.white}">${name}</div>
-        ${diff != null ? `<div style="font-size:10px;font-weight:600;color:${isStale?C.red:C.green}">${diff === 0 ? 'Live Now' : `${diff}m ago`}</div>` : ''}
+        ${off ? `<div style="font-size:10px;font-weight:700;color:${C.grayd}">Last known</div>`
+              : (diff != null ? `<div style="font-size:10px;font-weight:600;color:${isStale?C.red:C.green}">${diff === 0 ? 'Live Now' : `${diff}m ago`}</div>` : '')}
       </div>
       <div style="color:var(--text-dim);font-size:11px;margin-bottom:8px">${role}${zone?` · ${zone}`:''}</div>
+      ${off ? `<div style="display:flex;align-items:center;gap:5px;font-size:10px;font-weight:700;color:${C.red};background:${C.red}1a;border:1px solid ${C.red}44;border-radius:6px;padding:3px 7px;margin-bottom:6px">📍✕ ${off.label}${off.since ? ` · since ${off.since} ago` : ''}</div>` : ''}
       ${(device || os) ? `<div style="color:var(--text-dim);font-size:10px;margin-bottom:6px;display:flex;align-items:center;gap:4px">📱 ${device || 'Device'}${os ? ` · Android ${os}` : ''}</div>` : ''}
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;gap:8px">
         <div style="display:inline-flex;padding:2px 8px;border-radius:20px;background:${color}20;color:${color};font-size:10px;font-weight:700;text-transform:capitalize">${status.replace('_',' ')}</div>
@@ -717,6 +761,13 @@ export default function LiveTrackingPage() {
                       <div style={{ flex:1, minWidth:0 }}>
                         <div style={{ display:'flex', alignItems:'center', gap:6 }}>
                           <div style={{ fontSize:13, fontWeight:700, color:C.white, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{fe.name}</div>
+                          {(() => { const o = locationOff(fe); return o ? (
+                            <span title={`${o.label}${o.since ? ` since ${o.since} ago` : ''} — the pin shows the last known fix, not a live position`}
+                              style={{ flexShrink:0, fontSize:9, fontWeight:800, letterSpacing:'0.4px', textTransform:'uppercase',
+                                color:C.red, background:`${C.red}1f`, border:`1px solid ${C.red}55`, borderRadius:5, padding:'1px 5px' }}>
+                              📍✕ {o.label}
+                            </span>
+                          ) : null; })()}
                           {(fe.is_mock || fe.is_suspect) && (
                             <span title={fe.suspect_reason || (fe.is_mock ? 'Mock/simulated GPS reported by the device' : 'Impossible-speed jump vs the previous fix')}
                               style={{ flexShrink:0, fontSize:9, fontWeight:800, letterSpacing:'0.4px', textTransform:'uppercase',
@@ -727,11 +778,13 @@ export default function LiveTrackingPage() {
                         </div>
                         <div style={{ fontSize:10, color:C.grayd, marginTop:1 }}>
                           {fe.employee_id||''} {fe.zone_name?`· ${fe.zone_name}`:''}
-                          {fe.last_location_updated_at && (
-                            <span style={{ marginLeft:6, color: (new Date().getTime() - new Date(fe.last_location_updated_at).getTime()) > 600000 ? C.red : C.grayd }}>
-                              • {Math.round((new Date().getTime() - new Date(fe.last_location_updated_at).getTime()) / 60000)}m ago
-                            </span>
-                          )}
+                          {(() => { const o = locationOff(fe); return o
+                            ? <span style={{ marginLeft:6, color:C.red }}>• off{o.since ? ` ${o.since}` : ''}</span>
+                            : (fe.last_location_updated_at && (
+                              <span style={{ marginLeft:6, color: (new Date().getTime() - new Date(fe.last_location_updated_at).getTime()) > 600000 ? C.red : C.grayd }}>
+                                • {Math.round((new Date().getTime() - new Date(fe.last_location_updated_at).getTime()) / 60000)}m ago
+                              </span>
+                            )); })()}
                         </div>
                       </div>
                       <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:3 }}>
@@ -741,7 +794,7 @@ export default function LiveTrackingPage() {
                             {fe.battery_percentage}% 🔋
                           </div>
                         )}
-                        {fe.lat && fe.lng && <span style={{ fontSize:10, color:C.green }}>📍</span>}
+                        {fe.lat && fe.lng && <span style={{ fontSize:10, color: locationOff(fe) ? C.grayd : C.green, opacity: locationOff(fe) ? 0.6 : 1 }} title={locationOff(fe) ? 'Last known location — device location is off' : 'Live location'}>📍</span>}
                       </div>
                     </div>
                   ))}
@@ -768,14 +821,25 @@ export default function LiveTrackingPage() {
                         {(s.name||'?')[0]}
                       </div>
                       <div style={{ flex:1, minWidth:0 }}>
-                        <div style={{ fontSize:13, fontWeight:700, color:C.white }}>{s.name}</div>
+                        <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                          <div style={{ fontSize:13, fontWeight:700, color:C.white, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{s.name}</div>
+                          {(() => { const o = locationOff(s); return o ? (
+                            <span title={`${o.label}${o.since ? ` since ${o.since} ago` : ''} — the pin shows the last known fix, not a live position`}
+                              style={{ flexShrink:0, fontSize:9, fontWeight:800, letterSpacing:'0.4px', textTransform:'uppercase',
+                                color:C.red, background:`${C.red}1f`, border:`1px solid ${C.red}55`, borderRadius:5, padding:'1px 5px' }}>
+                              📍✕ {o.label}
+                            </span>
+                          ) : null; })()}
+                        </div>
                         <div style={{ fontSize:10, color:C.grayd, marginTop:1 }}>
                           {s.zone_name||'No zone'}
-                          {s.last_location_updated_at && (
-                            <span style={{ marginLeft:6, color: (new Date().getTime() - new Date(s.last_location_updated_at).getTime()) > 600000 ? C.red : C.grayd }}>
-                              • {Math.round((new Date().getTime() - new Date(s.last_location_updated_at).getTime()) / 60000)}m ago
-                            </span>
-                          )}
+                          {(() => { const o = locationOff(s); return o
+                            ? <span style={{ marginLeft:6, color:C.red }}>• off{o.since ? ` ${o.since}` : ''}</span>
+                            : (s.last_location_updated_at && (
+                              <span style={{ marginLeft:6, color: (new Date().getTime() - new Date(s.last_location_updated_at).getTime()) > 600000 ? C.red : C.grayd }}>
+                                • {Math.round((new Date().getTime() - new Date(s.last_location_updated_at).getTime()) / 60000)}m ago
+                              </span>
+                            )); })()}
                         </div>
                       </div>
                       <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:3 }}>
@@ -785,7 +849,7 @@ export default function LiveTrackingPage() {
                             {s.battery_percentage}% 🔋
                           </div>
                         )}
-                        {s.lat && s.lng && <span style={{ fontSize:10, color:C.green }}>📍</span>}
+                        {s.lat && s.lng && <span style={{ fontSize:10, color: locationOff(s) ? C.grayd : C.green, opacity: locationOff(s) ? 0.6 : 1 }} title={locationOff(s) ? 'Last known location — device location is off' : 'Live location'}>📍</span>}
                       </div>
                     </div>
                   ))}
