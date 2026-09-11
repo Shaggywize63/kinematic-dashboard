@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { api } from '../../../lib/api';
+import { userHasModule, getStoredUser } from '../../../lib/auth';
 
 // Leaflet-based map of a single plan's stops; client-only (ssr:false).
 const RoutePlanMap = dynamic(() => import('../../../components/route-plan/RoutePlanMap'), { ssr: false });
@@ -260,6 +261,11 @@ function RoutePlanContent() {
   });
   const [optimizeMsg, setOptimizeMsg] = useState<string | null>(null);
   const [optimizing, setOptimizing]   = useState(false);
+  // Supervisor auto-plan (optimise a saved FE plan from that rep's location).
+  // Gated on the route_optimization module — matches the backend route gate.
+  const canAutoPlan = userHasModule(getStoredUser(), 'route_optimization');
+  const [autoPlanId, setAutoPlanId]   = useState<string | null>(null);
+  const [autoPlanMsg, setAutoPlanMsg] = useState<{ id: string; text: string; ok: boolean } | null>(null);
 
   // ESG summary state (carbon KPIs for the date range)
   const [esgSummary, setEsgSummary] = useState<EsgSummary | null>(null);
@@ -387,6 +393,28 @@ function RoutePlanContent() {
     vehicle_type: '2w_petrol',
     outlets: [{ store_id: '', target_type: 'general', target_notes: '', target_value: '', visit_order: 1, planned_duration_min: '' }],
   });
+
+  /* ── AUTO-PLAN A SAVED FE PLAN ───────────────────────────── */
+  // Supervisor one-click: optimise this FE's stored plan from their current
+  // location (priority-weighted), persist the new order, refresh the card.
+  const handleAutoPlan = async (plan: RoutePlan) => {
+    setAutoPlanId(plan.id);
+    setAutoPlanMsg(null);
+    try {
+      const r: any = await api.post('/api/v1/route-plans/auto-plan', { user_id: plan.user_id, date: plan.plan_date });
+      const res = r?.data ?? r ?? {};
+      const saved = Number(res.total_saved_km ?? 0);
+      const src = res.start_source === 'live_location' ? 'from their live location'
+        : res.start_source === 'base_location' ? 'from their base'
+        : 'from the first stop';
+      setAutoPlanMsg({ id: plan.id, ok: true, text: saved > 0 ? `Optimised ${src} — saved ${saved.toFixed(2)} km` : `Optimised ${src} — already near-optimal` });
+      await fetchData();
+    } catch (e: any) {
+      setAutoPlanMsg({ id: plan.id, ok: false, text: e?.message || 'Auto-plan failed' });
+    } finally {
+      setAutoPlanId(null);
+    }
+  };
 
   /* ── OPTIMIZE ROUTE ──────────────────────────────────────── */
   const handleOptimize = async () => {
@@ -829,6 +857,14 @@ function RoutePlanContent() {
 
                   {/* Actions */}
                   <div style={{ display: 'flex', gap: 7, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+                    {canAutoPlan && plan.outlets.length > 1 && (
+                      <button onClick={() => handleAutoPlan(plan)} disabled={autoPlanId === plan.id}
+                        style={{ background: C.blueD, border: `1px solid ${C.blueB}`, borderRadius: 8, padding: '6px 10px', color: C.blue, cursor: autoPlanId === plan.id ? 'default' : 'pointer', opacity: autoPlanId === plan.id ? 0.6 : 1, display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700 }}
+                        title="Auto-plan: optimise this FE's route from their current location, priority-weighted">
+                        <Icon d={IC.refresh} s={13} c={C.blue} />
+                        {autoPlanId === plan.id ? 'Optimising…' : 'Auto-plan'}
+                      </button>
+                    )}
                     <button onClick={() => handleDelete(plan.id, plan.fe_name)}
                       style={{ background: C.redD, border: `1px solid ${C.redB}`, borderRadius: 8, padding: '6px 9px', color: C.red, cursor: 'pointer', display: 'flex', alignItems: 'center' }}
                       title="Delete plan">
@@ -841,6 +877,13 @@ function RoutePlanContent() {
                     <Icon d={IC.chevron} s={16} c={C.grayd} />
                   </div>
                 </div>
+
+                {/* Auto-plan result banner */}
+                {autoPlanMsg?.id === plan.id && (
+                  <div onClick={e => e.stopPropagation()} style={{ margin: '0 20px 12px', fontSize: 12, color: autoPlanMsg.ok ? C.green : C.yellow, background: C.s3, border: `1px solid ${C.border}`, borderRadius: 8, padding: '8px 12px' }}>
+                    {autoPlanMsg.text}
+                  </div>
+                )}
 
                 {/* ── Expanded outlets ── */}
                 {isExpanded && (
