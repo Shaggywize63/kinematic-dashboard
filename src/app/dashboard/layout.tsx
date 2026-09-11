@@ -500,6 +500,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       { href: '/dashboard/other-management/activities',  label: 'Activity Management', icon: 'activity', module: 'activities' },
       { href: '/dashboard/form-builder',                 label: 'Form Builder',        icon: 'clipboard', module: 'form_builder' },
       { href: '/dashboard/route-plan',                   label: 'Route Plan',          icon: 'route', module: 'orders' },
+      { href: '/dashboard/route-priorities',             label: 'Outlet Priorities',   icon: 'listChecks', module: 'route_optimization' },
+      { href: '/dashboard/route-deviations',             label: 'Route Deviations',    icon: 'mapPinned', module: 'route_deviation' },
       { href: '/dashboard/beat-productivity',            label: 'Beat Productivity',   icon: 'trending', module: 'beat_productivity' },
       { href: '/dashboard/work-activities',              label: 'Work Activities',     icon: 'listChecks', module: 'work_activities' },
       // FFM Reports hub — parity with the Lead Management Reports entry
