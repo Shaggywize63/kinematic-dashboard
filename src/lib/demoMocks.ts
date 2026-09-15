@@ -1822,9 +1822,40 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
     if (path === '/broadcast/admin') return mockBroadcastAdmin() as unknown as T;
     if (path === '/route-plans/summary')     return wrap(ROUTE_PLAN_SUMMARY) as unknown as T;
     if (path === '/route-plans/esg-summary') return wrap(ROUTE_PLAN_ESG) as unknown as T;
+    // Route Deviations (module route_deviation). Previously unmocked, so the
+    // path fell into the plan-by-id matcher below and came back as ONE PLAN
+    // OBJECT — the page then called .map on it and crashed the whole route
+    // ("Application error"). Serve a proper array of off-route check-ins.
+    if (path === '/route-plans/deviations') {
+      const dDate = query.get('date') || new Date().toISOString().slice(0, 10);
+      const at = (h: number, mi: number) => `${dDate}T${String(h).padStart(2, '0')}:${String(mi).padStart(2, '0')}:00+05:30`;
+      return list([
+        { outlet_id: 'demo-dev-1', rep_id: 'demo-fe-1', rep_name: 'Arjun Sharma',  plan_date: dDate, territory_label: 'Bangalore North Beat (Demo)', store_name: 'Star Market - HSR Layout',        store_lat: 12.9116, store_lng: 77.6389, checkin_at: at(10, 12), checkin_lat: 12.9051, checkin_lng: 77.6527, distance_m: 1240, geofence_radius_m: 100, status: 'visited', alerted_at: at(10, 13) },
+        { outlet_id: 'demo-dev-2', rep_id: 'demo-fe-2', rep_name: 'Priya Patel',   plan_date: dDate, territory_label: 'Bangalore North Beat 2',      store_name: 'Big Bazaar - Indiranagar',        store_lat: 12.9784, store_lng: 77.6408, checkin_at: at(11, 35), checkin_lat: 12.9812, checkin_lng: 77.6455, distance_m: 620,  geofence_radius_m: 150, status: 'visited', alerted_at: null },
+        { outlet_id: 'demo-dev-3', rep_id: 'demo-fe-3', rep_name: 'Rahul Verma',   plan_date: dDate, territory_label: 'Delhi Central Beat 1',        store_name: 'Maharaja Bazaar - Delhi 2',       store_lat: 28.6139, store_lng: 77.2090, checkin_at: at(12, 4),  checkin_lat: 28.6362, checkin_lng: 77.2210, distance_m: 2680, geofence_radius_m: 100, status: 'visited', alerted_at: at(12, 6) },
+        { outlet_id: 'demo-dev-4', rep_id: 'demo-fe-5', rep_name: 'Amit Singh',    plan_date: dDate, territory_label: 'Hyderabad East Beat 3',       store_name: 'Sai Provisions - Hyderabad 1',    store_lat: 17.3850, store_lng: 78.4867, checkin_at: at(15, 48), checkin_lat: 17.3892, checkin_lng: 78.4920, distance_m: 340,  geofence_radius_m: 100, status: 'visited', alerted_at: null },
+        { outlet_id: 'demo-dev-5', rep_id: 'demo-fe-6', rep_name: 'Karthik Pillai', plan_date: dDate, territory_label: 'Pune Central Beat 2',        store_name: 'Vinayak Traders - Pune 3',        store_lat: 18.5204, store_lng: 73.8567, checkin_at: at(16, 21), checkin_lat: 18.5304, checkin_lng: 73.8660, distance_m: 980,  geofence_radius_m: 200, status: 'visited', alerted_at: null },
+      ]) as unknown as T;
+    }
+    // Outlet Priorities editor reads cadence/priority per store. Also
+    // previously swallowed by the plan-by-id matcher (object instead of list).
+    if (path === '/route-plans/outlet-frequency') {
+      const sList = ((mockStores() as { data?: Array<{ id: string }> })?.data ?? []);
+      const freqs = ['weekly', 'bi_weekly', 'monthly', 'daily'];
+      const prios = ['high', 'normal', 'low'];
+      return list(sList.slice(0, 12).map((s, i) => ({
+        store_id: s.id, frequency: freqs[i % freqs.length], priority: prios[i % prios.length],
+        last_visited_at: i % 3 === 0 ? null : new Date(Date.now() - (i + 3) * 86400000).toISOString(),
+        is_active: true,
+      }))) as unknown as T;
+    }
     {
       const planById = path.match(/^\/route-plans\/([^/]+)$/);
-      if (planById && !['summary', 'esg-summary'].includes(planById[1])) {
+      // Only real plan-detail fetches belong here — every known static
+      // sub-route must be excluded or it comes back as a single plan object
+      // and crashes list pages (.map is not a function → "Application error").
+      const NOT_PLAN_IDS = ['summary', 'esg-summary', 'deviations', 'outlet-frequency', 'imports', 'me', 'my-plan', 'optimize', 'auto-plan', 'auto-generate', 'bulk-import'];
+      if (planById && !NOT_PLAN_IDS.includes(planById[1])) {
         return wrap(ACTIVE_ROUTE_PLANS.find(p => p.id === planById[1]) || ACTIVE_ROUTE_PLANS[0]) as unknown as T;
       }
     }
@@ -2069,6 +2100,63 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
         business_name: 'Demo Distributor', trade_name: 'Demo Distributor',
         status: 'Active', source: 'demo',
       }) as unknown as T;
+    }
+    // Outlet Priorities save — canned OK so the demo editor "saves".
+    if (m === 'POST' && path === '/route-plans/outlet-frequency') {
+      return wrap({ ok: true, demo: true }) as unknown as T;
+    }
+    // Auto Plan (generate + assign from cadence/priority). Must be mocked for
+    // the demo account: the FE picker lists demo ids like 'demo-fe-1', which
+    // the REAL /auto-generate endpoint rejects (not UUIDs) — so without this
+    // mock every preview/assign errored. dry_run returns the live preview
+    // draft; assign also inserts the plan into the mocked route-plan list so
+    // the new card is actually visible for the rest of the session.
+    if (m === 'POST' && path === '/route-plans/auto-generate') {
+      const uid = String(bodyObj.user_id || 'demo-fe-1');
+      const planDate = String(bodyObj.plan_date || new Date().toISOString().slice(0, 10));
+      const TEMPLATE = [
+        { store_id: 'demo-perm-st1', store_name: 'Reliance Fresh - Koramangala',   store_code: 'STR-30001', reason: 'overdue',       priority: 'high',   frequency: 'weekly',    overdue_days: 4,    never_visited: false, lat: 12.9352, lng: 77.6245 },
+        { store_id: 'demo-perm-st3', store_name: 'Star Market - HSR Layout',       store_code: 'STR-30003', reason: 'overdue',       priority: 'normal', frequency: 'bi_weekly', overdue_days: null, never_visited: true,  lat: 12.9116, lng: 77.6389 },
+        { store_id: 'demo-perm-st2', store_name: 'Big Bazaar - Indiranagar',       store_code: 'STR-30002', reason: 'high_priority', priority: 'high',   frequency: 'monthly',   overdue_days: null, never_visited: false, lat: 12.9784, lng: 77.6408 },
+        { store_id: 'demo-perm-st5', store_name: "Spencer's - MG Road",            store_code: 'STR-30005', reason: 'overdue',       priority: 'normal', frequency: 'weekly',    overdue_days: 2,    never_visited: false, lat: 12.9757, lng: 77.6050 },
+        { store_id: 'demo-perm-st4', store_name: 'Metro Cash & Carry - Whitefield', store_code: 'STR-30004', reason: 'high_priority', priority: 'high',  frequency: 'monthly',   overdue_days: null, never_visited: false, lat: 12.9698, lng: 77.7500 },
+      ];
+      const maxN = Math.max(1, Math.min(Number(bodyObj.max_outlets) || 15, TEMPLATE.length));
+      const stops = TEMPLATE.slice(0, maxN).map((s, i) => ({ ...s, visit_order: i + 1 }));
+      const totalKm = +(stops.length * 3.4).toFixed(1);
+      const draft = {
+        user_id: uid, plan_date: planDate,
+        vehicle_type: String(bodyObj.vehicle_type || '2w_petrol'),
+        stops, total_km: totalKm, est_co2_kg: +(totalKm * 0.072).toFixed(2),
+        start_source: 'live_location', start: { lat: 12.9352, lng: 77.6245 },
+        considered: 12, skipped_already_planned: 0, skipped_no_geo: 0,
+        existing_plan_ids: [] as string[],
+      };
+      if (bodyObj.dry_run === true) return wrap(draft) as unknown as T;
+      const users = ((mockUsers() as { data?: Array<Record<string, unknown>> })?.data ?? []);
+      const fe = users.find((u) => u.id === uid) as Record<string, unknown> | undefined;
+      const newPlan = {
+        id: `demo-plan-auto-${Date.now()}`,
+        user_id: uid, plan_date: planDate,
+        total_outlets: stops.length, visited_outlets: 0, missed_outlets: 0, completion_pct: 0,
+        status: 'pending', notes: 'Auto-generated from outlet cadence & priority',
+        frequency: 'daily', territory_label: 'Auto Plan (Demo)',
+        fe_name: String(fe?.name ?? 'Arjun Sharma'),
+        fe_employee_id: String(fe?.employee_id ?? 'FE-1042'),
+        fe_mobile: String(fe?.mobile ?? '+91 98201 11111'),
+        zone_name: String((fe as { zone?: string } | undefined)?.zone ?? 'Bangalore North'),
+        city_name: String((fe as { city?: string } | undefined)?.city ?? 'Bengaluru'),
+        vehicle_type: draft.vehicle_type,
+        co2_kg_planned: draft.est_co2_kg, co2_kg_actual: 0,
+        outlets: stops.map((s) => ({
+          id: `demo-auto-stop-${s.visit_order}`, visit_order: s.visit_order,
+          target_type: 'general', status: 'pending', planned_duration_min: 25,
+          store_id: s.store_id, store_name: s.store_name, store_code: s.store_code,
+          store_lat: s.lat, store_lng: s.lng, zone_name: 'Bangalore North',
+        })),
+      };
+      (ACTIVE_ROUTE_PLANS as unknown as Array<Record<string, unknown>>).unshift(newPlan);
+      return wrap({ plan_id: newPlan.id, replaced: 0, ...draft }) as unknown as T;
     }
     if (m === 'POST' && path === '/route-plans/optimize') {
       const outlets = ((bodyObj as { outlets?: Array<{ id: string }> }).outlets) ?? [];
