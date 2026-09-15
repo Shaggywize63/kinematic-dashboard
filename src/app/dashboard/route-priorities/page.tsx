@@ -18,8 +18,11 @@ const C = {
   sec: 'var(--textSec)', tert: 'var(--textTert)', border: 'var(--border)',
   green: '#00D97E', red: '#E01E2C',
 };
-const FREQS = ['', 'daily', 'weekly', 'fortnightly', 'monthly', 'quarterly'];
-const PRIOS = ['', 'high', 'medium', 'low'];
+// Must match the DB CHECK on outlet_visit_frequency (frequency:
+// daily|weekly|bi_weekly|monthly, priority: high|normal|low). Offering
+// fortnightly/quarterly/medium made every save 400 with a check-constraint error.
+const FREQS = ['', 'daily', 'weekly', 'bi_weekly', 'monthly'];
+const PRIOS = ['', 'high', 'normal', 'low'];
 const selStyle: React.CSSProperties = { background: C.s3, border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 8px', color: C.text, fontSize: 13, textTransform: 'capitalize' };
 
 export default function OutletPrioritiesPage() {
