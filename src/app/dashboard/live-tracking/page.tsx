@@ -329,7 +329,7 @@ function LiveMap({
     trailLines.current.forEach(l => l.setMap(null)); trailLines.current = [];
     trailDots.current.forEach(d => d.setMap(null)); trailDots.current = [];
     if (trailPoints && trailPoints.length > 1) {
-      const colour = trailColor || '#63B3ED';
+      const colour = trailColor || '#E01E2C';
       const path = trailPoints.map(([lat, lng]) => ({ lat, lng }));
       const glow = new g.maps.Polyline({ path, strokeColor: colour, strokeOpacity: 0.18, strokeWeight: 8, map, zIndex: 5 });
       const main = new g.maps.Polyline({ path, strokeColor: colour, strokeOpacity: 0.95, strokeWeight: 4, map, zIndex: 6 });
@@ -934,7 +934,7 @@ export default function LiveTrackingPage() {
                 onSelect={(id, type) => { setSelectedId(id); setSelectedType(type); }}
                 mapLoaded={mapLoaded}
                 trail={selectedType === 'fe' ? selectedTrail : undefined}
-                trailColor={selFE ? (STATUS_COLOR[selFE.status] || '#63B3ED') : '#63B3ED'}
+                trailColor={'#E01E2C'}
               />
 
               {selectedType === 'fe' && selectedId && (
