@@ -68,6 +68,7 @@ const IC = {
   phone:    'M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z',
   info:     'M12 22a10 10 0 100-20 10 10 0 000 20z|M12 8h.01|M11 12h1v4h1',
   file:     'M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z|M14 2v6h6|M16 13H8|M16 17H8|M10 9H8',
+  spark:    'M12 3l1.9 4.6 4.6 1.9-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9z|M19 14l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z',
 };
 
 /* ── TYPES ─────────────────────────────────────────────────── */
@@ -129,6 +130,21 @@ interface Activity { id: string; name: string; }
 interface NewOutlet {
   store_id: string; target_type: string; target_notes: string;
   target_value: string; visit_order: number; planned_duration_min: string;
+}
+
+// Draft returned by POST /route-plans/auto-generate (dry_run) — the outlets
+// that are DUE (overdue vs cadence / high priority), already sequenced.
+interface AutoPlanStop {
+  store_id: string; store_name: string; store_code?: string | null;
+  visit_order: number; reason: 'overdue' | 'high_priority';
+  priority?: string | null; frequency?: string | null;
+  overdue_days?: number | null; never_visited?: boolean;
+}
+interface AutoPlanDraft {
+  stops: AutoPlanStop[]; total_km: number; est_co2_kg: number;
+  start_source: 'live_location' | 'base_location' | 'first_outlet';
+  considered: number; skipped_already_planned: number; skipped_no_geo: number;
+  existing_plan_ids: string[];
 }
 
 const VEHICLE_OPTIONS: { value: string; label: string }[] = [
@@ -250,8 +266,16 @@ function RoutePlanContent() {
   const [tab, setTab]                   = useState<'plans' | 'mapping'>(initialTab);
 
   // Modal state
-  const [modal, setModal]   = useState<'create' | 'import' | null>(null);
+  const [modal, setModal]   = useState<'create' | 'import' | 'auto' | null>(null);
   const [creating, setCreating] = useState(false);
+
+  // Auto-generate: design a new plan from outlet cadence + priority. The
+  // preview (dry_run) auto-refreshes as the inputs change; Assign persists it.
+  const [autoForm, setAutoForm] = useState({ user_id: '', plan_date: todayStr, max_outlets: 15, vehicle_type: '2w_petrol', replace: false });
+  const [autoPreview, setAutoPreview]   = useState<AutoPlanDraft | null>(null);
+  const [autoPrevBusy, setAutoPrevBusy] = useState(false);
+  const [autoAssigning, setAutoAssigning] = useState(false);
+  const [autoErr, setAutoErr] = useState<string | null>(null);
 
   // Form state for create
   const [form, setForm] = useState({
@@ -413,6 +437,51 @@ function RoutePlanContent() {
       setAutoPlanMsg({ id: plan.id, ok: false, text: e?.message || 'Auto-plan failed' });
     } finally {
       setAutoPlanId(null);
+    }
+  };
+
+  /* ── AUTO-GENERATE A NEW PLAN (cadence + priority) ───────── */
+  // Live preview: dry_run the generator (debounced) whenever an input changes,
+  // so the supervisor always sees exactly what "Assign" will create.
+  useEffect(() => {
+    if (modal !== 'auto' || !autoForm.user_id) { setAutoPreview(null); return; }
+    setAutoPrevBusy(true); setAutoErr(null);
+    const t = setTimeout(async () => {
+      try {
+        const r: any = await api.post('/api/v1/route-plans/auto-generate', {
+          user_id: autoForm.user_id, plan_date: autoForm.plan_date,
+          max_outlets: autoForm.max_outlets, vehicle_type: autoForm.vehicle_type,
+          dry_run: true,
+        });
+        setAutoPreview((r?.data ?? r) as AutoPlanDraft);
+      } catch (e: any) {
+        setAutoPreview(null);
+        setAutoErr(e?.message || 'Failed to preview route');
+      } finally {
+        setAutoPrevBusy(false);
+      }
+    }, 350);
+    return () => clearTimeout(t);
+  }, [modal, autoForm.user_id, autoForm.plan_date, autoForm.max_outlets, autoForm.vehicle_type]);
+
+  const handleAutoAssign = async () => {
+    if (!autoForm.user_id || !autoPreview?.stops?.length) return;
+    setAutoAssigning(true); setAutoErr(null);
+    try {
+      await api.post('/api/v1/route-plans/auto-generate', {
+        user_id: autoForm.user_id, plan_date: autoForm.plan_date,
+        max_outlets: autoForm.max_outlets, vehicle_type: autoForm.vehicle_type,
+        replace: autoForm.replace,
+      });
+      setModal(null);
+      setAutoPreview(null);
+      // Jump the page to the plan's day so the new card is immediately visible.
+      if (autoForm.plan_date !== date) setDate(autoForm.plan_date);
+      else fetchData();
+    } catch (e: any) {
+      setAutoErr(e?.message || 'Failed to assign plan');
+    } finally {
+      setAutoAssigning(false);
     }
   };
 
@@ -646,6 +715,12 @@ function RoutePlanContent() {
             style={{ background: C.s3, border: `1px solid ${C.border}`, borderRadius: 10, padding: '9px 14px', color: C.white, fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 7 }}>
             <Icon d={IC.upload} s={15} c={C.blue} /> Bulk Import
           </button>
+          {canAutoPlan && (
+            <button onClick={() => { setAutoForm(f => ({ ...f, plan_date: date, replace: false })); setAutoErr(null); setModal('auto'); }}
+              style={{ background: C.purpleD, border: `1px solid ${C.purple}55`, borderRadius: 10, padding: '9px 14px', color: C.purple, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 7, fontFamily: "'Syne',sans-serif" }}>
+              <Icon d={IC.spark} s={15} c={C.purple} /> Auto Plan
+            </button>
+          )}
           <button onClick={() => { resetForm(); setModal('create'); }}
             style={{ background: C.red, border: 'none', borderRadius: 10, padding: '9px 18px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 7, fontFamily: "'Syne',sans-serif" }}>
             <Icon d={IC.plus} s={15} c="#fff" /> New Plan
@@ -1028,6 +1103,147 @@ function RoutePlanContent() {
       {/* ══════════════════════════════════════════════════════
           CREATE PLAN MODAL
       ══════════════════════════════════════════════════════ */}
+      {modal === 'auto' && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ background: C.s2, border: `1px solid ${C.borderL}`, borderRadius: 20, width: '100%', maxWidth: 620, maxHeight: '92vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+
+            {/* Header */}
+            <div style={{ padding: '20px 24px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <Icon d={IC.spark} s={18} c={C.purple} />
+                <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 18, fontWeight: 800, color: C.white }}>Auto-generate Route Plan</div>
+              </div>
+              <button onClick={() => setModal(null)} style={{ background: C.s3, border: `1px solid ${C.border}`, borderRadius: 9, padding: '6px 10px', cursor: 'pointer', display: 'flex' }}>
+                <Icon d={IC.x} s={16} c={C.gray} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div style={{ padding: '20px 24px', overflowY: 'auto', flex: 1 }}>
+              <p style={{ fontSize: 12.5, color: C.gray, margin: '0 0 16px', lineHeight: 1.5 }}>
+                Picks the outlets that are <strong style={{ color: C.white }}>due</strong> — overdue against their visit cadence or marked high priority in{' '}
+                <a href="/dashboard/route-priorities" style={{ color: C.purple, fontWeight: 600 }}>Outlet Priorities</a> — and sequences them into the
+                shortest route from the FE&apos;s location. Preview updates live; nothing is saved until you assign.
+              </p>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
+                <div>
+                  <div style={{ fontSize: 12, color: C.gray, marginBottom: 7 }}>Field Executive <span style={{ color: C.red }}>*</span></div>
+                  <FESelector users={users} value={autoForm.user_id} onChange={id => setAutoForm(f => ({ ...f, user_id: id, replace: false }))} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 12, color: C.gray, marginBottom: 7 }}>Plan Date</div>
+                  <input type="date" value={autoForm.plan_date} onChange={e => setAutoForm(f => ({ ...f, plan_date: e.target.value, replace: false }))}
+                    style={{ width: '100%', background: C.s3, border: `1px solid ${C.border}`, borderRadius: 9, padding: '10px 13px', color: C.white, fontSize: 13, outline: 'none' }} />
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 16 }}>
+                <div>
+                  <div style={{ fontSize: 12, color: C.gray, marginBottom: 7 }}>Max Stops</div>
+                  <input type="number" min={1} max={50} value={autoForm.max_outlets}
+                    onChange={e => setAutoForm(f => ({ ...f, max_outlets: Math.min(Math.max(parseInt(e.target.value) || 1, 1), 50) }))}
+                    style={{ width: '100%', background: C.s3, border: `1px solid ${C.border}`, borderRadius: 9, padding: '10px 13px', color: C.white, fontSize: 13, outline: 'none' }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 12, color: C.gray, marginBottom: 7 }}>Vehicle</div>
+                  <select value={autoForm.vehicle_type} onChange={e => setAutoForm(f => ({ ...f, vehicle_type: e.target.value }))}
+                    style={{ width: '100%', background: C.s3, border: `1px solid ${C.border}`, borderRadius: 9, padding: '10px 13px', color: C.white, fontSize: 13, outline: 'none' }}>
+                    {VEHICLE_OPTIONS.map(v => <option key={v.value} value={v.value}>{v.label}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              {autoErr && (
+                <div style={{ background: C.redD, border: `1px solid ${C.redB}`, borderRadius: 12, padding: '12px 16px', marginBottom: 14, color: C.red, fontSize: 13, display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <Icon d={IC.alert} s={16} c={C.red} /> {autoErr}
+                </div>
+              )}
+
+              {/* Live preview */}
+              {!autoForm.user_id && (
+                <div style={{ border: `1px dashed ${C.borderL}`, borderRadius: 12, padding: '26px 16px', textAlign: 'center', color: C.grayd, fontSize: 13 }}>
+                  Select a Field Executive to preview their auto-planned route.
+                </div>
+              )}
+              {autoForm.user_id && autoPrevBusy && (
+                <div style={{ border: `1px solid ${C.border}`, borderRadius: 12, padding: '26px 16px', textAlign: 'center', color: C.gray, fontSize: 13 }}>
+                  Designing the route…
+                </div>
+              )}
+              {autoForm.user_id && !autoPrevBusy && autoPreview && autoPreview.stops.length === 0 && (
+                <div style={{ border: `1px dashed ${C.borderL}`, borderRadius: 12, padding: '22px 18px', textAlign: 'center' }}>
+                  <div style={{ color: C.white, fontSize: 13.5, fontWeight: 700, marginBottom: 6 }}>No outlets are due on this date</div>
+                  <div style={{ color: C.gray, fontSize: 12.5, lineHeight: 1.55 }}>
+                    {autoPreview.considered === 0
+                      ? <>No outlet has a visit cadence or priority yet — set them in <a href="/dashboard/route-priorities" style={{ color: C.purple, fontWeight: 600 }}>Outlet Priorities</a> and the auto-planner takes it from there.</>
+                      : <>{autoPreview.considered} outlet{autoPreview.considered === 1 ? ' has' : 's have'} a cadence/priority, but none is overdue or high-priority for this date{autoPreview.skipped_already_planned > 0 ? `, and ${autoPreview.skipped_already_planned} due outlet${autoPreview.skipped_already_planned === 1 ? ' is' : 's are'} already on another plan` : ''}.</>}
+                  </div>
+                </div>
+              )}
+              {autoForm.user_id && !autoPrevBusy && autoPreview && autoPreview.stops.length > 0 && (
+                <div style={{ border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden' }}>
+                  {/* Meta bar */}
+                  <div style={{ background: C.s3, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', fontSize: 12, color: C.gray, borderBottom: `1px solid ${C.border}` }}>
+                    <span style={{ color: C.white, fontWeight: 700 }}>{autoPreview.stops.length} stops</span>
+                    <span>~{autoPreview.total_km} km</span>
+                    <span>{autoPreview.est_co2_kg} kg CO₂</span>
+                    <span>starts from {autoPreview.start_source === 'live_location' ? 'FE’s live location' : autoPreview.start_source === 'base_location' ? 'FE’s base location' : 'the first outlet'}</span>
+                  </div>
+                  {/* Replace warning */}
+                  {autoPreview.existing_plan_ids.length > 0 && (
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: C.yellowD, borderBottom: `1px solid ${C.border}`, cursor: 'pointer' }}>
+                      <input type="checkbox" checked={autoForm.replace} onChange={e => setAutoForm(f => ({ ...f, replace: e.target.checked }))} />
+                      <span style={{ fontSize: 12.5, color: C.yellow }}>
+                        This FE already has a plan for this date — tick to <strong>replace</strong> it with this one.
+                      </span>
+                    </label>
+                  )}
+                  {/* Ordered stops */}
+                  <div style={{ maxHeight: 260, overflowY: 'auto' }}>
+                    {autoPreview.stops.map(s => {
+                      const badge = s.reason === 'overdue'
+                        ? { label: s.never_visited ? 'Never visited' : `Overdue${s.overdue_days ? ` +${s.overdue_days}d` : ''}`, color: C.red }
+                        : { label: 'High priority', color: C.orange };
+                      return (
+                        <div key={s.store_id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderTop: `1px solid ${C.border}` }}>
+                          <div style={{ width: 24, height: 24, borderRadius: 8, background: C.purpleD, color: C.purple, fontSize: 12, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{s.visit_order}</div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ color: C.white, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.store_name}</div>
+                            <div style={{ color: C.grayd, fontSize: 11.5 }}>
+                              {s.store_code ? `${s.store_code} · ` : ''}{s.frequency ? `${s.frequency.replace('_', '-')} cadence` : 'no cadence'}
+                            </div>
+                          </div>
+                          <Badge label={badge.label} color={badge.color} />
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div style={{ padding: '16px 24px', borderTop: `1px solid ${C.border}`, display: 'flex', justifyContent: 'flex-end', gap: 10, flexShrink: 0 }}>
+              <button onClick={() => setModal(null)}
+                style={{ background: C.s3, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 18px', color: C.gray, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                Cancel
+              </button>
+              <button onClick={handleAutoAssign}
+                disabled={autoAssigning || autoPrevBusy || !autoPreview?.stops?.length || (autoPreview!.existing_plan_ids.length > 0 && !autoForm.replace)}
+                style={{
+                  background: (!autoPreview?.stops?.length || autoPrevBusy || (autoPreview!.existing_plan_ids.length > 0 && !autoForm.replace)) ? C.s3 : C.purple,
+                  border: 'none', borderRadius: 10, padding: '10px 20px',
+                  color: (!autoPreview?.stops?.length || autoPrevBusy || (autoPreview!.existing_plan_ids.length > 0 && !autoForm.replace)) ? C.grayd : '#fff',
+                  fontSize: 13, fontWeight: 700, cursor: autoAssigning ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', gap: 8, fontFamily: "'Syne',sans-serif",
+                }}>
+                <Icon d={IC.spark} s={15} c="currentColor" />
+                {autoAssigning ? 'Assigning…' : `Assign to ${users.find(u => u.id === autoForm.user_id)?.name?.split(' ')[0] || 'FE'}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {modal === 'create' && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
           <div style={{ background: C.s2, border: `1px solid ${C.borderL}`, borderRadius: 20, width: '100%', maxWidth: 660, maxHeight: '92vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
