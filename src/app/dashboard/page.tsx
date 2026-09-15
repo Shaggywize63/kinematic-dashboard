@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, type CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, ClipboardCheck, Clock, CalendarDays, CalendarOff, UserCheck } from 'lucide-react';
 import api from '../../lib/api';
 import { getStoredUser, landingRouteFor } from '../../lib/auth';
 import { getStoredIndustryScope } from '../../context/IndustryScopeContext';
@@ -60,23 +60,50 @@ const Shimmer = ({ w='100%', h=16, br=6, style }:{ w?:string|number; h?:number; 
   </div>
 );
 
-/** KPI stat tile — eyebrow label, Manrope value, optional dim sub-line. */
-const StatTile = ({ label, value, sub, loading }:{
+/** KPI stat tile — icon chip in a soft tonal wash, eyebrow label, Manrope
+ *  value. The wash bleeds out of the chip corner as a faint radial glow so
+ *  each tile carries its own colour identity without shouting; text always
+ *  stays in text tokens (never the accent colour). */
+type TileTone = 'ok' | 'info' | 'warn' | 'red' | 'neutral';
+const TILE_TONES: Record<TileTone, { fg:string; wash:string }> = {
+  ok:      { fg:T.ok,   wash:T.okWash   },
+  info:    { fg:T.info, wash:T.infoWash },
+  warn:    { fg:T.warn, wash:T.warnWash },
+  red:     { fg:T.red,  wash:T.redWash  },
+  neutral: { fg:T.dim,  wash:T.raised   },
+};
+const StatTile = ({ label, value, sub, loading, icon, tone = 'neutral' }:{
   label:string;
   value:string|number;
   sub?:string;
   loading?:boolean;
-}) => (
-  <Card padding={16}>
-    <Eyebrow>{label}</Eyebrow>
-    {loading ? (
-      <Shimmer h={26} br={5} w="55%" style={{ marginTop:10 }}/>
-    ) : (
-      <div style={{ fontFamily:T.heading, fontSize:26, fontWeight:700, letterSpacing:'-0.01em', color:T.text, lineHeight:1.1, marginTop:8, fontVariantNumeric:'tabular-nums' }}>{value}</div>
-    )}
-    {sub && <div style={{ fontSize:12, color:T.dim, marginTop:4 }}>{sub}</div>}
-  </Card>
-);
+  icon?:React.ReactNode;
+  tone?:TileTone;
+}) => {
+  const t = TILE_TONES[tone];
+  return (
+    <Card padding={16} className="km-tile" style={{ position:'relative', overflow:'hidden' }}>
+      {/* corner glow — the tile's one decorative element */}
+      <div aria-hidden style={{ position:'absolute', top:-30, right:-30, width:130, height:110, background:`radial-gradient(closest-side, ${t.wash}, transparent)`, pointerEvents:'none' }}/>
+      <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:8 }}>
+        <Eyebrow style={{ paddingTop:2 }}>{label}</Eyebrow>
+        {icon && (
+          <div aria-hidden style={{ width:30, height:30, borderRadius:9, background:t.wash, color:t.fg, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+            {icon}
+          </div>
+        )}
+      </div>
+      {loading ? (
+        <Shimmer h={26} br={5} w="55%" style={{ marginTop:8 }}/>
+      ) : (
+        <div style={{ fontFamily:T.heading, fontSize:26, fontWeight:700, letterSpacing:'-0.01em', color:T.text, lineHeight:1.1, marginTop:6, fontVariantNumeric:'tabular-nums' }}>{value}</div>
+      )}
+      {sub && <div style={{ fontSize:12, color:T.dim, marginTop:4 }}>{sub}</div>}
+      {/* baseline accent tick — echoes the tone without colouring the number */}
+      <div aria-hidden style={{ width:26, height:3, borderRadius:2, background:t.fg, opacity:.55, marginTop:10 }}/>
+    </Card>
+  );
+};
 
 /** Card heading: Manrope title + one-line dim sub, optional right slot. */
 const CardTitle = ({ title, sub, right }:{ title:string; sub?:string; right?:React.ReactNode }) => (
@@ -98,7 +125,12 @@ const Empty = ({ children }:{ children:React.ReactNode }) => (
   <div style={{ textAlign:'center', padding:'32px 0', color:T.dim, fontSize:13 }}>{children}</div>
 );
 
-/* ── PIE CHART ─────────────────────────────────────────────── */
+/* ── ATTENDANCE DONUT ──────────────────────────────────────── */
+// Ring order deliberately keeps green (Active) and amber (On break) apart —
+// the two are the palette's weakest pair under red-green colour blindness, so
+// blue (Checked out) always sits between them. Identity is never colour-alone:
+// every slice is directly labelled in the legend with count + share, and the
+// centre readout names whichever slice (or legend row) is hovered.
 const PieChart = ({ present, on_break, checked_out, absent, total }:{
   present:number;
   on_break:number;
@@ -106,69 +138,65 @@ const PieChart = ({ present, on_break, checked_out, absent, total }:{
   absent:number;
   total:number;
 }) => {
-  const R = 52, cx = 70, cy = 70, gap = 1.5;
-  const segments = [
-    { value: present,     color: T.ok,   label: 'Active' },
-    { value: on_break,    color: T.warn, label: 'On break' },
-    { value: checked_out, color: T.info, label: 'Checked out' },
-    { value: absent,      color: T.mute, label: 'Absent' },
-  ].filter(s => s.value > 0);
-
+  const [hover, setHover] = useState<string|null>(null);
+  const SIZE = 150, cx = SIZE/2, cy = SIZE/2, R = 57, W = 15, GAP_DEG = 3;
+  const legend = [
+    { key:'active',  label:'Active',      value:present,     color:T.ok   },
+    { key:'out',     label:'Checked out', value:checked_out, color:T.info },
+    { key:'break',   label:'On break',    value:on_break,    color:T.warn },
+    { key:'absent',  label:'Absent',      value:absent,      color:T.mute },
+  ];
+  const segments = legend.filter(s => s.value > 0);
   const totalVal = segments.reduce((s,x) => s + x.value, 0) || 1;
-  const arcs: { d:string; color:string; label:string; value:number }[] = [];
-  let angle = -Math.PI / 2;
+  const gapRad = segments.length > 1 ? (GAP_DEG * Math.PI / 180) : 0;
 
+  const arcs: { key:string; d:string; color:string }[] = [];
+  let angle = -Math.PI / 2;
   segments.forEach(seg => {
-    const frac = seg.value / totalVal;
-    const sweep = frac * 2 * Math.PI - (gap * Math.PI / 180);
-    const x1 = cx + R * Math.cos(angle);
-    const y1 = cy + R * Math.sin(angle);
-    const x2 = cx + R * Math.cos(angle + sweep);
-    const y2 = cy + R * Math.sin(angle + sweep);
-    const large = sweep > Math.PI ? 1 : 0;
-    arcs.push({
-      d:`M ${cx} ${cy} L ${x1} ${y1} A ${R} ${R} 0 ${large} 1 ${x2} ${y2} Z`,
-      color:seg.color,
-      label:seg.label,
-      value:seg.value
-    });
-    angle += sweep + (gap * Math.PI / 180);
+    const sweep = Math.max((seg.value / totalVal) * 2 * Math.PI - gapRad, 0.02);
+    const x1 = cx + R * Math.cos(angle), y1 = cy + R * Math.sin(angle);
+    const x2 = cx + R * Math.cos(angle + sweep), y2 = cy + R * Math.sin(angle + sweep);
+    arcs.push({ key:seg.key, d:`M ${x1} ${y1} A ${R} ${R} 0 ${sweep > Math.PI ? 1 : 0} 1 ${x2} ${y2}`, color:seg.color });
+    angle += sweep + gapRad;
   });
 
+  const focused = hover ? legend.find(s => s.key === hover) : null;
+  const centreValue = focused ? focused.value : total;
+  const centreLabel = focused ? focused.label.toUpperCase() : 'TOTAL';
+
   return (
-    <div style={{ display:'flex', alignItems:'center', gap:20, flexWrap:'wrap' }}>
-      <svg width={140} height={140} viewBox="0 0 140 140" style={{ flexShrink:0 }}>
-        <circle cx={cx} cy={cy} r={R+4} style={{ fill:T.raised }}/>
-        {arcs.map((arc,i) => (
-          <path
-            key={i}
-            d={arc.d}
-            style={{ fill:arc.color, transition:'opacity .2s' }}
-            onMouseEnter={e => (e.currentTarget.style.opacity = '.75')}
-            onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
-          />
+    <div style={{ display:'flex', alignItems:'center', gap:22, flexWrap:'wrap' }}>
+      <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} style={{ flexShrink:0 }} onMouseLeave={() => setHover(null)}>
+        {/* quiet track so the ring reads as a whole even with tiny slices */}
+        <circle cx={cx} cy={cy} r={R} fill="none" stroke={T.raised} strokeWidth={W}/>
+        {segments.length === 1 ? (
+          <circle cx={cx} cy={cy} r={R} fill="none" className="km-arc" data-on={hover === segments[0].key || hover === null ? '1' : '0'}
+            stroke={segments[0].color} strokeWidth={hover === segments[0].key ? W + 4 : W}
+            onMouseEnter={() => setHover(segments[0].key)}/>
+        ) : arcs.map(a => (
+          <path key={a.key} d={a.d} fill="none" className="km-arc"
+            stroke={a.color} strokeWidth={hover === a.key ? W + 4 : W}
+            opacity={hover === null || hover === a.key ? 1 : 0.35}
+            onMouseEnter={() => setHover(a.key)}/>
         ))}
-        <circle cx={cx} cy={cy} r={32} style={{ fill:T.card }}/>
-        <text x={cx} y={cy-4} textAnchor="middle" style={{ fill:T.text, fontSize:18, fontWeight:700, fontFamily:T.heading, letterSpacing:'-0.01em' }}>
-          {total}
+        <text x={cx} y={cy - 2} textAnchor="middle" style={{ fill:T.text, fontSize:22, fontWeight:700, fontFamily:T.heading, letterSpacing:'-0.01em', fontVariantNumeric:'tabular-nums' }}>
+          {centreValue}
         </text>
-        <text x={cx} y={cy+11} textAnchor="middle" style={{ fill:T.mute, fontSize:8.5, fontFamily:T.mono, letterSpacing:'0.08em' }}>
-          TOTAL
+        <text x={cx} y={cy + 14} textAnchor="middle" style={{ fill:T.mute, fontSize:8, fontFamily:T.mono, letterSpacing:'0.09em' }}>
+          {centreLabel}
         </text>
       </svg>
-      <div style={{ display:'flex', flexDirection:'column', gap:8, flex:1, minWidth:160 }}>
-        {[
-          { l:'Active',       v:present,     c:T.ok   },
-          { l:'On break',     v:on_break,    c:T.warn },
-          { l:'Checked out',  v:checked_out, c:T.info },
-          { l:'Absent',       v:absent,      c:T.mute },
-        ].map(s => (
-          <div key={s.l} style={{ display:'flex', alignItems:'center', gap:8 }}>
-            <div style={{ width:8, height:8, borderRadius:'50%', background:s.c, flexShrink:0 }}/>
-            <div style={{ flex:1, fontSize:13, color:T.dim }}>{s.l}</div>
-            <div style={{ fontFamily:T.mono, fontSize:13, color:s.v>0?T.text:T.mute, fontVariantNumeric:'tabular-nums' }}>{s.v}</div>
+      <div style={{ display:'flex', flexDirection:'column', gap:2, flex:1, minWidth:170 }} onMouseLeave={() => setHover(null)}>
+        {legend.map(s => (
+          <div key={s.key} onMouseEnter={() => setHover(s.key)}
+            style={{ display:'flex', alignItems:'center', gap:9, padding:'6px 8px', borderRadius:8, cursor:'default',
+                     background: hover === s.key ? T.raised : 'transparent',
+                     opacity: hover === null || hover === s.key ? 1 : 0.55, transition:'background .12s ease, opacity .12s ease' }}>
+            <div style={{ width:9, height:9, borderRadius:3, background:s.color, flexShrink:0 }}/>
+            <div style={{ flex:1, fontSize:13, color:T.dim }}>{s.label}</div>
+            <div style={{ fontFamily:T.mono, fontSize:13, color:s.value>0?T.text:T.mute, fontVariantNumeric:'tabular-nums' }}>{s.value}</div>
             <div style={{ fontFamily:T.mono, fontSize:11.5, color:T.mute, width:36, textAlign:'right', fontVariantNumeric:'tabular-nums' }}>
-              {total > 0 ? Math.round((s.v/total)*100) : 0}%
+              {total > 0 ? Math.round((s.value/total)*100) : 0}%
             </div>
           </div>
         ))}
@@ -194,70 +222,66 @@ const WeeklyBar = ({ days, loading }:{ days:WeekDay[]; loading:boolean }) => {
     return <Empty>No data</Empty>;
   }
   const maxTFF = Math.max(...days.map(d => d.tff), 1);
+  const avg = days.reduce((s,d) => s + d.tff, 0) / days.length;
+  const peakIdx = days.reduce((best,d,i) => (d.tff > days[best].tff ? i : best), 0);
+  const PLOT_H = 96;
 
   return (
-    <div style={{ display:'flex', gap:5, alignItems:'flex-end', height:100 }}>
-      {days.map((d,i) => (
-        <div
-          key={d.date}
-          style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:4, position:'relative' }}
-          onMouseEnter={() => setHover(i)}
-          onMouseLeave={() => setHover(null)}
-        >
-          {hover === i && (
-            <div
-              style={{
-                position:'absolute',
-                bottom:'100%',
-                left:'50%',
-                transform:'translateX(-50%)',
-                background:T.card,
-                border:`1px solid ${T.border}`,
-                borderRadius:8,
-                padding:'8px 10px',
-                fontSize:12,
-                color:T.text,
-                whiteSpace:'nowrap',
-                zIndex:50,
-                pointerEvents:'none',
-                marginBottom:4,
-                boxShadow:'var(--shadow-pop)',
-              }}
-            >
-              <div style={{ fontWeight:500, marginBottom:2 }}>{d.label}</div>
-              <div style={{ color:T.dim, fontFamily:T.mono, fontSize:11.5 }}>TFF {d.tff}</div>
-            </div>
-          )}
-          <div
-            style={{
-              width:'100%',
-              display:'flex',
-              flexDirection:'column',
-              justifyContent:'flex-end',
-              height:80,
-              position:'relative',
-              borderRadius:4,
-              overflow:'hidden',
-              background:T.raised,
-            }}
-          >
-            <div
-              style={{
-                position:'absolute',
-                bottom:0,
-                left:0,
-                right:0,
-                height:`${(d.tff/maxTFF)*100}%`,
-                background:T.ok,
-                borderRadius:4,
-                opacity:hover===i?1:.85,
-                transition:'height .5s ease, opacity .12s ease',
-              }}
-            />
-          </div>
-          <div style={{ fontFamily:T.mono, fontSize:10, color:hover===i?T.text:T.mute, letterSpacing:'0.04em' }}>{d.short_label}</div>
+    <div style={{ position:'relative' }}>
+      {/* dashed average line with a right-aligned tag — one quiet reference,
+          no gridline forest */}
+      {avg > 0 && (
+        <div aria-hidden style={{ position:'absolute', left:0, right:0, bottom:20 + (avg/maxTFF)*PLOT_H, borderTop:`1px dashed ${T.borderStrong}`, zIndex:1, pointerEvents:'none' }}>
+          <span style={{ position:'absolute', right:0, top:-16, fontFamily:T.mono, fontSize:9.5, color:T.mute, letterSpacing:'0.06em', background:T.card, paddingLeft:6 }}>
+            AVG {Math.round(avg)}
+          </span>
         </div>
-      ))}
+      )}
+      <div style={{ display:'flex', gap:8, alignItems:'flex-end', borderBottom:`1px solid ${T.border}` }}>
+        {days.map((d,i) => {
+          const h = Math.max((d.tff/maxTFF)*PLOT_H, d.tff > 0 ? 3 : 0);
+          return (
+            <div
+              key={d.date}
+              style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'flex-end', height:PLOT_H + 18, position:'relative', cursor:'default' }}
+              onMouseEnter={() => setHover(i)}
+              onMouseLeave={() => setHover(null)}
+            >
+              {hover === i && (
+                <div
+                  style={{
+                    position:'absolute', bottom:'100%', left:'50%', transform:'translateX(-50%)',
+                    background:T.card, border:`1px solid ${T.border}`, borderRadius:8, padding:'8px 10px',
+                    fontSize:12, color:T.text, whiteSpace:'nowrap', zIndex:50, pointerEvents:'none',
+                    marginBottom:4, boxShadow:'var(--shadow-pop)',
+                  }}
+                >
+                  <div style={{ fontWeight:500, marginBottom:2 }}>{d.label}</div>
+                  <div style={{ color:T.dim, fontFamily:T.mono, fontSize:11.5 }}>TFF {d.tff}</div>
+                </div>
+              )}
+              {/* the peak day is the one direct label; everything else answers on hover */}
+              {i === peakIdx && d.tff > 0 && hover !== i && (
+                <div style={{ fontFamily:T.mono, fontSize:10, color:T.dim, marginBottom:3, fontVariantNumeric:'tabular-nums' }}>{d.tff}</div>
+              )}
+              <div
+                style={{
+                  width:'100%', maxWidth:38, height:h,
+                  background:`linear-gradient(180deg, ${T.ok} 0%, color-mix(in srgb, ${T.ok} 45%, transparent) 100%)`,
+                  borderRadius:'4px 4px 0 0',
+                  opacity:hover===null || hover===i ? 1 : .5,
+                  transition:'height .5s ease, opacity .15s ease',
+                }}
+              />
+            </div>
+          );
+        })}
+      </div>
+      <div style={{ display:'flex', gap:8, marginTop:6 }}>
+        {days.map((d,i) => (
+          <div key={d.date} style={{ flex:1, textAlign:'center', fontFamily:T.mono, fontSize:10, color:hover===i?T.text:T.mute, letterSpacing:'0.04em' }}>{d.short_label}</div>
+        ))}
+      </div>
     </div>
   );
 };
@@ -420,6 +444,11 @@ export default function DashboardPage() {
       <style>{`
         @keyframes km-shimmer { 0%{transform:translateX(-100%)} 100%{transform:translateX(100%)} }
         @keyframes km-fadein  { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+        .km-tile { transition: transform .15s ease, border-color .15s ease, box-shadow .15s ease; }
+        .km-tile:hover { transform: translateY(-2px); border-color: var(--border-l); box-shadow: 0 6px 18px rgba(0,0,0,0.18); }
+        .km-arc { transition: stroke-width .15s ease, opacity .15s ease; }
+        .km-tbl tbody tr { transition: background .1s ease; }
+        .km-tbl tbody tr:hover td { background: var(--s3); }
       `}</style>
 
       <div style={{ display:'flex', flexDirection:'column', gap:20, animation:'km-fadein .3s ease' }}>
@@ -445,11 +474,11 @@ export default function DashboardPage() {
 
         {/* KPI Row - Phase 2 */}
         <div style={{ display:'grid', gridTemplateColumns:narrow ? 'repeat(2, minmax(0, 1fr))' : 'repeat(5, minmax(0, 1fr))', gap:12 }}>
-          <StatTile label="Total forms filled" value={summData?.kpis?.total_tff ?? '—'} loading={loadingSumm} />
-          <StatTile label="Total hours" value={summData?.kpis?.total_hours_worked != null ? `${Math.floor(summData.kpis.total_hours_worked)}h ${Math.round((summData.kpis.total_hours_worked % 1) * 60)}m` : '—'} loading={loadingSumm} />
-          <StatTile label="Days worked" value={summData?.kpis?.total_days_worked ?? '—'} loading={loadingSumm} />
-          <StatTile label="Total leaves" value={summData?.kpis?.total_leaves ?? '—'} loading={loadingSumm} />
-          <StatTile label="Avg attendance" value={summData?.kpis?.avg_attendance != null ? `${Math.round(summData.kpis.avg_attendance)}%` : '—'} loading={loadingSumm} />
+          <StatTile label="Total forms filled" tone="ok" icon={<ClipboardCheck size={15} strokeWidth={1.8}/>} value={summData?.kpis?.total_tff ?? '—'} loading={loadingSumm} />
+          <StatTile label="Total hours" tone="info" icon={<Clock size={15} strokeWidth={1.8}/>} value={summData?.kpis?.total_hours_worked != null ? `${Math.floor(summData.kpis.total_hours_worked)}h ${Math.round((summData.kpis.total_hours_worked % 1) * 60)}m` : '—'} loading={loadingSumm} />
+          <StatTile label="Days worked" tone="neutral" icon={<CalendarDays size={15} strokeWidth={1.8}/>} value={summData?.kpis?.total_days_worked ?? '—'} loading={loadingSumm} />
+          <StatTile label="Total leaves" tone="warn" icon={<CalendarOff size={15} strokeWidth={1.8}/>} value={summData?.kpis?.total_leaves ?? '—'} loading={loadingSumm} />
+          <StatTile label="Avg attendance" tone="red" icon={<UserCheck size={15} strokeWidth={1.8}/>} value={summData?.kpis?.avg_attendance != null ? `${Math.round(summData.kpis.avg_attendance)}%` : '—'} loading={loadingSumm} />
         </div>
 
         {/* Row 2: Attendance + Weekly Activity */}
@@ -527,7 +556,7 @@ export default function DashboardPage() {
               </div>
             ) : visibleCities.length ? (
               <div style={{ overflowX:'auto' }}>
-                <table style={{ width:'100%', borderCollapse:'collapse', minWidth:560 }}>
+                <table className="km-tbl" style={{ width:'100%', borderCollapse:'collapse', minWidth:560 }}>
                   <thead>
                     <tr>
                       <th style={th}>City</th>
@@ -554,7 +583,7 @@ export default function DashboardPage() {
                           <td style={{ ...tdNum, borderBottom: last ? 0 : td.borderBottom }}>
                             <div style={{ display:'flex', alignItems:'center', gap:10, justifyContent:'flex-end' }}>
                               <div style={{ width:80, height:5, background:T.rule, borderRadius:3, overflow:'hidden' }}>
-                                <div style={{ width:`${barW}%`, height:'100%', background:T.ok, borderRadius:3 }} />
+                                <div style={{ width:`${barW}%`, height:'100%', background:`linear-gradient(90deg, color-mix(in srgb, ${T.ok} 55%, transparent), ${T.ok})`, borderRadius:3, transition:'width .5s ease' }} />
                               </div>
                               <span style={{ minWidth:28, textAlign:'right' }}>{city.tff}</span>
                             </div>
@@ -605,7 +634,7 @@ export default function DashboardPage() {
             </div>
           ) : outletData?.outlets?.length ? (
             <div style={{ overflowX:'auto', maxHeight:320, overflowY:'auto' }}>
-              <table style={{ width:'100%', borderCollapse:'collapse', minWidth:520 }}>
+              <table className="km-tbl" style={{ width:'100%', borderCollapse:'collapse', minWidth:520 }}>
                 <thead>
                   <tr>
                     <th style={{ ...th, position:'sticky', top:0, background:T.card }}>Outlet</th>
@@ -617,7 +646,9 @@ export default function DashboardPage() {
                 <tbody>
                   {outletData.outlets.map((o, i) => {
                     const last = i === outletData.outlets.length - 1;
-                    const rateColor = o.tff_rate == null ? T.mute : o.tff_rate >= 60 ? T.ok : o.tff_rate >= 30 ? T.warn : T.mute;
+                    // TFF-rate pill: state reads from the chip's wash, the number
+                    // itself stays in text ink — never colour-alone text.
+                    const rate = o.tff_rate == null ? null : o.tff_rate >= 60 ? { fg:T.ok, bg:T.okWash } : o.tff_rate >= 30 ? { fg:T.warn, bg:T.warnWash } : { fg:T.dim, bg:T.raised };
                     return (
                       <tr key={i}>
                         <td style={{ ...td, borderBottom: last ? 0 : td.borderBottom }}>
@@ -626,8 +657,13 @@ export default function DashboardPage() {
                         </td>
                         <td style={{ ...tdNum, borderBottom: last ? 0 : td.borderBottom }}>{o.checkins}</td>
                         <td style={{ ...tdNum, borderBottom: last ? 0 : td.borderBottom }}>{o.tff ?? '—'}</td>
-                        <td style={{ ...tdNum, borderBottom: last ? 0 : td.borderBottom, color:rateColor }}>
-                          {o.tff_rate != null ? `${o.tff_rate}%` : '—'}
+                        <td style={{ ...tdNum, borderBottom: last ? 0 : td.borderBottom }}>
+                          {rate ? (
+                            <span style={{ display:'inline-flex', alignItems:'center', gap:6, background:rate.bg, borderRadius:999, padding:'3px 9px' }}>
+                              <span style={{ width:6, height:6, borderRadius:'50%', background:rate.fg }}/>
+                              <span style={{ fontFamily:T.mono, fontSize:11.5, color:T.text, fontVariantNumeric:'tabular-nums' }}>{o.tff_rate}%</span>
+                            </span>
+                          ) : '—'}
                         </td>
                       </tr>
                     );
