@@ -983,7 +983,7 @@ export default function LiveTrackingPage() {
                     fontFamily:"'DM Sans',sans-serif" }}>
                   <svg width="20" height="3" style={{ flexShrink:0 }}>
                     <line x1="0" y1="1.5" x2="20" y2="1.5"
-                      stroke={selFE ? (STATUS_COLOR[selFE.status] || '#63B3ED') : '#63B3ED'}
+                      stroke="#E01E2C"
                       strokeWidth="3" strokeDasharray="4 3" strokeLinecap="round" />
                   </svg>
                   <span>Today&apos;s trail · {selectedTrail.length} pings</span>
@@ -1053,7 +1053,7 @@ export default function LiveTrackingPage() {
                       { l:'Status',    v: selFE.status.replace('_',' '), c: STATUS_COLOR[selFE.status]||C.gray },
                       { l:'Check-in',  v: selFE.checkin_at ? new Date(selFE.checkin_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : '—', c: C.white },
                       { l: (getStoredIndustryScope() === 'insurance' ? 'Meetings Today' : 'TFF Today'), v: String(selFE.today_tff ?? '—'), c: C.green },
-                      { l:'Trail',     v: selectedTrail.length > 0 ? `${selectedTrail.length} pings` : '—', c: selectedTrail.length > 0 ? '#63B3ED' : C.gray },
+                      { l:'Trail',     v: selectedTrail.length > 0 ? `${selectedTrail.length} pings` : '—', c: selectedTrail.length > 0 ? '#E01E2C' : C.gray },
                     ].map((s,i) => (
                       <div key={i} style={{ textAlign:'center' }}>
                         <div style={{ fontFamily:"'Syne',sans-serif", fontSize:16, fontWeight:800, color:s.c, textTransform:'capitalize' }}>{s.v}</div>
