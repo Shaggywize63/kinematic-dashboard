@@ -2210,6 +2210,18 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
         const base = CRM_LEADS[0];
         return wrap({ ...base, id: reopenM[1], status: 'working', is_converted: false }) as unknown as T;
       }
+      // Lead PATCH (status switcher, inline edits) — merge onto the matching
+      // demo lead and persist for the session so the detail page reflects the
+      // change and a reload shows it too. Without this the status switcher's
+      // PATCH fell through to the generic noop and the pill snapped back.
+      const leadPatchM = path.match(/^\/crm\/leads\/([^/]+)$/);
+      if (m === 'PATCH' && leadPatchM) {
+        const idx = CRM_LEADS.findIndex((l: any) => l.id === leadPatchM[1]);
+        const target = idx >= 0 ? CRM_LEADS[idx] : CRM_LEADS[0];
+        const merged = { ...target, ...bodyObj, id: leadPatchM[1], updated_at: new Date().toISOString() };
+        if (idx >= 0) (CRM_LEADS as any[])[idx] = merged;
+        return wrap(merged) as unknown as T;
+      }
     }
     // ── CRM Custom Fields write handlers ────────────────────────────
     // Persists through localStorage so admins can experiment in the

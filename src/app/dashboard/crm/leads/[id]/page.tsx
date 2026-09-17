@@ -443,7 +443,25 @@ export default function LeadDetailPage() {
                   }}
                 />
               )}
-              {!fields.isHidden('status') && <Fact label={fields.labelFor('status', 'Status')} value={<StatusPill status={lead.status} />} />}
+              {!fields.isHidden('status') && (
+                <Fact
+                  label={fields.labelFor('status', 'Status')}
+                  value={
+                    <StatusSelect
+                      status={lead.status}
+                      onChange={async (next) => {
+                        try {
+                          const r = await crmLeads.update(lead.id, { status: next } as any);
+                          setLead(r.data as LifecycleLead);
+                          toast.success(`Status set to ${next.replace(/_/g, ' ')}`);
+                        } catch (e: any) {
+                          toast.error(e?.message || 'Status update failed');
+                        }
+                      }}
+                    />
+                  }
+                />
+              )}
               {!fields.isHidden('source_id') && <Fact label={fields.labelFor('source_id', 'Source')} value={lead.source_name} />}
               {!fields.isHidden('owner_id') && <Fact label={fields.labelFor('owner_id', 'Owner')} value={lead.owner_name || 'Unassigned'} />}
               <Fact label="Created" value={<span style={{ fontFamily: T.mono, fontSize: 12.5 }}>{new Date(lead.created_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' })}</span>} />
@@ -694,11 +712,85 @@ function PhoneFact({ label, phone, prefill, leadId, displayName, onSave }: { lab
   );
 }
 
+function statusTone(s: string): 'info' | 'ok' | 'warn' | 'red' | 'neutral' {
+  return s === 'converted' || s === 'qualified' ? 'ok'
+    : s === 'lost' || s === 'unqualified' ? 'red'
+    : s === 'working' ? 'warn'
+    : s === 'new' ? 'info'
+    : 'neutral';
+}
+
 function StatusPill({ status }: { status?: string | null }) {
   const s = (status || 'new').toLowerCase();
-  const tone: 'info' | 'ok' | 'warn' | 'red' | 'neutral' =
-    s === 'converted' || s === 'qualified' ? 'ok' : s === 'lost' || s === 'unqualified' ? 'red' : s === 'working' ? 'warn' : s === 'new' ? 'info' : 'neutral';
-  return <Badge tone={tone} dot>{s.replace(/_/g, ' ')}</Badge>;
+  return <Badge tone={statusTone(s)} dot>{s.replace(/_/g, ' ')}</Badge>;
+}
+
+// The statuses the lead PATCH accepts (backend crm.validators →
+// status enum). `converted` / `lost` are terminal outcomes reached via the
+// dedicated Convert / Mark-lost flows (they capture a reason), so they are
+// NOT offered here — when a lead is in one of those we fall back to a plain
+// read-only pill and let the Convert modal / Disqualify banner drive changes.
+const SETTABLE_STATUSES = ['new', 'working', 'nurturing', 'qualified', 'unqualified'] as const;
+
+/** Inline status switcher for the lead detail page: shows the current status
+ *  as a pill and, on click, drops a menu of the settable statuses. Selecting
+ *  one PATCHes the lead and lifts the returned row up via onChange. */
+function StatusSelect({ status, onChange }: { status?: string | null; onChange: (next: string) => Promise<void> }) {
+  const s = (status || 'new').toLowerCase();
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, []);
+
+  // Terminal states keep the dedicated flows in charge — render read-only.
+  if (s === 'converted' || s === 'lost') return <StatusPill status={s} />;
+
+  const pick = async (next: string) => {
+    setOpen(false);
+    if (next === s) return;
+    setSaving(true);
+    try { await onChange(next); } finally { setSaving(false); }
+  };
+
+  return (
+    <div ref={ref} style={{ position: 'relative', display: 'inline-block' }}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        disabled={saving}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        style={{ background: 'transparent', border: 'none', padding: 0, cursor: saving ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5 }}
+      >
+        <Badge tone={statusTone(s)} dot>{s.replace(/_/g, ' ')}</Badge>
+        <ChevronDown size={13} strokeWidth={2} style={{ color: T.dim, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .15s ease' }} />
+      </button>
+      {open && (
+        <div role="listbox" style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 60, minWidth: 172, background: T.card, border: `1px solid ${T.borderStrong}`, borderRadius: 10, padding: 4, boxShadow: 'var(--shadow-pop)' }}>
+          {SETTABLE_STATUSES.map((opt) => (
+            <button
+              key={opt}
+              type="button"
+              role="option"
+              aria-selected={opt === s}
+              onClick={() => pick(opt)}
+              style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', textAlign: 'left', background: opt === s ? T.raised : 'transparent', border: 'none', borderRadius: 7, padding: '8px 10px', cursor: 'pointer', color: T.text, fontSize: 13.5, textTransform: 'capitalize' }}
+              onMouseEnter={(e) => { if (opt !== s) e.currentTarget.style.background = T.raised; }}
+              onMouseLeave={(e) => { if (opt !== s) e.currentTarget.style.background = 'transparent'; }}
+            >
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: `var(--${statusTone(opt) === 'neutral' ? 'mute' : statusTone(opt)})`, flexShrink: 0 }} />
+              {opt}
+              {opt === s && <span style={{ marginLeft: 'auto', color: T.dim, fontSize: 11 }}>current</span>}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function DisqualifiedBanner({

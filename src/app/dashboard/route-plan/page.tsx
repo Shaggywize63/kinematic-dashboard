@@ -972,6 +972,24 @@ function RoutePlanContent() {
                           <Icon d={IC.phone} s={12} c={C.blue} /> {plan.fe_mobile}
                         </a>
                       )}
+                      {/* Mobile parity: the FE apps' Navigate buttons open the same
+                          Google Maps directions — this link mirrors it for the web
+                          (stops as waypoints in visit order, Maps caps them at 9). */}
+                      {(() => {
+                        const geo = [...plan.outlets]
+                          .sort((a, b) => a.visit_order - b.visit_order)
+                          .filter(o => typeof o.store_lat === 'number' && typeof o.store_lng === 'number');
+                        if (!geo.length) return null;
+                        const last = geo[geo.length - 1];
+                        const mids = geo.slice(0, -1).slice(0, 9).map(o => `${o.store_lat},${o.store_lng}`).join('%7C');
+                        const href = `https://www.google.com/maps/dir/?api=1&destination=${last.store_lat},${last.store_lng}&travelmode=driving${mids ? `&waypoints=${mids}` : ''}`;
+                        return (
+                          <a href={href} target="_blank" rel="noreferrer"
+                            style={{ fontSize: 12, color: C.blue, display: 'flex', alignItems: 'center', gap: 5, textDecoration: 'none', fontWeight: 600 }}>
+                            <Icon d={IC.pin} s={12} c={C.blue} /> Open route in Google Maps
+                          </a>
+                        );
+                      })()}
                     </div>
 
                     {/* Outlet stops */}
