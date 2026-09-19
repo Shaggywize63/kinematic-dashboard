@@ -309,10 +309,12 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
         </Grid>
 
         {/* Alternate mobile numbers — chip list, same component the
-            new-lead form uses. Was previously not editable from the
-            modal so reps couldn't add or remove secondary numbers
-            without flipping into Settings. */}
-        {!fields.isHidden('phone') && (
+            new-lead form uses. Gate on its OWN key ("alternate_mobiles"),
+            not "phone", so hiding alternates behaves the same here as on the
+            new-lead form and the mobile apps (previously this rode the phone
+            gate, so hiding alternate_mobiles did nothing and hiding phone
+            unexpectedly also removed this editor). */}
+        {!fields.isHidden('alternate_mobiles') && (
           <AlternateMobiles
             values={form.alternate_mobiles}
             primary={form.phone}
