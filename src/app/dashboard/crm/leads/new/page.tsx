@@ -745,11 +745,16 @@ export default function NewLeadPage() {
                 just to skip it adds friction. */}
             {!isTata && text('email', 'Email', { type: 'email', required: fields.requiredFor('email', false), placeholder: 'name@company.com' })}
           </FormGrid>
-          <AlternateMobiles
-            values={form.alternate_mobiles}
-            primary={form.phone}
-            onChange={(next) => setForm({ ...form, alternate_mobiles: next })}
-          />
+          {/* Built-in field — gate on its own key like every other built-in
+              row (and like the Edit form + mobile apps) so hiding
+              "alternate_mobiles" on the admin Settings page drops it here too. */}
+          {!fields.isHidden('alternate_mobiles') && (
+            <AlternateMobiles
+              values={form.alternate_mobiles}
+              primary={form.phone}
+              onChange={(next) => setForm({ ...form, alternate_mobiles: next })}
+            />
+          )}
         </Section>
 
         {(!fields.isHidden('status') || !fields.isHidden('source_id') || !fields.isHidden('owner_id')) && (

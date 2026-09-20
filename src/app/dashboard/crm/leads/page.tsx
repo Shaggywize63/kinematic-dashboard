@@ -67,6 +67,11 @@ export default function LeadsListPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
   const [pagination, setPagination] = useState<Pagination | null>(null);
+  // Count of leads still in the "new" status (unworked), shown as a chip in the
+  // header and clickable to filter down to them. Fetched independently of the
+  // page's active filters so it always reflects the tenant-wide new-lead
+  // backlog, not the current view. Refreshed on every reload().
+  const [newLeadsCount, setNewLeadsCount] = useState<number | null>(null);
   // Server-side sort. `recent` (default) keeps the latest-update-first order;
   // every other key maps to a backend column via ?sort=&order=.
   // Default sort: "Date added (newest)" is the resting order for everyone —
@@ -221,6 +226,15 @@ export default function LeadsListPage() {
 
   const reload = async () => {
     setLoading(true);
+    // New-leads backlog counter — deliberately independent of the page's active
+    // filters (status/owner/source/etc.) so it always reflects the tenant-wide
+    // count of unworked leads, not the current view. The global city scope is
+    // still applied automatically in api.ts, so it tracks the selected city.
+    // Fire-and-forget: it never blocks or fails the main list load.
+    crmLeads
+      .list({ status: 'new', limit: 1 })
+      .then((r) => setNewLeadsCount(r.pagination?.total ?? (r.data?.length ?? 0)))
+      .catch(() => {});
     try {
       const params: Record<string, string | number> = { page, limit: pageSize };
       if (range.from)      params.from     = range.from;
@@ -468,9 +482,48 @@ export default function LeadsListPage() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <PageHeader
         title={
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             Leads
             <Badge mono style={{ fontSize: 11.5 }}>{totalCount.toLocaleString()} leads</Badge>
+            {/* New-leads counter — the tenant-wide backlog of unworked ("new")
+                leads. Clickable: filtering the list to status=new. Hidden when
+                zero (or still loading) so it never shows a "0 new" chip. */}
+            {newLeadsCount != null && newLeadsCount > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setFilters((f) => ({ ...f, status: 'new' }));
+                  setPage(1);
+                }}
+                title="Show new (unworked) leads"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  padding: '2px 9px',
+                  borderRadius: 999,
+                  border: '1px solid var(--info-border, #93c5fd)',
+                  background: filters.status === 'new' ? 'var(--info, #2563eb)' : 'var(--info-bg, #eff6ff)',
+                  color: filters.status === 'new' ? '#fff' : 'var(--info-fg, #1d4ed8)',
+                  fontSize: 11.5,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  lineHeight: 1.6,
+                }}
+              >
+                <span
+                  aria-hidden
+                  style={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: 999,
+                    background: filters.status === 'new' ? '#fff' : 'var(--info, #2563eb)',
+                    display: 'inline-block',
+                  }}
+                />
+                {newLeadsCount.toLocaleString()} new
+              </button>
+            )}
           </span>
         }
         description="Track and qualify prospects, then convert the best ones to contacts, accounts and deals."
