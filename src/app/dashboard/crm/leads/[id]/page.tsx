@@ -30,7 +30,7 @@ import { ConsentCard } from '../../../../../components/crm/DataConsent';
 import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '../../../../../lib/crmFieldOverrides';
 import { Avatar, Badge, Button, Card, EmptyState, Eyebrow, IconButton, PageHeader, T, cardStyle, useIsCompact } from '../../../../../components/ui';
 import { usePageTitle } from '../../../../../lib/pageTitle';
-import { ArrowRightLeft, ChevronDown, FileText, Pencil, RotateCcw, Trash2, UserPlus, XCircle } from 'lucide-react';
+import { ArrowRightLeft, Check, ChevronDown, Copy, FileText, Pencil, RotateCcw, Trash2, UserPlus, XCircle } from 'lucide-react';
 
 type UserOption = { id: string; name: string };
 
@@ -412,6 +412,7 @@ export default function LeadDetailPage() {
                   label={fields.labelFor('email', 'Email')}
                   value={lead.email}
                   type="email"
+                  copyable
                   onSave={async (next) => {
                     try {
                       const r = await crmLeads.update(lead.id, { email: next || null } as any);
@@ -669,21 +670,52 @@ function Section({ title, count, children }: { title: string; count?: number; ch
   );
 }
 
-function Fact({ label, value, onSave, type }: { label: string; value?: React.ReactNode; onSave?: (next: string) => Promise<void>; type?: string }) {
+/** Small copy-to-clipboard button. Shows a transient check on success and
+ *  surfaces a toast. `text` is the raw value copied (may differ from display). */
+function CopyButton({ text, label }: { text: string; label: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      toast.success(`${label} copied`);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      toast.error('Could not copy to clipboard');
+    }
+  };
+  return (
+    <button
+      type="button"
+      onClick={copy}
+      aria-label={`Copy ${label.toLowerCase()}`}
+      title={`Copy ${label.toLowerCase()}`}
+      style={{ background: 'transparent', border: 'none', padding: 2, cursor: 'pointer', color: copied ? 'var(--ok, #16a34a)' : T.dim, lineHeight: 0, flexShrink: 0, display: 'inline-flex', alignItems: 'center' }}
+    >
+      {copied ? <Check size={13} strokeWidth={2.2} /> : <Copy size={13} strokeWidth={2} />}
+    </button>
+  );
+}
+
+function Fact({ label, value, onSave, type, copyable }: { label: string; value?: React.ReactNode; onSave?: (next: string) => Promise<void>; type?: string; copyable?: boolean }) {
+  const copyText = typeof value === 'string' ? value : '';
   return (
     <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
       <div style={{ fontSize: 12, fontWeight: 500, color: T.dim }}>{label}</div>
-      {onSave ? (
-        <InlineEditText
-          value={typeof value === 'string' ? value : ''}
-          type={type}
-          ariaLabel={`Edit ${label}`}
-          onSave={onSave}
-          displayStyle={{ color: T.text, fontSize: 13.5, wordBreak: 'break-word' }}
-        />
-      ) : (
-        <div style={{ color: T.text, fontSize: 13.5, wordBreak: 'break-word' }}>{value || '—'}</div>
-      )}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+        {onSave ? (
+          <InlineEditText
+            value={copyText}
+            type={type}
+            ariaLabel={`Edit ${label}`}
+            onSave={onSave}
+            displayStyle={{ color: T.text, fontSize: 13.5, wordBreak: 'break-word' }}
+          />
+        ) : (
+          <div style={{ color: T.text, fontSize: 13.5, wordBreak: 'break-word', minWidth: 0 }}>{value || '—'}</div>
+        )}
+        {copyable && copyText ? <CopyButton text={copyText} label={label} /> : null}
+      </div>
     </div>
   );
 }

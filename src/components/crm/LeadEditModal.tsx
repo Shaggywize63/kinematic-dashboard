@@ -11,6 +11,7 @@ import CustomFieldsSection from './CustomFieldsSection';
 import AlternateMobiles from './AlternateMobiles';
 import UserSearchSelect, { type UserOption } from './shared/UserSearchSelect';
 import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '../../lib/crmFieldOverrides';
+import { isKinematicTenant } from '../../lib/clientFeatures';
 import { useAuth } from '../../hooks/useAuth';
 import { LocateFixed } from 'lucide-react';
 import { Button, Field, Input, Segmented, Select, Textarea, eyebrowStyle, labelStyle, requiredMark } from '../ui';
@@ -53,11 +54,24 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
   const isTata =
     STEEL_DEALER_CLIENT_IDS.includes((lead as Lead & { client_id?: string | null }).client_id ?? '')
     || STEEL_DEALER_CLIENT_IDS.includes(user?.client_id ?? '');
+  // The master admin (s@) runs the parent Kinematic CRM at org level with
+  // client_id = null, so a bare client check misses them. Mirror the exact
+  // email check the create form uses so location capture is disabled for
+  // s@kinematicapp.com on edit too.
+  const isMasterAdmin = useMemo<boolean>(() => {
+    try {
+      const raw = typeof window !== 'undefined' ? localStorage.getItem('kinematic_user') : null;
+      return raw ? (JSON.parse(raw)?.email || '').toLowerCase() === 's@kinematicapp.com' : false;
+    } catch { return false; }
+  }, []);
   // Kinematic's own inside-sales CRM doesn't geo-tag leads — hide the
-  // coordinate capture entirely (matches the lead-create form).
+  // coordinate capture entirely (matches the lead-create form). Gate on the
+  // lead's tenant, the active Kinematic tenant/org (catches the org-level
+  // super-admin whose client_id is null), and the master-admin email.
   const isKinematic =
     (lead as Lead & { client_id?: string | null }).client_id === KINEMATIC_CLIENT_ID
-    || user?.client_id === KINEMATIC_CLIENT_ID;
+    || isKinematicTenant(user)
+    || isMasterAdmin;
   const [logAsSiteVisit, setLogAsSiteVisit] = useState(false);
   const [form, setForm] = useState(() => seed(lead));
   const [busy, setBusy] = useState(false);
