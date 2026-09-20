@@ -79,7 +79,14 @@ export default function InlineEditText({
 
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-      <span style={displayStyle} onDoubleClick={start}>{value ? `${value}${displaySuffix ?? ''}` : (placeholder || '—')}</span>
+      <span
+        style={{ cursor: 'pointer', ...displayStyle }}
+        onClick={start}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); start(); } }}
+        title={ariaLabel || 'Click to edit'}
+      >{value ? `${value}${displaySuffix ?? ''}` : (placeholder || '—')}</span>
       <button
         type="button"
         onClick={start}
