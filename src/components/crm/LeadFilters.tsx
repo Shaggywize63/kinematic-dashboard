@@ -1,5 +1,5 @@
 'use client';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import api from '../../lib/api';
 
 // Cascading State → City → District → Block filter backed by
@@ -12,7 +12,9 @@ import api from '../../lib/api';
 
 export interface LeadFiltersValue {
   q?: string;
-  status?: string;
+  // Multi-select status. Empty/undefined = all statuses. Sent to the backend
+  // as `status_in` (comma-separated → `.in('status', …)`).
+  status?: string[];
   source?: string;
   owner?: string;
   grade?: string;
@@ -92,14 +94,11 @@ export default function LeadFilters({ value, onChange, sources = [], owners = []
         value={value.q || ''}
         onChange={(e) => set({ q: e.target.value || undefined })}
       />
-      <select style={inputStyle} value={value.status || ''} onChange={(e) => set({ status: e.target.value || undefined })}>
-        <option value="">All Statuses</option>
-        <option value="new">New</option>
-        <option value="working">Working</option>
-        <option value="qualified">Qualified</option>
-        <option value="unqualified">Unqualified</option>
-        <option value="converted">Converted</option>
-      </select>
+      <StatusMultiSelect
+        selected={value.status || []}
+        onChange={(next) => set({ status: next.length ? next : undefined })}
+        style={inputStyle}
+      />
       <select style={inputStyle} value={value.grade || ''} onChange={(e) => set({ grade: e.target.value || undefined })}>
         <option value="">All Grades</option>
         <option value="A">A (Hot)</option>
@@ -140,6 +139,97 @@ export default function LeadFilters({ value, onChange, sources = [], owners = []
           <option value="">All Blocks</option>
           {blocks.map(b => <option key={b} value={b}>{b}</option>)}
         </select>
+      )}
+    </div>
+  );
+}
+
+// The lead statuses that can be filtered on. Mirrors the LeadStatus enum minus
+// 'lost' (kept out of the filter as the old single-select did).
+const STATUS_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: 'new', label: 'New' },
+  { value: 'working', label: 'Working' },
+  { value: 'qualified', label: 'Qualified' },
+  { value: 'unqualified', label: 'Unqualified' },
+  { value: 'converted', label: 'Converted' },
+];
+
+// Checkbox-dropdown multi-select for lead status. Styled to match the sibling
+// <select>s (same inputStyle for the trigger) but lets the user pick any
+// combination — e.g. show everything except Unqualified, or only Qualified +
+// Working. Closes on outside click. Empty selection = all statuses.
+function StatusMultiSelect({ selected, onChange, style }: {
+  selected: string[];
+  onChange: (next: string[]) => void;
+  style: React.CSSProperties;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [open]);
+
+  const toggle = (v: string) =>
+    onChange(selected.includes(v) ? selected.filter((s) => s !== v) : [...selected, v]);
+
+  const summary = selected.length === 0
+    ? 'All Statuses'
+    : selected.length === 1
+      ? (STATUS_OPTIONS.find((o) => o.value === selected[0])?.label ?? selected[0])
+      : `${selected.length} statuses`;
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        style={{ ...style, cursor: 'pointer', textAlign: 'left', display: 'inline-flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}
+      >
+        <span style={{ color: selected.length ? 'var(--text)' : 'var(--muted, var(--text))', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{summary}</span>
+        <span aria-hidden style={{ opacity: 0.6, fontSize: 10, flexShrink: 0 }}>▾</span>
+      </button>
+      {open && (
+        <div
+          role="listbox"
+          aria-multiselectable
+          style={{
+            position: 'absolute', top: 'calc(100% + 4px)', left: 0, zIndex: 50,
+            minWidth: 190, background: 'var(--card, var(--s3))', border: '1px solid var(--border)',
+            borderRadius: 8, boxShadow: 'var(--shadow-pop, 0 8px 24px rgba(0,0,0,0.18))', padding: 4,
+          }}
+        >
+          {selected.length > 0 && (
+            <button
+              type="button"
+              onClick={() => onChange([])}
+              style={{ display: 'block', width: '100%', textAlign: 'left', padding: '6px 10px', fontSize: 12, color: 'var(--muted, var(--text))', background: 'transparent', border: 'none', cursor: 'pointer', borderRadius: 6 }}
+            >
+              Clear selection
+            </button>
+          )}
+          {STATUS_OPTIONS.map((o) => (
+            <label
+              key={o.value}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', fontSize: 13, color: 'var(--text)', cursor: 'pointer', borderRadius: 6, userSelect: 'none' }}
+            >
+              <input
+                type="checkbox"
+                checked={selected.includes(o.value)}
+                onChange={() => toggle(o.value)}
+                style={{ width: 14, height: 14 }}
+              />
+              {o.label}
+            </label>
+          ))}
+        </div>
       )}
     </div>
   );
