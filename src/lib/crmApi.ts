@@ -81,6 +81,10 @@ export const crmLeads = {
   smartFilter: (query: string) =>
     api.post<Wrapped<{ params: Record<string, string>; explanation: string }>>(`${BASE}/ai/smart-filter`, { query }),
   score: (id: string) => api.post<Wrapped<LeadScore>>(`${BASE}/leads/${id}/score`, {}),
+  // Star / un-star a lead as "important". Persisted server-side; the leads list
+  // returns the flag via custom_fields.__important.
+  setImportant: (id: string, important: boolean) =>
+    api.post<Wrapped<{ id: string; important: boolean }>>(`${BASE}/leads/${id}/important`, { important }),
   scoreHistory: (id: string) => api.get<Wrapped<LeadScore[]>>(`${BASE}/leads/${id}/score-history`),
   activities: (id: string) => api.get<Wrapped<Activity[]>>(`${BASE}/leads/${id}/activities`),
   deals: (id: string) => api.get<Wrapped<Deal[]>>(`${BASE}/leads/${id}/deals`),

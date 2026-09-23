@@ -34,6 +34,9 @@ interface Props {
   onToggleSection: (label: string) => void;
   isActive: (href: string) => boolean;
   webChatUnread: number;
+  /** Count of new inbound leads (Google Ads / website forms / …) — badged on
+   *  the "Leads" nav item so arrivals are noticed from anywhere. */
+  inboundLeadsCount: number;
   user: { name?: string; email?: string; avatar_url?: string } | null;
   roleLabel: string;
   onLogout: () => void;
@@ -194,7 +197,11 @@ export default function Sidebar(p: Props) {
               )}
               {(rail || !sectionClosed) && g.items.map((i) => {
                 const active = p.isActive(i.href);
-                const badge = i.href === '/dashboard/crm/website-chats' && p.webChatUnread > 0 ? p.webChatUnread : 0;
+                const badge = i.href === '/dashboard/crm/website-chats' && p.webChatUnread > 0
+                  ? p.webChatUnread
+                  : i.href === '/dashboard/crm/leads' && p.inboundLeadsCount > 0
+                    ? p.inboundLeadsCount
+                    : 0;
                 return (
                   <Link
                     key={i.href}

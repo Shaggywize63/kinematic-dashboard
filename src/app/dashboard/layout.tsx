@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic';
 import { getStoredUser, isSessionValid, clearSession, getDesignationLabel } from '../../lib/auth';
 import api, { getActingAs, setActingAs, getImpersonateUser, stopImpersonation } from '../../lib/api';
 import { webChatsApi } from '../../lib/webChatsApi';
+import { crmLeads } from '../../lib/crmApi';
 import { WHATS_NEW, markSectionSeen } from '../../lib/whatsNew';
 import StagingBoot from './StagingBoot';
 import StagingDeployModal from './StagingDeployModal';
@@ -224,6 +225,27 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       try { localStorage.setItem('kinematic_webchats_seen_at', String(Date.now())); } catch { /* ignore */ }
       setWebChatUnread(0);
     }
+  }, [pathname]);
+
+  // New inbound leads (Google Ads / website forms / other integrations that are
+  // still status='new') — badged on the sidebar "Leads" item so a rep/admin
+  // notices arrivals from anywhere in the app. Count is scoped to what the user
+  // can see (city scope auto-attached; backend role-scopes) and drops naturally
+  // as those leads get worked. Re-polled on navigation and every 60s. Anyone
+  // without leads access simply gets 403 → stays 0 (no badge).
+  const [inboundLeadsCount, setInboundLeadsCount] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    const poll = async () => {
+      try {
+        const r = await crmLeads.list({ inbound: 'true', status: 'new', limit: 1 });
+        if (!alive) return;
+        setInboundLeadsCount(r.pagination?.total ?? (r.data?.length ?? 0));
+      } catch { /* transient / no access — keep the last known count */ }
+    };
+    poll();
+    const id = setInterval(poll, 60000);
+    return () => { alive = false; clearInterval(id); };
   }, [pathname]);
   // Fetch the hierarchy role label once so the top header can show "Name ·
   // Business Manager" (the hierarchy name) instead of just the legacy
@@ -762,6 +784,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           onToggleSection={toggleSection}
           isActive={isActive}
           webChatUnread={webChatUnread}
+          inboundLeadsCount={inboundLeadsCount}
           user={user}
           roleLabel={hierarchyRoleName || getDesignationLabel(user)}
           onLogout={handleLogout}

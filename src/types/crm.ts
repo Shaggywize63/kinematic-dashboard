@@ -60,6 +60,11 @@ export interface Lead extends B2CFields {
   notes?: string | null;
   tags?: string[] | null;
   custom?: Record<string, unknown> | null;
+  // Admin-defined custom fields (crm_custom_fields defs) stored on the row's
+  // custom_fields jsonb. Also holds the reserved `__important` flag toggled by
+  // the mark-important star (leading underscore can't collide with an admin
+  // key, which must match /^[a-z]/). Backend PATCH merges partial objects.
+  custom_fields?: Record<string, unknown> | null;
   photo_url?: string | null;
   // Manager approval workflow. Leads captured by a field rep enter 'pending'
   // and must be approved by a manager before they count as live; admin/system
