@@ -178,6 +178,52 @@ type CacheEntry = { value: unknown; expiry: number };
 const responseCache = new Map<string, CacheEntry>();
 const inFlight = new Map<string, Promise<unknown>>();
 
+// ── Request resilience ──────────────────────────────────────────────────────
+// A hung upstream (a brief auth/DB blip, an ECS task restart, a Spot reclaim)
+// used to make every fetch hang until the ALB's 60s idle cutoff — freezing the
+// dashboard and making a refresh appear to "not load" because the bootstrap
+// call never resolves. These helpers bound each request in time and retry
+// transient, idempotent (GET) failures so a blip degrades into a short retry
+// instead of an indefinite freeze.
+const REQUEST_TIMEOUT_MS = 25_000; // per attempt; below the ALB 60s idle cutoff
+const REFRESH_TIMEOUT_MS = 15_000; // token refresh — GoTrue's own deadline is ~10s
+const MAX_GET_ATTEMPTS = 3;        // 1 initial + 2 retries for GETs only
+
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+// Exponential backoff with jitter: ~300ms, ~700ms.
+const retryBackoffMs = (attempt: number) => Math.round(300 * Math.pow(2, attempt - 1) * (0.75 + Math.random() * 0.5));
+
+// fetch() that aborts after `timeoutMs`, mapping the abort to a clear timeout
+// error and forwarding a caller-supplied AbortSignal. A timed-out or
+// network-failed request throws (rather than hanging), so callers can retry or
+// surface it instead of the UI waiting forever.
+async function fetchWithTimeout(input: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const callerSignal = init.signal as AbortSignal | undefined;
+  if (callerSignal) {
+    if (callerSignal.aborted) controller.abort();
+    else callerSignal.addEventListener('abort', () => controller.abort(), { once: true });
+  }
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } catch (e: unknown) {
+    if (e instanceof DOMException && e.name === 'AbortError') {
+      const err = new Error('Request timed out — the server took too long to respond. Please try again.');
+      (err as Error & { isTimeout?: boolean }).isTimeout = true;
+      throw err;
+    }
+    (e as Error & { isNetworkError?: boolean }).isNetworkError = true;
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// Transient upstream states worth a quick retry (ALB/gateway couldn't reach a
+// healthy task): bad gateway / unavailable / gateway timeout.
+const isTransientStatus = (status: number) => status === 502 || status === 503 || status === 504;
+
 function lsGet(key: string): { value: unknown; ts: number } | null {
   if (typeof window === 'undefined') return null;
   try {
@@ -408,14 +454,17 @@ class ApiClient {
         // defaults to Tata and rejects a Kinematic refresh token, so the session
         // can't extend and dies at access-token expiry ("expires very early").
         const project = getStoredProjectKey();
-        const res = await fetch(`${this.baseUrl}/api/v1/auth/refresh`, {
+        // Bounded: a hung token refresh (the classic GoTrue "context deadline
+        // exceeded" blip) must not freeze every call behind it — time out and
+        // return null so the caller recovers (redirect to login) instead.
+        const res = await fetchWithTimeout(`${this.baseUrl}/api/v1/auth/refresh`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             ...(project && project !== DEFAULT_PROJECT ? { 'X-Kinematic-Project': project } : {}),
           },
           body: JSON.stringify({ refresh_token: refreshToken }),
-        });
+        }, REFRESH_TIMEOUT_MS);
         if (!res.ok) return null;
         const json = await res.json();
         const data = json?.data ?? json;
@@ -579,7 +628,30 @@ class ApiClient {
       if (safePath.endsWith('?')) safePath = safePath.slice(0, -1);
     }
 
-    const res = await fetch(`${this.baseUrl}${safePath}`, { ...options, headers });
+    // Bounded fetch with transient-retry. GETs are idempotent so we retry them
+    // on a timeout / network drop / gateway error (a brief backend or auth
+    // blip) with short backoff, turning an indefinite freeze into a quick
+    // recovery. Non-GET (writes) get the timeout but are never retried, to
+    // avoid duplicating a mutation.
+    const method = (options.method || 'GET').toUpperCase();
+    const canRetry = method === 'GET';
+    const maxAttempts = canRetry ? MAX_GET_ATTEMPTS : 1;
+    let res!: Response;
+    let attempt = 0;
+    while (true) {
+      attempt++;
+      try {
+        res = await fetchWithTimeout(`${this.baseUrl}${safePath}`, { ...options, headers }, REQUEST_TIMEOUT_MS);
+      } catch (err) {
+        if (canRetry && attempt < maxAttempts) { await sleep(retryBackoffMs(attempt)); continue; }
+        throw err;
+      }
+      if (canRetry && isTransientStatus(res.status) && attempt < maxAttempts) {
+        await sleep(retryBackoffMs(attempt));
+        continue;
+      }
+      break;
+    }
     if (res.status === 401) {
       // Silent refresh-on-401: try once, swap the Bearer, replay the
       // original request. The user only ever sees the failure if the
