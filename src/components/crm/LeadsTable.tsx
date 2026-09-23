@@ -248,6 +248,18 @@ const LeadRow = memo(function LeadRow({ lead: l, isSelected, onToggle, onScoreCl
         {l.approval_status === 'rejected' && (
           <div style={{ marginTop: 4 }}><Badge tone="red">Rejected</Badge></div>
         )}
+        {/* Inbound highlight — this lead arrived automatically from a lead-source
+            integration (Google Ads / website form / Meta / …). Shown in the
+            locked Name cell so it's visible even when the Source column is
+            hidden; names the channel when known. */}
+        {l.is_inbound && (
+          <div style={{ marginTop: 4 }}>
+            <Badge tone="ok" style={{ gap: 4 }}>
+              <span aria-hidden style={{ fontSize: 10 }}>🌐</span>
+              {l.source_name || 'Inbound'}
+            </Badge>
+          </div>
+        )}
       </td>
       {showCompany && <td style={tdStyle} data-label="Company">{l.company || <Dash />}</td>}
       {!hidden.has('phone') && <td style={{ ...tdStyle, fontFamily: T.mono, fontSize: 12.5, whiteSpace: 'nowrap' }} data-label="Phone">{l.phone || <Dash />}</td>}
