@@ -1,7 +1,7 @@
 'use client';
 import { memo, useCallback, useState } from 'react';
 import Link from 'next/link';
-import { ArrowDown, ArrowRight, ArrowUp, ArrowUpDown, Check, Hourglass, Pencil, X } from 'lucide-react';
+import { ArrowDown, ArrowRight, ArrowUp, ArrowUpDown, Check, Hourglass, Pencil, Star, X } from 'lucide-react';
 import type { Lead } from '../../types/crm';
 import LeadScoreBadge from './LeadScoreBadge';
 import { breakdownFactors, llmAdjustmentOf } from '../../lib/crm/scoreFactors';
@@ -32,6 +32,10 @@ interface Props {
   // shows Approve / Reject buttons in the Action column and a "Pending
   // approval" badge by its name. Backend enforces who may actually decide.
   onApprove?: (leadId: string, decision: 'approved' | 'rejected') => Promise<void>;
+  // Mark-important: when provided, a star toggle next to each lead's name
+  // flips crm_leads.custom_fields.__important. The parent owns the optimistic
+  // local update + API call so the star reflects the new state immediately.
+  onToggleImportant?: (lead: Lead) => void;
 }
 
 // Table header cell — mono eyebrow, 12px vertical padding, hairline below.
@@ -114,7 +118,7 @@ export const LEAD_COLUMNS = [
  * footer. Keeps the `responsive-cards` / `cards-view` classes + `data-label`s
  * that globals.css uses for the phone card-stack layout.
  */
-export default function LeadsTable({ leads, selected, onToggle, onToggleAll, loading, isB2C = false, onAssign, hiddenColumns, viewMode = 'table', sort, onSort, onEdit, onApprove }: Props) {
+export default function LeadsTable({ leads, selected, onToggle, onToggleAll, loading, isB2C = false, onAssign, hiddenColumns, viewMode = 'table', sort, onSort, onEdit, onApprove, onToggleImportant }: Props) {
   const [scorePopup, setScorePopup] = useState<Lead | null>(null);
   const allSelected = leads.length > 0 && leads.every((l) => selected.has(l.id));
 
@@ -181,6 +185,7 @@ export default function LeadsTable({ leads, selected, onToggle, onToggleAll, loa
                 onAssign={onAssign}
                 onEdit={onEdit}
                 onApprove={onApprove}
+                onToggleImportant={onToggleImportant}
                 isB2C={isB2C}
                 hidden={hidden}
               />
@@ -202,11 +207,12 @@ interface LeadRowProps {
   onAssign?: (leadId: string, userId: string | null) => Promise<void>;
   onEdit?: (lead: Lead) => void;
   onApprove?: (leadId: string, decision: 'approved' | 'rejected') => Promise<void>;
+  onToggleImportant?: (lead: Lead) => void;
   isB2C: boolean;
   hidden: Set<string>;
 }
 
-const LeadRow = memo(function LeadRow({ lead: l, isSelected, onToggle, onScoreClick, onAssign, onEdit, onApprove, isB2C, hidden }: LeadRowProps) {
+const LeadRow = memo(function LeadRow({ lead: l, isSelected, onToggle, onScoreClick, onAssign, onEdit, onApprove, onToggleImportant, isB2C, hidden }: LeadRowProps) {
   const fullName = l.full_name || `${l.first_name || ''} ${l.last_name || ''}`.trim() || '—';
   const handleToggle = useCallback(() => onToggle(l.id), [onToggle, l.id]);
   const handleScore  = useCallback(() => onScoreClick(l), [onScoreClick, l]);
@@ -225,6 +231,25 @@ const LeadRow = memo(function LeadRow({ lead: l, isSelected, onToggle, onScoreCl
       <td style={{ ...tdStyle, paddingRight: 0 }} data-label=""><input type="checkbox" checked={isSelected} onChange={handleToggle} aria-label={`Select ${fullName}`} style={{ width: 15, height: 15, display: 'block' }} /></td>
       <td style={tdStyle} data-label="Name">
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {/* Mark-important star. Filled/gold when custom_fields.__important is
+              set; click toggles it. Rendered before the name so the flagged
+              state reads at a glance down the column. */}
+          {onToggleImportant && (() => {
+            const important = !!(l.custom_fields as { __important?: unknown } | null | undefined)?.__important;
+            return (
+              <button
+                type="button"
+                onClick={() => onToggleImportant(l)}
+                title={important ? 'Unmark as important' : 'Mark as important'}
+                aria-label={important ? 'Unmark as important' : 'Mark as important'}
+                aria-pressed={important}
+                className="km-iconbtn"
+                style={{ background: 'transparent', border: 'none', padding: 2, cursor: 'pointer', color: important ? '#f5a623' : T.mute, lineHeight: 0, flexShrink: 0, borderRadius: 4, display: 'inline-flex' }}
+              >
+                <Star size={14} strokeWidth={1.8} fill={important ? '#f5a623' : 'none'} />
+              </button>
+            );
+          })()}
           <Link href={`/dashboard/crm/leads/${l.id}`} className="km-entity-link" title="Open lead detail">{fullName}</Link>
           {/* Always-visible inline-edit pencil so the edit affordance is
               discoverable without scrolling to the Action column. */}
@@ -247,18 +272,6 @@ const LeadRow = memo(function LeadRow({ lead: l, isSelected, onToggle, onScoreCl
         )}
         {l.approval_status === 'rejected' && (
           <div style={{ marginTop: 4 }}><Badge tone="red">Rejected</Badge></div>
-        )}
-        {/* Inbound highlight — this lead arrived automatically from a lead-source
-            integration (Google Ads / website form / Meta / …). Shown in the
-            locked Name cell so it's visible even when the Source column is
-            hidden; names the channel when known. */}
-        {l.is_inbound && (
-          <div style={{ marginTop: 4 }}>
-            <Badge tone="ok" style={{ gap: 4 }}>
-              <span aria-hidden style={{ fontSize: 10 }}>🌐</span>
-              {l.source_name || 'Inbound'}
-            </Badge>
-          </div>
         )}
       </td>
       {showCompany && <td style={tdStyle} data-label="Company">{l.company || <Dash />}</td>}
