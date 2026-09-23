@@ -122,7 +122,7 @@ export default function LeadsListPage() {
       if (filters.district)   qs.set('district',  filters.district);
       if (filters.block)      qs.set('block',     filters.block);
       // The list-side filters that were silently dropped before:
-      if (filters.status)     qs.set('status',      filters.status);
+      if (filters.status?.length) qs.set('status_in', filters.status.join(','));
       if (approvalFilter)     qs.set('approval_status', approvalFilter);
       if (filters.source)     qs.set('source_id',   filters.source);
       if (filters.owner)      qs.set('owner_id',    filters.owner);
@@ -248,7 +248,7 @@ export default function LeadsListPage() {
       if (filters.city)     params.city      = filters.city;
       if (filters.district) params.district  = filters.district;
       if (filters.block)    params.block     = filters.block;
-      if (filters.status)   params.status    = filters.status;
+      if (filters.status?.length) params.status_in = filters.status.join(',');
       if (approvalFilter)   params.approval_status = approvalFilter;
       if (filters.source)   params.source_id = filters.source;
       if (filters.owner)    params.owner_id  = filters.owner;
@@ -321,7 +321,7 @@ export default function LeadsListPage() {
   useEffect(() => { reload(); /* eslint-disable-next-line */ }, [
     range.from, range.to,
     filters.state, filters.city, filters.district, filters.block,
-    filters.status, approvalFilter, filters.source, filters.owner, filters.grade,
+    filters.status?.join(','), approvalFilter, filters.source, filters.owner, filters.grade,
     debouncedQ,
     page, pageSize, sort.key, sort.order,
     smartParams,
@@ -337,7 +337,7 @@ export default function LeadsListPage() {
   useEffect(() => { setPage(1); /* eslint-disable-next-line */ }, [
     range.from, range.to,
     filters.state, filters.city, filters.district, filters.block,
-    filters.status, approvalFilter, filters.source, filters.owner, filters.grade,
+    filters.status?.join(','), approvalFilter, filters.source, filters.owner, filters.grade,
     debouncedQ,
     pageSize, sort.key, sort.order,
     smartParams,
@@ -492,7 +492,13 @@ export default function LeadsListPage() {
               <button
                 type="button"
                 onClick={() => {
-                  setFilters((f) => ({ ...f, status: 'new' }));
+                  // Toggle a "new only" quick-filter on/off. Sets the status
+                  // multi-select to exactly [new], or clears it if it was
+                  // already just [new].
+                  setFilters((f) => {
+                    const onlyNew = f.status?.length === 1 && f.status[0] === 'new';
+                    return { ...f, status: onlyNew ? undefined : ['new'] };
+                  });
                   setPage(1);
                 }}
                 title="Show new (unworked) leads"
@@ -503,8 +509,8 @@ export default function LeadsListPage() {
                   padding: '2px 9px',
                   borderRadius: 999,
                   border: '1px solid var(--info-border, #93c5fd)',
-                  background: filters.status === 'new' ? 'var(--info, #2563eb)' : 'var(--info-bg, #eff6ff)',
-                  color: filters.status === 'new' ? '#fff' : 'var(--info-fg, #1d4ed8)',
+                  background: (filters.status?.length === 1 && filters.status[0] === 'new') ? 'var(--info, #2563eb)' : 'var(--info-bg, #eff6ff)',
+                  color: (filters.status?.length === 1 && filters.status[0] === 'new') ? '#fff' : 'var(--info-fg, #1d4ed8)',
                   fontSize: 11.5,
                   fontWeight: 600,
                   cursor: 'pointer',
@@ -517,7 +523,7 @@ export default function LeadsListPage() {
                     width: 6,
                     height: 6,
                     borderRadius: 999,
-                    background: filters.status === 'new' ? '#fff' : 'var(--info, #2563eb)',
+                    background: (filters.status?.length === 1 && filters.status[0] === 'new') ? '#fff' : 'var(--info, #2563eb)',
                     display: 'inline-block',
                   }}
                 />
