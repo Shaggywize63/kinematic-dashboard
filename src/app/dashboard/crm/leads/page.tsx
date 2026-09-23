@@ -72,6 +72,12 @@ export default function LeadsListPage() {
   // page's active filters so it always reflects the tenant-wide new-lead
   // backlog, not the current view. Refreshed on every reload().
   const [newLeadsCount, setNewLeadsCount] = useState<number | null>(null);
+  // Inbound-leads counter — leads that arrived automatically from a lead-source
+  // integration (Google Ads, website forms, Meta, …). Tenant-wide within the
+  // active city scope, independent of the page filters. `inboundOnly` filters
+  // the list to just those when the chip is clicked.
+  const [inboundCount, setInboundCount] = useState<number | null>(null);
+  const [inboundOnly, setInboundOnly] = useState(false);
   // Server-side sort. `recent` (default) keeps the latest-update-first order;
   // every other key maps to a backend column via ?sort=&order=.
   // Default sort: "Date added (newest)" is the resting order for everyone —
@@ -127,6 +133,7 @@ export default function LeadsListPage() {
       if (filters.source)     qs.set('source_id',   filters.source);
       if (filters.owner)      qs.set('owner_id',    filters.owner);
       if (filters.grade)      qs.set('score_grade', filters.grade);
+      if (inboundOnly)        qs.set('inbound',     'true');
       if (debouncedQ)         qs.set('q',           debouncedQ);
       // Demo-account short-circuit — raw fetch() bypasses api.ts's
       // demo intercept, so we'd otherwise hit the real backend with a
@@ -235,6 +242,13 @@ export default function LeadsListPage() {
       .list({ status: 'new', limit: 1 })
       .then((r) => setNewLeadsCount(r.pagination?.total ?? (r.data?.length ?? 0)))
       .catch(() => {});
+    // Inbound counter — leads from lead-source integrations (Google Ads, web
+    // forms, …) in the current city scope. Independent of the page filters, like
+    // the new-leads chip above. Fire-and-forget: never blocks the main list.
+    crmLeads
+      .list({ inbound: 'true', limit: 1 })
+      .then((r) => setInboundCount(r.pagination?.total ?? (r.data?.length ?? 0)))
+      .catch(() => {});
     try {
       const params: Record<string, string | number> = { page, limit: pageSize };
       if (range.from)      params.from     = range.from;
@@ -253,6 +267,7 @@ export default function LeadsListPage() {
       if (filters.source)   params.source_id = filters.source;
       if (filters.owner)    params.owner_id  = filters.owner;
       if (filters.grade)    params.score_grade = filters.grade;
+      if (inboundOnly)      params.inbound   = 'true';
       // Free-text search (name / email / phone / company) — server-side so it
       // matches across all pages. Debounced to avoid a refetch per keystroke.
       if (debouncedQ)       params.q          = debouncedQ;
@@ -321,7 +336,7 @@ export default function LeadsListPage() {
   useEffect(() => { reload(); /* eslint-disable-next-line */ }, [
     range.from, range.to,
     filters.state, filters.city, filters.district, filters.block,
-    filters.status, approvalFilter, filters.source, filters.owner, filters.grade,
+    filters.status, approvalFilter, filters.source, filters.owner, filters.grade, inboundOnly,
     debouncedQ,
     page, pageSize, sort.key, sort.order,
     smartParams,
@@ -337,7 +352,7 @@ export default function LeadsListPage() {
   useEffect(() => { setPage(1); /* eslint-disable-next-line */ }, [
     range.from, range.to,
     filters.state, filters.city, filters.district, filters.block,
-    filters.status, approvalFilter, filters.source, filters.owner, filters.grade,
+    filters.status, approvalFilter, filters.source, filters.owner, filters.grade, inboundOnly,
     debouncedQ,
     pageSize, sort.key, sort.order,
     smartParams,
@@ -522,6 +537,33 @@ export default function LeadsListPage() {
                   }}
                 />
                 {newLeadsCount.toLocaleString()} new
+              </button>
+            )}
+            {/* Inbound-leads counter — leads that arrived from a lead-source
+                integration (Google Ads, website forms, Meta, …). Clickable to
+                filter the list to just those. Hidden when zero / loading. */}
+            {inboundCount != null && inboundCount > 0 && (
+              <button
+                type="button"
+                onClick={() => { setInboundOnly((v) => !v); setPage(1); }}
+                title="Leads that arrived from Google Ads, website forms & other integrations — click to filter"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  padding: '2px 9px',
+                  borderRadius: 999,
+                  border: '1px solid var(--success-border, #6ee7b7)',
+                  background: inboundOnly ? 'var(--success, #059669)' : 'var(--success-bg, #ecfdf5)',
+                  color: inboundOnly ? '#fff' : 'var(--success-fg, #047857)',
+                  fontSize: 11.5,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  lineHeight: 1.6,
+                }}
+              >
+                <span aria-hidden style={{ fontSize: 11 }}>🌐</span>
+                {inboundCount.toLocaleString()} inbound
               </button>
             )}
           </span>

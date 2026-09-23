@@ -44,6 +44,9 @@ export interface Lead extends B2CFields {
   status: LeadStatus;
   source_id?: string | null;
   source_name?: string | null;
+  /** Computed on the leads list: the lead arrived from a lead-source
+   *  integration (Google Ads / website form / Meta / …). Not persisted. */
+  is_inbound?: boolean;
   owner_id?: string | null;
   owner_name?: string | null;
   score?: number | null;
