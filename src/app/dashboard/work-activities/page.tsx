@@ -363,7 +363,7 @@ export default function WorkActivitiesPage() {
           <label style={{ display: 'block', fontSize: '10px', fontWeight: 800, color: C.accent, textTransform: 'uppercase', marginBottom: '6px' }}>Executive</label>
           <select value={userFilter} onChange={e => setUserFilter(e.target.value)} style={{ width: '100%', background: 'transparent', border: `1px solid ${C.border}`, color: C.text, padding: '4px', borderRadius: '8px', fontSize: '12px', outline: 'none' }}>
             <option value="">All Executives</option>
-            {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+            {users.filter((u: any) => u.role === 'executive' || u.role === 'field_executive' || u.org_role?.data_scope === 'own').map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
           </select>
         </div>
 
@@ -398,7 +398,7 @@ export default function WorkActivitiesPage() {
           {cityFilter && <span>City: {cities.find(c => c.id === cityFilter)?.name || cityFilter}</span>}
           {userFilter && <span>Exec: {users.find(u => u.id === userFilter)?.name || userFilter} ({userFilter.slice(0, 6)})</span>}
           {search && <span>Store: {search}</span>}
-          <span style={{ marginLeft: 'auto', color: C.accent }}>API Status: {loading ? 'FETCHING...' : 'READY'} | Records: {total}</span>
+          <span style={{ marginLeft: 'auto', color: C.accent }}>Records: {total}</span>
       </div>
 
       {/* Main Grid: Outlet Visits */}
