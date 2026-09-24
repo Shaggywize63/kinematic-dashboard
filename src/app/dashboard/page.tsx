@@ -376,6 +376,18 @@ export default function DashboardPage() {
   const { selectedClientId } = useClient();
   const [isInitialLoad, setIsInitialLoad] = useState(true);
 
+  const [userPerf, setUserPerf] = useState<{ users:any[] }|null>(null);
+  const [loadingUserPerf, setLUserPerf] = useState(true);
+
+  // ByteBack is field-force-only and route-less/outlet-less, so City-wise
+  // performance + Outlet coverage are meaningless. Swap them for a User-wise
+  // performance table (per FE: check-ins, submissions, active days). ByteBack only.
+  const BYTEBACK_CLIENT_ID = '9c8d7e6f-5a4b-4c3d-8e1f-0a1b2c3d4e5f';
+  const BYTEBACK_ORG_ID = '7e3b1c9a-2f44-4a6e-9b1d-0a2b3c4d5e6f';
+  const isByteBack = selectedClientId === BYTEBACK_CLIENT_ID
+    || (currUser as any)?.client_id === BYTEBACK_CLIENT_ID
+    || (currUser as any)?.org_id === BYTEBACK_ORG_ID;
+
   const loadInit = useCallback(async () => {
     setLAtt(true); setLSumm(true); setLWeek(true);
     try {
@@ -409,9 +421,16 @@ export default function DashboardPage() {
       if (cRes.status === 'fulfilled') setCity(cRes.value?.data ?? cRes.value);
       if (oRes.status === 'fulfilled') setOutlet(oRes.value?.data ?? oRes.value);
       if (sRes.status === 'fulfilled') setSumm(sRes.value?.data ?? sRes.value);
+      if (isByteBack) {
+        setLUserPerf(true);
+        try {
+          const up = await api.get<any>(`/api/v1/analytics/user-performance${qs}`);
+          setUserPerf(up?.data ?? up);
+        } catch { } finally { setLUserPerf(false); }
+      }
     } catch { }
     setLWeek(false); setLCity(false); setLOutlet(false); setLSumm(false);
-  }, [isInitialLoad, selectedClientId]);
+  }, [isInitialLoad, selectedClientId, isByteBack]);
 
   useEffect(() => {
     const u = getStoredUser();
@@ -538,6 +557,51 @@ export default function DashboardPage() {
           </Card>
         </div>
 
+        {isByteBack && (
+        <Card padding={0}>
+          <div style={{ padding:'16px 16px 0' }}>
+            <CardTitle title="User-wise performance" sub={`${from} → ${to} · per field executive`} />
+          </div>
+          {loadingUserPerf ? (
+            <div style={{ display:'flex', flexDirection:'column', gap:8, padding:'0 16px 16px' }}>
+              {[...Array(3)].map((_,i) => <Shimmer key={i} h={44} br={8}/>)}
+            </div>
+          ) : (userPerf?.users?.length ? (
+            <div style={{ overflowX:'auto' }}>
+              <table className="km-tbl" style={{ width:'100%', borderCollapse:'collapse', minWidth:520 }}>
+                <thead>
+                  <tr>
+                    <th style={th}>Field executive</th>
+                    <th style={thNum}>Check-ins</th>
+                    <th style={thNum}>Submissions</th>
+                    <th style={thNum}>Active days</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {userPerf.users.map((u:any, i:number) => {
+                    const last = i === userPerf.users.length - 1;
+                    return (
+                      <tr key={u.user_id}>
+                        <td style={{ ...td, borderBottom: last ? 0 : td.borderBottom }}>
+                          <div style={{ fontWeight:500 }}>{u.name}</div>
+                          {u.employee_id && <div style={{ fontSize:12, color:T.mute, marginTop:2 }}>{u.employee_id}</div>}
+                        </td>
+                        <td style={{ ...tdNum, borderBottom: last ? 0 : td.borderBottom }}>{u.checkins}</td>
+                        <td style={{ ...tdNum, borderBottom: last ? 0 : td.borderBottom }}>{u.submissions}</td>
+                        <td style={{ ...tdNum, borderBottom: last ? 0 : td.borderBottom }}>{u.active_days}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <Empty>No user activity for this period</Empty>
+          ))}
+        </Card>
+        )}
+
+        {!isByteBack && (
         <Card padding={0}>
           <div style={{ padding:'16px 16px 0' }}>
             <CardTitle
@@ -600,9 +664,10 @@ export default function DashboardPage() {
             );
           })()}
         </Card>
+        )}
 
-        {/* Row 5: Outlet Coverage — hidden for the insurance vertical (no outlets) */}
-        {!isIns && (
+        {/* Row 5: Outlet Coverage — hidden for the insurance vertical (no outlets) and for ByteBack (route-less) */}
+        {!isIns && !isByteBack && (
         <Card padding={0}>
           <div style={{ padding:'16px 16px 0' }}>
             <CardTitle
