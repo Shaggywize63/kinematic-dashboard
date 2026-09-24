@@ -2,7 +2,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import ConfirmModal from '../../../components/ConfirmModal';
 import { useAuth } from '../../../hooks/useAuth';
-import api from '../../../lib/api';
+import api, { getActingAs, getImpersonateUser } from '../../../lib/api';
+import { getStoredProjectKey, DEFAULT_PROJECT } from '../../../lib/projects';
 import { useClient } from '../../../context/ClientContext';
 import { matchDemoMock, DEMO_USER_EMAIL } from '../../../lib/demoMocks';
 import KiniMascot from '../../../components/crm/KiniMascot';
@@ -58,7 +59,33 @@ const C = {
 
 const API   = process.env.NEXT_PUBLIC_API_URL ?? '';
 const tok   = () => (typeof window !== 'undefined' ? localStorage.getItem('kinematic_token') ?? '' : '');
-const hdrs  = () => ({ 'Content-Type':'application/json', Authorization:`Bearer ${tok()}` });
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// Scope headers for the page-local apiFetch(). These MUST match what the shared
+// api client (src/lib/api.ts) auto-attaches, or form-builder requests are
+// misrouted: without X-Kinematic-Project a non-default-project token (e.g.
+// ByteBack = the kinematic project) is verified against the WRONG project and
+// the backend rejects it with "Invalid or expired token"; without X-Org-Id /
+// X-Client-Id the request resolves to the wrong tenant scope. Mirrors api.ts.
+const hdrs  = () => {
+  const h: Record<string,string> = { 'Content-Type':'application/json', Authorization:`Bearer ${tok()}` };
+  if (typeof window === 'undefined') return h;
+  try {
+    const project = getStoredProjectKey();
+    if (project && project !== DEFAULT_PROJECT) h['X-Kinematic-Project'] = project;
+    const acting = getActingAs();
+    const orgId = acting?.org_id || (() => { try { return JSON.parse(localStorage.getItem('kinematic_user') || '{}')?.org_id; } catch { return null; } })();
+    if (orgId) h['X-Org-Id'] = orgId;
+    const actingClient = acting?.client_id;
+    if (actingClient) h['X-Client-Id'] = actingClient;
+    else if (localStorage.getItem('kinematic_hide_client_filter') !== '1') {
+      const sel = localStorage.getItem('kinematic_selected_client');
+      if (sel && UUID_RE.test(sel)) h['X-Client-Id'] = sel;
+    }
+    const imp = getImpersonateUser();
+    if (imp?.id) h['X-Impersonate-User-Id'] = imp.id;
+  } catch { /* fall back to Authorization only */ }
+  return h;
+};
 async function apiFetch<T>(path:string, opts:RequestInit={}):Promise<T> {
   // This wrapper bypasses the api-client demo intercept, so the demo account's
   // Form Builder hit the real backend and came back empty. Serve canned data
