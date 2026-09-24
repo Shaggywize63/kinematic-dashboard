@@ -411,6 +411,19 @@ class ApiClient {
     } catch { return null; }
   }
 
+  /**
+   * A genuine demo session serves canned client-side mocks. Requires BOTH the
+   * demo email AND the demo bearer token — so a stale/stray `demo@kinematic.com`
+   * left in localStorage from an earlier demo login can NEVER make a real client
+   * admin (with a real token) see mock data. The demo login sets both markers
+   * together (login/page.tsx), and "login as client" impersonation uses a
+   * different bearer, so neither a real login nor an impersonation trips this.
+   */
+  private isDemoSession(): boolean {
+    return this.getUserEmail() === demo.DEMO_USER_EMAIL
+      && this.getToken() === 'demo-token-jwt-placeholder';
+  }
+
   /** True when the signed-in user is flagged read-only (users.is_read_only).
    *  Read from the stored login profile; the backend guard is authoritative. */
   private isReadOnlyUser(): boolean {
@@ -513,7 +526,7 @@ class ApiClient {
     // canned JSON instead of touching the network so every dashboard renders
     // populated values. That email is the single demo account; no other
     // email triggers the demo experience.
-    if (this.getUserEmail() === demo.DEMO_USER_EMAIL) {
+    if (this.isDemoSession()) {
       // Pass the parsed body so mocks that need to persist user input (e.g.
       // creating a WhatsApp template) can read it.
       let parsedBody: unknown;
@@ -922,7 +935,7 @@ class ApiClient {
   /** True when the signed-in user is the shared demo account. Exposed so demo-only
    *  UI (e.g. the Work Activities → Insights tab) can gate itself client-side. */
   isDemoAccount(): boolean {
-    return this.getUserEmail() === demo.DEMO_USER_EMAIL;
+    return this.isDemoSession();
   }
 
   /** Aggregated form-response insights for the Work Activities → Insights tab.
@@ -930,7 +943,7 @@ class ApiClient {
    *  call (mirrors getAdminSubmissions). Real tenants would hit the backend
    *  aggregation endpoint — the tab is demo-gated today, so that path is unused. */
   getFormInsights(params?: Record<string, string>) {
-    if (this.getUserEmail() === demo.DEMO_USER_EMAIL) {
+    if (this.isDemoSession()) {
       const m = demo.matchDemoMock<unknown>('/api/v1/forms/admin/insights', 'GET');
       if (m !== undefined) return Promise.resolve(m);
     }
