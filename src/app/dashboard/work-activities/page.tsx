@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, Fragment } from 'react';
 import api from '../../../lib/api';
 import { useClient } from '../../../context/ClientContext';
 import { extractImageUrls } from '../../../lib/utils';
@@ -218,16 +218,23 @@ export default function WorkActivitiesPage() {
 
   useEffect(() => { loadData(1); }, [loadData]);
 
-  // Grouping Logic: (Outlet + User + Date)
+  // Grouping Logic: bifurcated by ACTIVITY, then (Outlet + User + Date).
+  // The activity is part of the group key so every visit card is single-activity,
+  // and the groups are ordered so all of an activity's visits are contiguous —
+  // the render inserts an activity heading whenever the activity changes, giving
+  // the requested per-activity split (e.g. Purchase / Store Visit sections).
   const groupedData = useMemo(() => {
     const map = new Map<string, FormActivity[]>();
     data.forEach(item => {
       const datePart = item.submitted_at?.split('T')[0] || '1970-01-01';
-      const key = `${item.outlet_name || 'Individual'}_${item.user_id}_${datePart}`;
+      const activity = item.activities?.name || 'Other';
+      const key = `${activity}__${item.outlet_name || 'Individual'}_${item.user_id}_${datePart}`;
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(item);
     });
-    return Array.from(map.values());
+    return Array.from(map.values()).sort((a, b) =>
+      (a[0]?.activities?.name || 'Other').localeCompare(b[0]?.activities?.name || 'Other')
+    );
   }, [data]);
 
   const downloadReport = async () => {
@@ -432,9 +439,23 @@ export default function WorkActivitiesPage() {
             const duration = calcDuration(checkIn, checkOut);
             const isExpanded = expandedOutlet === `${idx}`;
 
+            // Activity bifurcation heading — shown whenever the activity changes
+            // between consecutive (activity-ordered) groups, splitting the list
+            // into per-activity sections.
+            const activityName = first.activities?.name || 'Other';
+            const showActivityHeading = idx === 0
+              || (groupedData[idx - 1]?.[0]?.activities?.name || 'Other') !== activityName;
+
             return (
-                <div 
-                  key={idx} 
+                <Fragment key={idx}>
+                {showActivityHeading && (
+                  <div style={{ margin: idx === 0 ? '0 0 14px' : '30px 0 14px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <span style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: C.accent }}>{activityName}</span>
+                    <span style={{ flex: 1, height: '1px', background: C.border }} />
+                  </div>
+                )}
+                <div
+                  key={idx}
                   style={{ background: C.card, borderRadius: '24px', border: `1px solid ${isExpanded ? C.accent : C.border}`, overflow: 'hidden', transition: 'all 0.3s cubic-bezier(0.16,1,0.3,1)' }}
                 >
                     {/* Outlet Header */}
@@ -520,6 +541,7 @@ export default function WorkActivitiesPage() {
                         </div>
                     )}
                 </div>
+                </Fragment>
             )
         })}
       </div>
