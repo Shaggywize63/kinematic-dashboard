@@ -423,6 +423,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const moisoiHideActive =
     userClientId === MOISOI_CLIENT_ID || pickerClientId === MOISOI_CLIENT_ID ||
     userOrgId === MOISOI_ORG_ID || (actingAs as any)?.org_id === MOISOI_ORG_ID;
+  // ByteBack — a FIELD-FORCE-ONLY client (onboarded without the crm /
+  // distribution packages). Its client-admins are client-bound `sub_admin`s,
+  // which useAuth still flags as `isPlatformAdmin`, so the entitlement gate in
+  // sectionVisible is bypassed and the CRM (Lead Management) + Distribution
+  // sections leak into their nav. Hide those two sections outright for ByteBack
+  // (by client OR org membership), same tenant-scoped pattern as PMC/MoiSoi.
+  const BYTEBACK_CLIENT_ID = '9c8d7e6f-5a4b-4c3d-8e1f-0a1b2c3d4e5f';
+  const BYTEBACK_ORG_ID = '7e3b1c9a-2f44-4a6e-9b1d-0a2b3c4d5e6f';
+  const byteBackHideActive =
+    userClientId === BYTEBACK_CLIENT_ID || pickerClientId === BYTEBACK_CLIENT_ID ||
+    userOrgId === BYTEBACK_ORG_ID || (actingAs as any)?.org_id === BYTEBACK_ORG_ID;
 
   const filterNav = (items: any[]) => {
     const visibleAfterRole = items.filter((i) => !i.superAdminOnly || isSuperAdmin);
@@ -461,6 +472,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const sectionVisible = (pkg: string | undefined, items: any[]) => {
     if (items.length === 0) return false;
     if (!pkg) return true;
+    // ByteBack (field-force-only): never surface the CRM (Lead Management) or
+    // Distribution sections, even for its client-admins (flagged isPlatformAdmin).
+    if (byteBackHideActive && (pkg === 'crm' || pkg === 'distribution')) return false;
     // Planogram section — a promoted group whose items are ALL
     // `module:'planograms'`. Its visibility is driven purely by that module,
     // NOT by a package SKU (there is no 'planograms' entry in
