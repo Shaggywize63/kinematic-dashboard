@@ -180,8 +180,20 @@ export default function ManpowerDirectoryPage() {
         if (Array.isArray(r?.data?.data)) return r.data.data;
         return [];
       };
+      // The "Users" directory must list the WHOLE team, not just field roles.
+      // Field-force tenants (e.g. ByteBack) provision managers/admins with the
+      // 'sub_admin' preset (data isolation comes from their org_role /
+      // data_scope, not the preset role), so a field-role-only filter hid every
+      // admin/manager and left the Users page empty for those tenants. Include
+      // the management tiers too. The API (getUsers) already scopes rows to the
+      // caller's org + client, so this only ever widens the list within the
+      // current tenant — never across tenants.
+      const DIRECTORY_ROLES = [
+        'executive', 'fe', 'field_executive', 'field-executive', 'supervisor',
+        'sub_admin', 'admin', 'city_manager', 'hr', 'main_admin', 'super_admin',
+      ];
       setStaff(pick(uR).filter((u:any) =>
-        ['executive', 'fe', 'field_executive', 'supervisor'].includes((u.role || '').toLowerCase().trim())
+        DIRECTORY_ROLES.includes((u.role || '').toLowerCase().trim())
       ));
       setZones(pick(zR));
       setSups(pick(sR).filter((u:any) => (u.role || '').toLowerCase().trim() === 'supervisor'));
