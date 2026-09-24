@@ -2,6 +2,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import ConfirmModal from '../../../components/ConfirmModal';
 import { useAuth } from '../../../hooks/useAuth';
+import api from '../../../lib/api';
+import { useClient } from '../../../context/ClientContext';
 import { matchDemoMock, DEMO_USER_EMAIL } from '../../../lib/demoMocks';
 import KiniMascot from '../../../components/crm/KiniMascot';
 import { 
@@ -484,11 +486,26 @@ function CreateFormModal({ onCreated, onClose }:{ onCreated:(f:BForm)=>void; onC
   const [aiPrompt, setAiPrompt] = useState('');
   const [aiBusy, setAiBusy] = useState(false);
 
+  const { selectedClientId } = useClient();
+
   useEffect(() => {
-    apiFetch<any>('/api/v1/activities').then(d => {
-      setActivities(Array.isArray(d) ? d : (d?.data || []));
+    // Load the Linked Activity options via the shared `api` client, NOT the
+    // local apiFetch(). apiFetch()/hdrs() only sends Authorization, dropping the
+    // X-Org-Id / X-Client-Id / X-Kinematic-Project scope headers the rest of the
+    // dashboard auto-attaches. Without X-Client-Id the backend resolves the
+    // caller's entitlements for the wrong (or empty) client scope, so
+    // requireModule('activities') 403s and this dropdown showed only "None" for
+    // client-scoped tenants (e.g. ByteBack) even when activities existed.
+    // Mirrors dashboard/other-management/activities' load exactly (same scope +
+    // ?client_id + response shape).
+    const qs = selectedClientId ? `?client_id=${selectedClientId}` : '';
+    api.get<any>(`/api/v1/activities${qs}`).then(r => {
+      const d = Array.isArray(r?.data?.data) ? r.data.data
+              : Array.isArray(r?.data)       ? r.data
+              : [];
+      setActivities(d);
     }).catch(()=>{});
-  }, []);
+  }, [selectedClientId]);
 
   const ICONS = ['📋','📊','🏪','👤','📦','🔍','✅','⚠️','📸','🗂️','📝','🔧'];
   const COLORS = [C.red,'#3E9EFF','#00D97E','#FFB800','#9B6EFF','#00C9B1','#FF7A30','#FF6B9D'];
