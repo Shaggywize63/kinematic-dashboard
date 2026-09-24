@@ -260,8 +260,22 @@ function RoutePlanContent() {
   const [zoneFilter, setZoneFilter]     = useState('all');
   const searchParams = useSearchParams();
   const router = useRouter();
-  const initialTab = searchParams.get('tab') === 'mapping' ? 'mapping' : 'plans';
   const initialActivity = searchParams.get('activity_id') || '';
+
+  // ByteBack is field-force-only with NO route_plan (orders) module — it has no
+  // route-plan assignment, only Activity-FE mapping. Hide the Route Plans tab
+  // when the tenant lacks the route-plan capability. Gated on the module, with an
+  // explicit ByteBack org/client guard so the field-force master admin (whose
+  // god-mode nav can otherwise surface the module) is covered too.
+  const _rpUser = getStoredUser();
+  const RP_BYTEBACK_CLIENT_ID = '9c8d7e6f-5a4b-4c3d-8e1f-0a1b2c3d4e5f';
+  const RP_BYTEBACK_ORG_ID = '7e3b1c9a-2f44-4a6e-9b1d-0a2b3c4d5e6f';
+  const rpIsByteBack = (_rpUser as any)?.client_id === RP_BYTEBACK_CLIENT_ID || (_rpUser as any)?.org_id === RP_BYTEBACK_ORG_ID;
+  const showRoutePlans = userHasModule(_rpUser, 'orders') && !rpIsByteBack;
+
+  const initialTab: 'plans' | 'mapping' = !showRoutePlans
+    ? 'mapping'
+    : (searchParams.get('tab') === 'mapping' ? 'mapping' : 'plans');
 
   const [tab, setTab]                   = useState<'plans' | 'mapping'>(initialTab);
 
@@ -356,7 +370,13 @@ function RoutePlanContent() {
     if (usersRes.status === 'fulfilled') {
       const r = usersRes.value;
       const allUsers = Array.isArray(r) ? r : (r?.data ?? []);
-      setUsers(allUsers.filter((u: any) => u.role === 'executive' || u.role === 'field_executive'));
+      // Field executives = the legacy `role` OR the newer org-role designation
+      // with data_scope='own'. ByteBack's field users are role='sub_admin' sitting
+      // on a data_scope='own' "Field Executive" designation, so the role-only
+      // filter left the Activity-FE mapping picker empty for them.
+      setUsers(allUsers.filter((u: any) =>
+        u.role === 'executive' || u.role === 'field_executive' || u.org_role?.data_scope === 'own'
+      ));
     }
     if (actRes.status === 'fulfilled') {
       const r = actRes.value;
@@ -381,8 +401,8 @@ function RoutePlanContent() {
   useEffect(() => {
     const t = searchParams.get('tab');
     if (t === 'mapping') setTab('mapping');
-    else if (t === 'plans') setTab('plans');
-  }, [searchParams]);
+    else if (t === 'plans' && showRoutePlans) setTab('plans');
+  }, [searchParams, showRoutePlans]);
 
   /* ── DERIVED ─────────────────────────────────────────────── */
   const zones = ['all', ...Array.from(new Set(plans.map(p => p.zone_name).filter(Boolean))) as string[]];
@@ -685,7 +705,9 @@ function RoutePlanContent() {
     <div style={{ fontFamily: "'DM Sans', sans-serif" }}>
       {/* ── TABS ───────────────────────────────────────────── */}
       <div style={{ display: 'flex', gap: 2, background: C.s2, padding: 4, borderRadius: 12, marginBottom: 24, width: 'fit-content', border: `1px solid ${C.border}` }}>
-        <button onClick={() => setTab('plans')} style={{ padding: '8px 20px', borderRadius: 9, border: 'none', fontSize: 13, fontWeight: 700, cursor: 'pointer', background: tab === 'plans' ? C.red : 'transparent', color: tab === 'plans' ? '#fff' : C.gray, transition: 'all 0.2s', fontFamily: "'Syne', sans-serif" }}>Route Plans</button>
+        {showRoutePlans && (
+          <button onClick={() => setTab('plans')} style={{ padding: '8px 20px', borderRadius: 9, border: 'none', fontSize: 13, fontWeight: 700, cursor: 'pointer', background: tab === 'plans' ? C.red : 'transparent', color: tab === 'plans' ? '#fff' : C.gray, transition: 'all 0.2s', fontFamily: "'Syne', sans-serif" }}>Route Plans</button>
+        )}
         <button onClick={() => setTab('mapping')} style={{ padding: '8px 20px', borderRadius: 9, border: 'none', fontSize: 13, fontWeight: 700, cursor: 'pointer', background: tab === 'mapping' ? C.red : 'transparent', color: tab === 'mapping' ? '#fff' : C.gray, transition: 'all 0.2s', fontFamily: "'Syne', sans-serif" }}>Activity-FE Mapping</button>
       </div>
 
