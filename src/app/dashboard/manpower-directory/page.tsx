@@ -180,21 +180,19 @@ export default function ManpowerDirectoryPage() {
         if (Array.isArray(r?.data?.data)) return r.data.data;
         return [];
       };
-      // The "Users" directory must list the WHOLE team, not just field roles.
-      // Field-force tenants (e.g. ByteBack) provision managers/admins with the
-      // 'sub_admin' preset (data isolation comes from their org_role /
-      // data_scope, not the preset role), so a field-role-only filter hid every
-      // admin/manager and left the Users page empty for those tenants. Include
-      // the management tiers too. The API (getUsers) already scopes rows to the
-      // caller's org + client, so this only ever widens the list within the
-      // current tenant — never across tenants.
-      const DIRECTORY_ROLES = [
-        'executive', 'fe', 'field_executive', 'field-executive', 'supervisor',
-        'sub_admin', 'admin', 'city_manager', 'hr', 'main_admin', 'super_admin',
-      ];
-      setStaff(pick(uR).filter((u:any) =>
-        DIRECTORY_ROLES.includes((u.role || '').toLowerCase().trim())
-      ));
+      // The "Users" directory lists FIELD STAFF — field executives & supervisors
+      // — not the manager/admin tier. Field-force tenants (e.g. ByteBack) put
+      // their field reps on the generic 'sub_admin' preset, distinguished from
+      // managers only by their org_role data_scope ('own' = field rep,
+      // 'team'/'all' = manager/admin). So show the field preset roles OR any
+      // user scoped to 'own', and never the team/org-wide managers/admins.
+      // getUsers scopes rows to the caller's org + client already.
+      const FIELD_ROLES = ['executive', 'fe', 'field_executive', 'field-executive', 'supervisor'];
+      setStaff(pick(uR).filter((u:any) => {
+        const role = (u.role || '').toLowerCase().trim();
+        const scope = (u.org_role?.data_scope || '').toLowerCase();
+        return FIELD_ROLES.includes(role) || scope === 'own';
+      }));
       setZones(pick(zR));
       setSups(pick(sR).filter((u:any) => (u.role || '').toLowerCase().trim() === 'supervisor'));
       setCMs(pick(cR));
