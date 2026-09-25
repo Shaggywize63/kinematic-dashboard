@@ -518,7 +518,7 @@ export default function ManpowerDirectoryPage() {
                             <div style={{minWidth:0}}>
                               <div className="km-entity-link" style={{fontSize:13.5,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{u.name}</div>
                               <div style={{fontFamily:T.mono,fontSize:11.5,color:T.mute,marginTop:2,display:'flex',alignItems:'center',gap:8}}>
-                                {u.employee_id||u.id.slice(0,8)}
+                                {u.employee_id || '—'}
                                 {isPlatformAdmin && u.client_id && <Badge tone="neutral" style={{height:18,fontSize:10.5}}>{clientName(u.client_id)}</Badge>}
                               </div>
                             </div>
@@ -649,50 +649,26 @@ export default function ManpowerDirectoryPage() {
             )}
             <Field label="Login password" style={{gridColumn:'1/-1'}}><Input type="text" placeholder="Mobile app/web password" value={form.app_password} onChange={e=>{setF('app_password',e.target.value); setF('password', e.target.value);}}/></Field>
 
-            {/* RBAC Section Edit */}
-            {(form.role === 'sub_admin' || form.role === 'city_manager' || form.role === 'admin') && (
+            {/* City-manager scope. Per-user "Module access" was removed — module
+                access is governed by the assigned Hierarchy Role, not per user. */}
+            {form.role === 'city_manager' && (
               <div style={{gridColumn:'1/-1', borderTop:`1px solid ${T.border}`, paddingTop:16, marginTop:4, display:'flex', flexDirection:'column', gap:12}}>
-                <div style={{display:'flex',flexDirection:'column',gap:4}}>
-                  <Eyebrow>Module access & scope</Eyebrow>
-                  <div style={{fontSize:13,color:T.dim}}>Modules this member can open.</div>
-                </div>
-
-                <div style={{display:'flex', flexWrap:'wrap', gap:8}}>
-                  {['orders','users','analytics','inventory','reports'].map(m => {
-                    const on = form.permissions.includes(m);
-                    return (
-                      <label key={m} style={{display:'inline-flex', alignItems:'center', gap:8, height:28, padding:'0 10px', borderRadius:999, cursor:'pointer', background:on?T.infoWash:T.card, border:`1px solid ${on?T.info:T.border}`, fontSize:12.5, fontWeight:500, color:on?T.text:T.dim, textTransform:'capitalize'}}>
-                        <input type="checkbox" checked={on}
-                          onChange={e => {
-                            const next = e.target.checked ? [...form.permissions, m] : form.permissions.filter(p => p !== m);
-                            setForm(p => ({...p, permissions: next}));
-                          }}
-                          style={{width:14,height:14,margin:0}}
-                        />
-                        {m}
-                      </label>
-                    );
-                  })}
-                </div>
-
-                {form.role === 'city_manager' && (
-                  <Field label="Assigned cities">
-                    <div style={{display:'flex', flexWrap:'wrap', gap:6, background:T.raised, padding:8, borderRadius:8, border:`1px solid ${T.border}`}}>
-                      {allCities.map(c => {
-                        const on = form.assigned_cities.includes(c);
-                        return (
-                          <button key={c} onClick={() => {
-                            const next = on ? form.assigned_cities.filter(x => x !== c) : [...form.assigned_cities, c];
-                            setForm(p => ({...p, assigned_cities: next}));
-                          }} type="button" aria-pressed={on}
-                            style={{height:26, padding:'0 10px', borderRadius:999, border:`1px solid ${on?T.info:T.border}`, fontSize:12, fontWeight:500, cursor:'pointer', fontFamily:'inherit', background:on?T.infoWash:T.card, color:on?T.text:T.dim}}>
-                            {c}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </Field>
-                )}
+                <Field label="Assigned cities">
+                  <div style={{display:'flex', flexWrap:'wrap', gap:6, background:T.raised, padding:8, borderRadius:8, border:`1px solid ${T.border}`}}>
+                    {allCities.map(c => {
+                      const on = form.assigned_cities.includes(c);
+                      return (
+                        <button key={c} onClick={() => {
+                          const next = on ? form.assigned_cities.filter(x => x !== c) : [...form.assigned_cities, c];
+                          setForm(p => ({...p, assigned_cities: next}));
+                        }} type="button" aria-pressed={on}
+                          style={{height:26, padding:'0 10px', borderRadius:999, border:`1px solid ${on?T.info:T.border}`, fontSize:12, fontWeight:500, cursor:'pointer', fontFamily:'inherit', background:on?T.infoWash:T.card, color:on?T.text:T.dim}}>
+                          {c}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </Field>
               </div>
             )}
 
@@ -710,7 +686,7 @@ export default function ManpowerDirectoryPage() {
 
       {/* DETAIL MODAL */}
       {selected && !showEdit && (
-        <Modal open onClose={()=>setSelected(null)} title={selected.name} subtitle={`${roleLabel(selected.role)} · ${selected.employee_id || selected.id.slice(0,8)}`} width={520}
+        <Modal open onClose={()=>setSelected(null)} title={selected.name} subtitle={`${roleLabel(selected.role)}${selected.employee_id ? ' · ' + selected.employee_id : ''}`} width={520}
           footer={
             <>
               {isPlatformAdmin && (
