@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   Bell, BellOff, BellRing, CalendarClock, Check, CheckCheck, ClipboardCheck, Hourglass,
-  Inbox as InboxIcon, Megaphone, Radio, Trophy, UserPlus,
+  Inbox as InboxIcon, Megaphone, Radio, Receipt, Trophy, UserPlus,
 } from 'lucide-react';
 import api from '../../../lib/api';
 import { crmActivities } from '../../../lib/crmApi';
@@ -34,7 +34,7 @@ interface FeedNotif {
   data?: Record<string, unknown> | null;
 }
 
-type Kind = 'assignment' | 'deal' | 'risk' | 'task' | 'broadcast' | 'other' | 'reminder';
+type Kind = 'assignment' | 'deal' | 'risk' | 'task' | 'broadcast' | 'expense' | 'other' | 'reminder';
 
 interface Row {
   key: string;
@@ -50,7 +50,9 @@ interface Row {
 }
 
 function kindOf(type?: string): Kind {
-  switch ((type || '').toLowerCase()) {
+  const t = (type || '').toLowerCase();
+  if (t.startsWith('expense')) return 'expense';
+  switch (t) {
     case 'lead_assigned': case 'assignment': return 'assignment';
     case 'deal_closing': case 'deal_won': return 'deal';
     case 'lead_stagnant': case 'lead_at_risk': return 'risk';
@@ -67,6 +69,7 @@ const KIND_META: Record<Kind, { label: string; icon: React.ReactNode; tone: 'inf
   task: { label: 'Tasks', icon: <ClipboardCheck size={16} strokeWidth={1.6} />, tone: 'red' },
   reminder: { label: 'Reminders', icon: <CalendarClock size={16} strokeWidth={1.6} />, tone: 'warn' },
   broadcast: { label: 'Broadcasts', icon: <Megaphone size={16} strokeWidth={1.6} />, tone: 'neutral' },
+  expense: { label: 'Expenses', icon: <Receipt size={16} strokeWidth={1.6} />, tone: 'info' },
   other: { label: 'Other', icon: <Bell size={16} strokeWidth={1.6} />, tone: 'neutral' },
 };
 
@@ -76,10 +79,16 @@ const TONE_FG: Record<string, string> = { info: T.info, ok: T.ok, warn: T.warn, 
 // Deep-link target from a feed item's data payload (lead/deal aware).
 function notifHref(n: FeedNotif): string {
   const d = n.data || {};
+  const kind = String((d.kind as string) || n.type || '').toLowerCase();
   const leadId = (d.lead_id || d.leadId) as string | undefined;
   const dealId = (d.deal_id || d.dealId) as string | undefined;
   if (leadId) return `/dashboard/crm/leads/${leadId}`;
   if (dealId) return `/dashboard/crm/deals/${dealId}`;
+  // Expense: an approver's "to review" alert opens the Approvals queue; a
+  // claimant's decision/reimbursement alert opens their own claims list.
+  if (kind.startsWith('expense')) {
+    return kind === 'expense_submitted' ? '/dashboard/expenses/approvals' : '/dashboard/expenses';
+  }
   return '';
 }
 
@@ -164,7 +173,7 @@ export default function NotificationsPage() {
     for (const n of notifs) {
       const at = n.created_at || new Date().toISOString();
       out.push({
-        key: `n-${n.id}`, kind: kindOf(n.type), title: n.title || 'Notification', body: n.body || undefined,
+        key: `n-${n.id}`, kind: kindOf((n.data?.kind as string) || n.type), title: n.title || 'Notification', body: n.body || undefined,
         at, unread: !n.is_read, href: notifHref(n), notifId: n.id,
       });
     }
