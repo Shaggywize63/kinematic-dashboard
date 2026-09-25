@@ -4,6 +4,8 @@ import { Client } from '../../../types';
 import ConfirmModal from '../../../components/ConfirmModal';
 import { useAuth } from '../../../hooks/useAuth';
 import { ALL_MODULES, MODULE_GROUPS, MODULE_GROUP_LABELS, type ModuleGroup } from '../../../lib/modules';
+import { type AppCustomization } from '../../../lib/appCustomization';
+import AppCustomizationPanel from '../../../components/clients/AppCustomizationPanel';
 import api, { setActingAs } from '../../../lib/api';
 import { getStoredProjectKey, DEFAULT_PROJECT, setStoredProjectKey } from '../../../lib/projects';
 import { useTableSort, SortLabel } from '../../../lib/tableSort';
@@ -84,7 +86,7 @@ const NEW_CLIENT_DEFAULT_MODULES = ALL_MODULES
   .filter(m => m.group === 'CRM' && !NEW_CLIENT_EXCLUDED_MODULES.includes(m.id))
   .map(m => m.id);
 
-const BLANK = { name: '', contact_person: '', email: '', phone: '', password: '', is_active: true, modules: [] as string[], login_org_id: '', data_project_key: '', data_client_id: '', max_active_users: '' as number | '' };
+const BLANK = { name: '', contact_person: '', email: '', phone: '', password: '', is_active: true, modules: [] as string[], login_org_id: '', data_project_key: '', data_client_id: '', max_active_users: '' as number | '', app_ui: {} as AppCustomization };
 
 const Spinner = () => <div style={{ width: 15, height: 15, border: '2.5px solid rgba(255,255,255,0.18)', borderTopColor: '#fff', borderRadius: '50%', animation: 'kspin .65s linear infinite', flexShrink: 0 }} />;
 const Label = ({ t, req }: { t: string; req?: boolean }) => <div style={{ fontSize: 11, fontWeight: 700, color: C.gray, letterSpacing: '0.7px', textTransform: 'uppercase', marginBottom: 7 }}>{t}{req && <span style={{ color: C.red }}> *</span>}</div>;
@@ -213,6 +215,11 @@ export default function ClientManagement() {
       data_project_key: (c as { data_project_key?: string }).data_project_key || '',
       data_client_id: (c as { data_client_id?: string }).data_client_id || '',
       max_active_users: (c as { max_active_users?: number | null }).max_active_users ?? '',
+      // Per-client app customization — the API returns it as `app_ui`, but a
+      // freshly-listed client may carry it under settings.app_ui; accept both.
+      app_ui: ((c as { app_ui?: AppCustomization }).app_ui
+        || (c as { settings?: { app_ui?: AppCustomization } }).settings?.app_ui
+        || {}) as AppCustomization,
     });
     setFErr('');
     setProvisionMode(false); setProvisionResult(null);
@@ -557,6 +564,16 @@ export default function ClientManagement() {
                     </div>
                   );
                 })}
+              </div>
+            </div>
+
+            <div style={{ marginBottom: 28 }}>
+              <Label t="App Customization" />
+              <div style={{ background: C.s3, borderRadius: 16, padding: 16, border: `1px solid ${C.border}` }}>
+                <AppCustomizationPanel
+                  value={form.app_ui}
+                  onChange={(next) => setForm(p => ({ ...p, app_ui: next }))}
+                />
               </div>
             </div>
 

@@ -37,6 +37,15 @@ export interface Client {
   created_at: string;
   updated_at?: string;
   modules: string[]; // List of assigned module IDs (e.g., 'reports', 'analytics')
+  // Cross-project linkage + seat cap (read via inline casts in Client Management).
+  login_org_id?: string | null;
+  data_project_key?: string | null;
+  data_client_id?: string | null;
+  max_active_users?: number | null;
+  // Per-client app-UI customization (menu / bottom-tab / CRM-More visibility).
+  // Returned by the client PATCH; also readable under settings.app_ui.
+  app_ui?: import('../lib/appCustomization').AppCustomization;
+  settings?: { app_ui?: import('../lib/appCustomization').AppCustomization } & Record<string, unknown>;
 }
 
 export interface AuthSession {
