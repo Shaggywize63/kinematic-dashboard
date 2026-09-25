@@ -155,7 +155,7 @@ const STATUS_COLOR:Record<string,string> = {
 };
 
 /* ─── Types ──────────────────────────────────────────────────────────────── */
-interface BForm { id:string; title:string; description?:string; status:string; version:number; icon:string; cover_color:string; created_at:string; _pages?:BPage[]; _questions?:BQuestion[]; }
+interface BForm { id:string; title:string; description?:string; status:string; version:number; icon:string; cover_color:string; created_at:string; activity_id?:string|null; _pages?:BPage[]; _questions?:BQuestion[]; }
 interface BPage { id:string; form_id:string; title:string; description?:string; page_order:number; }
 interface BQuestion { id:string; form_id:string; page_id?:string; qtype:string; label:string; placeholder?:string; helper_text?:string; is_required:boolean; q_order:number; options:any[]; validation:any; logic:any[]; prefill_key?:string; media_config:any; keyboard_type?:string; image_count?:number; camera_only?:boolean; depends_on_id?:string; depends_on_value?:string; is_consent?:boolean; }
 interface BSubmission { id:string; form_id:string; submitted_by?:string; status:string; submitted_at:string; answers:any; }
@@ -183,11 +183,18 @@ const inpStyle:React.CSSProperties = {
 ══════════════════════════════════════════════════════════════════════════ */
 function FormList({ onOpen, onCreate }:{ onOpen:(f:BForm)=>void; onCreate:()=>void }) {
   const { user } = useAuth();
+  const { selectedClientId } = useClient();
   const [forms,   setForms]   = useState<BForm[]>([]);
   const [loading, setLoading] = useState(true);
   const [search,  setSearch]  = useState('');
   const [statusF, setStatusF] = useState('all');
   const [showAIGen, setShowAIGen] = useState(false);
+  // Linked-activity options, so an existing form can be (re)linked to an activity
+  // straight from the list — not only at creation. Loaded via the shared `api`
+  // client (scope headers) exactly like CreateFormModal, and refetched when the
+  // client scope changes.
+  const [activities, setActivities] = useState<any[]>([]);
+  const [linkingId, setLinkingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -200,6 +207,34 @@ function FormList({ onOpen, onCreate }:{ onOpen:(f:BForm)=>void; onCreate:()=>vo
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    const qs = selectedClientId ? `?client_id=${selectedClientId}` : '';
+    api.get<any>(`/api/v1/activities${qs}`).then(r => {
+      const d = Array.isArray(r?.data?.data) ? r.data.data
+              : Array.isArray(r?.data)       ? r.data
+              : [];
+      setActivities(d);
+    }).catch(()=>{});
+  }, [selectedClientId]);
+
+  // Link (or unlink) an existing form to an activity. Optimistic: patch the row
+  // locally, then persist via the same builder PATCH the create flow already uses.
+  const linkActivity = async (form:BForm, activityId:string) => {
+    const next = activityId || null;
+    if ((form.activity_id || null) === next) return;
+    setLinkingId(form.id);
+    setForms(prev => prev.map(x => x.id===form.id ? { ...x, activity_id: next } : x));
+    try {
+      await apiFetch(`/api/v1/builder/forms/${form.id}`, { method:'PATCH', body: JSON.stringify({ activity_id: next }) });
+    } catch (err:any) {
+      // Roll back on failure.
+      setForms(prev => prev.map(x => x.id===form.id ? { ...x, activity_id: form.activity_id ?? null } : x));
+      alert('Could not update the linked activity: ' + (err?.message || 'unknown error'));
+    } finally {
+      setLinkingId(null);
+    }
+  };
 
   // Original del function logic removed in favor of `showDeleteModal` and `confirmDelete`
 
@@ -322,6 +357,24 @@ function FormList({ onOpen, onCreate }:{ onOpen:(f:BForm)=>void; onCreate:()=>vo
                 <div style={{ fontFamily:"'Syne',sans-serif", fontSize:16, fontWeight:800, color:C.white, marginBottom:4, lineHeight:1.3 }}>{f.title}</div>
                 {f.description && <div style={{ fontSize:12, color:C.gray, marginBottom:10, lineHeight:1.5, display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflow:'hidden' }}>{f.description}</div>}
                 <div style={{ fontSize:11, color:C.grayd, marginBottom:14 }}>v{f.version} · {new Date(f.created_at).toLocaleDateString('en-IN',{ day:'2-digit', month:'short', year:'numeric' })}</div>
+                {/* Link this existing form to an activity — persists via PATCH so it
+                    can be set or changed any time after the form was created. */}
+                <div onClick={e => e.stopPropagation()} style={{ marginBottom:14 }}>
+                  <label style={{ fontSize:10, color:C.grayd, fontWeight:700, textTransform:'uppercase', letterSpacing:0.4, display:'block', marginBottom:4 }}>Linked Activity</label>
+                  <select
+                    value={f.activity_id || ''}
+                    disabled={linkingId===f.id}
+                    onClick={e => e.stopPropagation()}
+                    onChange={e => { e.stopPropagation(); linkActivity(f, e.target.value); }}
+                    style={{ ...inpStyle, padding:'7px 10px', fontSize:12, appearance:'none' as any, cursor: linkingId===f.id ? 'wait':'pointer', opacity: linkingId===f.id ? 0.6 : 1 }}
+                  >
+                    <option value="">None (any activity)</option>
+                    {f.activity_id && !activities.some(a => a.id === f.activity_id) && (
+                      <option value={f.activity_id}>Current activity</option>
+                    )}
+                    {activities.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                  </select>
+                </div>
                 <div style={{ display:'flex', gap:8 }}>
                   <button onClick={e => { e.stopPropagation(); onOpen(f); }} style={{ flex:1, padding:'8px', background:C.s3, border:`1px solid ${C.border}`, borderRadius:8, color:C.white, fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
                     ✏️ Edit

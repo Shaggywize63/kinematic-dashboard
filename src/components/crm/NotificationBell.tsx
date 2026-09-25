@@ -54,7 +54,9 @@ interface FeedNotif {
 // Icon per backend notification type — keeps parity with the mobile feed's
 // type glyphs. Falls back to a bell for unknown kinds.
 function notifEmoji(type?: string): string {
-  switch ((type || '').toLowerCase()) {
+  const t = (type || '').toLowerCase();
+  if (t.startsWith('expense')) return '🧾';
+  switch (t) {
     case 'lead_stagnant': case 'lead_at_risk': return '⏳';
     case 'deal_closing': case 'deal_won': return '💰';
     case 'task_overdue': case 'task_due': return '✅';
@@ -64,14 +66,20 @@ function notifEmoji(type?: string): string {
   }
 }
 
-// Deep-link target from a feed item's data payload (lead/deal aware), mirroring
-// how the mobile feed routes a tapped notification.
+// Deep-link target from a feed item's data payload (lead/deal/expense aware),
+// mirroring how the mobile feed routes a tapped notification.
 function notifHref(n: FeedNotif): string {
   const d = n.data || {};
+  const kind = String((d.kind as string) || n.type || '').toLowerCase();
   const leadId = (d.lead_id || d.leadId) as string | undefined;
   const dealId = (d.deal_id || d.dealId) as string | undefined;
   if (leadId) return `/dashboard/crm/leads/${leadId}`;
   if (dealId) return `/dashboard/crm/deals/${dealId}`;
+  // Expense: an approver's "to review" alert opens the Approvals queue; a
+  // claimant's decision/reimbursement alert opens their own claims list.
+  if (kind.startsWith('expense')) {
+    return kind === 'expense_submitted' ? '/dashboard/expenses/approvals' : '/dashboard/expenses';
+  }
   return '/dashboard/notifications';
 }
 
