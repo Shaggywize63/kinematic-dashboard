@@ -54,11 +54,10 @@ interface Zone { id: string; name: string; city?: string; }
 interface TrailPoint { lat: number; lng: number; battery_percentage?: number; captured_at: string; activity_type?: string; }
 
 /* ── Layer config ── */
+// Live Trailing is field-executive-only: Supervisors / Outlets / Warehouses
+// layers were removed on request, so the map + side list show FEs alone.
 const LAYERS = [
   { id:'fe',         label:'Field Executives', icon:'👤', color:C.green  },
-  { id:'supervisor', label:'Supervisors',       icon:'👔', color:C.blue   },
-  { id:'outlet',     label:'Outlets',           icon:'🏪', color:C.yellow },
-  { id:'warehouse',  label:'Warehouses',        icon:'🏭', color:C.purple },
 ];
 
 const STATUS_COLOR: Record<string, string> = {
@@ -418,7 +417,7 @@ export default function LiveTrackingPage() {
   const [search,       setSearch]       = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [zoneFilter,   setZoneFilter]   = useState('all');
-  const [activeLayers, setActiveLayers] = useState<Set<string>>(new Set(['fe','supervisor','outlet','warehouse']));
+  const [activeLayers, setActiveLayers] = useState<Set<string>>(new Set(['fe']));
 
   const [selectedId,   setSelectedId]   = useState<string|null>(null);
   const [selectedType, setSelectedType] = useState<string|null>(null);
@@ -654,7 +653,7 @@ export default function LiveTrackingPage() {
               Live Trailing
             </div>
             <div className="lt-subtitle" style={{ fontSize:12, color:C.gray, marginTop:3 }}>
-              Real-time field visibility — FEs, supervisors, outlets & warehouses
+              Real-time field-executive visibility &amp; trailing
             </div>
           </div>
           <div style={{ display:'flex', gap:8, alignItems:'center' }}>
@@ -680,8 +679,6 @@ export default function LiveTrackingPage() {
             { l:'On Break',    v:breakCount,  c:C.yellow },
             { l:'Checked Out', v:outCount,    c:C.blue   },
             { l:'Absent',      v:absentCount, c:C.grayd  },
-            { l:'Outlets',     v:outlets.filter(o=>o.is_active).length, c:C.yellow },
-            { l:'Warehouses',  v:warehouses.filter(w=>w.is_active).length, c:C.purple },
             // GPS-integrity flag — only surfaced when at least one rep is flagged.
             ...(flaggedCount > 0 ? [{ l:'⚠ Flagged GPS', v:flaggedCount, c:C.red }] : []),
           ].map((s,i) => (
@@ -696,7 +693,7 @@ export default function LiveTrackingPage() {
         <div className="lt-filters" style={{ display:'flex', gap:10, flexWrap:'wrap', flexShrink:0 }}>
           <div style={{ position:'relative', flex:1, minWidth:200 }}>
             <span style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', fontSize:13, color:C.grayd }}>🔍</span>
-            <input placeholder="Search FE, supervisor, outlet, warehouse…" value={search}
+            <input placeholder="Search field executives…" value={search}
               onChange={e => setSearch(e.target.value)}
               style={{ ...inp, width:'100%', paddingLeft:30 }}/>
           </div>
