@@ -200,9 +200,8 @@ function LiveMap({
   const trailLines = useRef<any[]>([]);
   const trailDots  = useRef<any[]>([]);
 
-  // Captured GPS pings for the selected FE, drawn as straight segments.
-  // OSRM road-snap was dropped: it is blocked by the prod CSP and already
-  // fell back to straight lines, so the extra dependency bought nothing.
+  // Captured GPS pings for the selected FE. The polyline prefers a road-snapped
+  // path (see snappedPath below) and falls back to straight segments.
   const trailPoints = useMemo<[number, number][] | null>(() => {
     if (!trail || trail.length < 2) return null;
     const pts = trail
@@ -210,6 +209,57 @@ function LiveMap({
       .map((p) => [p.lat, p.lng] as [number, number]);
     return pts.length > 1 ? pts : null;
   }, [trail]);
+
+  // Road-snapped trail via the Google Directions JS SDK. maps.googleapis.com is
+  // allow-listed in BOTH script-src and connect-src (unlike the old OSRM host
+  // the CSP blocked), so DirectionsService's XHRs are permitted. Best-effort:
+  // on any failure — Directions API not enabled on the key, ZERO_RESULTS, or a
+  // near-stationary rep — snappedPath stays null and the polyline falls back to
+  // straight segments, so the trail always renders.
+  const [snappedPath, setSnappedPath] = useState<{ lat: number; lng: number }[] | null>(null);
+  useEffect(() => {
+    const g = (window as any).google;
+    if (!mapLoaded || !g?.maps?.DirectionsService || !trailPoints || trailPoints.length < 2) {
+      setSnappedPath(null);
+      return;
+    }
+    // Skip a rep who effectively hasn't moved — a route between coincident
+    // points is meaningless and just spends a Directions call.
+    const lats = trailPoints.map((p) => p[0]);
+    const lngs = trailPoints.map((p) => p[1]);
+    const spanM = Math.max(
+      (Math.max(...lats) - Math.min(...lats)) * 111_000,
+      (Math.max(...lngs) - Math.min(...lngs)) * 111_000 * Math.cos((lats[0] * Math.PI) / 180),
+    );
+    if (spanM < 60) { setSnappedPath(null); return; }
+    // Directions allows origin + destination + up to 23 waypoints. Sample the
+    // pings down evenly, preserving order and both endpoints.
+    const MAX = 25;
+    let pts = trailPoints;
+    if (pts.length > MAX) {
+      const step = (pts.length - 1) / (MAX - 1);
+      pts = Array.from({ length: MAX }, (_, i) => trailPoints[Math.round(i * step)]);
+    }
+    const origin = { lat: pts[0][0], lng: pts[0][1] };
+    const destination = { lat: pts[pts.length - 1][0], lng: pts[pts.length - 1][1] };
+    const waypoints = pts.slice(1, -1).map(([lat, lng]) => ({ location: { lat, lng }, stopover: false }));
+    let cancelled = false;
+    try {
+      const svc = new g.maps.DirectionsService();
+      svc.route(
+        { origin, destination, waypoints, travelMode: g.maps.TravelMode.DRIVING, optimizeWaypoints: false },
+        (res: any, status: any) => {
+          if (cancelled) return;
+          if (status === 'OK' && res?.routes?.[0]?.overview_path?.length) {
+            setSnappedPath(res.routes[0].overview_path.map((p: any) => ({ lat: p.lat(), lng: p.lng() })));
+          } else {
+            setSnappedPath(null); // fall back to straight segments
+          }
+        },
+      );
+    } catch { setSnappedPath(null); }
+    return () => { cancelled = true; };
+  }, [mapLoaded, trailPoints]);
 
   // Map init — one Google map, dark-styled, plus a single shared InfoWindow.
   useEffect(() => {
@@ -329,7 +379,11 @@ function LiveMap({
     trailDots.current.forEach(d => d.setMap(null)); trailDots.current = [];
     if (trailPoints && trailPoints.length > 1) {
       const colour = trailColor || '#E01E2C';
-      const path = trailPoints.map(([lat, lng]) => ({ lat, lng }));
+      // Prefer the road-snapped path; fall back to straight segments between the
+      // raw pings. The per-ping dots below always sit on the raw GPS points.
+      const path = (snappedPath && snappedPath.length > 1)
+        ? snappedPath
+        : trailPoints.map(([lat, lng]) => ({ lat, lng }));
       const glow = new g.maps.Polyline({ path, strokeColor: colour, strokeOpacity: 0.18, strokeWeight: 8, map, zIndex: 5 });
       const main = new g.maps.Polyline({ path, strokeColor: colour, strokeOpacity: 0.95, strokeWeight: 4, map, zIndex: 6 });
       trailLines.current = [glow, main];
@@ -374,7 +428,7 @@ function LiveMap({
       }
     }
 
-  }, [mapLoaded, fes, supervisors, outlets, warehouses, activeLayers, selectedId, onSelect, trail, trailColor, trailPoints]);
+  }, [mapLoaded, fes, supervisors, outlets, warehouses, activeLayers, selectedId, onSelect, trail, trailColor, trailPoints, snappedPath]);
 
   const popupHtml = (name:string, role:string, color:string, status:string, zone?:string, checkinAt?:string, engagements?:number, tff?:number, battery?:number, lastSeen?:string, device?:string, os?:string, off?:{label:string;since:string}|null) => {
     const diff = lastSeen ? Math.round((new Date().getTime() - new Date(lastSeen).getTime()) / 60000) : null;
@@ -452,6 +506,9 @@ export default function LiveTrackingPage() {
     Promise.all([
       w.google.maps.importLibrary('maps'),
       w.google.maps.importLibrary('marker'),
+      // `routes` gives DirectionsService for road-snapping the trail. Best-effort:
+      // if it fails to load the trail simply falls back to straight segments.
+      w.google.maps.importLibrary('routes').catch(() => null),
     ])
       .then(() => { if (!cancelled) setMapLoaded(true); })
       .catch(() => { if (!cancelled) setError('Could not load the map library'); });
