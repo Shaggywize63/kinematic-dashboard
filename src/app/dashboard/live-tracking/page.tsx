@@ -353,12 +353,22 @@ function LiveMap({
     // level, so recentre + fixed zoom in that case.
     const bounds = new g.maps.LatLngBounds();
     let has = false;
-    markers.current.forEach(m => { const p = m.getPosition(); if (p) { bounds.extend(p); has = true; } });
-    if (trailPoints) trailPoints.forEach(([lat, lng]) => { bounds.extend({ lat, lng }); has = true; });
+    if (selectedId && trailPoints && trailPoints.length > 0) {
+      // A rep is selected — frame THEIR trail so the day's breadcrumb is
+      // actually visible. Fitting to every FE marker instead (they can be
+      // hundreds of km apart) zooms the map out so far the selected rep's
+      // path collapses to a single dot — the "trail not visible" bug.
+      trailPoints.forEach(([lat, lng]) => { bounds.extend({ lat, lng }); has = true; });
+    } else {
+      markers.current.forEach(m => { const p = m.getPosition(); if (p) { bounds.extend(p); has = true; } });
+      if (trailPoints) trailPoints.forEach(([lat, lng]) => { bounds.extend({ lat, lng }); has = true; });
+    }
     if (has) {
       if (bounds.getNorthEast().equals(bounds.getSouthWest())) {
+        // A stationary rep (all pings at one spot) — recentre at street zoom
+        // so the location and stacked pings are clearly visible.
         map.setCenter(bounds.getCenter());
-        map.setZoom(14);
+        map.setZoom(15);
       } else {
         map.fitBounds(bounds, 60);
       }
