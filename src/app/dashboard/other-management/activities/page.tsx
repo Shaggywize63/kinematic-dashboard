@@ -80,6 +80,13 @@ export default function ActivityManagement() {
   const { user } = useAuth();
   const { selectedClientId } = useClient();
   const isPlatformAdmin = user?.role === 'super_admin' || user?.role === 'admin';
+  // Managers — anyone whose org-role data_scope is team/all — can edit & delete
+  // activities too, not just platform admins. Field reps (data_scope 'own')
+  // stay read-only here. The cross-client org selector below remains
+  // platform-admin only.
+  const canManageActivities = isPlatformAdmin
+    || user?.org_role_data_scope === 'team'
+    || user?.org_role_data_scope === 'all';
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
   const [search, setSearch] = useState('');
@@ -222,7 +229,7 @@ export default function ActivityManagement() {
                     onMouseLeave={e=>{e.currentTarget.style.borderColor=C.border;e.currentTarget.style.background='transparent';}}>
                     <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
                   </button>
-                  {isPlatformAdmin && (
+                  {canManageActivities && (
                     <button onClick={() => openEdit(a)} style={{ width: 28, height: 28, border: `1px solid ${C.border}`, borderRadius: 8, background: 'transparent', cursor: 'pointer', color: C.gray, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                       onMouseEnter={e => { e.currentTarget.style.borderColor = C.blue; e.currentTarget.style.color = C.blue; }}
                       onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.gray; }}>
@@ -234,7 +241,7 @@ export default function ActivityManagement() {
                     onMouseLeave={e => e.currentTarget.style.borderColor = C.border}>
                     <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>{a.is_active ? <path d="M18 6L6 18M6 6l12 12" /> : <path d="M20 6L9 17l-5-5" />}</svg>
                   </button>
-                  {isPlatformAdmin && (
+                  {canManageActivities && (
                     <button onClick={() => setDeleteConfirm({ show: true, item: a })} title="Delete Activity" style={{ width: 28, height: 28, border: `1px solid ${C.border}`, borderRadius: 8, background: 'transparent', cursor: 'pointer', color: C.gray, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                       onMouseEnter={e => { e.currentTarget.style.borderColor = C.red; e.currentTarget.style.color = C.red; }}
                       onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.gray; }}>
