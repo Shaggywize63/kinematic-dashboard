@@ -65,6 +65,10 @@ const todayISO = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
+// The api client returns the raw { success, data } envelope (it does not unwrap
+// .data on the main path), so read .data when present — matching route-priorities.
+const unwrap = <T,>(r: any): T => (r && typeof r === 'object' && 'data' in r ? (r as any).data : r) as T;
+
 const card: React.CSSProperties = { background: C.s2, border: `1px solid ${C.border}`, borderRadius: 12, padding: 16 };
 const btn = (bg: string, disabled = false): React.CSSProperties => ({
   background: disabled ? C.s3 : bg, color: disabled ? C.tert : '#fff', border: 'none', borderRadius: 8,
@@ -96,10 +100,12 @@ export default function RouteAutomationPage() {
   const load = useCallback(async () => {
     setLoading(true); setError(null);
     try {
-      const [cat, pol] = await Promise.all([
-        api.get<{ methods: MethodMeta[]; vehicle_types: string[] }>('/api/v1/route-plans/autoplan/methods'),
-        api.get<Policy>('/api/v1/route-plans/autoplan/policy'),
+      const [catRaw, polRaw] = await Promise.all([
+        api.get<any>('/api/v1/route-plans/autoplan/methods'),
+        api.get<any>('/api/v1/route-plans/autoplan/policy'),
       ]);
+      const cat = unwrap<{ methods?: MethodMeta[]; vehicle_types?: string[] }>(catRaw);
+      const pol = unwrap<Policy>(polRaw);
       setMethods(cat?.methods || pol?.methods || []);
       setVehicleTypes(cat?.vehicle_types || pol?.vehicle_types || []);
       if (pol) {
@@ -129,9 +135,9 @@ export default function RouteAutomationPage() {
     setSaving(true); setError(null); setNotice(null);
     try {
       const body = { method, params, schedule: { enabled: false, time: '06:00' } };
-      const res = await api.put<Policy>('/api/v1/route-plans/autoplan/policy', body);
+      const res = unwrap<Policy>(await api.put<any>('/api/v1/route-plans/autoplan/policy', body));
       setSavedMethod(method);
-      setUpdatedAt((res as any)?.updated_at ?? new Date().toISOString());
+      setUpdatedAt(res?.updated_at ?? new Date().toISOString());
       setNotice('Method saved as the org default.');
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Save failed');
@@ -141,7 +147,7 @@ export default function RouteAutomationPage() {
   const runPreview = async () => {
     setPreviewing(true); setError(null); setNotice(null); setRunResult(null);
     try {
-      const res = await api.post<PreviewResult>('/api/v1/route-plans/autoplan/preview', { plan_date: planDate, method, params });
+      const res = unwrap<PreviewResult>(await api.post<any>('/api/v1/route-plans/autoplan/preview', { plan_date: planDate, method, params }));
       setPreview(res);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Preview failed');
@@ -151,7 +157,7 @@ export default function RouteAutomationPage() {
   const runAssign = async () => {
     setRunning(true); setError(null); setNotice(null);
     try {
-      const res = await api.post<RunResult>('/api/v1/route-plans/autoplan/run', { plan_date: planDate, method, params });
+      const res = unwrap<RunResult>(await api.post<any>('/api/v1/route-plans/autoplan/run', { plan_date: planDate, method, params }));
       setRunResult(res);
       setNotice(`Assigned ${res.plans_created} plan${res.plans_created === 1 ? '' : 's'} for ${planDate}${res.replaced ? ` (replaced ${res.replaced} previous auto plan${res.replaced === 1 ? '' : 's'})` : ''}.`);
     } catch (e: unknown) {
