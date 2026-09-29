@@ -64,6 +64,27 @@ const SOURCE_BADGE: Record<string, { label: string; bg: string; fg: string }> = 
   none:          { label: 'No location', bg: 'rgba(224,30,44,.14)', fg: '#E01E2C' },
 };
 
+// One glyph per assignment method so a card signals its TYPE at a glance.
+const svg = (d: React.ReactNode) => (
+  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{d}</svg>
+);
+const METHOD_ICON: Record<string, React.ReactNode> = {
+  // cadence & priority → clock (due-by-cadence)
+  cadence_priority: svg(<><circle cx="12" cy="12" r="9" /><path d="M12 7.5v4.8l3 1.8" /></>),
+  // territory → folded map
+  territory: svg(<><path d="M9 4 3 6.2v14L9 18l6 2 6-2.2v-14L15 6 9 4z" /><path d="M9 4v14M15 6v14" /></>),
+  // geographic clusters → grouped points
+  geo_cluster: svg(<><circle cx="7" cy="8" r="2.3" /><circle cx="16" cy="7" r="2.3" /><circle cx="11" cy="16" r="2.3" /><path d="M9 9.2l5-1M8.6 10l2 4M13.4 8.7 12.4 14" strokeDasharray="1.5 2" /></>),
+  // nearest field executive → crosshair / target
+  nearest_fe: svg(<><circle cx="12" cy="12" r="7.5" /><circle cx="12" cy="12" r="2.5" /><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3" /></>),
+  // balanced workload → equal bars
+  balanced_workload: svg(<><path d="M6 20V9M12 20V9M18 20V9" /><path d="M4 6h16" /></>),
+  // recurring journey plan → calendar
+  recurring_pjp: svg(<><rect x="3.5" y="5" width="17" height="16" rx="2" /><path d="M3.5 10h17M8 3v4M16 3v4M8.5 15l2.2 2.2L15 13" /></>),
+  // manual → pencil
+  manual: svg(<><path d="M12 20h9" /><path d="M16.4 3.6a2 2 0 0 1 2.9 2.9L7.5 18.3 3.5 19.5l1.2-4L16.4 3.6z" /></>),
+};
+
 const C = {
   bg: 'var(--bg)', s2: 'var(--s2)', s3: 'var(--s3)', text: 'var(--text)',
   sec: 'var(--textSec)', tert: 'var(--textTert)', border: 'var(--border)',
@@ -236,6 +257,7 @@ export default function RouteAutomationPage() {
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                     <span style={{ width: 14, height: 14, borderRadius: '50%', border: `2px solid ${sel ? C.red : C.border}`, background: sel ? C.red : 'transparent', flexShrink: 0 }} />
+                    <span aria-hidden="true" style={{ display: 'inline-flex', color: sel ? C.red : C.tert, flexShrink: 0 }}>{METHOD_ICON[m.id] ?? null}</span>
                     <span style={{ fontSize: 14.5, fontWeight: 700, color: C.text }}>{m.label}</span>
                     {!m.automatic && <span style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 700, color: C.tert, border: `1px solid ${C.border}`, borderRadius: 6, padding: '1px 6px' }}>MANUAL</span>}
                   </div>
