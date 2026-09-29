@@ -50,6 +50,19 @@ type RunResult = {
   method: string; plan_date: string; replaced: number; plans_created: number;
   summary: PreviewResult['summary'];
 };
+type FeLoc = {
+  user_id: string; name: string; start_source: string; has_location: boolean; has_live: boolean;
+  base: { lat: number; lng: number } | null;
+  last_capture: { lat: number; lng: number; at: string } | null;
+};
+
+const SOURCE_BADGE: Record<string, { label: string; bg: string; fg: string }> = {
+  live_location: { label: 'Live', bg: 'rgba(0,217,126,.14)', fg: '#00A862' },
+  base_location: { label: 'Base set', bg: 'rgba(47,95,208,.14)', fg: '#2f5fd0' },
+  last_capture:  { label: 'Last known', bg: 'rgba(107,114,128,.16)', fg: '#6B7280' },
+  zone_meeting:  { label: 'Zone', bg: 'rgba(107,114,128,.16)', fg: '#6B7280' },
+  none:          { label: 'No location', bg: 'rgba(224,30,44,.14)', fg: '#E01E2C' },
+};
 
 const C = {
   bg: 'var(--bg)', s2: 'var(--s2)', s3: 'var(--s3)', text: 'var(--text)',
@@ -96,6 +109,10 @@ export default function RouteAutomationPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [preview, setPreview] = useState<PreviewResult | null>(null);
   const [runResult, setRunResult] = useState<RunResult | null>(null);
+  const [fes, setFes] = useState<FeLoc[]>([]);
+  const [showFes, setShowFes] = useState(false);
+  const [feDraft, setFeDraft] = useState<Record<string, { lat: string; lng: string }>>({});
+  const [feSaving, setFeSaving] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
@@ -123,7 +140,28 @@ export default function RouteAutomationPage() {
   }, []);
   useEffect(() => { load(); }, [load]);
 
+  const loadFes = useCallback(async () => {
+    try {
+      const r = unwrap<FeLoc[]>(await api.get<any>('/api/v1/route-plans/autoplan/field-execs'));
+      setFes(Array.isArray(r) ? r : []);
+    } catch { /* non-fatal — the panel just stays empty */ }
+  }, []);
+  useEffect(() => { loadFes(); }, [loadFes]);
+
+  const saveFeBase = async (uid: string, body: Record<string, unknown>) => {
+    setFeSaving(uid); setError(null);
+    try {
+      await api.put('/api/v1/route-plans/autoplan/fe-location', { user_id: uid, ...body });
+      await loadFes();
+      setPreview(null); // location changed — a prior preview is stale
+      setFeDraft((d) => { const n = { ...d }; delete n[uid]; return n; });
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to set base location');
+    } finally { setFeSaving(null); }
+  };
+
   const active = useMemo(() => methods.find((m) => m.id === method), [methods, method]);
+  const noLocCount = useMemo(() => fes.filter((f) => !f.has_location).length, [fes]);
   const isManual = method === 'manual';
   const dirty = method !== savedMethod; // params always save with the method
 
@@ -257,6 +295,55 @@ export default function RouteAutomationPage() {
               )}
               {updatedAt && <span style={{ fontSize: 11, color: C.tert, marginLeft: 'auto' }}>Saved method: <strong style={{ color: C.sec }}>{methods.find((m) => m.id === savedMethod)?.label || savedMethod}</strong></span>}
             </div>
+          </div>
+
+          {/* FIELD EXECUTIVE LOCATIONS */}
+          <div style={{ ...card, marginTop: 16, padding: 0, overflow: 'hidden' }}>
+            <button onClick={() => setShowFes((v) => !v)} style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 'none', cursor: 'pointer', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: 14, fontWeight: 700, color: C.text }}>Field executive locations</span>
+              {noLocCount > 0
+                ? <span style={{ fontSize: 11, fontWeight: 700, color: C.red, background: 'rgba(224,30,44,.14)', borderRadius: 6, padding: '2px 8px' }}>{noLocCount} without a location</span>
+                : fes.length > 0 && <span style={{ fontSize: 11, fontWeight: 700, color: '#00A862', background: 'rgba(0,217,126,.14)', borderRadius: 6, padding: '2px 8px' }}>all set</span>}
+              <span style={{ marginLeft: 'auto', color: C.tert, fontSize: 13 }}>{showFes ? '▾' : '▸'}</span>
+            </button>
+            {showFes && (
+              <div>
+                <div style={{ padding: '0 16px 10px', fontSize: 12, color: C.tert, lineHeight: 1.5 }}>
+                  A rep has no coordinates until they first check in. The planner uses their live GPS, else a base you set here, else their last captured fix, else their zone. Reps with <strong style={{ color: C.sec }}>no location</strong> can still be assigned by Cadence / Territory / Recurring methods, but the map-based methods (Nearest, Clusters, Balanced) need a point — set a base or use their last known fix.
+                </div>
+                {fes.length === 0 && <div style={{ padding: '10px 16px 16px', fontSize: 13, color: C.tert }}>No field executives found.</div>}
+                {fes.map((fe) => {
+                  const badge = SOURCE_BADGE[fe.start_source] || SOURCE_BADGE.none;
+                  const d = feDraft[fe.user_id] || { lat: fe.base?.lat != null ? String(fe.base.lat) : '', lng: fe.base?.lng != null ? String(fe.base.lng) : '' };
+                  const editable = !fe.has_live; // live GPS overrides a base anyway
+                  return (
+                    <div key={fe.user_id} style={{ padding: '11px 16px', borderTop: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                      <div style={{ minWidth: 150, flex: 1 }}>
+                        <div style={{ fontSize: 14, color: C.text }}>{fe.name}</div>
+                        {fe.last_capture && <div style={{ fontSize: 11, color: C.tert }}>last seen {fe.last_capture.lat.toFixed(4)}, {fe.last_capture.lng.toFixed(4)}</div>}
+                      </div>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: badge.fg, background: badge.bg, borderRadius: 6, padding: '2px 8px' }}>{badge.label}</span>
+                      {editable && (
+                        <>
+                          <input value={d.lat} onChange={(e) => setFeDraft((m) => ({ ...m, [fe.user_id]: { ...d, lat: e.target.value } }))} placeholder="lat"
+                            style={{ width: 88, background: C.s3, border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 8px', color: C.text, fontSize: 12.5 }} />
+                          <input value={d.lng} onChange={(e) => setFeDraft((m) => ({ ...m, [fe.user_id]: { ...d, lng: e.target.value } }))} placeholder="lng"
+                            style={{ width: 88, background: C.s3, border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 8px', color: C.text, fontSize: 12.5 }} />
+                          <button disabled={feSaving === fe.user_id} onClick={() => saveFeBase(fe.user_id, { lat: Number(d.lat), lng: Number(d.lng) })}
+                            style={{ ...btn(C.blue, feSaving === fe.user_id), padding: '7px 12px', fontSize: 12.5 }}>
+                            {feSaving === fe.user_id ? 'Saving…' : 'Save base'}
+                          </button>
+                          {fe.last_capture && (
+                            <button disabled={feSaving === fe.user_id} onClick={() => saveFeBase(fe.user_id, { use_last_capture: true })}
+                              style={{ ...ghostBtn, padding: '7px 12px', fontSize: 12.5 }}>Use last known</button>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* RUN RESULT */}
