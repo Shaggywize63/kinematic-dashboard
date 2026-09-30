@@ -81,6 +81,10 @@ export const crmLeads = {
   smartFilter: (query: string) =>
     api.post<Wrapped<{ params: Record<string, string>; explanation: string }>>(`${BASE}/ai/smart-filter`, { query }),
   score: (id: string) => api.post<Wrapped<LeadScore>>(`${BASE}/leads/${id}/score`, {}),
+  // Admin-only: recompute the score for every non-terminal lead in scope (the
+  // caller's org, and the selected client when a city/client scope is active).
+  // Runs detached server-side and returns { started: true } immediately.
+  rescoreAll: () => api.post<Wrapped<{ started: boolean }>>(`${BASE}/leads/rescore-all`, {}),
   // Star / un-star a lead as "important". Persisted server-side; the leads list
   // returns the flag via custom_fields.__important.
   setImportant: (id: string, important: boolean) =>
