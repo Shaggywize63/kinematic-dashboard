@@ -183,7 +183,7 @@ export default function WorkActivitiesPage() {
   // Initial Data
   useEffect(() => {
     const cid = selectedClientId || '';
-    api.getUsers({ limit: '500', client_id: cid }).then((r: any) => setUsers(Array.isArray(r) ? r : (r?.data || []))).catch(() => {});
+    api.getUsers({ limit: '500', client_id: cid, scope: 'field_filter' }).then((r: any) => setUsers(Array.isArray(r) ? r : (r?.data || []))).catch(() => {});
     api.getCities({ limit: '200', client_id: cid }).then((r: any) => setCities(Array.isArray(r) ? r : (r?.data || []))).catch(() => {});
     api.getActivities({ client_id: cid }).then((r: any) => setActivities(Array.isArray(r) ? r : (r?.data || []))).catch(() => {});
   }, [selectedClientId]);

@@ -316,7 +316,7 @@ function AttendanceContent() {
 
       const [attRes, usersRes] = await Promise.all([
         api.get<any>(`/api/v1/attendance/team?${qs}`),
-        api.get<any>(`/api/v1/users?limit=500${selectedClientId ? `&client_id=${selectedClientId}` : ''}`),
+        api.get<any>(`/api/v1/users?limit=500&scope=field_filter${selectedClientId ? `&client_id=${selectedClientId}` : ''}`),
       ]);
 
       const pick = (r: any) => {
