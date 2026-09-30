@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Download, Loader2, MapPin, Plus, Trash2, Upload, UserCheck, UserPlus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Download, Loader2, MapPin, Plus, RefreshCw, Trash2, Upload, UserCheck, UserPlus } from 'lucide-react';
 import { crmLeads, crmLeadSources, crmSettings, type Pagination } from '../../../../lib/crmApi';
 import api, { API_BASE_URL } from '../../../../lib/api';
 import { getStoredToken, getStoredUser } from '../../../../lib/auth';
@@ -51,6 +51,36 @@ export default function LeadsListPage() {
   const [smartExplain, setSmartExplain] = useState('');
   const [smartLoading, setSmartLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
+  // "Update all scores" — recomputes every non-terminal lead's AI score. Admin-
+  // only + org-wide, so gate the button to real admins. ByteBack runs every user
+  // on the generic `sub_admin` preset and separates rank by org-role data_scope,
+  // so a field exec ('own') or team manager ('team') must NOT see it even though
+  // their preset role is admin-tier — mirror the backend gate exactly.
+  const [rescoring, setRescoring] = useState(false);
+  const canRescoreAll = useMemo(() => {
+    const u = getStoredUser();
+    const role = (u?.role || '').toLowerCase();
+    const scope = u?.org_role_data_scope; // 'own' | 'team' | 'all' | null (null ≈ all)
+    const isAdminTier = ['super_admin', 'admin', 'sub_admin'].includes(role);
+    return isAdminTier && scope !== 'own' && scope !== 'team';
+  }, []);
+  const handleRescoreAll = async () => {
+    if (rescoring) return;
+    setRescoring(true);
+    try {
+      await crmLeads.rescoreAll();
+      toast.success('Refreshing all lead scores — this runs in the background and may take a few minutes. Reload to see updated scores.');
+      // Give the detached sweep a head start, then refetch so early scores show.
+      setTimeout(() => { reload(); }, 8000);
+    } catch (e: any) {
+      const status = e?.response?.status;
+      if (status === 409) toast.error('A score refresh is already running. Please wait for it to finish.');
+      else if (status === 403) toast.error('Only admins can refresh all lead scores.');
+      else toast.error(e?.response?.data?.error || e?.message || 'Failed to refresh scores');
+    } finally {
+      setRescoring(false);
+    }
+  };
   // Elapsed seconds for the export progress UI. Server caps at 10k rows so the
   // upper bound on duration is bounded but variable (10–40s depending on
   // tenant size + custom-field hydration). Reps were reporting "export is
@@ -460,6 +490,21 @@ export default function LeadsListPage() {
         onSetMode={view.setMode}
         onReset={view.reset}
       />
+      {/* Update all scores — recomputes every non-terminal lead's AI score
+          (org-wide, or the selected client when a city scope is active). Admin
+          only; runs detached server-side. */}
+      {canRescoreAll && (
+        <Button
+          type="button"
+          onClick={handleRescoreAll}
+          disabled={rescoring}
+          title="Recompute the AI score for every open lead in view"
+          icon={<RefreshCw size={16} strokeWidth={1.8} style={rescoring ? { animation: 'spin 0.8s linear infinite' } : undefined} />}
+          style={{ cursor: rescoring ? 'wait' : undefined }}
+        >
+          {rescoring ? 'Starting…' : 'Update scores'}
+        </Button>
+      )}
       {/* Export — the server doesn't stream per-row counts, so the button
           shows a spinner + elapsed seconds to say "still working" without
           lying about progress. */}
