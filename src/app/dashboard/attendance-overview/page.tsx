@@ -351,7 +351,14 @@ function AttendanceContent() {
       // Add implicit absent rows for users with no attendance record (Pave the list)
       // For date ranges, generate one absent row per missing day per user.
       const ELIGIBLE_ROLES = ['executive', 'field_executive', 'field-executive', 'field_exec', 'supervisor', 'city_manager'];
-      const eligibleUsers = usersArr.filter((u: any) => ELIGIBLE_ROLES.includes((u.role || '').toLowerCase()) && u.is_active);
+      // Tenants like ByteBack keep field execs on the generic 'sub_admin' preset and
+      // mark them FE via their org-role data_scope ('own'). Treat data_scope 'own' as
+      // eligible too, so those reps still get absent-row padding.
+      const eligibleUsers = usersArr.filter((u: any) => {
+        const rel = Array.isArray(u.org_role) ? u.org_role[0] : u.org_role;
+        const ds = (rel?.data_scope || '').toLowerCase();
+        return (ELIGIBLE_ROLES.includes((u.role || '').toLowerCase()) || ds === 'own') && u.is_active;
+      });
 
       // Build a set of "user_id|YYYY-MM-DD(IST)" pairs that already have real records.
       // Use toISTDate so the key always matches the YYYY-MM-DD values in rangeDates.
@@ -766,9 +773,21 @@ function AttendanceContent() {
   /* 1. current Role records */
   const EXEC_ROLES = new Set(['executive', 'field_executive', 'field-executive', 'field_exec']);
   const SUP_ROLES  = new Set(['supervisor', 'city_manager']);
+  // ByteBack-style tenants keep everyone on the 'sub_admin' preset and distinguish
+  // field execs vs managers by their org-role data_scope ('own' = field exec,
+  // 'team'/'all' = manager). Without this, a rep's real check-in record matched
+  // neither tab's preset-role set and was dropped from both → blank attendance.
+  const scopeById: Record<string, string> = {};
+  users.forEach((u: any) => {
+    const rel = Array.isArray(u.org_role) ? u.org_role[0] : u.org_role;
+    if (rel?.data_scope) scopeById[u.id] = String(rel.data_scope).toLowerCase();
+  });
   const currentRoleRecords = records.filter(r => {
     const role = (r.users?.role || '').toLowerCase();
-    return roleFilter === 'executive' ? EXEC_ROLES.has(role) : SUP_ROLES.has(role);
+    const ds = scopeById[r.user_id];
+    const isExec = EXEC_ROLES.has(role) || ds === 'own';
+    const isSup  = SUP_ROLES.has(role) || ds === 'team' || ds === 'all';
+    return roleFilter === 'executive' ? isExec : isSup;
   });
 
   /* 2. stats calculation */
