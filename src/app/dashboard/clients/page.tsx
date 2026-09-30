@@ -598,7 +598,7 @@ export default function ClientManagement() {
         onClose={() => setDeleteConfirm({show:false, item:null})}
         onConfirm={handleDelete}
         title="Delete Client"
-        message="Are you sure you want to permanently delete this client"
+        message="Remove this client from the list? Its data (leads, deals, activities, users) is preserved and can be restored"
         itemName={deleteConfirm.item?.name}
         loading={deleting}
       />
