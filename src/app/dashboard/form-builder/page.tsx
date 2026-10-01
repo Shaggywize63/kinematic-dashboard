@@ -897,7 +897,7 @@ function PropertiesPanel({ q, allQs, onChange, onDelete }:{ q:BQuestion; allQs:B
 /* ══════════════════════════════════════════════════════════════════════════
    QUESTION CARD (Canvas)
 ══════════════════════════════════════════════════════════════════════════ */
-function QuestionCard({ q, index, isSelected, onSelect, onMoveUp, onMoveDown, isFirst, isLast, dragHandleProps }:{ q:BQuestion; index:number; isSelected:boolean; onSelect:()=>void; onMoveUp:()=>void; onMoveDown:()=>void; isFirst:boolean; isLast:boolean, dragHandleProps?: any }) {
+function QuestionCard({ q, qNumber, isSelected, onSelect, onMoveUp, onMoveDown, isFirst, isLast, dragHandleProps }:{ q:BQuestion; qNumber:number|null; isSelected:boolean; onSelect:()=>void; onMoveUp:()=>void; onMoveDown:()=>void; isFirst:boolean; isLast:boolean, dragHandleProps?: any }) {
   const ti = typeInfo(q.qtype);
 
   const renderPreview = () => {
@@ -961,7 +961,7 @@ function QuestionCard({ q, index, isSelected, onSelect, onMoveUp, onMoveDown, is
         </div>
         {/* Label */}
         <div style={{ display:'flex', alignItems:'center', gap:7, marginBottom:8 }}>
-          <span style={{ fontSize:12, fontWeight:800, color:isSelected?C.red:C.white }}>Q{index+1}</span>
+          {qNumber != null && <span style={{ fontSize:12, fontWeight:800, color:isSelected?C.red:C.white }}>Q{qNumber}</span>}
           <span style={{ fontSize:14, fontWeight:700, color:C.white, paddingRight:80 }}>{q.label}</span>
           {q.is_required && <span style={{ fontSize:10, color:C.red, fontWeight:800 }}>*</span>}
         </div>
@@ -1380,13 +1380,16 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
                       strategy={verticalListSortingStrategy}
                     >
                       <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-                        {currentPageQs.map((q, i) => (
-                          <SortableQuestionCard key={q.id} q={q} index={i} isSelected={selQ===q.id}
+                        {/* Number only real input questions; section headers are
+                            display-only and carry no Q-number, so they must not
+                            consume a slot (else the first question reads "Q2"). */}
+                        {(() => { let n = 0; return currentPageQs.map((q, i) => (
+                          <SortableQuestionCard key={q.id} q={q} qNumber={q.qtype==='section_header' ? null : ++n} isSelected={selQ===q.id}
                             onSelect={() => setSelQ(q.id)}
                             onMoveUp={() => moveQ(q.id, 'up')}
                             onMoveDown={() => moveQ(q.id, 'down')}
                             isFirst={i===0} isLast={i===currentPageQs.length-1}/>
-                        ))}
+                        )); })()}
                       </div>
                     </SortableContext>
                   </div>
@@ -1420,7 +1423,8 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
                   const q = questions.find(qq => qq.id === activeId);
                   if (!q) return null;
                   const idx = currentPageQs.findIndex(qq => qq.id === activeId);
-                  return <QuestionCard q={q} index={idx} isSelected={true} onSelect={()=>{}} onMoveUp={()=>{}} onMoveDown={()=>{}} isFirst={false} isLast={false} />;
+                  const qNum = q.qtype==='section_header' ? null : currentPageQs.slice(0, idx+1).filter(x => x.qtype!=='section_header').length;
+                  return <QuestionCard q={q} qNumber={qNum} isSelected={true} onSelect={()=>{}} onMoveUp={()=>{}} onMoveDown={()=>{}} isFirst={false} isLast={false} />;
                 })()}
               </div>
             ) : null}
