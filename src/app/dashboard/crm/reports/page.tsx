@@ -1,11 +1,11 @@
 'use client';
 import Link from 'next/link';
 import {
-  Activity, BarChart3, CalendarDays, CalendarRange, ChevronRight, ClipboardList, Clock, Filter, FlaskConical, Hammer,
-  Hourglass, LineChart, Mail, Route, Scale, Timer, TrendingUp, Trophy, Users,
+  Activity, BarChart3, CalendarDays, CalendarRange, ChevronRight, ClipboardList, Clock, Filter, FlaskConical, Footprints, Hammer,
+  Hourglass, LineChart, Mail, MapPin, Route, Scale, Timer, TrendingUp, Trophy, Users,
 } from 'lucide-react';
 import { useAuth } from '../../../../hooks/useAuth';
-import { isConsumerChampion, canDownloadSrsReport, leadReportLabel } from '../../../../lib/clientFeatures';
+import { isConsumerChampion, canDownloadSrsReport, canViewFieldVisits, leadReportLabel } from '../../../../lib/clientFeatures';
 import { Badge, Eyebrow, PageHeader, T, useIsCompact } from '../../../../components/ui';
 import { usePageTitle } from '../../../../lib/pageTitle';
 
@@ -20,6 +20,9 @@ type ReportEntry = {
   /** When true, this report only shows for SRS/Tata Area Sales Officer +
    *  CRM Admin roles (see canDownloadSrsReport). Everyone else never sees it. */
   srsOnly?: boolean;
+  /** When true, this report only shows for tenants running the ad-hoc
+   *  Marketing Visit flow (see canViewFieldVisits — currently Rajkamal). */
+  fieldVisitsOnly?: boolean;
 };
 
 const I = { size: 18, strokeWidth: 1.6 } as const;
@@ -31,6 +34,8 @@ const REPORTS: ReportEntry[] = [
   { href: '/dashboard/crm/reports/activity-report', title: 'Activity Report', desc: 'Every logged activity with lead, directory (dealer) and notes — one row per activity.', icon: <Activity {...I} />, srsOnly: true },
   { href: '/dashboard/crm/reports/test-report', title: 'Test Report', desc: 'Leads where a Ring or Weighment test was recorded, with attendee count.', icon: <FlaskConical {...I} />, srsOnly: true },
   { href: '/dashboard/crm/reports/daywise-report', title: 'Day-Wise Report', desc: 'Per-rep, per-day rollup: activity split, unique leads, deals and tonnage, with a grand total.', icon: <CalendarRange {...I} />, srsOnly: true },
+  { href: '/dashboard/crm/reports/field-visits', title: 'Field Visits', desc: 'Per field-executive rollup of ad-hoc Marketing Visits — total, in-progress, completed, areas covered, last visit.', icon: <Footprints {...I} />, fieldVisitsOnly: true },
+  { href: '/dashboard/crm/reports/area-leads', title: 'Area-wise Leads', desc: 'Lead distribution by area (fallback city): total, open and converted leads per area.', icon: <MapPin {...I} />, fieldVisitsOnly: true },
   { href: '/dashboard/crm/reports/team-performance', title: 'Team Performance', desc: 'Won volume, conversion rate, lead ageing and new leads per rep across your hierarchy subtree.', icon: <Users {...I} /> },
   { href: '/dashboard/crm/reports/lead-tracker', title: 'Lead Tracker', desc: 'Monthly new-lead bar chart plus today / week / month summaries for your team.', icon: <BarChart3 {...I} />, championHidden: true },
   { href: '/dashboard/crm/reports/team-daily', title: 'Team Daily Activity', desc: 'Per-rep attendance, visits achieved vs scheduled, and leads added — for any chosen day.', icon: <CalendarDays {...I} />, championHidden: true },
@@ -62,6 +67,7 @@ export default function ReportsIndex() {
   const { user } = useAuth();
   const champion = isConsumerChampion(user as any);
   const srs = canDownloadSrsReport(user as any);
+  const fieldVisits = canViewFieldVisits(user as any);
   // The field lead-report tile is named for the tenant (BMW sees "BMW Lead
   // Report"); the CSV format is identical. Keep in sync with the report page.
   const SRS_REPORT_HREF = '/dashboard/crm/reports/srs-lead-report';
@@ -80,7 +86,8 @@ export default function ReportsIndex() {
   const visible = (champion
     ? REPORTS.filter((r) => CHAMPION_HREFS.has(r.href))
     : REPORTS
-  ).filter((r) => !r.srsOnly || srs);
+  ).filter((r) => !r.srsOnly || srs)
+   .filter((r) => !r.fieldVisitsOnly || fieldVisits);
 
   const tools = visible.filter((r) => r.highlight);
   const reports = visible.filter((r) => !r.highlight);

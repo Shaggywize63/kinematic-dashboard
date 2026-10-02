@@ -1,0 +1,39 @@
+'use client';
+import Link from 'next/link';
+import { useAuth } from '../../../../../hooks/useAuth';
+import { canViewFieldVisits } from '../../../../../lib/clientFeatures';
+import ReportRunner from '../../../../../components/crm/reports/ReportRunner';
+
+export default function FieldVisitsReportPage() {
+  const { user } = useAuth();
+
+  if (!canViewFieldVisits(user as any)) {
+    return (
+      <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 24 }}>
+        <h3 style={{ color: 'var(--text)', margin: 0 }}>Field Visits Report</h3>
+        <p style={{ fontSize: 13, color: 'var(--text-dim)', marginTop: 8 }}>
+          This report is available for tenants running the ad-hoc Marketing Visit flow.
+        </p>
+        <Link href="/dashboard/crm/reports" style={{ color: 'var(--primary)', fontSize: 13, textDecoration: 'none' }}>← Back to Reports</Link>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
+        <div>
+          <h3 style={{ color: 'var(--text)', margin: 0 }}>Field Visits Report</h3>
+          <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4, maxWidth: 560 }}>
+            Per field-executive rollup of ad-hoc Marketing Visits — total, in-progress and completed
+            visits, distinct areas covered, and the last visit date. Runs for the last week by default;
+            change the range and press Run, or download the CSV.
+          </div>
+        </div>
+        <Link href="/dashboard/crm/reports" style={{ color: 'var(--primary)', fontSize: 13, textDecoration: 'none', whiteSpace: 'nowrap' }}>← Back to Reports</Link>
+      </div>
+
+      <ReportRunner endpointPath="/api/v1/crm/activities/export-field-visits-report" filenameBase="field-visits-report" />
+    </div>
+  );
+}
