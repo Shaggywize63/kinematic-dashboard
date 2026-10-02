@@ -379,6 +379,10 @@ export default function DashboardPage() {
   const [userPerf, setUserPerf] = useState<{ users:any[] }|null>(null);
   const [loadingUserPerf, setLUserPerf] = useState(true);
 
+  // Field Visits (Rajkamal only) — recent ad-hoc marketing visits for the FF overview.
+  const [fvData, setFvData] = useState<any[]|null>(null);
+  const [loadingFv, setLoadingFv] = useState(true);
+
   // ByteBack is field-force-only and route-less/outlet-less, so City-wise
   // performance + Outlet coverage are meaningless. Swap them for a User-wise
   // performance table (per FE: check-ins, submissions, active days). ByteBack only.
@@ -387,6 +391,17 @@ export default function DashboardPage() {
   const isByteBack = selectedClientId === BYTEBACK_CLIENT_ID
     || (currUser as any)?.client_id === BYTEBACK_CLIENT_ID
     || (currUser as any)?.org_id === BYTEBACK_ORG_ID;
+
+  // Rajkamal Jewellers runs the ad-hoc Marketing Visit flow (GPS Start→End tied
+  // to a lead), not a retail beat — so Outlet Coverage is meaningless for them.
+  // Hide that card and show a Field Visits card in its place. Mirrors the
+  // isByteBack tenant-scoping above; tolerates camelCase clientId.
+  const RAJKAMAL_CLIENT_ID = '0490f34d-d9a3-4f39-99e2-8f3adba8c583';
+  const RAJKAMAL_ORG_ID = '812d582d-2776-4265-970a-059f33f06034';
+  const isRajkamal = selectedClientId === RAJKAMAL_CLIENT_ID
+    || (currUser as any)?.client_id === RAJKAMAL_CLIENT_ID
+    || (currUser as any)?.clientId === RAJKAMAL_CLIENT_ID
+    || (currUser as any)?.org_id === RAJKAMAL_ORG_ID;
 
   const loadInit = useCallback(async () => {
     setLAtt(true); setLSumm(true); setLWeek(true);
@@ -449,6 +464,22 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!isInitialLoad) loadRange(from, to);
   }, [from, to, loadRange, isInitialLoad, selectedClientId]);
+
+  // Fetch marketing visits for Rajkamal (org/client scoped via request headers).
+  useEffect(() => {
+    if (!isRajkamal) { setLoadingFv(false); return; }
+    let cancelled = false;
+    setLoadingFv(true);
+    (async () => {
+      try {
+        const r = await api.get<any>('/api/v1/crm/marketing-visits');
+        const rows = (r?.data ?? r) ?? [];
+        if (!cancelled) setFvData(Array.isArray(rows) ? rows : []);
+      } catch { if (!cancelled) setFvData([]); }
+      finally { if (!cancelled) setLoadingFv(false); }
+    })();
+    return () => { cancelled = true; };
+  }, [isRajkamal, selectedClientId]);
 
   const handleRefresh = () => {
     loadInit();
@@ -666,8 +697,9 @@ export default function DashboardPage() {
         </Card>
         )}
 
-        {/* Row 5: Outlet Coverage — hidden for the insurance vertical (no outlets) and for ByteBack (route-less) */}
-        {!isIns && !isByteBack && (
+        {/* Row 5: Outlet Coverage — hidden for the insurance vertical (no outlets),
+            for ByteBack (route-less), and for Rajkamal (marketing-visit flow, no beat) */}
+        {!isIns && !isByteBack && !isRajkamal && (
         <Card padding={0}>
           <div style={{ padding:'16px 16px 0' }}>
             <CardTitle
@@ -738,6 +770,92 @@ export default function DashboardPage() {
             </div>
           ) : (
             <Empty>No outlet data for this period</Empty>
+          )}
+        </Card>
+        )}
+
+        {/* Row 5 (Rajkamal): Field Visits — ad-hoc Marketing Visits captured from
+            the app, shown in place of Outlet Coverage. */}
+        {isRajkamal && (
+        <Card padding={0}>
+          <div style={{ padding:'16px 16px 0' }}>
+            <CardTitle
+              title="Field visits"
+              sub="Ad-hoc marketing visits captured from the app"
+              right={!loadingFv && fvData && (() => {
+                const total = fvData.length;
+                const completed = fvData.filter((v:any) => v?.status === 'completed' || v?.metadata?.visit?.phase === 'completed').length;
+                const tiles = [
+                  { l:'Total', v: total },
+                  { l:'In progress', v: total - completed },
+                  { l:'Completed', v: completed },
+                ];
+                return (
+                  <div style={{ display:'flex', gap:20, flexWrap:'wrap' }}>
+                    {tiles.map(s => (
+                      <div key={s.l} style={{ textAlign:'right' }}>
+                        <div style={{ fontFamily:T.heading, fontSize:20, fontWeight:700, letterSpacing:'-0.01em', color:T.text, lineHeight:1.1, fontVariantNumeric:'tabular-nums' }}>{s.v}</div>
+                        <Eyebrow style={{ marginTop:4 }}>{s.l}</Eyebrow>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+            />
+          </div>
+          {loadingFv ? (
+            <div style={{ display:'flex', flexDirection:'column', gap:6, padding:'0 16px 16px' }}>
+              {[...Array(5)].map((_,i) => (<Shimmer key={i} h={36} br={8}/>))}
+            </div>
+          ) : fvData?.length ? (
+            <div style={{ overflowX:'auto', maxHeight:320, overflowY:'auto' }}>
+              <table className="km-tbl" style={{ width:'100%', borderCollapse:'collapse', minWidth:560 }}>
+                <thead>
+                  <tr>
+                    <th style={{ ...th, position:'sticky', top:0, background:T.card }}>Field executive</th>
+                    <th style={{ ...th, position:'sticky', top:0, background:T.card }}>Lead</th>
+                    <th style={{ ...th, position:'sticky', top:0, background:T.card }}>Status</th>
+                    <th style={{ ...th, position:'sticky', top:0, background:T.card }}>Started</th>
+                    <th style={{ ...th, position:'sticky', top:0, background:T.card }}>Location</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {fvData.slice(0, 50).map((v:any, i:number) => {
+                    const shown = Math.min(fvData.length, 50);
+                    const last = i === shown - 1;
+                    const visit = (v?.metadata?.visit) || {};
+                    const done = v?.status === 'completed' || visit.phase === 'completed';
+                    const fe = v?.assigned_to_name || v?.owner_name || 'Unassigned';
+                    const lead = v?.lead_name || (typeof v?.subject === 'string' ? v.subject.replace(/^Marketing Visit\s*—\s*/, '') : 'Lead');
+                    const started = visit.started_at ? new Date(visit.started_at).toLocaleString(undefined, { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }) : '—';
+                    const lat = visit.start_lat, lng = visit.start_lng;
+                    const maps = (typeof lat === 'number' && typeof lng === 'number') ? `https://www.google.com/maps?q=${lat},${lng}` : null;
+                    const pill = done ? { fg:T.ok, bg:T.okWash, label:'Completed' } : { fg:T.warn, bg:T.warnWash, label:'In progress' };
+                    return (
+                      <tr key={v?.id || i}>
+                        <td style={{ ...td, borderBottom: last ? 0 : td.borderBottom }}>{fe}</td>
+                        <td style={{ ...td, borderBottom: last ? 0 : td.borderBottom }}>
+                          <div style={{ fontWeight:500 }}>{lead}</div>
+                          {v?.lead_phone && <div style={{ fontSize:12, color:T.mute, marginTop:2 }}>{v.lead_phone}</div>}
+                        </td>
+                        <td style={{ ...td, borderBottom: last ? 0 : td.borderBottom }}>
+                          <span style={{ display:'inline-flex', alignItems:'center', gap:6, background:pill.bg, borderRadius:999, padding:'3px 9px' }}>
+                            <span style={{ width:6, height:6, borderRadius:'50%', background:pill.fg }}/>
+                            <span style={{ fontSize:11.5, color:T.text }}>{pill.label}</span>
+                          </span>
+                        </td>
+                        <td style={{ ...td, borderBottom: last ? 0 : td.borderBottom, whiteSpace:'nowrap' }}>{started}</td>
+                        <td style={{ ...td, borderBottom: last ? 0 : td.borderBottom }}>
+                          {maps ? <a href={maps} target="_blank" rel="noopener noreferrer" style={{ color:T.info, textDecoration:'none' }}>Map ↗</a> : '—'}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <Empty>No marketing visits captured yet</Empty>
           )}
         </Card>
         )}
