@@ -7,6 +7,7 @@ import { useAuth } from '../../../../hooks/useAuth';
 import {
   webChatsApi,
   webChatStatusMeta,
+  channelMetaFor,
   fmtDateTime,
   type WebChatRow,
   type WebChatDetail,
@@ -35,6 +36,16 @@ function useIsCompact(breakpoint = 900): boolean {
 
 function StatusChip({ status }: { status: string }) {
   const m = webChatStatusMeta[status] || { label: status, bg: 'rgba(107,114,128,0.14)', fg: '#6B7280' };
+  return (
+    <span style={{
+      fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 999,
+      background: m.bg, color: m.fg, textTransform: 'uppercase', letterSpacing: 0.4, whiteSpace: 'nowrap',
+    }}>{m.label}</span>
+  );
+}
+
+function ChannelChip({ channel }: { channel?: string | null }) {
+  const m = channelMetaFor(channel);
   return (
     <span style={{
       fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 999,
@@ -172,7 +183,10 @@ function WebsiteChatsPageInner() {
                     <span style={{ fontWeight: 700, fontSize: 13.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {displayName(r)}
                     </span>
-                    <StatusChip status={r.status} />
+                    <span style={{ display: 'flex', gap: 5, alignItems: 'center', flexShrink: 0 }}>
+                      <ChannelChip channel={r.channel} />
+                      <StatusChip status={r.status} />
+                    </span>
                   </div>
                   <div style={{ fontSize: 11.5, color: 'var(--text-dim)', marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {r.visitor_company ? r.visitor_company + ' · ' : ''}{r.interest || r.page_title || r.page_path || '—'}

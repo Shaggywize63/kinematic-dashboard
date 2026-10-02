@@ -37,7 +37,7 @@ const LINKS: CrmLink[] = [
   // KINI website-chatbot conversations + the leads they capture. This is the
   // Kinematic platform's own website funnel, so it's visible only to the
   // Kinematic super admin — not client tenants or their admins.
-  { href: '/dashboard/crm/website-chats', label: 'Website Chats', superAdminOnly: true },
+  { href: '/dashboard/crm/website-chats', label: 'Conversations', superAdminOnly: true },
   { href: '/dashboard/crm/reports', label: 'Reports' },
   { href: '/dashboard/crm/settings', label: 'Settings' },
   // Help & lifecycle — same screen as iOS / Android so reps get the same

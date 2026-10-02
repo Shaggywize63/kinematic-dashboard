@@ -43,6 +43,8 @@ export interface WebChatRow {
   lead_id: string | null;
   last_seen_at: string;
   created_at: string;
+  /** 'website' (default) | 'whatsapp' — which surface the conversation is from. */
+  channel?: string;
 }
 
 // Full session detail (list row + transcript + attribution).
@@ -107,6 +109,17 @@ export const webChatStatusMeta: Record<string, { label: string; bg: string; fg: 
   lead_captured: { label: 'Lead',     bg: 'rgba(10,138,78,0.14)',  fg: '#0A8A4E' },
   closed:        { label: 'Closed',   bg: 'rgba(107,114,128,0.14)', fg: '#6B7280' },
 };
+
+// Channel badge styling. WhatsApp gets its brand green; website stays neutral.
+export const webChatChannelMeta: Record<string, { label: string; bg: string; fg: string }> = {
+  website:  { label: 'Website',  bg: 'rgba(107,114,128,0.14)', fg: '#6B7280' },
+  whatsapp: { label: 'WhatsApp', bg: 'rgba(37,211,102,0.16)',  fg: '#1DA851' },
+};
+
+export function channelMetaFor(channel?: string | null): { label: string; bg: string; fg: string } {
+  const key = (channel || 'website').toLowerCase();
+  return webChatChannelMeta[key] ?? { label: key.charAt(0).toUpperCase() + key.slice(1), bg: 'rgba(107,114,128,0.14)', fg: '#6B7280' };
+}
 
 export function fmtDateTime(iso?: string | null): string {
   if (!iso) return '—';
