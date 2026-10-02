@@ -28,6 +28,7 @@ import { isConsumerChampion, isTataTiscanActive } from '../../../../../lib/clien
 import { isHorizonOrg } from '../../../../../lib/crmFeatureGates';
 import { ConsentCard } from '../../../../../components/crm/DataConsent';
 import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '../../../../../lib/crmFieldOverrides';
+import { extractLeadStatuses, type LeadStatusOption } from '../../../../../lib/crmLeadStatuses';
 import { Avatar, Badge, Button, Card, EmptyState, Eyebrow, IconButton, PageHeader, T, cardStyle, useIsCompact } from '../../../../../components/ui';
 import { usePageTitle } from '../../../../../lib/pageTitle';
 import { ArrowRightLeft, Check, ChevronDown, Copy, FileText, Pencil, RotateCcw, Trash2, UserPlus, XCircle } from 'lucide-react';
@@ -79,10 +80,13 @@ export default function LeadDetailPage() {
   // Per-tenant built-in field overrides — the detail view is a render site
   // like Create and Edit, so hidden fields stay hidden and relabels apply.
   const [fieldOverrides, setFieldOverrides] = useState<FieldOverrides>({});
+  // Per-client custom lead-status set. Null = use the built-in list / tones
+  // (no change for existing tenants). Loaded from the same settings fetch.
+  const [leadStatuses, setLeadStatuses] = useState<LeadStatusOption[] | null>(null);
   useEffect(() => {
     crmSettings.get()
-      .then((r) => setFieldOverrides(extractFieldOverrides(r.data)))
-      .catch(() => { /* defaults: nothing hidden */ });
+      .then((r) => { setFieldOverrides(extractFieldOverrides(r.data)); setLeadStatuses(extractLeadStatuses(r.data)); })
+      .catch(() => { /* defaults: nothing hidden, built-in statuses */ });
   }, []);
   const fields = useMemo(
     () => buildFieldHelpers(fieldOverrides, 'lead', lead?.is_b2c ? 'b2c' : 'b2b'),
@@ -450,6 +454,7 @@ export default function LeadDetailPage() {
                   value={
                     <StatusSelect
                       status={lead.status}
+                      custom={leadStatuses}
                       onChange={async (next) => {
                         try {
                           const r = await crmLeads.update(lead.id, { status: next } as any);
@@ -752,9 +757,17 @@ function statusTone(s: string): 'info' | 'ok' | 'warn' | 'red' | 'neutral' {
     : 'neutral';
 }
 
-function StatusPill({ status }: { status?: string | null }) {
+// Tint a custom status colour into a Badge style (faint wash background +
+// solid foreground). Returns undefined when no colour is configured so the
+// Badge keeps its tone-based styling.
+function customBadgeStyle(color?: string) {
+  if (!color) return undefined;
+  return { background: `color-mix(in srgb, ${color} 15%, transparent)`, color };
+}
+
+function StatusPill({ status, color, label }: { status?: string | null; color?: string; label?: string }) {
   const s = (status || 'new').toLowerCase();
-  return <Badge tone={statusTone(s)} dot>{s.replace(/_/g, ' ')}</Badge>;
+  return <Badge tone={statusTone(s)} dot style={customBadgeStyle(color)}>{label ?? s.replace(/_/g, ' ')}</Badge>;
 }
 
 // The statuses the lead PATCH accepts (backend crm.validators →
@@ -767,7 +780,7 @@ const SETTABLE_STATUSES = ['new', 'working', 'nurturing', 'qualified', 'unqualif
 /** Inline status switcher for the lead detail page: shows the current status
  *  as a pill and, on click, drops a menu of the settable statuses. Selecting
  *  one PATCHes the lead and lifts the returned row up via onChange. */
-function StatusSelect({ status, onChange }: { status?: string | null; onChange: (next: string) => Promise<void> }) {
+function StatusSelect({ status, onChange, custom }: { status?: string | null; onChange: (next: string) => Promise<void>; custom?: LeadStatusOption[] | null }) {
   const s = (status || 'new').toLowerCase();
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -778,8 +791,22 @@ function StatusSelect({ status, onChange }: { status?: string | null; onChange: 
     return () => document.removeEventListener('mousedown', h);
   }, []);
 
+  // Match the current status against the custom set (if configured).
+  const currentCustom = custom?.find((o) => o.value === s) ?? null;
+
   // Terminal states keep the dedicated flows in charge — render read-only.
-  if (s === 'converted' || s === 'lost') return <StatusPill status={s} />;
+  // For a custom set, terminal = is_lost / is_won; otherwise the built-in
+  // converted / lost rule.
+  const isTerminal = custom
+    ? !!(currentCustom?.is_lost || currentCustom?.is_won)
+    : (s === 'converted' || s === 'lost');
+  if (isTerminal) return <StatusPill status={s} color={currentCustom?.color} label={currentCustom?.label} />;
+
+  // Options offered in the menu: the custom set minus terminal (won/lost)
+  // entries, or the built-in SETTABLE_STATUSES fallback.
+  const options: Array<{ value: string; label: string; color?: string }> = custom
+    ? custom.filter((o) => !(o.is_lost || o.is_won)).map((o) => ({ value: o.value, label: o.label, color: o.color }))
+    : SETTABLE_STATUSES.map((v) => ({ value: v, label: v.replace(/_/g, ' '), color: undefined }));
 
   const pick = async (next: string) => {
     setOpen(false);
@@ -798,25 +825,25 @@ function StatusSelect({ status, onChange }: { status?: string | null; onChange: 
         aria-expanded={open}
         style={{ background: 'transparent', border: 'none', padding: 0, cursor: saving ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5 }}
       >
-        <Badge tone={statusTone(s)} dot>{s.replace(/_/g, ' ')}</Badge>
+        <Badge tone={statusTone(s)} dot style={customBadgeStyle(currentCustom?.color)}>{currentCustom?.label ?? s.replace(/_/g, ' ')}</Badge>
         <ChevronDown size={13} strokeWidth={2} style={{ color: T.dim, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .15s ease' }} />
       </button>
       {open && (
         <div role="listbox" style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 60, minWidth: 172, background: T.card, border: `1px solid ${T.borderStrong}`, borderRadius: 10, padding: 4, boxShadow: 'var(--shadow-pop)' }}>
-          {SETTABLE_STATUSES.map((opt) => (
+          {options.map((opt) => (
             <button
-              key={opt}
+              key={opt.value}
               type="button"
               role="option"
-              aria-selected={opt === s}
-              onClick={() => pick(opt)}
-              style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', textAlign: 'left', background: opt === s ? T.raised : 'transparent', border: 'none', borderRadius: 7, padding: '8px 10px', cursor: 'pointer', color: T.text, fontSize: 13.5, textTransform: 'capitalize' }}
-              onMouseEnter={(e) => { if (opt !== s) e.currentTarget.style.background = T.raised; }}
-              onMouseLeave={(e) => { if (opt !== s) e.currentTarget.style.background = 'transparent'; }}
+              aria-selected={opt.value === s}
+              onClick={() => pick(opt.value)}
+              style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', textAlign: 'left', background: opt.value === s ? T.raised : 'transparent', border: 'none', borderRadius: 7, padding: '8px 10px', cursor: 'pointer', color: T.text, fontSize: 13.5, textTransform: 'capitalize' }}
+              onMouseEnter={(e) => { if (opt.value !== s) e.currentTarget.style.background = T.raised; }}
+              onMouseLeave={(e) => { if (opt.value !== s) e.currentTarget.style.background = 'transparent'; }}
             >
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: `var(--${statusTone(opt) === 'neutral' ? 'mute' : statusTone(opt)})`, flexShrink: 0 }} />
-              {opt}
-              {opt === s && <span style={{ marginLeft: 'auto', color: T.dim, fontSize: 11 }}>current</span>}
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: opt.color ?? (statusTone(opt.value) === 'neutral' ? 'var(--mute)' : `var(--${statusTone(opt.value)})`), flexShrink: 0 }} />
+              {opt.label}
+              {opt.value === s && <span style={{ marginLeft: 'auto', color: T.dim, fontSize: 11 }}>current</span>}
             </button>
           ))}
         </div>

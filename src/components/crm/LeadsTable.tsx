@@ -1,8 +1,9 @@
 'use client';
-import { memo, useCallback, useState } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ArrowDown, ArrowRight, ArrowUp, ArrowUpDown, Check, Hourglass, Pencil, Star, X } from 'lucide-react';
 import type { Lead } from '../../types/crm';
+import type { LeadStatusOption } from '../../lib/crmLeadStatuses';
 import LeadScoreBadge from './LeadScoreBadge';
 import { breakdownFactors, llmAdjustmentOf } from '../../lib/crm/scoreFactors';
 import OwnerAvatar from './shared/OwnerAvatar';
@@ -36,6 +37,10 @@ interface Props {
   // flips crm_leads.custom_fields.__important. The parent owns the optimistic
   // local update + API call so the star reflects the new state immediately.
   onToggleImportant?: (lead: Lead) => void;
+  // Per-client custom lead-status set. Null = use the built-in statusTone()
+  // colours + raw-value labels (no change for existing tenants). When set, a
+  // row's status badge renders the matching option's label + colour.
+  statusOptions?: LeadStatusOption[] | null;
 }
 
 // Table header cell — mono eyebrow, 12px vertical padding, hairline below.
@@ -118,9 +123,18 @@ export const LEAD_COLUMNS = [
  * footer. Keeps the `responsive-cards` / `cards-view` classes + `data-label`s
  * that globals.css uses for the phone card-stack layout.
  */
-export default function LeadsTable({ leads, selected, onToggle, onToggleAll, loading, isB2C = false, onAssign, hiddenColumns, viewMode = 'table', sort, onSort, onEdit, onApprove, onToggleImportant }: Props) {
+export default function LeadsTable({ leads, selected, onToggle, onToggleAll, loading, isB2C = false, onAssign, hiddenColumns, viewMode = 'table', sort, onSort, onEdit, onApprove, onToggleImportant, statusOptions = null }: Props) {
   const [scorePopup, setScorePopup] = useState<Lead | null>(null);
   const allSelected = leads.length > 0 && leads.every((l) => selected.has(l.id));
+  // Stable value→option lookup for the status cell. Null when no custom set is
+  // configured, so LeadRow keeps the built-in tone/label path. Memoised so the
+  // memo()'d rows don't re-render on unrelated parent updates.
+  const statusLookup = useMemo(() => {
+    if (!statusOptions || statusOptions.length === 0) return null;
+    const m = new Map<string, LeadStatusOption>();
+    for (const o of statusOptions) m.set(o.value.toLowerCase(), o);
+    return m;
+  }, [statusOptions]);
 
   const hidden = hiddenColumns ?? new Set<string>();
   const isVisible = (key: string) => !hidden.has(key);
@@ -188,6 +202,7 @@ export default function LeadsTable({ leads, selected, onToggle, onToggleAll, loa
                 onToggleImportant={onToggleImportant}
                 isB2C={isB2C}
                 hidden={hidden}
+                statusLookup={statusLookup}
               />
             ))}
           </tbody>
@@ -210,9 +225,10 @@ interface LeadRowProps {
   onToggleImportant?: (lead: Lead) => void;
   isB2C: boolean;
   hidden: Set<string>;
+  statusLookup: Map<string, LeadStatusOption> | null;
 }
 
-const LeadRow = memo(function LeadRow({ lead: l, isSelected, onToggle, onScoreClick, onAssign, onEdit, onApprove, onToggleImportant, isB2C, hidden }: LeadRowProps) {
+const LeadRow = memo(function LeadRow({ lead: l, isSelected, onToggle, onScoreClick, onAssign, onEdit, onApprove, onToggleImportant, isB2C, hidden, statusLookup }: LeadRowProps) {
   const fullName = l.full_name || `${l.first_name || ''} ${l.last_name || ''}`.trim() || '—';
   const handleToggle = useCallback(() => onToggle(l.id), [onToggle, l.id]);
   const handleScore  = useCallback(() => onScoreClick(l), [onScoreClick, l]);
@@ -278,7 +294,17 @@ const LeadRow = memo(function LeadRow({ lead: l, isSelected, onToggle, onScoreCl
       {!hidden.has('phone') && <td style={{ ...tdStyle, fontFamily: T.mono, fontSize: 12.5, whiteSpace: 'nowrap' }} data-label="Phone">{l.phone || <Dash />}</td>}
       {!hidden.has('status') && (
         <td style={tdStyle} data-label="Status">
-          {l.status ? <Badge tone={statusTone(l.status)} dot style={{ textTransform: 'capitalize' }}>{String(l.status).replace(/_/g, ' ')}</Badge> : <Dash />}
+          {l.status ? (() => {
+            const meta = statusLookup?.get(String(l.status).toLowerCase());
+            const colourStyle = meta?.color
+              ? { background: `color-mix(in srgb, ${meta.color} 15%, transparent)`, color: meta.color }
+              : undefined;
+            return (
+              <Badge tone={statusTone(l.status)} dot style={{ textTransform: 'capitalize', ...colourStyle }}>
+                {meta?.label ?? String(l.status).replace(/_/g, ' ')}
+              </Badge>
+            );
+          })() : <Dash />}
         </td>
       )}
       {!hidden.has('score') && (

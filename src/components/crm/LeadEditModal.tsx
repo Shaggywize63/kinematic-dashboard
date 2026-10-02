@@ -11,6 +11,7 @@ import CustomFieldsSection from './CustomFieldsSection';
 import AlternateMobiles from './AlternateMobiles';
 import UserSearchSelect, { type UserOption } from './shared/UserSearchSelect';
 import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '../../lib/crmFieldOverrides';
+import { extractLeadStatuses, type LeadStatusOption } from '../../lib/crmLeadStatuses';
 import { isKinematicTenant } from '../../lib/clientFeatures';
 import { useAuth } from '../../hooks/useAuth';
 import { LocateFixed } from 'lucide-react';
@@ -103,6 +104,10 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
   // built-in lead fields. Loaded from crm_settings alongside business_type
   // so a single round-trip drives both. Empty until first fetch.
   const [fieldOverrides, setFieldOverrides] = useState<FieldOverrides>({});
+  // Per-client custom lead-status set (crm_settings.config.lead_statuses).
+  // Null = use the built-in list (no change for existing tenants). Loaded
+  // from the same settings round-trip as fieldOverrides.
+  const [leadStatuses, setLeadStatuses] = useState<LeadStatusOption[] | null>(null);
   // Pass the active business-type scope so a B2B-only / B2C-only
   // override on the same key wins over the universal entry.
   const fields = useMemo(
@@ -147,6 +152,7 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
           // mode and the rest of the form behaves consistently.
           if (isTata) setForm((f) => (f.is_b2c ? f : { ...f, is_b2c: true }));
           setFieldOverrides(extractFieldOverrides(s.value.data));
+          setLeadStatuses(extractLeadStatuses(s.value.data));
         }
         if (src.status === 'fulfilled') {
           setSources((src.value.data || []).filter((x: LeadSource) => x.is_active !== false));
@@ -338,7 +344,7 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
 
         {(!fields.isHidden('status') || !fields.isHidden('source_id') || !fields.isHidden('owner_id')) && (
           <><SL>Assignment</SL><Grid>
-            {show('status', <SF label={lbl('status', 'Status')} value={form.status} options={[{ value: 'new', label: 'New' }, { value: 'working', label: 'Working' }, { value: 'qualified', label: 'Qualified' }, { value: 'unqualified', label: 'Unqualified' }, { value: 'converted', label: 'Converted' }, { value: 'lost', label: 'Lost' }]} onChange={(v) => setForm({ ...form, status: v as LeadStatus })} />)}
+            {show('status', <SF label={lbl('status', 'Status')} value={form.status} options={leadStatuses ? leadStatuses.map((s) => ({ value: s.value, label: s.label })) : [{ value: 'new', label: 'New' }, { value: 'working', label: 'Working' }, { value: 'qualified', label: 'Qualified' }, { value: 'unqualified', label: 'Unqualified' }, { value: 'converted', label: 'Converted' }, { value: 'lost', label: 'Lost' }]} onChange={(v) => setForm({ ...form, status: v as LeadStatus })} />)}
             {/* Lost-reason capture — appears only when the rep is
                 moving the lead into a terminal status that needs an
                 explanation. Free-text for now; analytics rolls up by
