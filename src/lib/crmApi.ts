@@ -1067,9 +1067,51 @@ export const crmConsent = {
     api.post<{ withdrawn: number }>(`${CONSENT_BASE}/withdraw`, body),
 };
 
+// --- Marketing / ad-hoc field visits (GPS Start→End tied to a lead) ---
+// Stored as crm_activities rows (metadata.kind='marketing_visit'); the backend
+// enriches each row with owner/assignee + linked-lead names. Surfaced in the
+// dashboard "Field Visits" tab for tenants running the flow (Rajkamal today).
+export interface MarketingVisit {
+  id: string;
+  status: string;                 // 'planned' (in progress) | 'completed'
+  subject: string | null;
+  lead_id: string | null;
+  client_id: string | null;
+  owner_id: string | null;
+  assigned_to: string | null;
+  owner_name?: string | null;
+  assigned_to_name?: string | null;
+  lead_name?: string | null;
+  lead_phone?: string | null;
+  outcome?: string | null;
+  body?: string | null;           // end-of-visit notes
+  due_at?: string | null;
+  completed_at?: string | null;
+  created_at?: string | null;
+  metadata?: {
+    kind?: string;
+    visit?: {
+      phase?: 'in_progress' | 'completed';
+      started_at?: string | null;
+      start_lat?: number | null;
+      start_lng?: number | null;
+      ended_at?: string | null;
+      end_lat?: number | null;
+      end_lng?: number | null;
+      purpose?: string | null;
+      next_followup_at?: string | null;
+    } | null;
+  } | null;
+}
+
+export const crmMarketingVisits = {
+  list: (params?: { status?: 'planned' | 'completed'; mine?: boolean }) =>
+    api.get<Wrapped<MarketingVisit[]>>(`${BASE}/marketing-visits${qs(params)}`),
+};
+
 const crmApi = {
   leads: crmLeads, contacts: crmContacts, accounts: crmAccounts, deals: crmDeals,
-  consent: crmConsent,
+  consent: crmConsent, marketingVisits: crmMarketingVisits,
   lineItems: crmLineItems, pipelines: crmPipelines, stages: crmStages,
   activities: crmActivities, notes: crmNotes, tasks: crmTasks,
   emailTemplates: crmEmailTemplates, emails: crmEmails,
