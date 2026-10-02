@@ -401,7 +401,8 @@ export default function DashboardPage() {
   const isRajkamal = selectedClientId === RAJKAMAL_CLIENT_ID
     || (currUser as any)?.client_id === RAJKAMAL_CLIENT_ID
     || (currUser as any)?.clientId === RAJKAMAL_CLIENT_ID
-    || (currUser as any)?.org_id === RAJKAMAL_ORG_ID;
+    || (currUser as any)?.org_id === RAJKAMAL_ORG_ID
+    || (currUser as any)?.orgId === RAJKAMAL_ORG_ID;
 
   const loadInit = useCallback(async () => {
     setLAtt(true); setLSumm(true); setLWeek(true);
@@ -530,6 +531,93 @@ export default function DashboardPage() {
           <StatTile label="Total leaves" tone="warn" icon={<CalendarOff size={15} strokeWidth={1.8}/>} value={summData?.kpis?.total_leaves ?? '—'} loading={loadingSumm} />
           <StatTile label="Avg attendance" tone="red" icon={<UserCheck size={15} strokeWidth={1.8}/>} value={summData?.kpis?.avg_attendance != null ? `${Math.round(summData.kpis.avg_attendance)}%` : '—'} loading={loadingSumm} />
         </div>
+
+        {/* Field Visits (Rajkamal) — shown prominently near the top since ad-hoc
+            Marketing Visits are this tenant's primary field activity. Replaces the
+            (hidden) Outlet Coverage card. */}
+        {isRajkamal && (
+        <Card padding={0}>
+          <div style={{ padding:'16px 16px 0' }}>
+            <CardTitle
+              title="Field visits"
+              sub="Ad-hoc marketing visits captured from the app"
+              right={!loadingFv && fvData && (() => {
+                const total = fvData.length;
+                const completed = fvData.filter((v:any) => v?.status === 'completed' || v?.metadata?.visit?.phase === 'completed').length;
+                const tiles = [
+                  { l:'Total', v: total },
+                  { l:'In progress', v: total - completed },
+                  { l:'Completed', v: completed },
+                ];
+                return (
+                  <div style={{ display:'flex', gap:20, flexWrap:'wrap' }}>
+                    {tiles.map(s => (
+                      <div key={s.l} style={{ textAlign:'right' }}>
+                        <div style={{ fontFamily:T.heading, fontSize:20, fontWeight:700, letterSpacing:'-0.01em', color:T.text, lineHeight:1.1, fontVariantNumeric:'tabular-nums' }}>{s.v}</div>
+                        <Eyebrow style={{ marginTop:4 }}>{s.l}</Eyebrow>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+            />
+          </div>
+          {loadingFv ? (
+            <div style={{ display:'flex', flexDirection:'column', gap:6, padding:'0 16px 16px' }}>
+              {[...Array(5)].map((_,i) => (<Shimmer key={i} h={36} br={8}/>))}
+            </div>
+          ) : fvData?.length ? (
+            <div style={{ overflowX:'auto', maxHeight:320, overflowY:'auto' }}>
+              <table className="km-tbl" style={{ width:'100%', borderCollapse:'collapse', minWidth:560 }}>
+                <thead>
+                  <tr>
+                    <th style={{ ...th, position:'sticky', top:0, background:T.card }}>Field executive</th>
+                    <th style={{ ...th, position:'sticky', top:0, background:T.card }}>Lead</th>
+                    <th style={{ ...th, position:'sticky', top:0, background:T.card }}>Status</th>
+                    <th style={{ ...th, position:'sticky', top:0, background:T.card }}>Started</th>
+                    <th style={{ ...th, position:'sticky', top:0, background:T.card }}>Location</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {fvData.slice(0, 50).map((v:any, i:number) => {
+                    const shown = Math.min(fvData.length, 50);
+                    const last = i === shown - 1;
+                    const visit = (v?.metadata?.visit) || {};
+                    const done = v?.status === 'completed' || visit.phase === 'completed';
+                    const fe = v?.assigned_to_name || v?.owner_name || 'Unassigned';
+                    const lead = v?.lead_name || (typeof v?.subject === 'string' ? v.subject.replace(/^Marketing Visit\s*—\s*/, '') : 'Lead');
+                    const started = visit.started_at ? new Date(visit.started_at).toLocaleString(undefined, { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }) : '—';
+                    const lat = visit.start_lat, lng = visit.start_lng;
+                    const maps = (typeof lat === 'number' && typeof lng === 'number') ? `https://www.google.com/maps?q=${lat},${lng}` : null;
+                    const pill = done ? { fg:T.ok, bg:T.okWash, label:'Completed' } : { fg:T.warn, bg:T.warnWash, label:'In progress' };
+                    return (
+                      <tr key={v?.id || i}>
+                        <td style={{ ...td, borderBottom: last ? 0 : td.borderBottom }}>{fe}</td>
+                        <td style={{ ...td, borderBottom: last ? 0 : td.borderBottom }}>
+                          <div style={{ fontWeight:500 }}>{lead}</div>
+                          {v?.lead_phone && <div style={{ fontSize:12, color:T.mute, marginTop:2 }}>{v.lead_phone}</div>}
+                        </td>
+                        <td style={{ ...td, borderBottom: last ? 0 : td.borderBottom }}>
+                          <span style={{ display:'inline-flex', alignItems:'center', gap:6, background:pill.bg, borderRadius:999, padding:'3px 9px' }}>
+                            <span style={{ width:6, height:6, borderRadius:'50%', background:pill.fg }}/>
+                            <span style={{ fontSize:11.5, color:T.text }}>{pill.label}</span>
+                          </span>
+                        </td>
+                        <td style={{ ...td, borderBottom: last ? 0 : td.borderBottom, whiteSpace:'nowrap' }}>{started}</td>
+                        <td style={{ ...td, borderBottom: last ? 0 : td.borderBottom }}>
+                          {maps ? <a href={maps} target="_blank" rel="noopener noreferrer" style={{ color:T.info, textDecoration:'none' }}>Map ↗</a> : '—'}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <Empty>No marketing visits captured yet</Empty>
+          )}
+        </Card>
+        )}
 
         {/* Row 2: Attendance + Weekly Activity */}
         <div style={{ display:'grid', gridTemplateColumns:narrow ? '1fr' : 'minmax(0, 1fr) minmax(0, 1.5fr)', gap:16 }}>
@@ -774,91 +862,6 @@ export default function DashboardPage() {
         </Card>
         )}
 
-        {/* Row 5 (Rajkamal): Field Visits — ad-hoc Marketing Visits captured from
-            the app, shown in place of Outlet Coverage. */}
-        {isRajkamal && (
-        <Card padding={0}>
-          <div style={{ padding:'16px 16px 0' }}>
-            <CardTitle
-              title="Field visits"
-              sub="Ad-hoc marketing visits captured from the app"
-              right={!loadingFv && fvData && (() => {
-                const total = fvData.length;
-                const completed = fvData.filter((v:any) => v?.status === 'completed' || v?.metadata?.visit?.phase === 'completed').length;
-                const tiles = [
-                  { l:'Total', v: total },
-                  { l:'In progress', v: total - completed },
-                  { l:'Completed', v: completed },
-                ];
-                return (
-                  <div style={{ display:'flex', gap:20, flexWrap:'wrap' }}>
-                    {tiles.map(s => (
-                      <div key={s.l} style={{ textAlign:'right' }}>
-                        <div style={{ fontFamily:T.heading, fontSize:20, fontWeight:700, letterSpacing:'-0.01em', color:T.text, lineHeight:1.1, fontVariantNumeric:'tabular-nums' }}>{s.v}</div>
-                        <Eyebrow style={{ marginTop:4 }}>{s.l}</Eyebrow>
-                      </div>
-                    ))}
-                  </div>
-                );
-              })()}
-            />
-          </div>
-          {loadingFv ? (
-            <div style={{ display:'flex', flexDirection:'column', gap:6, padding:'0 16px 16px' }}>
-              {[...Array(5)].map((_,i) => (<Shimmer key={i} h={36} br={8}/>))}
-            </div>
-          ) : fvData?.length ? (
-            <div style={{ overflowX:'auto', maxHeight:320, overflowY:'auto' }}>
-              <table className="km-tbl" style={{ width:'100%', borderCollapse:'collapse', minWidth:560 }}>
-                <thead>
-                  <tr>
-                    <th style={{ ...th, position:'sticky', top:0, background:T.card }}>Field executive</th>
-                    <th style={{ ...th, position:'sticky', top:0, background:T.card }}>Lead</th>
-                    <th style={{ ...th, position:'sticky', top:0, background:T.card }}>Status</th>
-                    <th style={{ ...th, position:'sticky', top:0, background:T.card }}>Started</th>
-                    <th style={{ ...th, position:'sticky', top:0, background:T.card }}>Location</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {fvData.slice(0, 50).map((v:any, i:number) => {
-                    const shown = Math.min(fvData.length, 50);
-                    const last = i === shown - 1;
-                    const visit = (v?.metadata?.visit) || {};
-                    const done = v?.status === 'completed' || visit.phase === 'completed';
-                    const fe = v?.assigned_to_name || v?.owner_name || 'Unassigned';
-                    const lead = v?.lead_name || (typeof v?.subject === 'string' ? v.subject.replace(/^Marketing Visit\s*—\s*/, '') : 'Lead');
-                    const started = visit.started_at ? new Date(visit.started_at).toLocaleString(undefined, { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }) : '—';
-                    const lat = visit.start_lat, lng = visit.start_lng;
-                    const maps = (typeof lat === 'number' && typeof lng === 'number') ? `https://www.google.com/maps?q=${lat},${lng}` : null;
-                    const pill = done ? { fg:T.ok, bg:T.okWash, label:'Completed' } : { fg:T.warn, bg:T.warnWash, label:'In progress' };
-                    return (
-                      <tr key={v?.id || i}>
-                        <td style={{ ...td, borderBottom: last ? 0 : td.borderBottom }}>{fe}</td>
-                        <td style={{ ...td, borderBottom: last ? 0 : td.borderBottom }}>
-                          <div style={{ fontWeight:500 }}>{lead}</div>
-                          {v?.lead_phone && <div style={{ fontSize:12, color:T.mute, marginTop:2 }}>{v.lead_phone}</div>}
-                        </td>
-                        <td style={{ ...td, borderBottom: last ? 0 : td.borderBottom }}>
-                          <span style={{ display:'inline-flex', alignItems:'center', gap:6, background:pill.bg, borderRadius:999, padding:'3px 9px' }}>
-                            <span style={{ width:6, height:6, borderRadius:'50%', background:pill.fg }}/>
-                            <span style={{ fontSize:11.5, color:T.text }}>{pill.label}</span>
-                          </span>
-                        </td>
-                        <td style={{ ...td, borderBottom: last ? 0 : td.borderBottom, whiteSpace:'nowrap' }}>{started}</td>
-                        <td style={{ ...td, borderBottom: last ? 0 : td.borderBottom }}>
-                          {maps ? <a href={maps} target="_blank" rel="noopener noreferrer" style={{ color:T.info, textDecoration:'none' }}>Map ↗</a> : '—'}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <Empty>No marketing visits captured yet</Empty>
-          )}
-        </Card>
-        )}
       </div>
     </>
   );
