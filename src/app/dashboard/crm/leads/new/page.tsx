@@ -15,6 +15,7 @@ import AlternateMobiles from '../../../../../components/crm/AlternateMobiles';
 import { InlineLeadVoiceCapture } from '../../../../../components/crm/VoiceCaptureOverlay';
 import ClientScopeField from '../../../../../components/ClientScopeField';
 import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '../../../../../lib/crmFieldOverrides';
+import { extractLeadStatuses, type LeadStatusOption } from '../../../../../lib/crmLeadStatuses';
 import { DataCollectionConsent, NOTICE_VERSION } from '../../../../../components/crm/DataConsent';
 import { Button, Eyebrow, Field, FormGrid, Input, PageHeader, Section as FormSection, Segmented, Select, T, cardStyle, requiredMark, useIsCompact } from '../../../../../components/ui';
 import { usePageTitle } from '../../../../../lib/pageTitle';
@@ -233,6 +234,11 @@ export default function NewLeadPage() {
   // in crm_settings.config.field_overrides. Empty until first fetch — every
   // field renders with its hardcoded default in the interim.
   const [fieldOverrides, setFieldOverrides] = useState<FieldOverrides>({});
+  // Per-client custom lead-status set (crm_settings.config.lead_statuses).
+  // Null until the settings fetch resolves AND the tenant has one configured;
+  // null means "use the built-in status list" (zero change for existing
+  // tenants). Loaded from the SAME settings round-trip as fieldOverrides.
+  const [leadStatuses, setLeadStatuses] = useState<LeadStatusOption[] | null>(null);
   // DPDP §6 consent captured at collection. `consentRequired` mirrors the
   // per-tenant crm_settings.config.consent.lead_pii.required gate (default off:
   // notice shown + consent recorded, but not blocking).
@@ -257,6 +263,14 @@ export default function NewLeadPage() {
     return merged.hidden === false;
   }, [fieldOverrides]);
   const anyBizOnB2C = explicitlyShownOnB2C('company') || explicitlyShownOnB2C('title') || explicitlyShownOnB2C('industry');
+  // When a custom status set is configured and the form's default status
+  // ('new') isn't part of it, snap to the first custom option so the <Select>
+  // value matches a real option and submit saves a valid status. No-op (and
+  // zero change) for tenants on the built-in status list.
+  useEffect(() => {
+    if (!leadStatuses || leadStatuses.length === 0) return;
+    setForm((f) => (leadStatuses.some((o) => o.value === f.status) ? f : { ...f, status: leadStatuses[0].value }));
+  }, [leadStatuses]);
   const [sources, setSources] = useState<LeadSource[]>([]);
   const [users, setUsers] = useState<UserOpt[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -318,6 +332,7 @@ export default function NewLeadPage() {
         setBusinessType(t);
         if (t !== 'both') setForm((f) => ({ ...f, is_b2c: t === 'b2c' }));
         setFieldOverrides(extractFieldOverrides(s.value.data));
+        setLeadStatuses(extractLeadStatuses(s.value.data));
         const cfg = (s.value.data as { config?: { consent?: { lead_pii?: { required?: boolean } } } } | undefined)?.config;
         setConsentRequired(cfg?.consent?.lead_pii?.required === true);
       }
@@ -763,10 +778,16 @@ export default function NewLeadPage() {
               {!fields.isHidden('status') && (
                 <Field label={fields.labelFor('status', 'Status')} htmlFor="lead-field-status">
                   <Select id="lead-field-status" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
-                    <option value="new">New</option>
-                    <option value="working">Working</option>
-                    <option value="qualified">Qualified</option>
-                    <option value="unqualified">Unqualified</option>
+                    {leadStatuses
+                      ? leadStatuses.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)
+                      : (
+                        <>
+                          <option value="new">New</option>
+                          <option value="working">Working</option>
+                          <option value="qualified">Qualified</option>
+                          <option value="unqualified">Unqualified</option>
+                        </>
+                      )}
                   </Select>
                 </Field>
               )}

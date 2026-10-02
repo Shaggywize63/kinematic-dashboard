@@ -12,6 +12,7 @@ import type { Lead, LeadSource } from '../../../../types/crm';
 import LeadsTable, { LEAD_COLUMNS } from '../../../../components/crm/LeadsTable';
 import LeadEditModal from '../../../../components/crm/LeadEditModal';
 import LeadFilters, { type LeadFiltersValue } from '../../../../components/crm/LeadFilters';
+import { extractLeadStatuses, type LeadStatusOption } from '../../../../lib/crmLeadStatuses';
 import SmartFilterBar from '../../../../components/crm/SmartFilterBar';
 import ViewCustomizer from '../../../../components/crm/shared/ViewCustomizer';
 import { useViewPrefs } from '../../../../lib/crmViewPrefs';
@@ -30,6 +31,8 @@ export default function LeadsListPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [sources, setSources] = useState<LeadSource[]>([]);
   const [filters, setFilters] = useState<LeadFiltersValue>({});
+  // Per-client custom lead-status set for the status filter. Null = built-ins.
+  const [leadStatuses, setLeadStatuses] = useState<LeadStatusOption[] | null>(null);
   // Manager approval quick-filter: '' = all, 'pending' = awaiting sign-off,
   // 'rejected' = declined. Applied server-side via ?approval_status.
   const [approvalFilter, setApprovalFilter] = useState<'' | 'pending' | 'rejected'>('');
@@ -376,6 +379,7 @@ export default function LeadsListPage() {
   useEffect(() => {
     crmSettings.get().then((r) => {
       if (r.data?.business_type === 'b2c') setIsB2C(true);
+      setLeadStatuses(extractLeadStatuses(r.data));
     }).catch(() => {});
   }, []);
 
@@ -595,7 +599,7 @@ export default function LeadsListPage() {
           explanation={smartExplain}
           params={smartParams}
         />
-        <LeadFilters value={filters} onChange={setFilters} sources={sources.map((s) => ({ id: s.id, name: s.name }))} owners={users} />
+        <LeadFilters value={filters} onChange={setFilters} sources={sources.map((s) => ({ id: s.id, name: s.name }))} owners={users} statusOptions={leadStatuses} />
         {showApproval && (
           <Segmented
             value={approvalFilter}
@@ -684,6 +688,7 @@ export default function LeadsListPage() {
           loading={loading}
           isB2C={isB2C}
           hiddenColumns={hiddenSet}
+          statusOptions={leadStatuses}
           viewMode={view.prefs.mode}
           sort={sort}
           // Header click: switch to this column asc, or flip asc↔desc if it's

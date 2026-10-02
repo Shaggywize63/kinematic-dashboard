@@ -42,13 +42,18 @@ function readRows(r: LocationOptionsResponse): LocationRow[] {
   return payload?.rows ?? [];
 }
 
-export default function LeadFilters({ value, onChange, sources = [], owners = [] }: {
+export default function LeadFilters({ value, onChange, sources = [], owners = [], statusOptions = null }: {
   value: LeadFiltersValue;
   onChange: (next: LeadFiltersValue) => void;
   sources?: Array<{ id: string; name: string }>;
   owners?: Array<{ id: string; name: string }>;
+  // Per-client custom lead-status set. Null = use the built-in STATUS_OPTIONS
+  // (no change for existing tenants).
+  statusOptions?: Array<{ value: string; label: string }> | null;
 }) {
   const [rows, setRows] = useState<LocationRow[]>([]);
+  // Custom set wins when configured; otherwise fall back to the built-ins.
+  const effectiveStatusOptions = statusOptions && statusOptions.length ? statusOptions : STATUS_OPTIONS;
 
   useEffect(() => {
     api.get<LocationOptionsResponse>('/api/v1/crm/locations/options').then(r => setRows(readRows(r))).catch(() => {});
@@ -98,6 +103,7 @@ export default function LeadFilters({ value, onChange, sources = [], owners = []
         selected={value.status || []}
         onChange={(next) => set({ status: next.length ? next : undefined })}
         style={inputStyle}
+        options={effectiveStatusOptions}
       />
       <select style={inputStyle} value={value.grade || ''} onChange={(e) => set({ grade: e.target.value || undefined })}>
         <option value="">All Grades</option>
@@ -158,10 +164,11 @@ const STATUS_OPTIONS: Array<{ value: string; label: string }> = [
 // <select>s (same inputStyle for the trigger) but lets the user pick any
 // combination — e.g. show everything except Unqualified, or only Qualified +
 // Working. Closes on outside click. Empty selection = all statuses.
-function StatusMultiSelect({ selected, onChange, style }: {
+function StatusMultiSelect({ selected, onChange, style, options = STATUS_OPTIONS }: {
   selected: string[];
   onChange: (next: string[]) => void;
   style: React.CSSProperties;
+  options?: Array<{ value: string; label: string }>;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -181,7 +188,7 @@ function StatusMultiSelect({ selected, onChange, style }: {
   const summary = selected.length === 0
     ? 'All Statuses'
     : selected.length === 1
-      ? (STATUS_OPTIONS.find((o) => o.value === selected[0])?.label ?? selected[0])
+      ? (options.find((o) => o.value === selected[0])?.label ?? selected[0])
       : `${selected.length} statuses`;
 
   return (
@@ -215,7 +222,7 @@ function StatusMultiSelect({ selected, onChange, style }: {
               Clear selection
             </button>
           )}
-          {STATUS_OPTIONS.map((o) => (
+          {options.map((o) => (
             <label
               key={o.value}
               style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', fontSize: 13, color: 'var(--text)', cursor: 'pointer', borderRadius: 6, userSelect: 'none' }}

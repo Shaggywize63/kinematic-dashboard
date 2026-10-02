@@ -32,6 +32,11 @@ export const PASA_CLIENT_ID = '1fcda02a-8af6-4019-bef9-2a9dfacae4a3';
  * doesn't use (Pipeline, Products, People Directory, leads-on-map). */
 export const KINEMATIC_CLIENT_ID = '7ecd47d7-9268-4ea2-a8ce-384978c13667';
 
+/** Rajkamal Jewellers — a hybrid field-force + CRM tenant running the ad-hoc
+ * "Marketing Visit" flow (GPS Start→End tied to a lead). Surfaces the Field
+ * Visits + Area-wise Leads reports. Mirrors iOS/Android `isRajkamal`. */
+export const RAJKAMAL_CLIENT_ID = '0490f34d-d9a3-4f39-99e2-8f3adba8c583';
+
 /** The Kinematic tenant's ORG id. The "Kinematic" client above lives under
  * this org, but the tenant's own super-admin (e.g. s@kinematicapp.com) has
  * client_id = null and operates at org level — so a client-only check misses
@@ -114,6 +119,21 @@ export function canDownloadSrsReport(user: AnyUser): boolean {
 /** True when the active tenant is BMW. */
 export function isBmwActive(user: AnyUser): boolean {
   return activeClientId(user) === BMW_CLIENT_ID;
+}
+
+/** True when the active tenant is Rajkamal Jewellers. */
+export function isRajkamalActive(user: AnyUser): boolean {
+  return activeClientId(user) === RAJKAMAL_CLIENT_ID;
+}
+
+/**
+ * Gate for the field-visit reports (Field Visits + Area-wise Leads). These are
+ * generic, client-scoped exports; today only Rajkamal runs the Marketing Visit
+ * flow that feeds them, so the dashboard surfaces the tiles for that tenant.
+ * Widen this when another tenant adopts marketing visits.
+ */
+export function canViewFieldVisits(user: AnyUser): boolean {
+  return isRajkamalActive(user);
 }
 
 /**
