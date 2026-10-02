@@ -83,3 +83,12 @@ rendering has repeatedly shifted the geometry and swapped the dot colours.
 ## Build / check
 - `npx tsc --noEmit` — a pre-existing `baseUrl` deprecation warning is expected;
   treat only other errors as failures.
+
+## Deploy — AWS Amplify (NOT Vercel)
+Hosting moved to **AWS Amplify** (app `kinematic-dashboard`, id `d2xwgojs475bh0`,
+ap-south-1, Next.js SSR / `WEB_COMPUTE`). The `main` branch has **branch
+auto-build ON**, so a merge to `main` builds and deploys automatically; the
+production URL is **https://dashboard.kinematicapp.com**. There is no `vercel.json`
+— Vercel is no longer used (the old file set `git.deploymentEnabled:false`, which
+only ever described the dead Vercel project). To redeploy on demand without a new
+commit, start an Amplify `RELEASE` job on `main`.

@@ -55,6 +55,10 @@ const STEEL_DEALER_CLIENT_IDS = [TATA_TISCON_CLIENT_ID, BMW_CLIENT_ID, PASA_CLIE
 
 type AnyUser = {
   client_id?: string | null;
+  /** Some controller paths normalise the user record to camelCase. The gates
+   *  below must honour both spellings or a client-pinned user whose session
+   *  carries `clientId` silently fails every client check. */
+  clientId?: string | null;
   org_id?: string | null;
   org_role?: { name?: string | null } | null;
   org_role_name?: string | null;
@@ -81,7 +85,8 @@ export function isConsumerChampion(user: AnyUser): boolean {
  * value in localStorage. Returns null when none of these resolve.
  */
 export function activeClientId(user: AnyUser): string | null {
-  if (user?.client_id) return user.client_id;
+  const bound = user?.client_id ?? user?.clientId;
+  if (bound) return bound;
   if (typeof window === 'undefined') return null;
   try {
     const raw = window.localStorage.getItem('kinematic_selected_client');

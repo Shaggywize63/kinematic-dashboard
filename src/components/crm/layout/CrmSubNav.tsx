@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useAuth } from '../../../hooks/useAuth';
+import { useClient } from '../../../context/ClientContext';
 import { isConsumerChampion, isTataTiscon, isKinematicActive, canViewFieldVisits } from '../../../lib/clientFeatures';
 
 type CrmLink = {
@@ -61,13 +62,18 @@ export default function CrmSubNav() {
   // super-admin client picker off localStorage, which isn't available during
   // SSR. Starting false keeps server/client markup in sync (no hydration
   // mismatch); the hidden tabs disappear on the first client render.
+  // The super-admin client picker (ClientContext) updates selectedClientId +
+  // localStorage synchronously WITHOUT a page reload, so the picker-derived
+  // gates below must depend on it — otherwise switching the picker to Rajkamal
+  // (or Kinematic) never re-reveals/hides these tabs until a full reload.
+  const { selectedClientId } = useClient();
   const [kinematic, setKinematic] = useState(false);
-  useEffect(() => { setKinematic(isKinematicActive(user as any)); }, [user]);
-  // Resolved after mount for the same reason as `kinematic`: canViewFieldVisits
-  // reads the super-admin client picker from localStorage (SSR-unsafe). A
-  // client-pinned Rajkamal admin resolves immediately from user.client_id.
+  useEffect(() => { setKinematic(isKinematicActive(user as any)); }, [user, selectedClientId]);
+  // Resolved after mount (canViewFieldVisits reads localStorage, SSR-unsafe) and
+  // re-resolved whenever the client picker changes. A client-pinned Rajkamal
+  // admin resolves immediately from user.client_id.
   const [fieldVisits, setFieldVisits] = useState(false);
-  useEffect(() => { setFieldVisits(canViewFieldVisits(user as any)); }, [user]);
+  useEffect(() => { setFieldVisits(canViewFieldVisits(user as any)); }, [user, selectedClientId]);
   const visibleLinks = LINKS.filter((l) => {
     if (l.superAdminOnly && !superAdmin) return false;
     if (l.championHidden && champion) return false;
