@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useAuth } from '../../../hooks/useAuth';
-import { isConsumerChampion, isTataTiscon, isKinematicActive } from '../../../lib/clientFeatures';
+import { isConsumerChampion, isTataTiscon, isKinematicActive, canViewFieldVisits } from '../../../lib/clientFeatures';
 
 type CrmLink = {
   href: string;
@@ -15,6 +15,9 @@ type CrmLink = {
   kinematicHidden?: boolean;
   /** Visible ONLY to the Kinematic super admin (role super_admin). */
   superAdminOnly?: boolean;
+  /** Visible ONLY to tenants running the ad-hoc Marketing Visit flow
+   *  (canViewFieldVisits — Rajkamal today). */
+  fieldVisitsOnly?: boolean;
 };
 const LINKS: CrmLink[] = [
   { href: '/dashboard/crm/dashboard', label: 'Dashboard' },
@@ -33,6 +36,9 @@ const LINKS: CrmLink[] = [
   // Tasks merged into Activities — tasks are now activities of type='task'.
   // /dashboard/crm/tasks redirects to /dashboard/crm/activities?type=task.
   { href: '/dashboard/crm/activities', label: 'Activities' },
+  // Ad-hoc Marketing Visits captured from the mobile app (GPS Start→End tied
+  // to a lead). Shown only for tenants running that flow (Rajkamal today).
+  { href: '/dashboard/crm/field-visits', label: 'Field Visits', fieldVisitsOnly: true },
   { href: '/dashboard/crm/whatsapp', label: 'WhatsApp' },
   // KINI website-chatbot conversations + the leads they capture. This is the
   // Kinematic platform's own website funnel, so it's visible only to the
@@ -57,11 +63,17 @@ export default function CrmSubNav() {
   // mismatch); the hidden tabs disappear on the first client render.
   const [kinematic, setKinematic] = useState(false);
   useEffect(() => { setKinematic(isKinematicActive(user as any)); }, [user]);
+  // Resolved after mount for the same reason as `kinematic`: canViewFieldVisits
+  // reads the super-admin client picker from localStorage (SSR-unsafe). A
+  // client-pinned Rajkamal admin resolves immediately from user.client_id.
+  const [fieldVisits, setFieldVisits] = useState(false);
+  useEffect(() => { setFieldVisits(canViewFieldVisits(user as any)); }, [user]);
   const visibleLinks = LINKS.filter((l) => {
     if (l.superAdminOnly && !superAdmin) return false;
     if (l.championHidden && champion) return false;
     if (l.tataTisconHidden && tataTiscon) return false;
     if (l.kinematicHidden && kinematic) return false;
+    if (l.fieldVisitsOnly && !fieldVisits) return false;
     return true;
   });
 
