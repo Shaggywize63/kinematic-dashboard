@@ -272,6 +272,11 @@ export default function CustomFieldsPage() {
   const [fieldType, setFieldType] = useState<CustomField['field_type']>('text');
   const [optionsRaw, setOptionsRaw] = useState('');
   const [required, setRequired] = useState(false);
+  // Lead-segment scope for a new custom field: 'both' (every lead form),
+  // 'b2c' (B2C branch only — e.g. a farmer), 'b2b' (B2B branch only — e.g. a
+  // distributor/retailer). Only shown/sent for entity 'lead'; other entities
+  // have no B2C/B2B split.
+  const [appliesTo, setAppliesTo] = useState<'both' | 'b2c' | 'b2b'>('both');
   // Lookup-only state for the create form. Mirrors the edit dialog
   // above. Defaults reset whenever the user flips field_type away from
   // 'lookup' so a stale target/filter never gets persisted.
@@ -394,6 +399,9 @@ export default function CustomFieldsPage() {
       payload.options = tokens;
     }
     if (pickedRoles.length > 0) payload.org_role_ids = pickedRoles;
+    // Lead-segment scope — only meaningful for lead fields; omit otherwise so
+    // non-lead entities never carry a scope. 'both' is the server default.
+    if (entity === 'lead' && appliesTo !== 'both') payload.applies_to = appliesTo;
     if (fieldType === 'lookup') {
       payload.target_table = targetTable;
       if (cleanedFilter && cleanedFilter.length > 0) payload.lookup_filter = cleanedFilter;
@@ -410,7 +418,7 @@ export default function CustomFieldsPage() {
       await crmCustomFields.create(payload as any);
       toast.success(`Custom field "${label.trim()}" added to ${entity}`);
       setFieldKey(''); setLabel(''); setOptionsRaw(''); setRequired(false); setPickedRoles([]);
-      setTargetTable(''); setLookupFilter([]); setFormula('');
+      setTargetTable(''); setLookupFilter([]); setFormula(''); setAppliesTo('both');
       reload();
     } catch (e: any) { toast.error(e.message || 'Create failed — check API connection'); }
     finally { setCreating(false); }
@@ -927,6 +935,37 @@ export default function CustomFieldsPage() {
             <input type="checkbox" checked={required} onChange={(e) => setRequired(e.target.checked)} /> Required
           </label>
         </div>
+        {/* Lead-segment scope. A lead form has a B2C branch and a B2B branch;
+            this picks which the field shows on. Only shown for lead fields —
+            other entities have no B2C/B2B split. */}
+        {entity === 'lead' && (
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 12, color: 'var(--text-dim)', fontWeight: 600, marginBottom: 6 }}>
+              Show on lead segment
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {([
+                { v: 'both', label: 'Both' },
+                { v: 'b2c', label: 'B2C only (e.g. farmer)' },
+                { v: 'b2b', label: 'B2B only (e.g. distributor/retailer)' },
+              ] as const).map((o) => {
+                const on = appliesTo === o.v;
+                return (
+                  <button
+                    key={o.v}
+                    type="button"
+                    onClick={() => setAppliesTo(o.v)}
+                    style={{ padding: '5px 10px', borderRadius: 999, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                      border: `1px solid ${on ? 'var(--primary)' : 'var(--border)'}`,
+                      background: on ? 'var(--primary)' : 'var(--s3)', color: on ? '#fff' : 'var(--text)' }}
+                  >
+                    {on ? '✓ ' : ''}{o.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
         {!isMasterAdmin && roles.length > 0 && (
           <div style={{ marginBottom: 12 }}>
             <div style={{ fontSize: 12, color: 'var(--text-dim)', fontWeight: 600, marginBottom: 6 }}>
