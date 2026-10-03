@@ -577,9 +577,33 @@ function seed(l: Lead) {
       : '',
   };
 }
-// Section eyebrow — mono, with a hairline above every section but the first.
+// One-line hint shown under each section title, keyed by the section name —
+// mirrors the lead-CREATE form's `<Section title hint>` so the edit form reads
+// as clearly grouped sections rather than a flat list of fields.
+const SECTION_HINTS: Record<string, string> = {
+  'Contact': "Who you're talking to.",
+  'Assignment': 'Stage, source and owner.',
+  'Company': 'Where they work.',
+  'Location': 'Used for city scoping and routing.',
+  'Customer': 'Personal details.',
+  'Address': 'Where to reach them.',
+  'Consent': 'Communication permissions.',
+  'Additional details': 'Custom fields for your team.',
+  'Activity': 'Log a visit while editing.',
+  'Notes & tags': 'Internal notes and list filter chips.',
+  'Pin location': 'GPS coordinates for this lead.',
+};
+// Section header — a prominent full-contrast title + hairline divider (above
+// every section but the first) + the keyed hint, so the edit modal groups
+// fields into clear sections the same way the create form does.
 function SL({ children, first }: { children: React.ReactNode; first?: boolean }) {
-  return <div style={{ ...eyebrowStyle, margin: first ? '12px 0 10px' : '20px 0 10px', paddingTop: first ? 0 : 18, borderTop: first ? 0 : '1px solid var(--border)' }}>{children}</div>;
+  const hint = typeof children === 'string' ? SECTION_HINTS[children] : undefined;
+  return (
+    <div style={{ margin: first ? '2px 0 12px' : '22px 0 12px', paddingTop: first ? 0 : 18, borderTop: first ? 0 : '1px solid var(--border)' }}>
+      <div style={{ ...eyebrowStyle, fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>{children}</div>
+      {hint && <div style={{ fontSize: 12.5, color: 'var(--text-dim)', marginTop: 4 }}>{hint}</div>}
+    </div>
+  );
 }
 function Grid({ children }: { children: React.ReactNode }) { return <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '14px 20px' }}>{children}</div>; }
 function F(p: { label: string; value: string; onChange: (v: string) => void; type?: string; required?: boolean; phone?: boolean }) {
