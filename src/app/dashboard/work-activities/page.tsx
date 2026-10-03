@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, useMemo, Fragment } from 'react';
 import api from '../../../lib/api';
 import { useClient } from '../../../context/ClientContext';
 import { extractImageUrls } from '../../../lib/utils';
-import SignedImage, { openSignedUrl } from '../../../components/shared/SignedImage';
+import SignedImage, { openSignedUrl, resolveSignedUrl } from '../../../components/shared/SignedImage';
 import dynamic from 'next/dynamic';
 
 // Lazy-load the charts bundle (recharts) so it stays out of the main Work
@@ -27,6 +27,41 @@ const C = {
   green: 'var(--green)',
   red: 'var(--primary)',
 };
+
+// Derive a sensible download filename from a stored object URL (last path
+// segment with an extension), falling back to a generic name.
+function fileNameFromUrl(url: string, fallback: string): string {
+  try {
+    const base = decodeURIComponent(new URL(url).pathname.split('/').pop() || '');
+    return base && /\.[a-z0-9]{2,5}$/i.test(base) ? base : fallback;
+  } catch { return fallback; }
+}
+
+// Download a form image. The buckets are private, so first exchange the stored
+// URL for a signed one, then fetch it as a blob and save via a temporary <a>.
+// If the blob fetch fails (e.g. CORS), fall back to opening the signed URL in a
+// new tab so the user can still save it manually.
+async function downloadImage(storedUrl: string, filename: string): Promise<void> {
+  try {
+    const signed = await resolveSignedUrl(storedUrl);
+    const res = await fetch(signed);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const blob = await res.blob();
+    const objUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = objUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(objUrl), 1000);
+  } catch {
+    try {
+      const signed = await resolveSignedUrl(storedUrl);
+      window.open(signed, '_blank', 'noopener');
+    } catch { /* ignore — nothing more we can do */ }
+  }
+}
 
 interface User { id: string; name: string; employee_id?: string; role: string; city_id?: string; }
 interface City { id: string; name: string; }
@@ -641,6 +676,18 @@ export default function WorkActivitiesPage() {
           style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(0,0,0,0.95)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           onClick={() => setLightbox(null)}
         >
+          {/* Download the current image */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              const u = lightbox.urls[lightbox.index];
+              void downloadImage(u, fileNameFromUrl(u, `work-activity-image-${lightbox.index + 1}.jpg`));
+            }}
+            title="Download image"
+            aria-label="Download image"
+            style={{ position: 'absolute', top: '20px', right: '84px', background: 'rgba(255,255,255,0.12)', border: 'none', color: '#fff', fontSize: '18px', cursor: 'pointer', borderRadius: '50%', width: '44px', height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}
+          >⬇</button>
+
           {/* Close */}
           <button
             onClick={() => setLightbox(null)}
