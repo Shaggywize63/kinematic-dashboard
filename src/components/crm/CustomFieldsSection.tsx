@@ -44,9 +44,15 @@ interface Props {
   // the server-side `enforceRequired` check so the user gets an inline error
   // instead of a bare 400 from the API.
   onFieldsChange?: (fields: CustomField[]) => void;
+  // Lead segment of the form this section is rendered in. On a lead form the
+  // parent passes the current branch (true = B2C/farmer, false = B2B/
+  // distributor) so a custom field scoped via `applies_to` is shown only on
+  // its segment. Undefined (non-lead entities, or a form with no B2C/B2B
+  // split) means "no segment filter" — every field shows.
+  isB2c?: boolean;
 }
 
-export default function CustomFieldsSection({ entity, values, onChange, onFieldsChange }: Props) {
+export default function CustomFieldsSection({ entity, values, onChange, onFieldsChange, isB2c }: Props) {
   const [fields, setFields] = useState<CustomField[]>([]);
   const [loading, setLoading] = useState(true);
   // Keep the latest callback in a ref so the load effect can stay keyed on
@@ -91,6 +97,16 @@ export default function CustomFieldsSection({ entity, values, onChange, onFields
             if (!roles || roles.length === 0) return true;
             return !!myRoleId && roles.includes(myRoleId);
           })
+          // Segment scope (lead forms only). A field scoped to one branch
+          // (applies_to 'b2c' or 'b2b') shows only on that branch. 'both' /
+          // null / undefined always show. When the caller passes no segment
+          // (isB2c undefined — non-lead entities) the filter is a no-op.
+          .filter((f) => {
+            if (entity !== 'lead' || isB2c === undefined) return true;
+            const scope = f.applies_to;
+            if (!scope || scope === 'both') return true;
+            return scope === (isB2c ? 'b2c' : 'b2b');
+          })
           .sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
         setFields(visible);
         onFieldsChangeRef.current?.(visible);
@@ -102,7 +118,7 @@ export default function CustomFieldsSection({ entity, values, onChange, onFields
       }
     })();
     return () => { cancel = true; };
-  }, [entity]);
+  }, [entity, isB2c]);
 
   if (loading || fields.length === 0) return null;
 

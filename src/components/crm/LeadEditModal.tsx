@@ -462,6 +462,7 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
             entity="lead"
             values={form.custom_fields}
             onChange={(cf) => setForm({ ...form, custom_fields: cf })}
+            isB2c={form.is_b2c}
           />
         </Grid>
         {/* Products of Interest moved to the Convert dialog for Kaiyo/Tata. */}

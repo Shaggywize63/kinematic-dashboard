@@ -307,6 +307,11 @@ export interface CustomField {
   hidden?: boolean;
   // Org roles this field is shown to. Empty/null = all roles (universal).
   org_role_ids?: string[] | null;
+  // Which lead segment the field belongs to. 'both' (default) shows it on
+  // every form; 'b2c' only on the B2C branch (e.g. a farmer), 'b2b' only on
+  // the B2B branch (e.g. a distributor/retailer). Only meaningful for
+  // entity_type='lead'; ignored for other entities (no B2C/B2B split).
+  applies_to?: 'both' | 'b2c' | 'b2b' | null;
   // Lookup-only — populated when field_type === 'lookup'. target_table
   // is the table the picker searches; lookup_filter is the optional
   // condition list (each clause AND-ed) the admin configured so only

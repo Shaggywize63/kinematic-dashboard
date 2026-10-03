@@ -833,6 +833,7 @@ export default function NewLeadPage() {
                   values={form.custom_fields}
                   onChange={(cf) => setForm({ ...form, custom_fields: cf })}
                   onFieldsChange={setCustomFieldDefs}
+                  isB2c={form.is_b2c}
                 />
               </FormGrid>
             </Section>
@@ -895,6 +896,7 @@ export default function NewLeadPage() {
                   values={form.custom_fields}
                   onChange={(cf) => setForm({ ...form, custom_fields: cf })}
                   onFieldsChange={setCustomFieldDefs}
+                  isB2c={form.is_b2c}
                 />
               </FormGrid>
             </Section>
