@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, useMemo, Fragment } from 'react';
 import api from '../../../lib/api';
 import { useClient } from '../../../context/ClientContext';
 import { extractImageUrls } from '../../../lib/utils';
-import { openSignedUrl } from '../../../components/shared/SignedImage';
+import SignedImage, { openSignedUrl } from '../../../components/shared/SignedImage';
 import dynamic from 'next/dynamic';
 
 // Lazy-load the charts bundle (recharts) so it stays out of the main Work
@@ -90,7 +90,7 @@ function renderAnswerValue(
     return (
       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '4px' }}>
         {urls.map((url, i) => (
-          <img
+          <SignedImage
             key={i}
             src={url}
             alt={`${qtype} ${i + 1}`}
@@ -663,7 +663,7 @@ export default function WorkActivitiesPage() {
           )}
 
           {/* Image */}
-          <img
+          <SignedImage
             src={lightbox.urls[lightbox.index]}
             alt={`Image ${lightbox.index + 1}`}
             style={{ maxWidth: '90vw', maxHeight: '88vh', borderRadius: '12px', objectFit: 'contain', boxShadow: '0 24px 80px rgba(0,0,0,0.6)' }}
@@ -682,7 +682,7 @@ export default function WorkActivitiesPage() {
           {lightbox.urls.length > 1 && (
             <div style={{ position: 'absolute', bottom: '20px', left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: '8px' }} onClick={e => e.stopPropagation()}>
               {lightbox.urls.map((url, i) => (
-                <img
+                <SignedImage
                   key={i}
                   src={url}
                   alt={`thumb ${i + 1}`}
