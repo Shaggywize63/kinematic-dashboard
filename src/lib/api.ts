@@ -700,6 +700,36 @@ class ApiClient {
     return data;
   }
 
+  /**
+   * Authenticated binary download (PDF / CSV). Carries the same identity and tenant
+   * headers as request(), but skips JSON parsing and the response cache.
+   */
+  async download(path: string, _isRetry = false): Promise<Blob> {
+    const headers: Record<string, string> = {};
+    const token = this.getToken();
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const impersonate = getImpersonateUser();
+    if (impersonate?.id) headers['X-Impersonate-User-Id'] = impersonate.id;
+    const orgId = this.getOrgId();
+    if (orgId) headers['X-Org-Id'] = orgId;
+    const project = getStoredProjectKey();
+    if (project && project !== DEFAULT_PROJECT) headers['X-Kinematic-Project'] = project;
+    const client = getActingAs()?.client_id || this.getSelectedClient();
+    if (client) headers['X-Client-Id'] = client;
+
+    const res = await fetchWithTimeout(`${this.baseUrl}${path}`, { headers }, REQUEST_TIMEOUT_MS);
+    if (res.status === 401) {
+      if (!_isRetry && (await this.refreshAccessToken())) return this.download(path, true);
+      throw new Error('Unauthorized');
+    }
+    if (!res.ok) {
+      let message = 'Download failed';
+      try { message = extractApiError(await res.json()); } catch { /* non-JSON error body */ }
+      throw new Error(message);
+    }
+    return res.blob();
+  }
+
   private getSelectedClient(): string | null {
     if (typeof window === 'undefined') return null;
     try {
