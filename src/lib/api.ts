@@ -548,8 +548,16 @@ class ApiClient {
     }
 
     const token = this.getToken();
+    // A multipart upload must NOT carry a forced JSON Content-Type — the browser
+    // sets `multipart/form-data; boundary=…` itself. Skipping it for FormData
+    // lets uploads (CSV import) ride this exact request() pipeline, so they carry
+    // the identical Authorization / X-Org-Id / X-Kinematic-Project / X-Client-Id /
+    // X-Impersonate-User-Id headers as every other call and route to the same
+    // project — fixing import jobs that were created in the wrong project by a
+    // hand-built upload header set (preview then 404'd with "Import job not found").
+    const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
     const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
+      ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
       ...(options.headers as Record<string, string>),
     };
     if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -806,6 +814,14 @@ class ApiClient {
   post<T>(path: string, body: unknown, options: RequestInit = {}) {
     this.clearCache();
     return this.request<T>(path, { ...options, method: 'POST', body: JSON.stringify(body) });
+  }
+  // Multipart upload through the SAME pipeline as post() (auth, org, project,
+  // client, impersonation, retry/refresh) — with a raw FormData body so the
+  // browser sets the multipart boundary. Used by the CSV import uploads so they
+  // route to the same project as the preview/commit calls that follow.
+  postForm<T>(path: string, formData: FormData, options: RequestInit = {}) {
+    this.clearCache();
+    return this.request<T>(path, { ...options, method: 'POST', body: formData });
   }
   put<T>(path: string, body: unknown, options: RequestInit = {}) {
     this.clearCache();

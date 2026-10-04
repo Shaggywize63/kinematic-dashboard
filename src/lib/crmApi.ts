@@ -1,5 +1,4 @@
-import api, { resolveApiUrl, extractApiError } from './api';
-import { reportFetchHeaders } from './reportAuth';
+import api from './api';
 import type {
   Lead, Contact, Account, Deal, DealContact, DealHistoryEntry,
   Pipeline, Stage, Activity, Note, Task,
@@ -770,53 +769,14 @@ export const crmStatesApi = {
 
 export const crmCitiesApi = crud<CrmCity>(`${BASE}/cities`);
 
-// Robustly parse a multipart-upload response. The backend returns errors as
-// { success:false, error:{ code, message } }, so the old `throw new
-// Error(d.error)` stringified that object to the literal "[object Object]" in
-// the toast (the exact bug this replaces). Read the body once, pull a human
-// string via extractApiError, and fall back to raw text / status — with a
-// plain-language message for a 413 (gateway body-size rejection), which is
-// otherwise an opaque HTML page.
-async function readUploadResponse<T>(r: Response): Promise<Wrapped<T>> {
-  const raw = await r.text();
-  if (!r.ok) {
-    if (r.status === 413) {
-      throw new Error('That file is too large to import in one go. Split it into smaller files (or fewer rows) and try again.');
-    }
-    let msg = `Upload failed (${r.status})`;
-    try { msg = extractApiError(JSON.parse(raw)); }
-    catch { if (raw.trim()) msg = raw.trim().slice(0, 200); }
-    throw new Error(msg);
-  }
-  try { return JSON.parse(raw) as Wrapped<T>; }
-  catch { throw new Error('The server returned an unreadable response to the upload.'); }
-}
-
-// Headers for the raw multipart import uploads, which bypass api.ts's
-// interceptors. Hand-built headers used to send only Authorization + X-Org-Id
-// and omit X-Kinematic-Project, so when the session was on a non-default project
-// (e.g. Kinematic) the upload routed to the default (Tata) project and the
-// backend verified the token against the wrong project's keys — the "Invalid or
-// expired token" upload error. reportFetchHeaders() mirrors api.ts exactly:
-// impersonation-aware Bearer token, X-Kinematic-Project and X-Client-Id. We add
-// X-Org-Id for parity (super_admin cross-org scoping).
-function uploadHeaders(): Record<string, string> {
-  const headers = reportFetchHeaders();
-  try {
-    const orgRaw = typeof window !== 'undefined' ? localStorage.getItem('kinematic_user') : null;
-    const orgId = orgRaw ? (JSON.parse(orgRaw)?.org_id ?? null) : null;
-    if (orgId && !headers['X-Org-Id']) headers['X-Org-Id'] = orgId;
-  } catch { /* ignore a malformed stored user */ }
-  return headers;
-}
-
 export const crmImport = {
+  // Upload rides api.postForm so it carries the exact same auth + tenant +
+  // project headers (X-Org-Id / X-Kinematic-Project / X-Client-Id /
+  // X-Impersonate-User-Id) as the preview/commit calls below. A hand-built
+  // header set previously routed the upload to a different Supabase project, so
+  // the job was created there and preview then 404'd "Import job not found".
   upload: (formData: FormData) =>
-    fetch(`${resolveApiUrl()}${BASE}/import/upload`, {
-      method: 'POST',
-      body: formData,
-      headers: uploadHeaders(),
-    }).then((r) => readUploadResponse<ImportJob>(r)),
+    api.postForm<Wrapped<ImportJob>>(`${BASE}/import/upload`, formData),
   preview: (body: { job_id: string; mapping: Record<string, string> }) =>
     api.post<Wrapped<{ job: ImportJob; sample: Array<Record<string, unknown>> }>>(
       `${BASE}/import/preview`,
@@ -834,11 +794,7 @@ export const crmImport = {
 // by id, email, or phone) instead of the lead dedup orchestrator.
 export const crmActivityImport = {
   upload: (formData: FormData) =>
-    fetch(`${resolveApiUrl()}${BASE}/import/activities/upload`, {
-      method: 'POST',
-      body: formData,
-      headers: uploadHeaders(),
-    }).then((r) => readUploadResponse<ImportJob>(r)),
+    api.postForm<Wrapped<ImportJob>>(`${BASE}/import/activities/upload`, formData),
   preview: (body: { job_id: string; mapping: Record<string, string> }) =>
     api.post<Wrapped<{ mapped_sample: Array<Record<string, unknown>>; warnings: Array<{ row: number; reason: string }> }>>(
       `${BASE}/import/activities/preview`,
