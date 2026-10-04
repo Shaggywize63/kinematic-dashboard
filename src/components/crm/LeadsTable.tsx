@@ -333,8 +333,12 @@ const LeadRow = memo(function LeadRow({ lead: l, isSelected, onToggle, onScoreCl
       {!hidden.has('created_at') && (
         <td style={{ ...tdStyle, fontFamily: T.mono, fontSize: 12, color: T.dim, whiteSpace: 'nowrap' }} data-label="Uploaded On">
           {l.created_at ? (
-            <span title={new Date(l.created_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}>
-              {new Date(l.created_at).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', year: 'numeric' })}
+            <span
+              title={new Date(l.created_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}
+              style={{ display: 'inline-flex', flexDirection: 'column', lineHeight: 1.35 }}
+            >
+              <span>{new Date(l.created_at).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', year: 'numeric' })}</span>
+              <span style={{ fontSize: 11, opacity: 0.75 }}>{new Date(l.created_at).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: 'numeric', minute: '2-digit', hour12: true })}</span>
             </span>
           ) : <Dash />}
         </td>

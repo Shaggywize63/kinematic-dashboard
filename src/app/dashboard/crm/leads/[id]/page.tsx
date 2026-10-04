@@ -18,6 +18,7 @@ import OwnerAvatar from '../../../../../components/crm/shared/OwnerAvatar';
 import WhatsAppButton from '../../../../../components/crm/shared/WhatsAppButton';
 import CallButton from '../../../../../components/crm/shared/CallButton';
 import RecordedCallButton from '../../../../../components/crm/shared/RecordedCallButton';
+import CopyButton from '../../../../../components/crm/shared/CopyButton';
 import LeadEditModal from '../../../../../components/crm/LeadEditModal';
 import InlineEditText from '../../../../../components/crm/InlineEditText';
 import LeadDetailsPanel from '../../../../../components/crm/LeadDetailsPanel';
@@ -741,6 +742,7 @@ function PhoneFact({ label, phone, prefill, leadId, displayName, onSave }: { lab
         ) : (
           <span style={{ wordBreak: 'break-word', fontFamily: T.mono, fontSize: 13.5 }}>{phone || '—'}</span>
         )}
+        <CopyButton value={phone} title="Copy mobile number" size="sm" />
         <CallButton phone={phone} prefillSubject={`Call with ${displayName}`} leadId={leadId} size="sm" />
         <RecordedCallButton leadId={leadId} phone={phone} size="sm" />
         <WhatsAppButton phone={phone} prefillText={prefill} size="sm" />
