@@ -1,4 +1,5 @@
 import api, { resolveApiUrl, extractApiError } from './api';
+import { reportFetchHeaders } from './reportAuth';
 import type {
   Lead, Contact, Account, Deal, DealContact, DealHistoryEntry,
   Pipeline, Stage, Activity, Note, Task,
@@ -791,20 +792,31 @@ async function readUploadResponse<T>(r: Response): Promise<Wrapped<T>> {
   catch { throw new Error('The server returned an unreadable response to the upload.'); }
 }
 
-export const crmImport = {
-  upload: (formData: FormData) => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('kinematic_token') : null;
+// Headers for the raw multipart import uploads, which bypass api.ts's
+// interceptors. Hand-built headers used to send only Authorization + X-Org-Id
+// and omit X-Kinematic-Project, so when the session was on a non-default project
+// (e.g. Kinematic) the upload routed to the default (Tata) project and the
+// backend verified the token against the wrong project's keys — the "Invalid or
+// expired token" upload error. reportFetchHeaders() mirrors api.ts exactly:
+// impersonation-aware Bearer token, X-Kinematic-Project and X-Client-Id. We add
+// X-Org-Id for parity (super_admin cross-org scoping).
+function uploadHeaders(): Record<string, string> {
+  const headers = reportFetchHeaders();
+  try {
     const orgRaw = typeof window !== 'undefined' ? localStorage.getItem('kinematic_user') : null;
     const orgId = orgRaw ? (JSON.parse(orgRaw)?.org_id ?? null) : null;
-    const headers: Record<string, string> = {};
-    if (token) headers.Authorization = `Bearer ${token}`;
-    if (orgId) headers['X-Org-Id'] = orgId;
-    return fetch(`${resolveApiUrl()}${BASE}/import/upload`, {
+    if (orgId && !headers['X-Org-Id']) headers['X-Org-Id'] = orgId;
+  } catch { /* ignore a malformed stored user */ }
+  return headers;
+}
+
+export const crmImport = {
+  upload: (formData: FormData) =>
+    fetch(`${resolveApiUrl()}${BASE}/import/upload`, {
       method: 'POST',
       body: formData,
-      headers,
-    }).then((r) => readUploadResponse<ImportJob>(r));
-  },
+      headers: uploadHeaders(),
+    }).then((r) => readUploadResponse<ImportJob>(r)),
   preview: (body: { job_id: string; mapping: Record<string, string> }) =>
     api.post<Wrapped<{ job: ImportJob; sample: Array<Record<string, unknown>> }>>(
       `${BASE}/import/preview`,
@@ -821,19 +833,12 @@ export const crmImport = {
 // can use the activity-specific resolver (lead/contact/deal/account
 // by id, email, or phone) instead of the lead dedup orchestrator.
 export const crmActivityImport = {
-  upload: (formData: FormData) => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('kinematic_token') : null;
-    const orgRaw = typeof window !== 'undefined' ? localStorage.getItem('kinematic_user') : null;
-    const orgId = orgRaw ? (JSON.parse(orgRaw)?.org_id ?? null) : null;
-    const headers: Record<string, string> = {};
-    if (token) headers.Authorization = `Bearer ${token}`;
-    if (orgId) headers['X-Org-Id'] = orgId;
-    return fetch(`${resolveApiUrl()}${BASE}/import/activities/upload`, {
+  upload: (formData: FormData) =>
+    fetch(`${resolveApiUrl()}${BASE}/import/activities/upload`, {
       method: 'POST',
       body: formData,
-      headers,
-    }).then((r) => readUploadResponse<ImportJob>(r));
-  },
+      headers: uploadHeaders(),
+    }).then((r) => readUploadResponse<ImportJob>(r)),
   preview: (body: { job_id: string; mapping: Record<string, string> }) =>
     api.post<Wrapped<{ mapped_sample: Array<Record<string, unknown>>; warnings: Array<{ row: number; reason: string }> }>>(
       `${BASE}/import/activities/preview`,
