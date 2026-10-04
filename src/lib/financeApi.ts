@@ -105,7 +105,32 @@ export interface ReportColumn { key: string; label: string; type?: 'text' | 'mon
 export interface ReportData { title: string; columns: ReportColumn[]; rows: Array<Record<string, unknown>>; totals?: Record<string, unknown>; meta: Record<string, unknown> }
 export type ReportName = 'sales-by-customer' | 'sales-by-item' | 'gst-summary' | 'receivables-ageing' | 'payments-received' | 'invoice-details';
 
+// ── import previous invoices ────────────────────────────────────────────────
+export interface ImportOptions { create_customers: boolean; allow_total_mismatch: boolean; advance_numbering: boolean }
+export interface ImportPreviewInvoice {
+  number: string; issue_date: string | null; due_date: string | null; status: 'draft' | 'sent' | 'paid' | 'partially_paid' | 'void';
+  customer: string; customer_action: 'match' | 'create' | 'missing'; lines: number; total: number; file_total: number | null;
+  paid: number; balance: number; action: 'import' | 'skip_duplicate' | 'error'; problems: string[]; warnings: string[];
+}
+export interface ImportPreview {
+  file: { name: string; rows: number; rows_without_number: number };
+  columns: { detected: Array<{ field: string; label: string; header: string }>; ignored: string[] };
+  summary: { invoices: number; importable: number; duplicates: number; errors: number; with_warnings: number; new_customers: number; total_value: number; outstanding: number };
+  invoices: ImportPreviewInvoice[]; truncated: boolean;
+}
+export interface ImportResult {
+  imported: number; skipped_duplicates: number; failed: Array<{ number: string; reason: string }>;
+  customers_created: number; payments_created: number; next_invoice_number: number | null;
+}
+
 export interface PublicDoc { document: DocDetail & { display_status: DisplayStatus }; items: DocLine[]; settings: PublicSettings }
+
+function importForm(file: File, options: ImportOptions) {
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('options', JSON.stringify(options));
+  return fd;
+}
 
 // ── client ──────────────────────────────────────────────────────────────────
 function documents(path: 'invoices' | 'quotes') {
@@ -164,6 +189,12 @@ export const financeApi = {
     update: (id: string, body: Partial<Pick<PaymentInput, 'payment_date' | 'mode' | 'reference' | 'notes'>>) => api.put<Wrapped<PaymentRow>>(`${BASE}/payments/${id}`, body),
     remove: (id: string) => api.delete<Wrapped<{ id: string }>>(`${BASE}/payments/${id}`),
     apply: (id: string, allocations: Array<{ document_id: string; amount: number }>) => api.post<Wrapped<PaymentRow>>(`${BASE}/payments/${id}/apply`, { allocations }),
+  },
+  importInvoices: {
+    /** Parses and validates the file; writes nothing. */
+    preview: (file: File, options: ImportOptions) => api.postForm<Wrapped<ImportPreview>>(`${BASE}/import/invoices/preview`, importForm(file, options)),
+    /** Imports for real (the server re-validates the same file). */
+    commit: (file: File, options: ImportOptions) => api.postForm<Wrapped<ImportResult>>(`${BASE}/import/invoices/commit`, importForm(file, options)),
   },
   reports: {
     dashboard: (p?: { period?: 'this_fy' | 'last_fy' }) => get<DashboardData>(`/reports/dashboard${qs(p)}`),

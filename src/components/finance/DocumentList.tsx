@@ -102,7 +102,10 @@ export default function DocumentList({ type }: { type: 'invoice' | 'quote' }) {
     <FinancePage
       title={`${noun}s`}
       description={isInvoice ? 'Bill customers, track what is owed and record payments.' : 'Send estimates and convert accepted quotes into invoices.'}
-      actions={<Button variant="primary" href={`${base}/new`}>＋ New</Button>}>
+      actions={<>
+        {isInvoice && <Button href={`${base}/import`}>Import invoices</Button>}
+        <Button variant="primary" href={`${base}/new`}>＋ New</Button>
+      </>}>
       <Toolbar>
         <div style={{ maxWidth: '100%', overflowX: 'auto' }}>
           <Segmented value={status} onChange={setStatus} options={tabs} />
@@ -130,7 +133,7 @@ export default function DocumentList({ type }: { type: 'invoice' | 'quote' }) {
           onRowClick={(r) => router.push(`${base}/${r.id}`)}
           empty={filtered
             ? `No ${noun.toLowerCase()}s match these filters.`
-            : <span>No {noun.toLowerCase()}s yet. <a href={`${base}/new`} onClick={(e) => { e.preventDefault(); router.push(`${base}/new`); }} style={{ color: T.info }}>Create your first {noun.toLowerCase()}</a>.</span>} />
+            : <span>No {noun.toLowerCase()}s yet. <a href={`${base}/new`} onClick={(e) => { e.preventDefault(); router.push(`${base}/new`); }} style={{ color: T.info }}>Create your first {noun.toLowerCase()}</a>{isInvoice && <> or <a href={`${base}/import`} onClick={(e) => { e.preventDefault(); router.push(`${base}/import`); }} style={{ color: T.info }}>import the ones you already issued</a></>}.</span>} />
         <Pager page={page} limit={LIMIT} total={total} onPage={setPage} />
       </Card>
       {narrow && <div style={{ fontSize: 12, color: T.mute }}>Tip: scroll the table sideways to see all columns.</div>}
