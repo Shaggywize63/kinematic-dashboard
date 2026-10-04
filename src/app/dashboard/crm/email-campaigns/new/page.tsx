@@ -52,6 +52,13 @@ export default function NewEmailCampaignPage() {
   const [tagsCsv, setTagsCsv] = useState('');
   const [b2c, setB2c] = useState<'' | 'true' | 'false'>('');
 
+  // Recipient source: existing CRM leads (audience filters / pick) OR an
+  // uploaded CSV list (emailed directly, never written to crm_leads).
+  const [mode, setMode] = useState<'leads' | 'csv'>('leads');
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [csvInfo, setCsvInfo] = useState<{ count: number; total_candidates: number; skipped: { no_email: number; invalid: number; duplicate: number }; sample: Array<{ email: string; first_name: string | null }> } | null>(null);
+  const [csvParsing, setCsvParsing] = useState(false);
+
   // Connect Google → import contacts
   const [gStatus, setGStatus] = useState<{ connected: boolean; email?: string; has_contacts_scope: boolean } | null>(null);
   const [syncing, setSyncing] = useState(false);
@@ -135,6 +142,15 @@ export default function NewEmailCampaignPage() {
     finally { setSyncing(false); }
   };
 
+  const parseCsvFile = async (file: File) => {
+    setCsvFile(file); setCsvInfo(null); setErr(''); setCsvParsing(true);
+    try {
+      const r = await crmEmailCampaigns.parseRecipients(file);
+      setCsvInfo(r.data);
+    } catch (e: any) { setErr(e?.message || 'Could not read that file'); setCsvFile(null); }
+    finally { setCsvParsing(false); }
+  };
+
   const selectedTemplate = useMemo(() => templates.find((t) => t.id === templateId) || null, [templates, templateId]);
 
   const audience = useCallback((): EmailAudience => {
@@ -174,6 +190,21 @@ export default function NewEmailCampaignPage() {
   const save = async (thenLaunch: boolean) => {
     if (!name.trim()) { setErr('Give the campaign a name.'); return; }
     if (!templateId) { setErr('Pick an email template.'); return; }
+
+    // CSV recipient list — create the campaign from the uploaded file (no leads).
+    if (mode === 'csv') {
+      if (!csvFile || !csvInfo || !csvInfo.count) { setErr('Upload a CSV/XLSX with at least one valid email.'); return; }
+      if (thenLaunch && !confirm(`Send this campaign to ${csvInfo.count} recipient(s)? Sending is paced at ${throttle}/min and cannot be undone.`)) return;
+      setSaving(true); setErr('');
+      try {
+        const created = await crmEmailCampaigns.createFromCsv(csvFile, { name: name.trim(), template_id: templateId, throttle_per_min: throttle });
+        const id = created.data.id;
+        if (thenLaunch) await crmEmailCampaigns.launch(id);
+        router.push(`/dashboard/crm/email-campaigns/${id}`);
+      } catch (e: any) { setErr(e?.message || 'Save failed'); setSaving(false); }
+      return;
+    }
+
     if (pickMode && !selectedIds.length) { setErr('Select at least one contact to send to.'); return; }
     if (thenLaunch && !confirm(`Send this campaign to ${preview ? preview.count : 'the selected'} recipient(s)? Sending is paced at ${throttle}/min and cannot be undone.`)) return;
     setSaving(true); setErr('');
@@ -251,6 +282,42 @@ export default function NewEmailCampaignPage() {
           Contacts with an email address. Unsubscribed and previously-bounced addresses are always skipped.
         </div>
 
+        {/* Recipient source: existing CRM leads, or an uploaded CSV list. */}
+        <div style={{ display: 'flex', gap: 6, marginBottom: 16, background: 'var(--s4)', border: `1px solid ${C.border}`, borderRadius: 10, padding: 4, width: 'fit-content' }}>
+          {([{ k: 'leads', t: 'From CRM leads' }, { k: 'csv', t: 'Upload a list (CSV)' }] as const).map((m) => (
+            <button key={m.k} type="button" onClick={() => { setMode(m.k); setPreview(null); setErr(''); }}
+              style={{ background: mode === m.k ? C.red : 'transparent', color: mode === m.k ? '#fff' : C.gray, border: 'none', padding: '7px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+              {m.t}
+            </button>
+          ))}
+        </div>
+
+        {mode === 'csv' && (
+          <div>
+            <div style={{ fontSize: 12, color: C.grayd, marginBottom: 12, lineHeight: 1.6 }}>
+              Upload a CSV/XLSX with an <b style={{ color: C.gray }}>email</b> column (optional <b style={{ color: C.gray }}>first_name</b> / <b style={{ color: C.gray }}>last_name</b> for merge tags). These recipients are emailed directly — <b style={{ color: C.gray }}>no CRM leads are created</b>. Unsubscribed/bounced addresses are still skipped at send time.
+            </div>
+            <label style={{ display: 'inline-block', background: C.s3, border: `1px solid ${C.border}`, color: C.white, padding: '9px 16px', borderRadius: 9, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+              {csvFile ? 'Choose a different file' : 'Choose CSV / XLSX file'}
+              <input type="file" accept=".csv,.tsv,.xlsx,.xls" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) parseCsvFile(f); e.currentTarget.value = ''; }} />
+            </label>
+            {csvFile && <span style={{ fontSize: 12, color: C.gray, marginLeft: 10 }}>{csvFile.name}</span>}
+            {csvParsing && <div style={{ fontSize: 12, color: C.gray, marginTop: 10 }}>Reading the file…</div>}
+            {csvInfo && !csvParsing && (
+              <div style={{ marginTop: 14, background: 'var(--s4)', border: `1px solid ${C.border}`, borderRadius: 12, padding: 16 }}>
+                <div style={{ fontSize: 22, fontWeight: 800, color: csvInfo.count ? C.green : C.red }}>{csvInfo.count.toLocaleString()} <span style={{ fontSize: 13, fontWeight: 600, color: C.gray }}>recipient{csvInfo.count === 1 ? '' : 's'}</span></div>
+                <div style={{ fontSize: 12, color: C.grayd, marginTop: 6 }}>
+                  From {csvInfo.total_candidates.toLocaleString()} row(s) · skipped {csvInfo.skipped.no_email} no-email · {csvInfo.skipped.invalid} invalid · {csvInfo.skipped.duplicate} duplicate
+                </div>
+                {csvInfo.sample.length > 0 && (
+                  <div style={{ fontSize: 12, color: C.gray, marginTop: 8 }}>e.g. {csvInfo.sample.map((r) => r.email).join(', ')}{csvInfo.count > csvInfo.sample.length ? ' …' : ''}</div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {mode === 'leads' && (<>
         {/* Connect Google → import contacts into the directory. */}
         <div style={{ background: 'var(--s4)', border: `1px solid ${C.border}`, borderRadius: 12, padding: 14, marginBottom: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
@@ -273,7 +340,7 @@ export default function NewEmailCampaignPage() {
             </div>
           </div>
           <div style={{ fontSize: 11, color: C.grayd, marginTop: 8, lineHeight: 1.6 }}>
-            Prefer a spreadsheet? <Link href="/dashboard/crm/leads/import" style={{ color: C.blue }}>Import contacts from CSV</Link> instead.
+            Prefer a spreadsheet? Use <button type="button" onClick={() => { setMode('csv'); setPreview(null); setErr(''); }} style={{ background: 'none', border: 'none', color: C.blue, cursor: 'pointer', padding: 0, font: 'inherit', textDecoration: 'underline' }}>Upload a list (CSV)</button> above — those recipients are emailed directly and are <b style={{ color: C.gray }}>not</b> added as CRM leads.
           </div>
         </div>
 
@@ -370,6 +437,7 @@ export default function NewEmailCampaignPage() {
             )}
           </div>
         )}
+        </>)}
       </div>
 
       {/* 3 · Pacing + send */}

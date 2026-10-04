@@ -738,6 +738,22 @@ export const crmEmailCampaigns = {
   preview: (body: { audience: EmailAudience; template_id?: string | null; subject?: string; body_html?: string }) =>
     api.post<Wrapped<EmailCampaignPreview>>(`${BASE}/email-campaigns/preview`, body),
   create: (body: CreateEmailCampaignBody) => api.post<Wrapped<EmailCampaign>>(`${BASE}/email-campaigns`, body),
+  // Dedicated recipient list (CSV/XLSX) — these become campaign recipients with
+  // NO CRM leads created. parseRecipients is a stateless preview; createFromCsv
+  // creates the draft campaign + inserts the recipients.
+  parseRecipients: (file: File) => {
+    const fd = new FormData(); fd.append('file', file);
+    return api.postForm<Wrapped<{ count: number; total_candidates: number; skipped: { no_email: number; invalid: number; duplicate: number }; sample: Array<{ email: string; first_name: string | null }> }>>(`${BASE}/email-campaigns/parse-recipients`, fd);
+  },
+  createFromCsv: (file: File, body: { name: string; template_id?: string | null; from_email?: string; throttle_per_min?: number }) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('name', body.name);
+    if (body.template_id) fd.append('template_id', body.template_id);
+    if (body.from_email) fd.append('from_email', body.from_email);
+    if (body.throttle_per_min != null) fd.append('throttle_per_min', String(body.throttle_per_min));
+    return api.postForm<Wrapped<EmailCampaign>>(`${BASE}/email-campaigns/from-csv`, fd);
+  },
   launch: (id: string) => api.post<Wrapped<EmailCampaign>>(`${BASE}/email-campaigns/${id}/launch`, {}),
   pause: (id: string) => api.post<Wrapped<EmailCampaign>>(`${BASE}/email-campaigns/${id}/pause`, {}),
   resume: (id: string) => api.post<Wrapped<EmailCampaign>>(`${BASE}/email-campaigns/${id}/resume`, {}),
