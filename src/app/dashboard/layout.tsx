@@ -10,6 +10,7 @@ import { WHATS_NEW, markSectionSeen } from '../../lib/whatsNew';
 import StagingBoot from './StagingBoot';
 import StagingDeployModal from './StagingDeployModal';
 import { getStoredProjectKey } from '../../lib/projects';
+import { isMasterAdmin } from '../../lib/clientFeatures';
 import { ClientProvider } from '../../context/ClientContext';
 import { CityScopeProvider } from '../../context/CityScopeContext';
 import { IndustryScopeProvider } from '../../context/IndustryScopeContext';
@@ -287,7 +288,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // Match those two only when the path is exactly them; everything else
   // keeps the normal prefix match.
   const isActive = (href: string) =>
-    (href === '/dashboard' || href === '/dashboard/planograms')
+    (href === '/dashboard' || href === '/dashboard/planograms' || href === '/dashboard/finance')
       ? pathname === href
       : pathname.startsWith(href);
   const sideW = isMobile ? 0 : (collapsed ? SIDEBAR_RAIL_W : SIDEBAR_W);
@@ -435,8 +436,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     userClientId === BYTEBACK_CLIENT_ID || pickerClientId === BYTEBACK_CLIENT_ID ||
     userOrgId === BYTEBACK_ORG_ID || (actingAs as any)?.org_id === BYTEBACK_ORG_ID;
 
+  // Finance is the master admin's today; a client sees it only when the `finance`
+  // module was explicitly granted (checked directly — hasModule() treats an empty
+  // entitlement list as "allow all", which must never unlock billing data).
+  const financeAllowed = isMasterAdmin(user) || (!isPlatformAdmin && enabledModules.includes('finance'));
+
   const filterNav = (items: any[]) => {
-    const visibleAfterRole = items.filter((i) => !i.superAdminOnly || isSuperAdmin);
+    const visibleAfterRole = items
+      .filter((i) => !i.financeOnly || financeAllowed)
+      .filter((i) => !i.superAdminOnly || isSuperAdmin);
     // Hide demo-only nav items (e.g. the Nurturing module preview) for
     // every account except demo@kinematic.com. Real customers shouldn't
     // see a half-built feature surfaced as if it's ready.
@@ -472,6 +480,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const sectionVisible = (pkg: string | undefined, items: any[]) => {
     if (items.length === 0) return false;
     if (!pkg) return true;
+    // Finance items were already gated per user in filterNav (master admin / explicit grant).
+    if (pkg === 'finance') return true;
     // ByteBack (field-force-only): never surface the CRM (Lead Management) or
     // Distribution sections, even for its client-admins (flagged isPlatformAdmin).
     if (byteBackHideActive && (pkg === 'crm' || pkg === 'distribution')) return false;
@@ -607,6 +617,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       { href: '/dashboard/crm/reports',          label: 'Reports',        icon: 'fileSheet', module: 'crm_reports' },
       { href: '/dashboard/crm/settings',         label: 'Settings',       icon: 'settings', module: 'crm_settings' },
       { href: '/dashboard/crm/help',             label: 'Help',           icon: 'help', module: 'crm_dashboard' },
+    ]},
+    { label: 'Finance', package: 'finance', items: [
+      { href: '/dashboard/finance',                  label: 'Overview',          icon: 'rupee',    module: 'finance', financeOnly: true },
+      { href: '/dashboard/finance/customers',        label: 'Customers',         icon: 'users',    module: 'finance', financeOnly: true },
+      { href: '/dashboard/finance/items',            label: 'Items',             icon: 'tag',      module: 'finance', financeOnly: true },
+      { href: '/dashboard/finance/quotes',           label: 'Quotes',            icon: 'fileText', module: 'finance', financeOnly: true },
+      { href: '/dashboard/finance/invoices',         label: 'Invoices',          icon: 'receipt',  module: 'finance', financeOnly: true },
+      { href: '/dashboard/finance/payments',         label: 'Payments Received', icon: 'wallet',   module: 'finance', financeOnly: true },
+      { href: '/dashboard/finance/reports',          label: 'Reports',           icon: 'trending', module: 'finance', financeOnly: true },
+      { href: '/dashboard/finance/settings',         label: 'Finance Settings',  icon: 'settings', module: 'finance', financeOnly: true },
     ]},
     { label: 'Distribution', package: 'distribution', items: [
       { href: '/dashboard/distribution/control-tower',    label: 'Control Tower', icon: 'gauge', module: 'distribution' },

@@ -167,3 +167,13 @@ export function isKinematicActive(user: AnyUser): boolean {
 export function isKinematicTenant(user: AnyUser): boolean {
   return isKinematicActive(user) || (user?.org_id ?? '') === KINEMATIC_ORG_ID;
 }
+
+/** The platform master admin. Finance (invoicing) is gated to this account until it is shared with a client. */
+export const MASTER_ADMIN_EMAIL = 's@kinematicapp.com';
+
+/** True for the master admin — also while impersonating (the backend keeps the real caller on `impersonated_by`). */
+export function isMasterAdmin(user: AnyUser): boolean {
+  const u = user as { email?: string | null; impersonated_by?: { email?: string | null } | null } | null | undefined;
+  const real = u?.impersonated_by?.email ?? u?.email;
+  return typeof real === 'string' && real.trim().toLowerCase() === MASTER_ADMIN_EMAIL;
+}

@@ -11,6 +11,7 @@
 //   Business     → package: business (universal)
 //   System       → package: system   (universal, per-toggle)
 //   People       → package: people   (universal)
+//   Finance      → package: finance  (invoicing; master admin today, per-client grant later)
 //   Audit        → package: audit    (super-admin only)
 
 export type ModulePackage =
@@ -20,6 +21,7 @@ export type ModulePackage =
   | 'business'
   | 'system'
   | 'people'
+  | 'finance'
   | 'audit';
 
 export type ModuleGroup =
@@ -30,6 +32,7 @@ export type ModuleGroup =
   | 'Business'
   | 'System'
   | 'People'
+  | 'Finance'
   | 'Audit';
 
 export interface ModuleEntry {
@@ -140,11 +143,16 @@ export const ALL_MODULES: ModuleEntry[] = [
   { id: 'reports',    l: 'Reports',      group: 'People', package: 'people', universal: true },
   { id: 'visit_logs', l: 'Visit Logs',   group: 'People', package: 'people', universal: true },
 
+  // Finance (invoicing: customers, items, quotes, invoices, payments, reports).
+  // Non-universal and never implied: master admin today; shared with a client by
+  // granting this module in Client Management. Backend module id 'finance'.
+  { id: 'finance', l: 'Finance (Invoicing)', group: 'Finance', package: 'finance' },
+
   // Audit (super-admin only — never granted to clients)
   { id: 'audit_log', l: 'Activity Log', group: 'Audit', package: 'audit' },
 ];
 
-export const MODULE_GROUPS: ModuleGroup[] = ['FieldForce', 'CRM', 'SupplyChain', 'Distribution', 'Business', 'System', 'People', 'Audit'];
+export const MODULE_GROUPS: ModuleGroup[] = ['FieldForce', 'CRM', 'SupplyChain', 'Distribution', 'Business', 'System', 'People', 'Finance', 'Audit'];
 
 /** Friendly display labels for `MODULE_GROUPS` (used in admin permission UIs). */
 export const MODULE_GROUP_LABELS: Record<ModuleGroup, string> = {
@@ -155,6 +163,7 @@ export const MODULE_GROUP_LABELS: Record<ModuleGroup, string> = {
   Business:     'Business',
   System:       'System Management',
   People:       'People & Support',
+  Finance:      'Finance',
   Audit:        'Audit',
 };
 
@@ -166,7 +175,8 @@ export const PACKAGE_LABELS: Record<ModulePackage, string> = {
   business:     'Business (always-on)',
   system:       'System (always-on)',
   people:       'People & Support (always-on)',
+  finance:      'Finance (Invoicing)',
   audit:        'Audit (super-admin only)',
 };
 
-export const SELLABLE_PACKAGES: ModulePackage[] = ['field_force', 'crm', 'distribution'];
+export const SELLABLE_PACKAGES: ModulePackage[] = ['field_force', 'crm', 'distribution', 'finance'];
