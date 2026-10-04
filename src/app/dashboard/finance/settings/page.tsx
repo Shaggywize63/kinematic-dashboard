@@ -7,6 +7,8 @@ import { toast } from 'sonner';
 import { Badge, Button, Card, Field, FormGrid, Input, Select, Textarea, T, useIsCompact } from '../../../../components/ui';
 import { FinancePage, errMsg, fail } from '../../../../components/finance/ui';
 import InvoicePaper, { type PaperDoc } from '../../../../components/finance/InvoicePaper';
+import LogoUpload from '../../../../components/finance/LogoUpload';
+import { LOGO_DATA_URL } from '../../../../lib/imageLogo';
 import { financeApi, type DocLine, type FinanceSettings, type PublicSettings } from '../../../../lib/financeApi';
 import { addDaysIso, computeDraft, todayIso } from '../../../../lib/financeFormat';
 import { GST_STATES, GST_STATE_OPTIONS } from '../../../../lib/gstStates';
@@ -74,10 +76,10 @@ function validate(f: Form): Partial<Record<keyof Form, string>> {
   if (f.gstin.trim() && !GSTIN_RE.test(f.gstin.trim().toUpperCase())) e.gstin = 'Invalid GSTIN. It has 15 characters, e.g. 29ABCDE1234F1Z5.';
   if (f.pan.trim() && !PAN_RE.test(f.pan.trim().toUpperCase())) e.pan = 'Invalid PAN. It has 10 characters, e.g. ABCDE1234F.';
   const logo = f.logo_url.trim();
-  if (logo) {
+  if (logo && !LOGO_DATA_URL.test(logo)) {
     let ok = logo.toLowerCase().startsWith('https://');
     if (ok) { try { new URL(logo); } catch { ok = false; } }
-    if (!ok) e.logo_url = 'Logo URL must be a valid https:// link.';
+    if (!ok) e.logo_url = 'Use the Upload button, or an https:// image link.';
   }
   if (!HEX_RE.test(f.accent_color)) e.accent_color = 'Use a 6-digit hex colour such as #E01E2C.';
   int('fiscal_year_start_month', 1, 12, 'Fiscal year start');
@@ -167,7 +169,7 @@ export default function FinanceSettingsPage() {
       address_line1: form.address_line1.trim() || null, address_line2: form.address_line2.trim() || null, city: form.city.trim() || null,
       state: form.state.trim() || null, state_code: form.state_code || null, pincode: form.pincode.trim() || null, country: loaded?.country ?? 'India',
       gstin: form.gstin.trim().toUpperCase() || null, pan: form.pan.trim().toUpperCase() || null,
-      logo_url: /^https:\/\//i.test(form.logo_url.trim()) ? form.logo_url.trim() : null, currency: loaded?.currency ?? 'INR',
+      logo_url: LOGO_DATA_URL.test(form.logo_url.trim()) || /^https:\/\//i.test(form.logo_url.trim()) ? form.logo_url.trim() : null, currency: loaded?.currency ?? 'INR',
       bank_details: { account_name: form.bank_account_name, bank_name: form.bank_name, account_number: form.bank_account_number, ifsc: form.bank_ifsc, branch: form.bank_branch, upi_id: form.bank_upi_id },
       template: { accent_color: HEX_RE.test(form.accent_color) ? form.accent_color : DEFAULT_ACCENT, show_logo: form.show_logo, show_bank_details: form.show_bank_details, signature_name: form.signature_name.trim() || null, footer_text: form.footer_text.trim() || null },
     };
@@ -255,7 +257,7 @@ export default function FinanceSettingsPage() {
           {text('pincode', 'Pincode', { max: 12, inputMode: 'numeric', autoComplete: 'postal-code' })}
           {text('gstin', 'GSTIN', { max: 15, upper: true, hint: gstinMismatch ? `This GSTIN starts with ${gstinState} (${GST_STATES[gstinState] ?? 'unknown'}) but the selected state is ${stateName}. Check both.` : '15 characters, e.g. 29ABCDE1234F1Z5. Leave blank if unregistered.' })}
           {text('pan', 'PAN', { max: 10, upper: true, hint: '10 characters, e.g. ABCDE1234F.' })}
-          {text('logo_url', 'Logo URL', { max: 1000, type: 'url', inputMode: 'url', placeholder: 'https://…/logo.png', hint: 'https links only. Use a PNG or JPEG so the logo also shows in the PDF.' })}
+          <LogoUpload key="logo_url" value={form.logo_url} onChange={(v) => set('logo_url', v)} error={err('logo_url')} />
           <Field label="Fiscal year starts in" htmlFor="fs-fiscal_year_start_month" error={err('fiscal_year_start_month')} hint="Used by the overview and report date presets. India usually uses April.">
             <Select id="fs-fiscal_year_start_month" value={form.fiscal_year_start_month} onChange={(e) => set('fiscal_year_start_month', e.target.value)}>
               {MONTHS.map((m, i) => <option key={m} value={String(i + 1)}>{m}</option>)}
@@ -301,7 +303,7 @@ export default function FinanceSettingsPage() {
             </div>
           </Field>
           {text('signature_name', 'Signature name', { max: 80, hint: 'Printed under “For <business name>”.' })}
-          <Toggle id="fs-show_logo" label="Show logo" hint="Needs a Logo URL above." checked={form.show_logo} onChange={(v) => set('show_logo', v)} />
+          <Toggle id="fs-show_logo" label="Show logo" hint="Needs a logo above." checked={form.show_logo} onChange={(v) => set('show_logo', v)} />
           <Toggle id="fs-show_bank_details" label="Show bank details" hint="Invoices only." checked={form.show_bank_details} onChange={(v) => set('show_bank_details', v)} />
           <div style={{ gridColumn: narrow ? undefined : '1 / -1' }}>{text('footer_text', 'Footer text', { max: 200, placeholder: 'e.g. Thank you for your business' })}</div>
         </FormGrid>

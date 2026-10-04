@@ -93,10 +93,10 @@ export default function InvoicePaper({ doc, items, settings }: { doc: PaperDoc; 
           </div>
         )}
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 24, flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', gap: 14, minWidth: 0 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, minWidth: 0 }}>
             {settings.logo_url && settings.template?.show_logo !== false && (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={settings.logo_url} alt="" style={{ maxWidth: 72, maxHeight: 58, objectFit: 'contain' }} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+              <img src={settings.logo_url} alt="" style={{ maxWidth: 210, maxHeight: 62, objectFit: 'contain', alignSelf: 'flex-start' }} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
             )}
             <div>
               <div style={{ fontSize: 17, fontWeight: 700 }}>{settings.business_name || 'Your business name'}</div>
