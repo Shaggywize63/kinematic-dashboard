@@ -75,9 +75,11 @@ function notifHref(n: FeedNotif): string {
   const dealId = (d.deal_id || d.dealId) as string | undefined;
   if (leadId) return `/dashboard/crm/leads/${leadId}`;
   if (dealId) return `/dashboard/crm/deals/${dealId}`;
-  // Expense: an approver's "to review" alert opens the Approvals queue; a
-  // claimant's decision/reimbursement alert opens their own claims list.
+  // Expense: open the claim itself (approvers review it there; claimants see the
+  // decision and any remark). Fall back to the lists when there is no claim id.
   if (kind.startsWith('expense')) {
+    const claimId = String(d.claim_id || '');
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(claimId)) return `/dashboard/expenses/${claimId}`;
     return kind === 'expense_submitted' ? '/dashboard/expenses/approvals' : '/dashboard/expenses';
   }
   return '/dashboard/notifications';

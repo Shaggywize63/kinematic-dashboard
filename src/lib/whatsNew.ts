@@ -20,7 +20,7 @@ export const WHATS_NEW: Record<string, { since: string; note?: string }> = {
   '/dashboard/crm/settings/custom-objects':  { since: '2026-08-23', note: 'Custom record types' },
   '/dashboard/crm/settings/integrations':    { since: '2026-08-23', note: 'WhatsApp / Email / IVR / Web-form capture' },
   // Field Force
-  '/dashboard/expenses':                     { since: '2026-08-20', note: 'Field Expenses & Travel Claims' },
+  '/dashboard/expenses':                     { since: '2026-10-05', note: 'Receipt upload, multiple policies, approve / reject with remarks' },
   '/dashboard/attendance-overview':          { since: '2026-08-18', note: 'Face-recognition attendance' },
   '/dashboard/live-tracking':                { since: '2026-08-18', note: 'GPS-spoof detection' },
   '/dashboard/beat-productivity':            { since: '2026-08-18', note: 'Beat productivity' },
