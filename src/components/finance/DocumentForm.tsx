@@ -9,9 +9,9 @@ import { Button, Card, Field, FormGrid, Input, Section, Select, Textarea, T, use
 import { CustomerPicker, FinancePage, fail, inr, useDebounced } from './ui';
 import SendDialog from './SendDialog';
 import {
-  Address, DocDetail, DocInput, DocLine, FinanceCustomer, FinanceItem, FinanceSettings, financeApi,
+  Address, DocDetail, DocInput, DocLine, FinanceCustomer, FinanceItem, FinanceSettings, RecurrenceInterval, financeApi,
 } from '../../lib/financeApi';
-import { addDaysIso, computeDraft, num, todayIso } from '../../lib/financeFormat';
+import { addDaysIso, computeDraft, fmtDate, nextInvoiceDatePreview, num, todayIso } from '../../lib/financeFormat';
 import { GST_STATES, GST_STATE_OPTIONS, stateCodeForName } from '../../lib/gstStates';
 
 // ── helpers ─────────────────────────────────────────────────────────────────
@@ -34,6 +34,14 @@ const TERM_PRESETS: Array<{ value: string; label: string }> = [
   { value: '45', label: 'Net 45' }, { value: '60', label: 'Net 60' }, { value: 'custom', label: 'Custom…' },
 ];
 const isIso = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v);
+const RECUR_PRESETS: Array<{ value: RecurrenceInterval; label: string }> = [
+  { value: 'weekly', label: 'Every week' },
+  { value: 'monthly', label: 'Every month' },
+  { value: 'quarterly', label: 'Every quarter (3 months)' },
+  { value: 'half_yearly', label: 'Every 6 months' },
+  { value: 'yearly', label: 'Every year' },
+  { value: 'custom', label: 'Custom…' },
+];
 
 /** Customer place_of_supply may be a GST code ("27") or a state name — normalise to a code. */
 function normState(v?: string | null): string {
@@ -236,6 +244,15 @@ export default function DocumentForm({ type, mode, initial, initialCustomerId }:
   const [notes, setNotes] = useState(initial?.notes ?? '');
   const [termsText, setTermsText] = useState(initial?.terms ?? '');
 
+  // Recurring invoice (invoices only). The next invoice date is DERIVED from the
+  // start date + duration — never typed in — and a reminder fires when it arrives.
+  const [recEnabled, setRecEnabled] = useState<boolean>(!!initial?.recurrence_enabled);
+  const [recInterval, setRecInterval] = useState<RecurrenceInterval>((initial?.recurrence_interval as RecurrenceInterval) || 'monthly');
+  const [recEvery, setRecEvery] = useState<string>(initial?.recurrence_custom_every ? String(initial.recurrence_custom_every) : '1');
+  const [recUnit, setRecUnit] = useState<'day' | 'month'>((initial?.recurrence_custom_unit as 'day' | 'month') || 'month');
+  const [recStart, setRecStart] = useState<string>((initial?.recurrence_start || initial?.issue_date || todayIso()).slice(0, 10));
+  const [recEmail, setRecEmail] = useState<boolean>(initial?.recurrence_reminder_email !== false);
+
   const [submitted, setSubmitted] = useState(false);
   const [busy, setBusy] = useState(false);
   const [sendDoc, setSendDoc] = useState<DocDetail | null>(null);
@@ -244,6 +261,11 @@ export default function DocumentForm({ type, mode, initial, initialCustomerId }:
   const dueDate = dueOverride ?? (isIso(issueDate) ? addDaysIso(issueDate, days) : '');
   const expiryDate = expiryOverride ?? (isIso(issueDate) ? addDaysIso(issueDate, 30) : '');
   const taxExempt = customer?.tax_preference === 'exempt';
+
+  // Derived "next invoice on" preview for the recurring section (server recomputes on save).
+  const recNextDate = isInvoice && recEnabled && isIso(recStart)
+    ? nextInvoiceDatePreview(recStart, { interval: recInterval, customEvery: num(recEvery, 1), customUnit: recUnit }, todayIso())
+    : '';
 
   const setTermsFromDays = (d: number) => {
     const s = String(Math.max(0, Math.round(d)));
@@ -373,6 +395,17 @@ export default function DocumentForm({ type, mode, initial, initialCustomerId }:
       bill_to: billTo, ship_to: shipTo, items,
       adjustment: num(adjustment), adjustment_label: adjLabel.trim() || null,
       notes: notes.trim(), terms: termsText.trim(),
+      ...(isInvoice ? {
+        recurrence_enabled: recEnabled,
+        ...(recEnabled ? {
+          recurrence_interval: recInterval,
+          recurrence_start: recStart,
+          recurrence_reminder_email: recEmail,
+          ...(recInterval === 'custom'
+            ? { recurrence_custom_every: Math.max(1, Math.round(num(recEvery, 1))), recurrence_custom_unit: recUnit }
+            : {}),
+        } : {}),
+      } : {}),
     };
     setBusy(true);
     try {
@@ -504,6 +537,54 @@ export default function DocumentForm({ type, mode, initial, initialCustomerId }:
           </div>
         </Card>
       </div>
+
+      {isInvoice && (
+        <Card>
+          <Section eyebrow="Repeat invoice" first style={{ paddingBottom: 0 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: T.text, cursor: 'pointer' }}>
+              <input type="checkbox" checked={recEnabled} onChange={(e) => setRecEnabled(e.target.checked)} />
+              Repeat this invoice on a schedule
+            </label>
+            {recEnabled && (
+              <>
+                <div style={{ fontSize: 12.5, color: T.dim, lineHeight: 1.5 }}>
+                  We’ll remind you to raise the next invoice on the date below — in the bell and on your phone
+                  {recEmail ? ', and by email' : ''}. Nothing is sent to the customer automatically.
+                </div>
+                <FormGrid narrow={page} columns={3}>
+                  <Field label="Repeat every" htmlFor="rec-interval">
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <Select id="rec-interval" value={recInterval} onChange={(e) => setRecInterval(e.target.value as RecurrenceInterval)}>
+                        {RECUR_PRESETS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+                      </Select>
+                      {recInterval === 'custom' && (
+                        <>
+                          <Input type="number" min={1} max={366} step={1} inputMode="numeric" value={recEvery}
+                            onChange={(e) => setRecEvery(e.target.value)} aria-label="Repeat interval count" style={{ width: 72, flex: '0 0 72px' }} />
+                          <Select value={recUnit} onChange={(e) => setRecUnit(e.target.value as 'day' | 'month')} aria-label="Repeat interval unit" style={{ width: 104, flex: '0 0 104px' }}>
+                            <option value="day">days</option>
+                            <option value="month">months</option>
+                          </Select>
+                        </>
+                      )}
+                    </div>
+                  </Field>
+                  <Field label="Starting from" htmlFor="rec-start" hint="The cycle anchor — usually the invoice date.">
+                    <Input id="rec-start" type="date" value={recStart} onChange={(e) => setRecStart(e.target.value)} />
+                  </Field>
+                  <Field label="Next invoice on" hint="Calculated from the duration — no need to enter it.">
+                    <Input value={recNextDate ? fmtDate(recNextDate) : '—'} readOnly tabIndex={-1} style={{ opacity: 0.85 }} />
+                  </Field>
+                </FormGrid>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, color: T.text, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={recEmail} onChange={(e) => setRecEmail(e.target.checked)} />
+                  Also email me this reminder
+                </label>
+              </>
+            )}
+          </Section>
+        </Card>
+      )}
 
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
         <Button variant="primary" onClick={() => save(true)} disabled={busy}>{busy ? 'Saving…' : 'Save and Send'}</Button>
