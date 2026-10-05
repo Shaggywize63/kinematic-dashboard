@@ -678,7 +678,7 @@ function Section({ title, count, children }: { title: string; count?: number; ch
 
 /** Small copy-to-clipboard button. Shows a transient check on success and
  *  surfaces a toast. `text` is the raw value copied (may differ from display). */
-function CopyButton({ text, label }: { text: string; label: string }) {
+function FieldCopyButton({ text, label }: { text: string; label: string }) {
   const [copied, setCopied] = useState(false);
   const copy = async () => {
     try {
@@ -720,7 +720,7 @@ function Fact({ label, value, onSave, type, copyable }: { label: string; value?:
         ) : (
           <div style={{ color: T.text, fontSize: 13.5, wordBreak: 'break-word', minWidth: 0 }}>{value || '—'}</div>
         )}
-        {copyable && copyText ? <CopyButton text={copyText} label={label} /> : null}
+        {copyable && copyText ? <FieldCopyButton text={copyText} label={label} /> : null}
       </div>
     </div>
   );
