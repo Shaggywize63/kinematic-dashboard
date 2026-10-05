@@ -5,7 +5,7 @@
 // Always a white "paper" regardless of the dashboard theme.
 
 import { CSSProperties } from 'react';
-import { amountInWords, fmtDate, num, plainAmount } from '../../lib/financeFormat';
+import { amountInWords, durationLabel, fmtDate, num, plainAmount } from '../../lib/financeFormat';
 import { stateLabel } from '../../lib/gstStates';
 import type { Address, DocLine, PublicSettings, FinanceSettings } from '../../lib/financeApi';
 
@@ -147,7 +147,7 @@ export default function InvoicePaper({ doc, items, settings }: { doc: PaperDoc; 
             {items.map((it, i) => (
               <tr key={it.id ?? i}>
                 <td style={td}>{i + 1}</td>
-                <td style={td}><div style={{ fontWeight: 700 }}>{it.name}</div>{it.description && <div style={{ fontSize: 10.5, color: DIM, marginTop: 2, whiteSpace: 'pre-line' }}>{it.description}</div>}</td>
+                <td style={td}><div style={{ fontWeight: 700 }}>{it.name}</div>{it.description && <div style={{ fontSize: 10.5, color: DIM, marginTop: 2, whiteSpace: 'pre-line' }}>{it.description}</div>}{durationLabel(it.duration_months) && <div style={{ fontSize: 10.5, color: DIM, marginTop: 2 }}>Duration: {durationLabel(it.duration_months)} · rate is per month</div>}</td>
                 <td style={td}>{it.hsn_sac || ''}</td>
                 <td style={{ ...td, textAlign: 'right' }}>{num(it.quantity)}{it.unit ? ` ${it.unit}` : ''}</td>
                 <td style={{ ...td, textAlign: 'right' }}>{plainAmount(it.rate)}</td>

@@ -72,6 +72,26 @@ export interface DraftLine {
   rate: number | string;
   discount_pct?: number | string;
   gst_rate?: number | string;
+  duration_months?: number | string | null;
+}
+
+/** Whole months 1..120, else null (one-time). Mirrors the server. */
+export const durationOf = (v: unknown): number | null => {
+  const n = Math.round(num(v, NaN));
+  return Number.isFinite(n) && n >= 1 && n <= 120 ? n : null;
+};
+
+/** Presets for a line's billing duration. The rate is per month, so Amount = Qty × Rate × months. */
+export const DURATION_PRESETS: Array<{ months: number; label: string }> = [
+  { months: 1, label: 'Monthly' }, { months: 3, label: 'Quarterly' }, { months: 6, label: 'Half-yearly' }, { months: 12, label: 'Yearly' },
+];
+
+/** "3 months (Quarter)" — printed under the item on the invoice. */
+export function durationLabel(months: unknown): string | null {
+  const m = durationOf(months);
+  if (m === null) return null;
+  const named: Record<number, string> = { 1: 'Month', 3: 'Quarter', 6: 'Half-year', 12: 'Year' };
+  return named[m] ? `${m} month${m === 1 ? '' : 's'} (${named[m]})` : `${m} months`;
 }
 
 export interface DraftLineResult { taxable_value: number; cgst: number; sgst: number; igst: number; total: number }
@@ -91,7 +111,7 @@ export function computeDraft(
 ): { lines: DraftLineResult[]; totals: DraftTotals; intraState: boolean } {
   const intra = isIntraState(o.sellerStateCode, o.placeOfSupply);
   const out = lines.map((l) => {
-    const gross = round2(num(l.quantity, 1) * num(l.rate));
+    const gross = round2(num(l.quantity, 1) * num(l.rate) * (durationOf(l.duration_months) ?? 1));
     const pct = Math.min(100, Math.max(0, num(l.discount_pct)));
     const discount = round2((gross * pct) / 100);
     const taxable = round2(gross - discount);
