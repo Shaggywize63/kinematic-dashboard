@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
-import { Check, ChevronDown, Search } from 'lucide-react';
+import { Check, ChevronDown, Search, Lock } from 'lucide-react';
 import api from '../lib/api';
 
 interface Client { id: string; name: string; }
@@ -10,8 +10,13 @@ interface Client { id: string; name: string; }
  *   - `field` (default) — a 36px input-style trigger for forms and filter bars.
  *   - `chip`            — the 28px pill used in the dashboard header scope row.
  */
-export default function ClientSelect({ value, onChange, placeholder = 'Select client…', variant = 'field' }: {
+export default function ClientSelect({ value, onChange, placeholder = 'Select client…', variant = 'field', disabled = false, displayLabel }: {
   value: string; onChange: (id: string, name: string) => void; placeholder?: string; variant?: 'field' | 'chip';
+  /** When true the picker is read-only (e.g. pinned while acting as a client). */
+  disabled?: boolean;
+  /** Overrides the shown label — used to display the acting-as client's name
+   *  even before the clients list has loaded. */
+  displayLabel?: string;
 }) {
   const [clients, setClients] = useState<Client[]>([]);
   const [open, setOpen] = useState(false);
@@ -37,31 +42,34 @@ export default function ClientSelect({ value, onChange, placeholder = 'Select cl
 
   const filtered = clients.filter((c) => c.name.toLowerCase().includes(search.toLowerCase()));
   const selectedObj = clients.find((c) => c.id === value || c.name === value);
-  const label = selectedObj ? selectedObj.name : (value ? placeholder : 'All clients');
+  const label = displayLabel ?? (selectedObj ? selectedObj.name : (value ? placeholder : 'All clients'));
   const chip = variant === 'chip';
 
   return (
     <div ref={ref} style={{ position: 'relative', width: chip ? 'auto' : '100%' }}>
       <button
         type="button"
-        onClick={() => setOpen(!open)}
+        onClick={() => { if (!disabled) setOpen(!open); }}
         aria-haspopup="listbox"
         aria-expanded={open}
-        title="Filter by client"
+        aria-disabled={disabled}
+        title={disabled ? 'Locked to the client you are viewing' : 'Filter by client'}
         className={chip ? 'km-chip' : 'km-input'}
         style={chip ? {
           height: 28, padding: '0 10px', borderRadius: 999, border: '1px solid var(--border)', background: 'var(--card)',
           fontSize: 12.5, fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 6, maxWidth: 220,
-          color: 'var(--text)', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
+          color: 'var(--text)', cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.9 : 1, fontFamily: 'inherit', whiteSpace: 'nowrap',
         } : {
           width: '100%', height: 36, background: 'var(--field)', border: '1px solid var(--border)', color: value ? 'var(--text)' : 'var(--text-mute)',
-          borderRadius: 6, padding: '0 11px', fontSize: 14, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8,
+          borderRadius: 6, padding: '0 11px', fontSize: 14, cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.9 : 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8,
           fontFamily: 'inherit', textAlign: 'left',
         }}
       >
         {chip && <span aria-hidden style={{ width: 6, height: 6, borderRadius: 999, background: value ? 'var(--ok)' : 'var(--text-mute)', flexShrink: 0 }} />}
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{label}</span>
-        <ChevronDown size={14} strokeWidth={1.6} style={{ color: 'var(--text-mute)', flexShrink: 0, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
+        {disabled
+          ? <Lock size={12} strokeWidth={1.8} style={{ color: 'var(--text-mute)', flexShrink: 0 }} />
+          : <ChevronDown size={14} strokeWidth={1.6} style={{ color: 'var(--text-mute)', flexShrink: 0, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />}
       </button>
 
       {open && (

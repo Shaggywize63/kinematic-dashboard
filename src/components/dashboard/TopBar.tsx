@@ -4,6 +4,7 @@ import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { ChevronRight, Menu, Search } from 'lucide-react';
 import { useClient } from '../../context/ClientContext';
+import { getActingAs } from '../../lib/api';
 import ClientSelect from '../ClientSelect';
 import IndustryScopePicker from '../IndustryScopePicker';
 import NotificationBell from '../crm/NotificationBell';
@@ -18,8 +19,11 @@ import { TOPBAR_H } from './Sidebar';
 const ChatLauncher = dynamic(() => import('../messaging/ChatLauncher'), { ssr: false });
 
 function GlobalClientFilter({ isPlatformAdmin, compact }: { isPlatformAdmin: boolean; compact: boolean }) {
-  const { selectedClientId, setSelectedClientId } = useClient();
+  const { selectedClientId, setSelectedClientId, locked } = useClient();
   if (!isPlatformAdmin) return null;
+  // While "acting as a client", the picker is pinned to that client and shows
+  // its name (even before the clients list loads) instead of "All clients".
+  const actingName = locked ? (getActingAs()?.name || undefined) : undefined;
   return (
     <div style={{ flexShrink: 1, minWidth: 0, maxWidth: compact ? 120 : 220 }}>
       <ClientSelect
@@ -27,6 +31,8 @@ function GlobalClientFilter({ isPlatformAdmin, compact }: { isPlatformAdmin: boo
         value={selectedClientId}
         onChange={(id) => setSelectedClientId(id)}
         placeholder="Client"
+        disabled={locked}
+        displayLabel={actingName}
       />
     </div>
   );
