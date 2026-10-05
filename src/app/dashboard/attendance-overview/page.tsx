@@ -222,6 +222,9 @@ function AttendanceContent() {
   const urlTo = searchParams.get('to');
 
   const [records,  setRecords]  = useState<AttendanceRecord[]>([]);
+  // True when the date range is too wide to pad absent rows (users × days would
+  // explode) — the table then shows recorded attendance only + a hint to export.
+  const [absentPaddingSkipped, setAbsentPaddingSkipped] = useState(false);
   const [users,    setUsers]    = useState<any[]>([]);
   const [loading,  setLoading]  = useState(true);
   const [err,      setErr]      = useState('');
@@ -373,22 +376,34 @@ function AttendanceContent() {
         cur.setUTCDate(cur.getUTCDate() + 1);
       }
 
+      // Absent padding is a cartesian product (eligible users × days in range),
+      // so a wide range on a big tenant explodes into tens of thousands of rows.
+      // That froze the page: it was rebuilt synchronously on every 15s poll /
+      // realtime event, and the (unvirtualized) table then tried to render all of
+      // them. Cap it — pad only when the product is bounded; otherwise show
+      // recorded attendance only and point the user at Export to Excel (which
+      // fetches per-day independently) for a full per-day absentee breakdown.
+      const ABSENT_PAD_CAP = 8000;
+      const canPadAbsent = eligibleUsers.length * rangeDates.length <= ABSENT_PAD_CAP;
       const absentRows: AttendanceRecord[] = [];
-      for (const u of eligibleUsers) {
-        for (const day of rangeDates) {
-          if (!coveredPairs.has(`${u.id}|${day}`)) {
-            absentRows.push({
-              id: null as any,
-              user_id: u.id,
-              date: day,
-              status: 'absent' as const,
-              checkin_at: undefined, checkout_at: undefined, total_hours: undefined,
-              users: { name: u.name, employee_id: u.employee_id, zones: u.zones, role: u.role },
-              _virtual: true,
-            });
+      if (canPadAbsent) {
+        for (const u of eligibleUsers) {
+          for (const day of rangeDates) {
+            if (!coveredPairs.has(`${u.id}|${day}`)) {
+              absentRows.push({
+                id: null as any,
+                user_id: u.id,
+                date: day,
+                status: 'absent' as const,
+                checkin_at: undefined, checkout_at: undefined, total_hours: undefined,
+                users: { name: u.name, employee_id: u.employee_id, zones: u.zones, role: u.role },
+                _virtual: true,
+              });
+            }
           }
         }
       }
+      setAbsentPaddingSkipped(!canPadAbsent);
       setRecords([...attArr, ...absentRows]);
       setErr('');
     } catch (e: any) {
@@ -812,6 +827,12 @@ function AttendanceContent() {
     return matchSearch && matchStatus;
   });
 
+  // Render cap: the table is unvirtualized, so painting tens of thousands of rows
+  // locks the tab. Bound the DOM to a slice; the count line shows the true total
+  // and tells the user to refine filters or export for the rest.
+  const RENDER_CAP = 500;
+  const shownCapped = shown.length > RENDER_CAP ? shown.slice(0, RENDER_CAP) : shown;
+
   const isRange = fromDate.trim() !== toDate.trim();
   const rangeLabel = isRange ? `${fmtDate(fromDate)} – ${fmtDate(toDate)}` : fmtDate(fromDate);
 
@@ -1079,9 +1100,9 @@ function AttendanceContent() {
                       action={currentRoleRecords.length > 0 ? <Button size="sm" onClick={() => { setSearch(''); setSF('all'); }}>Clear filters</Button> : undefined}
                     />
                   </td></tr>
-                ) : shown.map((r, i) => {
+                ) : shownCapped.map((r, i) => {
                   const sm = statusMeta[r.status] || statusMeta.absent;
-                  const last = i === shown.length - 1;
+                  const last = i === shownCapped.length - 1;
                   const rowTd = last ? { ...td, borderBottom: 0 } : td;
                   const rowMono = last ? { ...tdMono, borderBottom: 0 } : tdMono;
                   const hrs = calcHours(r);
@@ -1157,10 +1178,20 @@ function AttendanceContent() {
           </div>
         </Card>
 
+        {/* Absent-padding skipped on a very wide range (see load()). */}
+        {!loading && absentPaddingSkipped && (
+          <div style={{ fontSize: 12, color: T.mute, textAlign: 'right', lineHeight: 1.5 }}>
+            Absent-day rows are hidden for a date range this wide — showing recorded attendance only.
+            Use <b>Export to Excel</b> for a full per-day absentee report, or pick a shorter range.
+          </div>
+        )}
+
         {/* row count */}
         {!loading && shown.length > 0 && (
           <div style={{ fontSize: 12, color: T.mute, textAlign: 'right', fontFamily: T.mono }}>
-            {shown.length} of {currentRoleRecords.length} records · {rangeLabel}
+            {shownCapped.length < shown.length
+              ? `Showing first ${shownCapped.length} of ${shown.length} — refine filters or export for the full list`
+              : `${shown.length} of ${currentRoleRecords.length} records`} · {rangeLabel}
           </div>
         )}
       </div>
