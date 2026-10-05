@@ -34,9 +34,13 @@ function bootstrapMaps(key: string) {
 /** Resolve the `google.maps` namespace with the given libraries loaded. */
 export async function loadGoogleMaps(libraries: string[] = ['maps']): Promise<GMaps> {
   if (typeof window === 'undefined') throw new Error('Google Maps needs a browser.');
-  if (!GMAPS_KEY) throw new Error('Google Maps is not configured (missing NEXT_PUBLIC_GOOGLE_MAPS_API_KEY).');
   const w = window as any; // eslint-disable-line @typescript-eslint/no-explicit-any
-  if (!w.google?.maps?.importLibrary) bootstrapMaps(GMAPS_KEY);
+  // Only a page that still has to LOAD the SDK needs the key; if another
+  // surface (or a test double) already put google.maps on the page, use it.
+  if (!w.google?.maps?.importLibrary) {
+    if (!GMAPS_KEY) throw new Error('Google Maps is not configured (missing NEXT_PUBLIC_GOOGLE_MAPS_API_KEY).');
+    bootstrapMaps(GMAPS_KEY);
+  }
   const libs = Array.from(new Set(['maps', ...libraries]));
   await Promise.all(libs.map((l) => w.google.maps.importLibrary(l)));
   return w.google.maps;

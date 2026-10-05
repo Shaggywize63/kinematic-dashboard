@@ -5,6 +5,8 @@ import * as demoMocks from '../../../lib/demoMocks';
 import { getStoredUser } from '../../../lib/auth';
 import { getStoredIndustryScope } from '../../../context/IndustryScopeContext';
 import { LowBatteryKpi, LowBatteryAlert, LowBatteryFilter } from '../../../components/live-tracking/LowBattery';
+import { escapeHtml } from '../../../lib/googleMaps';
+import { usePlaceName, useSeen, getPlaceName, peekPlaceName, formatLatLng, formatLatLngShort, googleMapsUrl, type PlaceName } from '../../../lib/placeName';
 
 const C = {
   bg: 'var(--bg)', s1: 'var(--s1)', s2: 'var(--s2)', s3: 'var(--s3)', s4: 'var(--s4)',
@@ -25,6 +27,11 @@ interface FELoc {
   role: string; zone_name?: string; city?: string;
   status: 'active'|'on_break'|'checked_out'|'absent';
   lat: number|null; lng: number|null;
+  // Where lat/lng came from and when it was captured: 'live' = latest GPS ping,
+  // 'checkin' = today's check-in point, 'zone' = the zone meeting point (the rep
+  // has no fix at all). Absent on older backends / demo data.
+  location_source?: 'live'|'checkin'|'zone'|null;
+  location_captured_at?: string|null;
   checkin_at?: string; checkout_at?: string;
   last_location_updated_at?: string;
   // Device location state (see locationOff()): 'on' | 'services_off' | 'denied'
@@ -95,6 +102,49 @@ function locationOff(fe: { location_status?: string | null; location_status_upda
   return { label: LOC_OFF_LABEL[s], since: shortSince(fe.location_status_updated_at) };
 }
 
+/* ── Position helpers ──
+ * What the pin on the map actually represents, in words, plus the timestamp it
+ * was captured at. A pin from the check-in point or the zone meeting point is
+ * NOT where the rep is now — the UI must say so instead of implying a live fix. */
+const SOURCE_LABEL: Record<string, string> = {
+  live:    'Live GPS',
+  checkin: 'Check-in point',
+  zone:    'Zone meeting point',
+};
+function sourceNote(fe: { location_source?: string | null }): string | null {
+  if (fe.location_source === 'checkin') return 'No GPS ping in the last 24h — showing where they checked in.';
+  if (fe.location_source === 'zone')    return 'No GPS fix yet — showing the zone meeting point, not their position.';
+  return null;
+}
+/** When the pin's position was captured (null for the zone fallback / unknown). */
+function capturedAt(fe: { location_source?: string | null; location_captured_at?: string | null; last_location_updated_at?: string | null }): string | null {
+  if (fe.location_source === 'zone') return null;
+  return fe.location_captured_at ?? fe.last_location_updated_at ?? null;
+}
+const IST = 'Asia/Kolkata';
+function fmtIst(ts?: string | null, withSeconds = false): string {
+  if (!ts) return '';
+  const d = new Date(ts);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleTimeString('en-IN', {
+    timeZone: IST, hour: '2-digit', minute: '2-digit', ...(withSeconds ? { second: '2-digit' } : {}), hour12: true,
+  });
+}
+function agoText(ts?: string | null): string {
+  if (!ts) return '';
+  const mins = Math.round((Date.now() - new Date(ts).getTime()) / 60000);
+  if (!isFinite(mins) || mins < 0) return '';
+  if (mins === 0) return 'just now';
+  const s = shortSince(ts);
+  return s ? `${s} ago` : '';
+}
+/** YYYY-MM-DD for the IST calendar day `daysAgo` days back. The trail endpoint
+ *  windows by IST day, so the date picker must too (UTC `today` is yesterday
+ *  between 00:00 and 05:30 IST). */
+function istDay(daysAgo = 0): string {
+  return new Date(Date.now() + 5.5 * 3600_000 - daysAgo * 86_400_000).toISOString().slice(0, 10);
+}
+
 /* ── Google Maps loader ──
  * Same Dynamic Library Import bootstrap used by googleGeocode.ts /
  * GoogleAddressAutocomplete.tsx (defines google.maps.importLibrary). No
@@ -127,6 +177,24 @@ const DARK_MAP_STYLE: any[] = [
   { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#3d5a80' }] },
 ];
 
+// Zoomed-in variant: the base style hides every POI so the overview stays
+// quiet, but that also leaves nothing but road names once you zoom to street
+// level. Past DETAIL_ZOOM we bring back place names (shops, landmarks, schools,
+// hospitals…) and neighbourhood labels. Google already thins labels by zoom, so
+// this only adds names where there's room for them.
+const DETAIL_ZOOM = 14;
+const DETAIL_MAP_STYLE: any[] = [
+  ...DARK_MAP_STYLE.filter((r) => !(r.featureType === 'poi' && !r.elementType)),
+  { featureType: 'poi', elementType: 'geometry', stylers: [{ color: '#222a33' }] },
+  { featureType: 'poi', elementType: 'labels.text.fill', stylers: [{ color: '#aab3c0' }] },
+  { featureType: 'poi', elementType: 'labels.text.stroke', stylers: [{ color: '#1b1b1b' }] },
+  { featureType: 'poi', elementType: 'labels.icon', stylers: [{ saturation: -60 }, { lightness: -15 }] },
+  { featureType: 'administrative.neighborhood', elementType: 'labels.text.fill', stylers: [{ color: '#c0c8d4' }] },
+  { featureType: 'administrative.neighborhood', elementType: 'labels.text.stroke', stylers: [{ color: '#1b1b1b' }] },
+  { featureType: 'transit.station', elementType: 'labels.text.fill', stylers: [{ color: '#9aa0a6' }] },
+  { featureType: 'transit.station', stylers: [{ visibility: 'on' }] },
+];
+
 /* ── Atoms ── */
 const Spin = () => (
   <div style={{ width:18, height:18, border:`2px solid ${C.border}`, borderTopColor:C.blue,
@@ -141,7 +209,7 @@ const Dot = ({ color, size=8 }: { color:string; size?:number }) => (
 
 function downloadTrailCsv(fe: FELoc | null | undefined, trail: TrailPoint[]) {
   if (!fe || !trail.length) return;
-  const date = new Date().toISOString().slice(0, 10);
+  const date = istDay(0);
   const safeName = (fe.name || 'fe').replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').toLowerCase() || 'fe';
   const filename = `${safeName}-trail-${date}.csv`;
 
@@ -182,6 +250,82 @@ function downloadTrailCsv(fe: FELoc | null | undefined, trail: TrailPoint[]) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+const ACTIVITY_LABEL: Record<string, string> = {
+  HEARTBEAT:   'Location ping',
+  CHECK_IN:    'Check-in',
+  CHECK_OUT:   'Check-out',
+  FORM_SUBMIT: 'Form submitted',
+};
+
+const POPUP_BASE = 'font-family:DM Sans,sans-serif;font-size:12px;color:var(--text);background:var(--s1);padding:10px 12px;border-radius:12px;min-width:200px;max-width:280px';
+
+/** The shared "where exactly" block of every location popup: place name (or a
+ *  lookup placeholder), coordinates, and a link out to Google Maps. */
+function placeBlockHtml(lat: number, lng: number, place: PlaceName | null, resolved: boolean, heading: string): string {
+  const name = place
+    ? `<div style="font-size:12px;font-weight:600;line-height:1.35;margin-top:3px;color:var(--text)">${escapeHtml(place.full)}</div>`
+    : (!resolved ? `<div style="font-size:11px;margin-top:3px;color:var(--text-dim)">Looking up place name…</div>` : '');
+  return `<div style="border-top:1px solid var(--border);margin-top:8px;padding-top:7px">
+      <div style="font-size:9px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--text-dim)">${escapeHtml(heading)}</div>
+      ${name}
+      <div style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;color:var(--text-dim);margin-top:3px;user-select:all">${escapeHtml(formatLatLng(lat, lng))}</div>
+      <a href="${escapeHtml(googleMapsUrl(lat, lng))}" target="_blank" rel="noopener noreferrer" style="display:inline-block;margin-top:4px;font-size:10px;font-weight:600;color:var(--accent);text-decoration:none">Open in Google Maps ↗</a>
+    </div>`;
+}
+
+/** Popup for a rep's pin. `fe.lat/lng` must be set. */
+function popupHtml(
+  fe: FELoc, role: string, color: string,
+  off: { label: string; since: string } | null,
+  place: PlaceName | null, resolved: boolean,
+): string {
+  const seen = capturedAt(fe);
+  const diff = seen ? Math.round((Date.now() - new Date(seen).getTime()) / 60000) : null;
+  const notLive = fe.location_source === 'checkin' || fe.location_source === 'zone';
+  const isStale = off != null || notLive || (diff != null && diff > 10);
+  const src = fe.location_source ? SOURCE_LABEL[fe.location_source] : null;
+  const note = sourceNote(fe);
+  const heading = (off || notLive || isStale) ? 'Last known location' : 'Current location';
+  const when = seen ? `${fmtIst(seen)} IST${agoText(seen) ? ` · ${agoText(seen)}` : ''}` : '';
+  const acc = fe.location_accuracy_m != null && fe.location_source === 'live' ? ` · ±${Math.round(fe.location_accuracy_m)} m` : '';
+  const badge = off ? `<div style="font-size:10px;font-weight:700;color:${C.grayd}">Last known</div>`
+    : notLive ? `<div style="font-size:10px;font-weight:700;color:${C.yellow}">Not live</div>`
+    : (diff != null ? `<div style="font-size:10px;font-weight:600;color:${isStale ? C.red : C.green}">${diff === 0 ? 'Live now' : escapeHtml(agoText(seen))}</div>` : '');
+
+  return `<div style="${POPUP_BASE};border:1px solid ${isStale ? C.redB : C.border}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+        <div style="font-weight:700;margin-bottom:2px;color:${isStale ? C.gray : C.white}">${escapeHtml(fe.name)}</div>
+        ${badge}
+      </div>
+      <div style="color:var(--text-dim);font-size:11px;margin-bottom:8px">${escapeHtml(role)}${fe.zone_name ? ` · ${escapeHtml(fe.zone_name)}` : ''}</div>
+      ${off ? `<div style="display:flex;align-items:center;gap:5px;font-size:10px;font-weight:700;color:${C.red};background:${C.redD};border:1px solid ${C.redB};border-radius:6px;padding:3px 7px;margin-bottom:6px">📍✕ ${escapeHtml(off.label)}${off.since ? ` · since ${escapeHtml(off.since)} ago` : ''}</div>` : ''}
+      ${(fe.device_model || fe.os_version) ? `<div style="color:var(--text-dim);font-size:10px;margin-bottom:6px;display:flex;align-items:center;gap:4px">📱 ${escapeHtml(fe.device_model || 'Device')}${fe.os_version ? ` · Android ${escapeHtml(fe.os_version)}` : ''}</div>` : ''}
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+        <div style="display:inline-flex;padding:2px 8px;border-radius:20px;background:${color}20;color:${color};font-size:10px;font-weight:700;text-transform:capitalize">${escapeHtml(String(fe.status).replace('_', ' '))}</div>
+        ${fe.battery_percentage != null ? `<div style="font-size:10px;color:${fe.battery_percentage < 20 ? C.red : C.green};display:flex;align-items:center;gap:3px;background:${fe.battery_percentage < 20 ? C.redD : C.greenD};padding:2px 6px;border-radius:6px">🔋 ${fe.battery_percentage}%</div>` : ''}
+      </div>
+      ${placeBlockHtml(fe.lat as number, fe.lng as number, place, resolved, heading)}
+      ${(src || when) ? `<div style="font-size:10px;color:var(--text-dim);margin-top:5px">${escapeHtml([src, when].filter(Boolean).join(' · '))}${escapeHtml(acc)}</div>` : ''}
+      ${note ? `<div style="font-size:10px;color:${C.yellow};margin-top:4px;line-height:1.35">${escapeHtml(note)}</div>` : ''}
+    </div>`;
+}
+
+/** Popup for one captured ping on a rep's trail. */
+function trailPopupHtml(row: TrailPoint | undefined, i: number, n: number, place: PlaceName | null, resolved: boolean): string {
+  if (!row) return '';
+  const tag = i === 0 ? 'Start of trail' : i === n - 1 ? 'Latest ping' : '';
+  const label = ACTIVITY_LABEL[String(row.activity_type || '').toUpperCase()] || 'Location ping';
+  return `<div style="${POPUP_BASE}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+        <div style="font-weight:700;color:${C.white}">${escapeHtml(fmtIst(row.captured_at, true))} <span style="font-weight:500;color:var(--text-dim)">IST</span></div>
+        ${tag ? `<div style="font-size:10px;font-weight:700;color:${i === 0 ? C.green : C.red}">${tag}</div>` : ''}
+      </div>
+      <div style="color:var(--text-dim);font-size:11px;margin-top:2px">${escapeHtml(label)} · ping ${i + 1} of ${n}${agoText(row.captured_at) ? ` · ${escapeHtml(agoText(row.captured_at))}` : ''}</div>
+      ${row.battery_percentage != null ? `<div style="margin-top:6px"><span style="font-size:10px;color:${row.battery_percentage < 20 ? C.red : C.green};background:${row.battery_percentage < 20 ? C.redD : C.greenD};padding:2px 6px;border-radius:6px">🔋 ${row.battery_percentage}%</span></div>` : ''}
+      ${placeBlockHtml(row.lat, row.lng, place, resolved, 'Location')}
+    </div>`;
+}
+
 function LiveMap({
   fes, supervisors, outlets, warehouses,
   activeLayers, selectedId, onSelect,
@@ -199,16 +343,25 @@ function LiveMap({
   const markers  = useRef<any[]>([]);
   const trailLines = useRef<any[]>([]);
   const trailDots  = useRef<any[]>([]);
+  // The popup currently open, so the 60-second data refresh (which rebuilds
+  // every marker) can re-open it on the new marker instead of snapping it shut,
+  // and the last viewport we framed, so a refresh doesn't undo the user's zoom.
+  const openPopup  = useRef<{ id: string; kind: string } | null>(null);
+  const fittedKey  = useRef<string>('');
+  const lastAutoOpen = useRef<string | null>(null);
 
-  // Captured GPS pings for the selected FE. The polyline prefers a road-snapped
-  // path (see snappedPath below) and falls back to straight segments.
-  const trailPoints = useMemo<[number, number][] | null>(() => {
-    if (!trail || trail.length < 2) return null;
-    const pts = trail
-      .filter((p) => typeof p.lat === 'number' && typeof p.lng === 'number')
-      .map((p) => [p.lat, p.lng] as [number, number]);
-    return pts.length > 1 ? pts : null;
-  }, [trail]);
+  // Captured GPS pings for the selected FE (only those with usable coordinates;
+  // kept as rows so a ping's time / battery / activity stay aligned with its dot).
+  // The polyline prefers a road-snapped path (see snappedPath below) and falls
+  // back to straight segments.
+  const trailRows = useMemo<TrailPoint[]>(
+    () => (trail || []).filter((p) => typeof p.lat === 'number' && typeof p.lng === 'number'),
+    [trail],
+  );
+  const trailPoints = useMemo<[number, number][] | null>(
+    () => (trailRows.length > 1 ? trailRows.map((p) => [p.lat, p.lng] as [number, number]) : null),
+    [trailRows],
+  );
 
   // Road-snapped trail via the Google Directions JS SDK. maps.googleapis.com is
   // allow-listed in BOTH script-src and connect-src (unlike the old OSRM host
@@ -277,7 +430,18 @@ function LiveMap({
       styles: DARK_MAP_STYLE,
     });
     infoWin.current = new g.maps.InfoWindow();
+    infoWin.current.addListener('closeclick', () => { openPopup.current = null; });
     mapInst.current = map;
+    // Swap to the place-name style when the user zooms in to street level (and
+    // back out). setOptions only fires when the threshold is actually crossed.
+    let detailed = false;
+    map.addListener('zoom_changed', () => {
+      const want = (map.getZoom() ?? 0) >= DETAIL_ZOOM;
+      if (want !== detailed) {
+        detailed = want;
+        map.setOptions({ styles: want ? DETAIL_MAP_STYLE : DARK_MAP_STYLE });
+      }
+    });
   }, [mapLoaded]);
 
   // Resize handler — when the layout flips between desktop (sidebar+map row)
@@ -304,19 +468,37 @@ function LiveMap({
     if (!g?.maps?.Marker) return;
     const map = mapInst.current;
 
-    infoWin.current?.close();
     markers.current.forEach(m => m.setMap(null));
     markers.current = [];
 
+    // Every clickable marker registers how to (re)build its popup. The popup
+    // body can depend on a reverse-geocoded place name that arrives later, so
+    // the builder takes the name (if known) and whether the lookup has settled.
+    type Build = (place: PlaceName | null, resolved: boolean) => string;
+    const popups = new Map<string, { m: any; build: Build; lat: number; lng: number; kind: string; withPlace: boolean }>();
+
+    const showPopup = (id: string) => {
+      const e = popups.get(id);
+      if (!e || !infoWin.current) return;
+      const cached = e.withPlace ? peekPlaceName(e.lat, e.lng) : null;
+      infoWin.current.setContent(e.build(cached, !e.withPlace || !!cached));
+      infoWin.current.open(map, e.m);
+      openPopup.current = { id, kind: e.kind };
+      if (e.withPlace && !cached) {
+        getPlaceName(e.lat, e.lng).then((place) => {
+          // Only repaint if this popup is still the one on screen.
+          if (openPopup.current?.id === id && popups.get(id)?.m === e.m) infoWin.current?.setContent(e.build(place, true));
+        });
+      }
+    };
+
     const addMarker = (
       lat: number, lng: number, icon: any, label: any,
-      popup: string, id: string, type: string, zIndex: number,
+      build: Build, id: string, type: string, zIndex: number, withPlace = false,
     ) => {
       const m = new g.maps.Marker({ position: { lat, lng }, map, icon, label, zIndex });
-      m.addListener('click', () => {
-        if (infoWin.current) { infoWin.current.setContent(popup); infoWin.current.open(map, m); }
-        onSelect(id, type);
-      });
+      popups.set(id, { m, build, lat, lng, kind: type, withPlace });
+      m.addListener('click', () => { showPopup(id); onSelect(id, type); });
       markers.current.push(m);
     };
 
@@ -336,8 +518,9 @@ function LiveMap({
           ? circleIcon(C.grayd, sel ? 12 : 10, sel ? '#ffffff' : C.grayd, sel ? 3 : 2, 0.35)
           : circleIcon(c, sel ? 13 : 11, sel ? '#ffffff' : '#1b1b1b', sel ? 3 : 2);
         const label = { text: fe.name?.[0] || '?', color: off ? C.grayd : '#000', fontSize: '12px', fontWeight: '800' };
-        const popup = popupHtml(fe.name, fe.role, c, fe.status, fe.zone_name, fe.checkin_at, fe.today_engagements, fe.today_tff, fe.battery_percentage, fe.last_location_updated_at, fe.device_model, fe.os_version, off);
-        addMarker(fe.lat!, fe.lng!, icon, label, popup, fe.id, 'fe', sel ? 60 : 30);
+        addMarker(fe.lat!, fe.lng!, icon, label,
+          (place, resolved) => popupHtml(fe, fe.role, c, off, place, resolved),
+          fe.id, 'fe', sel ? 60 : 30, true);
       });
     }
 
@@ -349,8 +532,9 @@ function LiveMap({
           ? circleIcon(C.grayd, 11, C.grayd, 2, 0.35)
           : circleIcon(C.blue, 12, '#1b1b1b', 2);
         const label = { text: sup.name?.[0] || '?', color: supOff ? C.grayd : '#fff', fontSize: '12px', fontWeight: '800' };
-        const popup = popupHtml(sup.name, 'Supervisor', c, sup.status, sup.zone_name, sup.checkin_at, undefined, undefined, sup.battery_percentage, sup.last_location_updated_at, sup.device_model, sup.os_version, supOff);
-        addMarker(sup.lat!, sup.lng!, icon, label, popup, sup.id, 'supervisor', 25);
+        addMarker(sup.lat!, sup.lng!, icon, label,
+          (place, resolved) => popupHtml(sup, 'Supervisor', c, supOff, place, resolved),
+          sup.id, 'supervisor', 25, true);
       });
     }
 
@@ -358,8 +542,8 @@ function LiveMap({
       outlets.filter(o => o.lat && o.lng).forEach(o => {
         const icon = circleIcon(C.yellow, 11, '#1b1b1b', 2);
         const label = { text: '🏪', fontSize: '13px' };
-        const popup = `<div style="font-family:DM Sans,sans-serif;font-size:12px;color:var(--text);background:var(--s1);padding:10px 12px;border-radius:8px;min-width:150px"><div style="font-weight:700;margin-bottom:4px">${o.name}</div>${o.store_type?`<div style="color:var(--text-dim);font-size:11px">${o.store_type}</div>`:''}<div style="color:var(--text-dim);font-size:11px;margin-top:4px">${o.zone_name||''}</div>${o.address?`<div style="color:var(--text-dim);font-size:10px;margin-top:2px">${o.address}</div>`:''}</div>`;
-        addMarker(o.lat!, o.lng!, icon, label, popup, o.id, 'outlet', 15);
+        const popup = `<div style="font-family:DM Sans,sans-serif;font-size:12px;color:var(--text);background:var(--s1);padding:10px 12px;border-radius:8px;min-width:150px"><div style="font-weight:700;margin-bottom:4px">${escapeHtml(o.name)}</div>${o.store_type?`<div style="color:var(--text-dim);font-size:11px">${escapeHtml(o.store_type)}</div>`:''}<div style="color:var(--text-dim);font-size:11px;margin-top:4px">${escapeHtml(o.zone_name||'')}</div>${o.address?`<div style="color:var(--text-dim);font-size:10px;margin-top:2px">${escapeHtml(o.address)}</div>`:''}</div>`;
+        addMarker(o.lat!, o.lng!, icon, label, () => popup, o.id, 'outlet', 15);
       });
     }
 
@@ -367,8 +551,8 @@ function LiveMap({
       warehouses.filter(w => w.latitude && w.longitude).forEach(w => {
         const icon = circleIcon(C.purple, 12, '#1b1b1b', 2);
         const label = { text: '🏭', fontSize: '13px' };
-        const popup = `<div style="font-family:DM Sans,sans-serif;font-size:12px;color:var(--text);background:var(--s1);padding:10px 12px;border-radius:8px;min-width:150px"><div style="font-weight:700;margin-bottom:4px">${w.name}</div>${w.type?`<div style="color:var(--text-dim);font-size:11px">${w.type}</div>`:''}<div style="color:var(--text-dim);font-size:11px;margin-top:4px">${w.city||''}</div></div>`;
-        addMarker(w.latitude!, w.longitude!, icon, label, popup, w.id, 'warehouse', 15);
+        const popup = `<div style="font-family:DM Sans,sans-serif;font-size:12px;color:var(--text);background:var(--s1);padding:10px 12px;border-radius:8px;min-width:150px"><div style="font-weight:700;margin-bottom:4px">${escapeHtml(w.name)}</div>${w.type?`<div style="color:var(--text-dim);font-size:11px">${escapeHtml(w.type)}</div>`:''}<div style="color:var(--text-dim);font-size:11px;margin-top:4px">${escapeHtml(w.city||'')}</div></div>`;
+        addMarker(w.latitude!, w.longitude!, icon, label, () => popup, w.id, 'warehouse', 15);
       });
     }
 
@@ -391,20 +575,33 @@ function LiveMap({
       trailPoints.forEach(([lat, lng], i) => {
         const isFirst = i === 0;
         const isLast  = i === trailPoints.length - 1;
-        const radius  = isFirst || isLast ? 6 : 3;
+        const radius  = isFirst || isLast ? 7 : 4;
         const fill    = isLast ? colour : isFirst ? '#10b981' : '#ffffff';
         const stroke  = isLast ? '#ffffff' : isFirst ? '#ffffff' : colour;
+        const row = trailRows[i];
+        const id = `trail:${i}`;
+        // Clickable: tap any ping for its exact time, coordinates and place name.
         const dot = new g.maps.Marker({
-          position: { lat, lng }, map, clickable: false, zIndex: 7,
+          position: { lat, lng }, map, clickable: true, zIndex: isLast ? 9 : 7,
+          title: `${fmtIst(row?.captured_at)} · ping ${i + 1} of ${trailPoints.length}`,
           icon: circleIcon(fill, radius, stroke, 2),
         });
+        popups.set(id, {
+          m: dot, lat, lng, kind: 'trail', withPlace: true,
+          build: (place, resolved) => trailPopupHtml(row, i, trailPoints.length, place, resolved),
+        });
+        dot.addListener('click', () => showPopup(id));
         trailDots.current.push(dot);
       });
     }
 
-    // Fit the viewport to every marker + trail point (like the old
-    // fitBounds(...pad(0.15))). A lone point would otherwise zoom to street
-    // level, so recentre + fixed zoom in that case.
+    // Frame the view — but only when WHAT we're looking at changes (a different
+    // rep selected, a different day's trail, a different set of pins), never on
+    // the 60-second data refresh. Re-fitting on every refresh used to snap the
+    // map back out and undo whatever the user had just zoomed in to read.
+    const livePins = Array.from(popups.keys()).filter((k) => !k.startsWith('trail:')).sort();
+    const selEntry = selectedId ? popups.get(selectedId) : undefined;
+    let fitKey: string;
     const bounds = new g.maps.LatLngBounds();
     let has = false;
     if (selectedId && trailPoints && trailPoints.length > 0) {
@@ -412,43 +609,46 @@ function LiveMap({
       // actually visible. Fitting to every FE marker instead (they can be
       // hundreds of km apart) zooms the map out so far the selected rep's
       // path collapses to a single dot — the "trail not visible" bug.
+      fitKey = `trail:${selectedId}:${trailPoints[0][0]},${trailPoints[0][1]}`;
       trailPoints.forEach(([lat, lng]) => { bounds.extend({ lat, lng }); has = true; });
+    } else if (selectedId && selEntry && selEntry.kind === 'fe') {
+      // A rep is selected but has no trail (yet) — centre on their pin at
+      // street zoom so "where are they now" is the first thing you see.
+      fitKey = `pin:${selectedId}`;
+      bounds.extend({ lat: selEntry.lat, lng: selEntry.lng }); has = true;
     } else {
+      fitKey = `all:${livePins.join('|')}`;
       markers.current.forEach(m => { const p = m.getPosition(); if (p) { bounds.extend(p); has = true; } });
       if (trailPoints) trailPoints.forEach(([lat, lng]) => { bounds.extend({ lat, lng }); has = true; });
     }
-    if (has) {
+    if (has && fittedKey.current !== fitKey) {
+      fittedKey.current = fitKey;
       if (bounds.getNorthEast().equals(bounds.getSouthWest())) {
-        // A stationary rep (all pings at one spot) — recentre at street zoom
-        // so the location and stacked pings are clearly visible.
+        // A single point / stationary rep — recentre at street zoom so the
+        // location and any stacked pings are clearly visible.
         map.setCenter(bounds.getCenter());
-        map.setZoom(15);
+        if ((map.getZoom() ?? 0) < 15) map.setZoom(15);
       } else {
         map.fitBounds(bounds, 60);
       }
     }
 
-  }, [mapLoaded, fes, supervisors, outlets, warehouses, activeLayers, selectedId, onSelect, trail, trailColor, trailPoints, snappedPath]);
+    // Popups. A newly selected rep (e.g. picked from the list) opens its popup
+    // so the place name + coordinates are on the map straight away. Otherwise a
+    // popup the user already has open follows its marker through the refresh.
+    const prev = openPopup.current;
+    if (!selectedId) lastAutoOpen.current = null;
+    if (selectedId && selEntry?.kind === 'fe' && lastAutoOpen.current !== selectedId) {
+      lastAutoOpen.current = selectedId;
+      showPopup(selectedId);
+    } else if (prev && popups.has(prev.id) && (prev.kind !== 'fe' || prev.id === selectedId)) {
+      showPopup(prev.id);
+    } else {
+      infoWin.current?.close();
+      openPopup.current = null;
+    }
 
-  const popupHtml = (name:string, role:string, color:string, status:string, zone?:string, checkinAt?:string, engagements?:number, tff?:number, battery?:number, lastSeen?:string, device?:string, os?:string, off?:{label:string;since:string}|null) => {
-    const diff = lastSeen ? Math.round((new Date().getTime() - new Date(lastSeen).getTime()) / 60000) : null;
-    const isStale = off != null || (diff != null && diff > 10);
-
-    return `<div style="font-family:DM Sans,sans-serif;font-size:12px;color:var(--text);background:var(--s1);padding:10px 12px;border-radius:12px;min-width:180px;border:1px solid ${isStale?C.red+'30':C.border}">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start">
-        <div style="font-weight:700;margin-bottom:2px;color:${isStale?C.gray:C.white}">${name}</div>
-        ${off ? `<div style="font-size:10px;font-weight:700;color:${C.grayd}">Last known</div>`
-              : (diff != null ? `<div style="font-size:10px;font-weight:600;color:${isStale?C.red:C.green}">${diff === 0 ? 'Live Now' : `${diff}m ago`}</div>` : '')}
-      </div>
-      <div style="color:var(--text-dim);font-size:11px;margin-bottom:8px">${role}${zone?` · ${zone}`:''}</div>
-      ${off ? `<div style="display:flex;align-items:center;gap:5px;font-size:10px;font-weight:700;color:${C.red};background:${C.red}1a;border:1px solid ${C.red}44;border-radius:6px;padding:3px 7px;margin-bottom:6px">📍✕ ${off.label}${off.since ? ` · since ${off.since} ago` : ''}</div>` : ''}
-      ${(device || os) ? `<div style="color:var(--text-dim);font-size:10px;margin-bottom:6px;display:flex;align-items:center;gap:4px">📱 ${device || 'Device'}${os ? ` · Android ${os}` : ''}</div>` : ''}
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;gap:8px">
-        <div style="display:inline-flex;padding:2px 8px;border-radius:20px;background:${color}20;color:${color};font-size:10px;font-weight:700;text-transform:capitalize">${status.replace('_',' ')}</div>
-        ${battery != null ? `<div style="font-size:10px;color:${battery < 20 ? C.red : C.green};display:flex;align-items:center;gap:3px;background:${battery < 20 ? C.redD : C.greenD};padding:2px 6px;border-radius:6px">🔋 ${battery}%</div>` : ''}
-      </div>
-    </div>`;
-  };
+  }, [mapLoaded, fes, supervisors, outlets, warehouses, activeLayers, selectedId, onSelect, trail, trailColor, trailPoints, trailRows, snappedPath]);
 
   return (
     <>
@@ -463,6 +663,91 @@ function LiveMap({
         </div>
       )}
     </>
+  );
+}
+
+/* ── Where is this person? ── */
+
+/** One-line place for a sidebar row: the short place name, or the coordinates
+ *  until/unless a name resolves. Looks up lazily — only once the row has
+ *  scrolled into view — so a long list doesn't geocode everyone at once. */
+function PlaceLine({ lat, lng }: { lat: number; lng: number }) {
+  const [ref, seen] = useSeen<HTMLDivElement>();
+  const { place, loading } = usePlaceName(lat, lng, seen);
+  return (
+    <div ref={ref} title={place ? `${place.full}\n${formatLatLng(lat, lng)}` : formatLatLng(lat, lng)}
+      style={{ fontSize:10, color:C.gray, marginTop:2, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+      📍 {place ? place.short : (loading ? 'Locating…' : formatLatLngShort(lat, lng))}
+    </div>
+  );
+}
+
+/** Full "last known location" card for the selected rep: place name,
+ *  coordinates (copyable), when + how it was captured, and a Maps link. */
+function LocationBlock({ fe }: { fe: FELoc }) {
+  const { place, loading } = usePlaceName(fe.lat, fe.lng);
+  const [copied, setCopied] = useState(false);
+  if (fe.lat == null || fe.lng == null) return null;
+
+  const off = locationOff(fe);
+  const seen = capturedAt(fe);
+  const note = sourceNote(fe);
+  const src = fe.location_source ? SOURCE_LABEL[fe.location_source] : null;
+  const fresh = !off && !note && !!seen && Date.now() - new Date(seen).getTime() <= 10 * 60000;
+  const coords = formatLatLng(fe.lat, fe.lng);
+  const copy = () => {
+    try {
+      navigator.clipboard?.writeText(coords).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }).catch(() => {});
+    } catch { /* clipboard blocked — the coordinates are selectable text anyway */ }
+  };
+
+  return (
+    <div style={{ flexBasis:'100%', background:C.s3, border:`1px solid ${C.border}`, borderRadius:12,
+      padding:'10px 14px', display:'flex', gap:18, flexWrap:'wrap', alignItems:'flex-start' }}>
+      <div style={{ flex:'1 1 280px', minWidth:0 }}>
+        <div style={{ fontSize:9, fontWeight:700, letterSpacing:'0.7px', textTransform:'uppercase', color:C.grayd }}>
+          {fresh ? 'Current location' : 'Last known location'}
+        </div>
+        <div style={{ fontSize:13, fontWeight:600, color:C.white, marginTop:3, lineHeight:1.35 }}>
+          {place ? place.full : (loading ? <span style={{ color:C.gray, fontWeight:500 }}>Looking up place name…</span>
+            : <span style={{ color:C.gray, fontWeight:500 }}>Place name unavailable — showing coordinates</span>)}
+        </div>
+        <div style={{ display:'flex', alignItems:'center', gap:10, flexWrap:'wrap', marginTop:4 }}>
+          <span style={{ fontFamily:'ui-monospace,SFMono-Regular,Menlo,monospace', fontSize:12, color:C.gray, userSelect:'all' }}>{coords}</span>
+          <button onClick={copy}
+            style={{ background:'transparent', border:`1px solid ${C.border}`, borderRadius:6, padding:'2px 8px',
+              fontSize:10, fontWeight:600, color:copied ? C.green : C.gray, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
+            {copied ? 'Copied' : 'Copy'}
+          </button>
+          <a href={googleMapsUrl(fe.lat, fe.lng)} target="_blank" rel="noopener noreferrer"
+            style={{ fontSize:11, fontWeight:600, color:C.blue, textDecoration:'none' }}>
+            Open in Google Maps ↗
+          </a>
+        </div>
+      </div>
+      <div style={{ flex:'0 1 auto', fontSize:11, color:C.gray, lineHeight:1.5 }}>
+        {src && (
+          <div><span style={{ color:C.grayd }}>Source </span>
+            <span style={{ color: fe.location_source === 'live' ? C.green : C.yellow, fontWeight:700 }}>{src}</span>
+            {fe.location_source === 'live' && fe.location_accuracy_m != null && <span> · ±{Math.round(fe.location_accuracy_m)} m</span>}
+          </div>
+        )}
+        {seen && (
+          <div><span style={{ color:C.grayd }}>Captured </span>
+            <span style={{ color:C.white, fontWeight:600 }}>{fmtIst(seen)} IST</span>
+            {agoText(seen) && <span> · {agoText(seen)}</span>}
+          </div>
+        )}
+        {off && (
+          <div style={{ color:C.red, fontWeight:600 }}>📍✕ {off.label}{off.since ? ` since ${off.since} ago` : ''} — last known fix, not live</div>
+        )}
+      </div>
+      {note && (
+        <div style={{ flexBasis:'100%', fontSize:11, color:C.yellow, background:C.yellowD, borderRadius:8, padding:'5px 10px' }}>
+          ⚠️ {note}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -487,7 +772,7 @@ export default function LiveTrackingPage() {
   const [selectedType, setSelectedType] = useState<string|null>(null);
   const [selectedTrail, setSelectedTrail] = useState<TrailPoint[]>([]);
   // Trail time-window: which day's captured pings to draw for the selected FE.
-  const [trailDate,    setTrailDate]    = useState<string>(() => new Date().toISOString().slice(0, 10));
+  const [trailDate,    setTrailDate]    = useState<string>(() => istDay(0));
 
   const [lowBatteryFilter,    setLowBatteryFilter]    = useState(false);
   const [lowBatteryDismissed, setLowBatteryDismissed] = useState(false);
@@ -675,9 +960,10 @@ export default function LiveTrackingPage() {
     outline:'none', colorScheme:'dark' as any,
   };
 
-  // Trail time-window quick options (UTC dates, matching the trail fetch).
-  const todayISO     = new Date().toISOString().slice(0, 10);
-  const yesterdayISO = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  // Trail time-window quick options — IST calendar days, matching the trail
+  // endpoint's day window.
+  const todayISO     = istDay(0);
+  const yesterdayISO = istDay(1);
 
   return (
     <>
@@ -850,6 +1136,7 @@ export default function LiveTrackingPage() {
                               </span>
                             )); })()}
                         </div>
+                        {fe.lat && fe.lng ? <PlaceLine lat={fe.lat} lng={fe.lng}/> : null}
                       </div>
                       <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:3 }}>
                         <Dot color={STATUS_COLOR[fe.status]||C.grayd} size={7}/>
@@ -1135,6 +1422,7 @@ export default function LiveTrackingPage() {
                       </button>
                     )}
                     {!selFE.lat && <div style={{ fontSize:11, color:C.yellow, padding:'4px 10px', background:C.yellowD, borderRadius:8 }}>⚠️ No GPS</div>}
+                    <LocationBlock fe={selFE}/>
                   </>
                 )}
 

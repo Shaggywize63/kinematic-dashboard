@@ -22,7 +22,7 @@ export const WHATS_NEW: Record<string, { since: string; note?: string }> = {
   // Field Force
   '/dashboard/expenses':                     { since: '2026-10-05', note: 'Receipt upload, multiple policies, approve / reject with remarks' },
   '/dashboard/attendance-overview':          { since: '2026-08-18', note: 'Face-recognition attendance' },
-  '/dashboard/live-tracking':                { since: '2026-08-18', note: 'GPS-spoof detection' },
+  '/dashboard/live-tracking':                { since: '2026-10-05', note: 'Place names, exact coordinates & clickable trail pings' },
   '/dashboard/beat-productivity':            { since: '2026-08-18', note: 'Beat productivity' },
   // Planograms
   '/dashboard/planograms':                   { since: '2026-08-18', note: 'Stock count + POSM compliance' },
