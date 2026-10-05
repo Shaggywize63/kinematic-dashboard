@@ -29,6 +29,39 @@ export const addDaysIso = (iso: string, days: number): string => {
   return d.toISOString().slice(0, 10);
 };
 
+/** Add whole months, clamping the day to the target month (Jan 31 + 1m → Feb 28). */
+export const addMonthsIso = (iso: string, months: number): string => {
+  const [y, m, dd] = iso.split('-').map(Number);
+  const total = (m - 1) + months;
+  const ty = y + Math.floor(total / 12);
+  const tm0 = ((total % 12) + 12) % 12;
+  const last = new Date(Date.UTC(ty, tm0 + 1, 0)).getUTCDate();
+  const day = Math.min(dd, last);
+  return `${String(ty).padStart(4, '0')}-${String(tm0 + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+};
+
+// Recurring-invoice date math — a client mirror of the backend's recurrence.ts,
+// so the form can preview the next invoice date. The server recomputes on save.
+export type RecurrenceInterval = 'weekly' | 'monthly' | 'quarterly' | 'half_yearly' | 'yearly' | 'custom';
+export interface RecurrencePreviewSpec { interval: RecurrenceInterval; customEvery?: number | null; customUnit?: 'day' | 'month' | null }
+const REC_MONTHS: Record<string, number> = { monthly: 1, quarterly: 3, half_yearly: 6, yearly: 12 };
+
+export function addRecurrence(iso: string, spec: RecurrencePreviewSpec): string {
+  if (spec.interval === 'weekly') return addDaysIso(iso, 7);
+  if (spec.interval === 'custom') {
+    const n = Math.max(1, Math.floor(num(spec.customEvery, 1)));
+    return spec.customUnit === 'day' ? addDaysIso(iso, n) : addMonthsIso(iso, n);
+  }
+  return addMonthsIso(iso, REC_MONTHS[spec.interval] ?? 1);
+}
+
+/** First occurrence strictly after `today`, anchored to `start`'s cadence (mirror of firstFutureFrom). */
+export function nextInvoiceDatePreview(start: string, spec: RecurrencePreviewSpec, today: string): string {
+  let next = addRecurrence(start, spec);
+  for (let i = 0; i < 600 && next <= today; i++) next = addRecurrence(next, spec);
+  return next;
+}
+
 export interface DraftLine {
   item_id?: string | null;
   name: string;
