@@ -20,7 +20,7 @@ import 'react-resizable/css/styles.css';
 import AnalyticsWidget from './AnalyticsWidget';
 import CustomChartBuilder from './CustomChartBuilder';
 import { WIDGET_CATALOG, widgetByType, type WidgetMeta, type ChartType } from '../../../lib/crm/widgetCatalog';
-import { crmDashboardLayouts, type DashboardConfig, type WidgetInstance, type GridItem } from '../../../lib/crmAnalyticsExtApi';
+import { crmDashboardLayouts, sameLayouts, type DashboardConfig, type WidgetInstance, type GridItem } from '../../../lib/crmAnalyticsExtApi';
 import { toast } from 'sonner';
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
@@ -176,8 +176,16 @@ export default function LeadAnalyticsSection() {
   const editCustom = (widget: WidgetInstance) => setBuilder(widget);
 
   const onLayoutChange = (_: Layout[], allLayouts: Layouts) => {
-    setConfig((c) => ({ ...c, layouts: allLayouts as DashboardConfig['layouts'] }));
-    dirty.current = true;
+    // RGL fires this on every reconcile, not just real drags/resizes. Commit
+    // (and mark dirty for the debounced save) ONLY when the layout actually
+    // changed — otherwise the config churns, the derived `layouts` prop gets a
+    // new reference, and RGL re-fires into an infinite render loop that freezes
+    // the page. Returning the same `c` reference makes React bail the update.
+    setConfig((c) => {
+      if (sameLayouts(c.layouts, allLayouts as DashboardConfig['layouts'])) return c;
+      dirty.current = true;
+      return { ...c, layouts: allLayouts as DashboardConfig['layouts'] };
+    });
   };
 
   if (loading) {

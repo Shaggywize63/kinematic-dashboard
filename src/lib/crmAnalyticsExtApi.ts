@@ -79,6 +79,40 @@ export interface WidgetInstance { id: string; widget_type: string; chart_type: s
 export interface DashboardConfig { widgets: WidgetInstance[]; layouts: { lg?: GridItem[]; md?: GridItem[]; sm?: GridItem[] } }
 export type LayoutPage = 'analytics' | 'overview' | 'ffm';
 
+/**
+ * True when two layout maps are equal in the only fields that matter
+ * (i/x/y/w/h per breakpoint), ignoring react-grid-layout's injected churn
+ * (`moved`, `static`, `isDraggable`, …).
+ *
+ * This is the guard that breaks the RGL feedback loop that froze the dashboard:
+ * `ResponsiveGridLayout` fires `onLayoutChange` with a fresh object on every
+ * reconcile — including when nothing moved. Committing that to state churns the
+ * config, the derived `layouts` prop gets a new reference, RGL reconciles again
+ * and re-fires → an infinite render loop that locks the main thread ("page stops
+ * responding"). It's independent of dataset size, which is why it reliably hit
+ * the demo and any real account whose grid has widgets. Callers use this to skip
+ * the state update when the layout is unchanged.
+ */
+type LayoutsShape = { lg?: GridItem[]; md?: GridItem[]; sm?: GridItem[] };
+export function sameLayouts(a?: LayoutsShape | null, b?: LayoutsShape | null): boolean {
+  const breakpoints = ['lg', 'md', 'sm'] as const;
+  for (const bp of breakpoints) {
+    const ax = a?.[bp];
+    const bx = b?.[bp];
+    if (!ax || !bx) {
+      if (Boolean(ax) !== Boolean(bx)) return false; // one has the breakpoint, the other doesn't
+      continue;
+    }
+    if (ax.length !== bx.length) return false;
+    const byId = new Map(ax.map((it) => [it.i, it]));
+    for (const it of bx) {
+      const o = byId.get(it.i);
+      if (!o || o.x !== it.x || o.y !== it.y || o.w !== it.w || o.h !== it.h) return false;
+    }
+  }
+  return true;
+}
+
 export const crmDashboardLayouts = {
   get: (page: LayoutPage) => api.get<Wrapped<DashboardConfig>>(`${LAYOUT_BASE}/${page}`),
   save: (page: LayoutPage, config: DashboardConfig) => api.put<Wrapped<DashboardConfig>>(`${LAYOUT_BASE}/${page}`, config),
