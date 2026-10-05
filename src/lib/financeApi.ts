@@ -57,6 +57,8 @@ export type DisplayStatus = InvoiceStatus | QuoteStatus | 'overdue' | 'expired';
 export interface DocLine {
   id?: string; item_id?: string | null; name: string; description?: string | null; hsn_sac?: string | null; unit?: string | null;
   quantity: number; rate: number; discount_pct: number; gst_rate: number;
+  /** Billing duration in months; rate is per month. null/absent = one-time. */
+  duration_months?: number | null;
   taxable_value?: number; cgst?: number; sgst?: number; igst?: number; total?: number;
 }
 export interface DocRow {

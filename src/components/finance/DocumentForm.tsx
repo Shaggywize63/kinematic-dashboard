@@ -11,21 +11,24 @@ import SendDialog from './SendDialog';
 import {
   Address, DocDetail, DocInput, DocLine, FinanceCustomer, FinanceItem, FinanceSettings, financeApi,
 } from '../../lib/financeApi';
-import { addDaysIso, computeDraft, num, todayIso } from '../../lib/financeFormat';
+import { DURATION_PRESETS, addDaysIso, computeDraft, durationOf, num, todayIso } from '../../lib/financeFormat';
 import { GST_STATES, GST_STATE_OPTIONS, stateCodeForName } from '../../lib/gstStates';
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 interface Line {
   key: string; item_id: string | null; name: string; description: string; hsn_sac: string; unit: string;
   quantity: string; rate: string; discount_pct: string; gst_rate: string;
+  /** '' = one-time; otherwise whole months (1, 3, 6, 12, …). The rate is per month. */
+  duration: string;
 }
 let seq = 0;
 const newKey = () => `l${++seq}`;
-const blankLine = (): Line => ({ key: newKey(), item_id: null, name: '', description: '', hsn_sac: '', unit: '', quantity: '1', rate: '', discount_pct: '0', gst_rate: '18' });
+const blankLine = (): Line => ({ key: newKey(), item_id: null, name: '', description: '', hsn_sac: '', unit: '', quantity: '1', rate: '', discount_pct: '0', gst_rate: '18', duration: '' });
 const isBlank = (l: Line) => !l.name.trim() && !l.description.trim() && !l.rate.trim() && !l.hsn_sac.trim() && !l.item_id;
 const fromDocLine = (l: DocLine): Line => ({
   key: newKey(), item_id: l.item_id ?? null, name: l.name ?? '', description: l.description ?? '', hsn_sac: l.hsn_sac ?? '', unit: l.unit ?? '',
   quantity: String(num(l.quantity, 1)), rate: String(num(l.rate)), discount_pct: String(num(l.discount_pct)), gst_rate: String(num(l.gst_rate)),
+  duration: durationOf(l.duration_months) ? String(durationOf(l.duration_months)) : '',
 });
 
 const GST_RATES = [0, 0.25, 3, 5, 12, 18, 28];
@@ -119,7 +122,7 @@ function ItemTypeahead({ value, onText, onPick, invalid, label }: {
 
 // ── one line row ────────────────────────────────────────────────────────────
 const numStyle: CSSProperties = { textAlign: 'right' };
-const LINE_COLS = 'minmax(0,3fr) 72px 100px 76px 92px 108px 32px';
+const LINE_COLS = 'minmax(0,3fr) 72px 132px 100px 76px 92px 108px 32px';
 
 function LineRow({ line, index, compact, errs, amount, taxExempt, canRemove, onChange, onPick, onRemove }: {
   line: Line; index: number; compact: boolean; errs?: { name?: string; qty?: string; rate?: string; disc?: string };
@@ -150,7 +153,20 @@ function LineRow({ line, index, compact, errs, amount, taxExempt, canRemove, onC
       {rates.map((r) => <option key={r} value={String(r)}>{r}%</option>)}
     </Select>
   );
-  const amountCell = <div style={{ textAlign: 'right', fontWeight: 600, fontVariantNumeric: 'tabular-nums', color: T.text, fontSize: 14 }}>{inr(amount)}</div>;
+  const months = durationOf(line.duration);
+  const durOptions = months && !DURATION_PRESETS.some((p) => p.months === months) ? [...DURATION_PRESETS, { months, label: `${months} months` }] : DURATION_PRESETS;
+  const duration = (
+    <Select value={months ? String(months) : ''} onChange={(e) => onChange({ duration: e.target.value })} aria-label={`Duration, line ${n}`}>
+      <option value="">One-time</option>
+      {durOptions.map((p) => <option key={p.months} value={String(p.months)}>{p.label}</option>)}
+    </Select>
+  );
+  const amountCell = (
+    <div style={{ textAlign: 'right' }}>
+      <div style={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums', color: T.text, fontSize: 14 }}>{inr(amount)}</div>
+      {months && <div style={{ fontSize: 11, color: T.mute, marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>{num(line.quantity, 1)} × {num(line.rate)} × {months} mo</div>}
+    </div>
+  );
   const remove = (
     <Button variant="ghost" size="sm" onClick={onRemove} disabled={!canRemove} aria-label={`Remove line ${n}`} title="Remove line" style={{ padding: 0, width: 30 }}>✕</Button>
   );
@@ -164,7 +180,7 @@ function LineRow({ line, index, compact, errs, amount, taxExempt, canRemove, onC
         </div>
         {nameCell}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          {lab('Qty', qty, errs?.qty)}{lab('Rate', rate, errs?.rate)}{lab('Discount %', disc, errs?.disc)}{lab('GST %', gst)}
+          {lab('Qty', qty, errs?.qty)}{lab('Duration', duration)}{lab('Rate (per month if a duration is set)', rate, errs?.rate)}{lab('Discount %', disc, errs?.disc)}{lab('GST %', gst)}
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, color: T.dim }}>Amount{amountCell}</div>
       </div>
@@ -174,6 +190,7 @@ function LineRow({ line, index, compact, errs, amount, taxExempt, canRemove, onC
     <div style={{ display: 'grid', gridTemplateColumns: LINE_COLS, gap: 8, alignItems: 'start', padding: '10px 0', borderBottom: `1px solid ${T.border}` }}>
       {nameCell}
       <div>{qty}{errs?.qty && <div style={{ fontSize: 11.5, color: T.red, marginTop: 4 }}>{errs.qty}</div>}</div>
+      <div>{duration}</div>
       <div>{rate}{errs?.rate && <div style={{ fontSize: 11.5, color: T.red, marginTop: 4 }}>{errs.rate}</div>}</div>
       <div>{disc}{errs?.disc && <div style={{ fontSize: 11.5, color: T.red, marginTop: 4 }}>{errs.disc}</div>}</div>
       {gst}
@@ -308,7 +325,7 @@ export default function DocumentForm({ type, mode, initial, initialCustomerId }:
 
   // ── live totals ──
   const calc = useMemo(() => computeDraft(
-    lines.map((l) => ({ ...l, quantity: l.quantity.trim() === '' ? 0 : l.quantity, gst_rate: taxExempt ? 0 : l.gst_rate })),
+    lines.map((l) => ({ ...l, quantity: l.quantity.trim() === '' ? 0 : l.quantity, gst_rate: taxExempt ? 0 : l.gst_rate, duration_months: l.duration })),
     { sellerStateCode: settings?.state_code ?? initial?.seller_state_code, placeOfSupply: place || null, adjustment: num(adjustment), taxExempt },
   ), [lines, settings, initial, place, adjustment, taxExempt]);
   const t = calc.totals;
@@ -363,6 +380,7 @@ export default function DocumentForm({ type, mode, initial, initialCustomerId }:
       name: l.name.trim(), description: l.description.trim() || null, hsn_sac: l.hsn_sac.trim() || null, unit: l.unit.trim() || null,
       quantity: num(l.quantity), rate: num(l.rate), discount_pct: Math.min(100, Math.max(0, num(l.discount_pct))),
       gst_rate: taxExempt ? 0 : Math.max(0, num(l.gst_rate)),
+      duration_months: durationOf(l.duration),
     }));
     const payload: DocInput = {
       customer_id: customerId as string,
@@ -459,7 +477,7 @@ export default function DocumentForm({ type, mode, initial, initialCustomerId }:
         <Section eyebrow="Item table" first style={{ paddingBottom: 0 }}>
           {!compactLines && (
             <div style={{ display: 'grid', gridTemplateColumns: LINE_COLS, gap: 8, fontSize: 11.5, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: T.mute, borderBottom: `1px solid ${T.border}`, paddingBottom: 8 }}>
-              <span>Item details</span><span style={{ textAlign: 'right' }}>Qty</span><span style={{ textAlign: 'right' }}>Rate</span>
+              <span>Item details</span><span style={{ textAlign: 'right' }}>Qty</span><span>Duration</span><span style={{ textAlign: 'right' }}>Rate</span>
               <span style={{ textAlign: 'right' }}>Disc %</span><span>GST</span><span style={{ textAlign: 'right' }}>Amount</span><span />
             </div>
           )}
