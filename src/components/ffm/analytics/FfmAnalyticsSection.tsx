@@ -25,7 +25,7 @@ import {
   FFM_WIDGET_CATALOG, ffmWidgetByType, ffmDatasetById, fetchFfmDataset,
   type FfmWidgetMeta, type FfmWidgetType,
 } from '../../../lib/ffmAnalyticsConfig';
-import { crmDashboardLayouts, type DashboardConfig, type WidgetInstance, type GridItem } from '../../../lib/crmAnalyticsExtApi';
+import { crmDashboardLayouts, sameLayouts, type DashboardConfig, type WidgetInstance, type GridItem } from '../../../lib/crmAnalyticsExtApi';
 import type { ChartType } from '../../../lib/crm/widgetCatalog';
 import FfmCustomChartBuilder from './FfmCustomChartBuilder';
 
@@ -171,8 +171,16 @@ export default function FfmAnalyticsSection() {
   };
 
   const onLayoutChange = (_: Layout[], allLayouts: Layouts) => {
-    setConfig((c) => ({ ...c, layouts: allLayouts as DashboardConfig['layouts'] }));
-    dirty.current = true;
+    // RGL fires this on every reconcile, not just real drags/resizes. Commit
+    // (and mark dirty for the debounced save) ONLY when the layout actually
+    // changed — otherwise the config churns, the derived `layouts` prop gets a
+    // new reference, and RGL re-fires into an infinite render loop that freezes
+    // the page. Returning the same `c` reference makes React bail the update.
+    setConfig((c) => {
+      if (sameLayouts(c.layouts, allLayouts as DashboardConfig['layouts'])) return c;
+      dirty.current = true;
+      return { ...c, layouts: allLayouts as DashboardConfig['layouts'] };
+    });
   };
 
   if (loading) {
