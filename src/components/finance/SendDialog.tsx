@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { Button, Field, Input, Textarea, T } from '../ui';
 import { Modal, fail } from './ui';
 import { financeApi, SendResult } from '../../lib/financeApi';
+import { downloadBlob } from '../../lib/financeFormat';
 
 const EMAIL_RE = /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/;
 
@@ -40,8 +41,17 @@ export default function SendDialog({ type, doc, onClose, onSent }: SendDialogPro
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<{ to?: string; cc?: string }>({});
   const [result, setResult] = useState<SendResult | null>(null);
+  const [dl, setDl] = useState(false);
 
   const api = type === 'invoice' ? financeApi.invoices : financeApi.quotes;
+
+  // Download the PDF before sending — lets the user review / keep a copy first.
+  const download = async () => {
+    setDl(true);
+    try { downloadBlob(await api.pdf(doc.id), `${doc.number}.pdf`); }
+    catch (err) { fail(err, 'Could not download the PDF'); }
+    finally { setDl(false); }
+  };
 
   const submit = async () => {
     const ccList = cc.split(/[,;\s]+/).map((s) => s.trim()).filter(Boolean);
@@ -101,6 +111,7 @@ export default function SendDialog({ type, doc, onClose, onSent }: SendDialogPro
   return (
     <Modal title={`Send ${label} ${doc.number}`} onClose={busy ? () => undefined : onClose} width={560}
       footer={<>
+        <Button onClick={download} disabled={busy || dl} style={{ marginRight: 'auto' }}>{dl ? 'Preparing…' : 'Download PDF'}</Button>
         <Button onClick={onClose} disabled={busy}>Cancel</Button>
         <Button variant="primary" onClick={submit} disabled={busy}>{busy ? 'Sending…' : 'Send'}</Button>
       </>}>

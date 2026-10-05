@@ -204,6 +204,11 @@ export default function DocumentDetail({ type, id }: { type: 'invoice' | 'quote'
           Created from a quote. <Link href={`/dashboard/finance/quotes/${doc.source_quote_id}`} style={{ color: T.info }}>View quote</Link>
         </div>
       )}
+      {isInvoice && doc.recurrence_enabled && doc.next_invoice_date && (
+        <div role="status" style={{ padding: '10px 14px', borderRadius: T.radius.md, background: T.infoWash, color: T.info, fontSize: 13.5 }}>
+          Recurring invoice — the next one is due to be raised on <b>{fmtDate(doc.next_invoice_date)}</b>. We’ll remind you then.
+        </div>
+      )}
       {error && <div role="alert" style={{ fontSize: 13, color: T.red }}>Could not refresh: {error}</div>}
 
       <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'minmax(0,1fr) 340px', gap: 18, alignItems: 'start' }}>

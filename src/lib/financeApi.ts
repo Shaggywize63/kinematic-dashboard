@@ -61,7 +61,18 @@ export interface DocLine {
   duration_months?: number | null;
   taxable_value?: number; cgst?: number; sgst?: number; igst?: number; total?: number;
 }
-export interface DocRow {
+export type RecurrenceInterval = 'weekly' | 'monthly' | 'quarterly' | 'half_yearly' | 'yearly' | 'custom';
+/** Recurring-invoice schedule stored on an invoice. next_invoice_date is derived server-side. */
+export interface Recurrence {
+  recurrence_enabled: boolean;
+  recurrence_interval: RecurrenceInterval | null;
+  recurrence_custom_every: number | null;
+  recurrence_custom_unit: 'day' | 'month' | null;
+  recurrence_start: string | null;
+  next_invoice_date: string | null;
+  recurrence_reminder_email: boolean;
+}
+export interface DocRow extends Partial<Recurrence> {
   id: string; number: string; doc_type: 'invoice' | 'quote'; reference_number: string | null; status: string; display_status: DisplayStatus;
   customer_id: string; customer_snapshot: { name?: string; email?: string; gstin?: string; phone?: string; company_name?: string };
   issue_date: string; due_date: string | null; expiry_date: string | null; total: number; amount_paid: number; balance: number;
@@ -80,6 +91,13 @@ export interface DocInput {
   customer_id: string; reference_number?: string | null; subject?: string | null; issue_date?: string; due_date?: string | null; expiry_date?: string | null;
   payment_terms_days?: number; place_of_supply?: string | null; bill_to?: Address; ship_to?: Address; items: DocLine[];
   adjustment?: number; adjustment_label?: string | null; notes?: string | null; terms?: string | null;
+  // Recurring invoice (invoices only); next_invoice_date is derived server-side.
+  recurrence_enabled?: boolean;
+  recurrence_interval?: RecurrenceInterval | null;
+  recurrence_custom_every?: number | null;
+  recurrence_custom_unit?: 'day' | 'month' | null;
+  recurrence_start?: string | null;
+  recurrence_reminder_email?: boolean;
 }
 export interface SendInput { to?: string; cc?: string[]; subject?: string; message?: string; attach_pdf?: boolean }
 export interface SendResult { document: DocDetail; delivery: { to: string; provider: string; live: boolean }; link: string }
