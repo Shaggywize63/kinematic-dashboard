@@ -64,6 +64,7 @@ export default function SendDialog({ type, doc, onClose, onSent }: SendDialogPro
     if (e.to || e.cc) return;
 
     setBusy(true);
+    let keepBusy = false;
     try {
       const body = {
         to: to.trim(),
@@ -75,6 +76,8 @@ export default function SendDialog({ type, doc, onClose, onSent }: SendDialogPro
       const r = (await api.send(doc.id, body)).data;
       if (r.delivery.live) {
         toast.success(`${label[0].toUpperCase()}${label.slice(1)} ${doc.number} sent to ${r.delivery.to}`);
+        // Stay "busy" from here on: the dialog is closing, so a second click on Send must not email the customer twice.
+        keepBusy = true;
         onSent(r);
         onClose();
       } else {
@@ -85,7 +88,7 @@ export default function SendDialog({ type, doc, onClose, onSent }: SendDialogPro
     } catch (err) {
       fail(err, `Could not send the ${label}`);
     } finally {
-      setBusy(false);
+      if (!keepBusy) setBusy(false);
     }
   };
 

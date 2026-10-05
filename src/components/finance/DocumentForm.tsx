@@ -614,7 +614,7 @@ export default function DocumentForm({ type, mode, initial, initialCustomerId }:
       {sendDoc && (
         <SendDialog type={type} doc={sendDoc}
           onSent={() => undefined}
-          onClose={() => router.push(`${listPath}/${sendDoc.id}`)} />
+          onClose={() => { const id = sendDoc.id; setSendDoc(null); router.push(`${listPath}/${id}`); }} />
       )}
     </FinancePage>
   );
