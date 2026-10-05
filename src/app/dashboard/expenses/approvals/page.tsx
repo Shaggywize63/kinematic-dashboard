@@ -1,137 +1,202 @@
 'use client';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { Check, ClipboardCheck, X } from 'lucide-react';
 import { useCityScope } from '../../../../context/CityScopeContext';
-import {
-  expensesApi, FLAG_COLORS, CATEGORY_LABELS,
-  type ExpenseClaim, type Decision,
-} from '../../../../lib/expensesApi';
-import {
-  card, btnSmallSuccess, btnSmallDanger, btnSmallGhost,
-  StatusChip, PageHeader, ExpenseTabs, useExpenseRoles, fmtDate, money,
-} from '../_ui';
+import { Badge, Button, Card, EmptyState, Input, Segmented, T } from '../../../../components/ui';
+import { Col, DataTable, Modal, SearchBox, Toolbar } from '../../../../components/finance/ui';
+import { ExpensesShell, Field, FlagBadge, RemarkDialog, errText, fmtDate, money, useExpenseRoles } from '../../../../components/expenses/kit';
+import { ExpenseClaim, expensesApi } from '../../../../lib/expensesApi';
 
-export default function ExpenseApprovalsPage() {
-  const { canApprove, canAdmin } = useExpenseRoles();
+type Tab = 'review' | 'pay';
+
+export default function ApprovalsPage() {
+  const router = useRouter();
+  const { canAdmin } = useExpenseRoles();
   const { selectedCity } = useCityScope();
+  const [tab, setTab] = useState<Tab>('review');
   const [pending, setPending] = useState<ExpenseClaim[]>([]);
-  const [reimbursable, setReimbursable] = useState<ExpenseClaim[]>([]);
+  const [toPay, setToPay] = useState<ExpenseClaim[]>([]);
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState<Record<string, boolean>>({});
+  const [error, setError] = useState<string | null>(null);
+  const [q, setQ] = useState('');
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [rejecting, setRejecting] = useState<string[] | null>(null);
+  const [paying, setPaying] = useState<ExpenseClaim | null>(null);
+  const [ref, setRef] = useState('');
+  const [busy, setBusy] = useState(false);
 
+  // selectedCity is a dependency, so changing the global city picker refetches.
   const load = useCallback(async () => {
     setLoading(true);
+    setError(null);
+    const params: Record<string, string> = selectedCity ? { city: selectedCity } : {};
     try {
-      const params: Record<string, string> = {};
-      if (selectedCity) params.city = selectedCity;
-      const calls: Promise<any>[] = [expensesApi.listPending(params)];
-      if (canAdmin) calls.push(expensesApi.listAwaitingReimbursement(params));
-      const [p, r] = await Promise.allSettled(calls);
-      if (p.status === 'fulfilled') setPending(p.value.data || []);
-      if (r && r.status === 'fulfilled') setReimbursable(r.value.data || []);
-    } catch (e: any) { toast.error(e.message || 'Failed to load approvals'); }
+      const [p, r] = await Promise.all([
+        expensesApi.listPending(params),
+        canAdmin ? expensesApi.listAwaitingReimbursement(params) : Promise.resolve(null),
+      ]);
+      setPending(p.data ?? []);
+      setToPay(r?.data ?? []);
+      setPicked(new Set());
+    } catch (e) { setError(errText(e, 'Could not load the approval queue')); }
     finally { setLoading(false); }
   }, [selectedCity, canAdmin]);
-  // selectedCity is in load's deps → changing the global city picker refetches.
   useEffect(() => { load(); }, [load]);
 
-  const decide = async (id: string, decision: Decision) => {
-    const note = decision === 'rejected' ? (window.prompt('Rejection note (optional):') ?? undefined) : undefined;
-    setBusy((s) => ({ ...s, [id]: true }));
+  const match = useCallback((c: ExpenseClaim) => {
+    const t = q.trim().toLowerCase();
+    return !t || [c.user_name, c.employee_id, c.claim_no, c.title].some((v) => (v ?? '').toLowerCase().includes(t));
+  }, [q]);
+  const rows = useMemo(() => pending.filter(match), [pending, match]);
+  const payRows = useMemo(() => toPay.filter(match), [toPay, match]);
+  const flaggedHigh = (c: ExpenseClaim) => (c.ai_flags ?? []).some((f) => f.severity === 'high');
+
+  const toggle = (id: string) => setPicked((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const allOn = rows.length > 0 && rows.every((r) => picked.has(r.id));
+  const toggleAll = () => setPicked(allOn ? new Set() : new Set(rows.map((r) => r.id)));
+
+  const approve = async (ids: string[]) => {
+    setBusy(true);
     try {
-      const r = await expensesApi.decideClaim(id, { decision, note: note || undefined });
-      toast.success(r.data?.status === 'submitted' ? 'Approved — escalated to the next manager' : `Claim ${decision}`);
-      load();
-    } catch (e: any) { toast.error(e.message || 'Action failed'); }
-    finally { setBusy((s) => ({ ...s, [id]: false })); }
+      if (ids.length === 1) {
+        const r = await expensesApi.decideClaim(ids[0], { decision: 'approved' });
+        toast.success(r.data.escalated ? 'Approved — sent to the next manager' : 'Claim approved');
+      } else {
+        const { done, failed } = (await expensesApi.bulkDecide(ids, 'approved')).data;
+        if (failed.length) toast.error(`${done.length} approved, ${failed.length} failed — ${failed[0].error}`);
+        else toast.success(`${done.length} claims approved`);
+      }
+      await load();
+    } catch (e) { toast.error(errText(e, 'Could not approve')); }
+    finally { setBusy(false); }
   };
 
-  const reimburse = async (id: string) => {
-    const ref = window.prompt('Reimbursement reference (optional):') ?? undefined;
-    setBusy((s) => ({ ...s, [id]: true }));
+  const reject = async (ids: string[], remark: string) => {
+    setBusy(true);
     try {
-      await expensesApi.reimburse(id, ref || undefined);
-      toast.success('Marked reimbursed');
-      load();
-    } catch (e: any) { toast.error(e.message || 'Action failed'); }
-    finally { setBusy((s) => ({ ...s, [id]: false })); }
+      if (ids.length === 1) await expensesApi.decideClaim(ids[0], { decision: 'rejected', note: remark });
+      else {
+        const { done, failed } = (await expensesApi.bulkDecide(ids, 'rejected', remark)).data;
+        if (failed.length) toast.error(`${done.length} rejected, ${failed.length} failed — ${failed[0].error}`);
+      }
+      toast.success(ids.length === 1 ? 'Rejected — the claimant can see your remark' : 'Rejected — the claimants can see your remark');
+      setRejecting(null);
+      await load();
+    } catch (e) { toast.error(errText(e, 'Could not reject')); }
+    finally { setBusy(false); }
   };
 
-  const ClaimRow = ({ c, actions }: { c: ExpenseClaim; actions: React.ReactNode }) => (
-    <div style={{ padding: 12, background: 'var(--s3)', borderRadius: 8, display: 'flex', alignItems: 'flex-start', gap: 10, flexWrap: 'wrap' }}>
-      <div style={{ flex: 1, minWidth: 240 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
-          {c.user_name || 'Team member'}
-          <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--text-dim)', fontWeight: 500 }}>
-            {money(c.total_amount, c.currency)} · {c.claim_no || fmtDate(c.submitted_at || c.created_at)}
-            {c.current_level > 1 ? ` · level ${c.current_level}` : ''}
-          </span>
-        </div>
-        {c.ai_summary && <div style={{ fontSize: 11.5, color: 'var(--text-dim)', marginTop: 3 }}>🧠 {c.ai_summary}</div>}
-        {Array.isArray(c.ai_flags) && c.ai_flags.length > 0 && (
-          <div style={{ display: 'flex', gap: 6, marginTop: 5, flexWrap: 'wrap' }}>
-            {c.ai_flags.map((f, i) => (
-              <span key={i} title={f.detail} style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 999, border: `1px solid ${FLAG_COLORS[f.severity]}`, color: FLAG_COLORS[f.severity] }}>
-                {f.code.replace(/_/g, ' ')}
-              </span>
-            ))}
-          </div>
-        )}
-        {c.distance_km != null && (
-          <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 4 }}>
-            Mileage claimed <strong style={{ color: 'var(--text)' }}>{c.distance_km} km</strong>
-            {c.gps_derived_km != null && <> · GPS trail <strong style={{ color: 'var(--text)' }}>{c.gps_derived_km} km</strong></>}
-          </div>
-        )}
-      </div>
-      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>{actions}</div>
+  const pay = async () => {
+    if (!paying) return;
+    setBusy(true);
+    try {
+      await expensesApi.reimburse(paying.id, ref.trim() || undefined);
+      toast.success('Marked as reimbursed');
+      setPaying(null); setRef('');
+      await load();
+    } catch (e) { toast.error(errText(e, 'Could not mark it reimbursed')); }
+    finally { setBusy(false); }
+  };
+
+  const claimCell = (c: ExpenseClaim) => (
+    <div style={{ minWidth: 0 }}>
+      <div style={{ fontWeight: 600 }}>{c.title || c.claim_no || 'Expense claim'}</div>
+      <div style={{ fontSize: 12, color: T.mute }}>{c.claim_no && c.title ? `${c.claim_no} · ` : ''}{fmtDate(c.submitted_at || c.created_at)}{c.policy_name ? ` · ${c.policy_name}` : ''}</div>
     </div>
   );
+  const personCell = (c: ExpenseClaim) => (
+    <div><div style={{ fontWeight: 600 }}>{c.user_name || 'Team member'}</div>{c.employee_id && <div style={{ fontSize: 12, color: T.mute }}>{c.employee_id}</div>}</div>
+  );
+
+  const reviewCols: Col<ExpenseClaim>[] = [
+    { key: 'sel', label: <input type="checkbox" aria-label="Select all" checked={allOn} onChange={toggleAll} />, width: 40,
+      render: (c) => <span onClick={(e) => e.stopPropagation()}><input type="checkbox" aria-label={`Select ${c.claim_no ?? 'claim'}`} checked={picked.has(c.id)} onChange={() => toggle(c.id)} /></span> },
+    { key: 'user', label: 'Claimant', render: personCell },
+    { key: 'claim', label: 'Claim', render: claimCell },
+    { key: 'amount', label: 'Amount', align: 'right', render: (c) => <strong>{money(c.total_amount, c.currency)}</strong> },
+    { key: 'checks', label: 'Policy checks', nowrap: false, render: (c) => {
+      const f = c.ai_flags ?? [];
+      return f.length === 0 ? <Badge tone="ok">Clear</Badge> : (
+        <span style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap' }}>
+          {f.slice(0, 2).map((x, i) => <FlagBadge key={i} flag={x} />)}{f.length > 2 && <Badge>+{f.length - 2}</Badge>}
+        </span>
+      );
+    } },
+    { key: 'act', label: '', align: 'right', render: (c) => (
+      <span style={{ display: 'inline-flex', gap: 6 }} onClick={(e) => e.stopPropagation()}>
+        <Button size="sm" onClick={() => router.push(`/dashboard/expenses/${c.id}`)}>Review</Button>
+        <Button size="sm" variant="primary" disabled={busy || flaggedHigh(c)} title={flaggedHigh(c) ? 'Open the claim to review the flagged points' : 'Approve every line'} onClick={() => approve([c.id])}>Approve</Button>
+        <Button size="sm" variant="danger" disabled={busy} onClick={() => setRejecting([c.id])}>Reject</Button>
+      </span>
+    ) },
+  ];
+
+  const payCols: Col<ExpenseClaim>[] = [
+    { key: 'user', label: 'Claimant', render: personCell },
+    { key: 'claim', label: 'Claim', render: claimCell },
+    { key: 'approved', label: 'Approved', render: (c) => fmtDate(c.reviewed_at) },
+    { key: 'amount', label: 'To pay', align: 'right', render: (c) => <strong>{money(c.approved_amount ?? c.total_amount, c.currency)}</strong> },
+    { key: 'act', label: '', align: 'right', render: (c) => <span onClick={(e) => e.stopPropagation()}><Button size="sm" variant="primary" onClick={() => setPaying(c)}>Mark paid</Button></span> },
+  ];
+
+  const list = tab === 'review' ? rows : payRows;
+  const pickedIds = rows.filter((r) => picked.has(r.id)).map((r) => r.id);
+  const pickedFlagged = rows.some((r) => picked.has(r.id) && flaggedHigh(r));
 
   return (
-    <div>
-      <PageHeader title="Expense Approvals" subtitle="Review claims routed to you up the reporting line. High-value claims escalate to the next manager after you approve." />
-      <ExpenseTabs active="approvals" canApprove={canApprove} canAdmin={canAdmin} />
-
-      <div style={{ ...card, marginBottom: 14 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 12 }}>Awaiting your approval ({pending.length})</div>
-        {loading && pending.length === 0 ? (
-          <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>Loading…</div>
-        ) : pending.length === 0 ? (
-          <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>Nothing awaiting approval.</div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {pending.map((c) => (
-              <ClaimRow key={c.id} c={c} actions={
-                <>
-                  <button style={{ ...btnSmallSuccess, opacity: busy[c.id] ? 0.5 : 1 }} disabled={!!busy[c.id]} onClick={() => decide(c.id, 'approved')}>Approve</button>
-                  <button style={{ ...btnSmallDanger, opacity: busy[c.id] ? 0.5 : 1 }} disabled={!!busy[c.id]} onClick={() => decide(c.id, 'rejected')}>Reject</button>
-                </>
-              } />
-            ))}
-          </div>
+    <ExpensesShell tab="approvals" title="Approvals" description="Review what your team has claimed. Every rejection needs a remark, and the claimant sees it in their app.">
+      <Toolbar>
+        {canAdmin && (
+          <Segmented<Tab> value={tab} onChange={setTab} options={[
+            { value: 'review', label: `To review${pending.length ? ` (${pending.length})` : ''}` },
+            { value: 'pay', label: `Ready to pay${toPay.length ? ` (${toPay.length})` : ''}` },
+          ]} />
         )}
-      </div>
+        <SearchBox value={q} onChange={setQ} placeholder="Search by name, employee ID or claim no." />
+        {selectedCity && <Badge>{selectedCity}</Badge>}
+      </Toolbar>
 
-      {canAdmin && (
-        <div style={card}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 12 }}>Approved — awaiting reimbursement ({reimbursable.length})</div>
-          {reimbursable.length === 0 ? (
-            <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>Nothing to reimburse.</div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {reimbursable.map((c) => (
-                <ClaimRow key={c.id} c={c} actions={
-                  <>
-                    <StatusChip status={c.status} />
-                    <button style={{ ...btnSmallGhost, opacity: busy[c.id] ? 0.5 : 1 }} disabled={!!busy[c.id]} onClick={() => reimburse(c.id)}>Mark reimbursed</button>
-                  </>
-                } />
-              ))}
-            </div>
-          )}
-        </div>
+      {tab === 'review' && pickedIds.length > 0 && (
+        <Card padding={12} style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', background: T.panel }}>
+          <span style={{ fontSize: 13.5, fontWeight: 600, color: T.text }}>{pickedIds.length} selected</span>
+          <span style={{ flex: 1 }} />
+          <Button size="sm" variant="primary" icon={<Check size={14} strokeWidth={2} />} disabled={busy || pickedFlagged}
+            title={pickedFlagged ? 'Some selected claims have flagged points — review those individually' : undefined} onClick={() => approve(pickedIds)}>Approve selected</Button>
+          <Button size="sm" variant="danger" icon={<X size={14} strokeWidth={2} />} disabled={busy} onClick={() => setRejecting(pickedIds)}>Reject selected</Button>
+          <Button size="sm" variant="ghost" onClick={() => setPicked(new Set())}>Clear</Button>
+        </Card>
       )}
-    </div>
+
+      {error ? (
+        <Card><EmptyState title="Couldn’t load the queue" description={error} action={<Button onClick={load}>Try again</Button>} /></Card>
+      ) : !loading && list.length === 0 && !q ? (
+        <Card><EmptyState icon={<ClipboardCheck size={20} strokeWidth={1.5} />} title={tab === 'review' ? 'Nothing waiting for you' : 'No approved claims to pay'}
+          description={tab === 'review' ? 'New claims from your team appear here as soon as they are submitted.' : 'Approved claims show up here until you mark them reimbursed.'} /></Card>
+      ) : (
+        <Card padding={0} style={{ overflow: 'hidden' }}>
+          <DataTable<ExpenseClaim> columns={tab === 'review' ? reviewCols : payCols} rows={list} loading={loading}
+            empty="No claims match your search." onRowClick={(c) => router.push(`/dashboard/expenses/${c.id}`)} />
+        </Card>
+      )}
+
+      {rejecting && (
+        <RemarkDialog title={rejecting.length === 1 ? 'Reject this claim' : `Reject ${rejecting.length} claims`} confirmLabel="Reject" busy={busy} label="Reason for rejecting"
+          placeholder="Say what is wrong and what to fix, e.g. “Receipt missing for the hotel bill.”"
+          intro={rejecting.length === 1 ? 'The claimant sees this remark in their app and can fix the claim and resubmit it.' : 'The same remark goes to every claimant. To explain each one separately, open the claims individually.'}
+          onCancel={() => setRejecting(null)} onConfirm={(remark) => reject(rejecting, remark)} />
+      )}
+
+      {paying && (
+        <Modal title="Mark as reimbursed" onClose={() => setPaying(null)} width={440}
+          footer={<><Button onClick={() => setPaying(null)}>Cancel</Button><Button variant="primary" disabled={busy} onClick={pay}>{busy ? 'Saving…' : `Confirm ${money(paying.approved_amount ?? paying.total_amount, paying.currency)} paid`}</Button></>}>
+          <div style={{ fontSize: 13.5, color: T.dim, marginBottom: 14 }}>{paying.user_name} · {paying.claim_no || paying.title}</div>
+          <Field label="Payment reference" hint="Optional — a UTR, cheque number or payroll batch. The claimant sees it.">
+            <Input autoFocus value={ref} onChange={(e) => setRef(e.target.value)} maxLength={120} placeholder="e.g. UTR 4021…" />
+          </Field>
+        </Modal>
+      )}
+    </ExpensesShell>
   );
 }
