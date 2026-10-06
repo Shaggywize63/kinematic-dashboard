@@ -13,7 +13,8 @@ import {
   crmEmailCampaigns,
   type EmailCampaign, type EmailCampaignRecipient, type EmailCampaignAnalytics,
 } from '../../../../../lib/crmApi';
-import { resolveApiUrl } from '../../../../../lib/api';
+import api from '../../../../../lib/api';
+import { downloadBlob } from '../../../../../lib/financeFormat';
 
 const C = {
   s2: 'var(--s2)', s3: 'var(--s3)', s4: 'var(--s4)',
@@ -29,23 +30,18 @@ const REC_COLOR: Record<EmailCampaignRecipient['status'], string> = {
   queued: C.grayd, sending: C.amber, sent: C.green, failed: C.red, skipped: C.gray,
 };
 
-// Authenticated CSV download (the export endpoint needs the bearer + org headers).
-function downloadCsv(path: string, filename: string) {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('kinematic_token') : null;
-  const orgRaw = typeof window !== 'undefined' ? localStorage.getItem('kinematic_user') : null;
-  const orgId = orgRaw ? (JSON.parse(orgRaw)?.org_id ?? null) : null;
-  const headers: Record<string, string> = {};
-  if (token) headers.Authorization = `Bearer ${token}`;
-  if (orgId) headers['X-Org-Id'] = orgId;
-  fetch(`${resolveApiUrl()}${path}`, { headers })
-    .then((r) => r.blob())
-    .then((blob) => {
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = filename; a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-    })
-    .catch(() => alert('Export failed'));
+// Authenticated CSV download. Goes through api.download so the request carries
+// EVERY tenant header (Authorization, X-Org-Id, X-Client-Id and — critically —
+// X-Kinematic-Project), refreshes an expired token, and reports a failed export
+// instead of saving the error body as a ".csv". The old hand-rolled fetch sent
+// only the token + org, so for a campaign in a non-default project the server
+// looked in the wrong database and the download silently produced nothing.
+async function downloadCsv(path: string, filename: string) {
+  try {
+    downloadBlob(await api.download(path), filename);
+  } catch (e) {
+    alert(e instanceof Error && e.message ? `Export failed: ${e.message}` : 'Export failed');
+  }
 }
 
 function Stat({ label, value, color }: { label: string; value: number | string; color?: string }) {
