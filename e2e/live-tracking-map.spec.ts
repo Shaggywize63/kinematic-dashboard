@@ -74,6 +74,13 @@ const gm = <T,>(page: Page, fn: string) => page.evaluate(fn) as Promise<T>;
 
 test.describe('Live Trailing map (stand-in Maps SDK)', () => {
   test.beforeEach(async ({ page }) => {
+    // The demo trail is generated from the wall clock (pings every 10 min from
+    // ~09:10 up to "now"), so at night it collapses to a single ping and the
+    // trail tests would fail depending on WHEN CI runs. Pin the browser's clock
+    // to mid-afternoon on the same day: Date only — timers keep running.
+    const afternoon = new Date();
+    afternoon.setHours(14, 30, 0, 0);
+    await page.clock.setFixedTime(afternoon);
     await page.addInitScript(FAKE_MAPS);
     await demoLogin(page);
     await page.goto('/dashboard/live-tracking');
