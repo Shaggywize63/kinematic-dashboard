@@ -29,6 +29,11 @@ import {
   mockTeamDaily, mockSuggestFromUpdate,
 } from './demo/demoExtrasSeed';
 import type { ConversationRow } from './conversationsApi';
+import {
+  DEMO_AUTOPLAN_METHODS, DEMO_VEHICLE_TYPES, getDemoPolicy, setDemoPolicy,
+  listDemoFieldExecs, setDemoFieldExecBase, buildDemoTeamPlan, runDemoTeamPlan,
+  type DemoUser,
+} from './demo/routeAutoplanDemo';
 
 // Conversation rows must be stable across list → detail navigation, but the
 // active vertical can change at runtime — cache per seed identity.
@@ -1820,6 +1825,15 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
       return wrap({ data: [], total: 0 }) as unknown as T;
     }
     if (path === '/broadcast/admin') return mockBroadcastAdmin() as unknown as T;
+    // Automated Route Plans (/dashboard/route-automation): the method catalog,
+    // saved policy and each rep's location readiness. Served in full so the demo
+    // shows every method + vehicle option a real account has.
+    if (path === '/route-plans/autoplan/methods')
+      return wrap({ methods: DEMO_AUTOPLAN_METHODS, vehicle_types: DEMO_VEHICLE_TYPES }) as unknown as T;
+    if (path === '/route-plans/autoplan/policy')
+      return wrap(getDemoPolicy()) as unknown as T;
+    if (path === '/route-plans/autoplan/field-execs')
+      return wrap(listDemoFieldExecs(((mockUsers() as { data?: DemoUser[] })?.data ?? []))) as unknown as T;
     if (path === '/route-plans/summary')     return wrap(ROUTE_PLAN_SUMMARY) as unknown as T;
     if (path === '/route-plans/esg-summary') return wrap(ROUTE_PLAN_ESG) as unknown as T;
     // Route Deviations (module route_deviation). Previously unmocked, so the
@@ -2158,6 +2172,19 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
       (ACTIVE_ROUTE_PLANS as unknown as Array<Record<string, unknown>>).unshift(newPlan);
       return wrap({ plan_id: newPlan.id, replaced: 0, ...draft }) as unknown as T;
     }
+    // Automated Route Plans — save policy / set a rep's base / preview / assign.
+    // Errors are thrown so the page shows the same messages as a real account.
+    if (m === 'PUT' && path === '/route-plans/autoplan/policy')
+      return wrap(setDemoPolicy(bodyObj)) as unknown as T;
+    if (m === 'PUT' && path === '/route-plans/autoplan/fe-location')
+      return wrap(setDemoFieldExecBase(((mockUsers() as { data?: DemoUser[] })?.data ?? []), bodyObj)) as unknown as T;
+    if (m === 'POST' && path === '/route-plans/autoplan/preview')
+      return wrap(buildDemoTeamPlan(((mockUsers() as { data?: DemoUser[] })?.data ?? []), bodyObj)) as unknown as T;
+    if (m === 'POST' && path === '/route-plans/autoplan/run')
+      return wrap(runDemoTeamPlan(
+        ACTIVE_ROUTE_PLANS as unknown as Array<Record<string, unknown>>,
+        ((mockUsers() as { data?: DemoUser[] })?.data ?? []), bodyObj,
+      )) as unknown as T;
     if (m === 'POST' && path === '/route-plans/optimize') {
       const outlets = ((bodyObj as { outlets?: Array<{ id: string }> }).outlets) ?? [];
       const original_km  = +(outlets.length * 5.2).toFixed(1);
