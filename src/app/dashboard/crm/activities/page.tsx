@@ -5,9 +5,10 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { crmActivities, crmLeads, type Pagination, type ActivityView, type ActivitySummary } from '../../../../lib/crmApi';
-import api, { API_BASE_URL } from '../../../../lib/api';
+import api, { EXPORT_TIMEOUT_MS } from '../../../../lib/api';
+import { downloadBlob } from '../../../../lib/financeFormat';
 import type { Activity } from '../../../../types/crm';
-import { getStoredUser, canAccess, getStoredToken } from '../../../../lib/auth';
+import { getStoredUser, canAccess } from '../../../../lib/auth';
 import UserSearchSelect, { type UserOption } from '../../../../components/crm/shared/UserSearchSelect';
 import CustomFieldsSection from '../../../../components/crm/CustomFieldsSection';
 import { ActivityTypeIcon, activityTypeEmoji } from '../../../../components/crm/shared/ActivityTypeIcon';
@@ -169,35 +170,17 @@ function ActivitiesPageInner() {
         setExporting(false);
         return;
       }
-      const url = `${API_BASE_URL}/api/v1/crm/activities/export${qs.toString() ? `?${qs.toString()}` : ''}`;
-      const token = getStoredToken();
-      // Forward BOTH the auth bearer AND the active X-Client-Id picker
-      // value (super_admin uses this to scope to one tenant). Raw fetch
-      // bypasses api.ts so we have to attach the header manually —
-      // without it the export ignores the client filter and returns
-      // every tenant's activities.
-      const headers: Record<string, string> = {};
-      if (token) headers.Authorization = `Bearer ${token}`;
-      try {
-        const sel = window.localStorage.getItem('kinematic_selected_client');
-        if (sel && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sel)) {
-          headers['X-Client-Id'] = sel;
-        }
-      } catch { /* ignore */ }
-      const res = await fetch(url, { headers });
-      if (!res.ok) throw new Error(`Export failed (HTTP ${res.status})`);
-      const blob = await res.blob();
-      const objUrl = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = objUrl;
-      a.download = `activities-${new Date().toISOString().slice(0, 10)}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(objUrl);
+      // api.download: current token (auto-renewed on 401) + org / client / project
+      // headers. The old raw fetch omitted X-Kinematic-Project, so a non-default
+      // project's export was rejected with HTTP 401.
+      const blob = await api.download(
+        `/api/v1/crm/activities/export${qs.toString() ? `?${qs.toString()}` : ''}`,
+        { timeoutMs: EXPORT_TIMEOUT_MS },
+      );
+      downloadBlob(blob, `activities-${new Date().toISOString().slice(0, 10)}.csv`);
       toast.success('Activities exported');
     } catch (e: any) {
-      toast.error(e.message || 'Export failed');
+      toast.error(`Export failed: ${e?.message || 'unknown error'}`);
     } finally {
       setExporting(false);
     }

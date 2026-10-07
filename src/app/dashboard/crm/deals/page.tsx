@@ -11,9 +11,10 @@ import DealsTable, { DEAL_COLUMNS } from '../../../../components/crm/DealsTable'
 import DealEditModal from '../../../../components/crm/DealEditModal';
 import ViewCustomizer from '../../../../components/crm/shared/ViewCustomizer';
 import { useViewPrefs } from '../../../../lib/crmViewPrefs';
-import { getStoredUser, canAccess, getStoredToken, userHasModule } from '../../../../lib/auth';
+import { getStoredUser, canAccess, userHasModule } from '../../../../lib/auth';
 import { isKinematicTenant, isTataTiscanActive } from '../../../../lib/clientFeatures';
-import { API_BASE_URL } from '../../../../lib/api';
+import api, { EXPORT_TIMEOUT_MS } from '../../../../lib/api';
+import { downloadBlob } from '../../../../lib/financeFormat';
 import { Button, Card, EmptyState, Eyebrow, IconButton, Input, PageHeader, Segmented, Select, T, useIsCompact } from '../../../../components/ui';
 import { usePageTitle } from '../../../../lib/pageTitle';
 
@@ -63,10 +64,9 @@ function DealsListPage() {
   const [bulkBusy, setBulkBusy] = useState(false);
   const [exporting, setExporting] = useState(false);
 
-  // CSV download — mirrors the activities + leads export flows: raw
-  // fetch() to the backend, blob the response, click a synthesised
-  // anchor. Forward the auth bearer and the X-Client-Id picker so
-  // super_admin's tenant scope is honoured during the export.
+  // CSV download — api.download carries the current (auto-renewed) token and the
+  // org / client / project headers, so the tenant scope is honoured and a stale
+  // session recovers instead of failing with "Invalid or expired token".
   const handleExport = async () => {
     setExporting(true);
     try {
@@ -74,30 +74,14 @@ function DealsListPage() {
       if (q) qs.set('q', q);
       if (status) qs.set('status', status);
       if (pipelineId) qs.set('pipeline_id', pipelineId);
-      const url = `${API_BASE_URL}/api/v1/crm/deals/export${qs.toString() ? `?${qs.toString()}` : ''}`;
-      const token = getStoredToken();
-      const headers: Record<string, string> = {};
-      if (token) headers.Authorization = `Bearer ${token}`;
-      try {
-        const sel = window.localStorage.getItem('kinematic_selected_client');
-        if (sel && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sel)) {
-          headers['X-Client-Id'] = sel;
-        }
-      } catch { /* ignore */ }
-      const res = await fetch(url, { headers });
-      if (!res.ok) throw new Error(`Export failed (HTTP ${res.status})`);
-      const blob = await res.blob();
-      const objUrl = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = objUrl;
-      a.download = `deals-${new Date().toISOString().slice(0, 10)}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(objUrl);
+      const blob = await api.download(
+        `/api/v1/crm/deals/export${qs.toString() ? `?${qs.toString()}` : ''}`,
+        { timeoutMs: EXPORT_TIMEOUT_MS },
+      );
+      downloadBlob(blob, `deals-${new Date().toISOString().slice(0, 10)}.csv`);
       toast.success('Deals exported');
     } catch (e: any) {
-      toast.error(e.message || 'Export failed');
+      toast.error(`Export failed: ${e?.message || 'unknown error'}`);
     } finally {
       setExporting(false);
     }
