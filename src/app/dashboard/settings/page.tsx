@@ -281,13 +281,19 @@ export default function SettingsPage() {
   };
 
   const handleSaveUser = async () => {
-    if(!form.name || !form.mobile) return;
+    // A mobile number is optional; the person needs one of mobile / email to sign in.
+    if(!form.name || (!form.mobile.trim() && !form.email.trim())) {
+      alert('Name and either a mobile number or an email are required');
+      return;
+    }
     setSaving(true);
     try {
+      const { mobile: _m, email: _e, ...rest } = form;
       const payload = {
-        ...form,
-        // Sync email if blank
-        email: form.email || `${form.mobile}@kinematic.app`,
+        ...rest,
+        ...(form.mobile.trim() ? { mobile: form.mobile.trim() } : {}),
+        // Sync email if blank (only possible when there is a mobile)
+        ...((form.email.trim() || form.mobile.trim()) ? { email: form.email.trim() || `${form.mobile.trim()}@kinematic.app` } : {}),
         is_active: true
       };
 
@@ -564,7 +570,7 @@ export default function SettingsPage() {
               <div style={{ ...block, display: 'flex', flexDirection: 'column', gap: 18 }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   <Eyebrow>{editMode ? 'Edit administrator' : 'New administrator'}</Eyebrow>
-                  <div style={{ fontSize: 12.5, color: T.dim }}>Name and mobile are required. Module permissions are pre-filled from the role.</div>
+                  <div style={{ fontSize: 12.5, color: T.dim }}>Name and either a mobile number or an email are required. Module permissions are pre-filled from the role.</div>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : 'repeat(2, minmax(0, 1fr))', gap: '14px 16px' }}>
                   <Field label="Full name" required>
@@ -596,7 +602,7 @@ export default function SettingsPage() {
                   <Field label="Employee ID">
                     <Input value={form.employee_id} onChange={e=>setForm({...form, employee_id: e.target.value})} placeholder="e.g. ADM-001" />
                   </Field>
-                  <Field label="Mobile number" required>
+                  <Field label="Mobile number (optional)">
                     <Input value={form.mobile} onChange={e=>setForm({...form, mobile: e.target.value})} placeholder="10-digit mobile" maxLength={10} />
                   </Field>
                   <Field label="Login password">

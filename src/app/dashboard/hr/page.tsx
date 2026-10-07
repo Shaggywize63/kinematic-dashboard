@@ -1128,13 +1128,17 @@ function TeamSection({ users, zones, loading, error, onRefresh }:{
   };
 
   const doAdd = async () => {
-    if (!form.mobile || !/^\d{10}$/.test(form.mobile)) { setSaveErr('Enter a valid 10-digit mobile number'); return; }
-    // Mobile duplication check
-    const dupUser = users.find(u => u.mobile?.trim() === form.mobile.trim());
+    // A mobile number is optional; the person needs a mobile or an email to sign in.
+    const mobile = form.mobile.trim();
+    const email = form.email.trim();
+    if (!mobile && !email) { setSaveErr('Enter a mobile number or an email so the user can sign in'); return; }
+    if (mobile && !/^\d{10}$/.test(mobile)) { setSaveErr('Enter a valid 10-digit mobile number'); return; }
+    // Mobile duplication check (only when one was given)
+    const dupUser = mobile ? users.find(u => u.mobile?.trim() === mobile) : undefined;
     if (dupUser) { setSaveErr(`Mobile ${form.mobile} is already used by "${dupUser.name}"`); return; }
     setSaving(true); setSaveErr(null);
     try {
-      await api.post('/api/v1/users', form);
+      await api.post('/api/v1/users', { ...form, mobile: mobile || undefined, email: email || undefined });
       setSaveOk(true);
       setTimeout(()=>{ setSaveOk(false); setShowAdd(false); setForm(emptyForm); onRefresh(); }, 1400);
     } catch(e:any) { setSaveErr(e.message); } finally { setSaving(false); }
@@ -1284,7 +1288,7 @@ function TeamSection({ users, zones, loading, error, onRefresh }:{
             </div>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
               {FField('name','Full Name')}
-              {FField('mobile','Mobile Number','tel')}
+              {FField('mobile','Mobile Number (optional)','tel')}
               {FField('email','Email (optional)','email')}
               {FField('password','Password','password')}
               {FField('role','Role','text',[{v:'executive',l:'Field Executive'},{v:'supervisor',l:'Supervisor'},{v:'admin',l:'Admin'},{v:'program_manager',l:'Program Manager'},{v:'city_manager',l:'City Manager'}])}
@@ -1300,7 +1304,7 @@ function TeamSection({ users, zones, loading, error, onRefresh }:{
             {saveOk  && <div style={{ marginTop:14, background:C.greenD, border:`1px solid ${C.green}28`, borderRadius:10, padding:'10px 14px', fontSize:13, color:C.green }}>✓ User created!</div>}
             <div style={{ display:'flex', gap:10, marginTop:20 }}>
               <button style={btnSecondary} onClick={()=>setShowAdd(false)}>Cancel</button>
-              <button style={btnPrimary} onClick={doAdd} disabled={saving||!form.name||!form.mobile}>{saving?<Spin/>:'+ Create User'}</button>
+              <button style={btnPrimary} onClick={doAdd} disabled={saving||!form.name||(!form.mobile&&!form.email)}>{saving?<Spin/>:'+ Create User'}</button>
             </div>
           </div>
         </div>
@@ -1316,7 +1320,7 @@ function TeamSection({ users, zones, loading, error, onRefresh }:{
             </div>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
               {FField('name','Full Name')}
-              {FField('mobile','Mobile Number','tel')}
+              {FField('mobile','Mobile Number (optional)','tel')}
               {FField('email','Email','email')}
               {FField('role','Role','text',[{v:'executive',l:'Field Executive'},{v:'supervisor',l:'Supervisor'},{v:'admin',l:'Admin'},{v:'program_manager',l:'Program Manager'},{v:'city_manager',l:'City Manager'}])}
               {FField('employee_id','Employee ID')}
@@ -1327,7 +1331,7 @@ function TeamSection({ users, zones, loading, error, onRefresh }:{
             {saveOk  && <div style={{ marginTop:14, background:C.greenD, border:`1px solid ${C.green}28`, borderRadius:10, padding:'10px 14px', fontSize:13, color:C.green }}>✓ Saved!</div>}
             <div style={{ display:'flex', gap:10, marginTop:20 }}>
               <button style={btnSecondary} onClick={()=>setShowEdit(false)}>Cancel</button>
-              <button style={btnPrimary} onClick={doEdit} disabled={saving||!form.name||!form.mobile}>{saving?<Spin/>:'✓ Save Changes'}</button>
+              <button style={btnPrimary} onClick={doEdit} disabled={saving||!form.name}>{saving?<Spin/>:'✓ Save Changes'}</button>
             </div>
           </div>
         </div>
