@@ -14,8 +14,12 @@ import UserSearchSelect, { type UserOption } from '../../../../../components/crm
 import AlternateMobiles from '../../../../../components/crm/AlternateMobiles';
 import { InlineLeadVoiceCapture } from '../../../../../components/crm/VoiceCaptureOverlay';
 import ClientScopeField from '../../../../../components/ClientScopeField';
-import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '../../../../../lib/crmFieldOverrides';
+import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides, type FieldScope } from '../../../../../lib/crmFieldOverrides';
 import { extractLeadStatuses, type LeadStatusOption } from '../../../../../lib/crmLeadStatuses';
+import {
+  DEFAULT_LEAD_FORM, extractLeadForm, localDateTimeToIso, offersScheduleVisit, segmentName, segmentToggleLabel, showsAddress,
+  type LeadFormConfig,
+} from '../../../../../lib/crmLeadForm';
 import { DataCollectionConsent, NOTICE_VERSION } from '../../../../../components/crm/DataConsent';
 import { Button, Eyebrow, Field, FormGrid, Input, PageHeader, Section as FormSection, Segmented, Select, T, cardStyle, requiredMark, useIsCompact } from '../../../../../components/ui';
 import { usePageTitle } from '../../../../../lib/pageTitle';
@@ -239,6 +243,13 @@ export default function NewLeadPage() {
   // null means "use the built-in status list" (zero change for existing
   // tenants). Loaded from the SAME settings round-trip as fieldOverrides.
   const [leadStatuses, setLeadStatuses] = useState<LeadStatusOption[] | null>(null);
+  // Per-client lead-type names ("Dealer" / "Farmers"), B2B address block and the
+  // "Schedule visit" control (crm_settings.config.lead_form). Defaults to the
+  // legacy behaviour until the settings fetch resolves — and for any tenant
+  // that never configured it.
+  const [leadForm, setLeadForm] = useState<LeadFormConfig>(DEFAULT_LEAD_FORM);
+  // datetime-local value ("2026-10-12T10:30") for the optional scheduled visit.
+  const [visitAt, setVisitAt] = useState('');
   // DPDP §6 consent captured at collection. `consentRequired` mirrors the
   // per-tenant crm_settings.config.consent.lead_pii.required gate (default off:
   // notice shown + consent recorded, but not blocking).
@@ -247,9 +258,10 @@ export default function NewLeadPage() {
   // Pass the active B2C/B2B scope so overrides like "email required for
   // B2B only" or "last_name optional for B2C" take precedence over the
   // universal entry for the same field.
+  const scope: FieldScope = form.is_b2c ? 'b2c' : 'b2b';
   const fields = useMemo(
-    () => buildFieldHelpers(fieldOverrides, 'lead', form.is_b2c ? 'b2c' : 'b2b'),
-    [fieldOverrides, form.is_b2c],
+    () => buildFieldHelpers(fieldOverrides, 'lead', scope),
+    [fieldOverrides, scope],
   );
   // Business fields (company/title/industry) live on the B2B branch by
   // default. An admin can opt them onto B2C forms by explicitly un-hiding
@@ -333,6 +345,7 @@ export default function NewLeadPage() {
         if (t !== 'both') setForm((f) => ({ ...f, is_b2c: t === 'b2c' }));
         setFieldOverrides(extractFieldOverrides(s.value.data));
         setLeadStatuses(extractLeadStatuses(s.value.data));
+        setLeadForm(extractLeadForm(s.value.data));
         const cfg = (s.value.data as { config?: { consent?: { lead_pii?: { required?: boolean } } } } | undefined)?.config;
         setConsentRequired(cfg?.consent?.lead_pii?.required === true);
       }
@@ -497,9 +510,10 @@ export default function NewLeadPage() {
     if (
       !form.is_b2c &&
       !fields.isHidden('company') &&
+      fields.requiredFor('company', true) &&
       (!form.company || !form.company.trim())
     ) {
-      fail('lead-field-company', 'Company is required for B2B leads.');
+      fail('lead-field-company', `${fields.labelFor('company', 'Company')} is required for ${segmentName(leadForm, 'b2b')} leads.`);
       return;
     }
     // City is required on most leads — without it the per-user city
@@ -514,6 +528,29 @@ export default function NewLeadPage() {
       (!form.city || !form.city.trim())
     ) {
       fail('lead-field-city', 'City is required — pick from the city dropdown.');
+      return;
+    }
+    // Address line: enforced wherever the address block shows (B2C always, B2B
+    // when the client turned it on) and the admin marked it required — e.g. the
+    // Dealer / Farmers "Location" field.
+    if (
+      showsAddress(leadForm, scope) &&
+      !fields.isHidden('address_line1') &&
+      fields.requiredFor('address_line1', false) &&
+      (!form.address_line1 || !form.address_line1.trim())
+    ) {
+      fail('lead-field-address_line1', `${fields.labelFor('address_line1', 'Address line 1')} is required — search for it or type it in.`);
+      return;
+    }
+    // Scheduled visit (optional): a reminder for a time that has already gone
+    // would never fire, so ask for a future time instead of saving a dead visit.
+    const visitIso = offersScheduleVisit(leadForm, scope) ? localDateTimeToIso(visitAt) : null;
+    if (visitAt && offersScheduleVisit(leadForm, scope) && !visitIso) {
+      fail('lead-field-visit_at', 'Enter a valid visit date and time.');
+      return;
+    }
+    if (visitIso && new Date(visitIso).getTime() < Date.now() - 60_000) {
+      fail('lead-field-visit_at', 'Pick a visit time in the future — or clear it to save the lead without a visit.');
       return;
     }
     // Location is mandatory and auto-captured — block submit until we have it.
@@ -578,6 +615,27 @@ export default function NewLeadPage() {
           marketing_consent: form.marketing_consent, whatsapp_consent: form.whatsapp_consent,
         });
       }
+      // B2B address — only for clients that turned it on (lead_form.address_on_b2b).
+      // Hidden built-ins are not sent, same as the field-override contract.
+      if (!form.is_b2c && leadForm.addressOnB2b) {
+        const addr = (k: 'address_line1' | 'address_line2' | 'postal_code' | 'country') =>
+          (fields.isHidden(k) ? undefined : (form[k] || undefined));
+        Object.assign(payload, {
+          address_line1: addr('address_line1'), address_line2: addr('address_line2'),
+          postal_code: addr('postal_code'), country: addr('country'),
+        });
+      }
+      // Schedule visit: the server adds a planned meeting for the lead's owner
+      // and the activity reminder fires ~30 min before. Subject comes from the
+      // Description field when the client has one (e.g. "Dealer Visit — Shop").
+      if (visitIso) {
+        const desc = form.custom_fields['visit_description'];
+        const who = (form.company || [form.first_name, form.last_name].filter(Boolean).join(' ')).trim();
+        payload.schedule_visit = {
+          due_at: visitIso,
+          subject: typeof desc === 'string' && desc.trim() ? `${desc.trim()}${who ? ` — ${who}` : ''}` : undefined,
+        };
+      }
       // Tata Tiscon: backend pops this flag before persisting and atomically
       // spawns a completed `site_visit` activity tied to the new lead. Sent
       // only when the rep is on a Tata tenant + has the toggle on.
@@ -593,7 +651,9 @@ export default function NewLeadPage() {
       }
       payload._consent = { consented: dataConsent, method: 'web_form', notice_version: NOTICE_VERSION };
       const r = await crmLeads.create(payload);
-      toast.success('Lead created');
+      const visitError = (r.data as { scheduled_visit_error?: string } | undefined)?.scheduled_visit_error;
+      if (visitError) toast.warning(visitError);
+      toast.success(visitIso && !visitError ? 'Lead created and visit scheduled' : 'Lead created');
       // After creating a lead on Tata, ALWAYS hop to the activity
       // compose screen pre-filled with this lead + Meeting (matches
       // the user requirement: "Do not add the activity by default,
@@ -665,13 +725,63 @@ export default function NewLeadPage() {
 
   // Tata is consumer-only: hide the B2B/B2C toggle and force B2C (above).
   const showToggle = businessType === 'both' && !isTata;
-  const leadTypeLabel = businessType === 'b2c'
-    ? 'Individual consumer lead — capture contact details and preferences.'
-    : businessType === 'b2b'
-      ? 'Business lead — capture company and decision-maker info.'
-      : (form.is_b2c
-        ? 'Individual consumer lead — capture contact details and preferences.'
-        : 'Business lead — capture company and decision-maker info.');
+  // A client that renamed the lead types ("Dealer" / "Farmers") gets a caption in
+  // its own words; everyone else keeps the original wording.
+  const customTypeName = leadForm.segmentLabels[businessType === 'both' ? scope : businessType];
+  const leadTypeLabel = customTypeName
+    ? `${customTypeName} lead — add their details below.`
+    : businessType === 'b2c'
+      ? 'Individual consumer lead — capture contact details and preferences.'
+      : businessType === 'b2b'
+        ? 'Business lead — capture company and decision-maker info.'
+        : (form.is_b2c
+          ? 'Individual consumer lead — capture contact details and preferences.'
+          : 'Business lead — capture company and decision-maker info.');
+
+  // Address search + fields, shared by the B2C branch and (when the client turned
+  // it on) the B2B branch. Every row is gated through the field overrides.
+  const addressFields = () => (
+    <>
+      <GoogleAddressAutocomplete onSelect={(p) => setForm((f) => ({
+        ...f,
+        address_line1: p.address_line1 || f.address_line1,
+        city: p.city || f.city,
+        state: p.state || f.state,
+        postal_code: p.postal_code || f.postal_code,
+        latitude: p.latitude || f.latitude,
+        longitude: p.longitude || f.longitude,
+      }))} />
+      {text('address_line1', 'Address line 1')}{text('address_line2', 'Address line 2')}
+      {/* LocationPicker covers state + city. Hide it when the admin
+          has hidden the city built-in (state alone has no value). */}
+      {!fields.isHidden('city') && (
+        <div id="lead-field-city" style={{ display: 'contents' }}>
+          <LocationPicker stateValue={form.state} cityValue={form.city} onChange={({ state, city }) => setForm({ ...form, state, city })} required={fields.requiredFor('city', true)} />
+        </div>
+      )}
+      {text('postal_code', 'Postal code')}{text('country', 'Country')}
+    </>
+  );
+
+  // Optional "Schedule visit" (clients that enabled it for this lead type).
+  const scheduleVisitSection = offersScheduleVisit(leadForm, scope) ? (
+    <Section title="Schedule visit" hint="Adds the visit to Activities and reminds the owner 30 minutes before.">
+      <FormGrid narrow={narrow}>
+        <Field label="Visit date & time" htmlFor="lead-field-visit_at">
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <Input
+              id="lead-field-visit_at"
+              type="datetime-local"
+              value={visitAt}
+              onChange={(e) => setVisitAt(e.target.value)}
+              style={{ flex: 1, minWidth: 0 }}
+            />
+            {visitAt && <Button type="button" size="sm" onClick={() => setVisitAt('')}>Clear</Button>}
+          </div>
+        </Field>
+      </FormGrid>
+    </Section>
+  ) : null;
   const locationMissing = !skipLocation && (!form.latitude || !form.longitude);
   const submitDisabled = busy || locationMissing;
 
@@ -714,7 +824,7 @@ export default function NewLeadPage() {
             <Segmented
               value={form.is_b2c ? 'b2c' : 'b2b'}
               onChange={(v) => setForm({ ...form, is_b2c: v === 'b2c' })}
-              options={[{ value: 'b2b', label: 'B2B · Business' }, { value: 'b2c', label: 'B2C · Consumer' }]}
+              options={[{ value: 'b2b', label: segmentToggleLabel(leadForm, 'b2b') }, { value: 'b2c', label: segmentToggleLabel(leadForm, 'b2c') }]}
             />
           </div>
         )}
@@ -837,9 +947,16 @@ export default function NewLeadPage() {
                 />
               </FormGrid>
             </Section>
+            {/* Clients that turned on lead_form.address_on_b2b get the full
+                address block (search + fields) here, like the B2C form. */}
+            {leadForm.addressOnB2b && (
+              <Section title="Location" hint="Search an address to fill the pin, or type it in.">
+                <FormGrid narrow={narrow}>{addressFields()}</FormGrid>
+              </Section>
+            )}
             {/* City is required on B2B leads too — the per-user city-scope
                 filter applies to every lead row regardless of B2B/B2C. */}
-            {!fields.isHidden('city') && (
+            {!leadForm.addressOnB2b && !fields.isHidden('city') && (
               <Section title="Location" hint="Used for city scoping and route planning.">
                 <div id="lead-field-city" style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : 'repeat(2, minmax(0, 1fr))', gap: '16px 20px' }}>
                   <LocationPicker stateValue={form.state} cityValue={form.city} onChange={({ state, city }) => setForm({ ...form, state, city })} required={fields.requiredFor('city', true)} />
@@ -873,24 +990,7 @@ export default function NewLeadPage() {
                   the same reason they're in the B2B grid above — they
                   read as part of the form, not a footnote. */}
               <FormGrid narrow={narrow}>
-                <GoogleAddressAutocomplete onSelect={(p) => setForm((f) => ({
-                  ...f,
-                  address_line1: p.address_line1 || f.address_line1,
-                  city: p.city || f.city,
-                  state: p.state || f.state,
-                  postal_code: p.postal_code || f.postal_code,
-                  latitude: p.latitude || f.latitude,
-                  longitude: p.longitude || f.longitude,
-                }))} />
-                {text('address_line1', 'Address line 1')}{text('address_line2', 'Address line 2')}
-                {/* LocationPicker covers state + city. Hide it when the admin
-                    has hidden the city built-in (state alone has no value). */}
-                {!fields.isHidden('city') && (
-                  <div id="lead-field-city" style={{ display: 'contents' }}>
-                    <LocationPicker stateValue={form.state} cityValue={form.city} onChange={({ state, city }) => setForm({ ...form, state, city })} required={fields.requiredFor('city', true)} />
-                  </div>
-                )}
-                {text('postal_code', 'Postal code')}{text('country', 'Country')}
+                {addressFields()}
                 <CustomFieldsSection
                   entity="lead"
                   values={form.custom_fields}
@@ -914,6 +1014,8 @@ export default function NewLeadPage() {
             )}
           </>
         )}
+
+        {scheduleVisitSection}
 
         {/* DPDP §5/§6 — at-collection notice + primary consent for the lead's
             personal data. Always shown (B2B + B2C); recorded in the consent

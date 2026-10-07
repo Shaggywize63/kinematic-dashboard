@@ -30,6 +30,7 @@ import { isHorizonOrg } from '../../../../../lib/crmFeatureGates';
 import { ConsentCard } from '../../../../../components/crm/DataConsent';
 import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '../../../../../lib/crmFieldOverrides';
 import { extractLeadStatuses, type LeadStatusOption } from '../../../../../lib/crmLeadStatuses';
+import { DEFAULT_LEAD_FORM, extractLeadForm, segmentName, type LeadFormConfig } from '../../../../../lib/crmLeadForm';
 import { Avatar, Badge, Button, Card, EmptyState, Eyebrow, IconButton, PageHeader, T, cardStyle, useIsCompact } from '../../../../../components/ui';
 import { usePageTitle } from '../../../../../lib/pageTitle';
 import { ArrowRightLeft, Check, ChevronDown, Copy, FileText, Pencil, RotateCcw, Trash2, UserPlus, XCircle } from 'lucide-react';
@@ -84,9 +85,11 @@ export default function LeadDetailPage() {
   // Per-client custom lead-status set. Null = use the built-in list / tones
   // (no change for existing tenants). Loaded from the same settings fetch.
   const [leadStatuses, setLeadStatuses] = useState<LeadStatusOption[] | null>(null);
+  // Client's own names for the lead types ("Dealer" / "Farmers"); B2B / B2C otherwise.
+  const [leadForm, setLeadForm] = useState<LeadFormConfig>(DEFAULT_LEAD_FORM);
   useEffect(() => {
     crmSettings.get()
-      .then((r) => { setFieldOverrides(extractFieldOverrides(r.data)); setLeadStatuses(extractLeadStatuses(r.data)); })
+      .then((r) => { setFieldOverrides(extractFieldOverrides(r.data)); setLeadStatuses(extractLeadStatuses(r.data)); setLeadForm(extractLeadForm(r.data)); })
       .catch(() => { /* defaults: nothing hidden, built-in statuses */ });
   }, []);
   const fields = useMemo(
@@ -365,7 +368,7 @@ export default function LeadDetailPage() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <PageHeader
-        eyebrow={isB2C ? 'Consumer lead' : 'Business lead'}
+        eyebrow={leadForm.segmentLabels[isB2C ? 'b2c' : 'b2b'] ? `${segmentName(leadForm, isB2C ? 'b2c' : 'b2b')} lead` : (isB2C ? 'Consumer lead' : 'Business lead')}
         title={
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             {/* Inline per-field edit — change just the name in place. Saves first/last only. */}
@@ -388,7 +391,7 @@ export default function LeadDetailPage() {
                 }
               }}
             />
-            <Badge tone={isB2C ? 'neutral' : 'info'}>{isB2C ? 'B2C' : 'B2B'}</Badge>
+            <Badge tone={isB2C ? 'neutral' : 'info'}>{segmentName(leadForm, isB2C ? 'b2c' : 'b2b')}</Badge>
             {isConverted && <Badge tone="ok" dot>Converted</Badge>}
             {isUnqualified && <Badge tone="warn" dot>Unqualified</Badge>}
             {isLost && <Badge tone="red" dot>Lost</Badge>}

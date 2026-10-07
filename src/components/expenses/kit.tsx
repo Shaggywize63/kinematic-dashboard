@@ -7,7 +7,7 @@ import { cloneElement, isValidElement, ReactElement, ReactNode, useEffect, useId
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { toast } from 'sonner';
-import { AlertTriangle, Check, CircleDot, ExternalLink, FileText, Receipt, X } from 'lucide-react';
+import { AlertTriangle, Camera, Check, CircleDot, ExternalLink, FileText, Receipt, X } from 'lucide-react';
 import { Badge, Button, Card, Field as BaseField, PageHeader, Textarea, T, Tone, useIsCompact } from '../ui';
 import { Modal } from '../finance/ui';
 import {
@@ -181,6 +181,27 @@ export function ReceiptLink({ item, label = 'Receipt' }: { item: Pick<ClaimItem,
   );
 }
 
+/** Same idea for any stored photo (e.g. an odometer reading): shows nothing when there is none. */
+export function PhotoLink({ stored, signed, label, title }: { stored?: string | null; signed?: string | null; label: string; title: string }) {
+  const [open, setOpen] = useState(false);
+  if (!stored) return null;
+  return (
+    <>
+      <button type="button" onClick={() => (signed ? setOpen(true) : toast.error('This photo link has expired — reload the claim'))}
+        style={{ display: 'inline-flex', alignItems: 'center', gap: 5, border: 0, background: 'transparent', color: T.info, fontSize: 12.5, fontWeight: 600, cursor: 'pointer', padding: 0, fontFamily: 'inherit' }}>
+        <Camera size={14} strokeWidth={1.7} />{label}
+      </button>
+      {open && signed && <ReceiptViewer url={signed} title={title} onClose={() => setOpen(false)} />}
+    </>
+  );
+}
+
+/** "two_wheeler" → "Two wheeler" — the vehicle id is all a saved line carries. */
+export const vehicleName = (id?: string | null): string => {
+  const t = String(id ?? '').replace(/_/g, ' ').trim();
+  return t ? t.charAt(0).toUpperCase() + t.slice(1) : '';
+};
+
 // ── labelled field ──────────────────────────────────────────────────────────
 /**
  * The design-system Field, with the label tied to its control so clicking the
@@ -319,6 +340,14 @@ export function LineSummary({ item, currency }: { item: ClaimItem; currency: str
           {item.decision === 'approved' && <Badge tone="ok">Approved</Badge>}
         </div>
         {detail && <div style={{ fontSize: 13, color: T.dim, marginTop: 2, overflowWrap: 'anywhere' }}>{detail}</div>}
+        {item.category === 'mileage' && (item.vehicle_type || item.odometer_start != null || item.odometer_end != null) && (
+          <div style={{ fontSize: 13, color: T.dim, marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>
+            {[
+              item.vehicle_type ? vehicleName(item.vehicle_type) : null,
+              item.odometer_start != null || item.odometer_end != null ? `Odometer ${item.odometer_start ?? '—'} → ${item.odometer_end ?? '—'}` : null,
+            ].filter(Boolean).join(' · ')}
+          </div>
+        )}
         {rejected && item.decision_note && (
           <div style={{ marginTop: 6, fontSize: 13, color: T.text, padding: '6px 10px', background: T.redWash, borderRadius: T.radius.sm, overflowWrap: 'anywhere' }}>
             <strong style={{ color: T.red, fontWeight: 600 }}>Remark: </strong>{item.decision_note}
@@ -326,6 +355,8 @@ export function LineSummary({ item, currency }: { item: ClaimItem; currency: str
         )}
         <div style={{ marginTop: 6, display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center' }}>
           <ReceiptLink item={item} />
+          <PhotoLink stored={item.odometer_start_photo_url} signed={item.odometer_start_photo_signed_url} label="Odometer before" title="Odometer before the trip" />
+          <PhotoLink stored={item.odometer_end_photo_url} signed={item.odometer_end_photo_signed_url} label="Odometer after" title="Odometer after the trip" />
           {!item.receipt_url && item.category !== 'mileage' && <span style={{ fontSize: 12.5, color: T.mute, display: 'inline-flex', gap: 5, alignItems: 'center' }}><FileText size={13} strokeWidth={1.6} />No receipt</span>}
           {item.flagged && item.flag_reason && <span style={{ fontSize: 12.5, color: T.warn }}>{item.flag_reason}</span>}
         </div>

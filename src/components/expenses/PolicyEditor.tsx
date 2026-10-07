@@ -16,6 +16,7 @@ import { ExpensesShell, Field, errText } from './kit';
 import { usePageTitle } from '../../lib/pageTitle';
 
 // ── form model ──────────────────────────────────────────────────────────────
+interface VehicleForm { id?: string; label: string; rate: string }
 interface CatForm { enabled: boolean; per_day_limit: string; per_claim_limit: string; per_month_limit: string; receipt_required_over: string }
 interface Form {
   name: string; description: string; is_active: boolean; priority: string; currency: string;
@@ -24,6 +25,8 @@ interface Form {
   mileage_rate: string; receipt_required_over: string; max_claim_amount: string; submit_within_days: string;
   auto_approve_under: string; escalate_over: string; enforcement: 'flag' | 'block';
   categories: Record<ItemCategory, CatForm>;
+  // Travel allowance by vehicle — empty list = the flat mileage rate applies as before.
+  vehicles: VehicleForm[]; odometer_photos_required: boolean;
 }
 
 const s = (v: number | null | undefined) => (v == null ? '' : String(v));
@@ -43,6 +46,8 @@ const withRules = (f: Form, r: PolicyRules): Form => ({
   mileage_rate: s(r.mileage_rate), receipt_required_over: s(r.receipt_required_over), max_claim_amount: s(r.max_claim_amount),
   submit_within_days: s(r.submit_within_days), auto_approve_under: s(r.auto_approve_under), escalate_over: s(r.escalate_over),
   enforcement: r.enforcement, categories: catForms(r.categories),
+  vehicles: (r.vehicle_rates ?? []).map((v) => ({ id: v.id, label: v.label, rate: String(v.rate_per_km) })),
+  odometer_photos_required: r.odometer_photos_required !== false,
 });
 
 const EMPTY: Form = {
@@ -50,6 +55,7 @@ const EMPTY: Form = {
   everyone: true, roles: [], org_role_ids: [], user_ids: [], effective_from: '', effective_to: '',
   mileage_rate: '12', receipt_required_over: '500', max_claim_amount: '', submit_within_days: '', auto_approve_under: '0', escalate_over: '',
   enforcement: 'flag', categories: catForms(),
+  vehicles: [], odometer_photos_required: true,
 };
 
 function fromPolicy(p: ExpensePolicy): Form {
@@ -78,6 +84,11 @@ function toInput(f: Form): PolicyInput {
       mileage_rate: num(f.mileage_rate) ?? 0, receipt_required_over: num(f.receipt_required_over) ?? 0, max_claim_amount: num(f.max_claim_amount),
       submit_within_days: num(f.submit_within_days) != null ? Math.round(num(f.submit_within_days)!) : null,
       auto_approve_under: num(f.auto_approve_under) ?? 0, escalate_over: num(f.escalate_over), enforcement: f.enforcement, categories: categories as NonNullable<PolicyInput['rules']>['categories'],
+      // Always sent (an empty list clears the vehicles) so removing the last one sticks.
+      vehicle_rates: f.vehicles
+        .filter((v) => v.label.trim() && num(v.rate) != null)
+        .map((v) => ({ ...(v.id ? { id: v.id } : {}), label: v.label.trim(), rate_per_km: num(v.rate)! })),
+      odometer_photos_required: f.odometer_photos_required,
     },
   };
 }
@@ -177,6 +188,11 @@ export default function PolicyEditor({ policyId }: { policyId?: string }) {
     });
   };
 
+  const setVehicle = (i: number, p: Partial<VehicleForm>) =>
+    set({ vehicles: form.vehicles.map((v, j) => (j === i ? { ...v, ...p } : v)) });
+  const addVehicle = () => set({ vehicles: [...form.vehicles, { label: '', rate: '' }] });
+  const removeVehicle = (i: number) => set({ vehicles: form.vehicles.filter((_, j) => j !== i) });
+
   const toggleRole = (role: string) => set({ roles: form.roles.includes(role) ? form.roles.filter((r) => r !== role) : [...form.roles, role] });
   const toggleOrgRole = (id: string) => set({ org_role_ids: form.org_role_ids.includes(id) ? form.org_role_ids.filter((r) => r !== id) : [...form.org_role_ids, id] });
 
@@ -184,6 +200,8 @@ export default function PolicyEditor({ policyId }: { policyId?: string }) {
     if (!form.name.trim()) return 'Give the policy a name';
     if (!form.everyone && !form.roles.length && !form.org_role_ids.length && !form.user_ids.length) return 'Choose who this policy applies to';
     if (form.effective_from && form.effective_to && form.effective_to < form.effective_from) return 'The end date is before the start date';
+    const half = form.vehicles.find((v) => !!v.label.trim() !== (v.rate.trim() !== ''));
+    if (half) return half.label.trim() ? `Enter a per-km cost for “${half.label.trim()}”` : 'Name the vehicle type that has a per-km cost';
     return null;
   }, [form]);
 
@@ -286,6 +304,29 @@ export default function PolicyEditor({ policyId }: { policyId?: string }) {
             <Field label="Second approver over" hint="Bigger claims also need the next manager up."><Amount value={form.escalate_over} onChange={(v) => set({ escalate_over: v })} prefix="₹" placeholder="Never" label="Second approver over" /></Field>
             <Field label="Submit within" hint="Older expenses are flagged as late."><Amount value={form.submit_within_days} onChange={(v) => set({ submit_within_days: v.replace(/\./g, '') })} placeholder="No limit" suffix="days" label="Submit within days" /></Field>
           </FormGrid>
+        </Section>
+      </Card>
+
+      <Card padding={20}>
+        <Section first eyebrow="Travel allowance by vehicle" hint="Optional. Add the vehicle types you pay for and the cost per km. Reps then pick a vehicle and enter the odometer reading before and after each trip — the distance and amount are worked out for them. Leave empty to keep the flat mileage rate above.">
+          {form.vehicles.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {form.vehicles.map((v, i) => (
+                <div key={v.id ?? `new-${i}`} style={{ display: 'grid', gridTemplateColumns: wide ? 'minmax(0, 1.4fr) minmax(0, 1fr) auto' : '1fr', gap: 10, alignItems: 'center' }}>
+                  <Input aria-label={`Vehicle type ${i + 1}`} value={v.label} maxLength={40} placeholder="e.g. Two-wheeler" onChange={(e) => setVehicle(i, { label: e.target.value })} />
+                  <Amount value={v.rate} onChange={(r) => setVehicle(i, { rate: r })} prefix="₹" suffix="/ km" label={`Cost per km for ${v.label || `vehicle ${i + 1}`}`} placeholder="0" />
+                  <Button type="button" icon={<Trash2 size={14} strokeWidth={1.7} />} onClick={() => removeVehicle(i)} aria-label={`Remove vehicle type ${i + 1}`}>{wide ? '' : 'Remove'}</Button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div><Button type="button" icon={<Plus size={14} strokeWidth={1.7} />} onClick={addVehicle} disabled={form.vehicles.length >= 20}>Add vehicle type</Button></div>
+          {form.vehicles.length > 0 && (
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13.5, color: T.text }}>
+              <Switch checked={form.odometer_photos_required} onChange={(v) => set({ odometer_photos_required: v })} label="Odometer photos required" />
+              Require a photo of the odometer before and after the trip
+            </label>
+          )}
         </Section>
       </Card>
 

@@ -35,8 +35,18 @@ export interface CategoryRule {
   receipt_required_over: number | null;
 }
 
+/** One vehicle type a policy pays for, with its per-km cost (Travel allowance by vehicle). */
+export interface VehicleRate { id: string; label: string; rate_per_km: number }
+
 export interface PolicyRules {
   mileage_rate: number;
+  /**
+   * When present, mileage lines are priced by vehicle from the odometer readings
+   * (distance × that vehicle's rate), computed by the server — not typed in.
+   */
+  vehicle_rates?: VehicleRate[];
+  /** With vehicle rates: a photo of the odometer before and after is mandatory (default true). */
+  odometer_photos_required?: boolean;
   receipt_required_over: number;
   max_claim_amount: number | null;
   submit_within_days: number | null;
@@ -114,6 +124,14 @@ export interface ClaimItem {
   receipt_url: string | null;
   /** Short-lived viewable link for receipt_url, signed by the server per read. */
   receipt_signed_url?: string | null;
+  // Travel allowance by vehicle (policies with vehicle rates).
+  vehicle_type?: string | null;
+  odometer_start?: number | null;
+  odometer_end?: number | null;
+  odometer_start_photo_url?: string | null;
+  odometer_end_photo_url?: string | null;
+  odometer_start_photo_signed_url?: string | null;
+  odometer_end_photo_signed_url?: string | null;
   ai_extracted: Record<string, unknown> | null;
   flagged: boolean;
   flag_reason: string | null;
@@ -217,6 +235,11 @@ export interface ClaimItemInput {
   merchant?: string | null;
   receipt_url?: string | null;
   ai_extracted?: Record<string, unknown> | null;
+  vehicle_type?: string | null;
+  odometer_start?: number | null;
+  odometer_end?: number | null;
+  odometer_start_photo_url?: string | null;
+  odometer_end_photo_url?: string | null;
 }
 export interface ClaimInput { title?: string | null; items?: ClaimItemInput[] }
 
@@ -241,7 +264,11 @@ export interface PolicyInput {
   applies_to?: Partial<AppliesTo>;
   effective_from?: string | null;
   effective_to?: string | null;
-  rules?: Partial<Omit<PolicyRules, 'categories'>> & { categories?: Partial<Record<ItemCategory, Partial<CategoryRule>>> };
+  rules?: Partial<Omit<PolicyRules, 'categories' | 'vehicle_rates'>> & {
+    /** `id` is optional on the way in — the server derives one from the label. */
+    vehicle_rates?: Array<{ id?: string; label: string; rate_per_km: number }>;
+    categories?: Partial<Record<ItemCategory, Partial<CategoryRule>>>;
+  };
 }
 
 export interface ClaimFilters {
@@ -348,6 +375,10 @@ export const FLAG_LABELS: Record<string, string> = {
   over_claim_limit: 'Over claim maximum',
   late_submission: 'Submitted late',
   future_date: 'Future date',
+  vehicle_missing: 'Pick a vehicle',
+  odometer_missing: 'Odometer reading needed',
+  odometer_invalid: 'Odometer reading wrong',
+  odometer_photo_missing: 'Odometer photo needed',
 };
 export const flagLabel = (code: string) => FLAG_LABELS[code] ?? code.replace(/_/g, ' ');
 

@@ -5,6 +5,8 @@ import { crmCustomFields, crmPeopleDirectoryTypes, crmSettings, crmTargets, type
 import api from '../../../../../lib/api';
 import type { CustomField } from '../../../../../types/crm';
 import { getStoredUser, canAccess } from '../../../../../lib/auth';
+import { composeOptions, isProductSourceOptions, OPTION_SEARCHABLE, visibleOptions } from '../../../../../lib/customFieldOptions';
+import { extractLeadForm, segmentName } from '../../../../../lib/crmLeadForm';
 import KiniFormBuilder from './KiniFormBuilder';
 import KiniMascot from './KiniMascot';
 
@@ -234,6 +236,7 @@ export default function CustomFieldsPage() {
   const [items, setItems] = useState<CustomField[]>([]);
   const [overrides, setOverrides] = useState<FieldOverrides>({});
   const [config, setConfig] = useState<Record<string, unknown>>({});
+  const leadFormCfg = useMemo(() => extractLeadForm({ config }), [config]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [savingOverride, setSavingOverride] = useState<string | null>(null);
@@ -249,6 +252,13 @@ export default function CustomFieldsPage() {
     hidden: boolean;
     field_type: CustomField['field_type'];
     optionsRaw: string;
+    // Select behaviour, stored as reserved tokens inside `options` (see
+    // lib/customFieldOptions.ts) so no schema change is needed.
+    searchable: boolean;
+    fromProducts: boolean;
+    // Lead fields only: which lead type shows the field.
+    entity_type: CustomField['entity_type'];
+    appliesTo: 'both' | 'b2c' | 'b2b';
     org_role_ids: string[];
     targetTable: string;
     lookupFilter: LookupClause[];
@@ -271,6 +281,9 @@ export default function CustomFieldsPage() {
   const [label, setLabel] = useState('');
   const [fieldType, setFieldType] = useState<CustomField['field_type']>('text');
   const [optionsRaw, setOptionsRaw] = useState('');
+  // Select-only behaviour switches (stored as reserved option tokens).
+  const [searchable, setSearchable] = useState(false);
+  const [fromProducts, setFromProducts] = useState(false);
   const [required, setRequired] = useState(false);
   // Lead-segment scope for a new custom field: 'both' (every lead form),
   // 'b2c' (B2C branch only — e.g. a farmer), 'b2b' (B2B branch only — e.g. a
@@ -370,8 +383,13 @@ export default function CustomFieldsPage() {
       return toast.error(`A field with key "${fieldKey.trim()}" already exists for ${entity}`);
     }
     const needsOptions = TYPES_REQUIRING_OPTIONS.has(fieldType);
-    const parsedOptions = needsOptions ? optionsRaw.split(',').map((s) => s.trim()).filter(Boolean) : undefined;
-    if (needsOptions && (!parsedOptions || parsedOptions.length === 0)) return toast.error('Add at least one option for select/multiselect');
+    // "Options from Products" needs no typed list — the choices are the product names.
+    const usesProducts = fieldType === 'select' && fromProducts;
+    const typedOptions = needsOptions ? optionsRaw.split(',').map((s) => s.trim()).filter(Boolean) : undefined;
+    if (needsOptions && !usesProducts && (!typedOptions || typedOptions.length === 0)) return toast.error('Add at least one option for select/multiselect');
+    const parsedOptions = fieldType === 'select' && typedOptions
+      ? composeOptions(typedOptions, { searchable, fromProducts: usesProducts })
+      : typedOptions;
     // Lookup fields require a target table — without it the picker has
     // nothing to query against. Filter clauses with an empty field/value
     // are dropped silently so a half-typed row doesn't sneak into the
@@ -417,7 +435,7 @@ export default function CustomFieldsPage() {
     try {
       await crmCustomFields.create(payload as any);
       toast.success(`Custom field "${label.trim()}" added to ${entity}`);
-      setFieldKey(''); setLabel(''); setOptionsRaw(''); setRequired(false); setPickedRoles([]);
+      setFieldKey(''); setLabel(''); setOptionsRaw(''); setSearchable(false); setFromProducts(false); setRequired(false); setPickedRoles([]);
       setTargetTable(''); setLookupFilter([]); setFormula(''); setAppliesTo('both');
       reload();
     } catch (e: any) { toast.error(e.message || 'Create failed — check API connection'); }
@@ -515,7 +533,12 @@ export default function CustomFieldsPage() {
       // Older rows that pre-date this column read as `false` here.
       hidden: !!(cf as { hidden?: boolean }).hidden,
       field_type: cf.field_type,
-      optionsRaw: Array.isArray(cf.options) ? cf.options.join(', ') : '',
+      // Behaviour tokens are shown as switches, never as typed options.
+      optionsRaw: cf.field_type === 'select' ? visibleOptions(cf.options).join(', ') : (Array.isArray(cf.options) ? cf.options.join(', ') : ''),
+      searchable: Array.isArray(cf.options) && cf.options.includes(OPTION_SEARCHABLE),
+      fromProducts: isProductSourceOptions(cf.options),
+      entity_type: cf.entity_type,
+      appliesTo: (cf.applies_to === 'b2b' || cf.applies_to === 'b2c') ? cf.applies_to : 'both',
       org_role_ids: Array.isArray(cf.org_role_ids) ? cf.org_role_ids : [],
       // Lookup-only — defaults to empty so a non-lookup field doesn't
       // accidentally stamp these columns when edited.
@@ -533,12 +556,16 @@ export default function CustomFieldsPage() {
     if (!editingCustom) return;
     if (!editingCustom.label.trim()) return toast.error('Label is required');
     const needsOptions = TYPES_REQUIRING_OPTIONS.has(editingCustom.field_type);
-    const parsed = needsOptions
+    const usesProducts = editingCustom.field_type === 'select' && editingCustom.fromProducts;
+    const typed = needsOptions
       ? editingCustom.optionsRaw.split(',').map((s) => s.trim()).filter(Boolean)
       : undefined;
-    if (needsOptions && (!parsed || parsed.length === 0)) {
+    if (needsOptions && !usesProducts && (!typed || typed.length === 0)) {
       return toast.error('Add at least one option for select/multiselect');
     }
+    const parsed = editingCustom.field_type === 'select' && typed
+      ? composeOptions(typed, { searchable: editingCustom.searchable, fromProducts: usesProducts })
+      : typed;
     if (editingCustom.field_type === 'lookup' && !editingCustom.targetTable) {
       return toast.error('Choose which object this lookup should point to');
     }
@@ -574,6 +601,9 @@ export default function CustomFieldsPage() {
       }
       else if (!needsOptions) body.options = null; // wipe when no longer needed
       body.org_role_ids = editingCustom.org_role_ids.length ? editingCustom.org_role_ids : null;
+      // Lead segment scope — editable after create now (it used to be set once and
+      // then invisible). 'both' is stored as null/'both' = shown on every lead type.
+      if (editingCustom.entity_type === 'lead') body.applies_to = editingCustom.appliesTo;
       // Lookup config — wipe both columns when the type is no longer
       // lookup so a field flipped back to text doesn't carry stale
       // target/filter info.
@@ -835,8 +865,20 @@ export default function CustomFieldsPage() {
             {TYPES.map((t) => <option key={t} value={t}>{TYPE_LABELS[t]}</option>)}
           </select>
         </div>
-        {TYPES_REQUIRING_OPTIONS.has(fieldType) && (
+        {TYPES_REQUIRING_OPTIONS.has(fieldType) && !(fieldType === 'select' && fromProducts) && (
           <input value={optionsRaw} onChange={(e) => setOptionsRaw(e.target.value)} placeholder="Comma-separated options (e.g. Hot, Warm, Cold)" style={{ ...input, width: '100%', marginBottom: 8 }} />
+        )}
+        {fieldType === 'select' && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, marginBottom: 8 }}>
+            <label style={{ display: 'flex', gap: 6, alignItems: 'center', color: 'var(--text)', fontSize: 13 }}>
+              <input type="checkbox" checked={searchable || fromProducts} disabled={fromProducts} onChange={(e) => setSearchable(e.target.checked)} />
+              Searchable <span style={{ color: 'var(--text-dim)', fontSize: 12 }}>(type to filter — for long lists such as crops)</span>
+            </label>
+            <label style={{ display: 'flex', gap: 6, alignItems: 'center', color: 'var(--text)', fontSize: 13 }}>
+              <input type="checkbox" checked={fromProducts} onChange={(e) => setFromProducts(e.target.checked)} />
+              Options from Products <span style={{ color: 'var(--text-dim)', fontSize: 12 }}>(product names only — no prices)</span>
+            </label>
+          </div>
         )}
         {fieldType === 'image' && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 8, marginBottom: 8 }}>
@@ -946,8 +988,8 @@ export default function CustomFieldsPage() {
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               {([
                 { v: 'both', label: 'Both' },
-                { v: 'b2c', label: 'B2C only (e.g. farmer)' },
-                { v: 'b2b', label: 'B2B only (e.g. distributor/retailer)' },
+                { v: 'b2c', label: leadFormCfg.segmentLabels.b2c ? `${leadFormCfg.segmentLabels.b2c} only` : 'B2C only (e.g. farmer)' },
+                { v: 'b2b', label: leadFormCfg.segmentLabels.b2b ? `${leadFormCfg.segmentLabels.b2b} only` : 'B2B only (e.g. distributor/retailer)' },
               ] as const).map((o) => {
                 const on = appliesTo === o.v;
                 return (
@@ -1256,7 +1298,14 @@ export default function CustomFieldsPage() {
                   </td>
                   <td style={td}><span style={{ background: 'var(--s3)', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 700, textTransform: 'uppercase' }}>{c.entity_type}</span></td>
                   <td style={td}><code style={{ background: 'var(--s3)', padding: '1px 5px', borderRadius: 3, fontSize: 11 }}>{c.field_key}</code></td>
-                  <td style={td}>{c.label}</td>
+                  <td style={td}>
+                    {c.label}
+                    {c.entity_type === 'lead' && (c.applies_to === 'b2b' || c.applies_to === 'b2c') && (
+                      <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 700, textTransform: 'uppercase', padding: '2px 6px', borderRadius: 4, background: 'var(--s3)', color: 'var(--text-dim)' }}>
+                        {segmentName(leadFormCfg, c.applies_to)} only
+                      </span>
+                    )}
+                  </td>
                   <td style={td}>{TYPE_LABELS[c.field_type] ?? c.field_type}</td>
                   <td style={td}>{c.required ? '✓' : ''}</td>
                   <td style={td}>
@@ -1402,7 +1451,7 @@ export default function CustomFieldsPage() {
               </div>
             </div>
 
-            {TYPES_REQUIRING_OPTIONS.has(editingCustom.field_type) && (
+            {TYPES_REQUIRING_OPTIONS.has(editingCustom.field_type) && !(editingCustom.field_type === 'select' && editingCustom.fromProducts) && (
               <div style={{ marginBottom: 12 }}>
                 <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, marginBottom: 4 }}>Options (comma-separated)</div>
                 <input
@@ -1411,6 +1460,44 @@ export default function CustomFieldsPage() {
                   placeholder="Option 1, Option 2, Option 3"
                   style={{ width: '100%', background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 12px', borderRadius: 8, fontSize: 13, boxSizing: 'border-box' }}
                 />
+              </div>
+            )}
+            {editingCustom.field_type === 'select' && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, marginBottom: 12 }}>
+                <label style={{ display: 'flex', gap: 6, alignItems: 'center', color: 'var(--text)', fontSize: 13 }}>
+                  <input type="checkbox" checked={editingCustom.searchable || editingCustom.fromProducts} disabled={editingCustom.fromProducts} onChange={(e) => setEditingCustom({ ...editingCustom, searchable: e.target.checked })} />
+                  Searchable
+                </label>
+                <label style={{ display: 'flex', gap: 6, alignItems: 'center', color: 'var(--text)', fontSize: 13 }}>
+                  <input type="checkbox" checked={editingCustom.fromProducts} onChange={(e) => setEditingCustom({ ...editingCustom, fromProducts: e.target.checked })} />
+                  Options from Products <span style={{ color: 'var(--text-dim)', fontSize: 12 }}>(names only)</span>
+                </label>
+              </div>
+            )}
+            {editingCustom.entity_type === 'lead' && (
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, marginBottom: 6 }}>Show on lead type</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {([
+                    { v: 'both', label: 'Both' },
+                    { v: 'b2c', label: segmentName(leadFormCfg, 'b2c') + ' only' },
+                    { v: 'b2b', label: segmentName(leadFormCfg, 'b2b') + ' only' },
+                  ] as const).map((o) => {
+                    const on = editingCustom.appliesTo === o.v;
+                    return (
+                      <button
+                        key={o.v}
+                        type="button"
+                        onClick={() => setEditingCustom({ ...editingCustom, appliesTo: o.v })}
+                        style={{ padding: '5px 10px', borderRadius: 999, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                          border: `1px solid ${on ? 'var(--primary)' : 'var(--border)'}`,
+                          background: on ? 'var(--primary)' : 'var(--s3)', color: on ? '#fff' : 'var(--text)' }}
+                      >
+                        {on ? '✓ ' : ''}{o.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             )}
             {editingCustom.field_type === 'lookup' && (
