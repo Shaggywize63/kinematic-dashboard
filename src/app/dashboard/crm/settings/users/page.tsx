@@ -117,12 +117,12 @@ interface FieldDef { key: FieldKey; label: string; required: boolean; synonyms: 
 const BULK_FIELDS: FieldDef[] = [
   { key: 'name',     label: 'Full Name',      required: true,
     synonyms: ['name', 'full_name', 'fullname', 'employee_name', 'contact_name', 'username', 'user_name'] },
-  { key: 'mobile',   label: 'Mobile',         required: true,
+  { key: 'mobile',   label: 'Mobile',         required: false,
     synonyms: ['mobile', 'phone', 'mobile_number', 'phone_number', 'contact_number', 'contact', 'mob', 'cell', 'cellphone', 'whatsapp'],
-    hint: 'Will be auto-sanitised: +91, spaces and dashes are stripped.' },
+    hint: 'Optional. Will be auto-sanitised: +91, spaces and dashes are stripped. Every row needs a mobile or an email.' },
   { key: 'email',    label: 'Email',          required: false,
     synonyms: ['email', 'email_address', 'mail', 'e_mail', 'emailid', 'email_id'],
-    hint: 'Auto-generated from mobile if missing.' },
+    hint: 'Auto-generated from the mobile if blank. Needed for rows with no mobile.' },
   { key: 'hierarchy_role', label: 'Hierarchy Role', required: false,
     synonyms: ['hierarchy_role', 'role', 'designation', 'position', 'title', 'job_title', 'level'],
     hint: 'Matches a Role Hierarchy name (e.g. "Field Manager"). Case-insensitive.' },
@@ -346,19 +346,21 @@ export default function CrmUsersPage() {
   };
 
   const save = async () => {
-    if (!form.name.trim() || !form.mobile.trim()) {
-      toast.error('Name and mobile are required'); return;
+    if (!form.name.trim() || (!form.mobile.trim() && !form.email.trim())) {
+      toast.error('Name and either a mobile number or an email are required'); return;
     }
     setSaving(true);
     try {
       const payload: Record<string, unknown> = {
         name: form.name.trim(),
-        email: form.email || `${form.mobile.trim()}@kinematic.app`,
+        // A mobile number is optional; without one the email is the sign-in.
+        ...((form.email.trim() || form.mobile.trim())
+          ? { email: form.email.trim() || `${form.mobile.trim()}@kinematic.app` } : {}),
         // Always stamp the default preset role so backend route-tier RBAC
         // (requireRole, canAccess) keeps working. Real access comes from
         // the hierarchy role's permissions, copied below.
         role: DEFAULT_PRESET_ROLE,
-        mobile: form.mobile.trim(),
+        ...(form.mobile.trim() ? { mobile: form.mobile.trim() } : {}),
         permissions: permissionsForRole(form.org_role_id),
         org_role_id: form.org_role_id || null,
         // Backend createUser/updateUser writes these to user_city_assignments;
@@ -467,6 +469,10 @@ export default function CrmUsersPage() {
       toast.error(`Please map: ${missing.map((m) => m.label).join(', ')}`);
       return;
     }
+    if (bulkMap.mobile < 0 && bulkMap.email < 0) {
+      toast.error('Please map a Mobile or an Email column — people need one of them to sign in');
+      return;
+    }
     setBulkBusy(true);
     setBulkResult(null);
     try {
@@ -493,8 +499,8 @@ export default function CrmUsersPage() {
         // backend would return, but without burning a network round-trip
         // (and a rate-limit slot) on rows we already know will fail.
         if (!name) { failed.push({ name: '<no name>', error: 'name is required' }); continue; }
-        if (!mobile) { failed.push({ name, error: `mobile is required (got "${mobileRaw}")` }); continue; }
-        if (!/^\d{10}$/.test(mobile)) {
+        if (!mobile && !email) { failed.push({ name, error: 'needs a mobile number or an email' }); continue; }
+        if (mobile && !/^\d{10}$/.test(mobile)) {
           failed.push({ name, error: `mobile must be 10 digits after stripping +91/spaces (got "${mobile}")` });
           continue;
         }
@@ -505,7 +511,8 @@ export default function CrmUsersPage() {
         }
 
         const payload: Record<string, unknown> = {
-          name, mobile,
+          name,
+          ...(mobile ? { mobile } : {}),
           email: email || `${mobile}@kinematic.app`,
           // Preset role kept fixed; access is fully driven by the picked
           // hierarchy role's permissions array. Match the form behaviour.
@@ -700,17 +707,17 @@ export default function CrmUsersPage() {
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, alignItems: 'center' }}>
-                {BULK_FIELDS.filter((f) => f.required && bulkMap[f.key] < 0).length > 0 && (
+                {(BULK_FIELDS.filter((f) => f.required && bulkMap[f.key] < 0).length > 0 || (bulkMap.mobile < 0 && bulkMap.email < 0)) && (
                   <span style={{ fontSize: 11, color: '#E01E2C', marginRight: 'auto' }}>
-                    Map the required fields above to enable import.
+                    Map the required fields above (and a Mobile or Email column) to enable import.
                   </span>
                 )}
                 <button type="button" onClick={resetBulk} disabled={bulkBusy} style={btnGhost}>Cancel</button>
                 <button
                   type="button"
                   onClick={runBulkImport}
-                  disabled={bulkBusy || BULK_FIELDS.some((f) => f.required && bulkMap[f.key] < 0)}
-                  style={{ ...btnPrimary, opacity: (bulkBusy || BULK_FIELDS.some((f) => f.required && bulkMap[f.key] < 0)) ? 0.5 : 1 }}
+                  disabled={bulkBusy || BULK_FIELDS.some((f) => f.required && bulkMap[f.key] < 0) || (bulkMap.mobile < 0 && bulkMap.email < 0)}
+                  style={{ ...btnPrimary, opacity: (bulkBusy || BULK_FIELDS.some((f) => f.required && bulkMap[f.key] < 0) || (bulkMap.mobile < 0 && bulkMap.email < 0)) ? 0.5 : 1 }}
                 >
                   {bulkBusy ? 'Importing…' : `Import ${bulkRows.length} row${bulkRows.length === 1 ? '' : 's'}`}
                 </button>
@@ -759,8 +766,8 @@ export default function CrmUsersPage() {
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
             <Field label="Full Name *"><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Rahul Sharma" style={input} /></Field>
-            <Field label="Mobile (primary) *"><input value={form.mobile} onChange={(e) => setForm({ ...form, mobile: e.target.value })} placeholder="10-digit mobile" maxLength={15} style={input} /></Field>
-            <Field label="Email"><input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="auto-generated if blank" style={input} /></Field>
+            <Field label="Mobile (optional)"><input value={form.mobile} onChange={(e) => setForm({ ...form, mobile: e.target.value })} placeholder="10-digit mobile" maxLength={15} style={input} /></Field>
+            <Field label="Email"><input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="needed if there is no mobile" style={input} /></Field>
             <Field label="Hierarchy Role">
               <select value={form.org_role_id} onChange={(e) => setForm({ ...form, org_role_id: e.target.value })} style={input}>
                 <option value="">— None —</option>
