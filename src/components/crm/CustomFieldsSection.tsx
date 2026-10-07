@@ -2,12 +2,14 @@
 import { useEffect, useRef, useState } from 'react';
 import SignedImage from '@/components/shared/SignedImage';
 import { toast } from 'sonner';
-import { crmCustomFields, crmLookup, type LookupHit } from '../../lib/crmApi';
+import { crmCustomFields, crmLookup, crmProducts, type LookupHit } from '../../lib/crmApi';
 import api from '../../lib/api';
 import { getStoredToken } from '../../lib/auth';
 import { API_BASE_URL } from '../../lib/api';
 import type { CustomField } from '../../types/crm';
 import { PRODUCT_LINE_KEYS } from './ProductLinesSection';
+import SearchableSelect from './shared/SearchableSelect';
+import { isProductSourceOptions, isSearchableOptions, visibleOptions } from '../../lib/customFieldOptions';
 
 /**
  * Renders the active custom fields for a given entity (lead / contact /
@@ -159,9 +161,35 @@ export default function CustomFieldsSection({ entity, values, onChange, onFields
   );
 }
 
+// Active product names for a "Options from Products" select. One fetch per page
+// view, shared by every such field on the form; a failed fetch is not cached so
+// the next render retries.
+let productNamesPromise: Promise<string[]> | null = null;
+function loadProductNames(): Promise<string[]> {
+  if (!productNamesPromise) {
+    productNamesPromise = crmProducts.list()
+      .then((r) => Array.from(new Set((r.data || [])
+        .filter((p: { is_active?: boolean }) => p.is_active !== false)
+        .map((p: { name?: string }) => (p.name || '').trim())
+        .filter(Boolean))).sort((a, b) => a.localeCompare(b)))
+      .catch(() => { productNamesPromise = null; return [] as string[]; });
+  }
+  return productNamesPromise;
+}
+
 function FieldInput({ field, value, onChange }: { field: CustomField; value: unknown; onChange: (v: unknown) => void }) {
   const t = field.field_type;
-  const options = Array.isArray(field.options) ? field.options : [];
+  // Reserved behaviour tokens (searchable / products source) are never choices.
+  const options = visibleOptions(field.options);
+  const fromProducts = isProductSourceOptions(field.options);
+  const searchable = isSearchableOptions(field.options);
+  const [productNames, setProductNames] = useState<string[] | null>(null);
+  useEffect(() => {
+    if (!(t === 'select' && fromProducts)) return;
+    let cancel = false;
+    loadProductNames().then((n) => { if (!cancel) setProductNames(n); });
+    return () => { cancel = true; };
+  }, [t, fromProducts]);
 
   // ── Boolean ─────────────────────────────────────────────────────
   if (t === 'boolean') {
@@ -180,6 +208,24 @@ function FieldInput({ field, value, onChange }: { field: CustomField; value: unk
   }
 
   // ── Select ──────────────────────────────────────────────────────
+  // Type-ahead variant (long lists like crops) and the product-name variant
+  // (names only — never prices). Not wrapped in a <label>, see SearchableSelect.
+  if (t === 'select' && searchable) {
+    const list = fromProducts ? (productNames ?? []) : options;
+    return (
+      <Wrap field={field} as="div">
+        <SearchableSelect
+          id={`lead-cf-input-${field.field_key}`}
+          options={list}
+          value={typeof value === 'string' ? value : ''}
+          onChange={(v) => onChange(v || undefined)}
+          placeholder={fromProducts ? 'Search products…' : 'Search…'}
+          emptyHint={fromProducts ? 'No products added yet.' : 'No options configured.'}
+          loading={fromProducts && productNames === null}
+        />
+      </Wrap>
+    );
+  }
   if (t === 'select') {
     return (
       <Wrap field={field}>
@@ -512,9 +558,9 @@ function FileUploader({ field, value, onChange }: { field: CustomField; value: u
   );
 }
 
-function Wrap({ field, children, fullWidth }: { field: CustomField; children: React.ReactNode; fullWidth?: boolean }) {
+function Wrap({ field, children, fullWidth, as: Tag = 'label' }: { field: CustomField; children: React.ReactNode; fullWidth?: boolean; as?: 'label' | 'div' }) {
   return (
-    <label
+    <Tag
       // Stable id so the parent form's required-field validation can
       // scroll-to / highlight a missing custom field (fail('lead-cf-<key>')).
       id={`lead-cf-${field.field_key}`}
@@ -529,7 +575,7 @@ function Wrap({ field, children, fullWidth }: { field: CustomField; children: Re
         {field.required && <span style={{ color: 'var(--red)' }}>*</span>}
       </span>
       {children}
-    </label>
+    </Tag>
   );
 }
 

@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { Eye, FileText, MapPin, Plus, ShieldCheck, Trash2, Upload, X } from 'lucide-react';
+import { Camera, Eye, FileText, MapPin, Plus, ShieldCheck, Trash2, Upload, X } from 'lucide-react';
 import { Badge, Button, Card, FormGrid, IconButton, Input, Select, T, useIsCompact } from '../ui';
 import {
   CATEGORIES, CATEGORY_LABELS, ClaimItem, ClaimItemInput, ClaimCheck, ExpenseClaim, ItemCategory, MyPolicy, expensesApi,
@@ -31,6 +31,15 @@ interface Line {
   receipt_view: string | null;
   receipt_name: string;
   ai_extracted: Record<string, unknown> | null;
+  // Travel allowance by vehicle: vehicle + odometer readings with a photo of each.
+  vehicle_type: string;
+  odo_start: string;
+  odo_end: string;
+  odo_start_url: string;
+  odo_start_view: string | null;
+  odo_end_url: string;
+  odo_end_view: string | null;
+  odoUploading?: 'start' | 'end' | null;
   uploading?: boolean;
   suggesting?: boolean;
   scanNote?: string | null;
@@ -38,6 +47,11 @@ interface Line {
 
 const n = (v: string) => (v.trim() === '' ? NaN : Number(v));
 const pos = (v: string) => Number.isFinite(n(v)) && n(v) > 0;
+/** An odometer reading: any number from 0 up (a new bike can read 0). */
+const reading = (v: string) => Number.isFinite(n(v)) && n(v) >= 0;
+const round2 = (x: number) => Math.round(x * 100) / 100;
+/** Distance for a vehicle line, or null until both readings are in and in order. */
+const odoKm = (l: Line): number | null => (reading(l.odo_start) && reading(l.odo_end) && n(l.odo_end) >= n(l.odo_start) ? round2(n(l.odo_end) - n(l.odo_start)) : null);
 
 function fromItem(it: ClaimItem, key: number): Line {
   return {
@@ -46,26 +60,45 @@ function fromItem(it: ClaimItem, key: number): Line {
     from_location: it.from_location ?? '', to_location: it.to_location ?? '', distance_km: it.distance_km != null ? String(it.distance_km) : '',
     receipt_url: it.receipt_url ?? '', receipt_view: it.receipt_signed_url ?? null, receipt_name: it.receipt_url ? 'Receipt' : '',
     ai_extracted: it.ai_extracted ?? null,
+    vehicle_type: it.vehicle_type ?? '',
+    odo_start: it.odometer_start != null ? String(it.odometer_start) : '', odo_end: it.odometer_end != null ? String(it.odometer_end) : '',
+    odo_start_url: it.odometer_start_photo_url ?? '', odo_start_view: it.odometer_start_photo_signed_url ?? null,
+    odo_end_url: it.odometer_end_photo_url ?? '', odo_end_view: it.odometer_end_photo_signed_url ?? null,
   };
 }
 
 const blank = (key: number, category: ItemCategory = 'food'): Line => ({
   key, category, item_date: todayIso(), amount: '', description: '', merchant: '', from_location: '', to_location: '',
   distance_km: '', receipt_url: '', receipt_view: null, receipt_name: '', ai_extracted: null,
+  vehicle_type: '', odo_start: '', odo_end: '', odo_start_url: '', odo_start_view: null, odo_end_url: '', odo_end_view: null,
 });
 
-const isFilled = (l: Line) => !!(l.amount.trim() || l.distance_km.trim() || l.merchant.trim() || l.description.trim() || l.receipt_url || l.from_location.trim() || l.to_location.trim());
-const isValid = (l: Line) => (l.category === 'mileage' ? pos(l.amount) || pos(l.distance_km) : pos(l.amount));
+const isFilled = (l: Line) => !!(l.amount.trim() || l.distance_km.trim() || l.merchant.trim() || l.description.trim() || l.receipt_url || l.from_location.trim() || l.to_location.trim()
+  || l.vehicle_type || l.odo_start.trim() || l.odo_end.trim() || l.odo_start_url || l.odo_end_url);
+// `vf` = the policy prices mileage by vehicle. A saved draft only needs *something* to go on there
+// (the rest is enforced at submit and shown live by the policy check), unlike a flat-rate line.
+const isValid = (l: Line, vf = false) => (l.category === 'mileage'
+  ? (vf ? !!l.vehicle_type || reading(l.odo_start) || reading(l.odo_end) : pos(l.amount) || pos(l.distance_km))
+  : pos(l.amount));
 
-function toInput(l: Line): ClaimItemInput {
+function toInput(l: Line, vf = false): ClaimItemInput {
   const mileage = l.category === 'mileage';
+  const byVehicle = mileage && vf;
   return {
     ...(l.id ? { id: l.id } : {}),
     category: l.category,
     item_date: l.item_date || null,
     description: l.description.trim() || null,
-    amount: pos(l.amount) ? n(l.amount) : null,
-    distance_km: mileage && pos(l.distance_km) ? n(l.distance_km) : null,
+    // By vehicle, the server works out distance and amount from the odometer readings.
+    amount: byVehicle ? null : pos(l.amount) ? n(l.amount) : null,
+    distance_km: byVehicle ? null : mileage && pos(l.distance_km) ? n(l.distance_km) : null,
+    ...(byVehicle ? {
+      vehicle_type: l.vehicle_type || null,
+      odometer_start: reading(l.odo_start) ? n(l.odo_start) : null,
+      odometer_end: reading(l.odo_end) ? n(l.odo_end) : null,
+      odometer_start_photo_url: l.odo_start_url || null,
+      odometer_end_photo_url: l.odo_end_url || null,
+    } : {}),
     from_location: mileage ? l.from_location.trim() || null : null,
     to_location: mileage ? l.to_location.trim() || null : null,
     merchant: mileage ? null : l.merchant.trim() || null,
@@ -116,12 +149,21 @@ export default function ClaimEditor({ claimId }: { claimId?: string }) {
 
   const rate = policy?.mileage_rate ?? 0;
   const currency = policy?.currency ?? claim?.currency ?? 'INR';
-  const lineAmount = (l: Line) => (pos(l.amount) ? n(l.amount) : l.category === 'mileage' && pos(l.distance_km) ? Math.round(n(l.distance_km) * rate * 100) / 100 : 0);
-  const total = useMemo(() => lines.reduce((s, l) => s + lineAmount(l), 0), [lines, rate]); // eslint-disable-line react-hooks/exhaustive-deps
+  const vehicles = policy?.rules?.vehicle_rates ?? [];
+  const vf = vehicles.length > 0;
+  const lineAmount = (l: Line) => {
+    if (vf && l.category === 'mileage') {
+      const km = odoKm(l);
+      const perKm = vehicles.find((v) => v.id === l.vehicle_type)?.rate_per_km;
+      return km != null && perKm != null ? round2(km * perKm) : 0;
+    }
+    return pos(l.amount) ? n(l.amount) : l.category === 'mileage' && pos(l.distance_km) ? Math.round(n(l.distance_km) * rate * 100) / 100 : 0;
+  };
+  const total = useMemo(() => lines.reduce((s, l) => s + lineAmount(l), 0), [lines, rate, vf, policy]); // eslint-disable-line react-hooks/exhaustive-deps
   const filled = useMemo(() => lines.filter(isFilled), [lines]);
 
   // ── live policy check ──
-  const checkKey = useMemo(() => JSON.stringify(filled.filter(isValid).map(toInput)), [filled]);
+  const checkKey = useMemo(() => JSON.stringify(filled.filter((l) => isValid(l, vf)).map((l) => toInput(l, vf))), [filled, vf]);
   const checkSeq = useRef(0);
   useEffect(() => {
     const items: ClaimItemInput[] = JSON.parse(checkKey);
@@ -138,7 +180,7 @@ export default function ClaimEditor({ claimId }: { claimId?: string }) {
   }, [checkKey]);
 
   // Findings are indexed by position among the lines that were checked.
-  const checkedKeys = useMemo(() => filled.filter(isValid).map((l) => l.key), [filled]);
+  const checkedKeys = useMemo(() => filled.filter((l) => isValid(l, vf)).map((l) => l.key), [filled, vf]);
   const findingsFor = (key: number) => {
     const idx = checkedKeys.indexOf(key);
     return idx < 0 ? [] : (check?.violations ?? []).filter((v) => v.item_id === String(idx));
@@ -174,6 +216,23 @@ export default function ClaimEditor({ claimId }: { claimId?: string }) {
       toast.error(errText(e, 'Could not upload the receipt'));
     }
   };
+  const attachOdo = async (key: number, which: 'start' | 'end', file: File) => {
+    patch(key, { odoUploading: which });
+    try {
+      if (!/^image\//i.test(file.type)) throw new Error('Pick a photo of the odometer');
+      const ready = await prepareReceipt(file);
+      if (ready.size > RECEIPT_MAX_BYTES) throw new Error('That photo is larger than 10 MB');
+      // Not a receipt — skip the OCR read.
+      const { data: up } = await expensesApi.uploadReceipt(ready, ready.name, false);
+      patch(key, which === 'start' ? { odo_start_url: up.url, odo_start_view: up.signed_url, odoUploading: null } : { odo_end_url: up.url, odo_end_view: up.signed_url, odoUploading: null });
+      toast.success('Odometer photo attached');
+    } catch (e) {
+      patch(key, { odoUploading: null });
+      toast.error(errText(e, 'Could not upload the photo'));
+    }
+  };
+  const clearOdo = (key: number, which: 'start' | 'end') =>
+    patch(key, which === 'start' ? { odo_start_url: '', odo_start_view: null } : { odo_end_url: '', odo_end_view: null });
   const clearReceipt = (key: number) => patch(key, { receipt_url: '', receipt_view: null, receipt_name: '', scanNote: null, ai_extracted: null });
 
   // ── GPS mileage ──
@@ -194,10 +253,16 @@ export default function ClaimEditor({ claimId }: { claimId?: string }) {
   // ── save / submit ──
   const persist = async (): Promise<string | null> => {
     if (!filled.length) { toast.error('Add at least one expense'); return null; }
-    const bad = lines.findIndex((l) => isFilled(l) && !isValid(l));
-    if (bad >= 0) { toast.error(`Expense ${bad + 1} needs an amount${lines[bad].category === 'mileage' ? ' or a distance' : ''}`); return null; }
-    if (lines.some((l) => l.uploading)) { toast.error('Wait for the receipt to finish uploading'); return null; }
-    const body = { title: title.trim() || null, items: filled.map(toInput) };
+    const bad = lines.findIndex((l) => isFilled(l) && !isValid(l, vf));
+    if (bad >= 0) {
+      const byVehicle = vf && lines[bad].category === 'mileage';
+      toast.error(byVehicle ? `Expense ${bad + 1} needs a vehicle and the odometer readings` : `Expense ${bad + 1} needs an amount${lines[bad].category === 'mileage' ? ' or a distance' : ''}`);
+      return null;
+    }
+    const wrongOrder = lines.findIndex((l) => vf && l.category === 'mileage' && reading(l.odo_start) && reading(l.odo_end) && n(l.odo_end) < n(l.odo_start));
+    if (wrongOrder >= 0) { toast.error(`Expense ${wrongOrder + 1}: the reading after the trip is lower than the reading before it`); return null; }
+    if (lines.some((l) => l.uploading || l.odoUploading)) { toast.error('Wait for the photo to finish uploading'); return null; }
+    const body = { title: title.trim() || null, items: filled.map((l) => toInput(l, vf)) };
     if (savedId.current) { await expensesApi.updateClaim(savedId.current, body); return savedId.current; }
     const r = await expensesApi.createClaim(body);
     savedId.current = r.data.id;
@@ -289,7 +354,8 @@ export default function ClaimEditor({ claimId }: { claimId?: string }) {
               findings={findingsFor(l.key)}
               onChange={(p) => patch(l.key, p)} onRemove={() => removeLine(l.key)}
               onAttach={(f) => attach(l.key, f)} onClearReceipt={() => clearReceipt(l.key)} onView={(u) => setViewing(u)}
-              onSuggest={() => suggestMileage(l)} />
+              onSuggest={() => suggestMileage(l)}
+              onAttachOdo={(which, f) => attachOdo(l.key, which, f)} onClearOdo={(which) => clearOdo(l.key, which)} />
           ))}
 
           {generalFindings.length > 0 && <Card padding={16}><PolicyFindings flags={generalFindings} /></Card>}
@@ -308,14 +374,21 @@ export default function ClaimEditor({ claimId }: { claimId?: string }) {
 }
 
 // ── one expense line ────────────────────────────────────────────────────────
-function LineCard({ index, line: l, policy, currency, removable, findings, onChange, onRemove, onAttach, onClearReceipt, onView, onSuggest }: {
+function LineCard({ index, line: l, policy, currency, removable, findings, onChange, onRemove, onAttach, onClearReceipt, onView, onSuggest, onAttachOdo, onClearOdo }: {
   index: number; line: Line; policy: MyPolicy | null; currency: string; removable: boolean;
   findings: ClaimCheck['violations'];
   onChange: (p: Partial<Line>) => void; onRemove: () => void; onAttach: (f: File) => void; onClearReceipt: () => void;
   onView: (url: string) => void; onSuggest: () => void;
+  onAttachOdo: (which: 'start' | 'end', f: File) => void; onClearOdo: (which: 'start' | 'end') => void;
 }) {
   const wide = !useIsCompact(640);
   const mileage = l.category === 'mileage';
+  // The policy pays mileage by vehicle: pick one, enter the odometer before / after.
+  const vehicles = policy?.rules?.vehicle_rates ?? [];
+  const byVehicle = mileage && vehicles.length > 0;
+  const photosRequired = policy?.rules?.odometer_photos_required !== false;
+  const km = odoKm(l);
+  const perKm = vehicles.find((v) => v.id === l.vehicle_type)?.rate_per_km;
   const allowed = CATEGORIES.filter((c) => c === l.category || policy?.rules?.categories?.[c]?.enabled !== false);
   const worst = findings.some((f) => f.blocking || f.severity === 'high') ? T.red : findings.length ? T.warn : T.border;
 
@@ -332,7 +405,35 @@ function LineCard({ index, line: l, policy, currency, removable, findings, onCha
       </div>
 
       <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
-        {mileage ? (
+        {byVehicle ? (
+          <>
+            <FormGrid narrow={!wide}>
+              <Field label="From"><Input value={l.from_location} onChange={(e) => onChange({ from_location: e.target.value })} placeholder="Starting point" /></Field>
+              <Field label="To"><Input value={l.to_location} onChange={(e) => onChange({ to_location: e.target.value })} placeholder="Destination" /></Field>
+              <Field label="Vehicle" required>
+                <Select value={l.vehicle_type} onChange={(e) => onChange({ vehicle_type: e.target.value })}>
+                  <option value="">Choose a vehicle…</option>
+                  {vehicles.map((v) => <option key={v.id} value={v.id}>{v.label} · {money(v.rate_per_km, currency)} / km</option>)}
+                </Select>
+              </Field>
+            </FormGrid>
+            <FormGrid narrow={!wide}>
+              <OdometerSlot title="Odometer before the trip" value={l.odo_start} onValue={(v) => onChange({ odo_start: v })}
+                url={l.odo_start_url} view={l.odo_start_view} uploading={l.odoUploading === 'start'} photoRequired={photosRequired}
+                onPick={(f) => onAttachOdo('start', f)} onClear={() => onClearOdo('start')} onView={onView} />
+              <OdometerSlot title="Odometer after the trip" value={l.odo_end} onValue={(v) => onChange({ odo_end: v })}
+                url={l.odo_end_url} view={l.odo_end_view} uploading={l.odoUploading === 'end'} photoRequired={photosRequired}
+                onPick={(f) => onAttachOdo('end', f)} onClear={() => onClearOdo('end')} onView={onView} />
+            </FormGrid>
+            <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', padding: '10px 14px', background: T.panel, border: `1px solid ${T.border}`, borderRadius: T.radius.md, fontVariantNumeric: 'tabular-nums' }}>
+              <div><div style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: T.mute }}>Distance</div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: T.text }}>{km != null ? `${km} km` : '—'}</div></div>
+              <div><div style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: T.mute }}>Amount</div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: T.text }}>{km != null && perKm != null ? money(round2(km * perKm), currency) : '—'}</div></div>
+              <div style={{ fontSize: 12.5, color: T.mute, alignSelf: 'center' }}>Worked out from the readings — distance × the vehicle’s rate.</div>
+            </div>
+          </>
+        ) : mileage ? (
           <>
             <FormGrid narrow={!wide}>
               <Field label="From"><Input value={l.from_location} onChange={(e) => onChange({ from_location: e.target.value })} placeholder="Starting point" /></Field>
@@ -362,6 +463,38 @@ function LineCard({ index, line: l, policy, currency, removable, findings, onCha
         {findings.length > 0 && <PolicyFindings flags={findings} compact />}
       </div>
     </Card>
+  );
+}
+
+function OdometerSlot({ title, value, onValue, url, view, uploading, photoRequired, onPick, onClear, onView }: {
+  title: string; value: string; onValue: (v: string) => void; url: string; view: string | null; uploading: boolean; photoRequired: boolean;
+  onPick: (f: File) => void; onClear: () => void; onView: (u: string) => void;
+}) {
+  const input = useRef<HTMLInputElement>(null);
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: 12, border: `1px solid ${T.border}`, borderRadius: T.radius.md }}>
+      <Field label={title} required>
+        <Input inputMode="decimal" value={value} placeholder="Reading in km" onChange={(e) => onValue(e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1'))} />
+      </Field>
+      {uploading ? (
+        <div style={{ fontSize: 13, color: T.dim }}>Uploading the photo…</div>
+      ) : url ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: 44, height: 44, borderRadius: T.radius.sm, overflow: 'hidden', background: 'var(--s3)', flexShrink: 0 }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            {view ? <img src={view} alt={`${title} photo`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : null}
+          </div>
+          <span style={{ fontSize: 13, color: T.text, flex: 1 }}>Photo attached</span>
+          {view && <Button size="sm" icon={<Eye size={14} strokeWidth={1.7} />} onClick={() => onView(view)}>View</Button>}
+          <Button size="sm" onClick={() => input.current?.click()}>Replace</Button>
+          <IconButton label="Remove photo" onClick={onClear}><X size={16} strokeWidth={1.6} /></IconButton>
+        </div>
+      ) : (
+        <div><Button size="sm" icon={<Camera size={14} strokeWidth={1.7} />} onClick={() => input.current?.click()}>{photoRequired ? 'Add odometer photo' : 'Add odometer photo (optional)'}</Button></div>
+      )}
+      <input ref={input} type="file" accept="image/*" capture="environment" style={{ display: 'none' }}
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) onPick(f); e.currentTarget.value = ''; }} />
+    </div>
   );
 }
 
@@ -422,7 +555,9 @@ function PolicyCard({ policy, currency }: { policy: MyPolicy | null; currency: s
   return (
     <Panel title="Your policy" aside={policy.name ? <Badge>{policy.name}</Badge> : undefined} padding={18}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {policy.mileage_rate > 0 && row('Mileage', `${money(policy.mileage_rate, currency)} / km`)}
+        {policy.rules?.vehicle_rates?.length
+          ? policy.rules.vehicle_rates.map((v) => row(`${v.label} travel`, `${money(v.rate_per_km, currency)} / km`))
+          : policy.mileage_rate > 0 && row('Mileage', `${money(policy.mileage_rate, currency)} / km`)}
         {policy.require_receipt_over >= 0 && row('Receipt needed over', money(policy.require_receipt_over, currency))}
         {policy.auto_approve_under > 0 && row('Auto-approved up to', money(policy.auto_approve_under, currency))}
         {policy.escalate_over != null && row('Needs a second approver over', money(policy.escalate_over, currency))}

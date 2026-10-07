@@ -12,6 +12,7 @@ import AlternateMobiles from './AlternateMobiles';
 import UserSearchSelect, { type UserOption } from './shared/UserSearchSelect';
 import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '../../lib/crmFieldOverrides';
 import { extractLeadStatuses, type LeadStatusOption } from '../../lib/crmLeadStatuses';
+import { DEFAULT_LEAD_FORM, extractLeadForm, segmentName, segmentToggleLabel, showsAddress, type LeadFormConfig } from '../../lib/crmLeadForm';
 import { isKinematicTenant } from '../../lib/clientFeatures';
 import { useAuth } from '../../hooks/useAuth';
 import { LocateFixed } from 'lucide-react';
@@ -108,6 +109,8 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
   // Null = use the built-in list (no change for existing tenants). Loaded
   // from the same settings round-trip as fieldOverrides.
   const [leadStatuses, setLeadStatuses] = useState<LeadStatusOption[] | null>(null);
+  // Per-client lead-type names + B2B address block (crm_settings.config.lead_form).
+  const [leadForm, setLeadForm] = useState<LeadFormConfig>(DEFAULT_LEAD_FORM);
   // Pass the active business-type scope so a B2B-only / B2C-only
   // override on the same key wins over the universal entry.
   const fields = useMemo(
@@ -153,6 +156,7 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
           if (isTata) setForm((f) => (f.is_b2c ? f : { ...f, is_b2c: true }));
           setFieldOverrides(extractFieldOverrides(s.value.data));
           setLeadStatuses(extractLeadStatuses(s.value.data));
+          setLeadForm(extractLeadForm(s.value.data));
         }
         if (src.status === 'fulfilled') {
           setSources((src.value.data || []).filter((x: LeadSource) => x.is_active !== false));
@@ -185,7 +189,12 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
       ...(isTata ? [] : [{ key: 'email', value: form.email, default: false, message: 'Email is required.' }]),
       { key: 'phone',      value: form.phone,      default: true,  message: 'Primary mobile is required.' },
       ...(!form.is_b2c
-        ? [{ key: 'company', value: form.company, default: true, message: 'Company is required for B2B leads.' }]
+        ? [{ key: 'company', value: form.company, default: true, message: `${fields.labelFor('company', 'Company')} is required for ${segmentName(leadForm, 'b2b')} leads.` }]
+        : []),
+      // Where the address block shows (B2C always, B2B when the client enabled it)
+      // an admin-required address line is enforced like every other required row.
+      ...(showsAddress(leadForm, form.is_b2c ? 'b2c' : 'b2b')
+        ? [{ key: 'address_line1', value: form.address_line1, default: false, message: `${fields.labelFor('address_line1', 'Address line 1')} is required.` }]
         : []),
       { key: 'city',       value: form.city,       default: true,  message: 'City is required — pick from the dropdown.' },
     ];
@@ -256,6 +265,12 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
       // section above) — persist them when city isn't admin-hidden, so an
       // inbound Google-Ads / web-form lead can get a real city on triage.
       if (!form.is_b2c && !fields.isHidden('city')) { Object.assign(body, { city: form.city || null, state: form.state || null, country: form.country || null }); }
+      // B2B address block (lead_form.address_on_b2b): the same built-in columns the
+      // B2C Address section edits. Hidden built-ins are left untouched.
+      if (!form.is_b2c && leadForm.addressOnB2b) {
+        if (!fields.isHidden('address_line1')) Object.assign(body, { address_line1: form.address_line1 || null });
+        if (!fields.isHidden('postal_code')) Object.assign(body, { postal_code: form.postal_code || null });
+      }
       // Tata: backend reads this flag and spawns a fresh site_visit
       // activity tied to the lead. Reset the toggle each save so the
       // rep doesn't accidentally create duplicate visits on next edit.
@@ -301,7 +316,7 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
           <Segmented
             value={form.is_b2c ? 'b2c' : 'b2b'}
             onChange={(v) => setForm({ ...form, is_b2c: v === 'b2c' })}
-            options={[{ value: 'b2b', label: 'B2B · Business' }, { value: 'b2c', label: 'B2C · Consumer' }]}
+            options={[{ value: 'b2b', label: segmentToggleLabel(leadForm, 'b2b') }, { value: 'b2c', label: segmentToggleLabel(leadForm, 'b2c') }]}
           />
         )}
       </div>
@@ -404,9 +419,14 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
           {/* Location on a B2B lead too. Inbound leads (Google Ads / web form)
               land as B2B and often arrive with no city — without this the city
               could never be set. Gated on the same city override as B2C. */}
-          {!fields.isHidden('city') && (
+          {(leadForm.addressOnB2b || !fields.isHidden('city')) && (
             <><SL>Location</SL><Grid>
-              <LocationPicker stateValue={form.state} cityValue={form.city} onChange={({ state, city }) => setForm({ ...form, state, city })} />
+              {leadForm.addressOnB2b && show('address_line1', <F label={lbl('address_line1', 'Address Line 1')} required={req('address_line1', false)} value={form.address_line1} onChange={(v) => setForm({ ...form, address_line1: v })} />)}
+              {leadForm.addressOnB2b && show('address_line2', <F label={lbl('address_line2', 'Address Line 2')} value={form.address_line2} onChange={(v) => setForm({ ...form, address_line2: v })} />)}
+              {!fields.isHidden('city') && (
+                <LocationPicker stateValue={form.state} cityValue={form.city} onChange={({ state, city }) => setForm({ ...form, state, city })} />
+              )}
+              {leadForm.addressOnB2b && show('postal_code', <F label={lbl('postal_code', 'Postal Code')} value={form.postal_code} onChange={(v) => setForm({ ...form, postal_code: v })} />)}
               {show('country', <F label={lbl('country', 'Country')} value={form.country} onChange={(v) => setForm({ ...form, country: v })} />)}
             </Grid></>
           )}
@@ -429,7 +449,7 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
             {show('preferred_contact_method', <SF label={lbl('preferred_contact_method', 'Preferred Channel')} value={form.preferred_contact_method} options={[{ value: '', label: '—' }, { value: 'email', label: 'Email' }, { value: 'phone', label: 'Phone' }, { value: 'whatsapp', label: 'WhatsApp' }, { value: 'sms', label: 'SMS' }]} onChange={(v) => setForm({ ...form, preferred_contact_method: v })} />)}
           </Grid>
           <SL>Address</SL><Grid>
-            {show('address_line1', <F label={lbl('address_line1', 'Address Line 1')} value={form.address_line1} onChange={(v) => setForm({ ...form, address_line1: v })} />)}
+            {show('address_line1', <F label={lbl('address_line1', 'Address Line 1')} required={req('address_line1', false)} value={form.address_line1} onChange={(v) => setForm({ ...form, address_line1: v })} />)}
             {show('address_line2', <F label={lbl('address_line2', 'Address Line 2')} value={form.address_line2} onChange={(v) => setForm({ ...form, address_line2: v })} />)}
             {/* LocationPicker bundles state + city — gated on city since
                 state alone has no meaningful UI without a city picker. */}
