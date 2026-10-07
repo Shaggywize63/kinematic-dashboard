@@ -4,8 +4,9 @@ import Link from 'next/link';
 import { toast } from 'sonner';
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Download, Loader2, MapPin, Plus, RefreshCw, Trash2, Upload, UserCheck, UserPlus } from 'lucide-react';
 import { crmLeads, crmLeadSources, crmSettings, type Pagination } from '../../../../lib/crmApi';
-import api, { API_BASE_URL } from '../../../../lib/api';
-import { getStoredToken, getStoredUser } from '../../../../lib/auth';
+import api, { EXPORT_TIMEOUT_MS } from '../../../../lib/api';
+import { downloadBlob } from '../../../../lib/financeFormat';
+import { getStoredUser } from '../../../../lib/auth';
 import { isTataTiscon } from '../../../../lib/clientFeatures';
 import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
 import type { Lead, LeadSource } from '../../../../types/crm';
@@ -195,58 +196,22 @@ export default function LeadsListPage() {
         setExporting(false);
         return;
       }
-      const url = `${API_BASE_URL}/api/v1/crm/leads/export${qs.toString() ? `?${qs.toString()}` : ''}`;
-      const token = getStoredToken();
-      // Forward both Authorization AND X-Client-Id. The raw fetch
-      // bypasses api.ts so the active client picker has to be attached
-      // manually — without it a super_admin's export ignores the
-      // current tenant selection and returns every client's leads.
-      const headers: Record<string, string> = {};
-      if (token) headers.Authorization = `Bearer ${token}`;
-      try {
-        const sel = window.localStorage.getItem('kinematic_selected_client');
-        if (sel && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sel)) {
-          headers['X-Client-Id'] = sel;
-        }
-      } catch { /* ignore */ }
-      // Abort a stuck export instead of spinning forever. Without this the
-      // fetch has no timeout, so a hung backend export left the button counting
-      // ("Exporting… 64s…") with no error. 3 min is generous for a 10k-row cap.
-      const ctrl = new AbortController();
-      const abortTimer = window.setTimeout(() => ctrl.abort(), 180_000);
-      let res: Response;
-      try {
-        res = await fetch(url, { headers, signal: ctrl.signal });
-      } finally {
-        window.clearTimeout(abortTimer);
-      }
-      if (!res.ok) {
-        // Pull the backend's {success:false, error, code} body so the
-        // toast surfaces "Validation failed: ..." / "Forbidden: ..."
-        // instead of a bare "Export failed (HTTP 403)". Best-effort —
-        // if the body isn't JSON (e.g. proxy 502 returns HTML), fall
-        // back to the status code.
-        let detail = `HTTP ${res.status}`;
-        try {
-          const body = await res.clone().json();
-          if (body?.error && typeof body.error === 'string') detail = body.error;
-        } catch { /* not JSON */ }
-        throw new Error(`Export failed: ${detail}`);
-      }
-      const blob = await res.blob();
-      const objUrl = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = objUrl;
-      a.download = `leads-${new Date().toISOString().slice(0, 10)}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(objUrl);
+      // Through api.download — NOT a hand-rolled fetch. It sends the CURRENT token
+      // (renewing it on a 401), the org / client / X-Kinematic-Project headers and
+      // surfaces the backend's {error} text. The old raw fetch sent no project header,
+      // so a Kinematic-project tenant's export was verified against the wrong database
+      // and always failed with "Invalid or expired token". The long timeout is for a
+      // 10k-row export; a stuck one aborts instead of counting up forever.
+      const blob = await api.download(
+        `/api/v1/crm/leads/export${qs.toString() ? `?${qs.toString()}` : ''}`,
+        { timeoutMs: EXPORT_TIMEOUT_MS },
+      );
+      downloadBlob(blob, `leads-${new Date().toISOString().slice(0, 10)}.csv`);
       toast.success('Leads exported');
     } catch (e: any) {
-      const msg = e?.name === 'AbortError'
+      const msg = e?.isTimeout
         ? 'Export timed out — try narrowing the date range or filters and export again.'
-        : (e?.message || 'Export failed');
+        : `Export failed: ${e?.message || 'unknown error'}`;
       toast.error(msg);
     } finally {
       window.clearInterval(ticker);

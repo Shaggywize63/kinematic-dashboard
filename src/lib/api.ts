@@ -188,6 +188,8 @@ const inFlight = new Map<string, Promise<unknown>>();
 const REQUEST_TIMEOUT_MS = 25_000; // per attempt; below the ALB 60s idle cutoff
 const REFRESH_TIMEOUT_MS = 15_000; // token refresh — GoTrue's own deadline is ~10s
 const MAX_GET_ATTEMPTS = 3;        // 1 initial + 2 retries for GETs only
+/** CSV exports can stream up to ~10k rows; give them far longer than a normal call. */
+export const EXPORT_TIMEOUT_MS = 180_000;
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 // Exponential backoff with jitter: ~300ms, ~700ms.
@@ -712,7 +714,7 @@ class ApiClient {
    * Authenticated binary download (PDF / CSV). Carries the same identity and tenant
    * headers as request(), but skips JSON parsing and the response cache.
    */
-  async download(path: string, _isRetry = false): Promise<Blob> {
+  async download(path: string, opts: { timeoutMs?: number } = {}, _isRetry = false): Promise<Blob> {
     const headers: Record<string, string> = {};
     const token = this.getToken();
     if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -725,9 +727,14 @@ class ApiClient {
     const client = getActingAs()?.client_id || this.getSelectedClient();
     if (client) headers['X-Client-Id'] = client;
 
-    const res = await fetchWithTimeout(`${this.baseUrl}${path}`, { headers }, REQUEST_TIMEOUT_MS);
+    const res = await fetchWithTimeout(`${this.baseUrl}${path}`, { headers }, opts.timeoutMs ?? REQUEST_TIMEOUT_MS);
     if (res.status === 401) {
-      if (!_isRetry && (await this.refreshAccessToken())) return this.download(path, true);
+      if (!_isRetry) {
+        if (await this.refreshAccessToken()) return this.download(path, opts, true);
+        // Same recovery as request(): a dead session goes back to /login instead
+        // of leaving every export failing with a bare "Unauthorized".
+        this.handleDeadSession();
+      }
       throw new Error('Unauthorized');
     }
     if (!res.ok) {

@@ -1090,8 +1090,14 @@ function ATSSection({ token, zones }:{ token:string; zones:Zone[] }) {
 /* ══════════════════════════════════════════════════
    TEAM SECTION (users)
 ══════════════════════════════════════════════════ */
-function TeamSection({ users, zones, loading, error, onRefresh, token }:{
-  users:HRUser[]; zones:Zone[]; loading:boolean; error:string|null; onRefresh:()=>void; token:string;
+// NOTE: every user action here (add / edit / reset password / activate) goes through the
+// shared `api` client, not a hand-rolled fetch. The old fetches sent a login token that was
+// snapshotted from localStorage when the page rendered and never renewed it, so on a session
+// older than the access token's lifetime "Reset password" failed with "Invalid or expired
+// token". The client reads the CURRENT token on every call, renews it and retries once on a
+// 401, and sends the tenant/project headers.
+function TeamSection({ users, zones, loading, error, onRefresh }:{
+  users:HRUser[]; zones:Zone[]; loading:boolean; error:string|null; onRefresh:()=>void;
 }) {
   const [search, setSearch]     = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
@@ -1128,12 +1134,7 @@ function TeamSection({ users, zones, loading, error, onRefresh, token }:{
     if (dupUser) { setSaveErr(`Mobile ${form.mobile} is already used by "${dupUser.name}"`); return; }
     setSaving(true); setSaveErr(null);
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/users`, {
-        method:'POST', headers:{ Authorization:`Bearer ${token}`, 'Content-Type':'application/json' },
-        body: JSON.stringify(form),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || json.message || 'Failed');
+      await api.post('/api/v1/users', form);
       setSaveOk(true);
       setTimeout(()=>{ setSaveOk(false); setShowAdd(false); setForm(emptyForm); onRefresh(); }, 1400);
     } catch(e:any) { setSaveErr(e.message); } finally { setSaving(false); }
@@ -1143,12 +1144,7 @@ function TeamSection({ users, zones, loading, error, onRefresh, token }:{
     if (!selUser) return;
     setSaving(true); setSaveErr(null);
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/users/${selUser.id}`, {
-        method:'PATCH', headers:{ Authorization:`Bearer ${token}`, 'Content-Type':'application/json' },
-        body: JSON.stringify(form),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || json.message || 'Failed');
+      await api.patch(`/api/v1/users/${selUser.id}`, form);
       setSaveOk(true);
       setTimeout(()=>{ setSaveOk(false); setShowEdit(false); setSelUser(null); onRefresh(); }, 1400);
     } catch(e:any) { setSaveErr(e.message); } finally { setSaving(false); }
@@ -1158,12 +1154,7 @@ function TeamSection({ users, zones, loading, error, onRefresh, token }:{
     if (!selUser || newPass.length < 6) { setSaveErr('Min 6 characters'); return; }
     setSaving(true); setSaveErr(null);
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/users/${selUser.id}/reset-password`, {
-        method:'POST', headers:{ Authorization:`Bearer ${token}`, 'Content-Type':'application/json' },
-        body: JSON.stringify({ password: newPass }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || json.message || 'Failed');
+      await api.post(`/api/v1/users/${selUser.id}/reset-password`, { password: newPass });
       setSaveOk(true);
       setTimeout(()=>{ setSaveOk(false); setShowReset(false); }, 1400);
     } catch(e:any) { setSaveErr(e.message); } finally { setSaving(false); }
@@ -1171,10 +1162,7 @@ function TeamSection({ users, zones, loading, error, onRefresh, token }:{
 
   const toggleActive = async (u:HRUser) => {
     try {
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/users/${u.id}`, {
-        method:'PATCH', headers:{ Authorization:`Bearer ${token}`, 'Content-Type':'application/json' },
-        body: JSON.stringify({ is_active: !u.is_active }),
-      });
+      await api.patch(`/api/v1/users/${u.id}`, { is_active: !u.is_active });
       onRefresh();
     } catch {}
   };
@@ -1711,7 +1699,7 @@ export default function HRPage() {
 
         {/* Tab content */}
         {tab==='team' && (
-          <TeamSection users={users} zones={zones} loading={loading} error={error} onRefresh={fetchAll} token={token}/>
+          <TeamSection users={users} zones={zones} loading={loading} error={error} onRefresh={fetchAll}/>
         )}
         {tab==='ats' && (
           <ATSSection token={token} zones={zones}/>
