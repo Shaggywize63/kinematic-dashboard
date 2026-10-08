@@ -4,12 +4,14 @@ import { toast } from 'sonner';
 import api, { API_BASE_URL } from '../../../lib/api';
 import { getStoredToken, getStoredUser } from '../../../lib/auth';
 import SignedImage from '../../../components/shared/SignedImage';
+import ChangePasswordCard from '../../../components/account/ChangePasswordCard';
+import { downscaleToJpeg } from '../../../lib/imageResize';
 
-// Per-user profile page. Today the only editable field is the avatar
-// (name + role + email are admin-managed elsewhere). The avatar upload
-// hits POST /api/v1/upload/avatar — which lands the file in the
-// kinematic-avatars storage bucket — and then PATCH /api/v1/auth/me
-// persists the returned URL onto the user's row.
+// "My account": the signed-in user's profile picture and password. Name, role and email are
+// admin-managed elsewhere. A picked photo is downscaled in the browser, uploaded with
+// POST /api/v1/upload/avatar (lands in the private kinematic-avatars bucket) and then persisted
+// with PATCH /api/v1/auth/me in the same step — no separate "Save". The password card is its own
+// component (ChangePasswordCard).
 
 interface ProfileUser {
   id: string;
@@ -23,7 +25,6 @@ export default function ProfilePage() {
   const [user, setUser] = useState<ProfileUser | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string>('');
   const [uploading, setUploading] = useState(false);
-  const [saving, setSaving] = useState(false);
   const galleryRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -42,16 +43,29 @@ export default function ProfilePage() {
     })();
   }, []);
 
-  // Upload the picked image to /upload/avatar (multipart, field `photo`).
-  // Returns the public URL the server stamped onto the avatars bucket.
-  // The :type=avatar path on the backend routes the file to the right
-  // Supabase storage bucket (kinematic-avatars).
-  const uploadAvatar = async (f: File) => {
-    if (!f) return;
-    if (!/^image\//.test(f.type)) { toast.error('Pick an image file'); return; }
-    if (f.size > 8 * 1024 * 1024) { toast.error('Image must be under 8 MB'); return; }
+  // PATCH the user's row with the avatar URL (or null to clear), then refresh the local cache and tell the
+  // dashboard layout so the header and sidebar avatars update without a reload.
+  const persistAvatar = async (url: string | null) => {
+    const r: any = await api.patch('/api/v1/auth/me', { avatar_url: url });
+    const updated = r?.data ?? r;
+    const merged = { ...(user || {}), ...(updated || {}), avatar_url: url };
+    setUser(merged);
+    setAvatarUrl(url || '');
+    try { localStorage.setItem('kinematic_user', JSON.stringify(merged)); } catch { /* ignore */ }
+    try { window.dispatchEvent(new CustomEvent('kinematic:profile-updated', { detail: { avatar_url: url } })); } catch { /* ignore */ }
+  };
+
+  const ALLOWED = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
+  const MAX_BYTES = 5 * 1024 * 1024; // the avatars bucket refuses > 6 MB
+
+  // Upload the picked image to /upload/avatar (multipart, field `photo`) and save it as the profile picture.
+  const uploadAvatar = async (picked: File) => {
+    if (!picked) return;
+    if (!ALLOWED.includes(picked.type)) { toast.error('Choose a JPEG, PNG or WebP image'); return; }
     setUploading(true);
     try {
+      const f = await downscaleToJpeg(picked);
+      if (f.size > MAX_BYTES) throw new Error('Image must be under 5 MB');
       const fd = new FormData();
       fd.append('photo', f);
       const token = getStoredToken();
@@ -60,36 +74,25 @@ export default function ProfilePage() {
         headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: fd,
       });
-      const json = await r.json();
+      const json = await r.json().catch(() => ({}));
       const url = json?.data?.url || json?.url;
-      if (!url) throw new Error(json?.error || json?.message || 'Upload failed');
-      setAvatarUrl(url);
-      toast.success('Avatar uploaded — click Save to apply');
-    } catch (e: any) { toast.error(e.message || 'Upload failed'); }
+      if (!r.ok || !url) throw new Error(json?.error || json?.message || 'Upload failed');
+      await persistAvatar(url);
+      toast.success('Profile picture updated');
+    } catch (e: any) { toast.error(e?.message || 'Upload failed'); }
     finally {
       setUploading(false);
       if (galleryRef.current) galleryRef.current.value = '';
     }
   };
 
-  // PATCH the user's row with the new avatar URL (or null to clear).
-  // Refreshes local cache + the in-memory user so the rest of the
-  // dashboard (header + sidebar) sees the new image without a reload.
-  const save = async () => {
-    if (!user) return;
-    setSaving(true);
+  const removeAvatar = async () => {
+    setUploading(true);
     try {
-      const r: any = await api.patch('/api/v1/auth/me', { avatar_url: avatarUrl || null });
-      const updated = r?.data ?? r;
-      const merged = { ...(user || {}), ...(updated || {}), avatar_url: avatarUrl || null };
-      setUser(merged);
-      try { localStorage.setItem('kinematic_user', JSON.stringify(merged)); } catch { /* ignore */ }
-      toast.success('Profile saved');
-    } catch (e: any) {
-      toast.error(e?.message || 'Save failed');
-    } finally {
-      setSaving(false);
-    }
+      await persistAvatar(null);
+      toast.success('Profile picture removed');
+    } catch (e: any) { toast.error(e?.message || 'Could not remove the picture'); }
+    finally { setUploading(false); }
   };
 
   if (!user) {
@@ -98,9 +101,9 @@ export default function ProfilePage() {
 
   return (
     <div style={{ maxWidth: 640 }}>
-      <h2 style={{ margin: '0 0 6px', fontSize: 22, color: 'var(--text)' }}>My Profile</h2>
+      <h2 style={{ margin: '0 0 6px', fontSize: 22, color: 'var(--text)' }}>My account</h2>
       <p style={{ margin: '0 0 20px', fontSize: 13, color: 'var(--text-dim)' }}>
-        Personalise your avatar. Name, role, and email are managed by your admin in
+        Your profile picture and password. Name, role and email are managed by your admin in
         Settings → User Directory.
       </p>
 
@@ -136,7 +139,7 @@ export default function ProfilePage() {
           <input
             ref={galleryRef}
             type="file"
-            accept="image/*"
+            accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
             onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadAvatar(f); }}
             disabled={uploading}
             style={{ display: 'none' }}
@@ -146,27 +149,21 @@ export default function ProfilePage() {
             onClick={() => galleryRef.current?.click()}
             disabled={uploading}
             style={{ background: 'var(--s3)', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: uploading ? 'wait' : 'pointer' }}
-          >📎 {avatarUrl ? 'Choose new image' : 'Upload image'}</button>
+          >📎 {avatarUrl ? 'Change picture' : 'Upload picture'}</button>
           {avatarUrl && (
             <button
               type="button"
-              onClick={() => setAvatarUrl('')}
+              onClick={removeAvatar}
               disabled={uploading}
               style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '8px 14px', borderRadius: 8, fontSize: 13, cursor: 'pointer' }}
             >Remove</button>
           )}
-          {uploading && <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>Uploading…</span>}
+          {uploading && <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>Saving…</span>}
         </div>
 
-        <div style={{ display: 'flex', gap: 8, marginTop: 22, justifyContent: 'flex-end' }}>
-          <button
-            type="button"
-            onClick={save}
-            disabled={saving || uploading || (avatarUrl === (user.avatar_url || ''))}
-            style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 18px', borderRadius: 8, fontWeight: 700, cursor: saving ? 'wait' : 'pointer', opacity: (saving || uploading || avatarUrl === (user.avatar_url || '')) ? 0.6 : 1 }}
-          >{saving ? 'Saving…' : 'Save changes'}</button>
-        </div>
       </div>
+
+      <ChangePasswordCard />
     </div>
   );
 }

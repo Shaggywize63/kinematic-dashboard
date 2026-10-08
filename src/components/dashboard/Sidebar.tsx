@@ -283,7 +283,7 @@ export default function Sidebar(p: Props) {
             </div>
             <Link href="/dashboard/profile" role="menuitem" onClick={() => setMenuOpen(false)} className="km-navrow"
               style={{ display: 'flex', alignItems: 'center', gap: 10, height: 32, padding: '0 8px', borderRadius: T.radius.sm, fontSize: 13, color: T.text, textDecoration: 'none' }}>
-              <UserIcon size={16} strokeWidth={1.6} style={{ color: T.dim }} /> My profile
+              <UserIcon size={16} strokeWidth={1.6} style={{ color: T.dim }} /> My account
             </Link>
             <button type="button" role="menuitem" onClick={() => { setMenuOpen(false); p.onLogout(); }} className="km-navrow"
               style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, height: 32, padding: '0 8px', borderRadius: T.radius.sm, fontSize: 13, color: T.red, background: 'transparent', border: 0, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}>

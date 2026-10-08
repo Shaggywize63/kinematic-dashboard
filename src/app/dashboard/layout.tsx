@@ -389,6 +389,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       window.removeEventListener('storage', refresh);
     };
   }, []);
+  // My account saves a new profile picture (or name) and announces it here, so the header and
+  // sidebar avatar update immediately instead of waiting for the next /auth/me.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onProfile = (e: Event) => {
+      const patch = (e as CustomEvent<Record<string, unknown>>).detail;
+      if (patch && typeof patch === 'object') setUser((u: any) => (u ? { ...u, ...patch } : u));
+    };
+    window.addEventListener('kinematic:profile-updated', onProfile);
+    return () => window.removeEventListener('kinematic:profile-updated', onProfile);
+  }, []);
   const tataActive = userClientId === TATA_TISCON_CLIENT_ID || pickerClientId === TATA_TISCON_CLIENT_ID;
   // The Kaiyo/TATA production org (internally "Horizon", org id
   // 00000000-…-0001). Its only real client is TATA Tiscon (a1f67468), but

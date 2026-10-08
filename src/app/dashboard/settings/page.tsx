@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
-import { Bot, Building2, MessageCircle, Moon, Network, Plus, Sun, Users, X } from 'lucide-react';
+import { Bot, Building2, MessageCircle, Moon, Network, Plus, Sun, User as UserIcon, Users, X } from 'lucide-react';
 import api from '../../../lib/api';
 import CitySelect from '../../../components/CitySelect';
 import FieldTrackingCadencePicker from '../../../components/FieldTrackingCadencePicker';
@@ -503,6 +503,7 @@ export default function SettingsPage() {
             {isSuperAdmin && (
               <Button href="/dashboard/settings/ai-assistant" size="sm" icon={<Bot size={15} strokeWidth={1.6} />}>AI assistant access</Button>
             )}
+            <Button href="/dashboard/profile" size="sm" icon={<UserIcon size={15} strokeWidth={1.6} />}>My account</Button>
             <Button href="/dashboard/settings/whatsapp" size="sm" icon={<MessageCircle size={15} strokeWidth={1.6} />}>WhatsApp</Button>
             <Button href="/dashboard/settings/roles" size="sm" icon={<Network size={15} strokeWidth={1.6} />}>Role hierarchy</Button>
           </div>

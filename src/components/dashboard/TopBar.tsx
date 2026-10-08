@@ -110,7 +110,7 @@ export default function TopBar(p: Props) {
         {/* Theme switch stays in Settings on phones — the header has no room. */}
         {!p.isMobile && <ThemeToggle compact />}
         <NotificationBell />
-        <Link href="/dashboard/profile" title="My profile" aria-label="My profile" style={{ display: 'flex', marginLeft: 4, borderRadius: 999 }}>
+        <Link href="/dashboard/profile" title="My account" aria-label="My account" style={{ display: 'flex', marginLeft: 4, borderRadius: 999 }}>
           {p.user?.avatar_url
             ? <SignedImage src={p.user.avatar_url} alt={p.user?.name || 'Profile'} style={{ width: 30, height: 30, borderRadius: 999, objectFit: 'cover', border: `1px solid ${T.border}` }} />
             : <Avatar name={p.user?.name} size={30} />}
