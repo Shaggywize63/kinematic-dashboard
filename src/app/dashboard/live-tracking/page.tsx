@@ -326,6 +326,52 @@ function trailPopupHtml(row: TrailPoint | undefined, i: number, n: number, place
     </div>`;
 }
 
+/** Most ping dots the map draws. Every dot is a google.maps.Marker (a DOM node + listeners), so a few
+ *  thousand of them froze the tab ("Page Unresponsive") — one rep's old Android build had stored 2,471
+ *  pings for a day. The polyline still follows every point; only the clickable dots are thinned. */
+const MAX_TRAIL_DOTS = 250;
+
+/** Which trail points get a dot: the first, the last, every non-heartbeat event (check-in, check-out,
+ *  form submit) and then an even spread of the remaining heartbeats up to `max` dots in all. */
+function trailDotIndices(rows: TrailPoint[], max = MAX_TRAIL_DOTS): number[] {
+  const n = rows.length;
+  if (n <= max) return rows.map((_, i) => i);
+  const keep = new Set<number>([0, n - 1]);
+  const beats: number[] = [];
+  rows.forEach((r, i) => {
+    if (i === 0 || i === n - 1) return;
+    if (String(r.activity_type || '').toUpperCase() === 'HEARTBEAT') beats.push(i); else keep.add(i);
+  });
+  const room = Math.max(0, max - keep.size);
+  if (room > 0 && beats.length) {
+    const step = beats.length / Math.min(room, beats.length);
+    for (let k = 0; k < Math.min(room, beats.length); k++) keep.add(beats[Math.floor(k * step)]);
+  }
+  return Array.from(keep).sort((a, b) => a - b);
+}
+
+/** True when a refetched trail is the one already on screen, so the map keeps its overlays instead of
+ *  tearing down and rebuilding every dot on each 60-second refresh. */
+function sameTrail(a: TrailPoint[], b: TrailPoint[]): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  if (!a.length) return true;
+  const [fa, fb, la, lb] = [a[0], b[0], a[a.length - 1], b[b.length - 1]];
+  return fa.captured_at === fb.captured_at && la.captured_at === lb.captured_at && la.lat === lb.lat && la.lng === lb.lng;
+}
+
+/** google.maps symbol for a round pin / ping dot. */
+const markerCircle = (g: any, fill: string, scale: number, stroke: string, weight: number, opacity = 1) => ({
+  path: g.maps.SymbolPath.CIRCLE, fillColor: fill, fillOpacity: opacity,
+  strokeColor: stroke, strokeWeight: weight, scale,
+});
+
+/** A marker that can open the shared InfoWindow, and how to build that popup's HTML (the body can depend on
+ *  a reverse-geocoded place name that arrives later, so it takes the name — if known — and whether the
+ *  lookup has settled). */
+type PopupBuild = (place: PlaceName | null, resolved: boolean) => string;
+interface PopupEntry { m: any; build: PopupBuild; lat: number; lng: number; kind: string; withPlace: boolean }
+
 function LiveMap({
   fes, supervisors, outlets, warehouses,
   activeLayers, selectedId, onSelect,
@@ -349,6 +395,25 @@ function LiveMap({
   const openPopup  = useRef<{ id: string; kind: string } | null>(null);
   const fittedKey  = useRef<string>('');
   const lastAutoOpen = useRef<string | null>(null);
+  // Every marker that can open the InfoWindow, by id. Live pins (rebuilt on the 60-second refresh) and
+  // `trail:<i>` ping dots (rebuilt only when the trail itself changes) share it, so a refresh that
+  // leaves the trail alone also leaves its dots — and their popups — alone.
+  const popupReg = useRef<Map<string, PopupEntry>>(new Map());
+
+  const showPopup = useCallback((id: string) => {
+    const e = popupReg.current.get(id);
+    if (!e || !infoWin.current || !mapInst.current) return;
+    const cached = e.withPlace ? peekPlaceName(e.lat, e.lng) : null;
+    infoWin.current.setContent(e.build(cached, !e.withPlace || !!cached));
+    infoWin.current.open(mapInst.current, e.m);
+    openPopup.current = { id, kind: e.kind };
+    if (e.withPlace && !cached) {
+      getPlaceName(e.lat, e.lng).then((place) => {
+        // Only repaint if this popup is still the one on screen.
+        if (openPopup.current?.id === id && popupReg.current.get(id)?.m === e.m) infoWin.current?.setContent(e.build(place, true));
+      });
+    }
+  }, []);
 
   // Captured GPS pings for the selected FE (only those with usable coordinates;
   // kept as rows so a ping's time / battery / activity stay aligned with its dot).
@@ -462,6 +527,63 @@ function LiveMap({
     };
   }, [mapLoaded]);
 
+  // Trail overlay: a subtle wide glow polyline under a solid main polyline, plus small clickable dots at
+  // the captured pings (start=green, end=trail colour, middle=white). Declared BEFORE the pins effect so,
+  // when both run in one commit, the pins effect finds the trail's popups already registered. It rebuilds
+  // only when the trail itself (or its road-snapped path) changes — NOT on the 60-second live-pin refresh.
+  useEffect(() => {
+    if (!mapLoaded || !mapInst.current) return;
+    const g = (window as any).google;
+    if (!g?.maps?.Marker) return;
+    const map = mapInst.current;
+    const reg = popupReg.current;
+
+    const clear = () => {
+      trailLines.current.forEach(l => l.setMap(null)); trailLines.current = [];
+      trailDots.current.forEach(d => d.setMap(null)); trailDots.current = [];
+      for (const k of Array.from(reg.keys())) if (k.startsWith('trail:')) reg.delete(k);
+      // A popup on a dot that no longer exists must not linger.
+      if (openPopup.current?.kind === 'trail') { infoWin.current?.close(); openPopup.current = null; }
+    };
+    clear();
+    if (!trailPoints || trailPoints.length < 2) return clear;
+
+    const colour = trailColor || '#E01E2C';
+    // Prefer the road-snapped path; fall back to straight segments between the raw pings. The per-ping
+    // dots below always sit on the raw GPS points.
+    const path = (snappedPath && snappedPath.length > 1)
+      ? snappedPath
+      : trailPoints.map(([lat, lng]) => ({ lat, lng }));
+    trailLines.current = [
+      new g.maps.Polyline({ path, strokeColor: colour, strokeOpacity: 0.18, strokeWeight: 8, map, zIndex: 5 }),
+      new g.maps.Polyline({ path, strokeColor: colour, strokeOpacity: 0.95, strokeWeight: 4, map, zIndex: 6 }),
+    ];
+
+    const n = trailPoints.length;
+    trailDotIndices(trailRows).forEach((i) => {
+      const [lat, lng] = trailPoints[i];
+      const isFirst = i === 0;
+      const isLast  = i === n - 1;
+      const fill    = isLast ? colour : isFirst ? '#10b981' : '#ffffff';
+      const stroke  = isLast ? '#ffffff' : isFirst ? '#ffffff' : colour;
+      const row = trailRows[i];
+      const id = `trail:${i}`;
+      // Clickable: tap any ping for its exact time, coordinates and place name.
+      const dot = new g.maps.Marker({
+        position: { lat, lng }, map, clickable: true, zIndex: isLast ? 9 : 7,
+        title: `${fmtIst(row?.captured_at)} · ping ${i + 1} of ${n}`,
+        icon: markerCircle(g, fill, isFirst || isLast ? 7 : 4, stroke, 2),
+      });
+      reg.set(id, {
+        m: dot, lat, lng, kind: 'trail', withPlace: true,
+        build: (place, resolved) => trailPopupHtml(row, i, n, place, resolved),
+      });
+      dot.addListener('click', () => showPopup(id));
+      trailDots.current.push(dot);
+    });
+    return clear;
+  }, [mapLoaded, trailPoints, trailRows, trailColor, snappedPath, showPopup]);
+
   useEffect(() => {
     if (!mapLoaded || !mapInst.current) return;
     const g = (window as any).google;
@@ -471,30 +593,14 @@ function LiveMap({
     markers.current.forEach(m => m.setMap(null));
     markers.current = [];
 
-    // Every clickable marker registers how to (re)build its popup. The popup
-    // body can depend on a reverse-geocoded place name that arrives later, so
-    // the builder takes the name (if known) and whether the lookup has settled.
-    type Build = (place: PlaceName | null, resolved: boolean) => string;
-    const popups = new Map<string, { m: any; build: Build; lat: number; lng: number; kind: string; withPlace: boolean }>();
-
-    const showPopup = (id: string) => {
-      const e = popups.get(id);
-      if (!e || !infoWin.current) return;
-      const cached = e.withPlace ? peekPlaceName(e.lat, e.lng) : null;
-      infoWin.current.setContent(e.build(cached, !e.withPlace || !!cached));
-      infoWin.current.open(map, e.m);
-      openPopup.current = { id, kind: e.kind };
-      if (e.withPlace && !cached) {
-        getPlaceName(e.lat, e.lng).then((place) => {
-          // Only repaint if this popup is still the one on screen.
-          if (openPopup.current?.id === id && popups.get(id)?.m === e.m) infoWin.current?.setContent(e.build(place, true));
-        });
-      }
-    };
+    // Every clickable pin registers how to (re)build its popup. The live pins are rebuilt here on each
+    // refresh, so drop their previous entries — but leave the trail dots' entries (see the trail effect).
+    const popups = popupReg.current;
+    for (const k of Array.from(popups.keys())) if (!k.startsWith('trail:')) popups.delete(k);
 
     const addMarker = (
       lat: number, lng: number, icon: any, label: any,
-      build: Build, id: string, type: string, zIndex: number, withPlace = false,
+      build: PopupBuild, id: string, type: string, zIndex: number, withPlace = false,
     ) => {
       const m = new g.maps.Marker({ position: { lat, lng }, map, icon, label, zIndex });
       popups.set(id, { m, build, lat, lng, kind: type, withPlace });
@@ -502,10 +608,8 @@ function LiveMap({
       markers.current.push(m);
     };
 
-    const circleIcon = (fill: string, scale: number, stroke: string, weight: number, opacity = 1) => ({
-      path: g.maps.SymbolPath.CIRCLE, fillColor: fill, fillOpacity: opacity,
-      strokeColor: stroke, strokeWeight: weight, scale,
-    });
+    const circleIcon = (fill: string, scale: number, stroke: string, weight: number, opacity = 1) =>
+      markerCircle(g, fill, scale, stroke, weight, opacity);
 
     if (activeLayers.has('fe')) {
       fes.filter(fe => fe.lat && fe.lng).forEach(fe => {
@@ -553,45 +657,6 @@ function LiveMap({
         const label = { text: '🏭', fontSize: '13px' };
         const popup = `<div style="font-family:DM Sans,sans-serif;font-size:12px;color:var(--text);background:var(--s1);padding:10px 12px;border-radius:8px;min-width:150px"><div style="font-weight:700;margin-bottom:4px">${escapeHtml(w.name)}</div>${w.type?`<div style="color:var(--text-dim);font-size:11px">${escapeHtml(w.type)}</div>`:''}<div style="color:var(--text-dim);font-size:11px;margin-top:4px">${escapeHtml(w.city||'')}</div></div>`;
         addMarker(w.latitude!, w.longitude!, icon, label, () => popup, w.id, 'warehouse', 15);
-      });
-    }
-
-    // Trail: a subtle wide glow polyline under a solid main polyline, plus
-    // small circle markers at each captured ping (start=green, end=trail
-    // colour, middle=white).
-    trailLines.current.forEach(l => l.setMap(null)); trailLines.current = [];
-    trailDots.current.forEach(d => d.setMap(null)); trailDots.current = [];
-    if (trailPoints && trailPoints.length > 1) {
-      const colour = trailColor || '#E01E2C';
-      // Prefer the road-snapped path; fall back to straight segments between the
-      // raw pings. The per-ping dots below always sit on the raw GPS points.
-      const path = (snappedPath && snappedPath.length > 1)
-        ? snappedPath
-        : trailPoints.map(([lat, lng]) => ({ lat, lng }));
-      const glow = new g.maps.Polyline({ path, strokeColor: colour, strokeOpacity: 0.18, strokeWeight: 8, map, zIndex: 5 });
-      const main = new g.maps.Polyline({ path, strokeColor: colour, strokeOpacity: 0.95, strokeWeight: 4, map, zIndex: 6 });
-      trailLines.current = [glow, main];
-
-      trailPoints.forEach(([lat, lng], i) => {
-        const isFirst = i === 0;
-        const isLast  = i === trailPoints.length - 1;
-        const radius  = isFirst || isLast ? 7 : 4;
-        const fill    = isLast ? colour : isFirst ? '#10b981' : '#ffffff';
-        const stroke  = isLast ? '#ffffff' : isFirst ? '#ffffff' : colour;
-        const row = trailRows[i];
-        const id = `trail:${i}`;
-        // Clickable: tap any ping for its exact time, coordinates and place name.
-        const dot = new g.maps.Marker({
-          position: { lat, lng }, map, clickable: true, zIndex: isLast ? 9 : 7,
-          title: `${fmtIst(row?.captured_at)} · ping ${i + 1} of ${trailPoints.length}`,
-          icon: circleIcon(fill, radius, stroke, 2),
-        });
-        popups.set(id, {
-          m: dot, lat, lng, kind: 'trail', withPlace: true,
-          build: (place, resolved) => trailPopupHtml(row, i, trailPoints.length, place, resolved),
-        });
-        dot.addListener('click', () => showPopup(id));
-        trailDots.current.push(dot);
       });
     }
 
@@ -648,7 +713,7 @@ function LiveMap({
       openPopup.current = null;
     }
 
-  }, [mapLoaded, fes, supervisors, outlets, warehouses, activeLayers, selectedId, onSelect, trail, trailColor, trailPoints, trailRows, snappedPath]);
+  }, [mapLoaded, fes, supervisors, outlets, warehouses, activeLayers, selectedId, onSelect, trailPoints, showPopup]);
 
   return (
     <>
@@ -893,8 +958,14 @@ export default function LiveTrackingPage() {
     }
     const date = trailDate;
     let cancelled = false;
-    api.get<{ success: boolean; data: TrailPoint[] }>(`/api/v1/users/${selectedId}/location-trail?date=${date}`)
-      .then((r) => { if (!cancelled) setSelectedTrail(r.data ?? []); })
+    // noCache: the trail is live data. The default GET cache answers from memory for 60s and, past
+    // that, serves a copy up to 5 minutes old from localStorage (refreshing it only for the NEXT call),
+    // so the drawn trail lagged the real one — and a long trail was re-serialised into localStorage
+    // on every refresh. live-locations bypasses the same cache for the same reason.
+    api.get<{ success: boolean; data: TrailPoint[] }>(`/api/v1/users/${selectedId}/location-trail?date=${date}`, { noCache: true } as RequestInit & { noCache?: boolean })
+      // Keep the same array when the 60-second refetch returns the same trail, so the map doesn't
+      // rebuild its overlays (and re-request road snapping) for nothing.
+      .then((r) => { if (!cancelled) setSelectedTrail((prev) => { const next = r.data ?? []; return sameTrail(prev, next) ? prev : next; }); })
       .catch(() => { if (!cancelled) setSelectedTrail([]); });
     return () => { cancelled = true; };
   }, [selectedId, selectedType, lastSync, trailDate]);
