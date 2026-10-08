@@ -1337,6 +1337,13 @@ function AttendanceContent() {
                 </div>
               )}
 
+              {/* Free-text note — includes "Auto checked out at 12:00 AM" for a shift nobody closed. */}
+              {detail.notes && (
+                <div style={{ background: T.raised, borderRadius: 8, padding: '10px 12px', fontSize: 12.5, color: T.dim }}>
+                  <span style={{ fontWeight: 600 }}>Note: </span>{detail.notes}
+                </div>
+              )}
+
               {detail.is_regularised && (
                 <div><Badge tone="info" dot>Regularised by admin</Badge></div>
               )}
