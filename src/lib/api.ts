@@ -903,12 +903,16 @@ class ApiClient {
   /**
    * Authenticated — sets a new password for the signed-in user and clears
    * the server's must_change_password flag. Powers the forced "set a new
-   * password on first login" screen.
+   * password on first login" screen (new password only) and the voluntary
+   * "Change password" card in My account, which MUST also send the current
+   * password — the server verifies it.
    */
-  changePassword(newPassword: string) {
+  changePassword(newPassword: string, currentPassword?: string) {
     return this.post<{ success: boolean; data: { ok: true } }>(
       '/api/v1/auth/change-password',
-      { new_password: newPassword },
+      currentPassword === undefined
+        ? { new_password: newPassword }
+        : { current_password: currentPassword, new_password: newPassword },
     );
   }
 

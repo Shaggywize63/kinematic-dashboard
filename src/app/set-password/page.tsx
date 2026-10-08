@@ -7,6 +7,7 @@ import api from '../../lib/api';
 import { getStoredToken, getStoredUser, landingRouteFor } from '../../lib/auth';
 import BrandLogo from '../../components/shared/BrandLogo';
 import { Button, Card, Field, Input, T } from '../../components/ui';
+import { MIN_PASSWORD_LENGTH, PASSWORD_POLICY_HINT } from '../../lib/passwordPolicy';
 
 /**
  * Forced "set a new password" screen. The dashboard layout routes here when
@@ -28,7 +29,7 @@ export default function SetPasswordPage() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (pw.length < 6) { toast.error('Password must be at least 6 characters'); return; }
+    if (pw.length < MIN_PASSWORD_LENGTH) { toast.error(`Password must be at least ${MIN_PASSWORD_LENGTH} characters`); return; }
     if (pw !== confirm) { toast.error('Passwords do not match'); return; }
     setBusy(true);
     try {
@@ -69,8 +70,8 @@ export default function SetPasswordPage() {
           You signed in with a temporary password. Choose your own before continuing.
         </p>
         <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <Field label="New password" hint="At least 6 characters." htmlFor="new-password">
-            <Input id="new-password" type="password" value={pw} onChange={(e) => setPw(e.target.value)} autoFocus autoComplete="new-password" placeholder="At least 6 characters" style={{ height: 40 }} />
+          <Field label="New password" hint={PASSWORD_POLICY_HINT} htmlFor="new-password">
+            <Input id="new-password" type="password" value={pw} onChange={(e) => setPw(e.target.value)} autoFocus autoComplete="new-password" placeholder={`At least ${MIN_PASSWORD_LENGTH} characters`} style={{ height: 40 }} />
           </Field>
           <Field label="Confirm new password" error={mismatch ? 'Passwords do not match.' : undefined} htmlFor="confirm-password">
             <Input id="confirm-password" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" placeholder="Re-enter password" invalid={mismatch} style={{ height: 40 }} />

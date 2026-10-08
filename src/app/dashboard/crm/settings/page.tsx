@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { toast } from 'sonner';
 import {
   Blocks, Boxes, ChevronRight, Database, GitBranch, Layers, ListChecks, MapPinned, Moon, Network, Phone, Plug, Shuffle,
-  Sparkles, Sun, Target, Users, Workflow, Zap,
+  Sparkles, Sun, Target, UserCircle, Users, Workflow, Zap,
 } from 'lucide-react';
 import { crmSettings } from '../../../../lib/crmApi';
 import api from '../../../../lib/api';
@@ -19,6 +19,7 @@ import { usePageTitle } from '../../../../lib/pageTitle';
 const ICON_PROPS = { size: 18, strokeWidth: 1.6 } as const;
 
 const SECTIONS = [
+  { href: '/dashboard/profile', title: 'My Account', desc: 'Your profile picture and password.', icon: <UserCircle {...ICON_PROPS} /> },
   { href: '/dashboard/crm/settings/users', title: 'Team Members', desc: 'Create CRM users scoped to the active client. Synced with global Settings → Users.', icon: <Users {...ICON_PROPS} /> },
   { href: '/dashboard/crm/settings/locations', title: 'States, Cities & Blocks', desc: 'Master list of states, cities, districts + the per-district block catalogue that powers the lead form picker.', icon: <MapPinned {...ICON_PROPS} /> },
   { href: '/dashboard/crm/settings/pipelines', title: 'Pipelines', desc: 'Configure deal pipelines.', icon: <GitBranch {...ICON_PROPS} /> },

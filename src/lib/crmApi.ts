@@ -758,6 +758,8 @@ export const crmEmailCampaigns = {
   pause: (id: string) => api.post<Wrapped<EmailCampaign>>(`${BASE}/email-campaigns/${id}/pause`, {}),
   resume: (id: string) => api.post<Wrapped<EmailCampaign>>(`${BASE}/email-campaigns/${id}/resume`, {}),
   cancel: (id: string) => api.post<Wrapped<EmailCampaign>>(`${BASE}/email-campaigns/${id}/cancel`, {}),
+  /** Re-send a finished campaign to ONLY the recipients whose send failed (bounced / unsubscribed / delivered ones are untouched). */
+  resendFailed: (id: string) => api.post<Wrapped<{ campaign: EmailCampaign; requeued: number }>>(`${BASE}/email-campaigns/${id}/resend-failed`, {}),
   process: (id: string) => api.post<Wrapped<{ sent: number; failed: number; skipped: number; done: boolean }>>(`${BASE}/email-campaigns/${id}/process`, {}),
   entitlement: () => api.get<Wrapped<{ enabled: boolean }>>(`${BASE}/email-campaigns/entitlement`),
   usage: () => api.get<Wrapped<{ campaigns: number; emails_this_month: number }>>(`${BASE}/email-campaigns/usage`),
