@@ -62,13 +62,16 @@ export default function EmailCampaignDetailPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  const [notice, setNotice] = useState('');
+  // Recipient list filter: '' = everyone, 'failed' = only the ones whose send failed (the ones a resend would retry).
+  const [statusFilter, setStatusFilter] = useState<'' | 'failed'>('');
 
   const load = useCallback(async () => {
     try {
       const [camp, an, recs] = await Promise.all([
         crmEmailCampaigns.get(id),
         crmEmailCampaigns.analytics(id).catch(() => null),
-        crmEmailCampaigns.recipients(id, { limit: 200 }).catch(() => null),
+        crmEmailCampaigns.recipients(id, { limit: 200, ...(statusFilter ? { status: statusFilter } : {}) }).catch(() => null),
       ]);
       setC(camp.data);
       if (an) setAnalytics(an.data);
@@ -76,7 +79,7 @@ export default function EmailCampaignDetailPage() {
       setErr('');
     } catch (e: any) { setErr(e?.message || 'Failed to load campaign'); }
     finally { setLoading(false); }
-  }, [id]);
+  }, [id, statusFilter]);
   useEffect(() => { load(); }, [load]);
 
   // Poll while in flight so counts advance live.
@@ -89,6 +92,22 @@ export default function EmailCampaignDetailPage() {
   const act = async (fn: () => Promise<unknown>) => {
     setBusy(true); setErr('');
     try { await fn(); await load(); } catch (e: any) { setErr(e?.message || 'Action failed'); }
+    finally { setBusy(false); }
+  };
+
+  // Recipients whose send failed RIGHT NOW (bounced / unsubscribed / delivered ones are not counted and not retried).
+  const failedCount = analytics?.totals?.failed ?? c?.failed ?? 0;
+
+  const resendFailed = async () => {
+    const plural = failedCount === 1 ? '' : 's';
+    if (!confirm(`Resend this email to the ${failedCount.toLocaleString()} recipient${plural} it failed to reach?\n\nRecipients who already received it, bounced or unsubscribed will not be sent again.`)) return;
+    setBusy(true); setErr(''); setNotice('');
+    try {
+      const r = await crmEmailCampaigns.resendFailed(id);
+      const n = r.data?.requeued ?? failedCount;
+      setNotice(`Resending to ${n.toLocaleString()} failed recipient${n === 1 ? '' : 's'} — the numbers below update as it sends.`);
+      await load();
+    } catch (e: any) { setErr(e?.message || 'Could not resend'); }
     finally { setBusy(false); }
   };
 
@@ -113,11 +132,13 @@ export default function EmailCampaignDetailPage() {
           {c.status === 'draft' && <button onClick={() => act(() => crmEmailCampaigns.launch(id))} disabled={busy} style={{ background: C.red, border: 'none', color: '#fff', padding: '9px 18px', borderRadius: 9, fontSize: 13, fontWeight: 800, cursor: busy ? 'not-allowed' : 'pointer' }}>Send now</button>}
           {c.status === 'sending' && <button onClick={() => act(() => crmEmailCampaigns.pause(id))} disabled={busy} style={{ background: C.s3, border: `1px solid ${C.border}`, color: C.white, padding: '9px 16px', borderRadius: 9, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Pause</button>}
           {c.status === 'paused' && <button onClick={() => act(() => crmEmailCampaigns.resume(id))} disabled={busy} style={{ background: C.red, border: 'none', color: '#fff', padding: '9px 18px', borderRadius: 9, fontSize: 13, fontWeight: 800, cursor: 'pointer' }}>Resume</button>}
+          {c.status === 'completed' && failedCount > 0 && <button onClick={resendFailed} disabled={busy} title="Send again to only the recipients whose email failed" style={{ background: C.red, border: 'none', color: '#fff', padding: '9px 18px', borderRadius: 9, fontSize: 13, fontWeight: 800, cursor: busy ? 'not-allowed' : 'pointer' }}>↻ Resend to {failedCount.toLocaleString()} failed</button>}
           {['sending', 'paused', 'draft'].includes(c.status) && <button onClick={() => { if (confirm('Cancel this campaign? Queued recipients will not be sent.')) act(() => crmEmailCampaigns.cancel(id)); }} disabled={busy} style={{ background: 'transparent', border: `1px solid ${C.border}`, color: C.gray, padding: '9px 16px', borderRadius: 9, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Cancel</button>}
         </div>
       </div>
 
       {err && <div style={{ ...card, borderColor: 'rgba(224,30,44,0.3)', color: C.red, fontSize: 13 }}>{err}</div>}
+      {notice && <div role="status" style={{ ...card, borderColor: 'rgba(34,197,94,0.3)', color: C.green, fontSize: 13 }}>{notice}</div>}
 
       {/* Analytics */}
       <div style={card}>
@@ -145,11 +166,17 @@ export default function EmailCampaignDetailPage() {
       <div style={{ ...card, padding: 0, overflow: 'hidden' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', borderBottom: `1px solid ${C.border}`, background: C.s3 }}>
           <span style={{ fontSize: 12, fontWeight: 700, color: C.gray, textTransform: 'uppercase', letterSpacing: '0.8px' }}>Recipients {recipients.length ? `(showing ${recipients.length})` : ''}</span>
+          <span style={{ display: 'flex', gap: 6, marginLeft: 'auto', marginRight: 10 }}>
+            {([['', 'All'], ['failed', `Failed${failedCount ? ` (${failedCount.toLocaleString()})` : ''}`]] as const).map(([val, label]) => (
+              <button key={val || 'all'} onClick={() => setStatusFilter(val)} aria-pressed={statusFilter === val}
+                style={{ padding: '5px 12px', borderRadius: 7, fontSize: 12, fontWeight: 700, cursor: 'pointer', background: statusFilter === val ? C.s4 : 'transparent', color: statusFilter === val ? C.white : C.gray, border: `1px solid ${C.border}` }}>{label}</button>
+            ))}
+          </span>
           <button onClick={() => downloadCsv(crmEmailCampaigns.csvPath(id), `email-campaign-${c.name.replace(/[^a-z0-9]+/gi, '-')}.csv`)}
             style={{ padding: '5px 12px', borderRadius: 7, fontSize: 12, fontWeight: 700, cursor: 'pointer', background: 'transparent', color: C.gray, border: `1px solid ${C.border}` }}>↓ Export CSV</button>
         </div>
         {recipients.length === 0 ? (
-          <div style={{ padding: 24, color: C.gray, fontSize: 13 }}>No recipients yet. {c.status === 'draft' ? 'They are created when you send.' : ''}</div>
+          <div style={{ padding: 24, color: C.gray, fontSize: 13 }}>{statusFilter === 'failed' ? 'No failed recipients.' : <>No recipients yet. {c.status === 'draft' ? 'They are created when you send.' : ''}</>}</div>
         ) : (
           <div style={{ maxHeight: 460, overflowY: 'auto' }}>
             {recipients.map((r, i) => (
