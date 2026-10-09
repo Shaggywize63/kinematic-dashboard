@@ -20,6 +20,7 @@ import {
   DEFAULT_LEAD_FORM, extractLeadForm, localDateTimeToIso, offersScheduleVisit, segmentName, segmentToggleLabel, showsAddress,
   type LeadFormConfig,
 } from '../../../../../lib/crmLeadForm';
+import { useLeadOwnerAccess } from '../../../../../lib/leadOwnerAccess';
 import { DataCollectionConsent, NOTICE_VERSION } from '../../../../../components/crm/DataConsent';
 import { Button, Eyebrow, Field, FormGrid, Input, PageHeader, Section as FormSection, Segmented, Select, T, cardStyle, requiredMark, useIsCompact } from '../../../../../components/ui';
 import { usePageTitle } from '../../../../../lib/pageTitle';
@@ -258,6 +259,10 @@ export default function NewLeadPage() {
   // True once the settings round-trip has finished (success or failure). The Data consent block is admin-gated
   // (field override `data_consent`), so it waits for this rather than flashing up and then disappearing.
   const [settingsLoaded, setSettingsLoaded] = useState(false);
+  // Clients that set lead_form.owner_assignment='admin_only' let only an admin choose an owner. For anyone
+  // else the Owner control is gone and no owner_id is sent (the server makes them the owner).
+  const ownerAccess = useLeadOwnerAccess();
+  const ownerLocked = ownerAccess.adminOnly && !ownerAccess.canAssign;
   // Pass the active B2C/B2B scope so overrides like "email required for
   // B2B only" or "last_name optional for B2C" take precedence over the
   // universal entry for the same field.
@@ -590,7 +595,8 @@ export default function NewLeadPage() {
         first_name: form.first_name || undefined, last_name: form.last_name || undefined,
         email: form.email || undefined, phone: form.phone || undefined, is_b2c: isTata || form.is_b2c,
         source_id: form.source_id || undefined,
-        owner_id: form.owner_id || undefined,
+        // Admin-only assignment: a non-admin never sends an owner (not even themselves) — the server owns it to them.
+        owner_id: ownerLocked ? undefined : (form.owner_id || undefined),
         status: form.status || 'new',
         product_ids: form.product_ids.length > 0 ? form.product_ids : undefined,
         alternate_mobiles: form.alternate_mobiles.length ? form.alternate_mobiles : undefined,
@@ -820,7 +826,7 @@ export default function NewLeadPage() {
     <div style={{ maxWidth: 1040, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
       <PageHeader
         title="New lead"
-        description={<>{showToggle ? 'Create a lead and assign it to a rep. Hidden fields follow your admin’s form settings.' : leadTypeLabel} Fields marked {requiredMark} are required.</>}
+        description={<>{showToggle ? (ownerLocked ? 'Create a lead. Hidden fields follow your admin’s form settings.' : 'Create a lead and assign it to a rep. Hidden fields follow your admin’s form settings.') : leadTypeLabel} Fields marked {requiredMark} are required.</>}
         actions={narrow ? undefined : actions}
         compact={narrow}
       />
@@ -893,8 +899,8 @@ export default function NewLeadPage() {
           )}
         </Section>
 
-        {(!fields.isHidden('status') || !fields.isHidden('source_id') || !fields.isHidden('owner_id')) && (
-          <Section title="Assignment" hint="Stage, source and owner. The owner sees this lead in their queue.">
+        {(!fields.isHidden('status') || !fields.isHidden('source_id') || (!fields.isHidden('owner_id') && !ownerLocked)) && (
+          <Section title="Assignment" hint={ownerLocked ? 'Stage and source.' : 'Stage, source and owner. The owner sees this lead in their queue.'}>
             <FormGrid narrow={narrow}>
               {!fields.isHidden('status') && (
                 <Field label={fields.labelFor('status', 'Status')} htmlFor="lead-field-status">
@@ -923,7 +929,9 @@ export default function NewLeadPage() {
               {/* Self-only roles (e.g. Consumer Champion, data_scope='own') always
                   own the leads they create — hide the assign control and default
                   the owner to themselves. */}
-              {!fields.isHidden('owner_id') && !selfOnly && (
+              {/* Admin-only assignment (lead_form.owner_assignment) takes the control away from everyone but
+                  an admin; it also waits for the setting + identity so it never flashes up for them. */}
+              {!fields.isHidden('owner_id') && !selfOnly && ownerAccess.canAssign && (
                 <Field label={fields.labelFor('owner_id', 'Owner')}>
                   <UserSearchSelect
                     options={users}

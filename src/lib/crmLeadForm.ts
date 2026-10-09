@@ -9,6 +9,7 @@
 //     segment_labels: { b2b?: string; b2c?: string },
 //     address_on_b2b: boolean,
 //     schedule_visit: { segments: ('b2b' | 'b2c')[] },
+//     owner_assignment?: 'admin_only',   // absent = anyone who could assign before still can
 //   }
 //
 // Design contract: a client WITHOUT this config must behave exactly as before.
@@ -25,12 +26,18 @@ export interface LeadFormConfig {
   addressOnB2b: boolean;
   /** Lead types whose create form offers "Schedule visit". */
   scheduleVisitSegments: FieldScope[];
+  /**
+   * `owner_assignment === 'admin_only'`: only an admin may choose or change a lead's owner. Everyone else
+   * keeps seeing the owner but gets no control to set it (see leadOwnerAccess.ts for who counts as admin).
+   */
+  ownerAdminOnly: boolean;
 }
 
 export const DEFAULT_LEAD_FORM: LeadFormConfig = {
   segmentLabels: {},
   addressOnB2b: false,
   scheduleVisitSegments: [],
+  ownerAdminOnly: false,
 };
 
 const clean = (v: unknown): string | undefined => {
@@ -48,6 +55,7 @@ export function extractLeadForm(settingsData: unknown): LeadFormConfig {
     segment_labels?: { b2b?: unknown; b2c?: unknown };
     address_on_b2b?: unknown;
     schedule_visit?: { segments?: unknown };
+    owner_assignment?: unknown;
   };
   const segs = Array.isArray(lf.schedule_visit?.segments)
     ? (lf.schedule_visit!.segments as unknown[]).filter((s): s is FieldScope => s === 'b2b' || s === 'b2c')
@@ -56,6 +64,7 @@ export function extractLeadForm(settingsData: unknown): LeadFormConfig {
     segmentLabels: { b2b: clean(lf.segment_labels?.b2b), b2c: clean(lf.segment_labels?.b2c) },
     addressOnB2b: lf.address_on_b2b === true,
     scheduleVisitSegments: Array.from(new Set(segs)),
+    ownerAdminOnly: lf.owner_assignment === 'admin_only',
   };
 }
 

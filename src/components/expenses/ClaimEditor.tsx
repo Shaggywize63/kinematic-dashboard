@@ -10,7 +10,8 @@ import { Camera, Eye, FileText, MapPin, Plus, ShieldCheck, Trash2, Upload, X } f
 import { Badge, Button, Card, FormGrid, IconButton, Input, Select, T, useIsCompact } from '../ui';
 import {
   CATEGORIES, ClaimItem, ClaimItemInput, ClaimCheck, ExpenseClaim, ItemCategory, MyPolicy,
-  categoryLabel, enabledCategories, expensesApi, odometerCameraOnly, routeFieldsOn, singleCategory, singleLineOn,
+  VehicleRate, categoryLabel, enabledCategories, expensesApi, lineVehicle, odometerCameraOnly, policyVehicles, routeFieldsOn, singleCategory,
+  singleLineOn, soleVehicleId,
 } from '../../lib/expensesApi';
 import {
   ExpensesShell, Field, Panel, PolicyFindings, ReceiptViewer, RejectionBanner, RECEIPT_ACCEPT, RECEIPT_MAX_BYTES,
@@ -89,11 +90,12 @@ const isFilled = (l: Line) => !!(l.amount.trim() || l.distance_km.trim() || l.me
   || l.vehicle_type || l.odo_start.trim() || l.odo_end.trim() || l.odo_start_url || l.odo_end_url);
 // `vf` = the policy prices mileage by vehicle. A saved draft only needs *something* to go on there
 // (the rest is enforced at submit and shown live by the policy check), unlike a flat-rate line.
-const isValid = (l: Line, vf = false) => (l.category === 'mileage'
-  ? (vf ? !!l.vehicle_type || reading(l.odo_start) || reading(l.odo_end) : pos(l.amount) || pos(l.distance_km))
+// `vehicles` = that policy's vehicles: with exactly one, every mileage line already carries it (lineVehicle).
+const isValid = (l: Line, vf = false, vehicles: VehicleRate[] = []) => (l.category === 'mileage'
+  ? (vf ? !!lineVehicle(l.vehicle_type, vehicles) || reading(l.odo_start) || reading(l.odo_end) : pos(l.amount) || pos(l.distance_km))
   : pos(l.amount));
 
-function toInput(l: Line, vf = false): ClaimItemInput {
+function toInput(l: Line, vf = false, vehicles: VehicleRate[] = []): ClaimItemInput {
   const mileage = l.category === 'mileage';
   const byVehicle = mileage && vf;
   return {
@@ -105,7 +107,7 @@ function toInput(l: Line, vf = false): ClaimItemInput {
     amount: byVehicle ? null : pos(l.amount) ? n(l.amount) : null,
     distance_km: byVehicle ? null : mileage && pos(l.distance_km) ? n(l.distance_km) : null,
     ...(byVehicle ? {
-      vehicle_type: l.vehicle_type || null,
+      vehicle_type: lineVehicle(l.vehicle_type, vehicles) || null,
       odometer_start: reading(l.odo_start) ? n(l.odo_start) : null,
       odometer_end: reading(l.odo_end) ? n(l.odo_end) : null,
       odometer_start_photo_url: l.odo_start_url || null,
@@ -187,7 +189,9 @@ export default function ClaimEditor({ claimId }: { claimId?: string }) {
 
   const rate = policy?.mileage_rate ?? 0;
   const currency = policy?.currency ?? claim?.currency ?? 'INR';
-  const vehicles = policy?.rules?.vehicle_rates ?? [];
+  // The vehicles of the claimant's own policy (GET /expenses/policy) — the only ones offered. Claims are edited
+  // by their owner alone (the server loads the claim as the caller's own), so "my policy" is the governing one.
+  const vehicles = useMemo(() => policyVehicles(policy?.rules), [policy]);
   const vf = vehicles.length > 0;
 
   // Vehicle flow: remind the rep where the odometer stood after their last claimed trip.
@@ -205,7 +209,7 @@ export default function ClaimEditor({ claimId }: { claimId?: string }) {
   const lineAmount = (l: Line) => {
     if (vf && l.category === 'mileage') {
       const km = odoKm(l);
-      const perKm = vehicles.find((v) => v.id === l.vehicle_type)?.rate_per_km;
+      const perKm = vehicles.find((v) => v.id === lineVehicle(l.vehicle_type, vehicles))?.rate_per_km;
       return km != null && perKm != null ? round2(km * perKm) : 0;
     }
     return pos(l.amount) ? n(l.amount) : l.category === 'mileage' && pos(l.distance_km) ? Math.round(n(l.distance_km) * rate * 100) / 100 : 0;
@@ -214,7 +218,7 @@ export default function ClaimEditor({ claimId }: { claimId?: string }) {
   const filled = useMemo(() => lines.filter(isFilled), [lines]);
 
   // ── live policy check ──
-  const checkKey = useMemo(() => JSON.stringify(filled.filter((l) => isValid(l, vf)).map((l) => toInput(l, vf))), [filled, vf]);
+  const checkKey = useMemo(() => JSON.stringify(filled.filter((l) => isValid(l, vf, vehicles)).map((l) => toInput(l, vf, vehicles))), [filled, vf, vehicles]);
   const checkSeq = useRef(0);
   useEffect(() => {
     const items: ClaimItemInput[] = JSON.parse(checkKey);
@@ -231,7 +235,7 @@ export default function ClaimEditor({ claimId }: { claimId?: string }) {
   }, [checkKey]);
 
   // Findings are indexed by position among the lines that were checked.
-  const checkedKeys = useMemo(() => filled.filter((l) => isValid(l, vf)).map((l) => l.key), [filled, vf]);
+  const checkedKeys = useMemo(() => filled.filter((l) => isValid(l, vf, vehicles)).map((l) => l.key), [filled, vf, vehicles]);
   const findingsFor = (key: number) => {
     const idx = checkedKeys.indexOf(key);
     return idx < 0 ? [] : (check?.violations ?? []).filter((v) => v.item_id === String(idx));
@@ -312,7 +316,7 @@ export default function ClaimEditor({ claimId }: { claimId?: string }) {
   // ── save / submit ──
   const persist = async (): Promise<string | null> => {
     if (!filled.length) { toast.error('Add at least one expense'); return null; }
-    const bad = lines.findIndex((l) => isFilled(l) && !isValid(l, vf));
+    const bad = lines.findIndex((l) => isFilled(l) && !isValid(l, vf, vehicles));
     if (bad >= 0) {
       const byVehicle = vf && lines[bad].category === 'mileage';
       toast.error(byVehicle ? `Expense ${bad + 1} needs a vehicle and the odometer readings` : `Expense ${bad + 1} needs an amount${lines[bad].category === 'mileage' ? ' or a distance' : ''}`);
@@ -321,7 +325,7 @@ export default function ClaimEditor({ claimId }: { claimId?: string }) {
     const wrongOrder = lines.findIndex((l) => vf && l.category === 'mileage' && reading(l.odo_start) && reading(l.odo_end) && n(l.odo_end) < n(l.odo_start));
     if (wrongOrder >= 0) { toast.error(`Expense ${wrongOrder + 1}: the reading after the trip is lower than the reading before it`); return null; }
     if (lines.some((l) => l.uploading || l.odoUploading)) { toast.error('Wait for the photo to finish uploading'); return null; }
-    const body = { title: title.trim() || null, items: filled.map((l) => toInput(l, vf)) };
+    const body = { title: title.trim() || null, items: filled.map((l) => toInput(l, vf, vehicles)) };
     if (savedId.current) { await expensesApi.updateClaim(savedId.current, body); return savedId.current; }
     const r = await expensesApi.createClaim(body);
     savedId.current = r.data.id;
@@ -444,12 +448,15 @@ function LineCard({ index, line: l, policy, currency, removable, lastReading, fi
 }) {
   const wide = !useIsCompact(640);
   const mileage = l.category === 'mileage';
-  // The policy pays mileage by vehicle: pick one, enter the odometer before / after.
-  const vehicles = policy?.rules?.vehicle_rates ?? [];
+  // The policy pays mileage by vehicle: pick one, enter the odometer before / after. With exactly one vehicle on
+  // the policy there is nothing to pick — it is already selected (and, being the only one, can't be cleared).
+  const vehicles = useMemo(() => policyVehicles(policy?.rules), [policy]);
+  const soleVehicle = soleVehicleId(vehicles);
+  const vehicle = lineVehicle(l.vehicle_type, vehicles);
   const byVehicle = mileage && vehicles.length > 0;
   const photosRequired = policy?.rules?.odometer_photos_required !== false;
   const km = odoKm(l);
-  const perKm = vehicles.find((v) => v.id === l.vehicle_type)?.rate_per_km;
+  const perKm = vehicles.find((v) => v.id === vehicle)?.rate_per_km;
   const rules = policy?.rules;
   const allowed = CATEGORIES.filter((c) => c === l.category || enabledCategories(rules).includes(c));
   // One category allowed and this line is on it: nothing to choose, so show its name instead of a picker.
@@ -482,8 +489,8 @@ function LineCard({ index, line: l, policy, currency, removable, lastReading, fi
               {route && <Field label="From"><Input value={l.from_location} onChange={(e) => onChange({ from_location: e.target.value })} placeholder="Starting point" /></Field>}
               {route && <Field label="To"><Input value={l.to_location} onChange={(e) => onChange({ to_location: e.target.value })} placeholder="Destination" /></Field>}
               <Field label="Vehicle" required>
-                <Select value={l.vehicle_type} onChange={(e) => onChange({ vehicle_type: e.target.value })}>
-                  <option value="">Choose a vehicle…</option>
+                <Select value={vehicle} onChange={(e) => onChange({ vehicle_type: e.target.value })}>
+                  {!soleVehicle && <option value="">Choose a vehicle…</option>}
                   {vehicles.map((v) => <option key={v.id} value={v.id}>{v.label} · {money(v.rate_per_km, currency)} / km</option>)}
                 </Select>
               </Field>

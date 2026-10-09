@@ -526,3 +526,125 @@ test.describe('Agrisynx expenses — all claims', () => {
     await expect(page.getByLabel('Category').locator('option').nth(3)).toHaveText('Food');
   });
 });
+
+// ── the vehicle list is the claimant's policy; a sole vehicle is pre-selected ──────────────────────
+const ONE_VEHICLE = [{ id: 'bike', label: 'Bike', rate_per_km: 3 }];
+const vehicleRules = (vehicle_rates: unknown[]) => ({ ...STANDARD_VEHICLE, vehicle_rates });
+const vehicleSelect = (page: Page) => page.getByLabel('Vehicle', { exact: false });
+/** A saved draft with one mileage line; `vehicle_type` is whatever the line was filed with (null = blank). */
+const mileageClaim = (vehicle_type: string | null) => claim([{ vehicle_type, odometer_start: 100, odometer_end: 160, distance_km: 60, amount: 180 }]);
+
+test.describe('Agrisynx expenses — vehicle: only the policy\'s own, and pre-selected when there is one', () => {
+  test('exactly one vehicle on the policy: a new mileage line already has it, with nothing else to pick', async ({ page }) => {
+    const seen = await setup(page, { rules: vehicleRules(ONE_VEHICLE) });
+    await page.goto('/dashboard/expenses/new');
+    await page.getByLabel('Category').selectOption('mileage');
+
+    const vehicle = vehicleSelect(page);
+    await expect(vehicle).toHaveValue('bike');
+    // The list is that one vehicle — no "Choose a vehicle…" to clear it back to, and no other vehicle.
+    await expect(vehicle.locator('option')).toHaveText(['Bike · ₹3 / km']);
+
+    // The rep only types the odometer; the vehicle goes with the line without being touched.
+    await page.getByLabel('Odometer before the trip', { exact: false }).fill('100');
+    await page.getByLabel('Odometer after the trip', { exact: false }).fill('160');
+    await expect(page.getByText('₹180', { exact: true }).first()).toBeVisible();
+    await page.getByRole('button', { name: 'Save as draft' }).click();
+    await expect.poll(() => claimPosted(seen)).toBeTruthy();
+    expect(claimPosted(seen).items[0]).toMatchObject({ category: 'mileage', vehicle_type: 'bike', odometer_start: 100, odometer_end: 160 });
+  });
+
+  test('the pre-selected vehicle does not count as a started expense: a blank claim still asks for one', async ({ page }) => {
+    const seen = await setup(page, { rules: vehicleRules(ONE_VEHICLE) });
+    await page.goto('/dashboard/expenses/new');
+    await page.getByLabel('Category').selectOption('mileage');
+    await expect(vehicleSelect(page)).toHaveValue('bike');
+    await page.getByRole('button', { name: 'Save as draft' }).click();
+    await expect(page.getByText('Add at least one expense')).toBeVisible();
+    expect(claimPosted(seen)).toBeFalsy();
+    // ...and the live policy check (debounced ~650 ms) has nothing to check yet.
+    await page.waitForTimeout(1000);
+    expect(seen.some((r) => r.path === '/claims/check')).toBe(false);
+  });
+
+  test('two vehicles: nothing is pre-selected, the person picks, and both are listed', async ({ page }) => {
+    const seen = await setup(page, { rules: vehicleRules(VEHICLES) });
+    await page.goto('/dashboard/expenses/new');
+    await page.getByLabel('Category').selectOption('mileage');
+
+    const vehicle = vehicleSelect(page);
+    await expect(vehicle).toHaveValue('');
+    await expect(vehicle.locator('option')).toHaveText(['Choose a vehicle…', 'Two-wheeler · ₹4 / km', 'Car · ₹9 / km']);
+
+    await vehicle.selectOption('car');
+    await page.getByLabel('Odometer before the trip', { exact: false }).fill('100');
+    await page.getByLabel('Odometer after the trip', { exact: false }).fill('160');
+    await page.getByRole('button', { name: 'Save as draft' }).click();
+    await expect.poll(() => claimPosted(seen)).toBeTruthy();
+    expect(claimPosted(seen).items[0]).toMatchObject({ vehicle_type: 'car' });
+  });
+
+  test('two vehicles and a line that only has a note: no vehicle is invented for it', async ({ page }) => {
+    const seen = await setup(page, { rules: vehicleRules(VEHICLES) });
+    await page.goto('/dashboard/expenses/new');
+    await page.getByLabel('Category').selectOption('mileage');
+    await page.getByPlaceholder('Optional').fill('Visited dealers');
+    await page.getByRole('button', { name: 'Save as draft' }).click();
+    await expect(page.getByText(/needs a vehicle and the odometer readings/)).toBeVisible();
+    expect(claimPosted(seen)).toBeFalsy();
+  });
+
+  test('an existing line with a blank vehicle gets the sole vehicle, and saving sends it', async ({ page }) => {
+    const seen = await setup(page, {
+      rules: vehicleRules(ONE_VEHICLE), claim: mileageClaim(null),
+      extra: async (route, path, method) => {
+        if (method === 'PATCH' && path === '/claims/c-1') { await route.fulfill({ json: { success: true, data: { id: 'c-1', status: 'draft', items: [] } } }); return true; }
+        return false;
+      },
+    });
+    await page.goto('/dashboard/expenses/c-1/edit');
+    await expect(vehicleSelect(page)).toHaveValue('bike');
+    await page.getByRole('button', { name: 'Save as draft' }).click();
+    await expect.poll(() => seen.find((r) => r.method === 'PATCH' && r.path === '/claims/c-1')?.body).toBeTruthy();
+    expect(seen.find((r) => r.method === 'PATCH' && r.path === '/claims/c-1')!.body.items[0]).toMatchObject({ id: 'it0', vehicle_type: 'bike', odometer_start: 100, odometer_end: 160 });
+  });
+
+  test('an existing line that already has a vehicle keeps it when the policy has two', async ({ page }) => {
+    const seen = await setup(page, {
+      rules: vehicleRules(VEHICLES), claim: mileageClaim('car'),
+      extra: async (route, path, method) => {
+        if (method === 'PATCH' && path === '/claims/c-1') { await route.fulfill({ json: { success: true, data: { id: 'c-1', status: 'draft', items: [] } } }); return true; }
+        return false;
+      },
+    });
+    await page.goto('/dashboard/expenses/c-1/edit');
+    await expect(vehicleSelect(page)).toHaveValue('car');
+    await page.getByRole('button', { name: 'Save as draft' }).click();
+    await expect.poll(() => seen.find((r) => r.method === 'PATCH' && r.path === '/claims/c-1')?.body).toBeTruthy();
+    expect(seen.find((r) => r.method === 'PATCH' && r.path === '/claims/c-1')!.body.items[0]).toMatchObject({ vehicle_type: 'car' });
+  });
+
+  test('an existing line already on the policy\'s only vehicle is untouched', async ({ page }) => {
+    const seen = await setup(page, {
+      rules: vehicleRules(ONE_VEHICLE), claim: mileageClaim('bike'),
+      extra: async (route, path, method) => {
+        if (method === 'PATCH' && path === '/claims/c-1') { await route.fulfill({ json: { success: true, data: { id: 'c-1', status: 'draft', items: [] } } }); return true; }
+        return false;
+      },
+    });
+    await page.goto('/dashboard/expenses/c-1/edit');
+    await expect(vehicleSelect(page)).toHaveValue('bike');
+    await expect(vehicleSelect(page).locator('option')).toHaveCount(1);
+    await page.getByRole('button', { name: 'Save as draft' }).click();
+    await expect.poll(() => seen.find((r) => r.method === 'PATCH' && r.path === '/claims/c-1')?.body).toBeTruthy();
+    expect(seen.find((r) => r.method === 'PATCH' && r.path === '/claims/c-1')!.body.items[0]).toMatchObject({ vehicle_type: 'bike' });
+  });
+
+  test('a policy without vehicle rates is unchanged: no vehicle select at all', async ({ page }) => {
+    await setup(page, { rules: STANDARD });
+    await page.goto('/dashboard/expenses/new');
+    await page.getByLabel('Category').selectOption('mileage');
+    await expect(vehicleSelect(page)).toHaveCount(0);
+    await expect(page.getByLabel('Distance (km)', { exact: false })).toBeVisible();
+  });
+});

@@ -7,6 +7,7 @@ import { crmLeads, crmLeadSources, crmSettings, type Pagination } from '../../..
 import api, { EXPORT_TIMEOUT_MS } from '../../../../lib/api';
 import { downloadBlob } from '../../../../lib/financeFormat';
 import { getStoredUser } from '../../../../lib/auth';
+import { useLeadOwnerAccess } from '../../../../lib/leadOwnerAccess';
 import { isTataTiscon } from '../../../../lib/clientFeatures';
 import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
 import type { Lead, LeadSource } from '../../../../types/crm';
@@ -49,6 +50,9 @@ export default function LeadsListPage() {
   const [showAssignMenu, setShowAssignMenu] = useState(false);
   const [usersLoading, setUsersLoading] = useState(false);
   const [isB2C, setIsB2C] = useState(false);
+  // Clients that set lead_form.owner_assignment='admin_only' let only an admin choose an owner: no "Assign to me" /
+  // "Assign to…" on a selection and no inline owner picker on a row (the owner column is plain text for everyone else).
+  const ownerAccess = useLeadOwnerAccess();
   // AI Smart Filters
   const [smartQuery, setSmartQuery] = useState('');
   const [smartParams, setSmartParams] = useState<Record<string, string>>({});
@@ -377,6 +381,7 @@ export default function LeadsListPage() {
   };
 
   const bulkAssignToMe = async () => {
+    if (!ownerAccess.canAssign) return;
     const userRaw = typeof window !== 'undefined' ? localStorage.getItem('kinematic_user') : null;
     const parsed = userRaw ? (() => { try { return JSON.parse(userRaw); } catch { return null; } })() : null;
     const userId = parsed?.id || parsed?.user_id || parsed?.userId;
@@ -403,6 +408,7 @@ export default function LeadsListPage() {
   };
 
   const bulkAssignTo = async (userId: string, userName: string) => {
+    if (!ownerAccess.canAssign) return;
     try {
       await crmLeads.bulkAssign({ lead_ids: Array.from(selected), owner_id: userId });
       toast.success(`Assigned ${selected.size} leads to ${userName}`);
@@ -608,8 +614,8 @@ export default function LeadsListPage() {
                 <span style={{ fontSize: 13, color: T.text, fontWeight: 500 }}>
                   <span style={{ fontFamily: T.mono }}>{selected.size}</span> selected
                 </span>
-                <Button size="sm" onClick={bulkAssignToMe} disabled={bulkBusy} icon={<UserCheck size={14} strokeWidth={1.8} />}>Assign to me</Button>
-                <div ref={assignMenuRef} style={{ position: 'relative' }}>
+                {ownerAccess.canAssign && <Button size="sm" onClick={bulkAssignToMe} disabled={bulkBusy} icon={<UserCheck size={14} strokeWidth={1.8} />}>Assign to me</Button>}
+                {ownerAccess.canAssign && <div ref={assignMenuRef} style={{ position: 'relative' }}>
                   <Button size="sm" onClick={() => { setShowAssignMenu((m) => !m); loadUsers(); }} disabled={bulkBusy} icon={<UserPlus size={14} strokeWidth={1.8} />}>Assign to…</Button>
                   {showAssignMenu && (
                     <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, background: T.card, border: `1px solid ${T.border}`, borderRadius: T.radius.md, boxShadow: 'var(--shadow-pop)', zIndex: 200, minWidth: 200, maxHeight: 240, overflowY: 'auto', padding: 4 }}>
@@ -628,7 +634,7 @@ export default function LeadsListPage() {
                       ))}
                     </div>
                   )}
-                </div>
+                </div>}
                 <Button size="sm" variant="danger" onClick={bulkDelete} disabled={bulkBusy} title="Soft-delete the selected leads" icon={<Trash2 size={14} strokeWidth={1.8} />}>
                   {bulkBusy ? 'Deleting…' : `Delete ${selected.size}`}
                 </Button>
@@ -660,11 +666,11 @@ export default function LeadsListPage() {
           // already the active sort. Feeds the same server-side `sort` state the
           // "Sort by" dropdown uses, so both stay in lock-step and refetch.
           onSort={(key) => setSort((s) => s.key === key ? { key, order: s.order === 'asc' ? 'desc' : 'asc' } : { key, order: 'asc' })}
-          onAssign={async (leadId, userId) => {
+          onAssign={ownerAccess.canAssign ? async (leadId, userId) => {
             await crmLeads.update(leadId, { owner_id: userId } as any);
             toast.success(userId ? 'Lead reassigned' : 'Lead unassigned');
             reload();
-          }}
+          } : undefined}
           onEdit={setEditingLead}
           onApprove={async (leadId, decision) => {
             try {

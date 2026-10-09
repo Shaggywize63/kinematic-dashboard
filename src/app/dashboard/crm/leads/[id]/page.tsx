@@ -25,6 +25,7 @@ import LeadDetailsPanel from '../../../../../components/crm/LeadDetailsPanel';
 import ScoreBoostSuggestions from '../../../../../components/crm/ScoreBoostSuggestions';
 import { formatINR } from '../../../../../lib/formatCurrency';
 import { useAuth } from '../../../../../hooks/useAuth';
+import { useLeadOwnerAccess } from '../../../../../lib/leadOwnerAccess';
 import { isConsumerChampion, isTataTiscanActive } from '../../../../../lib/clientFeatures';
 import { isHorizonOrg } from '../../../../../lib/crmFeatureGates';
 import { ConsentCard } from '../../../../../components/crm/DataConsent';
@@ -54,6 +55,9 @@ export default function LeadDetailPage() {
   // Reps with data_scope='own' (e.g. Consumer Champion) only see their own
   // leads — reassigning would hide the record from them. Suppress Assign.
   const canReassign = user?.org_role_data_scope !== 'own';
+  // Clients that set lead_form.owner_assignment='admin_only' let only an admin assign a lead: the Assign menu
+  // is for them alone. The current owner below stays on screen as plain text for everyone.
+  const ownerAccess = useLeadOwnerAccess();
   // Edit RBAC — only the rep who CREATED this lead may edit it (plus
   // system-tier CRM admins). Owner / assigned_to grants read but not
   // edit. Mirrors the backend PATCH /leads/:id gate so reps aren't
@@ -329,7 +333,7 @@ export default function LeadDetailPage() {
     <>
       {canEditLead && <Button onClick={() => setEditOpen(true)} icon={<Pencil size={15} strokeWidth={1.8} />}>Edit</Button>}
       <Button onClick={() => setProposalOpen(true)} icon={<FileText size={15} strokeWidth={1.8} />}>Proposal</Button>
-      {canReassign && (
+      {canReassign && ownerAccess.canAssign && (
         <div ref={assignRef} style={{ position: 'relative' }}>
           <Button onClick={() => { setAssignOpen((o) => !o); loadUsers(); }} icon={<UserPlus size={15} strokeWidth={1.8} />}>
             Assign <ChevronDown size={14} strokeWidth={1.8} style={{ color: T.mute, marginLeft: -2 }} />
