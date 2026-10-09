@@ -68,7 +68,10 @@ export function useViewPrefs(entity: string): {
 
   // React to client switches made in the global header.
   useEffect(() => {
-    const handler = () => {
+    const handler = (e: StorageEvent) => {
+      // localStorage is written by other tabs for many reasons (cached API responses, themes, …); only a
+      // client switch or a prefs change should re-read, or every one of those writes re-renders the list.
+      if (e.key && e.key !== 'kinematic_selected_client' && !e.key.startsWith('kinematic_view_prefs:')) return;
       const cid = readClient();
       setClientId(cid);
       setPrefs(read(entity, cid));

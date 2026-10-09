@@ -18,6 +18,7 @@ import { useNavPrefs, applyNavOrder } from '../../lib/navPrefs';
 import { deriveCrumbs } from '../../lib/pageTitle';
 import Sidebar, { SIDEBAR_W, SIDEBAR_RAIL_W } from '../../components/dashboard/Sidebar';
 import TopBar from '../../components/dashboard/TopBar';
+import { visibleInterval } from '../../lib/visibleInterval';
 
 // KINI chat is ~250 lines + 4 card components + markdown helpers; load it on
 // demand so the main dashboard JS stays lean. ssr:false avoids hydration cost.
@@ -216,8 +217,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       } catch { /* transient — keep the last known count */ }
     };
     poll();
-    const id = setInterval(poll, 60000);
-    return () => { alive = false; clearInterval(id); };
+    const stop = visibleInterval(poll, 60000);
+    return () => { alive = false; stop(); };
   }, [isSuperAdminRole]);
 
   // Clear the badge the moment the admin opens the Website Chats surface.
@@ -245,8 +246,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       } catch { /* transient / no access — keep the last known count */ }
     };
     poll();
-    const id = setInterval(poll, 60000);
-    return () => { alive = false; clearInterval(id); };
+    const stop = visibleInterval(poll, 60000);
+    return () => { alive = false; stop(); };
   }, [pathname]);
   // Fetch the hierarchy role label once so the top header can show "Name ·
   // Business Manager" (the hierarchy name) instead of just the legacy

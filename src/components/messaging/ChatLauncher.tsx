@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { messagingApi, type ThreadRow, type MessageRow, type ScopedUser } from '../../lib/messagingApi';
 import MentionInput, { renderMentions } from './MentionInput';
 import { pushPermission, enableBrowserPush, disableBrowserPush, registerServiceWorker } from '../../lib/webPush';
+import { visibleInterval } from '../../lib/visibleInterval';
 
 /**
  * Header chat trigger + popup.
@@ -62,8 +63,7 @@ export default function ChatLauncher() {
 
   useEffect(() => { reloadThreads(); registerServiceWorker(); setPushState(pushPermission()); }, [reloadThreads]);
   useEffect(() => {
-    const t = setInterval(() => { void reloadThreads(); }, 15_000);
-    return () => clearInterval(t);
+    return visibleInterval(() => { void reloadThreads(); }, 15_000);
   }, [reloadThreads]);
   useEffect(() => {
     if (!open || view !== 'thread' || !selected) return;

@@ -1,6 +1,7 @@
 import * as demo from './demoMocks';
 import { isUUID } from './utils';
 import { getStoredProjectKey, setStoredProjectKey, DEFAULT_PROJECT } from './projects';
+import { SwrStore, TtlCache, type KvStore } from './apiCache';
 
 export function resolveApiUrl(): string {
   const url = process.env.NEXT_PUBLIC_API_URL;
@@ -122,13 +123,12 @@ export function stopImpersonation() {
 
 // In-memory GET cache + localStorage stale-while-revalidate + in-flight dedupe.
 // - Successful GETs are cached in memory for `GET_CACHE_TTL_MS` (60s)
-// - Successful GETs also persisted to localStorage so a fresh tab can paint
-//   instantly with last-known data while a background refresh runs (SWR)
+// - Small successful GETs are also persisted to localStorage (bounded, see
+//   apiCache.ts) so a reload can paint instantly with last-known data while a
+//   background refresh runs (SWR)
 // - Concurrent identical GETs share one network call
 // - Mutations (POST/PUT/PATCH/DELETE) clear both caches
 const GET_CACHE_TTL_MS = 60_000;
-const SWR_TTL_MS = 5 * 60_000; // 5 min: how long stale data is acceptable
-const LS_PREFIX = 'kapi:'; // localStorage key prefix
 
 // Per-endpoint TTL overrides. Static-ish lookup data (cities, zones, SKUs,
 // org settings, modules) changes rarely; analytics changes more often than
@@ -174,8 +174,13 @@ function ttlFor(path: string): number {
   return GET_CACHE_TTL_MS;
 }
 
-type CacheEntry = { value: unknown; expiry: number };
-const responseCache = new Map<string, CacheEntry>();
+// Bounded caches (see apiCache.ts): expired/overflowing entries are dropped, and only small responses
+// are mirrored to localStorage under a fixed budget.
+const responseCache = new TtlCache<unknown>();
+const swr = new SwrStore((): KvStore | null => {
+  if (typeof window === 'undefined') return null;
+  try { return window.localStorage; } catch { return null; } // blocked / private mode
+});
 const inFlight = new Map<string, Promise<unknown>>();
 
 // ── Request resilience ──────────────────────────────────────────────────────
@@ -225,44 +230,6 @@ async function fetchWithTimeout(input: string, init: RequestInit, timeoutMs: num
 // Transient upstream states worth a quick retry (ALB/gateway couldn't reach a
 // healthy task): bad gateway / unavailable / gateway timeout.
 const isTransientStatus = (status: number) => status === 502 || status === 503 || status === 504;
-
-function lsGet(key: string): { value: unknown; ts: number } | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    const raw = window.localStorage.getItem(LS_PREFIX + key);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (typeof parsed?.ts !== 'number') return null;
-    if (Date.now() - parsed.ts > SWR_TTL_MS) {
-      window.localStorage.removeItem(LS_PREFIX + key);
-      return null;
-    }
-    return parsed;
-  } catch { return null; }
-}
-
-function lsSet(key: string, value: unknown) {
-  if (typeof window === 'undefined') return;
-  try {
-    window.localStorage.setItem(LS_PREFIX + key, JSON.stringify({ value, ts: Date.now() }));
-  } catch {
-    // QuotaExceededError — best-effort: clear our entries and try once more.
-    try {
-      Object.keys(window.localStorage)
-        .filter(k => k.startsWith(LS_PREFIX))
-        .forEach(k => window.localStorage.removeItem(k));
-    } catch {}
-  }
-}
-
-function lsClear() {
-  if (typeof window === 'undefined') return;
-  try {
-    Object.keys(window.localStorage)
-      .filter(k => k.startsWith(LS_PREFIX))
-      .forEach(k => window.localStorage.removeItem(k));
-  } catch {}
-}
 
 // Backend errors come back as `{ success:false, error:{ code, message } }` but
 // some older handlers use a flat `{ error: "msg" }` or `{ message }`. Pull a
@@ -363,7 +330,7 @@ class ApiClient {
   /** Drop everything in the GET cache. Called after every mutating request. */
   clearCache() {
     responseCache.clear();
-    lsClear();
+    swr.clear();
   }
 
   private getToken(): string | null {
@@ -785,8 +752,8 @@ class ApiClient {
     const now = Date.now();
 
     // 1) In-memory hot cache (fresh): return immediately, no network.
-    const cached = responseCache.get(key);
-    if (cached && cached.expiry > now) return Promise.resolve(cached.value as T);
+    const cached = responseCache.get(key, now);
+    if (cached) return Promise.resolve(cached.value as T);
 
     // 2) In-flight dedupe: identical concurrent GETs share one network call.
     const pending = inFlight.get(key) as Promise<T> | undefined;
@@ -795,8 +762,8 @@ class ApiClient {
     // Kick off network fetch
     const ttl = ttlFor(path);
     const networkPromise = this.request<T>(path, options).then(value => {
-      responseCache.set(key, { value, expiry: Date.now() + ttl });
-      lsSet(key, value);
+      responseCache.set(key, value, Date.now() + ttl);
+      swr.set(key, value);
       inFlight.delete(key);
       return value;
     }).catch(err => {
@@ -808,7 +775,7 @@ class ApiClient {
     // 3) Stale-while-revalidate from localStorage: if we have last-known data
     //    (within SWR_TTL), resolve with it immediately AND let the network
     //    refresh fill the in-memory cache for the next paint.
-    const stale = lsGet(key);
+    const stale = swr.get(key);
     if (stale) {
       // Don't await network — return stale instantly. The refresh continues
       // in the background and updates responseCache for the next call.
