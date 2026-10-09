@@ -8,6 +8,7 @@ import { LowBatteryKpi, LowBatteryAlert, LowBatteryFilter } from '../../../compo
 import { escapeHtml } from '../../../lib/googleMaps';
 import { usePlaceName, useSeen, getPlaceName, peekPlaceName, formatLatLng, formatLatLngShort, googleMapsUrl, type PlaceName } from '../../../lib/placeName';
 
+import { trackingPausedMinutes, trackingPausedText } from '../../../lib/trackingPaused';
 const C = {
   bg: 'var(--bg)', s1: 'var(--s1)', s2: 'var(--s2)', s3: 'var(--s3)', s4: 'var(--s4)',
   border: 'var(--border)', borderL: 'var(--border-l)',
@@ -285,6 +286,7 @@ function popupHtml(
   const isStale = off != null || notLive || (diff != null && diff > 10);
   const src = fe.location_source ? SOURCE_LABEL[fe.location_source] : null;
   const note = sourceNote(fe);
+  const paused = trackingPausedMinutes(fe);
   const heading = (off || notLive || isStale) ? 'Last known location' : 'Current location';
   const when = seen ? `${fmtIst(seen)} IST${agoText(seen) ? ` · ${agoText(seen)}` : ''}` : '';
   const acc = fe.location_accuracy_m != null && fe.location_source === 'live' ? ` · ±${Math.round(fe.location_accuracy_m)} m` : '';
@@ -307,6 +309,7 @@ function popupHtml(
       ${placeBlockHtml(fe.lat as number, fe.lng as number, place, resolved, heading)}
       ${(src || when) ? `<div style="font-size:10px;color:var(--text-dim);margin-top:5px">${escapeHtml([src, when].filter(Boolean).join(' · '))}${escapeHtml(acc)}</div>` : ''}
       ${note ? `<div style="font-size:10px;color:${C.yellow};margin-top:4px;line-height:1.35">${escapeHtml(note)}</div>` : ''}
+      ${paused != null ? `<div style="font-size:10px;font-weight:700;color:${C.red};background:${C.redD};border:1px solid ${C.redB};border-radius:6px;padding:4px 7px;margin-top:6px;line-height:1.35">⏸ ${escapeHtml(trackingPausedText(paused))}</div>` : ''}
     </div>`;
 }
 
@@ -759,6 +762,7 @@ function LocationBlock({ fe }: { fe: FELoc }) {
   const note = sourceNote(fe);
   const src = fe.location_source ? SOURCE_LABEL[fe.location_source] : null;
   const fresh = !off && !note && !!seen && Date.now() - new Date(seen).getTime() <= 10 * 60000;
+  const paused = trackingPausedMinutes(fe);
   const coords = formatLatLng(fe.lat, fe.lng);
   const copy = () => {
     try {
@@ -810,6 +814,11 @@ function LocationBlock({ fe }: { fe: FELoc }) {
       {note && (
         <div style={{ flexBasis:'100%', fontSize:11, color:C.yellow, background:C.yellowD, borderRadius:8, padding:'5px 10px' }}>
           ⚠️ {note}
+        </div>
+      )}
+      {paused != null && (
+        <div style={{ flexBasis:'100%', fontSize:11, fontWeight:600, color:C.red, background:C.redD, borderRadius:8, padding:'5px 10px' }}>
+          ⏸ {trackingPausedText(paused)}
         </div>
       )}
     </div>
@@ -1203,7 +1212,7 @@ export default function LiveTrackingPage() {
                             ? <span style={{ marginLeft:6, color:C.red }}>• off{o.since ? ` ${o.since}` : ''}</span>
                             : (fe.last_location_updated_at && (
                               <span style={{ marginLeft:6, color: (new Date().getTime() - new Date(fe.last_location_updated_at).getTime()) > 600000 ? C.red : C.grayd }}>
-                                • {Math.round((new Date().getTime() - new Date(fe.last_location_updated_at).getTime()) / 60000)}m ago
+                                • {Math.round((new Date().getTime() - new Date(fe.last_location_updated_at).getTime()) / 60000)}m ago{trackingPausedMinutes(fe) != null ? ' · tracking paused' : ''}
                               </span>
                             )); })()}
                         </div>
@@ -1259,7 +1268,7 @@ export default function LiveTrackingPage() {
                             ? <span style={{ marginLeft:6, color:C.red }}>• off{o.since ? ` ${o.since}` : ''}</span>
                             : (s.last_location_updated_at && (
                               <span style={{ marginLeft:6, color: (new Date().getTime() - new Date(s.last_location_updated_at).getTime()) > 600000 ? C.red : C.grayd }}>
-                                • {Math.round((new Date().getTime() - new Date(s.last_location_updated_at).getTime()) / 60000)}m ago
+                                • {Math.round((new Date().getTime() - new Date(s.last_location_updated_at).getTime()) / 60000)}m ago{trackingPausedMinutes(s) != null ? ' · tracking paused' : ''}
                               </span>
                             )); })()}
                         </div>
