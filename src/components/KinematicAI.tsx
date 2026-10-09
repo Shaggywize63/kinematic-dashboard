@@ -752,7 +752,12 @@ Be elite, professional, and data-driven. Use **bold** for key metrics. Proactive
   return (
     <>
       <style>{`
-        @keyframes km-ai-pulse  { 0% { box-shadow: 0 0 0 0 rgba(224,30,44,0.45); } 70% { box-shadow: 0 0 0 16px rgba(224,30,44,0); } 100% { box-shadow: 0 0 0 0 rgba(224,30,44,0); } }
+        /* The idle pulse ring on the floating button runs on every dashboard page for as long as the tab is
+           open. It scales and fades a ring (compositor-only) instead of animating box-shadow, which forces a
+           repaint on every frame, and it stands still for people who ask for reduced motion. */
+        @keyframes km-ai-pulse  { 0% { transform: scale(1); opacity: 0.55; } 70%, 100% { transform: scale(1.53); opacity: 0; } }
+        .km-ai-ring { position: absolute; inset: 0; box-sizing: border-box; border: 3px solid rgba(224,30,44,0.55); border-radius: inherit; pointer-events: none; will-change: transform, opacity; animation: km-ai-pulse 2s infinite; }
+        @media (prefers-reduced-motion: reduce) { .km-ai-ring { animation: none; opacity: 0; } }
         @keyframes km-ai-shimmer { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
         @keyframes km-ai-slide-up { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         @keyframes km-mic-pulse  { 0%,100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.18); opacity: 0.7; } }
@@ -783,12 +788,12 @@ Be elite, professional, and data-driven. Use **bold** for key metrics. Proactive
           alignItems: 'center', justifyContent: 'center',
           boxShadow: open ? 'none' : '0 10px 30px rgba(224,30,44,0.35)',
           cursor: 'pointer', border: 'none',
-          animation: !open ? 'km-ai-pulse 2s infinite' : 'none',
           transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
         }}>
+        {!open && <span className="km-ai-ring" aria-hidden="true" />}
         {open
           ? <span style={{ fontSize: 22, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))' }}>✕</span>
-          : <span style={{ display: 'flex', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))' }}><KiniMascot size={isMobile ? 40 : 44} /></span>}
+          : <span style={{ display: 'flex', position: 'relative', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))' }}><KiniMascot size={isMobile ? 40 : 44} /></span>}
       </button>
 
       {open && (
