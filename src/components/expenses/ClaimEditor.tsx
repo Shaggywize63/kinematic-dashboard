@@ -9,11 +9,12 @@ import { toast } from 'sonner';
 import { Camera, Eye, FileText, MapPin, Plus, ShieldCheck, Trash2, Upload, X } from 'lucide-react';
 import { Badge, Button, Card, FormGrid, IconButton, Input, Select, T, useIsCompact } from '../ui';
 import {
-  CATEGORIES, CATEGORY_LABELS, ClaimItem, ClaimItemInput, ClaimCheck, ExpenseClaim, ItemCategory, MyPolicy, expensesApi,
+  CATEGORIES, ClaimItem, ClaimItemInput, ClaimCheck, ExpenseClaim, ItemCategory, MyPolicy,
+  categoryLabel, enabledCategories, expensesApi, odometerCameraOnly, routeFieldsOn, singleCategory, singleLineOn,
 } from '../../lib/expensesApi';
 import {
   ExpensesShell, Field, Panel, PolicyFindings, ReceiptViewer, RejectionBanner, RECEIPT_ACCEPT, RECEIPT_MAX_BYTES,
-  errText, money, prepareReceipt, todayIso,
+  errText, fmtDate, money, prepareReceipt, todayIso,
 } from './kit';
 
 interface Line {
@@ -40,10 +41,17 @@ interface Line {
   odo_end_url: string;
   odo_end_view: string | null;
   odoUploading?: 'start' | 'end' | null;
+  // Camera-only policies: what the photo reading did to the field ('read' = filled in, check it; 'unread' = type it).
+  odoStartNote?: OdoNote;
+  odoEndNote?: OdoNote;
   uploading?: boolean;
   suggesting?: boolean;
   scanNote?: string | null;
 }
+
+type OdoNote = 'read' | 'unread' | null;
+const ODO_READ_NOTE = 'Read from the photo — check it';
+const ODO_UNREAD_NOTE = "Couldn't read the number — enter it";
 
 const n = (v: string) => (v.trim() === '' ? NaN : Number(v));
 const pos = (v: string) => Number.isFinite(n(v)) && n(v) > 0;
@@ -73,6 +81,10 @@ const blank = (key: number, category: ItemCategory = 'food'): Line => ({
   vehicle_type: '', odo_start: '', odo_end: '', odo_start_url: '', odo_start_view: null, odo_end_url: '', odo_end_view: null,
 });
 
+/** Put every line nobody has started yet on `cat` (lines with something typed keep theirs). Same array when nothing changes. */
+const retag = (ls: Line[], cat: ItemCategory): Line[] =>
+  (ls.some((l) => !isFilled(l) && l.category !== cat) ? ls.map((l) => (!isFilled(l) && l.category !== cat ? { ...l, category: cat } : l)) : ls);
+
 const isFilled = (l: Line) => !!(l.amount.trim() || l.distance_km.trim() || l.merchant.trim() || l.description.trim() || l.receipt_url || l.from_location.trim() || l.to_location.trim()
   || l.vehicle_type || l.odo_start.trim() || l.odo_end.trim() || l.odo_start_url || l.odo_end_url);
 // `vf` = the policy prices mileage by vehicle. A saved draft only needs *something* to go on there
@@ -99,6 +111,7 @@ function toInput(l: Line, vf = false): ClaimItemInput {
       odometer_start_photo_url: l.odo_start_url || null,
       odometer_end_photo_url: l.odo_end_url || null,
     } : {}),
+    // With From / To switched off nobody types them, so new lines send null; a line saved earlier keeps its route.
     from_location: mileage ? l.from_location.trim() || null : null,
     to_location: mileage ? l.to_location.trim() || null : null,
     merchant: mileage ? null : l.merchant.trim() || null,
@@ -117,6 +130,9 @@ export default function ClaimEditor({ claimId }: { claimId?: string }) {
   const [lines, setLines] = useState<Line[]>(() => [blank(0)]);
   const [claim, setClaim] = useState<ExpenseClaim | null>(null);
   const [policy, setPolicy] = useState<MyPolicy | null>(null);
+  // The lines wait for the policy: a single-category policy has no picker and starts on its one category, and the
+  // form must not flash up as a "Food" line first.
+  const [policyReady, setPolicyReady] = useState(false);
   const [loading, setLoading] = useState(!!claimId);
   const [busy, setBusy] = useState<'save' | 'submit' | null>(null);
   const [check, setCheck] = useState<ClaimCheck | null>(null);
@@ -126,7 +142,15 @@ export default function ClaimEditor({ claimId }: { claimId?: string }) {
   const savedId = useRef<string | undefined>(claimId);
 
   // ── load ──
-  useEffect(() => { expensesApi.myPolicy().then((r) => setPolicy(r.data)).catch(() => undefined); }, []);
+  useEffect(() => {
+    expensesApi.myPolicy().then((r) => {
+      setPolicy(r.data);
+      // Same render as the policy: lines nobody has started yet go straight onto the only allowed category.
+      const only = singleCategory(r.data?.rules);
+      if (only) setLines((ls) => retag(ls, only));
+      setPolicyReady(true);
+    }).catch(() => setPolicyReady(true));
+  }, []);
   useEffect(() => {
     if (!claimId) return;
     let off = false;
@@ -142,15 +166,42 @@ export default function ClaimEditor({ claimId }: { claimId?: string }) {
     return () => { off = true; };
   }, [claimId, router]);
 
+  // ── what the policy says about the form ──
+  const rules = policy?.rules;
+  // Exactly one category allowed: no picker, and every new line is that category.
+  const only = singleCategory(rules);
+  const defaultCat: ItemCategory = only ?? 'food';
+  const oneLine = singleLineOn(rules);
+  const cameraOnly = odometerCameraOnly(rules);
+
   // ── lines ──
   const patch = useCallback((key: number, p: Partial<Line>) => setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...p } : l))), []);
-  const addLine = () => setLines((ls) => [...ls, blank(nextKey(), ls[ls.length - 1]?.category === 'mileage' ? 'food' : ls[ls.length - 1]?.category ?? 'food')]);
-  const removeLine = (key: number) => setLines((ls) => (ls.length === 1 ? [blank(nextKey())] : ls.filter((l) => l.key !== key)));
+  const addLine = () => setLines((ls) => [...ls, blank(nextKey(), only ?? (ls[ls.length - 1]?.category === 'mileage' ? 'food' : ls[ls.length - 1]?.category ?? 'food'))]);
+  const removeLine = (key: number) => setLines((ls) => (ls.length === 1 ? [blank(nextKey(), defaultCat)] : ls.filter((l) => l.key !== key)));
+  // The policy arrives after the first (blank) line is already on screen: put every line nobody has started yet
+  // on the only allowed category. Lines with something typed keep theirs. Re-runs once a claim has loaded.
+  useEffect(() => {
+    if (!only || loading) return;
+    setLines((ls) => retag(ls, only));
+  }, [only, loading]);
 
   const rate = policy?.mileage_rate ?? 0;
   const currency = policy?.currency ?? claim?.currency ?? 'INR';
   const vehicles = policy?.rules?.vehicle_rates ?? [];
   const vf = vehicles.length > 0;
+
+  // Vehicle flow: remind the rep where the odometer stood after their last claimed trip.
+  const [lastReading, setLastReading] = useState<{ km: number; date: string | null } | null>(null);
+  useEffect(() => {
+    if (!vf) { setLastReading(null); return; }
+    let off = false;
+    expensesApi.odometerHistory({ limit: 5 }).then((r) => {
+      // Newest first. When editing a claim, its own lines don't count as "the last trip".
+      const row = (Array.isArray(r.data) ? r.data : []).find((x) => x.claim_id !== claimId && (x.odometer_end ?? x.odometer_start) != null);
+      if (!off) setLastReading(row ? { km: Number(row.odometer_end ?? row.odometer_start), date: row.item_date } : null);
+    }).catch(() => { if (!off) setLastReading(null); });
+    return () => { off = true; };
+  }, [vf, claimId]);
   const lineAmount = (l: Line) => {
     if (vf && l.category === 'mileage') {
       const km = odoKm(l);
@@ -222,17 +273,25 @@ export default function ClaimEditor({ claimId }: { claimId?: string }) {
       if (!/^image\//i.test(file.type)) throw new Error('Pick a photo of the odometer');
       const ready = await prepareReceipt(file);
       if (ready.size > RECEIPT_MAX_BYTES) throw new Error('That photo is larger than 10 MB');
-      // Not a receipt — skip the OCR read.
-      const { data: up } = await expensesApi.uploadReceipt(ready, ready.name, false);
-      patch(key, which === 'start' ? { odo_start_url: up.url, odo_start_view: up.signed_url, odoUploading: null } : { odo_end_url: up.url, odo_end_view: up.signed_url, odoUploading: null });
-      toast.success('Odometer photo attached');
+      // Not a receipt — no receipt OCR. Camera-only policies instead have the number read off the photo;
+      // everyone else just stores it (scan=0) and types the reading, exactly as before.
+      const { data: up } = await expensesApi.uploadReceipt(ready, ready.name, cameraOnly ? 'odometer' : false);
+      // The number read off the photo, when the policy asks for that and it is a usable reading; null otherwise.
+      const raw = cameraOnly ? up.odometer?.reading : null;
+      const got = raw != null && Number.isFinite(Number(raw)) && Number(raw) >= 0 ? Number(raw) : null;
+      // A newly taken photo puts its reading in the field (still editable); a photo that could not be read asks for one.
+      const note: OdoNote = cameraOnly ? (got != null ? 'read' : 'unread') : null;
+      patch(key, which === 'start'
+        ? { odo_start_url: up.url, odo_start_view: up.signed_url, odoUploading: null, odoStartNote: note, ...(got != null ? { odo_start: String(got) } : {}) }
+        : { odo_end_url: up.url, odo_end_view: up.signed_url, odoUploading: null, odoEndNote: note, ...(got != null ? { odo_end: String(got) } : {}) });
+      toast.success(got != null ? 'Odometer photo attached and read' : 'Odometer photo attached');
     } catch (e) {
       patch(key, { odoUploading: null });
       toast.error(errText(e, 'Could not upload the photo'));
     }
   };
   const clearOdo = (key: number, which: 'start' | 'end') =>
-    patch(key, which === 'start' ? { odo_start_url: '', odo_start_view: null } : { odo_end_url: '', odo_end_view: null });
+    patch(key, which === 'start' ? { odo_start_url: '', odo_start_view: null, odoStartNote: null } : { odo_end_url: '', odo_end_view: null, odoEndNote: null });
   const clearReceipt = (key: number) => patch(key, { receipt_url: '', receipt_view: null, receipt_name: '', scanNote: null, ai_extracted: null });
 
   // ── GPS mileage ──
@@ -349,9 +408,10 @@ export default function ClaimEditor({ claimId }: { claimId?: string }) {
             </Field>
           </Card>
 
-          {lines.map((l, i) => (
+          {!policyReady && <Card style={{ color: T.mute, fontSize: 14 }}>Loading your policy…</Card>}
+          {policyReady && lines.map((l, i) => (
             <LineCard key={l.key} index={i} line={l} policy={policy} currency={currency} removable={lines.length > 1 || isFilled(l)}
-              findings={findingsFor(l.key)}
+              lastReading={lastReading} findings={findingsFor(l.key)}
               onChange={(p) => patch(l.key, p)} onRemove={() => removeLine(l.key)}
               onAttach={(f) => attach(l.key, f)} onClearReceipt={() => clearReceipt(l.key)} onView={(u) => setViewing(u)}
               onSuggest={() => suggestMileage(l)}
@@ -360,7 +420,7 @@ export default function ClaimEditor({ claimId }: { claimId?: string }) {
 
           {generalFindings.length > 0 && <Card padding={16}><PolicyFindings flags={generalFindings} /></Card>}
 
-          <div><Button icon={<Plus size={16} strokeWidth={1.7} />} onClick={addLine}>Add another expense</Button></div>
+          {policyReady && !oneLine && <div><Button icon={<Plus size={16} strokeWidth={1.7} />} onClick={addLine}>Add another expense</Button></div>}
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14, position: narrow ? 'static' : 'sticky', top: 16 }}>
@@ -374,8 +434,9 @@ export default function ClaimEditor({ claimId }: { claimId?: string }) {
 }
 
 // ── one expense line ────────────────────────────────────────────────────────
-function LineCard({ index, line: l, policy, currency, removable, findings, onChange, onRemove, onAttach, onClearReceipt, onView, onSuggest, onAttachOdo, onClearOdo }: {
+function LineCard({ index, line: l, policy, currency, removable, lastReading, findings, onChange, onRemove, onAttach, onClearReceipt, onView, onSuggest, onAttachOdo, onClearOdo }: {
   index: number; line: Line; policy: MyPolicy | null; currency: string; removable: boolean;
+  lastReading: { km: number; date: string | null } | null;
   findings: ClaimCheck['violations'];
   onChange: (p: Partial<Line>) => void; onRemove: () => void; onAttach: (f: File) => void; onClearReceipt: () => void;
   onView: (url: string) => void; onSuggest: () => void;
@@ -389,16 +450,26 @@ function LineCard({ index, line: l, policy, currency, removable, findings, onCha
   const photosRequired = policy?.rules?.odometer_photos_required !== false;
   const km = odoKm(l);
   const perKm = vehicles.find((v) => v.id === l.vehicle_type)?.rate_per_km;
-  const allowed = CATEGORIES.filter((c) => c === l.category || policy?.rules?.categories?.[c]?.enabled !== false);
+  const rules = policy?.rules;
+  const allowed = CATEGORIES.filter((c) => c === l.category || enabledCategories(rules).includes(c));
+  // One category allowed and this line is on it: nothing to choose, so show its name instead of a picker.
+  // (A line still on some other category keeps the picker so it can be moved.)
+  const onlyCat = singleCategory(rules);
+  const route = routeFieldsOn(rules);
+  const cameraOnly = odometerCameraOnly(rules);
   const worst = findings.some((f) => f.blocking || f.severity === 'high') ? T.red : findings.length ? T.warn : T.border;
 
   return (
     <Card padding={0} style={{ borderColor: findings.length ? worst : undefined, overflow: 'hidden' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', borderBottom: `1px solid ${T.border}`, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 12, fontWeight: 600, color: T.mute, minWidth: 18 }}>{index + 1}</span>
-        <Select aria-label="Category" value={l.category} onChange={(e) => onChange({ category: e.target.value as ItemCategory })} style={{ width: 150 }}>
-          {allowed.map((c) => <option key={c} value={c}>{CATEGORY_LABELS[c]}</option>)}
-        </Select>
+        {onlyCat && l.category === onlyCat
+          ? <span style={{ fontSize: 14, fontWeight: 600, color: T.text }}>{categoryLabel(rules, l.category)}</span>
+          : (
+            <Select aria-label="Category" value={l.category} onChange={(e) => onChange({ category: e.target.value as ItemCategory })} style={{ width: 150 }}>
+              {allowed.map((c) => <option key={c} value={c}>{categoryLabel(rules, c, allowed)}</option>)}
+            </Select>
+          )}
         <Input aria-label="Date" type="date" value={l.item_date} max={todayIso()} onChange={(e) => onChange({ item_date: e.target.value })} style={{ width: 160 }} />
         <div style={{ flex: 1 }} />
         {removable && <IconButton label="Remove this expense" onClick={onRemove}><Trash2 size={16} strokeWidth={1.6} /></IconButton>}
@@ -408,8 +479,8 @@ function LineCard({ index, line: l, policy, currency, removable, findings, onCha
         {byVehicle ? (
           <>
             <FormGrid narrow={!wide}>
-              <Field label="From"><Input value={l.from_location} onChange={(e) => onChange({ from_location: e.target.value })} placeholder="Starting point" /></Field>
-              <Field label="To"><Input value={l.to_location} onChange={(e) => onChange({ to_location: e.target.value })} placeholder="Destination" /></Field>
+              {route && <Field label="From"><Input value={l.from_location} onChange={(e) => onChange({ from_location: e.target.value })} placeholder="Starting point" /></Field>}
+              {route && <Field label="To"><Input value={l.to_location} onChange={(e) => onChange({ to_location: e.target.value })} placeholder="Destination" /></Field>}
               <Field label="Vehicle" required>
                 <Select value={l.vehicle_type} onChange={(e) => onChange({ vehicle_type: e.target.value })}>
                   <option value="">Choose a vehicle…</option>
@@ -418,10 +489,13 @@ function LineCard({ index, line: l, policy, currency, removable, findings, onCha
               </Field>
             </FormGrid>
             <FormGrid narrow={!wide}>
-              <OdometerSlot title="Odometer before the trip" value={l.odo_start} onValue={(v) => onChange({ odo_start: v })}
+              <OdometerSlot title="Odometer before the trip" value={l.odo_start} onValue={(v) => onChange({ odo_start: v, odoStartNote: null })}
+                hint={lastReading ? `Last reading: ${lastReading.km.toLocaleString('en-IN')} km${lastReading.date ? ` (${fmtDate(lastReading.date)})` : ''}` : undefined}
+                note={cameraOnly ? l.odoStartNote ?? null : null}
                 url={l.odo_start_url} view={l.odo_start_view} uploading={l.odoUploading === 'start'} photoRequired={photosRequired}
                 onPick={(f) => onAttachOdo('start', f)} onClear={() => onClearOdo('start')} onView={onView} />
-              <OdometerSlot title="Odometer after the trip" value={l.odo_end} onValue={(v) => onChange({ odo_end: v })}
+              <OdometerSlot title="Odometer after the trip" value={l.odo_end} onValue={(v) => onChange({ odo_end: v, odoEndNote: null })}
+                note={cameraOnly ? l.odoEndNote ?? null : null}
                 url={l.odo_end_url} view={l.odo_end_view} uploading={l.odoUploading === 'end'} photoRequired={photosRequired}
                 onPick={(f) => onAttachOdo('end', f)} onClear={() => onClearOdo('end')} onView={onView} />
             </FormGrid>
@@ -436,8 +510,8 @@ function LineCard({ index, line: l, policy, currency, removable, findings, onCha
         ) : mileage ? (
           <>
             <FormGrid narrow={!wide}>
-              <Field label="From"><Input value={l.from_location} onChange={(e) => onChange({ from_location: e.target.value })} placeholder="Starting point" /></Field>
-              <Field label="To"><Input value={l.to_location} onChange={(e) => onChange({ to_location: e.target.value })} placeholder="Destination" /></Field>
+              {route && <Field label="From"><Input value={l.from_location} onChange={(e) => onChange({ from_location: e.target.value })} placeholder="Starting point" /></Field>}
+              {route && <Field label="To"><Input value={l.to_location} onChange={(e) => onChange({ to_location: e.target.value })} placeholder="Destination" /></Field>}
               <Field label="Distance (km)" required>
                 <Input inputMode="decimal" value={l.distance_km} onChange={(e) => onChange({ distance_km: e.target.value })} placeholder="0" />
               </Field>
@@ -466,16 +540,18 @@ function LineCard({ index, line: l, policy, currency, removable, findings, onCha
   );
 }
 
-function OdometerSlot({ title, value, onValue, url, view, uploading, photoRequired, onPick, onClear, onView }: {
-  title: string; value: string; onValue: (v: string) => void; url: string; view: string | null; uploading: boolean; photoRequired: boolean;
+function OdometerSlot({ title, value, onValue, hint, note, url, view, uploading, photoRequired, onPick, onClear, onView }: {
+  title: string; value: string; onValue: (v: string) => void; hint?: string; note: OdoNote; url: string; view: string | null; uploading: boolean; photoRequired: boolean;
   onPick: (f: File) => void; onClear: () => void; onView: (u: string) => void;
 }) {
   const input = useRef<HTMLInputElement>(null);
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: 12, border: `1px solid ${T.border}`, borderRadius: T.radius.md }}>
-      <Field label={title} required>
+      <Field label={title} required hint={hint}>
         <Input inputMode="decimal" value={value} placeholder="Reading in km" onChange={(e) => onValue(e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1'))} />
       </Field>
+      {note === 'read' && <div style={{ fontSize: 12.5, color: T.info }}>{ODO_READ_NOTE}</div>}
+      {note === 'unread' && <div style={{ fontSize: 12.5, color: T.warn }}>{ODO_UNREAD_NOTE}</div>}
       {uploading ? (
         <div style={{ fontSize: 13, color: T.dim }}>Uploading the photo…</div>
       ) : url ? (
@@ -544,9 +620,11 @@ function ReceiptSlot({ line: l, onAttach, onClear, onView }: { line: Line; onAtt
 
 function PolicyCard({ policy, currency }: { policy: MyPolicy | null; currency: string }) {
   if (!policy) return null;
-  const cats = policy.rules?.categories;
+  const rules = policy.rules;
+  const cats = rules?.categories;
   const caps = cats ? CATEGORIES.filter((c) => cats[c]?.enabled !== false && cats[c]?.per_day_limit != null) : [];
-  const off = cats ? CATEGORIES.filter((c) => cats[c]?.enabled === false) : [];
+  // With a single allowed category the others aren't "not reimbursed" so much as not part of this form — say nothing.
+  const off = cats && !singleCategory(rules) ? CATEGORIES.filter((c) => cats[c]?.enabled === false) : [];
   const row = (k: string, v: string) => (
     <div key={k} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 13 }}>
       <span style={{ color: T.dim }}>{k}</span><span style={{ color: T.text, fontWeight: 600, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{v}</span>
@@ -565,10 +643,10 @@ function PolicyCard({ policy, currency }: { policy: MyPolicy | null; currency: s
         {caps.length > 0 && (
           <div style={{ marginTop: 6, paddingTop: 10, borderTop: `1px solid ${T.border}`, display: 'flex', flexDirection: 'column', gap: 6 }}>
             <div style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: T.mute }}>Daily limits</div>
-            {caps.map((c) => row(CATEGORY_LABELS[c], money(cats![c].per_day_limit, currency)))}
+            {caps.map((c) => row(categoryLabel(rules, c, off), money(cats![c].per_day_limit, currency)))}
           </div>
         )}
-        {off.length > 0 && <div style={{ fontSize: 12.5, color: T.mute, marginTop: 4 }}>Not reimbursed: {off.map((c) => CATEGORY_LABELS[c]).join(', ')}.</div>}
+        {off.length > 0 && <div style={{ fontSize: 12.5, color: T.mute, marginTop: 4 }}>Not reimbursed: {off.map((c) => categoryLabel(rules, c, caps)).join(', ')}.</div>}
         {policy.rules?.enforcement === 'block' && <div style={{ fontSize: 12.5, color: T.warn, marginTop: 4 }}>A claim that breaks these rules can’t be submitted.</div>}
       </div>
     </Panel>

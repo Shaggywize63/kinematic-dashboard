@@ -86,9 +86,12 @@ const PURPOSE_LABELS: Record<string, string> = {
 export function ConsentCard({
   subjectType,
   subjectId,
+  title: heading = 'Consent (DPDP)',
 }: {
   subjectType: 'lead' | 'contact' | 'employee';
   subjectId: string;
+  /** Card heading; the lead/contact pages pass the admin's relabel of the `data_consent` field. */
+  title?: string;
 }) {
   const [rows, setRows] = useState<ConsentRecord[] | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -130,7 +133,7 @@ export function ConsentCard({
 
   return (
     <div style={cardStyle}>
-      <div style={title}>Consent (DPDP)</div>
+      <div style={title}>{heading}</div>
       {error && <div style={{ fontSize: 12, color: 'var(--danger, #dc2626)', marginBottom: 8 }}>{error}</div>}
       {rows === null ? (
         <div style={{ fontSize: 13, color: 'var(--text-dim)' }}>Loading…</div>

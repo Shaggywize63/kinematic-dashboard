@@ -6,7 +6,26 @@ import { Copy, Pencil, Plus, ScrollText, Trash2 } from 'lucide-react';
 import { Badge, Button, Card, EmptyState, IconButton, T } from '../../../../components/ui';
 import { useConfirm } from '../../../../components/finance/ui';
 import { ExpensesShell, errText, money } from '../../../../components/expenses/kit';
-import { ExpensePolicy, expensesApi } from '../../../../lib/expensesApi';
+import {
+  CATEGORY_LABELS, CATEGORIES, ExpensePolicy, PolicyRules, categoryLabel, expensesApi, odometerCameraOnly, routeFieldsOn, singleCategory, singleLineOn,
+} from '../../../../lib/expensesApi';
+
+/** What a policy changes about the claim form, in a few words. Empty for the standard form. */
+function formNotes(r: PolicyRules): string[] {
+  const out: string[] = [];
+  const only = singleCategory(r);
+  if (only) out.push(`only ${categoryLabel(r, only)}`);
+  else {
+    for (const c of CATEGORIES) {
+      const custom = r.category_labels?.[c]?.trim();
+      if (custom && custom !== CATEGORY_LABELS[c]) out.push(`${CATEGORY_LABELS[c]} shown as ${custom}`);
+    }
+  }
+  if (singleLineOn(r)) out.push('one expense per claim');
+  if (!routeFieldsOn(r)) out.push('no From / To');
+  if (odometerCameraOnly(r)) out.push('camera-only odometer');
+  return out;
+}
 
 function audience(p: ExpensePolicy): string {
   const a = p.applies_to;
@@ -85,6 +104,7 @@ export default function PoliciesPage() {
                       <span>Receipt over {money(p.rules.receipt_required_over, p.currency)}</span>
                       {p.rules.auto_approve_under > 0 && <span>Auto-approve to {money(p.rules.auto_approve_under, p.currency)}</span>}
                       {p.rules.escalate_over != null && <span>Second approver over {money(p.rules.escalate_over, p.currency)}</span>}
+                      {formNotes(p.rules).length > 0 && <span>Claim form: {formNotes(p.rules).join(' · ')}</span>}
                     </div>
                     {p.is_active && p.covers === 0 && <div style={{ fontSize: 12.5, color: T.warn, marginTop: 6 }}>Nobody follows this policy right now — a more specific one applies to everyone it covers.</div>}
                   </div>

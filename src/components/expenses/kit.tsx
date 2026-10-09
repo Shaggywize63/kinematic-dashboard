@@ -11,7 +11,8 @@ import { AlertTriangle, Camera, Check, CircleDot, ExternalLink, FileText, Receip
 import { Badge, Button, Card, Field as BaseField, PageHeader, Textarea, T, Tone, useIsCompact } from '../ui';
 import { Modal } from '../finance/ui';
 import {
-  CLAIM_STATUS_LABEL, ExpenseClaim, ExpenseFlag, ClaimApproval, ClaimItem, ClaimStatus, CATEGORY_LABELS, flagLabel,
+  CLAIM_STATUS_LABEL, ExpenseClaim, ExpenseFlag, ClaimApproval, ClaimItem, ClaimStatus, FormRules, ItemCategory,
+  categoryLabel, expensesApi, flagLabel, routeFieldsOn, vehicleFlowOn,
 } from '../../lib/expensesApi';
 
 // ── formatting ──────────────────────────────────────────────────────────────
@@ -79,17 +80,70 @@ export function useExpenseRoles(): { canApprove: boolean; canAdmin: boolean; rea
   return roles;
 }
 
+/**
+ * The rules that decide how a claim is *shown* (category names, From / To). They come from the viewer's own
+ * policy; when an admin opens a claim filed under a different policy, that policy's rules are used instead
+ * (only admins can read other policies — everyone else sees their own policy's names, which in practice
+ * is the same org-wide setup).
+ */
+export function useClaimRules(policyId?: string | null): FormRules | undefined {
+  const { canAdmin, ready } = useExpenseRoles();
+  const [mine, setMine] = useState<{ id?: string; rules?: FormRules } | null>(null);
+  const [other, setOther] = useState<{ id: string; rules: FormRules } | null>(null);
+  useEffect(() => {
+    let off = false;
+    expensesApi.myPolicy().then((r) => { if (!off) setMine(r.data ?? null); }).catch(() => undefined);
+    return () => { off = true; };
+  }, []);
+  useEffect(() => {
+    if (!ready || !canAdmin || !policyId || !mine || mine.id === policyId) return;
+    let off = false;
+    expensesApi.listPolicies().then((r) => {
+      const p = (Array.isArray(r.data) ? r.data : []).find((x) => x.id === policyId);
+      if (!off && p?.rules) setOther({ id: policyId, rules: p.rules });
+    }).catch(() => undefined);
+    return () => { off = true; };
+  }, [ready, canAdmin, policyId, mine]);
+  return other && other.id === policyId ? other.rules : mine?.rules;
+}
+
+/**
+ * Does this person's expense flow use odometer readings? True when their own policy has vehicle rates; an
+ * approver also sees the Odometer tab when any policy they can list has them, since they review everyone's.
+ */
+function useOdometerFlow(canApprove: boolean, ready: boolean): boolean {
+  const [mine, setMine] = useState(false);
+  const [any, setAny] = useState(false);
+  useEffect(() => {
+    let off = false;
+    expensesApi.myPolicy().then((r) => { if (!off) setMine(vehicleFlowOn(r.data?.rules)); }).catch(() => undefined);
+    return () => { off = true; };
+  }, []);
+  useEffect(() => {
+    if (!ready || !canApprove) return;
+    let off = false;
+    expensesApi.listPolicies().then((r) => {
+      if (!off) setAny((Array.isArray(r.data) ? r.data : []).some((p) => p.is_active !== false && vehicleFlowOn(p.rules)));
+    }).catch(() => undefined);
+    return () => { off = true; };
+  }, [ready, canApprove]);
+  return mine || any;
+}
+
 // ── page shell ──────────────────────────────────────────────────────────────
-type TabKey = 'mine' | 'approvals' | 'all' | 'policies';
+type TabKey = 'mine' | 'approvals' | 'all' | 'odometer' | 'policies';
 
 export function ExpensesShell({ title, description, actions, tab, children, maxWidth }: {
   title: ReactNode; description?: ReactNode; actions?: ReactNode; tab?: TabKey; children: ReactNode; maxWidth?: number;
 }) {
   const narrow = useIsCompact(900);
-  const { canApprove, canAdmin } = useExpenseRoles();
+  const { canApprove, canAdmin, ready } = useExpenseRoles();
+  const odometerFlow = useOdometerFlow(canApprove, ready);
   const tabs: Array<{ key: TabKey; href: string; label: string }> = [
     { key: 'mine', href: '/dashboard/expenses', label: 'My claims' },
     ...(canApprove ? [{ key: 'approvals' as TabKey, href: '/dashboard/expenses/approvals', label: 'Approvals' }, { key: 'all' as TabKey, href: '/dashboard/expenses/all', label: 'All claims' }] : []),
+    // Only for clients that pay mileage by vehicle (the page itself keeps its tab while you are on it).
+    ...(odometerFlow || tab === 'odometer' ? [{ key: 'odometer' as TabKey, href: '/dashboard/expenses/odometer', label: 'Odometer' }] : []),
     ...(canAdmin ? [{ key: 'policies' as TabKey, href: '/dashboard/expenses/policies', label: 'Policies' }] : []),
   ];
   return (
@@ -166,7 +220,7 @@ export function ReceiptViewer({ url, title, onClose }: { url: string; title?: st
 }
 
 /** A compact "view receipt" control for a line; shows nothing when there is no receipt. */
-export function ReceiptLink({ item, label = 'Receipt' }: { item: Pick<ClaimItem, 'receipt_url' | 'receipt_signed_url' | 'category' | 'merchant'>; label?: string }) {
+export function ReceiptLink({ item, label = 'Receipt', rules, also }: { item: Pick<ClaimItem, 'receipt_url' | 'receipt_signed_url' | 'category' | 'merchant'>; label?: string; rules?: FormRules; also?: ItemCategory[] }) {
   const [open, setOpen] = useState(false);
   if (!item.receipt_url) return null;
   const url = item.receipt_signed_url;
@@ -176,7 +230,7 @@ export function ReceiptLink({ item, label = 'Receipt' }: { item: Pick<ClaimItem,
         style={{ display: 'inline-flex', alignItems: 'center', gap: 5, border: 0, background: 'transparent', color: T.info, fontSize: 12.5, fontWeight: 600, cursor: 'pointer', padding: 0, fontFamily: 'inherit' }}>
         <Receipt size={14} strokeWidth={1.7} />{label}
       </button>
-      {open && url && <ReceiptViewer url={url} title={`${CATEGORY_LABELS[item.category]}${item.merchant ? ` · ${item.merchant}` : ''}`} onClose={() => setOpen(false)} />}
+      {open && url && <ReceiptViewer url={url} title={`${categoryLabel(rules, item.category, also)}${item.merchant ? ` · ${item.merchant}` : ''}`} onClose={() => setOpen(false)} />}
     </>
   );
 }
@@ -260,8 +314,9 @@ export function RejectionBanner({ claim }: { claim: ExpenseClaim }) {
 // ── timeline ────────────────────────────────────────────────────────────────
 interface Step { key: string; tone: 'ok' | 'red' | 'warn' | 'mute'; title: ReactNode; when?: string | null; remark?: string | null; lines?: Array<{ text: string; note: string | null }> }
 
-function stepsFor(claim: ExpenseClaim, approvals: ClaimApproval[]): Step[] {
+function stepsFor(claim: ExpenseClaim, approvals: ClaimApproval[], rules?: FormRules): Step[] {
   const out: Step[] = [{ key: 'created', tone: 'mute', title: 'Claim created', when: claim.created_at }];
+  const also = (claim.items ?? []).map((i) => i.category);
   const rounds = Array.from(new Set(approvals.map((a) => a.round ?? 1)));
   const multi = rounds.length > 1 || (claim.submit_count ?? 1) > 1;
   let lastRound = 0;
@@ -279,7 +334,7 @@ function stepsFor(claim: ExpenseClaim, approvals: ClaimApproval[]): Step[] {
       key: a.id, tone: a.status === 'approved' ? 'ok' : 'red',
       title: `${a.status === 'approved' ? (rejectedLines.length ? 'Partly approved' : 'Approved') : 'Rejected'} by ${who}${lvl}`,
       when: a.decided_at, remark: a.note,
-      lines: rejectedLines.map((d) => ({ text: `${CATEGORY_LABELS[d.category] ?? d.category} · ${money(d.amount, claim.currency)}`, note: d.note })),
+      lines: rejectedLines.map((d) => ({ text: `${categoryLabel(rules, d.category, also)} · ${money(d.amount, claim.currency)}`, note: d.note })),
     });
   }
   if (claim.auto_approved) out.push({ key: 'auto', tone: 'ok', title: 'Approved automatically under the policy', when: claim.reviewed_at });
@@ -288,8 +343,8 @@ function stepsFor(claim: ExpenseClaim, approvals: ClaimApproval[]): Step[] {
   return out;
 }
 
-export function ClaimTimeline({ claim }: { claim: ExpenseClaim }) {
-  const steps = useMemo(() => stepsFor(claim, claim.approvals ?? []), [claim]);
+export function ClaimTimeline({ claim, rules }: { claim: ExpenseClaim; rules?: FormRules }) {
+  const steps = useMemo(() => stepsFor(claim, claim.approvals ?? [], rules), [claim, rules]);
   const color = { ok: T.ok, red: T.red, warn: T.warn, mute: T.mute } as const;
   return (
     <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column' }}>
@@ -324,16 +379,20 @@ export function ClaimTimeline({ claim }: { claim: ExpenseClaim }) {
 }
 
 // ── a line item, read-only ──────────────────────────────────────────────────
-export function LineSummary({ item, currency }: { item: ClaimItem; currency: string }) {
+export function LineSummary({ item, currency, rules, also }: { item: ClaimItem; currency: string; rules?: FormRules; also?: ItemCategory[] }) {
+  // The route prints only when there is one: a policy can switch From / To off, and a line with neither
+  // must not read "— → —".
+  const route = item.category === 'mileage' && routeFieldsOn(rules) && (item.from_location || item.to_location)
+    ? `${item.from_location || '—'} → ${item.to_location || '—'}` : '';
   const detail = item.category === 'mileage'
-    ? `${item.from_location || '—'} → ${item.to_location || '—'}${item.distance_km != null ? ` · ${item.distance_km} km` : ''}`
+    ? [route, item.distance_km != null ? `${item.distance_km} km` : ''].filter(Boolean).join(' · ')
     : [item.merchant, item.description].filter(Boolean).join(' · ');
   const rejected = item.decision === 'rejected';
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) auto', gap: '4px 16px', padding: '12px 0', alignItems: 'start' }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 13.5, fontWeight: 600, color: T.text }}>{CATEGORY_LABELS[item.category]}</span>
+          <span style={{ fontSize: 13.5, fontWeight: 600, color: T.text }}>{categoryLabel(rules, item.category, also)}</span>
           <span style={{ fontSize: 12.5, color: T.mute }}>{fmtDate(item.item_date)}</span>
           {item.flagged && <Badge tone="warn">Flagged</Badge>}
           {rejected && <Badge tone="red">Line rejected</Badge>}
@@ -354,7 +413,7 @@ export function LineSummary({ item, currency }: { item: ClaimItem; currency: str
           </div>
         )}
         <div style={{ marginTop: 6, display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center' }}>
-          <ReceiptLink item={item} />
+          <ReceiptLink item={item} rules={rules} also={also} />
           <PhotoLink stored={item.odometer_start_photo_url} signed={item.odometer_start_photo_signed_url} label="Odometer before" title="Odometer before the trip" />
           <PhotoLink stored={item.odometer_end_photo_url} signed={item.odometer_end_photo_signed_url} label="Odometer after" title="Odometer after the trip" />
           {!item.receipt_url && item.category !== 'mileage' && <span style={{ fontSize: 12.5, color: T.mute, display: 'inline-flex', gap: 5, alignItems: 'center' }}><FileText size={13} strokeWidth={1.6} />No receipt</span>}

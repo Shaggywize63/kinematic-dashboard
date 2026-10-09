@@ -255,6 +255,9 @@ export default function NewLeadPage() {
   // notice shown + consent recorded, but not blocking).
   const [dataConsent, setDataConsent] = useState(false);
   const [consentRequired, setConsentRequired] = useState(false);
+  // True once the settings round-trip has finished (success or failure). The Data consent block is admin-gated
+  // (field override `data_consent`), so it waits for this rather than flashing up and then disappearing.
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
   // Pass the active B2C/B2B scope so overrides like "email required for
   // B2B only" or "last_name optional for B2C" take precedence over the
   // universal entry for the same field.
@@ -263,6 +266,11 @@ export default function NewLeadPage() {
     () => buildFieldHelpers(fieldOverrides, 'lead', scope),
     [fieldOverrides, scope],
   );
+  // The DPDP "Data consent" block is a built-in field like any other: an admin can hide it, relabel it, or
+  // make it required (Settings → Custom Fields → `data_consent`, per lead type). When it is hidden nothing is
+  // shown, nothing is required and no `_consent` is sent.
+  const showDataConsent = settingsLoaded && !fields.isHidden('data_consent');
+  const dataConsentRequired = fields.requiredFor('data_consent', consentRequired);
   // Business fields (company/title/industry) live on the B2B branch by
   // default. An admin can opt them onto B2C forms by explicitly un-hiding
   // the field in Settings → Custom Fields (which persists `hidden: false`).
@@ -349,6 +357,7 @@ export default function NewLeadPage() {
         const cfg = (s.value.data as { config?: { consent?: { lead_pii?: { required?: boolean } } } } | undefined)?.config;
         setConsentRequired(cfg?.consent?.lead_pii?.required === true);
       }
+      setSettingsLoaded(true);
       if (src.status === 'fulfilled') setSources((src.value.data || []).filter((x: LeadSource) => x.is_active));
       if (u.status === 'fulfilled') {
         const list: UserOpt[] = (u.value.data || u.value || []).map((x: any) => ({ id: x.id, name: x.name || x.full_name || x.email || 'User' }));
@@ -644,12 +653,14 @@ export default function NewLeadPage() {
       }
       // DPDP §6 — capture consent at collection. Always sent (recorded in the
       // crm_consents ledger); blocks submission only when the tenant requires it.
-      if (consentRequired && !dataConsent) {
-        toast.error('Please capture the individual’s consent to collect their personal data.');
-        setBusy(false);
-        return;
+      if (showDataConsent) {
+        if (dataConsentRequired && !dataConsent) {
+          toast.error('Please capture the individual’s consent to collect their personal data.');
+          setBusy(false);
+          return;
+        }
+        payload._consent = { consented: dataConsent, method: 'web_form', notice_version: NOTICE_VERSION };
       }
-      payload._consent = { consented: dataConsent, method: 'web_form', notice_version: NOTICE_VERSION };
       const r = await crmLeads.create(payload);
       const visitError = (r.data as { scheduled_visit_error?: string } | undefined)?.scheduled_visit_error;
       if (visitError) toast.warning(visitError);
@@ -1018,11 +1029,14 @@ export default function NewLeadPage() {
         {scheduleVisitSection}
 
         {/* DPDP §5/§6 — at-collection notice + primary consent for the lead's
-            personal data. Always shown (B2B + B2C); recorded in the consent
-            ledger. Distinct from the marketing/WhatsApp opt-ins above. */}
-        <Section title="Data consent" hint="Notice shown at collection, recorded in the consent ledger.">
-          <DataCollectionConsent checked={dataConsent} onChange={setDataConsent} required={consentRequired} />
-        </Section>
+            personal data. Shown for B2B + B2C unless the admin hides the
+            `data_consent` field; recorded in the consent ledger. Distinct from
+            the marketing/WhatsApp opt-ins above. */}
+        {showDataConsent && (
+          <Section title={fields.labelFor('data_consent', 'Data consent')} hint="Notice shown at collection, recorded in the consent ledger.">
+            <DataCollectionConsent checked={dataConsent} onChange={setDataConsent} required={dataConsentRequired} />
+          </Section>
+        )}
 
         {/* Products of Interest is captured in the Convert dialog (deal_product_lines)
             for Kaiyo/Tata, not on the lead form — the rep picks products when the

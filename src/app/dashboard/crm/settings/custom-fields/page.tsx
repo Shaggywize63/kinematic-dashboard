@@ -163,6 +163,9 @@ const BUILTIN_FIELDS: Record<string, BuiltinField[]> = {
     { key: 'country', label: 'Country', type: 'text' },
     { key: 'marketing_consent', label: 'Marketing Consent', type: 'boolean' },
     { key: 'whatsapp_consent', label: 'WhatsApp Consent', type: 'boolean' },
+    // The DPDP "Data consent" block on the create form + the consent card on the detail page. Hiding it removes
+    // both (and the consent record is then not sent at create); "required" makes the tick mandatory.
+    { key: 'data_consent', label: 'Data consent (DPDP)', type: 'boolean' },
     { key: 'date_of_birth', label: 'Date of Birth', type: 'date' },
     { key: 'gender', label: 'Gender', type: 'select' },
     { key: 'preferred_contact_method', label: 'Preferred Channel', type: 'select' },
@@ -184,6 +187,7 @@ const BUILTIN_FIELDS: Record<string, BuiltinField[]> = {
     { key: 'country', label: 'Country', type: 'text' },
     { key: 'marketing_consent', label: 'Marketing Consent', type: 'boolean' },
     { key: 'whatsapp_consent', label: 'WhatsApp Consent', type: 'boolean' },
+    { key: 'data_consent', label: 'Data consent (DPDP)', type: 'boolean' },
     { key: 'email_opt_out', label: 'Email Opt-Out', type: 'boolean' },
     { key: 'do_not_contact', label: 'Do Not Contact', type: 'boolean' },
   ],

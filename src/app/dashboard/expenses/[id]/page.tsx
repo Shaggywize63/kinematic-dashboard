@@ -7,7 +7,7 @@ import { ArrowLeft, Pencil } from 'lucide-react';
 import { Badge, Button, Card, EmptyState, Input, T, useIsCompact } from '../../../../components/ui';
 import { Modal, useConfirm } from '../../../../components/finance/ui';
 import {
-  ClaimStatusBadge, ClaimTimeline, ExpensesShell, Field, LineSummary, Panel, PolicyFindings, RejectionBanner, errText, fmtDate, fmtDateTime, isPartial, money, useExpenseRoles,
+  ClaimStatusBadge, ClaimTimeline, ExpensesShell, Field, LineSummary, Panel, PolicyFindings, RejectionBanner, errText, fmtDate, fmtDateTime, isPartial, money, useClaimRules, useExpenseRoles,
 } from '../../../../components/expenses/kit';
 import ReviewPanel from '../../../../components/expenses/ReviewPanel';
 import { ExpenseClaim, expensesApi } from '../../../../lib/expensesApi';
@@ -35,6 +35,8 @@ export default function ClaimDetailPage() {
     catch (e) { setError(errText(e, 'Could not load this claim')); }
   }, [id]);
   useEffect(() => { load(); }, [load]);
+  // Category names (a policy can rename them) and whether a route is shown come from the claim's policy.
+  const rules = useClaimRules(claim?.policy_id);
   usePageTitle(claim ? (claim.claim_no || claim.title) : null);
 
   const mine = !!claim && claim.user_id === me;
@@ -90,11 +92,11 @@ export default function ClaimDetailPage() {
       <div style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : 'minmax(0, 1fr) 340px', gap: 20, alignItems: 'start' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
           {reviewing ? (
-            <ReviewPanel claim={c} onDone={() => { load(); }} />
+            <ReviewPanel claim={c} rules={rules} onDone={() => { load(); }} />
           ) : (
             <Panel title="Expenses" aside={<span style={{ fontSize: 13, color: T.mute }}>{items.length} {items.length === 1 ? 'line' : 'lines'}</span>} padding={20}>
               {items.length === 0 ? <div style={{ fontSize: 13.5, color: T.mute }}>This claim has no lines.</div> : (
-                <div>{items.map((it, i) => <div key={it.id} style={{ borderTop: i ? `1px solid ${T.border}` : 0 }}><LineSummary item={it} currency={c.currency} /></div>)}</div>
+                <div>{items.map((it, i) => <div key={it.id} style={{ borderTop: i ? `1px solid ${T.border}` : 0 }}><LineSummary item={it} currency={c.currency} rules={rules} also={items.map((x) => x.category)} /></div>)}</div>
               )}
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, paddingTop: 14, marginTop: 4, borderTop: `1px solid ${T.border}`, fontSize: 14, fontWeight: 700, color: T.text }}>
                 <span>{partial || c.status === 'approved' || c.status === 'reimbursed' ? 'Approved' : 'Total'}</span>
@@ -134,7 +136,7 @@ export default function ClaimDetailPage() {
             {c.auto_approved && <div style={{ marginTop: 12 }}><Badge tone="ok">Auto-approved by policy</Badge></div>}
           </Panel>
 
-          <Panel title="History" padding={20}><ClaimTimeline claim={c} /></Panel>
+          <Panel title="History" padding={20}><ClaimTimeline claim={c} rules={rules} /></Panel>
 
           {mine && (c.status === 'draft' || c.status === 'submitted' || c.status === 'rejected') && (
             <div><Button variant="ghost" disabled={busy} onClick={withdraw} style={{ color: T.red }}>{c.status === 'draft' ? 'Delete draft' : 'Withdraw this claim'}</Button></div>
