@@ -42,11 +42,14 @@ function readRows(r: LocationOptionsResponse): LocationRow[] {
   return payload?.rows ?? [];
 }
 
-export default function LeadFilters({ value, onChange, sources = [], owners = [], statusOptions = null }: {
+export default function LeadFilters({ value, onChange, sources = [], owners = [], showOwner = true, statusOptions = null }: {
   value: LeadFiltersValue;
   onChange: (next: LeadFiltersValue) => void;
   sources?: Array<{ id: string; name: string }>;
   owners?: Array<{ id: string; name: string }>;
+  // False hides the Owner dropdown: a client that reserves lead ownership for admins
+  // (lead_form.owner_assignment = 'admin_only') gives everyone else no owner control, filter included.
+  showOwner?: boolean;
   // Per-client custom lead-status set. Null = use the built-in STATUS_OPTIONS
   // (no change for existing tenants).
   statusOptions?: Array<{ value: string; label: string }> | null;
@@ -116,10 +119,12 @@ export default function LeadFilters({ value, onChange, sources = [], owners = []
         <option value="">All Sources</option>
         {sources.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
       </select>
-      <select style={inputStyle} value={value.owner || ''} onChange={(e) => set({ owner: e.target.value || undefined })}>
-        <option value="">All Owners</option>
-        {owners.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
-      </select>
+      {showOwner && (
+        <select style={inputStyle} value={value.owner || ''} onChange={(e) => set({ owner: e.target.value || undefined })}>
+          <option value="">All Owners</option>
+          {owners.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+        </select>
+      )}
 
       {/* Location hierarchy — cascades, hidden once Locations master is empty */}
       {states.length > 0 && (

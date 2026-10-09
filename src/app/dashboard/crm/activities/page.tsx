@@ -9,6 +9,7 @@ import api, { EXPORT_TIMEOUT_MS } from '../../../../lib/api';
 import { downloadBlob } from '../../../../lib/financeFormat';
 import type { Activity } from '../../../../types/crm';
 import { getStoredUser, canAccess } from '../../../../lib/auth';
+import { useLeadOwnerAccess } from '../../../../lib/leadOwnerAccess';
 import UserSearchSelect, { type UserOption } from '../../../../components/crm/shared/UserSearchSelect';
 import CustomFieldsSection from '../../../../components/crm/CustomFieldsSection';
 import { ActivityTypeIcon, activityTypeEmoji } from '../../../../components/crm/shared/ActivityTypeIcon';
@@ -70,6 +71,10 @@ function ActivitiesPageInner() {
   // 'all' = no extra constraint = the default state.
   const [view, setView] = useState<ActivityView>(initialView);
   const [isAdmin, setIsAdmin] = useState(false);
+  // Clients that set lead_form.owner_assignment='admin_only' keep every owner control (the assignee filter
+  // included) for an admin; a self-only user on an admin-tier role (data_scope 'own') gets none of them.
+  const ownerAccess = useLeadOwnerAccess();
+  const showAssigneeFilter = isAdmin && ownerAccess.canAssign;
   const [busyId, setBusyId] = useState<string | null>(null);
   const [users, setUsers] = useState<UserOption[]>([]);
   const [feFilter, setFeFilter] = useState('');
@@ -249,6 +254,11 @@ function ActivitiesPageInner() {
       setSummary(s?.data ?? null);
     } catch (e: any) { toast.error(e.message || 'Failed'); } finally { setLoading(false); }
   };
+
+  // With the assignee filter gone for this viewer, a value left in it must not keep narrowing the list.
+  useEffect(() => {
+    if (ownerAccess.ready && !ownerAccess.canAssign) setFeFilter('');
+  }, [ownerAccess.ready, ownerAccess.canAssign]);
 
   useEffect(() => {
     const user = getStoredUser();
@@ -481,22 +491,26 @@ function ActivitiesPageInner() {
       {/* Admin filters: FE (assignee). State/City come from the global CRM location filter in the layout header. */}
       {isAdmin && (
         <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 10, padding: 10, marginBottom: 12, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.5 }}>Filters</span>
-          <div style={{ minWidth: 220 }}>
-            <UserSearchSelect
-              options={users}
-              value={feFilter}
-              onChange={setFeFilter}
-              placeholder="Filter by FE / assignee…"
-              emptyLabel="All assignees"
-            />
-          </div>
-          {filtersActive && (
-            <button
-              onClick={() => setFeFilter('')}
-              style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '6px 12px', borderRadius: 6, fontSize: 11, cursor: 'pointer' }}
-              title="Clear FE filter (state/city is in the header filter)"
-            >Clear FE</button>
+          {showAssigneeFilter && (
+            <>
+              <span style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.5 }}>Filters</span>
+              <div style={{ minWidth: 220 }}>
+                <UserSearchSelect
+                  options={users}
+                  value={feFilter}
+                  onChange={setFeFilter}
+                  placeholder="Filter by FE / assignee…"
+                  emptyLabel="All assignees"
+                />
+              </div>
+              {filtersActive && (
+                <button
+                  onClick={() => setFeFilter('')}
+                  style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '6px 12px', borderRadius: 6, fontSize: 11, cursor: 'pointer' }}
+                  title="Clear FE filter (state/city is in the header filter)"
+                >Clear FE</button>
+              )}
+            </>
           )}
           <span style={{ fontSize: 11, color: 'var(--text-dim)', marginLeft: 'auto' }}>
             {pagination
