@@ -322,8 +322,67 @@ test.describe('Admin-only lead owner — leads list', () => {
   });
 });
 
+// ── list filters ────────────────────────────────────────────────────────────
+// The Owner filter is an owner control like any other: a client that reserves ownership for admins gives
+// everybody else no Owner dropdown on Leads and no assignee filter on Activities.
+const leadsOwnerFilter = (page: Page) => page.locator('select:has(option:text-is("All Owners"))');
+const activitiesAssigneeFilter = (page: Page) => page.getByPlaceholder('Filter by FE / assignee…');
+
+test.describe('Admin-only lead owner — list filters', () => {
+  test('a rep on a flagged client has no Owner filter on Leads', async ({ page }) => {
+    await setup(page, { user: REP, adminOnly: true });
+    await settled(page, () => page.goto('/dashboard/crm/leads'));
+    await expect(page.getByText('Ramesh Sharma')).toBeVisible();
+    await expect(page.locator('select:has(option:text-is("All Sources"))')).toBeVisible(); // the rest of the bar is there
+    await expect(leadsOwnerFilter(page)).toHaveCount(0);
+  });
+
+  test('an admin on a flagged client keeps the Owner filter on Leads, and it filters', async ({ page }) => {
+    await setup(page, { user: ADMIN, adminOnly: true });
+    const asked: string[] = [];
+    page.on('request', (r) => { if (r.url().includes('/api/v1/crm/leads?')) asked.push(r.url()); });
+    await settled(page, () => page.goto('/dashboard/crm/leads'));
+    await expect(leadsOwnerFilter(page)).toBeVisible();
+    await leadsOwnerFilter(page).selectOption('u-asha');
+    await expect.poll(() => asked.some((u) => u.includes('owner_id=u-asha'))).toBe(true);
+  });
+
+  test('a rep on a client WITHOUT the flag keeps the Owner filter on Leads', async ({ page }) => {
+    await setup(page, { user: REP, adminOnly: false });
+    await settled(page, () => page.goto('/dashboard/crm/leads'));
+    await expect(leadsOwnerFilter(page)).toBeVisible();
+  });
+
+  test('a rep whose settings cannot be read gets no Owner filter either (fail closed)', async ({ page }) => {
+    await setupCtl(page, { user: REP, adminOnly: false, settingsFault: 'http' });
+    await settled(page, () => page.goto('/dashboard/crm/leads'));
+    await expect(page.getByText('Ramesh Sharma')).toBeVisible();
+    await expect(leadsOwnerFilter(page)).toHaveCount(0);
+  });
+
+  test('a self-only rep on an admin-tier role gets no assignee filter on Activities', async ({ page }) => {
+    await setup(page, { user: OWN_SCOPE_SUB_ADMIN, adminOnly: true });
+    await settled(page, () => page.goto('/dashboard/crm/activities'));
+    // The admin filter bar is there (its "Showing x of y" counter stays) — just without the assignee picker.
+    await expect(page.getByText(/^Showing \d+ of \d+/)).toBeVisible();
+    await expect(activitiesAssigneeFilter(page)).toHaveCount(0);
+  });
+
+  test('an admin on a flagged client keeps the assignee filter on Activities', async ({ page }) => {
+    await setup(page, { user: ADMIN, adminOnly: true });
+    await settled(page, () => page.goto('/dashboard/crm/activities'));
+    await expect(activitiesAssigneeFilter(page)).toBeVisible();
+  });
+
+  test('a self-only rep on a client WITHOUT the flag keeps the assignee filter on Activities', async ({ page }) => {
+    await setup(page, { user: OWN_SCOPE_SUB_ADMIN, adminOnly: false });
+    await settled(page, () => page.goto('/dashboard/crm/activities'));
+    await expect(activitiesAssigneeFilter(page)).toBeVisible();
+  });
+});
+
 // ── import ──────────────────────────────────────────────────────────────────
-const CSV = 'first_name,phone,owner_email\nAnita,9123456780,asha@example.com\n';
+const CSV ='first_name,phone,owner_email\nAnita,9123456780,asha@example.com\n';
 
 async function toMapStep(page: Page) {
   await page.locator('input[type=file]').setInputFiles({ name: 'leads.csv', mimeType: 'text/csv', buffer: Buffer.from(CSV) });

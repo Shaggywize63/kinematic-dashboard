@@ -51,8 +51,13 @@ export default function LeadsListPage() {
   const [usersLoading, setUsersLoading] = useState(false);
   const [isB2C, setIsB2C] = useState(false);
   // Clients that set lead_form.owner_assignment='admin_only' let only an admin choose an owner: no "Assign to me" /
-  // "Assign to…" on a selection and no inline owner picker on a row (the owner column is plain text for everyone else).
+  // "Assign to…" on a selection, no inline owner picker on a row (the owner column is plain text for everyone else)
+  // and no Owner filter in the filter bar.
   const ownerAccess = useLeadOwnerAccess();
+  // With the Owner filter gone for this viewer, a value left in it must not keep narrowing the list.
+  useEffect(() => {
+    if (ownerAccess.ready && !ownerAccess.canAssign) setFilters((f) => (f.owner ? { ...f, owner: undefined } : f));
+  }, [ownerAccess.ready, ownerAccess.canAssign]);
   // AI Smart Filters
   const [smartQuery, setSmartQuery] = useState('');
   const [smartParams, setSmartParams] = useState<Record<string, string>>({});
@@ -570,7 +575,7 @@ export default function LeadsListPage() {
           explanation={smartExplain}
           params={smartParams}
         />
-        <LeadFilters value={filters} onChange={setFilters} sources={sources.map((s) => ({ id: s.id, name: s.name }))} owners={users} statusOptions={leadStatuses} />
+        <LeadFilters value={filters} onChange={setFilters} sources={sources.map((s) => ({ id: s.id, name: s.name }))} owners={users} showOwner={ownerAccess.canAssign} statusOptions={leadStatuses} />
         {showApproval && (
           <Segmented
             value={approvalFilter}
