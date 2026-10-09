@@ -14,10 +14,18 @@
 // "Admin" = the roles the backend treats as admin for this, but not a person whose org-role data scope is
 // 'own' (a field rep that sits on an admin-tier preset such as sub_admin). The role and scope come from the
 // same /auth/me payload the rest of the dashboard reads (stored session first, then the fresh copy).
+//
+// When the setting cannot be READ (the request fails or is blocked, or the reply has no body to read), "no
+// restriction" would be the wrong guess for a client that did turn it on: every owner control would reappear
+// for a non-admin. So a failed read falls back, in order, to
+//   1. the value this user last read successfully for this client (localStorage, one key per user + client,
+//      wiped on sign-out — see clearSession), then
+//   2. the restriction ON.
+// An admin keeps every control either way, and a successful read behaves exactly as it always did.
 
 import { useEffect, useState } from 'react';
-import api from './api';
-import { getStoredUser } from './auth';
+import api, { getRequestClientId } from './api';
+import { getStoredUser, OWNER_ASSIGN_CACHE_PREFIX } from './auth';
 import { crmSettings } from './crmApi';
 import { extractLeadForm } from './crmLeadForm';
 
@@ -42,13 +50,41 @@ export function isOwnerAdmin(user: OwnerAccessUser | null | undefined): boolean 
   return scope !== 'own';
 }
 
+/**
+ * localStorage key of the last-known setting for the signed-in user within the client scope requests are
+ * currently made in. Null when nobody is signed in (nothing to key by, so nothing is read or written).
+ */
+function lastKnownKey(): string | null {
+  const id = getStoredUser()?.id;
+  return id ? `${OWNER_ASSIGN_CACHE_PREFIX}${id}:${getRequestClientId() ?? 'org'}` : null;
+}
+
+/** The setting this user last read successfully for this client: true / false, or null when never read. */
+function readLastKnown(key: string | null): boolean | null {
+  if (!key) return null;
+  try {
+    const v = window.localStorage.getItem(key);
+    return v === '1' ? true : v === '0' ? false : null;
+  } catch { return null; }
+}
+
+function writeLastKnown(key: string | null, adminOnly: boolean): void {
+  // Only for the user and client scope the read was made for: if either changed while it was in flight (sign-out,
+  // another person signing in, the client picker), the answer belongs to someone else's key.
+  if (!key || lastKnownKey() !== key) return;
+  try { window.localStorage.setItem(key, adminOnly ? '1' : '0'); } catch { /* storage blocked / full: just not remembered */ }
+}
+
 export interface LeadOwnerAccess {
   /**
    * The client's setting and the viewer's identity are both known, so an owner control can be shown or
    * withheld without a flash. Admin-gated rows wait for this (same rule as the field overrides).
    */
   ready: boolean;
-  /** The client turned on `lead_form.owner_assignment: 'admin_only'`. */
+  /**
+   * The client turned on `lead_form.owner_assignment: 'admin_only'` — or the setting could not be read and
+   * the restriction is assumed (see the top of this file).
+   */
   adminOnly: boolean;
   /**
    * May this viewer choose / change a lead's owner? Always true once ready when the client has no
@@ -70,9 +106,21 @@ export function useLeadOwnerAccess(): LeadOwnerAccess {
 
   useEffect(() => {
     let off = false;
+    const key = lastKnownKey();
     crmSettings.get()
-      .then((r) => { if (!off) setAdminOnly(extractLeadForm(r.data).ownerAdminOnly); })
-      .catch(() => { /* no readable settings = no restriction (the server still enforces its own) */ })
+      // A reply with no body at all throws here (nothing to read `.data` from) and counts as a failed read, like
+      // a rejected request. Any reply that has a body is a read: no flag in it means no restriction, as ever.
+      .then((r) => extractLeadForm(r.data).ownerAdminOnly)
+      .then(
+        (flag) => {
+          writeLastKnown(key, flag);
+          if (!off) setAdminOnly(flag);
+        },
+        // Could not read the setting: last-known for this user + client, else assume the restriction is on.
+        // (Being wrong on the cautious side hides a control the server would have allowed; the other way round
+        // shows one it will refuse. The server enforces either way.)
+        () => { if (!off) setAdminOnly(readLastKnown(key) ?? true); },
+      )
       .finally(() => { if (!off) setSettingsReady(true); });
 
     // The stored session answers at once; /auth/me confirms it (a stored profile can predate org_role_data_scope).

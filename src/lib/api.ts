@@ -121,6 +121,38 @@ export function stopImpersonation() {
   api.clearCache();
 }
 
+/**
+ * The client the next request is scoped to when the caller names none (what request() sends as X-Client-Id):
+ * the client a super-admin is acting as, else the header picker's selection — unless the org hides the picker.
+ * Null = org-wide.
+ */
+export function getRequestClientId(): string | null {
+  if (typeof window === 'undefined') return null;
+  const acting = getActingAs()?.client_id;
+  if (acting) return acting;
+  try {
+    // Orgs that hide the global client filter (ui.hide_client_filter) must NOT carry a client scope — the
+    // picker is gone, so a previously-stored selection would otherwise keep silently scoping every request
+    // to one (possibly empty) client. Skip it entirely; the admin sees the full org.
+    const hideFilter = window.localStorage.getItem('kinematic_hide_client_filter') === '1';
+    const sel = hideFilter ? null : window.localStorage.getItem('kinematic_selected_client');
+    return sel && isUUID(sel) ? sel : null;
+  } catch { return null; }
+}
+
+/**
+ * Forget which tenant, city and "acting as" view this browser was scoped to. Called on sign-out: left behind,
+ * the previous person's client / city would scope the next person's requests, and a super-admin's
+ * impersonation token (which getToken() prefers over the real one) would authenticate them.
+ */
+export function clearRequestScope(): void {
+  if (typeof window === 'undefined') return;
+  [
+    'kinematic_acting_as', 'kinematic_impersonate_user', IMPERSONATE_PREV_PROJECT,
+    'kinematic_selected_client', 'kinematic_hide_client_filter', 'kinematic_selected_city',
+  ].forEach((k) => { try { window.localStorage.removeItem(k); } catch { /* ignore */ } });
+}
+
 // In-memory GET cache + localStorage stale-while-revalidate + in-flight dedupe.
 // - Successful GETs are cached in memory for `GET_CACHE_TTL_MS` (60s)
 // - Small successful GETs are also persisted to localStorage (bounded, see
@@ -188,6 +220,9 @@ const swr = new SwrStore((): KvStore | null => {
   try { return window.localStorage; } catch { return null; } // blocked / private mode
 });
 const inFlight = new Map<string, Promise<unknown>>();
+// Bumped by dropAllCaches() (sign-out). A GET that started before the bump must not write its answer into the
+// caches afterwards — it would put the previous person's data straight back after it was wiped.
+let cacheGeneration = 0;
 
 // ── Request resilience ──────────────────────────────────────────────────────
 // A hung upstream (a brief auth/DB blip, an ECS task restart, a Spot reclaim)
@@ -337,6 +372,17 @@ class ApiClient {
   clearCache() {
     responseCache.clear();
     swr.clear();
+  }
+
+  /**
+   * Sign-out: clearCache() plus forget every GET still in flight, so none of them can answer into the caches
+   * (memory or localStorage) after the wipe, and a later identical GET cannot join one that started as the
+   * previous person. Mutations keep using clearCache().
+   */
+  dropAllCaches() {
+    cacheGeneration++;
+    inFlight.clear();
+    this.clearCache();
   }
 
   private getToken(): string | null {
@@ -562,18 +608,9 @@ class ApiClient {
     // org-level admins; client-level users have client_id pinned in their JWT
     // so the header is treated as advisory and ignored when it conflicts.
     // Acting-as a client (super-admin Login) pins X-Client-Id to that client.
-    const actingClient = getActingAs()?.client_id;
-    if (actingClient && !headers['X-Client-Id']) headers['X-Client-Id'] = actingClient;
     if (!headers['X-Client-Id']) {
-      try {
-        // Orgs that hide the global client filter (ui.hide_client_filter) must
-        // NOT carry a client scope — the picker is gone, so a previously-stored
-        // selection would otherwise keep silently scoping every request to one
-        // (possibly empty) client. Skip it entirely; the admin sees the full org.
-        const hideFilter = typeof window !== 'undefined' && window.localStorage.getItem('kinematic_hide_client_filter') === '1';
-        const sel = (!hideFilter && typeof window !== 'undefined') ? window.localStorage.getItem('kinematic_selected_client') : null;
-        if (sel && isUUID(sel)) headers['X-Client-Id'] = sel;
-      } catch { /* ignore */ }
+      const scopedClient = getRequestClientId();
+      if (scopedClient) headers['X-Client-Id'] = scopedClient;
     }
 
     // Demo-only industry vertical switcher — auto-attach the selected vertical
@@ -767,13 +804,17 @@ class ApiClient {
 
     // Kick off network fetch
     const ttl = ttlFor(path);
+    const generation = cacheGeneration;
     const networkPromise = this.request<T>(path, options).then(value => {
-      responseCache.set(key, value, Date.now() + ttl);
-      swr.set(key, value);
-      inFlight.delete(key);
+      // Started before a sign-out wiped the caches: hand the answer to its caller, but keep it out of them.
+      if (generation === cacheGeneration) {
+        responseCache.set(key, value, Date.now() + ttl);
+        swr.set(key, value);
+        inFlight.delete(key);
+      }
       return value;
     }).catch(err => {
-      inFlight.delete(key);
+      if (generation === cacheGeneration) inFlight.delete(key);
       throw err;
     });
     inFlight.set(key, networkPromise as Promise<unknown>);
