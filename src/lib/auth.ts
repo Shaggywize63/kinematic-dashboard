@@ -1,10 +1,19 @@
 
 import { AuthSession, AuthUser } from '../types';
+import api, { clearRequestScope } from './api';
+import { PROJECT_KEY_STORAGE } from './projects';
 
 const TOKEN_KEY = 'kinematic_token';
 const REFRESH_KEY = 'kinematic_refresh_token';
 const USER_KEY  = 'kinematic_user';
 const EXPIRY_KEY = 'kinematic_expiry';
+// A super-admin's own session, parked while they are inside a client ("Login as"). Holds their token + refresh token.
+const SU_SESSION_KEY = 'kinematic_su_session';
+/**
+ * The last-known `lead_form.owner_assignment` setting, one key per user + client scope
+ * (`<prefix><userId>:<clientId|org>`; see leadOwnerAccess.ts). Wiped on sign-out with the rest of the session.
+ */
+export const OWNER_ASSIGN_CACHE_PREFIX = 'kinematic_owner_assign:';
 // Deliberately NOT cleared by clearSession() (logout) — this key exists
 // specifically to survive across logout/login so the NEXT login (possibly a
 // different account) can be compared against the LAST one that used this
@@ -141,24 +150,42 @@ export function isSessionValid(): boolean {
   return !!localStorage.getItem(TOKEN_KEY);
 }
 
+/**
+ * Sign out: remove everything in this browser that belongs to the person who was signed in, or to the tenant /
+ * city / "acting as" view they were looking at — so none of it can show up in the next person's session.
+ *
+ *  - credentials + profile + Supabase project, and a parked super-admin session (token + refresh token)
+ *  - request scope: selected client, hidden-client-filter flag, selected city, acting-as, impersonation
+ *    (see clearRequestScope in api.ts)
+ *  - cached API responses: in memory, in-flight GETs (so a late answer cannot repopulate), and the persisted
+ *    stale-while-revalidate copies, current and legacy prefix (see api.dropAllCaches)
+ *  - the last-known per-user owner-assignment setting
+ *
+ * Deliberately kept: `kinematic_last_identity` (see its note) and device preferences that are not about a
+ * person (theme, sidebar state, help language) or are already keyed per user / client (nav and view prefs).
+ */
 export function clearSession() {
-  localStorage.removeItem(TOKEN_KEY);
-  localStorage.removeItem(REFRESH_KEY);
-  localStorage.removeItem(USER_KEY);
-  localStorage.removeItem(EXPIRY_KEY);
-  // Drop the resolved Supabase project so the next login re-resolves it from
-  // the entered email (a different user may belong to a different project).
-  localStorage.removeItem('kinematic_supabase_project');
-  // Wipe the GET response cache too — otherwise a stale empty payload from
+  if (typeof window === 'undefined') return;
+  [TOKEN_KEY, REFRESH_KEY, USER_KEY, EXPIRY_KEY, SU_SESSION_KEY,
+    // Drop the resolved Supabase project so the next login re-resolves it from
+    // the entered email (a different user may belong to a different project).
+    PROJECT_KEY_STORAGE,
+  ].forEach((k) => { try { localStorage.removeItem(k); } catch { /* ignore */ } });
+  removeKeysWithPrefix(OWNER_ASSIGN_CACHE_PREFIX);
+  clearRequestScope();
+  // Wipe the GET response caches too — otherwise a stale empty payload from
   // the previous user/session leaks into the next login (e.g. an empty leads
-  // list cached during a 401 storm reappears after re-login).
-  if (typeof window !== 'undefined') {
-    try {
-      Object.keys(localStorage)
-        .filter((k) => k.startsWith('kapi:'))
-        .forEach((k) => localStorage.removeItem(k));
-    } catch { /* ignore */ }
-  }
+  // list cached during a 401 storm reappears after re-login), and the previous
+  // user's data sits in localStorage after they have signed out.
+  api.dropAllCaches();
+}
+
+function removeKeysWithPrefix(prefix: string) {
+  try {
+    Object.keys(localStorage)
+      .filter((k) => k.startsWith(prefix))
+      .forEach((k) => localStorage.removeItem(k));
+  } catch { /* ignore */ }
 }
 
 /** Wipe the GET response cache without logging the user out. Useful after a
@@ -166,11 +193,7 @@ export function clearSession() {
  *  cached payloads. */
 export function clearApiCache() {
   if (typeof window === 'undefined') return;
-  try {
-    Object.keys(localStorage)
-      .filter((k) => k.startsWith('kapi:'))
-      .forEach((k) => localStorage.removeItem(k));
-  } catch { /* ignore */ }
+  api.clearCache();
 }
 
 export function getRoleLabel(role: string): string {
