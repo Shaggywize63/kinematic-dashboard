@@ -165,7 +165,13 @@ const CITY_AWARE_CRM_PREFIXES = [
   '/api/v1/crm/lead-analytics',
 ];
 
+// Never city-scoped, whatever the list above grows into: the Sales / Collection rupee targets (types, progress,
+// entries, the typed boards) belong to a person, not a city, and the backend does not read `city` on them — a
+// stray `?city=` would only fragment the response cache.
+const NEVER_CITY_SCOPED = ['/api/v1/crm/targets'];
+
 function isCityAwareCrmPath(path: string): boolean {
+  if (NEVER_CITY_SCOPED.some((p) => path === p || path.startsWith(`${p}/`) || path.startsWith(`${p}?`))) return false;
   return CITY_AWARE_CRM_PREFIXES.some((p) => path === p || path.startsWith(`${p}/`) || path.startsWith(`${p}?`));
 }
 

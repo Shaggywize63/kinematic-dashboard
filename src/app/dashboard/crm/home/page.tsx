@@ -21,6 +21,7 @@ import { crmHome, type HomePayload, type HomeNextAction } from '../../../../lib/
 import { getStoredUser } from '../../../../lib/auth';
 import { Badge, Button, Card, EmptyState, Eyebrow, PageHeader, T, useIsCompact, type Tone } from '../../../../components/ui';
 import { usePageTitle } from '../../../../lib/pageTitle';
+import MyTargetsCard from '../../../../components/crm/MyTargetsCard';
 
 // Belt-and-braces gate: the sidebar already hides this entry for Tata
 // Tiscon users via the `hiddenForTata` flag in layout.tsx, but a direct
@@ -79,6 +80,8 @@ export default function CrmHomePage() {
   const [data, setData] = useState<HomePayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  // Bumped by "Refresh" so the Sales / Collection targets card (its own request) reloads with the rest.
+  const [targetsTick, setTargetsTick] = useState(0);
 
   // Redirect Tata-scoped users (pinned via JWT or active picker) back
   // to the CRM index — matches the sidebar's hiddenForTata gate.
@@ -95,7 +98,7 @@ export default function CrmHomePage() {
 
   const load = async (silent = false) => {
     if (!silent) setLoading(true);
-    else setRefreshing(true);
+    else { setRefreshing(true); setTargetsTick((n) => n + 1); }
     try {
       const r = await crmHome.get();
       setData(r.data ?? null);
@@ -196,6 +199,9 @@ export default function CrmHomePage() {
           <ActivityStat label="Notes"    value={activity?.by_type?.note ?? 0}     icon={<Sparkles size={16} strokeWidth={1.6} />}      tone="neutral" />
         </div>
       </div>
+
+      {/* ── Sales / Collection rupee targets — only for clients that have them (renders nothing otherwise) ── */}
+      <MyTargetsCard refreshKey={targetsTick} />
 
       {/* ── Next actions — top 3 with reasoning ──────────────────────── */}
       <Card padding={0} style={{ overflow: 'hidden' }}>
