@@ -10,7 +10,8 @@ import { Copy, Plus, Trash2, X } from 'lucide-react';
 import { Badge, Button, Card, FormGrid, Input, Section, Select, Textarea, T, useIsCompact } from '../ui';
 import { useConfirm, useDebounced } from '../finance/ui';
 import {
-  CATEGORIES, CATEGORY_LABELS, ExpensePolicy, ItemCategory, PolicyInput, PolicyPerson, PolicyPreset, PolicyRoles, PolicyRules, expensesApi,
+  CATEGORIES, CATEGORY_LABELS, ExpensePolicy, ItemCategory, PolicyInput, PolicyPerson, PolicyPreset, PolicyRoles, PolicyRules,
+  categoryLabel, expensesApi, singleCategory,
 } from '../../lib/expensesApi';
 import { ExpensesShell, Field, errText } from './kit';
 import { usePageTitle } from '../../lib/pageTitle';
@@ -27,6 +28,12 @@ interface Form {
   categories: Record<ItemCategory, CatForm>;
   // Travel allowance by vehicle — empty list = the flat mileage rate applies as before.
   vehicles: VehicleForm[]; odometer_photos_required: boolean;
+  // Claim form: own names for the categories (blank = the built-in name), and three on/off choices.
+  category_labels: Record<ItemCategory, string>;
+  route_fields: boolean; single_line: boolean; odometer_camera_only: boolean;
+  // The rules exactly as loaded. Saved back underneath what the form edits, so a rule this form doesn't
+  // know about (or hasn't been told about yet) is not silently dropped when an admin presses Save.
+  loadedRules: Partial<PolicyRules>;
 }
 
 const s = (v: number | null | undefined) => (v == null ? '' : String(v));
@@ -41,13 +48,24 @@ function catForms(c?: Partial<Record<ItemCategory, Partial<{ enabled: boolean; p
   return out;
 }
 
+function labelForms(l?: Partial<Record<ItemCategory, string>>): Record<ItemCategory, string> {
+  const out = {} as Record<ItemCategory, string>;
+  for (const k of CATEGORIES) out[k] = typeof l?.[k] === 'string' ? (l[k] as string) : '';
+  return out;
+}
+
 const withRules = (f: Form, r: PolicyRules): Form => ({
   ...f,
+  loadedRules: r,
   mileage_rate: s(r.mileage_rate), receipt_required_over: s(r.receipt_required_over), max_claim_amount: s(r.max_claim_amount),
   submit_within_days: s(r.submit_within_days), auto_approve_under: s(r.auto_approve_under), escalate_over: s(r.escalate_over),
   enforcement: r.enforcement, categories: catForms(r.categories),
   vehicles: (r.vehicle_rates ?? []).map((v) => ({ id: v.id, label: v.label, rate: String(v.rate_per_km) })),
   odometer_photos_required: r.odometer_photos_required !== false,
+  category_labels: labelForms(r.category_labels),
+  route_fields: r.route_fields !== false,
+  single_line: r.single_line === true,
+  odometer_camera_only: r.odometer_camera_only === true,
 });
 
 const EMPTY: Form = {
@@ -56,6 +74,7 @@ const EMPTY: Form = {
   mileage_rate: '12', receipt_required_over: '500', max_claim_amount: '', submit_within_days: '', auto_approve_under: '0', escalate_over: '',
   enforcement: 'flag', categories: catForms(),
   vehicles: [], odometer_photos_required: true,
+  category_labels: labelForms(), route_fields: true, single_line: false, odometer_camera_only: false, loadedRules: {},
 };
 
 function fromPolicy(p: ExpensePolicy): Form {
@@ -81,6 +100,7 @@ function toInput(f: Form): PolicyInput {
     applies_to: { everyone: f.everyone, roles: f.everyone ? [] : f.roles, org_role_ids: f.everyone ? [] : f.org_role_ids, user_ids: f.everyone ? [] : f.user_ids },
     effective_from: f.effective_from || null, effective_to: f.effective_to || null,
     rules: {
+      ...(f.loadedRules as NonNullable<PolicyInput['rules']>),
       mileage_rate: num(f.mileage_rate) ?? 0, receipt_required_over: num(f.receipt_required_over) ?? 0, max_claim_amount: num(f.max_claim_amount),
       submit_within_days: num(f.submit_within_days) != null ? Math.round(num(f.submit_within_days)!) : null,
       auto_approve_under: num(f.auto_approve_under) ?? 0, escalate_over: num(f.escalate_over), enforcement: f.enforcement, categories: categories as NonNullable<PolicyInput['rules']>['categories'],
@@ -89,8 +109,21 @@ function toInput(f: Form): PolicyInput {
         .filter((v) => v.label.trim() && num(v.rate) != null)
         .map((v) => ({ ...(v.id ? { id: v.id } : {}), label: v.label.trim(), rate_per_km: num(v.rate)! })),
       odometer_photos_required: f.odometer_photos_required,
+      // Claim form. Always sent (an empty names object / a plain true or false clears a setting) so turning one
+      // back off sticks — the same reason vehicle_rates is always sent.
+      category_labels: customLabels(f),
+      route_fields: f.route_fields,
+      single_line: f.single_line,
+      odometer_camera_only: f.odometer_camera_only,
     },
   };
+}
+
+/** The names the admin typed (blank ones left out: blank means the built-in name). */
+function customLabels(f: Pick<Form, 'category_labels'>): Partial<Record<ItemCategory, string>> {
+  const out: Partial<Record<ItemCategory, string>> = {};
+  for (const k of CATEGORIES) { const t = f.category_labels[k].trim(); if (t) out[k] = t; }
+  return out;
 }
 
 // ── small controls ──────────────────────────────────────────────────────────
@@ -107,10 +140,10 @@ function Amount({ value, onChange, placeholder, label, prefix, suffix, disabled,
   );
 }
 
-function Switch({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
+function Switch({ checked, onChange, label, disabled }: { checked: boolean; onChange: (v: boolean) => void; label: string; disabled?: boolean }) {
   return (
-    <button type="button" role="switch" aria-checked={checked} aria-label={label} onClick={() => onChange(!checked)}
-      style={{ width: 38, height: 22, borderRadius: 999, border: 0, padding: 2, cursor: 'pointer', background: checked ? T.ok : 'var(--s4)', transition: 'background .12s ease', display: 'flex', justifyContent: checked ? 'flex-end' : 'flex-start', flexShrink: 0 }}>
+    <button type="button" role="switch" aria-checked={checked} aria-label={label} disabled={disabled} onClick={() => onChange(!checked)}
+      style={{ width: 38, height: 22, borderRadius: 999, border: 0, padding: 2, cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.5 : 1, background: checked ? T.ok : 'var(--s4)', transition: 'background .12s ease', display: 'flex', justifyContent: checked ? 'flex-end' : 'flex-start', flexShrink: 0 }}>
       <span style={{ width: 18, height: 18, borderRadius: 999, background: '#fff', boxShadow: '0 1px 2px rgba(0,0,0,.25)' }} />
     </button>
   );
@@ -187,6 +220,14 @@ export default function PolicyEditor({ policyId }: { policyId?: string }) {
       return withRules(base, p.rules);
     });
   };
+
+  const setLabelFor = (k: ItemCategory, v: string) => set({ category_labels: { ...form.category_labels, [k]: v } });
+  const hasVehicles = form.vehicles.some((v) => v.label.trim() && num(v.rate) != null);
+  // The claim form as people on this policy will see it — used for the notes under "Claim form".
+  const formRules = useMemo(() => ({
+    categories: Object.fromEntries(CATEGORIES.map((k) => [k, { enabled: form.categories[k].enabled }])) as Partial<Record<ItemCategory, { enabled: boolean }>>,
+    category_labels: customLabels(form),
+  }), [form]);
 
   const setVehicle = (i: number, p: Partial<VehicleForm>) =>
     set({ vehicles: form.vehicles.map((v, j) => (j === i ? { ...v, ...p } : v)) });
@@ -341,6 +382,9 @@ export default function PolicyEditor({ policyId }: { policyId?: string }) {
             {CATEGORIES.map((k) => {
               const c = form.categories[k];
               const off = !c.enabled;
+              // The name claim forms show for this category, when the admin gave it one (see "Claim form" below).
+              const shown = (key: ItemCategory) => (form.category_labels[key].trim()
+                ? <span style={{ display: 'block', fontSize: 11.5, fontWeight: 500, color: T.mute }}>shown as {form.category_labels[key].trim()}</span> : null);
               const cell = (key: keyof CatForm, label: string, ph = 'No limit') => (
                 <div key={key} style={{ opacity: off ? 0.45 : 1 }}>
                   {!wide && <div style={{ fontSize: 12, color: T.mute, marginBottom: 4 }}>{label}</div>}
@@ -349,14 +393,14 @@ export default function PolicyEditor({ policyId }: { policyId?: string }) {
               );
               return wide ? (
                 <div key={k} style={{ display: 'grid', gridTemplateColumns: '120px 90px repeat(4, minmax(0, 1fr))', gap: 10, alignItems: 'center' }}>
-                  <span style={{ fontSize: 14, fontWeight: 600, color: T.text }}>{CATEGORY_LABELS[k]}</span>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: T.text }}>{CATEGORY_LABELS[k]}{shown(k)}</span>
                   <Switch checked={c.enabled} onChange={(v) => setCat(k, { enabled: v })} label={`${CATEGORY_LABELS[k]} allowed`} />
                   {cell('per_day_limit', 'Per day')}{cell('per_claim_limit', 'Per claim')}{cell('per_month_limit', 'Per month')}{cell('receipt_required_over', 'Receipt over', 'Policy default')}
                 </div>
               ) : (
                 <div key={k} style={{ border: `1px solid ${T.border}`, borderRadius: T.radius.md, padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: 14, fontWeight: 600, color: T.text }}>{CATEGORY_LABELS[k]}</span>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: T.text }}>{CATEGORY_LABELS[k]}{shown(k)}</span>
                     <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center', fontSize: 12.5, color: T.dim }}>{c.enabled ? 'Allowed' : 'Not allowed'}<Switch checked={c.enabled} onChange={(v) => setCat(k, { enabled: v })} label={`${CATEGORY_LABELS[k]} allowed`} /></span>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
@@ -365,6 +409,57 @@ export default function PolicyEditor({ policyId }: { policyId?: string }) {
                 </div>
               );
             })}
+          </div>
+        </Section>
+      </Card>
+
+      <Card padding={20}>
+        <Section first eyebrow="Claim form" hint="How the claim form looks for people on this policy. Leave everything as it is to keep the standard form.">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: T.text }}>Category names</div>
+            <div style={{ fontSize: 12.5, color: T.mute, lineHeight: 1.45 }}>Call a category whatever your team calls it. Blank keeps the standard name.</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: 10 }}>
+              {CATEGORIES.map((k) => (
+                <div key={k} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <span style={{ fontSize: 12, color: T.mute }}>{CATEGORY_LABELS[k]}</span>
+                  <Input aria-label={`Display name for ${CATEGORY_LABELS[k]}`} value={form.category_labels[k]} maxLength={30} placeholder={CATEGORY_LABELS[k]}
+                    onChange={(e) => setLabelFor(k, e.target.value)} />
+                </div>
+              ))}
+            </div>
+            {(() => {
+              const on = CATEGORIES.filter((k) => form.categories[k].enabled);
+              const clash = on.filter((k) => form.category_labels[k].trim() && categoryLabel(formRules, k) !== form.category_labels[k].trim());
+              const only = singleCategory(formRules);
+              return (
+                <>
+                  {only && <div style={{ fontSize: 12.5, color: T.dim }}>Only {categoryLabel(formRules, only)} is allowed, so the claim form won’t ask people to pick a category.</div>}
+                  {clash.map((k) => (
+                    <div key={k} style={{ fontSize: 12.5, color: T.warn }}>
+                      “{form.category_labels[k].trim()}” is also the name of another category, so claim forms show this one as “{categoryLabel(formRules, k)}”. Switch the other category off to show just “{form.category_labels[k].trim()}”.
+                    </div>
+                  ))}
+                </>
+              );
+            })()}
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 6 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13.5, color: T.text }}>
+              <Switch checked={form.route_fields} onChange={(v) => set({ route_fields: v })} label="Show From / To on mileage lines" />
+              Show From / To on mileage lines
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13.5, color: T.text }}>
+              <Switch checked={form.single_line} onChange={(v) => set({ single_line: v })} label="One expense per claim" />
+              One expense per claim
+            </label>
+            <div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13.5, color: hasVehicles ? T.text : T.mute }}>
+                <Switch checked={form.odometer_camera_only} disabled={!hasVehicles} onChange={(v) => set({ odometer_camera_only: v })} label="Odometer photo: camera only, read the number automatically" />
+                Odometer photo: camera only, read the number automatically
+              </label>
+              {!hasVehicles && <div style={{ fontSize: 12.5, color: T.mute, marginTop: 4, marginLeft: 48 }}>Add a vehicle type under Travel allowance by vehicle first.</div>}
+            </div>
           </div>
         </Section>
       </Card>

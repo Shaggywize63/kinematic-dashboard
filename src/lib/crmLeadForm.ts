@@ -64,6 +64,16 @@ export function segmentName(cfg: LeadFormConfig, scope: FieldScope): string {
   return cfg.segmentLabels[scope] ?? (scope === 'b2b' ? 'B2B' : 'B2C');
 }
 
+/**
+ * Plural of a lead type's name, for counts ("Dealers 12"): the admin's label with an "s" added unless it
+ * already ends in one ("Dealer" → "Dealers", "Farmers" stays). The default B2B / B2C is left as it is.
+ */
+export function segmentPlural(cfg: LeadFormConfig, scope: FieldScope): string {
+  const custom = cfg.segmentLabels[scope];
+  if (!custom) return segmentName(cfg, scope);
+  return /s$/i.test(custom) ? custom : `${custom}s`;
+}
+
 /** Toggle caption: the admin's label alone, else the legacy "B2B · Business". */
 export function segmentToggleLabel(cfg: LeadFormConfig, scope: FieldScope): string {
   const custom = cfg.segmentLabels[scope];

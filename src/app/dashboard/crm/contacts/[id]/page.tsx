@@ -1,9 +1,10 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { crmContacts } from '../../../../../lib/crmApi';
+import { crmContacts, crmSettings } from '../../../../../lib/crmApi';
+import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '../../../../../lib/crmFieldOverrides';
 import type { Contact, Activity, Deal, Note, EmailLog } from '../../../../../types/crm';
 import OwnerAvatar from '../../../../../components/crm/shared/OwnerAvatar';
 import WhatsAppButton from '../../../../../components/crm/shared/WhatsAppButton';
@@ -46,6 +47,18 @@ export default function ContactDetailPage() {
   };
 
   useEffect(() => { reload(); /* eslint-disable-next-line */ }, [id]);
+
+  // The consent card is a built-in "field" the admin can hide or relabel (`contact.data_consent`, per
+  // B2B / B2C). It waits for the settings rather than flashing up and disappearing.
+  const [fieldOverrides, setFieldOverrides] = useState<FieldOverrides>({});
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
+  useEffect(() => {
+    crmSettings.get()
+      .then((r) => setFieldOverrides(extractFieldOverrides(r.data)))
+      .catch(() => { /* defaults: nothing hidden */ })
+      .finally(() => setSettingsLoaded(true));
+  }, []);
+  const fields = useMemo(() => buildFieldHelpers(fieldOverrides, 'contact', c?.is_b2c ? 'b2c' : 'b2b'), [fieldOverrides, c?.is_b2c]);
 
   if (loading) return <div style={{ color: 'var(--text-dim)' }}>Loading...</div>;
   if (!c) return <div style={{ color: 'var(--text-dim)' }}>Contact not found.</div>;
@@ -140,7 +153,9 @@ export default function ContactDetailPage() {
         </Card>
 
         {/* DPDP §6(4)-(6) — consent status + in-app withdrawal for this contact. */}
-        <ConsentCard subjectType="contact" subjectId={id} />
+        {settingsLoaded && !fields.isHidden('data_consent') && (
+          <ConsentCard subjectType="contact" subjectId={id} title={fields.labelFor('data_consent', 'Consent (DPDP)')} />
+        )}
 
         {emails.length > 0 && (
           <Card title={`Emails (${emails.length})`}>

@@ -10,6 +10,9 @@ import { useCityScope } from '../../../../context/CityScopeContext';
 import { useClient } from '../../../../context/ClientContext';
 import PinnedOverviewSection from '../../../../components/crm/analytics/PinnedOverviewSection';
 import { getStoredUser, canAccess } from '../../../../lib/auth';
+import { DEFAULT_LEAD_FORM, extractLeadForm, segmentPlural, type LeadFormConfig } from '../../../../lib/crmLeadForm';
+import { isItemVisible } from '../../../../lib/appCustomization';
+import { useAppUiConfig } from '../../../../lib/useAppUiConfig';
 import { ChartCard, ChartEmpty } from '../../../../lib/chartTheme';
 import { Button, Card, EmptyState, Eyebrow, IconButton, PageHeader, Segmented, T, useIsCompact } from '../../../../components/ui';
 import { usePageTitle } from '../../../../lib/pageTitle';
@@ -75,8 +78,10 @@ const ALL_WIDGETS: WidgetId[] = [...STAT_WIDGETS, ...CHART_WIDGETS].map((w) => w
  * The value uses clamp() so a long Indian-grouped amount still fits the
  * tile on narrow viewports instead of overflowing.
  */
-function StatTile({ label, value, hint, valueTitle, loading, tone }: {
+function StatTile({ label, value, hint, valueTitle, loading, tone, hintWrap }: {
   label: string; value: string | number; hint?: string; valueTitle?: string; loading?: boolean; tone?: 'ok' | 'warn' | 'red' | 'info';
+  /** Let a long hint wrap instead of being cut off with an ellipsis. */
+  hintWrap?: boolean;
 }) {
   const toneColor = tone === 'ok' ? T.ok : tone === 'warn' ? T.warn : tone === 'red' ? T.red : tone === 'info' ? T.info : T.text;
   return (
@@ -88,7 +93,7 @@ function StatTile({ label, value, hint, valueTitle, loading, tone }: {
       }}>
         {loading ? '—' : value}
       </div>
-      {hint && <div style={{ fontSize: 12.5, color: T.dim, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{hint}</div>}
+      {hint && <div style={{ fontSize: 12.5, color: T.dim, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: hintWrap ? 'normal' : 'nowrap' }}>{hint}</div>}
     </Card>
   );
 }
@@ -114,6 +119,12 @@ export default function CrmDashboardPage() {
   const [savingLayout, setSavingLayout] = useState(false);
   const [crmConfig, setCrmConfig] = useState<Record<string, unknown>>({});
   const [unit, setUnit] = useState<DashboardUnit>('inr');
+  // The client's own names for the two lead types ("Dealer" / "Farmers"), from crm_settings.config.lead_form.
+  const [leadForm, setLeadForm] = useState<LeadFormConfig>(DEFAULT_LEAD_FORM);
+  const [leadFormLoaded, setLeadFormLoaded] = useState(false);
+  // Per-client app-UI customization (`app_ui_config`): `home.open_volume === false` hides the open volume.
+  const appUi = useAppUiConfig();
+  const showOpenVolume = isItemVisible(appUi, 'home', 'open_volume');
 
   // Weight toggle gate: visible iff the active scope is Tata Tiscon.
   //   * Client-level users (their JWT is pinned to one client) — check the
@@ -170,11 +181,12 @@ export default function CrmDashboardPage() {
     crmSettings.get().then((r) => {
       const cfg = (r.data?.config as Record<string, unknown>) || {};
       setCrmConfig(cfg);
+      setLeadForm(extractLeadForm(r.data));
       const layout = cfg.dashboard_layout as { widgets?: WidgetId[] } | undefined;
       if (layout?.widgets && Array.isArray(layout.widgets) && layout.widgets.length > 0) {
         setVisibleWidgets(new Set(layout.widgets));
       }
-    }).catch(() => {});
+    }).catch(() => {}).finally(() => setLeadFormLoaded(true));
   }, []);
 
   useEffect(() => {
@@ -296,7 +308,7 @@ export default function CrmDashboardPage() {
                   valueTitle={fmtMoneyFull(summary?.open_deal_value)}
                   // Show the total deal volume alongside value (the two are
                   // the same number in weight mode, so only append in INR mode).
-                  hint={`${summary?.open_deals || 0} deals${unit === 'inr' && fmtVol(summary?.open_deal_volume) ? ` · ${fmtVol(summary?.open_deal_volume)}` : ''}`}
+                  hint={`${summary?.open_deals || 0} deals${showOpenVolume && unit === 'inr' && fmtVol(summary?.open_deal_volume) ? ` · ${fmtVol(summary?.open_deal_volume)}` : ''}`}
                   loading={loading}
                 />
           )}
@@ -305,6 +317,12 @@ export default function CrmDashboardPage() {
           {isVisible('stat_avg_deal') && <StatTile label="Avg Deal Size" value={fmtMoney(summary?.avg_deal_size)} valueTitle={fmtMoneyFull(summary?.avg_deal_size)} loading={loading} />}
           {isVisible('stat_sales_cycle') && <StatTile label="Sales Cycle" value={`${Math.round(summary?.avg_sales_cycle_days || 0)}d`} loading={loading} />}
           {isVisible('stat_new_leads') && <StatTile label="New Leads" value={summary?.new_leads_30d || 0} hint={`${summary?.total_leads || 0} total`} loading={loading} />}
+          {/* Clients that named their lead types ("Dealers" / "Farmers") also get the total split by type.
+              Only when the API sent the split, and once the names are known so it never flashes "B2Bs". */}
+          {isVisible('stat_new_leads') && leadFormLoaded && summary?.leads_by_segment && (
+            <StatTile label="Total leads" value={(summary.total_leads || 0).toLocaleString('en-IN')} loading={loading} hintWrap
+              hint={`${segmentPlural(leadForm, 'b2b')} ${(summary.leads_by_segment.b2b || 0).toLocaleString('en-IN')} · ${segmentPlural(leadForm, 'b2c')} ${(summary.leads_by_segment.b2c || 0).toLocaleString('en-IN')}`} />
+          )}
           {isVisible('stat_activities') && <StatTile label="Activities (7d)" value={summary?.activities_7d || 0} loading={loading} />}
           {isVisible('stat_conversion') && <StatTile label="Conversion" value={fmtPct(summary?.conversion_rate)} loading={loading} />}
         </div>

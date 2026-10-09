@@ -91,6 +91,7 @@ export const HOME_ITEMS: AppItem[] = [
   { id: 'visited',      label: 'Visited', note: 'visited-today tile' },
   { id: 'forms',        label: 'Forms', note: 'forms-submitted-today tile' },
   { id: 'todays_route', label: "Today's Route / Session", note: 'route-plan or session preview on Home' },
+  { id: 'open_volume',  label: 'Open Volume', note: 'CRM home tile with the open pipeline volume (the web dashboard hides the volume on its Open Pipeline tile)' },
 ];
 
 /** Settings-screen rows. The account summary and Sign Out are essential and

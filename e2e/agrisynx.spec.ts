@@ -1,5 +1,5 @@
 import { test, expect, type Page, type Route } from '@playwright/test';
-import { mockApi, seedSession } from './utils';
+import { mockApi, seedSession, SEED_USER } from './utils';
 
 /**
  * Agrisynx customisation (web):
@@ -77,11 +77,17 @@ function localAt(days: number): string {
 
 interface Posted { body: Record<string, unknown> | null }
 
-async function setupLeads(page: Page): Promise<Posted> {
+/** SETTINGS with extra built-in field overrides on top (e.g. `{ 'lead.data_consent': { hidden: true } }`). */
+const settingsWith = (overrides: Record<string, unknown>) => ({
+  ...SETTINGS,
+  data: { ...SETTINGS.data, config: { ...SETTINGS.data.config, field_overrides: { ...SETTINGS.data.config.field_overrides, ...overrides } } },
+});
+
+async function setupLeads(page: Page, settings: unknown = SETTINGS): Promise<Posted> {
   const posted: Posted = { body: null };
   await seedSession(page);
   await mockApi(page, {
-    settings: SETTINGS,
+    settings,
     onRequest: async (route, url, method) => {
       const path = url.split('?')[0];
       if (method === 'POST' && path.endsWith('/crm/leads')) {
@@ -393,5 +399,185 @@ test.describe('Agrisynx — daily allowance by vehicle', () => {
         odometer_photos_required: true,
       },
     });
+  });
+});
+
+// ── DPDP "Data consent" is a built-in field the admin can hide, relabel or require ──────────────
+async function fillDealer(page: Page) {
+  await page.locator('#lead-field-first_name').fill('Ramesh Sharma');
+  await page.locator('#lead-field-company').fill('Sharma Agro');
+  await page.locator('#lead-field-phone').fill('9876543210');
+  await page.locator('#lead-field-address_line1').fill('Plot 4, Market Road, Nashik');
+  await page.locator('#lead-cf-visit_description select').selectOption('Dealer Visit');
+}
+const consentTick = (page: Page) => page.getByRole('checkbox', { name: /consents to the collection/ });
+
+test.describe('Agrisynx — Data consent field override (lead create)', () => {
+  test('shown by default, and what the rep ticks is recorded', async ({ page }) => {
+    const posted = await setupLeads(page);
+    await page.goto('/dashboard/crm/leads/new');
+    await expect(page.getByText('Data consent', { exact: true })).toBeVisible();
+    await fillDealer(page);
+    await consentTick(page).check();
+    const submit = page.getByRole('button', { name: 'Create lead' });
+    await expect(submit).toBeEnabled({ timeout: 20_000 });
+    await submit.click();
+    await expect(page).toHaveURL(/\/dashboard\/crm\/leads\/e2e-lead-1/, { timeout: 20_000 });
+    expect(posted.body).toMatchObject({ _consent: { consented: true, method: 'web_form' } });
+  });
+
+  test('hidden for the client: no block on the form and no _consent in the request', async ({ page }) => {
+    const posted = await setupLeads(page, settingsWith({ 'lead.data_consent': { hidden: true } }));
+    await page.goto('/dashboard/crm/leads/new');
+    await fillDealer(page);
+    await expect(page.locator('#lead-field-first_name')).toHaveValue('Ramesh Sharma');
+    await expect(page.getByText('Data consent', { exact: true })).toHaveCount(0);
+    await expect(consentTick(page)).toHaveCount(0);
+    const submit = page.getByRole('button', { name: 'Create lead' });
+    await expect(submit).toBeEnabled({ timeout: 20_000 });
+    await submit.click();
+    await expect(page).toHaveURL(/\/dashboard\/crm\/leads\/e2e-lead-1/, { timeout: 20_000 });
+    expect(posted.body).not.toBeNull();
+    expect(posted.body).not.toHaveProperty('_consent');
+  });
+
+  test('hidden for one lead type only: gone on Dealer, still there on Farmers', async ({ page }) => {
+    await setupLeads(page, settingsWith({ 'lead.data_consent@b2b': { hidden: true } }));
+    await page.goto('/dashboard/crm/leads/new');
+    await expect(page.getByRole('tab', { name: 'Dealer' })).toBeVisible();
+    await expect(page.locator('#lead-field-company')).toBeVisible();
+    await expect(page.getByText('Data consent', { exact: true })).toHaveCount(0);
+    await page.getByRole('tab', { name: 'Farmers' }).click();
+    await expect(page.getByText('Data consent', { exact: true })).toBeVisible();
+  });
+
+  test('relabelled and required: the admin\'s name is shown and the tick is mandatory', async ({ page }) => {
+    const posted = await setupLeads(page, settingsWith({ 'lead.data_consent': { label: 'Consent to keep this record', required: true } }));
+    await page.goto('/dashboard/crm/leads/new');
+    await expect(page.getByText('Consent to keep this record', { exact: true })).toBeVisible();
+    await expect(page.getByText('Data consent', { exact: true })).toHaveCount(0);
+    await fillDealer(page);
+    const submit = page.getByRole('button', { name: 'Create lead' });
+    await expect(submit).toBeEnabled({ timeout: 20_000 });
+    await submit.click();
+    await expect(page.getByText(/capture the individual.s consent/)).toBeVisible();
+    expect(posted.body).toBeNull();
+    await consentTick(page).check();
+    await submit.click();
+    await expect(page).toHaveURL(/\/dashboard\/crm\/leads\/e2e-lead-1/, { timeout: 20_000 });
+    expect(posted.body).toMatchObject({ _consent: { consented: true } });
+  });
+});
+
+test.describe('Agrisynx — Data consent field override (lead detail)', () => {
+  test('the consent card shows by default, can be relabelled, and goes when hidden', async ({ page }) => {
+    await setupLeads(page);
+    await page.goto('/dashboard/crm/leads/e2e-lead-1');
+    await expect(page.getByText('Consent (DPDP)', { exact: true })).toBeVisible();
+  });
+
+  test('relabelled', async ({ page }) => {
+    await setupLeads(page, settingsWith({ 'lead.data_consent': { label: 'Permission to hold data' } }));
+    await page.goto('/dashboard/crm/leads/e2e-lead-1');
+    await expect(page.getByText('Permission to hold data', { exact: true })).toBeVisible();
+    await expect(page.getByText('Consent (DPDP)', { exact: true })).toHaveCount(0);
+  });
+
+  test('hidden', async ({ page }) => {
+    await setupLeads(page, settingsWith({ 'lead.data_consent': { hidden: true } }));
+    await page.goto('/dashboard/crm/leads/e2e-lead-1');
+    // Wait for the page itself (the lead's name) so "absent" is not just "not rendered yet".
+    await expect(page.getByText('Test', { exact: false }).first()).toBeVisible();
+    await page.waitForTimeout(500);
+    await expect(page.getByText('Consent (DPDP)', { exact: true })).toHaveCount(0);
+  });
+});
+
+test.describe('Agrisynx — Data consent is listed in Settings → Custom Fields', () => {
+  test('the admin can find Data consent in the lead field list', async ({ page }) => {
+    await setupLeads(page);
+    await page.goto('/dashboard/crm/settings/custom-fields');
+    await expect(page.getByText('Data consent (DPDP)').first()).toBeVisible({ timeout: 20_000 });
+  });
+});
+
+// ── CRM dashboard: total leads split by lead type, and the Open Volume switch ──────────────────
+const SUMMARY = {
+  total_leads: 1290, new_leads_30d: 40, open_deals: 3, open_deal_value: 90000, open_deal_volume: 1500,
+  won_deals_30d: 1, won_revenue_30d: 20000, win_rate_30d: 0.25, avg_deal_size: 20000, avg_sales_cycle_days: 12, pipeline_velocity: 1, activities_7d: 9, conversion_rate: 0.1,
+};
+
+async function setupDashboard(page: Page, o: { summary?: Record<string, unknown>; settings?: unknown; user?: Record<string, unknown>; storedUser?: Record<string, unknown> } = {}) {
+  const user = o.user ?? SEED_USER;
+  await seedSession(page, o.storedUser ?? user);
+  await mockApi(page, {
+    settings: o.settings ?? SETTINGS,
+    me: { success: true, data: user },
+    onRequest: async (route, url, method) => {
+      if (method === 'GET' && url.split('?')[0].endsWith('/crm/analytics/dashboard-complete')) {
+        await route.fulfill({ json: { success: true, data: { summary: { ...SUMMARY, ...(o.summary ?? {}) }, funnel: [], pipelineValue: [], winRate: [], forecast: [], leadScoreDistribution: [] } } });
+        return true;
+      }
+      return false;
+    },
+  });
+}
+
+test.describe('Agrisynx — CRM dashboard: total leads by lead type', () => {
+  test('a client with named lead types sees "Total leads" split into Dealers and Farmers', async ({ page }) => {
+    await setupDashboard(page, { summary: { leads_by_segment: { b2b: 1234, b2c: 56 } } });
+    await page.goto('/dashboard/crm/dashboard');
+    await expect(page.getByText('Total leads', { exact: true })).toBeVisible();
+    await expect(page.getByText('Dealers 1,234 · Farmers 56')).toBeVisible();
+    await expect(page.getByText('1,290', { exact: true })).toBeVisible();
+    // The existing tile is untouched.
+    await expect(page.getByText('New Leads', { exact: true })).toBeVisible();
+    await expect(page.getByText('1290 total')).toBeVisible();
+  });
+
+  test('no split from the API, nothing new on the dashboard', async ({ page }) => {
+    await setupDashboard(page);
+    await page.goto('/dashboard/crm/dashboard');
+    await expect(page.getByText('New Leads', { exact: true })).toBeVisible();
+    await page.waitForTimeout(400);
+    await expect(page.getByText('Total leads', { exact: true })).toHaveCount(0);
+  });
+
+  test('lead types that were never renamed read B2B / B2C', async ({ page }) => {
+    await setupDashboard(page, { settings: { success: true, data: { business_type: 'both', config: {} } }, summary: { leads_by_segment: { b2b: 3, b2c: 4 } } });
+    await page.goto('/dashboard/crm/dashboard');
+    await expect(page.getByText('B2B 3 · B2C 4')).toBeVisible();
+  });
+});
+
+test.describe('Agrisynx — CRM dashboard: Open Volume switch (app_ui_config.home.open_volume)', () => {
+  test('by default the Open Pipeline tile shows its volume', async ({ page }) => {
+    await setupDashboard(page);
+    await page.goto('/dashboard/crm/dashboard');
+    await expect(page.getByText('3 deals · 1.5 MT')).toBeVisible();
+  });
+
+  test('open_volume: false hides the volume and keeps the deal count and value', async ({ page }) => {
+    const user = { ...SEED_USER, app_ui_config: { home: { open_volume: false } } };
+    await setupDashboard(page, { user });
+    await page.goto('/dashboard/crm/dashboard');
+    await expect(page.getByText('3 deals', { exact: true })).toBeVisible();
+    await expect(page.getByText(/MT|kg/)).toHaveCount(0);
+    await expect(page.getByText('Open Pipeline', { exact: true })).toBeVisible();
+  });
+
+  test('the flag is picked up from /auth/me even when the stored session predates it', async ({ page }) => {
+    const user = { ...SEED_USER, app_ui_config: { home: { open_volume: false } } };
+    await setupDashboard(page, { user, storedUser: SEED_USER });
+    await page.goto('/dashboard/crm/dashboard');
+    await expect(page.getByText('3 deals', { exact: true })).toBeVisible();
+    await expect(page.getByText('3 deals · 1.5 MT')).toHaveCount(0);
+  });
+
+  test('open_volume: true, or other home items hidden, leaves the volume alone', async ({ page }) => {
+    const user = { ...SEED_USER, app_ui_config: { home: { open_volume: true, stores: false } } };
+    await setupDashboard(page, { user });
+    await page.goto('/dashboard/crm/dashboard');
+    await expect(page.getByText('3 deals · 1.5 MT')).toBeVisible();
   });
 });

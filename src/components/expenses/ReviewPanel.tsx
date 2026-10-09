@@ -7,12 +7,12 @@ import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { Check, X } from 'lucide-react';
 import { Badge, Button, Input, T } from '../ui';
-import { Decision, DecisionResult, ExpenseClaim, expensesApi } from '../../lib/expensesApi';
+import { Decision, DecisionResult, ExpenseClaim, FormRules, expensesApi } from '../../lib/expensesApi';
 import { Field, LineSummary, Panel, RemarkDialog, errText, money } from './kit';
 
 interface LineState { decision: Decision; note: string }
 
-export default function ReviewPanel({ claim, onDone }: { claim: ExpenseClaim; onDone: (r: DecisionResult) => void }) {
+export default function ReviewPanel({ claim, rules, onDone }: { claim: ExpenseClaim; rules?: FormRules; onDone: (r: DecisionResult) => void }) {
   const items = useMemo(() => claim.items ?? [], [claim.items]);
   const [lines, setLines] = useState<Record<string, LineState>>(() => Object.fromEntries(items.map((i) => [i.id, { decision: 'approved' as Decision, note: '' }])));
   const [note, setNote] = useState('');
@@ -69,7 +69,7 @@ export default function ReviewPanel({ claim, onDone }: { claim: ExpenseClaim; on
           const rej = st.decision === 'rejected';
           return (
             <div key={it.id} style={{ borderTop: idx ? `1px solid ${T.border}` : 0 }}>
-              <LineSummary item={{ ...it, decision: null, decision_note: null }} currency={claim.currency} />
+              <LineSummary item={{ ...it, decision: null, decision_note: null }} currency={claim.currency} rules={rules} also={items.map((x) => x.category)} />
               <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', flexWrap: 'wrap', paddingBottom: 12 }}>
                 <div role="group" aria-label="Decision for this line" style={{ display: 'inline-flex', gap: 6 }}>
                   <Button size="sm" variant={rej ? 'secondary' : 'primary'} icon={<Check size={14} strokeWidth={2} />} onClick={() => set(it.id, { decision: 'approved' })}>Approve</Button>

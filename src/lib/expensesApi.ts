@@ -47,6 +47,15 @@ export interface PolicyRules {
   vehicle_rates?: VehicleRate[];
   /** With vehicle rates: a photo of the odometer before and after is mandatory (default true). */
   odometer_photos_required?: boolean;
+  // ── Claim-form presentation (all optional; absent = the form behaves as it always did) ──
+  /** Display-name overrides per category, e.g. { mileage: 'Travel' }. Shown wherever a category name appears. */
+  category_labels?: Partial<Record<ItemCategory, string>>;
+  /** false = no From / To on mileage lines (and none shown read-only). Default true. */
+  route_fields?: boolean;
+  /** true = one expense per claim: no "Add another expense". Default false. */
+  single_line?: boolean;
+  /** true = the odometer photo is camera-only and the reading is read from it (reading stays editable). Default false. */
+  odometer_camera_only?: boolean;
   receipt_required_over: number;
   max_claim_amount: number | null;
   submit_within_days: number | null;
@@ -221,6 +230,40 @@ export interface UploadedReceipt {
   size: number;
   signed_url: string | null;
   scan: ReceiptFields | null;
+  /** Only with `?scan=odometer`: the number read off the photo (null when it could not be read). */
+  odometer?: OdometerRead | null;
+}
+
+export interface OdometerRead { reading: number | null; confidence: 'high' | 'medium' | 'low' | null }
+
+/** One odometer entry from a claim line, newest first (GET /expenses/odometer-history). */
+export interface OdometerHistoryRow {
+  id: string;
+  claim_id: string;
+  claim_no: string | null;
+  claim_status: ClaimStatus;
+  user_id: string;
+  user_name: string | null;
+  item_date: string | null;
+  vehicle_type: string | null;
+  vehicle_label: string | null;
+  odometer_start: number | null;
+  odometer_end: number | null;
+  distance_km: number | null;
+  amount: number | null;
+  start_photo_url: string | null;
+  end_photo_url: string | null;
+  created_at: string;
+}
+
+export interface OdometerHistoryParams {
+  limit?: number;
+  from?: string;
+  to?: string;
+  /** Approvers only: one person's entries. */
+  user_id?: string;
+  /** Approvers only: everyone's entries (the default is the caller's own). */
+  all?: boolean;
 }
 
 export interface ClaimItemInput {
@@ -328,13 +371,26 @@ export const expensesApi = {
   checkClaim: (body: { items: ClaimItemInput[]; claim_id?: string }) => api.post<Wrapped<ClaimCheck>>(`${BASE}/claims/check`, body),
 
   // Receipts + auto-mileage
-  uploadReceipt: (file: File | Blob, filename = 'receipt.jpg', scan = true) => {
+  /**
+   * `scan`: true = read it as a receipt (default), false = just store it (`?scan=0`, odometer photos today),
+   * 'odometer' = store it and read the number off the odometer (`?scan=odometer`, camera-only policies).
+   */
+  uploadReceipt: (file: File | Blob, filename = 'receipt.jpg', scan: boolean | 'odometer' = true) => {
     const fd = new FormData();
     fd.append('file', file, filename);
-    return api.postForm<Wrapped<UploadedReceipt>>(`${BASE}/receipts${scan ? '' : '?scan=0'}`, fd);
+    const q = scan === 'odometer' ? '?scan=odometer' : scan ? '' : '?scan=0';
+    return api.postForm<Wrapped<UploadedReceipt>>(`${BASE}/receipts${q}`, fd);
   },
   mileage: (fromISO: string, toISO: string, userId?: string) =>
     api.get<Wrapped<MileageResult>>(`${BASE}/mileage${qs({ from: fromISO, to: toISO, user_id: userId })}`),
+
+  /** Odometer readings from claim lines, newest first. Own entries by default; approvers can pass `all` / `user_id`. */
+  odometerHistory: (p: OdometerHistoryParams = {}) =>
+    api.get<Wrapped<OdometerHistoryRow[]>>(
+      `${BASE}/odometer-history${qs({ limit: p.limit ?? 50, from: p.from, to: p.to, user_id: p.user_id, all: p.all ? 1 : undefined })}`,
+      // New claims change this list, and a stale "last reading" would mislead — always ask the server.
+      { noCache: true } as RequestInit,
+    ),
 
   // Approver
   listPending: (params?: Record<string, string>) => api.get<Wrapped<ExpenseClaim[]>>(`${BASE}/claims/pending${qs(params)}`),
@@ -360,6 +416,78 @@ export const expensesApi = {
 export const CATEGORY_LABELS: Record<ItemCategory, string> = {
   mileage: 'Mileage', travel: 'Travel', food: 'Food', lodging: 'Lodging', fuel: 'Fuel', toll: 'Toll', misc: 'Other',
 };
+
+// ── claim-form presentation, driven by the policy rules ──────────────────────
+// Everything below is opt-in per policy (data): with none of the rule keys set, each helper returns
+// exactly what the form always showed.
+
+/** The slice of a policy's rules the claim form reads. `PolicyRules` and `MyPolicy.rules` both fit. */
+export interface FormRules {
+  categories?: Partial<Record<ItemCategory, { enabled?: boolean }>>;
+  category_labels?: Partial<Record<ItemCategory, string>>;
+  route_fields?: boolean;
+  single_line?: boolean;
+  odometer_camera_only?: boolean;
+  vehicle_rates?: Array<{ id?: string }>;
+}
+type RulesIn = FormRules | null | undefined;
+
+const catOn = (r: RulesIn, c: ItemCategory) => r?.categories?.[c]?.enabled !== false;
+const customName = (r: RulesIn, c: ItemCategory): string | null => {
+  const v = r?.category_labels?.[c];
+  return typeof v === 'string' && v.trim() ? v.trim() : null;
+};
+
+/** Categories a claimant may use, in the usual order. */
+export const enabledCategories = (r: RulesIn): ItemCategory[] => CATEGORIES.filter((c) => catOn(r, c));
+
+/** The one category in use, or null when several are. A single-category form never asks for a category. */
+export function singleCategory(r: RulesIn): ItemCategory | null {
+  const on = enabledCategories(r);
+  return on.length === 1 ? on[0] : null;
+}
+
+/**
+ * The name to show for a category: the policy's custom name, else the built-in one. `mileage` and `travel` are
+ * separate categories, so a policy that calls mileage "Travel" would otherwise show two "Travel"s side by side;
+ * when the custom name matches another category that can appear next to it (the enabled ones, plus any in
+ * `also` — e.g. the categories already on a claim) the built-in name is added: "Travel (Mileage)".
+ */
+export function categoryLabel(r: RulesIn, c: ItemCategory, also: ItemCategory[] = []): string {
+  const base = CATEGORY_LABELS[c] ?? String(c);
+  const custom = customName(r, c);
+  if (!custom) return base;
+  const others = Array.from(new Set([...enabledCategories(r), ...also])).filter((o) => o !== c);
+  const clash = others.some((o) => (customName(r, o) ?? CATEGORY_LABELS[o]).toLowerCase() === custom.toLowerCase());
+  return clash ? `${custom} (${base})` : custom;
+}
+
+/** Route (From / To) fields on mileage lines. On unless the policy turns them off. */
+export const routeFieldsOn = (r: RulesIn): boolean => r?.route_fields !== false;
+/** One expense per claim: no "Add another expense". */
+export const singleLineOn = (r: RulesIn): boolean => r?.single_line === true;
+/** Mileage is priced by vehicle from odometer readings (the "travel allowance" flow). */
+export const vehicleFlowOn = (r: RulesIn): boolean => (r?.vehicle_rates?.length ?? 0) > 0;
+/** Odometer photo is camera-only and the reading is read from it. Only meaningful with the vehicle flow. */
+export const odometerCameraOnly = (r: RulesIn): boolean => r?.odometer_camera_only === true && vehicleFlowOn(r);
+
+/**
+ * One set of category rules for a screen that spans several policies (All claims): a category counts as in use
+ * when any policy allows it, and a custom name is used only when every policy agrees on it — so the screen never
+ * mislabels a category for somebody.
+ */
+export function mergeCategoryRules(list: RulesIn[]): FormRules | undefined {
+  const rs = list.filter((r): r is FormRules => !!r);
+  if (!rs.length) return undefined;
+  const categories: NonNullable<FormRules['categories']> = {};
+  const category_labels: NonNullable<FormRules['category_labels']> = {};
+  for (const c of CATEGORIES) {
+    categories[c] = { enabled: rs.some((r) => catOn(r, c)) };
+    const names = Array.from(new Set(rs.map((r) => customName(r, c) ?? CATEGORY_LABELS[c])));
+    if (names.length === 1 && names[0] !== CATEGORY_LABELS[c]) category_labels[c] = names[0];
+  }
+  return { categories, category_labels };
+}
 
 export const CLAIM_STATUS_LABEL: Record<ClaimStatus, string> = {
   draft: 'Draft', submitted: 'Awaiting approval', approved: 'Approved', rejected: 'Rejected', reimbursed: 'Reimbursed', cancelled: 'Cancelled',

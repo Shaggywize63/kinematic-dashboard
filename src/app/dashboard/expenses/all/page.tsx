@@ -8,7 +8,7 @@ import { Badge, Button, Card, EmptyState, Input, Select, T, useIsCompact } from 
 import { Col, DataTable, Pager, SearchBox, Stat, Toolbar, useDebounced } from '../../../../components/finance/ui';
 import { ClaimStatusBadge, ExpensesShell, errText, fmtDate, isPartial, money, payable, saveBlob } from '../../../../components/expenses/kit';
 import {
-  CATEGORIES, CATEGORY_LABELS, ClaimFilters, ClaimsSummary, ExpenseClaim, ExpensePolicy, expensesApi,
+  CATEGORIES, ClaimFilters, ClaimsSummary, ExpenseClaim, ExpensePolicy, MyPolicy, categoryLabel, expensesApi, mergeCategoryRules, singleCategory,
 } from '../../../../lib/expensesApi';
 
 const LIMIT = 25;
@@ -51,6 +51,9 @@ export default function AllClaimsPage() {
   const [total, setTotal] = useState(0);
   const [summary, setSummary] = useState<ClaimsSummary | null>(null);
   const [policies, setPolicies] = useState<ExpensePolicy[]>([]);
+  const [mine, setMine] = useState<MyPolicy | null>(null);
+  // The category filter / chart wait for the policies so a single-category client never sees them flash up.
+  const [policiesReady, setPoliciesReady] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
@@ -61,7 +64,22 @@ export default function AllClaimsPage() {
 
   // Any filter change goes back to page 1.
   useEffect(() => { setPage(1); }, [filters]);
-  useEffect(() => { expensesApi.listPolicies().then((r) => setPolicies(r.data ?? [])).catch(() => undefined); }, []);
+  useEffect(() => {
+    // Policies are admin-only; a manager without that access falls back to their own policy for the category setup.
+    Promise.allSettled([
+      expensesApi.listPolicies().then((r) => setPolicies(Array.isArray(r.data) ? r.data : [])),
+      expensesApi.myPolicy().then((r) => setMine(r.data ?? null)),
+    ]).finally(() => setPoliciesReady(true));
+  }, []);
+
+  // This page spans everyone's claims, so the category setup is read across the policies in force: a category
+  // is in use when any of them allows it, and a renamed category keeps its custom name only when they all agree.
+  const rules = useMemo(() => {
+    const live = policies.filter((p) => p.is_active !== false && p.rules);
+    return mergeCategoryRules(live.length ? live.map((p) => p.rules) : [mine?.rules]);
+  }, [policies, mine]);
+  // One category in use everywhere: filtering or charting by category would be a list of one.
+  const oneCategory = !!singleCategory(rules);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -104,10 +122,12 @@ export default function AllClaimsPage() {
         <Select aria-label="Status" value={status} onChange={(e) => setStatus(e.target.value)} style={{ width: 200 }}>
           {STATUSES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
         </Select>
-        <Select aria-label="Category" value={category} onChange={(e) => setCategory(e.target.value)} style={{ width: 150 }}>
-          <option value="">All categories</option>
-          {CATEGORIES.map((c) => <option key={c} value={c}>{CATEGORY_LABELS[c]}</option>)}
-        </Select>
+        {policiesReady && !oneCategory && (
+          <Select aria-label="Category" value={category} onChange={(e) => setCategory(e.target.value)} style={{ width: 150 }}>
+            <option value="">All categories</option>
+            {CATEGORIES.map((c) => <option key={c} value={c}>{categoryLabel(rules, c, CATEGORIES)}</option>)}
+          </Select>
+        )}
         {policies.length > 0 && (
           <Select aria-label="Policy" value={policyId} onChange={(e) => setPolicyId(e.target.value)} style={{ width: 190 }}>
             <option value="">All policies</option>
@@ -140,10 +160,12 @@ export default function AllClaimsPage() {
 
           {summary && summary.totals.claims > 0 && (
             <div style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
-              <Card padding={20}>
-                <SectionTitle>By category</SectionTitle>
-                <BarList rows={summary.by_category.map((c) => ({ label: CATEGORY_LABELS[c.category] ?? c.category, value: c.amount }))} format={(n) => money(n)} />
-              </Card>
+              {policiesReady && !oneCategory && (
+                <Card padding={20}>
+                  <SectionTitle>By category</SectionTitle>
+                  <BarList rows={summary.by_category.map((c) => ({ label: categoryLabel(rules, c.category, summary.by_category.map((x) => x.category)), value: c.amount }))} format={(n) => money(n)} />
+                </Card>
+              )}
               <Card padding={20}>
                 <SectionTitle>By month</SectionTitle>
                 <BarList rows={summary.by_month.slice(-6).map((m) => ({ label: m.month, value: m.amount, sub: `${m.claims} claims` }))} format={(n) => money(n)} />

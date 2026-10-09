@@ -443,6 +443,8 @@ export interface AnalyticsSummary {
   activities_7d: number; conversion_rate: number;
   by_stage?: Array<{ stage: string; count: number; value: number }>;
   by_owner?: Array<{ owner: string; count: number; value: number }>;
+  /** TOTAL leads per lead type (same basis as total_leads). Only sent for clients that named their lead types. */
+  leads_by_segment?: { b2b: number; b2c: number };
 }
 
 export interface FunnelPoint { stage: string; count: number; value: number; }

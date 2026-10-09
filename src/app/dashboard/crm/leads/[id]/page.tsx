@@ -82,6 +82,8 @@ export default function LeadDetailPage() {
   // Per-tenant built-in field overrides — the detail view is a render site
   // like Create and Edit, so hidden fields stay hidden and relabels apply.
   const [fieldOverrides, setFieldOverrides] = useState<FieldOverrides>({});
+  // The consent card is admin-gated too (`data_consent`), so it waits for the settings instead of flashing up.
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
   // Per-client custom lead-status set. Null = use the built-in list / tones
   // (no change for existing tenants). Loaded from the same settings fetch.
   const [leadStatuses, setLeadStatuses] = useState<LeadStatusOption[] | null>(null);
@@ -90,7 +92,8 @@ export default function LeadDetailPage() {
   useEffect(() => {
     crmSettings.get()
       .then((r) => { setFieldOverrides(extractFieldOverrides(r.data)); setLeadStatuses(extractLeadStatuses(r.data)); setLeadForm(extractLeadForm(r.data)); })
-      .catch(() => { /* defaults: nothing hidden, built-in statuses */ });
+      .catch(() => { /* defaults: nothing hidden, built-in statuses */ })
+      .finally(() => setSettingsLoaded(true));
   }, []);
   const fields = useMemo(
     () => buildFieldHelpers(fieldOverrides, 'lead', lead?.is_b2c ? 'b2c' : 'b2b'),
@@ -626,7 +629,9 @@ export default function LeadDetailPage() {
               Consumer Champion FE flow since they don't act on it. */}
           {!isChampion && <NextBestActionCard action={nba} onLoad={loadNba} loading={nbaLoading} leadId={id} />}
           {/* DPDP §6(4)-(6) — consent status + in-app withdrawal for this lead. */}
-          <ConsentCard subjectType="lead" subjectId={id} />
+          {settingsLoaded && !fields.isHidden('data_consent') && (
+            <ConsentCard subjectType="lead" subjectId={id} title={fields.labelFor('data_consent', 'Consent (DPDP)')} />
+          )}
         </div>
       </div>
 

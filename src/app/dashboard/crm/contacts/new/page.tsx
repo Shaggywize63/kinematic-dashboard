@@ -50,10 +50,14 @@ export default function NewContactPage() {
   // DPDP §6 consent captured at collection (default record-only; per-tenant gate).
   const [dataConsent, setDataConsent] = useState(false);
   const [consentRequired, setConsentRequired] = useState(false);
+  // The consent block is admin-gated (field override `contact.data_consent`), so it waits for the settings.
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
   const fields = useMemo(
     () => buildFieldHelpers(fieldOverrides, 'contact', form.is_b2c ? 'b2c' : 'b2b'),
     [fieldOverrides, form.is_b2c],
   );
+  const showDataConsent = settingsLoaded && !fields.isHidden('data_consent');
+  const dataConsentRequired = fields.requiredFor('data_consent', consentRequired);
 
   useEffect(() => {
     (async () => {
@@ -66,6 +70,7 @@ export default function NewContactPage() {
         setConsentRequired(cfg?.consent?.lead_pii?.required === true);
         if (t === 'b2b') setForm((f) => ({ ...f, is_b2c: false }));
       } catch { /* default */ }
+      finally { setSettingsLoaded(true); }
     })();
   }, []);
 
@@ -116,12 +121,14 @@ export default function NewContactPage() {
       if (Object.keys(customFields).length > 0) payload.custom_fields = customFields;
       // DPDP §6 — capture consent at collection. Always recorded; blocks only
       // when the tenant requires it.
-      if (consentRequired && !dataConsent) {
-        toast.error('Please capture the individual’s consent to collect their personal data.');
-        setBusy(false);
-        return;
+      if (showDataConsent) {
+        if (dataConsentRequired && !dataConsent) {
+          toast.error('Please capture the individual’s consent to collect their personal data.');
+          setBusy(false);
+          return;
+        }
+        payload._consent = { consented: dataConsent, method: 'web_form', notice_version: NOTICE_VERSION };
       }
-      payload._consent = { consented: dataConsent, method: 'web_form', notice_version: NOTICE_VERSION };
       const r = await crmContacts.create(payload);
       toast.success('Contact created');
       router.push(`/dashboard/crm/contacts/${r.data.id}`);
@@ -291,9 +298,11 @@ export default function NewContactPage() {
       )}
 
       {/* DPDP §5/§6 — at-collection notice + primary consent (B2B + B2C). */}
-      <Section title="Data Collection & Consent">
-        <DataCollectionConsent checked={dataConsent} onChange={setDataConsent} required={consentRequired} />
-      </Section>
+      {showDataConsent && (
+        <Section title={fields.labelFor('data_consent', 'Data Collection & Consent')}>
+          <DataCollectionConsent checked={dataConsent} onChange={setDataConsent} required={dataConsentRequired} />
+        </Section>
+      )}
 
       <div style={{ display: 'flex', gap: 8, marginTop: 18, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
         <button type="button" onClick={() => router.back()} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', padding: '8px 16px', borderRadius: 8, cursor: 'pointer' }}>Cancel</button>
