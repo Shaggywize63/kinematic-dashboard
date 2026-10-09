@@ -1,9 +1,10 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { crmImport, crmSettings, crmCustomFields } from '../../../../../lib/crmApi';
 import { extractFieldOverrides, buildFieldHelpers, type FieldOverrides } from '../../../../../lib/crmFieldOverrides';
+import { useLeadOwnerAccess } from '../../../../../lib/leadOwnerAccess';
 import type { ImportJob, CustomField } from '../../../../../types/crm';
 
 type TargetField = { key: string; label: string; group: 'Built-in' | 'Custom fields' };
@@ -46,6 +47,10 @@ const BUILTIN_FIELDS: Array<{ key: string; label: string; scope?: 'b2b' | 'b2c';
   { key: 'latitude', label: 'Latitude' },
   { key: 'longitude', label: 'Longitude' },
 ];
+
+// Import columns that set a lead's owner. Clients with lead_form.owner_assignment='admin_only' take these away
+// from everyone but an admin (the server would refuse the owner anyway) — see ownerBlocked below.
+const OWNER_TARGET_KEYS = ['owner_email', 'owner_name'];
 
 // Product-line custom fields the form manages via its own section — not import targets.
 const PRODUCT_LINE_KEYS = new Set(['product_interested', 'quantity', 'measuring_unit', 'estimated_amount']);
@@ -118,7 +123,22 @@ export default function LeadImportPage() {
   const [busy, setBusy] = useState(false);
   // Mapping targets = visible built-in fields + this client's lead custom fields,
   // loaded from the same config the New Lead form uses so import maps everything.
-  const [targetFields, setTargetFields] = useState<TargetField[]>(() => computeTargets(null, []));
+  const [allTargetFields, setTargetFields] = useState<TargetField[]>(() => computeTargets(null, []));
+  // Admin-only owner assignment: a non-admin can neither map a column to the owner nor have one auto-mapped.
+  const ownerAccess = useLeadOwnerAccess();
+  const ownerBlocked = ownerAccess.adminOnly && !ownerAccess.canAssign;
+  const targetFields = useMemo(
+    () => (ownerBlocked ? allTargetFields.filter((t) => !OWNER_TARGET_KEYS.includes(t.key)) : allTargetFields),
+    [allTargetFields, ownerBlocked],
+  );
+
+  // If the restriction becomes known after a column was already mapped to the owner, un-map it.
+  useEffect(() => {
+    if (!ownerBlocked) return;
+    setMapping((m) => (Object.values(m).some((to) => OWNER_TARGET_KEYS.includes(to))
+      ? Object.fromEntries(Object.entries(m).filter(([, to]) => !OWNER_TARGET_KEYS.includes(to)))
+      : m));
+  }, [ownerBlocked]);
 
   useEffect(() => {
     let alive = true;
@@ -190,7 +210,7 @@ export default function LeadImportPage() {
         const norm = normKey(c);
         if (keyByNorm.has(norm)) {
           auto[c] = keyByNorm.get(norm)!;
-        } else if (SYNONYMS[norm]) {
+        } else if (SYNONYMS[norm] && !(ownerBlocked && OWNER_TARGET_KEYS.includes(SYNONYMS[norm]))) {
           auto[c] = SYNONYMS[norm];
         }
         // Anything else stays unmapped — the rep can choose on the Map step.
@@ -204,7 +224,11 @@ export default function LeadImportPage() {
     if (!job) return;
     setBusy(true);
     try {
-      const r = await crmImport.preview({ job_id: job.id, mapping });
+      // Whatever got mapped to an owner before the restriction was known never leaves the page.
+      const sendMapping = ownerBlocked
+        ? Object.fromEntries(Object.entries(mapping).filter(([, to]) => !OWNER_TARGET_KEYS.includes(to)))
+        : mapping;
+      const r = await crmImport.preview({ job_id: job.id, mapping: sendMapping });
       setSample(r.data.sample || []);
       setJob(r.data.job);
       setStep(3);

@@ -466,6 +466,25 @@ export function categoryLabel(r: RulesIn, c: ItemCategory, also: ItemCategory[] 
 export const routeFieldsOn = (r: RulesIn): boolean => r?.route_fields !== false;
 /** One expense per claim: no "Add another expense". */
 export const singleLineOn = (r: RulesIn): boolean => r?.single_line === true;
+/**
+ * The vehicles a policy pays for, in policy order, each once. This is the whole list a claimant may choose from —
+ * the claim form reads it from the claimant's own policy (GET /expenses/policy) and nowhere else.
+ */
+export function policyVehicles(r: { vehicle_rates?: VehicleRate[] } | null | undefined): VehicleRate[] {
+  const seen = new Set<string>();
+  return (r?.vehicle_rates ?? []).filter((v) => !!v?.id && !seen.has(v.id) && !!seen.add(v.id));
+}
+
+/** The policy's only vehicle, or '' when it pays for none or for several (then the person picks). */
+export const soleVehicleId = (vs: VehicleRate[]): string => (vs.length === 1 ? vs[0].id : '');
+
+/**
+ * The vehicle a mileage line carries: its own while that vehicle is still on the policy; otherwise the policy's
+ * only vehicle (so nobody has to pick it); otherwise whatever it had (blank → the person picks).
+ */
+export const lineVehicle = (current: string | null | undefined, vs: VehicleRate[]): string =>
+  (current && vs.some((v) => v.id === current) ? current : soleVehicleId(vs) || current || '');
+
 /** Mileage is priced by vehicle from odometer readings (the "travel allowance" flow). */
 export const vehicleFlowOn = (r: RulesIn): boolean => (r?.vehicle_rates?.length ?? 0) > 0;
 /** Odometer photo is camera-only and the reading is read from it. Only meaningful with the vehicle flow. */

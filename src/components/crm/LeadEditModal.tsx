@@ -15,6 +15,7 @@ import { extractLeadStatuses, type LeadStatusOption } from '../../lib/crmLeadSta
 import { DEFAULT_LEAD_FORM, extractLeadForm, segmentName, segmentToggleLabel, showsAddress, type LeadFormConfig } from '../../lib/crmLeadForm';
 import { isKinematicTenant } from '../../lib/clientFeatures';
 import { useAuth } from '../../hooks/useAuth';
+import { useLeadOwnerAccess } from '../../lib/leadOwnerAccess';
 import { LocateFixed } from 'lucide-react';
 import { Button, Field, Input, Segmented, Select, Textarea, eyebrowStyle, labelStyle, requiredMark } from '../ui';
 
@@ -51,6 +52,10 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
   // Reps with data_scope='own' (e.g. Consumer Champion) only see their own
   // leads — reassigning would hide the record from them. Hide the picker.
   const canReassign = user?.org_role_data_scope !== 'own';
+  // Clients that set lead_form.owner_assignment='admin_only' let only an admin change the owner: for anyone else
+  // the picker is gone and the save sends the owner the lead already has, so the server sees no change.
+  const ownerAccess = useLeadOwnerAccess();
+  const ownerLocked = ownerAccess.adminOnly && !ownerAccess.canAssign;
   // Tata Tiscon affordance — mirror the create form. Lets the rep log a
   // follow-up site visit while editing without bouncing to Activities.
   const isTata =
@@ -236,7 +241,7 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
         // Send null when the rep clears the picker, so the column actually
         // clears (sending undefined would leave the existing value untouched).
         source_id: form.source_id || null,
-        owner_id: form.owner_id || null,
+        owner_id: ownerLocked ? (lead.owner_id ?? null) : (form.owner_id || null),
         // alternate_mobiles is a varchar[]; empty array means "the rep
         // cleared every chip", which the backend honours as a delete.
         alternate_mobiles: form.alternate_mobiles,
@@ -357,7 +362,7 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
           />
         )}
 
-        {(!fields.isHidden('status') || !fields.isHidden('source_id') || !fields.isHidden('owner_id')) && (
+        {(!fields.isHidden('status') || !fields.isHidden('source_id') || (!fields.isHidden('owner_id') && !ownerLocked)) && (
           <><SL>Assignment</SL><Grid>
             {show('status', <SF label={lbl('status', 'Status')} value={form.status} options={leadStatuses ? leadStatuses.map((s) => ({ value: s.value, label: s.label })) : [{ value: 'new', label: 'New' }, { value: 'working', label: 'Working' }, { value: 'qualified', label: 'Qualified' }, { value: 'unqualified', label: 'Unqualified' }, { value: 'converted', label: 'Converted' }, { value: 'lost', label: 'Lost' }]} onChange={(v) => setForm({ ...form, status: v as LeadStatus })} />)}
             {/* Lost-reason capture — appears only when the rep is
@@ -390,7 +395,7 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
             {/* Owner reassignment — was previously absent from the modal
                 entirely. Hidden when the /users endpoint comes back empty
                 (e.g. client-role users without manpower read access). */}
-            {!fields.isHidden('owner_id') && users.length > 0 && canReassign && (
+            {!fields.isHidden('owner_id') && users.length > 0 && canReassign && ownerAccess.canAssign && (
               <label style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
                 <span style={labelStyle}>
                   {fields.labelFor('owner_id', 'Owner')}
