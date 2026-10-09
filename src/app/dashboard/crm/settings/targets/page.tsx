@@ -5,6 +5,9 @@ import api from '../../../../../lib/api';
 import { crmTargets } from '../../../../../lib/crmApi';
 import { useAuth } from '../../../../../hooks/useAuth';
 import { isConsumerChampion } from '../../../../../lib/clientFeatures';
+import { useTargetTypes } from '../../../../../lib/useTargetTypes';
+import { Segmented } from '../../../../../components/ui';
+import RupeeTargets from '../../../../../components/crm/RupeeTargets';
 
 interface U {
   id: string; name: string; role: string;
@@ -16,6 +19,11 @@ interface Level { id: string; name: string; order: number; }
 export default function TargetsSettingsPage() {
   const { user } = useAuth();
   const champion = isConsumerChampion(user as any);
+  // Sales / Collection rupee targets are opt-in per client: with none configured (or the call failing) `types`
+  // stays empty and this page is exactly the weekly lead target it always was.
+  const { types: rupeeTypes } = useTargetTypes();
+  const [mode, setMode] = useState<'lead' | 'sales' | 'collection'>('lead');
+  const rupee = mode === 'lead' ? undefined : rupeeTypes.find((t) => t.key === mode);
   const [users, setUsers] = useState<U[]>([]);
   const [levels, setLevels] = useState<Level[]>([]);
   const [defaultTarget, setDefaultTarget] = useState<number>(0);
@@ -169,12 +177,27 @@ export default function TargetsSettingsPage() {
   }
 
   return (
-    <div style={{ maxWidth: 760, width: '100%' }}>
+    <div style={{ maxWidth: rupee ? 980 : 760, width: '100%' }}>
       <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', margin: '0 0 4px' }}>Targets</h1>
       <p style={{ fontSize: 13, color: 'var(--text-dim)', margin: '0 0 18px' }}>
-        Set the weekly lead target for each hierarchy level (e.g. Consumer Champion, Area Sales Officer). Everyone at that level inherits it. You can override individuals below. FEs see their target as a dashboard ticker.
+        {rupee
+          ? `Set the monthly ${rupee.label.toLowerCase()} in rupees for each hierarchy level. Everyone at that level inherits it. You can override individuals below. Progress is what your team logs each month.`
+          : 'Set the weekly lead target for each hierarchy level (e.g. Consumer Champion, Area Sales Officer). Everyone at that level inherits it. You can override individuals below. FEs see their target as a dashboard ticker.'}
       </p>
 
+      {/* Only for clients with Sales / Collection targets switched on. */}
+      {rupeeTypes.length > 0 && (
+        <div style={{ margin: '0 0 16px', overflowX: 'auto' }}>
+          <Segmented value={rupee ? rupee.key : 'lead'} onChange={setMode} options={[
+            { value: 'lead' as const, label: 'Lead target' },
+            ...rupeeTypes.map((t) => ({ value: t.key as 'sales' | 'collection', label: t.label })),
+          ]} />
+        </div>
+      )}
+
+      {rupee ? (
+        <RupeeTargets key={rupee.key} type={rupee} users={users} levels={levels.map((l) => ({ id: l.id, name: l.name }))} baseLoading={loading} narrow={narrow} />
+      ) : (<>
       {/* Per-hierarchy-level targets — the primary control */}
       <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 16 }}>
         <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)', marginBottom: 4 }}>Targets by hierarchy level</div>
@@ -267,6 +290,7 @@ export default function TargetsSettingsPage() {
           <button onClick={saveDefault} disabled={savingLevel === '__default__'} style={{ ...btnStyle, opacity: savingLevel === '__default__' ? 0.6 : 1 }}>{savingLevel === '__default__' ? 'Saving…' : 'Save fallback'}</button>
         </div>
       </div>
+      </>)}
     </div>
   );
 }

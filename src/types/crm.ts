@@ -629,3 +629,39 @@ export interface WhatsappLog {
   replied_at?: string | null; sent_by?: string | null;
   created_at: string; updated_at: string;
 }
+
+// ── Sales / Collection rupee targets (opt-in per client; /crm/targets/…) ────────────────────────
+// A client opts in with crm_settings.config.targets.types; GET /targets/types answers [] when it has not.
+export type TargetKind = 'sales' | 'collection';
+export interface TargetType { key: TargetKind; label: string; metric: string; period: 'monthly'; unit: 'INR' }
+export type TargetSource = 'user' | 'role' | 'level' | 'default';
+/** The caller's own target and running total for the current (IST) month, per enabled type. */
+export interface TargetProgress {
+  period_start: string; period_end: string;
+  types: Array<{ key: TargetKind; label: string; target: number | null; achieved: number; pct: number | null; source: TargetSource | null }>;
+}
+/** One order / payment a rep logged. */
+export interface TargetEntry {
+  id: string; kind: TargetKind; amount: number; entry_date: string;
+  lead_id: string | null; lead_name: string | null; note: string | null;
+  user_id: string; user_name: string | null; created_at: string;
+}
+export interface TargetEntryInput { kind: TargetKind; amount: number; lead_id?: string | null; note?: string | null; entry_date?: string | null }
+export interface TargetEntryQuery {
+  kind?: TargetKind; from?: string; to?: string; limit?: number;
+  /** Approvers only: one person's entries. */
+  user_id?: string;
+  /** Approvers only: everyone's entries (the default is the caller's own). */
+  all?: boolean;
+}
+/** GET /targets/leaderboard?type= — the rupee board for the current month. */
+export interface RupeeLeaderboard {
+  type: TargetKind; label: string; metric: string; period: 'monthly';
+  period_start: string; period_end: string; generated_at: string;
+  stats: {
+    participants: number; total_target: number; total_achieved: number; meeting_target: number; target_participants: number;
+    top_performer: { name: string; achieved: number } | null; lowest_performer: { name: string; achieved: number } | null;
+  };
+  entries: Array<{ user_id: string; name: string; role: string | null; target: number | null; achieved: number; pct: number | null }>;
+  role_id: string | null;
+}

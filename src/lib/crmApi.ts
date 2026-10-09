@@ -13,6 +13,7 @@ import type {
   CrmState, CrmCity,
   Product, ProductCategory, DealLineItem,
   WhatsappTemplate, WhatsappLog,
+  TargetKind, TargetType, TargetProgress, TargetEntry, TargetEntryInput, TargetEntryQuery, RupeeLeaderboard,
 } from '../types/crm';
 import type { Integration, InboundEvent, IntegrationProvider } from '../types/integrations';
 
@@ -334,15 +335,36 @@ export const crmHome = {
   get: () => api.get<Wrapped<HomePayload>>(`${BASE}/home`),
 };
 
+// Rupee-target reads are always live: a rep logs an entry and the totals must move straight away. (And none of
+// these endpoints are city-scoped — see NEVER_CITY_SCOPED in api.ts: they are per person, not per city.)
+const LIVE = { noCache: true } as RequestInit;
+
 export const crmTargets = {
-  get: () => api.get<Wrapped<TargetsState>>(`${BASE}/targets`),
+  // `type` ('sales' | 'collection') switches the admin calls from the weekly lead target to the monthly rupee
+  // target; left out, the request is byte-for-byte what it always was.
+  get: (type?: TargetKind) => api.get<Wrapped<TargetsState>>(`${BASE}/targets${qs({ type })}`),
   mine: () => api.get<Wrapped<MyTarget>>(`${BASE}/targets/me`),
-  set: (body: { user_id?: string | null; hierarchy_level_id?: string | null; target_value: number; all?: boolean }) =>
+  set: (body: { user_id?: string | null; hierarchy_level_id?: string | null; target_value: number; all?: boolean; type?: TargetKind }) =>
     api.put<Wrapped<unknown>>(`${BASE}/targets`, body),
   leaderboard: (period: LeaderboardPeriod = 'today') =>
     api.get<Wrapped<Leaderboard>>(`${BASE}/targets/leaderboard${qs({ period })}`),
   // Hierarchy roles to choose from (org_roles), used by the leaderboard role picker.
-  levels: () => api.get<Wrapped<Array<{ id: string; name: string }>>>(`${BASE}/targets/levels`),
+  levels: (type?: TargetKind) => api.get<Wrapped<Array<{ id: string; name: string }>>>(`${BASE}/targets/levels${qs({ type })}`),
+  /** The rupee board for the current month (the lead board takes `period`; this one ignores it). */
+  rupeeLeaderboard: (type: TargetKind) => api.get<Wrapped<RupeeLeaderboard>>(`${BASE}/targets/leaderboard${qs({ type })}`, LIVE),
+  /** The rupee target types this client has switched on — `types: []` (or an error) means the feature is off. */
+  types: () => api.get<Wrapped<{ types: TargetType[] }>>(`${BASE}/targets/types`),
+  /** The caller's own target and running total for the current month, per enabled type. */
+  progress: () => api.get<Wrapped<TargetProgress>>(`${BASE}/targets/progress`, LIVE),
+  entries: {
+    /** Own entries by default; `all` / `user_id` are for approvers (403 otherwise). Newest first. */
+    list: (p: TargetEntryQuery = {}) =>
+      api.get<Wrapped<TargetEntry[]>>(
+        `${BASE}/targets/entries${qs({ kind: p.kind, from: p.from, to: p.to, limit: p.limit, user_id: p.user_id, all: p.all ? 1 : undefined })}`, LIVE),
+    create: (body: TargetEntryInput) => api.post<Wrapped<TargetEntry>>(`${BASE}/targets/entries`, body),
+    /** The owner within 24 h of logging it, or an approver at any time. */
+    remove: (id: string) => api.delete<Wrapped<{ id: string }>>(`${BASE}/targets/entries/${id}`),
+  },
   getLeaderboardRole: () => api.get<Wrapped<{ role_id: string | null }>>(`${BASE}/targets/leaderboard-role`),
   setLeaderboardRole: (role_id: string | null) =>
     api.put<Wrapped<{ role_id: string | null }>>(`${BASE}/targets/leaderboard-role`, { role_id }),
