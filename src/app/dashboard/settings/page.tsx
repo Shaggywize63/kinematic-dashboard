@@ -4,6 +4,7 @@ import { Bot, Building2, MessageCircle, Moon, Network, Plus, Sun, User as UserIc
 import api from '../../../lib/api';
 import CitySelect from '../../../components/CitySelect';
 import FieldTrackingCadencePicker from '../../../components/FieldTrackingCadencePicker';
+import AttendanceRulesCard from '../../../components/AttendanceRulesCard';
 import { AuthUser } from '../../../types';
 import { getDesignationLabel, getStoredUser } from '../../../lib/auth';
 import { ALL_MODULES, MODULE_GROUPS, MODULE_GROUP_LABELS } from '../../../lib/modules';
@@ -150,11 +151,8 @@ export default function SettingsPage() {
   });
 
   // NEW: System Settings Hooks
+  // (Shift / grace / weekly-off rules are no longer here: they are saved per client by <AttendanceRulesCard />.)
   const [opsRules, setOpsRules] = useState({
-    shiftStart: '09:00',
-    shiftEnd: '18:00',
-    gracePeriod: 15,
-    autoCheckout: 12,
     minAppVersion: '1.2.0',
     gpsAccuracy: 50,
     orgName: 'Kaiyo Technology Labs',
@@ -780,22 +778,9 @@ export default function SettingsPage() {
 
         {activeTab === 'rules' && (
           <div style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
-            {/* Attendance & Shift Rules */}
-            <div style={{ ...block, display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <Eyebrow>Attendance & operational rules</Eyebrow>
-                <div style={{ fontSize: 13, color: T.dim }}>Shift window and lateness thresholds.</div>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <Field label="Shift start">
-                  <Input type="time" value={opsRules.shiftStart} onChange={e=>setOpsRules({...opsRules, shiftStart: e.target.value})} />
-                </Field>
-                <Field label="Shift end">
-                  <Input type="time" value={opsRules.shiftEnd} onChange={e=>setOpsRules({...opsRules, shiftEnd: e.target.value})} />
-                </Field>
-              </div>
-              <RangeField label="Late grace period" value={opsRules.gracePeriod} unit="min" min={0} max={60} step={5} onChange={(v) => setOpsRules({...opsRules, gracePeriod: v})} accent={T.info} />
-              <RangeField label="Auto checkout threshold" value={opsRules.autoCheckout} unit="hrs" min={4} max={24} step={1} onChange={(v) => setOpsRules({...opsRules, autoCheckout: v})} accent={T.info} />
+            {/* Attendance & Shift Rules — loads and saves per client (GET/PATCH /org-settings/attendance-rules). */}
+            <div style={{ gridColumn: '1 / -1' }}>
+              <AttendanceRulesCard />
             </div>
 
             {/* Mobile App Configuration */}

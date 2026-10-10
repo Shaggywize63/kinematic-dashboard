@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback, useRef, Suspense, type CSSProperties } from 'react';
 import { parseISO, isValid } from 'date-fns';
 import { CalendarDays, Check, Download, ExternalLink, Eye, Loader2, Pencil, Plus, RefreshCw, Search, Upload, UserX, X } from 'lucide-react';
-import api from '../../../lib/api';
+import api, { type AttendanceLate } from '../../../lib/api';
+import MonthlySummary from './MonthlySummary';
 import SignedImage, { openSignedUrl } from '@/components/shared/SignedImage';
 import Modal from '../../../components/crm/shared/Modal';
 import { useAuth } from '../../../hooks/useAuth';
@@ -83,6 +84,9 @@ interface AttendanceRecord {
   override_reason?: string;
   override_by?: string;
   is_regularised?: boolean;
+  // Present only when the client has saved attendance rules (Settings → Operational rules). Absent = legacy
+  // client: lateness is not judged by the API and the page keeps its fixed 09:30 on-time heuristic.
+  late?: AttendanceLate;
   // Face-recognition attendance (module face_attendance): the on-device 1:1
   // match result stamped at check-in / check-out.
   checkin_face_verified?: boolean;
@@ -233,6 +237,8 @@ function AttendanceContent() {
   const [statusFilter, setSF]   = useState('all');
   const [search,   setSearch]   = useState('');
   const [roleFilter, setRoleFilter] = useState<'executive' | 'supervisor'>('executive');
+  // 'daily' = the live record list below; 'monthly' = per-employee month totals (GET /attendance/summary).
+  const [view, setView] = useState<'daily' | 'monthly'>('daily');
 
   // Persistence Sync
   useEffect(() => {
@@ -813,9 +819,23 @@ function AttendanceContent() {
     absent:   currentRoleRecords.filter(r => r.status === 'absent').length,
     half:     currentRoleRecords.filter(r => r.status === 'half_day').length,
     onLeave:  currentRoleRecords.filter(r => r.status === 'on_leave').length,
+    late:     currentRoleRecords.filter(r => r.late?.is_late).length,
   };
+  // The Late tile / filter exist only for clients whose records carry the API's `late` verdict.
+  const lateConfigured = currentRoleRecords.some(r => !!r.late);
+  const statTiles: Array<{ l: string; v: number; c: string | undefined }> = [
+    { l: 'Total',       v: stats.total,   c: undefined },
+    { l: 'Checked in',  v: stats.in,      c: T.ok },
+    { l: 'Checked out', v: stats.out,     c: T.info },
+    { l: 'On leave',    v: stats.onLeave, c: T.mute },
+    { l: 'Absent',      v: stats.absent,  c: T.red },
+    { l: 'Half day',    v: stats.half,    c: T.warn },
+    ...(lateConfigured ? [{ l: 'Late', v: stats.late, c: T.warn }] : []),
+  ];
 
   /* 3. final shown list */
+  // A 'late' filter only means something while the records carry the API's late verdict.
+  const effectiveStatus = statusFilter === 'late' && !lateConfigured ? 'all' : statusFilter;
   const shown = currentRoleRecords.filter(r => {
     const s = search.toLowerCase();
     const matchSearch = !s ||
@@ -823,7 +843,7 @@ function AttendanceContent() {
       (r.users?.employee_id || '').toLowerCase().includes(s) ||
       (r.users?.zones?.name || '').toLowerCase().includes(s);
 
-    const matchStatus = statusFilter === 'all' || r.status === statusFilter;
+    const matchStatus = effectiveStatus === 'all' || (effectiveStatus === 'late' ? !!r.late?.is_late : r.status === effectiveStatus);
     return matchSearch && matchStatus;
   });
 
@@ -952,7 +972,9 @@ function AttendanceContent() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 20, animation: 'kfade .3s ease' }}>
         <PageHeader
           title="Attendance"
-          description={<>Who&apos;s in, out, on leave or absent for <span style={{ fontFamily: T.mono, fontSize: 12.5 }}>{rangeLabel}</span> — updates live every 15 s.</>}
+          description={view === 'monthly'
+            ? <>Per-employee month totals — present, late, half-day, leave and absent.</>
+            : <>Who&apos;s in, out, on leave or absent for <span style={{ fontFamily: T.mono, fontSize: 12.5 }}>{rangeLabel}</span> — updates live every 15 s.</>}
           actions={
             <>
               <IconButton label="Refresh" onClick={load}><RefreshCw size={16} strokeWidth={1.6} style={loading ? { animation: 'kspin 1s linear infinite' } : undefined} /></IconButton>
@@ -971,16 +993,21 @@ function AttendanceContent() {
           </div>
         )}
 
+        {/* ── view switch: live daily records vs month totals ── */}
+        <div>
+          <Segmented
+            value={view}
+            onChange={setView}
+            options={[{ value: 'daily', label: 'Daily records' }, { value: 'monthly', label: 'Monthly summary' }]}
+          />
+        </div>
+
+        {view === 'monthly' && <MonthlySummary clientId={selectedClientId} />}
+
+        {view === 'daily' && (<>
         {/* ── stat cards ── */}
-        <div style={{ display: 'grid', gridTemplateColumns: narrow ? 'repeat(3, minmax(0, 1fr))' : 'repeat(6, minmax(0, 1fr))', gap: 12 }}>
-          {[
-            { l: 'Total',       v: stats.total,   c: undefined },
-            { l: 'Checked in',  v: stats.in,      c: T.ok },
-            { l: 'Checked out', v: stats.out,     c: T.info },
-            { l: 'On leave',    v: stats.onLeave, c: T.mute },
-            { l: 'Absent',      v: stats.absent,  c: T.red },
-            { l: 'Half day',    v: stats.half,    c: T.warn },
-          ].map(s => (
+        <div style={{ display: 'grid', gridTemplateColumns: narrow ? 'repeat(3, minmax(0, 1fr))' : `repeat(${statTiles.length}, minmax(0, 1fr))`, gap: 12 }}>
+          {statTiles.map(s => (
             <Card key={s.l} padding={16}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 {s.c && <span style={{ width: 6, height: 6, borderRadius: 999, background: s.c, flexShrink: 0 }} />}
@@ -1002,6 +1029,9 @@ function AttendanceContent() {
           const avgHours = hoursArr.length ? totalHours / hoursArr.length : 0;
           const onTime = records.filter(r => {
             if (!r.checkin_at) return false;
+            // The API's verdict (against this client's shift rules) wins when the record carries one…
+            if (r.late) return !r.late.is_late;
+            // …otherwise the legacy fixed 09:30 cut-off, exactly as before.
             const d = new Date(r.checkin_at);
             return d.getHours() < 9 || (d.getHours() === 9 && d.getMinutes() <= 30);
           }).length;
@@ -1045,13 +1075,14 @@ function AttendanceContent() {
             <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name, ID or zone…" style={{ paddingLeft: 34 }} aria-label="Search attendance" />
           </div>
           <div style={{ width: narrow ? '100%' : 170 }}>
-            <Select value={statusFilter} onChange={e => setSF(e.target.value)} aria-label="Filter by status">
+            <Select value={effectiveStatus} onChange={e => setSF(e.target.value)} aria-label="Filter by status">
               <option value="all">All statuses</option>
               <option value="checked_in">Checked in</option>
               <option value="checked_out">Checked out</option>
               <option value="on_leave">On leave</option>
               <option value="absent">Absent</option>
               <option value="half_day">Half day</option>
+              {lateConfigured && <option value="late">Late</option>}
             </Select>
           </div>
           <span style={{ fontFamily: T.mono, fontSize: 11.5, color: T.mute, whiteSpace: 'nowrap' }}>
@@ -1150,7 +1181,12 @@ function AttendanceContent() {
                       </td>
 
                       {/* check-in */}
-                      <td style={{ ...rowMono, color: r.checkin_at ? T.text : T.mute }}>{fmt(r.checkin_at)}</td>
+                      <td style={{ ...rowMono, color: r.checkin_at ? T.text : T.mute }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                          {fmt(r.checkin_at)}
+                          {r.late?.is_late && <Badge tone="warn">Late {r.late.minutes_late} min</Badge>}
+                        </span>
+                      </td>
 
                       {/* check-out */}
                       <td style={{ ...rowMono, color: r.checkout_at ? T.text : T.mute }}>{fmt(r.checkout_at)}</td>
@@ -1194,6 +1230,7 @@ function AttendanceContent() {
               : `${shown.length} of ${currentRoleRecords.length} records`} · {rangeLabel}
           </div>
         )}
+        </>)}
       </div>
 
       {/* ══════ ADD OVERRIDE MODAL ══════ */}
@@ -1262,7 +1299,10 @@ function AttendanceContent() {
                 <Avatar name={detail.users?.name || '?'} size={44} />
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: 13.5, color: T.dim }}>{(detail.users?.role || '').replace(/[_-]/g, ' ') || 'Executive'}{detail.users?.employee_id ? <> · <span style={{ fontFamily: T.mono, fontSize: 12.5 }}>{detail.users.employee_id}</span></> : null}</div>
-                  <div style={{ marginTop: 6 }}><Badge tone={sm.tone} dot>{sm.label}</Badge></div>
+                  <div style={{ marginTop: 6, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    <Badge tone={sm.tone} dot>{sm.label}</Badge>
+                    {detail.late?.is_late && <Badge tone="warn">Late {detail.late.minutes_late} min</Badge>}
+                  </div>
                 </div>
               </div>
 

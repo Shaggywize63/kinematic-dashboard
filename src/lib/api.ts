@@ -285,6 +285,45 @@ export function extractApiError(data: any): string {
   return 'Request failed';
 }
 
+/** An Error that also carries the HTTP status, so callers can tell a 400 from a 403 without parsing the message. */
+export type ApiError = Error & { status?: number };
+const httpError = (message: string, status: number): ApiError => Object.assign(new Error(message), { status });
+
+// ── Attendance rules (per client) + monthly summary ─────────────────────────
+// Mirror GET/PATCH /org-settings/attendance-rules and GET /attendance/summary.
+export interface AttendanceRules {
+  shift_start: string;            // "HH:MM" 24h, IST
+  shift_end: string;
+  grace_minutes: number;
+  weekly_off: number[];           // 0 = Sunday .. 6 = Saturday
+  allow_offline_checkin: boolean;
+}
+export interface AttendanceRulesPayload {
+  /** True once the client has saved an `attendance_rules` object at all. */
+  configured: boolean;
+  rules: AttendanceRules;
+  defaults: AttendanceRules;
+  bounds: { grace_minutes: { min: number; max: number } };
+}
+/** Present on an attendance record only when the client has configured rules. */
+export interface AttendanceLate { is_late: boolean; minutes_late: number }
+export interface AttendanceSummaryRow {
+  user_id: string;
+  name: string;
+  working_days: number;
+  present: number;
+  late: number;                   // a subset of `present`
+  half_day: number;
+  on_leave: number;
+  absent: number;
+}
+export interface AttendanceSummaryPayload {
+  from: string;
+  to: string;
+  working_days: number;
+  rows: AttendanceSummaryRow[];
+}
+
 // ── Distribution: Order entry (dashboard cart) types ───────────────────────
 // Mirror the /distribution/orders catalogue + preview + create contracts so the
 // order-booking cart page (dashboard/distribution/orders/new) is typed end-to-end.
@@ -705,18 +744,18 @@ class ApiClient {
     // 204 No Content / empty body: don't try to JSON-parse (would throw
     // "Unexpected end of JSON input"). This is how every DELETE comes back.
     if (res.status === 204 || res.headers.get('content-length') === '0') {
-      if (!res.ok) throw new Error('Request failed');
+      if (!res.ok) throw httpError('Request failed', res.status);
       return undefined as unknown as T;
     }
     const text = await res.text();
     if (!text) {
-      if (!res.ok) throw new Error('Request failed');
+      if (!res.ok) throw httpError('Request failed', res.status);
       return undefined as unknown as T;
     }
     let data: any;
     try { data = JSON.parse(text); }
-    catch { throw new Error(text.slice(0, 200)); }
-    if (!res.ok) throw new Error(extractApiError(data));
+    catch { throw httpError(text.slice(0, 200), res.status); }
+    if (!res.ok) throw httpError(extractApiError(data), res.status);
     return data;
   }
 
@@ -981,6 +1020,26 @@ class ApiClient {
   }
   getAttendanceHistory(params?: Record<string, string>) {
     return this.get(`/api/v1/attendance/history${this.sanitizeParams(params)}`);
+  }
+
+  // Per-client attendance rules. noCache: rules are edited here and read straight back, and the GET cache is
+  // keyed by the client picker only — a cached answer would show another client's (or stale) rules.
+  getAttendanceRules() {
+    return this.get<{ success: boolean; data: AttendanceRulesPayload }>(
+      '/api/v1/org-settings/attendance-rules', { noCache: true } as RequestInit,
+    );
+  }
+  /** Body is any subset of the five rule keys; the server rejects the whole request if any value is invalid. */
+  updateAttendanceRules(patch: Partial<AttendanceRules>) {
+    return this.patch<{ success: boolean; data: AttendanceRulesPayload }>('/api/v1/org-settings/attendance-rules', patch);
+  }
+  /** Per-employee Present / Late / Half-day / Leave / Absent over [from, to] (YYYY-MM-DD, at most 62 days). */
+  getAttendanceSummary(params: { from: string; to: string; user_id?: string }) {
+    const q: Record<string, string> = { from: params.from, to: params.to };
+    if (params.user_id) q.user_id = params.user_id;
+    return this.get<{ success: boolean; data: AttendanceSummaryPayload }>(
+      `/api/v1/attendance/summary${this.sanitizeParams(q)}`, { noCache: true } as RequestInit,
+    );
   }
 
   getAdminSubmissions(params?: Record<string, string>) {
