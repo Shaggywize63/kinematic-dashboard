@@ -553,6 +553,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { label: 'Field Force', package: 'field_force', items: [
       { href: '/dashboard',                              label: 'Dashboard',           icon: 'home', module: 'dashboard' },
       { href: '/dashboard/attendance-overview',          label: 'Attendance',          icon: 'calendarCheck', module: 'attendance' },
+      // Per-day route, customer visits, halts, distance and mode of transport. Same `attendance` module as the
+      // Attendance page (it is built from attendance records), so it is granted and revoked together with it.
+      { href: '/dashboard/travel-report',                label: 'Daily Travel Report', icon: 'route', module: 'attendance' },
       { href: '/dashboard/analytics',                    label: 'Analytics',           icon: 'analytics', module: 'analytics' },
       { href: '/dashboard/live-tracking',                label: 'Live Trailing',       icon: 'mapPinned', module: 'live_tracking' },
       { href: '/dashboard/other-management/activities',  label: 'Activity Management', icon: 'activity', module: 'activities' },

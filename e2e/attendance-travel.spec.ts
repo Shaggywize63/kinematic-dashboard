@@ -195,6 +195,26 @@ test.describe('Attendance day detail — distance travelled', () => {
     expect(calls.map((c) => c.get('user_id'))).toEqual([ASHA.id, RAVI.id]);
   });
 
+  test('shows the mode of transport the rep chose at check-in; nothing is added when they were not asked', async ({ page }) => {
+    await setup(page, { team: [record(ASHA, { transport_mode: 'own_bike', transport_label: 'Own Bike' }), record(RAVI)] });
+    await openDay(page);
+    await expect(page.getByRole('dialog').getByTestId('detail-mode')).toContainText('Mode of transport');
+    await expect(page.getByRole('dialog').getByTestId('detail-mode')).toContainText('Own Bike');
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+
+    // A client that never asks has no such field on the record: the tile does not appear.
+    await page.getByText('Ravi Kumar').first().click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+    await expect(page.getByTestId('detail-mode')).toHaveCount(0);
+  });
+
+  test('a mode without a label reads as a plain word (the id, tidied)', async ({ page }) => {
+    await setup(page, { team: [record(ASHA, { transport_mode: 'public_transport', transport_label: null })] });
+    await openDay(page);
+    await expect(page.getByRole('dialog').getByTestId('detail-mode')).toContainText('Public transport');
+  });
+
   test('demo mode serves a canned day (no network)', async ({ page }) => {
     await demoLogin(page);
     await page.goto('/dashboard/attendance-overview');

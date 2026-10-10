@@ -6,6 +6,7 @@ import { CalendarDays, Check, Download, ExternalLink, Eye, Loader2, Pencil, Plus
 import api, { type AttendanceLate } from '../../../lib/api';
 import MonthlySummary from './MonthlySummary';
 import DayTravel from '../../../components/attendance/DayTravel';
+import { modeText } from '../../../lib/travelReport';
 import SignedImage, { openSignedUrl } from '@/components/shared/SignedImage';
 import Modal from '../../../components/crm/shared/Modal';
 import { useAuth } from '../../../hooks/useAuth';
@@ -88,6 +89,10 @@ interface AttendanceRecord {
   // Present only when the client has saved attendance rules (Settings → Operational rules). Absent = legacy
   // client: lateness is not judged by the API and the page keeps its fixed 09:30 on-time heuristic.
   late?: AttendanceLate;
+  // Mode of transport the rep chose at check-in (only for clients with the "Ask for mode of transport" rule on):
+  // the id the app sent, and the label the server resolved for it. Absent / null = not asked or not answered.
+  transport_mode?: string | null;
+  transport_label?: string | null;
   // Face-recognition attendance (module face_attendance): the on-device 1:1
   // match result stamped at check-in / check-out.
   checkin_face_verified?: boolean;
@@ -1309,14 +1314,18 @@ function AttendanceContent() {
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                 {[
-                  { l: 'Check-in',  v: fmt(detail.checkin_at) },
-                  { l: 'Check-out', v: fmt(detail.checkout_at) },
-                  { l: 'Hours',     v: fmtHrs(calcHours(detail)) },
-                  { l: 'Break',     v: detail.break_minutes ? `${detail.break_minutes}m` : '—' },
+                  { l: 'Check-in',  v: fmt(detail.checkin_at), wide: false },
+                  { l: 'Check-out', v: fmt(detail.checkout_at), wide: false },
+                  { l: 'Hours',     v: fmtHrs(calcHours(detail)), wide: false },
+                  { l: 'Break',     v: detail.break_minutes ? `${detail.break_minutes}m` : '—', wide: false },
+                  // Only when the rep was asked (client rule) and answered: nothing is added for everyone else.
+                  ...((detail.transport_mode || detail.transport_label)
+                    ? [{ l: 'Mode of transport', v: modeText(detail.transport_mode, detail.transport_label), wide: true }]
+                    : []),
                 ].map(r => (
-                  <div key={r.l} style={{ background: T.raised, borderRadius: 8, padding: '10px 12px' }}>
+                  <div key={r.l} data-testid={r.wide ? 'detail-mode' : undefined} style={{ background: T.raised, borderRadius: 8, padding: '10px 12px', gridColumn: r.wide ? '1 / -1' : undefined }}>
                     <Eyebrow>{r.l}</Eyebrow>
-                    <div style={{ fontFamily: T.mono, fontSize: 14, color: T.text, marginTop: 4, fontVariantNumeric: 'tabular-nums' }}>{r.v}</div>
+                    <div style={{ fontFamily: r.wide ? undefined : T.mono, fontSize: 14, color: T.text, marginTop: 4, fontVariantNumeric: 'tabular-nums' }}>{r.v}</div>
                   </div>
                 ))}
               </div>

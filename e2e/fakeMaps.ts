@@ -60,7 +60,7 @@ export const FAKE_MAPS = `
   window.google = { maps: {
     Map, Marker, InfoWindow, LatLngBounds, Polyline, DirectionsService, Geocoder,
     SymbolPath: { CIRCLE: 0 }, ControlPosition: { RIGHT_BOTTOM: 1 }, TravelMode: { DRIVING: 'DRIVING' },
-    event: { trigger() {} },
+    event: { trigger() {}, addListenerOnce() {} },
     importLibrary: async (name) => (name === 'geocoding' ? { Geocoder } : {}),
   } };
 })();

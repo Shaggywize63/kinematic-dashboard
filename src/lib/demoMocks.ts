@@ -34,6 +34,7 @@ import {
   listDemoFieldExecs, setDemoFieldExecBase, buildDemoTeamPlan, runDemoTeamPlan,
   type DemoUser,
 } from './demo/routeAutoplanDemo';
+import { demoDailyReport, demoDailyReportTeam } from './demo/travelReportDemo';
 
 // Conversation rows must be stable across list → detail navigation, but the
 // active vertical can change at runtime — cache per seed identity.
@@ -1107,7 +1108,7 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
     if (path === '/attendance/team')            return mockAttendanceTeam() as unknown as T;
     // Per-client attendance rules (Settings) — an unconfigured client; saving is acknowledged by the generic PATCH mock.
     if (path === '/org-settings/attendance-rules') {
-      const d = { shift_start: '09:30', shift_end: '18:00', grace_minutes: 15, weekly_off: [0], allow_offline_checkin: false, selfie_required: true, form_checkin_required: false };
+      const d = { shift_start: '09:30', shift_end: '18:00', grace_minutes: 15, weekly_off: [0], allow_offline_checkin: false, selfie_required: true, form_checkin_required: false, track_transport_mode: false };
       return wrap({ configured: false, rules: d, defaults: d, bounds: { grace_minutes: { min: 0, max: 120 } } }) as unknown as T;
     }
     // Distance travelled that day (attendance day-detail): check-in → a customer visit → check-out, two legs.
@@ -1129,6 +1130,15 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
         stops: [{ submission_id: 's1', label: 'Daily Store Audit', check_in_at: t('10:05'), check_out_at: t('10:43'), minutes: 38 }],
         points_used: 84, points_excluded: 2,
       }) as unknown as T;
+    }
+    // Daily Travel Report: one person's day (route, visits, halts, mode) and the whole team's day.
+    if (path === '/attendance/daily-report/team') {
+      const date = query.get('date') || new Date(Date.now() + 5.5 * 3600000).toISOString().slice(0, 10);
+      return wrap(demoDailyReportTeam(date, mockAttendanceTeam().data)) as unknown as T;
+    }
+    if (path === '/attendance/daily-report') {
+      const date = query.get('date') || new Date(Date.now() + 5.5 * 3600000).toISOString().slice(0, 10);
+      return wrap(demoDailyReport(date, query.get('user_id') || 'fe1', mockAttendanceTeam().data)) as unknown as T;
     }
     // Monthly attendance summary: deterministic numbers for the demo team over the requested range.
     if (path === '/attendance/summary') {
