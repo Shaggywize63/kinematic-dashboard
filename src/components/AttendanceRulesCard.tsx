@@ -2,7 +2,8 @@
 /**
  * Settings → Operational rules → "Attendance & shift rules".
  *
- * Per-client rules (shift window, late grace, weekly offs, offline check-in, selfie, form check-in/out) stored by
+ * Per-client rules (shift window, late grace, weekly offs, offline check-in, selfie, form check-in/out, mode of
+ * transport at check-in) stored by
  * the backend at clients.settings.attendance_rules. Self-contained: loads GET /org-settings/attendance-rules, saves with PATCH,
  * and reloads whenever the global client picker changes (the rules belong to one client, so an org-wide view
  * has nothing to show and the API answers 400 "Select a client first").
@@ -37,10 +38,11 @@ type Phase = 'loading' | 'ready' | 'needs-client' | 'error';
 /** What the form edits. Grace is text so a half-typed number is not forced back into range mid-keystroke. */
 interface Draft {
   shift_start: string; shift_end: string; grace: string; weekly_off: number[];
-  allow_offline_checkin: boolean; selfie_required: boolean; form_checkin_required: boolean;
+  allow_offline_checkin: boolean; selfie_required: boolean; form_checkin_required: boolean; track_transport_mode: boolean;
 }
-/** What the card holds after a load / save. `flags` = the server knows the selfie / form check-in rules (see readPayload). */
-type Loaded = AttendanceRulesPayload & { flags: boolean };
+/** What the card holds after a load / save. `flags` = the server knows the selfie / form check-in rules and `transport`
+ *  = it knows the mode-of-transport rule (see readPayload). */
+type Loaded = AttendanceRulesPayload & { flags: boolean; transport: boolean };
 
 const sortedDays = (d: number[]) => [...d].sort((a, b) => a - b);
 const toDraft = (r: AttendanceRules): Draft => ({
@@ -52,11 +54,14 @@ const toDraft = (r: AttendanceRules): Draft => ({
   // A selfie is required unless the client turned it off; an unknown value reads as required.
   selfie_required: r.selfie_required !== false,
   form_checkin_required: r.form_checkin_required === true,
+  // Off unless the client turned it on; an unknown value reads as off.
+  track_transport_mode: r.track_transport_mode === true,
 });
 const sameDraft = (a: Draft, b: Draft) =>
   a.shift_start === b.shift_start && a.shift_end === b.shift_end && a.grace.trim() === b.grace.trim()
   && a.allow_offline_checkin === b.allow_offline_checkin
   && a.selfie_required === b.selfie_required && a.form_checkin_required === b.form_checkin_required
+  && a.track_transport_mode === b.track_transport_mode
   && sortedDays(a.weekly_off).join(',') === sortedDays(b.weekly_off).join(',');
 
 /** Accepts `{success, data:{…}}` (what the API sends) or the bare payload. */
@@ -68,6 +73,8 @@ function readPayload(res: any): Loaded | null {
     // A server that predates the selfie / form check-in rules does not send them — and rejects a PATCH that
     // names a key it does not know. So the two switches only appear (and are only sent) when the server sent them.
     flags: typeof d.rules.selfie_required === 'boolean' || typeof d.rules.form_checkin_required === 'boolean',
+    // Same for the mode-of-transport rule: a server without it must never be sent the key.
+    transport: typeof d.rules.track_transport_mode === 'boolean',
     configured: !!d.configured,
     rules: { ...FALLBACK_DEFAULTS, ...d.rules },
     defaults: { ...FALLBACK_DEFAULTS, ...(d.defaults || {}) },
@@ -183,6 +190,7 @@ export default function AttendanceRulesCard() {
       if (draft.selfie_required !== base.selfie_required) body.selfie_required = draft.selfie_required;
       if (draft.form_checkin_required !== base.form_checkin_required) body.form_checkin_required = draft.form_checkin_required;
     }
+    if (payload.transport && draft.track_transport_mode !== base.track_transport_mode) body.track_transport_mode = draft.track_transport_mode;
     if (Object.keys(body).length === 0) return; // nothing changed: nothing to send
     const id = reqId.current;
     setSaving(true);
@@ -317,6 +325,14 @@ export default function AttendanceRulesCard() {
                   onChange={(v) => patch({ form_checkin_required: v })}
                   label="Check-in and check-out on every form"
                   hint="Reps check in before filling a form and check out when they submit; the time spent shows in Work Activities"
+                />
+              )}
+              {payload?.transport && (
+                <SwitchRow
+                  id="att-transport" checked={draft.track_transport_mode} disabled={saving}
+                  onChange={(v) => patch({ track_transport_mode: v })}
+                  label="Ask for mode of transport at check-in"
+                  hint="Reps say how they are travelling (two-wheeler, car, public transport…); it shows in the attendance detail and the Daily Travel Report"
                 />
               )}
             </div>

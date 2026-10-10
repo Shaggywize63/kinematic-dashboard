@@ -3,7 +3,7 @@ import { demoLogin, mockApi, seedSession, SEED_USER } from './utils';
 
 /**
  * Settings → Operational rules → "Attendance & shift rules" (per-client rules: shift window, late grace, weekly
- * offs, offline check-in, selfie required, check-in/out on every form). Backed by GET/PATCH
+ * offs, offline check-in, selfie required, check-in/out on every form, mode of transport at check-in). Backed by GET/PATCH
  * /api/v1/org-settings/attendance-rules.
  *
  * Everything runs against an intercepted API (a tiny stateful fake of that endpoint) and asserts on what the
@@ -11,10 +11,10 @@ import { demoLogin, mockApi, seedSession, SEED_USER } from './utils';
  * saved / failed toasts, the form being inert while saving, and the "Select a client first" guidance.
  */
 
-// What the server resolves for a client that configured nothing: the original five rules plus the two newer ones.
+// What the server resolves for a client that configured nothing: the original five rules plus the newer ones.
 const DEFAULTS = {
   shift_start: '09:30', shift_end: '18:00', grace_minutes: 15, weekly_off: [0], allow_offline_checkin: false,
-  selfie_required: true, form_checkin_required: false,
+  selfie_required: true, form_checkin_required: false, track_transport_mode: false,
 };
 
 const BOUNDS = { grace_minutes: { min: 0, max: 120 } };
@@ -23,7 +23,7 @@ interface Seen { method: string; path: string; body: any }
 interface Fake {
   configured: boolean;
   rules: Partial<typeof DEFAULTS>;
-  /** What `defaults` carries; an old server has no selfie / form check-in rules at all. */
+  /** What `defaults` carries; an old server has no selfie / form check-in / transport-mode rules at all. */
   defaults?: Partial<typeof DEFAULTS>;
   /** Awaited before the PATCH is answered, so a test can look at the page mid-save. */
   patchGate?: Promise<void>;
@@ -75,6 +75,7 @@ const saveBtn = (page: Page) => page.getByRole('button', { name: /Save attendanc
 const offlineSwitch = (page: Page) => page.getByRole('switch', { name: 'Allow offline check-in' });
 const selfieSwitch = (page: Page) => page.getByRole('switch', { name: 'Selfie required for check-in / check-out' });
 const formSwitch = (page: Page) => page.getByRole('switch', { name: 'Check-in and check-out on every form' });
+const transportSwitch = (page: Page) => page.getByRole('switch', { name: 'Ask for mode of transport at check-in' });
 
 test.describe('Attendance & shift rules (Settings)', () => {
   test('a client with no rules sees the defaults and the "not configured yet" state', async ({ page }) => {
@@ -94,6 +95,8 @@ test.describe('Attendance & shift rules (Settings)', () => {
     // Selfie is required unless a client turns it off; form check-in/out is off unless a client turns it on.
     await expect(selfieSwitch(page)).toHaveAttribute('aria-checked', 'true');
     await expect(formSwitch(page)).toHaveAttribute('aria-checked', 'false');
+    // Mode of transport is off unless a client turns it on.
+    await expect(transportSwitch(page)).toHaveAttribute('aria-checked', 'false');
     // Nothing decorative is left in this card: the old unsaved sliders are gone.
     await expect(page.getByText('Auto checkout threshold')).toHaveCount(0);
     await expect(page.getByText('Late grace period')).toHaveCount(0);
@@ -210,6 +213,71 @@ test.describe('Attendance & shift rules (Settings)', () => {
     expect(patches[0].body).toEqual({ selfie_required: false });
   });
 
+  test('toggling only the transport-mode switch sends exactly {"track_transport_mode": true}, and a reload reads it back', async ({ page }) => {
+    const { seen } = await setup(page, { configured: true });
+    await openRules(page);
+    await expect(transportSwitch(page)).toHaveAttribute('aria-checked', 'false');
+    await expect(saveBtn(page)).toBeDisabled();
+
+    await transportSwitch(page).click();
+    await expect(transportSwitch(page)).toHaveAttribute('aria-checked', 'true');
+    await saveBtn(page).click();
+
+    await expect(page.getByText('Attendance rules saved').first()).toBeVisible();
+    const patches = seen.filter((r) => r.method === 'PATCH');
+    expect(patches).toHaveLength(1);
+    expect(patches[0].body).toEqual({ track_transport_mode: true });
+    await expect(saveBtn(page)).toBeDisabled(); // nothing left to save
+
+    await page.reload();
+    await page.getByRole('tab', { name: 'Operational rules' }).click();
+    await expect(transportSwitch(page)).toHaveAttribute('aria-checked', 'true');
+
+    // Turning it off again sends the key with false (the server stores the choice, not "absent").
+    await transportSwitch(page).click();
+    await saveBtn(page).click();
+    await expect(page.getByText('Attendance rules saved').first()).toBeVisible();
+    expect(seen.filter((r) => r.method === 'PATCH')[1].body).toEqual({ track_transport_mode: false });
+  });
+
+  test('turning transport mode on for a client with no rules writes ONLY that rule (no shift window, so no late marking)', async ({ page }) => {
+    const { seen } = await setup(page); // not configured
+    await openRules(page);
+    await transportSwitch(page).click();
+    await saveBtn(page).click();
+    await expect(page.getByText('Attendance rules saved').first()).toBeVisible();
+    const patches = seen.filter((r) => r.method === 'PATCH');
+    expect(patches).toHaveLength(1);
+    expect(patches[0].body).toEqual({ track_transport_mode: true });
+  });
+
+  test('the three flags travel together only when they changed', async ({ page }) => {
+    const { seen } = await setup(page, { configured: true });
+    await openRules(page);
+    await selfieSwitch(page).click();
+    await formSwitch(page).click();
+    await transportSwitch(page).click();
+    await saveBtn(page).click();
+    await expect(page.getByText('Attendance rules saved').first()).toBeVisible();
+    expect(seen.filter((r) => r.method === 'PATCH')[0].body).toEqual({
+      selfie_required: false, form_checkin_required: true, track_transport_mode: true,
+    });
+  });
+
+  test('a server that has the selfie / form rules but not the transport rule shows no transport switch and never sends the key', async ({ page }) => {
+    const { track_transport_mode: _omit, ...NO_TRANSPORT } = DEFAULTS;
+    const { seen } = await setup(page, { configured: true, rules: { ...NO_TRANSPORT }, defaults: NO_TRANSPORT });
+    await openRules(page);
+    await expect(selfieSwitch(page)).toBeVisible();
+    await expect(formSwitch(page)).toBeVisible();
+    await expect(transportSwitch(page)).toHaveCount(0);
+
+    await selfieSwitch(page).click();
+    await saveBtn(page).click();
+    await expect(page.getByText('Attendance rules saved').first()).toBeVisible();
+    expect(seen.filter((r) => r.method === 'PATCH')[0].body).toEqual({ selfie_required: false });
+  });
+
   test('switching a flag back before saving leaves nothing to save', async ({ page }) => {
     const { seen } = await setup(page, { configured: true });
     await openRules(page);
@@ -227,6 +295,7 @@ test.describe('Attendance & shift rules (Settings)', () => {
     await expect(offlineSwitch(page)).toBeVisible();
     await expect(selfieSwitch(page)).toHaveCount(0);
     await expect(formSwitch(page)).toHaveCount(0);
+    await expect(transportSwitch(page)).toHaveCount(0);
 
     await page.getByLabel('Late grace (minutes)').fill('30');
     await saveBtn(page).click();
@@ -249,6 +318,7 @@ test.describe('Attendance & shift rules (Settings)', () => {
     await expect(offlineSwitch(page)).toBeDisabled();
     await expect(selfieSwitch(page)).toBeDisabled();
     await expect(formSwitch(page)).toBeDisabled();
+    await expect(transportSwitch(page)).toBeDisabled();
 
     release();
     await expect(page.getByText('Attendance rules saved').first()).toBeVisible();
@@ -312,6 +382,7 @@ test.describe('Attendance & shift rules (Settings)', () => {
     await expect(page.getByText('Not configured yet — using defaults')).toBeVisible();
     await expect(selfieSwitch(page)).toHaveAttribute('aria-checked', 'true');
     await expect(formSwitch(page)).toHaveAttribute('aria-checked', 'false');
+    await expect(transportSwitch(page)).toHaveAttribute('aria-checked', 'false');
     await expect(saveBtn(page)).toBeDisabled(); // the displayed defaults are not a change
     await selfieSwitch(page).click();
     await saveBtn(page).click();

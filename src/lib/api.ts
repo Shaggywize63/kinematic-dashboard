@@ -301,6 +301,9 @@ export interface AttendanceRules {
   selfie_required?: boolean;
   /** Reps check in before and out after every form they fill (server default false). Absent from an older server. */
   form_checkin_required?: boolean;
+  /** Reps are asked how they are travelling (two-wheeler, car, public transport…) at check-in (server default false).
+   *  Absent from a server that predates the rule — the switch then does not show and is never sent. */
+  track_transport_mode?: boolean;
 }
 export interface AttendanceRulesPayload {
   /** True once the client has saved an `attendance_rules` object at all. */
@@ -353,6 +356,67 @@ export interface AttendanceTravel {
   points_used: number;
   points_excluded: number;
 }
+// ── Daily travel report (GET /attendance/daily-report[/team]) ────────────────
+// One person's day in one answer: shift, mode of transport, travel legs (as /attendance/travel), customer visits,
+// halts (stops away from a customer) and the thinned GPS route. The team call is the same day for everyone.
+/** A customer visit: form check-in .. check-out. lat/lng = the form check-in point (null when the form had none). */
+export interface DailyReportVisit {
+  submission_id: string;
+  label: string;
+  arrival_at: string;
+  departure_at: string;
+  minutes: number;
+  lat: number | null;
+  lng: number | null;
+}
+/** A halt: the person stayed within ~100 m for the minimum halt time away from a customer. lat/lng = centroid. */
+export interface DailyReportHalt {
+  index: number;
+  start_at: string;
+  end_at: string;
+  minutes: number;
+  lat: number;
+  lng: number;
+  /** How many GPS pings the halt is made of. */
+  points: number;
+}
+export interface DailyReportRoutePoint { lat: number; lng: number; at: string }
+export interface DailyReport {
+  date: string;
+  user: { id: string; name: string; employee_id?: string | null; role?: string | null };
+  shift: {
+    /** null = no attendance that day: every list below is empty. */
+    attendance_id: string | null;
+    checkin_at: string | null;
+    checkout_at: string | null;
+    total_hours: number | null;
+    in_progress: boolean;
+  };
+  transport: { mode: string | null; label: string | null };
+  travel: { total_km: number; method: AttendanceTravelMethod; legs: AttendanceTravelLeg[] };
+  visits: DailyReportVisit[];
+  halts: DailyReportHalt[];
+  /** The usable GPS trail, thinned to at most 600 points (`thinned` = points were dropped to get there). */
+  route: { points: DailyReportRoutePoint[]; thinned: boolean };
+  summary: { visits: number; visit_minutes: number; halts: number; halt_minutes: number; total_km: number };
+}
+export interface DailyReportTeamRow {
+  user_id: string;
+  name: string;
+  employee_id?: string | null;
+  checkin_at: string | null;
+  checkout_at: string | null;
+  total_hours: number | null;
+  mode: string | null;
+  label: string | null;
+  total_km: number;
+  visits: number;
+  visit_minutes: number;
+  halts: number;
+  halt_minutes: number;
+}
+export interface DailyReportTeam { date: string; rows: DailyReportTeamRow[] }
+
 export interface AttendanceSummaryRow {
   user_id: string;
   name: string;
@@ -1090,6 +1154,24 @@ class ApiClient {
     if (userId) q.user_id = userId;
     return this.get<{ success: boolean; data: AttendanceTravel }>(
       `/api/v1/attendance/travel${this.sanitizeParams(q)}`, { noCache: true } as RequestInit,
+    );
+  }
+  /**
+   * One person's day for the Daily Travel Report: shift, mode of transport, travel legs, customer visits, halts and the
+   * GPS route. `userId` omitted = the caller's own; someone else's needs manager / admin scope (403). A day with no
+   * attendance answers 200 with empty lists and `shift.attendance_id: null`. noCache: an open shift keeps growing.
+   */
+  getDailyTravelReport(date: string, userId?: string) {
+    const q: Record<string, string> = { date };
+    if (userId) q.user_id = userId;
+    return this.get<{ success: boolean; data: DailyReport }>(
+      `/api/v1/attendance/daily-report${this.sanitizeParams(q)}`, { noCache: true } as RequestInit,
+    );
+  }
+  /** The same day for every person the caller may see (people with no attendance that day are left out). */
+  getDailyTravelReportTeam(date: string) {
+    return this.get<{ success: boolean; data: DailyReportTeam }>(
+      `/api/v1/attendance/daily-report/team${this.sanitizeParams({ date })}`, { noCache: true } as RequestInit,
     );
   }
   /** Per-employee Present / Late / Half-day / Leave / Absent over [from, to] (YYYY-MM-DD, at most 62 days). */

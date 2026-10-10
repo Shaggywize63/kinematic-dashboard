@@ -12,15 +12,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import api, { type AttendanceTravel, type AttendanceTravelLeg, type AttendanceTravelMethod, type AttendanceTravelPoint } from '../../lib/api';
 import { fmtClock } from '../../lib/visitTime';
+import { fmtKm } from '../../lib/travelReport';
 import { Badge, Button, Eyebrow, T } from '../ui';
 
 type State =
   | { phase: 'loading' }
   | { phase: 'error' }
   | { phase: 'ready'; data: AttendanceTravel };
-
-/** "23.4 km" — at most two decimals, no trailing zeros. */
-export const fmtKm = (km: number | null | undefined): string => `${Number((Number(km) || 0).toFixed(2))} km`;
 
 const METHOD_NOTE: Record<AttendanceTravelMethod, string> = {
   gps_trail: 'Measured along the GPS trail',
