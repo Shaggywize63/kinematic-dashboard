@@ -24,7 +24,7 @@ const PRINT_CSS = `
 @page { size: A4 portrait; margin: 12mm; }
 .tr-printonly { display: none; }
 @media print {
-  body * { visibility: hidden !important; }
+  body * { visibility: hidden !important; transition: none !important; }
   .tr-print-root, .tr-print-root * { visibility: visible !important; }
   .tr-print-root {
     position: absolute; left: 0; top: 0; width: 100%; background: #fff; color: #000; padding: 0;

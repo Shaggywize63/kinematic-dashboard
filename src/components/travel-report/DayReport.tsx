@@ -35,11 +35,11 @@ function distanceNote(r: DailyReport): string {
   return [METHOD_NOTE[r.travel.method], legs ? `${legs} ${legs === 1 ? 'leg' : 'legs'}` : ''].filter(Boolean).join(' · ');
 }
 
-function Tile({ id, label, value, sub }: { id: string; label: string; value: string; sub?: string }) {
+function Tile({ id, label, value, sub, small }: { id: string; label: string; value: string; sub?: string; small?: boolean }) {
   return (
     <div data-testid={id} style={{ background: T.raised, borderRadius: 8, padding: '12px 14px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
       <Eyebrow>{label}</Eyebrow>
-      <div data-testid={`${id}-value`} style={{ fontFamily: T.mono, fontSize: 17, fontWeight: 600, color: T.text, fontVariantNumeric: 'tabular-nums', overflowWrap: 'anywhere' }}>{value}</div>
+      <div data-testid={`${id}-value`} style={{ fontFamily: T.mono, fontSize: small ? 14 : 17, fontWeight: 600, color: T.text, fontVariantNumeric: 'tabular-nums', overflowWrap: 'anywhere' }}>{value}</div>
       {sub && <div style={{ fontSize: 12, color: T.mute }}>{sub}</div>}
     </div>
   );
@@ -201,7 +201,7 @@ export default function DayReport({ date, userId, onDateChange, onBack, clientId
 
       {report && hasShift && (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
             <Tile id="tile-km" label="Total distance" value={fmtKm(report.summary.total_km)} sub={distanceNote(report)} />
             <Tile
               id="tile-mode" label="Mode of transport"
@@ -211,7 +211,7 @@ export default function DayReport({ date, userId, onDateChange, onBack, clientId
             <Tile id="tile-visits" label="Customer visits" value={String(report.summary.visits)} sub={report.summary.visits ? `${fmtMinutes(report.summary.visit_minutes)} at customers` : 'None recorded'} />
             <Tile id="tile-halts" label="Halts" value={String(report.summary.halts)} sub={report.summary.halts ? `${fmtMinutes(report.summary.halt_minutes)} halted` : 'None recorded'} />
             <Tile
-              id="tile-shift" label="Shift"
+              id="tile-shift" label="Shift" small
               value={`${fmtClock(report.shift.checkin_at)} – ${report.shift.checkout_at ? fmtClock(report.shift.checkout_at) : 'now'}`}
               sub={report.shift.in_progress ? 'In progress' : fmtHours(report.shift.total_hours)}
             />

@@ -14,7 +14,8 @@ import type { LatLng } from '../../lib/travelReport';
 export default function PlaceText({ at, eager, label }: { at: LatLng | null; eager: boolean; label?: string }) {
   const [ref, seen] = useSeen<HTMLSpanElement>();
   const { place } = usePlaceName(at?.lat, at?.lng, seen || eager);
-  if (!at) return <span style={{ color: T.mute }}>—</span>;
+  // Keep the ref'd element even with no point, so the row is still observed if a refresh later gives it one.
+  if (!at) return <span ref={ref} style={{ color: T.mute }}>—</span>;
   // When `eager` flips on, read the cache in the same render instead of waiting for the hook's effect to land.
   const name = place ?? (eager ? peekPlaceName(at.lat, at.lng) : null);
   return (

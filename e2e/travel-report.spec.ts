@@ -343,8 +343,10 @@ test.describe('Daily Travel Report — Employee day', () => {
     })();` });
     await openDay(page);
 
-    // All eight rows and their coordinates are on screen while no name has arrived.
+    // All eight rows and their coordinates are on screen while no name has arrived. (A row only looks its name
+    // up once it has been scrolled into view, so bring the visit row up first.)
     await expect(rows(page)).toHaveCount(8);
+    await rows(page).nth(2).scrollIntoViewIfNeeded();
     await expect(rows(page).nth(2).getByTestId('place')).toContainText('13.0500, 80.2000');
     await expect(page.getByText(NAME)).toHaveCount(0);
 
