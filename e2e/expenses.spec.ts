@@ -357,6 +357,11 @@ test.describe('Expenses — claim distance from GPS', () => {
     // 23.4 km x ₹4 / km, priced from the policy's only vehicle (nobody has to pick it).
     await expect(page.getByText(/₹93\.60/).first()).toBeVisible();
 
+    // The live policy check is sent the same GPS line (so it is judged the way it will be saved).
+    await expect.poll(() => seen.requests.filter((r) => r.path === '/claims/check').pop()?.body).toMatchObject({
+      items: [{ category: 'mileage', vehicle_type: 'two_wheeler', distance_km: 23.4 }],
+    });
+
     await page.getByRole('button', { name: 'Save as draft' }).click();
     await expect.poll(() => seen.requests.find((r) => r.method === 'POST' && r.path === '/claims')?.body).toMatchObject({
       items: [{
@@ -364,9 +369,6 @@ test.describe('Expenses — claim distance from GPS', () => {
         odometer_start: null, odometer_end: null, odometer_start_photo_url: null, odometer_end_photo_url: null,
       }],
     });
-    // The live policy check was sent the same GPS line (so it is judged the way it will be saved).
-    const check = seen.requests.filter((r) => r.path === '/claims/check').pop();
-    expect(check?.body).toMatchObject({ items: [{ category: 'mileage', vehicle_type: 'two_wheeler', distance_km: 23.4 }] });
   });
 
   test('no GPS travel that day: it says so and leaves the distance empty', async ({ page }) => {

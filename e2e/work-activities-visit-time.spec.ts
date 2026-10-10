@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { readFileSync } from 'fs';
-import { mockApi, seedSession, SEED_USER } from './utils';
+import { demoLogin, mockApi, seedSession, SEED_USER } from './utils';
 import {
   csvStamp, earliestCheckIn, fmtClock, fmtMinutes, gpsText, latestCheckOut, stampMs, sumMinutes, visitMinutes,
 } from '../src/lib/visitTime';
@@ -263,6 +263,17 @@ test.describe('Work Activities — time spent per form', () => {
     const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: /Download Report/ }).click()]);
     await download.path();
     await expect(page.getByText('Exported the first 5 of 250 records').first()).toBeVisible();
+  });
+});
+
+test.describe('Work Activities — demo mode', () => {
+  test('the canned visits show the time spent between their check-in and check-out (no network)', async ({ page }) => {
+    await demoLogin(page);
+    await page.goto('/dashboard/work-activities');
+    await expect(page.getByTestId('wa-group-spent').first()).toBeVisible({ timeout: 60_000 });
+    // Five canned visits, grouped by activity (Compliance, Inventory, Merchandising, Store Visit x2): out − in for each.
+    await expect(page.getByTestId('wa-group-spent')).toHaveText(['45m', '40m', '48m', '38m', '36m']);
+    await expect(page.getByTestId('wa-group-in').first()).not.toHaveText('—');
   });
 });
 
