@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { mockApi, seedSession, SEED_USER } from './utils';
+import { demoLogin, mockApi, seedSession, SEED_USER } from './utils';
 
 /**
  * Settings → Operational rules → "Attendance & shift rules" (per-client rules: shift window, late grace, weekly
@@ -195,5 +195,16 @@ test.describe('Attendance & shift rules (Settings)', () => {
     fake.getFail = undefined;
     await page.getByRole('button', { name: 'Retry' }).click();
     await expect(page.getByLabel('Shift start')).toHaveValue('09:30');
+  });
+
+  test('demo mode renders the card from its canned data (no network, no sign-out)', async ({ page }) => {
+    await demoLogin(page);
+    await page.goto('/dashboard/settings');
+    await page.getByRole('tab', { name: 'Operational rules' }).click();
+    await expect(page.getByLabel('Shift start')).toHaveValue('09:30');
+    await expect(page.getByText('Not configured yet — using defaults')).toBeVisible();
+    await saveBtn(page).click();
+    await expect(page.getByText('Attendance rules saved').first()).toBeVisible();
+    await expect(page).toHaveURL(/\/dashboard\/settings/);
   });
 });

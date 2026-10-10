@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { readFileSync } from 'fs';
-import { mockApi, seedSession, SEED_USER } from './utils';
+import { demoLogin, mockApi, seedSession, SEED_USER } from './utils';
 
 /**
  * Attendance overview: (1) lateness now comes from the API when the client has configured shift rules —
@@ -165,10 +165,12 @@ test.describe('Attendance — monthly summary', () => {
 
     await expect(page.getByTestId('summary-row')).toHaveCount(3);
     const req = seen.filter((r) => r.path === '/api/v1/attendance/summary');
-    expect(req).toHaveLength(1);
-    expect(req[0].query.get('from')).toBe(`${THIS_MONTH}-01`);
+    expect(req.length).toBeGreaterThanOrEqual(1); // (dev-mode StrictMode may double-fire the mount effect)
     const monthEnd = lastDay(THIS_MONTH);
-    expect(req[0].query.get('to')).toBe(monthEnd > TODAY ? TODAY : monthEnd); // never past today
+    for (const r of req) {
+      expect(r.query.get('from')).toBe(`${THIS_MONTH}-01`);
+      expect(r.query.get('to')).toBe(monthEnd > TODAY ? TODAY : monthEnd); // never past today
+    }
 
     for (const h of ['Employee', 'Working days', 'Present', 'Late', 'Half day', 'Leave', 'Absent']) {
       await expect(header(page, h)).toBeVisible();
@@ -270,5 +272,14 @@ test.describe('Attendance — monthly summary', () => {
     await page.getByRole('tab', { name: 'Daily records' }).click();
     await expect(page.getByText('Late 12 min')).toBeVisible();
     await expect(page.getByTestId('summary-row')).toHaveCount(0);
+  });
+
+  test('demo mode shows a populated summary table', async ({ page }) => {
+    await demoLogin(page);
+    await page.goto('/dashboard/attendance-overview');
+    await page.getByRole('tab', { name: 'Monthly summary' }).click();
+    await expect(page.getByTestId('summary-row').first()).toBeVisible();
+    await expect(page.getByTestId('summary-total')).toHaveCount(1);
+    await expect(page.getByRole('button', { name: 'Export CSV' })).toBeEnabled();
   });
 });
