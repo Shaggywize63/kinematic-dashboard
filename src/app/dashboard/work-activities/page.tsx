@@ -3,6 +3,8 @@ import { useState, useEffect, useCallback, useMemo, Fragment } from 'react';
 import api from '../../../lib/api';
 import { useClient } from '../../../context/ClientContext';
 import { extractImageUrls } from '../../../lib/utils';
+import { toast } from 'sonner';
+import { csvStamp, earliestCheckIn, fmtClock, fmtMinutes, fmtStamp, gpsText, latestCheckOut, sumMinutes, visitMinutes } from '../../../lib/visitTime';
 import SignedImage, { openSignedUrl, resolveSignedUrl } from '../../../components/shared/SignedImage';
 import dynamic from 'next/dynamic';
 
@@ -84,13 +86,18 @@ interface FormActivity {
   users?: { name: string; employee_id?: string; city_id?: string };
   activities?: { name: string };
   builder_forms?: { id: string; title: string };
-  check_in_at?: string;
-  check_out_at?: string;
-  check_in_gps?: string;
-  check_out_gps?: string;
+  // Real check-in / check-out of this form (null when the rep did not record one) and the stored time spent.
+  check_in_at?: string | null;
+  check_out_at?: string | null;
+  check_in_gps?: string | null;
+  check_out_gps?: string | null;
+  duration_minutes?: number | null;
   address?: string;
   latitude?: number;
   longitude?: number;
+  // Builder-form submissions carry the position under these names instead.
+  location_lat?: number;
+  location_lng?: number;
   answers?: FormAnswer[];
   form_responses?: any[];
 }
@@ -162,17 +169,6 @@ function dateToInclusive(iso: string): string {
   if (isNaN(d.getTime())) return iso;
   d.setDate(d.getDate() + 1);
   return d.toISOString().slice(0, 10);
-}
-
-function calcDuration(start?: string, end?: string) {
-  if (!start || !end) return null;
-  const s = new Date(start).getTime();
-  const e = new Date(end).getTime();
-  const diff = e - s;
-  if (diff <= 0) return '0m';
-  const mins = Math.floor(diff / 60000);
-  const hrs = Math.floor(mins / 60);
-  return hrs > 0 ? `${hrs}h ${mins % 60}m` : `${mins}m`;
 }
 
 /* ── Activity View Wrap ───────────────────────────────────────── */
@@ -290,7 +286,9 @@ export default function WorkActivitiesPage() {
         const res: any = await api.getAdminSubmissions(params);
         const fullData = res?.data?.data || res?.data || [];
         
-        const headers = ['Date', 'Client', 'Executive', 'Employee ID', 'Outlet', 'Activity', 'Address', 'Check In GPS', 'Check Out GPS', 'Check In Time', 'Check Out Time', 'Responses'];
+        // Check-in / Check-out are the REAL stamps of each form (date + time), blank when the rep recorded none —
+        // never the submission time. Time spent is whole minutes.
+        const headers = ['Date', 'Client', 'Executive', 'Employee ID', 'Outlet', 'Activity', 'Address', 'Check In GPS', 'Check Out GPS', 'Check-in', 'Check-out', 'Time spent (min)', 'Responses'];
         
         const csvRows = fullData.map((f: any) => {
             const responsesStr = (f.form_responses || []).map((r: any) => 
@@ -305,10 +303,11 @@ export default function WorkActivitiesPage() {
                 f.outlet_name || '-',
                 f.activities?.name || 'Form',
                 f.address || '-',
-                f.check_in_gps || (f.latitude + ',' + f.longitude) || '-',
-                f.check_out_gps || '-',
-                fmtTime(f.check_in_at || f.submitted_at),
-                fmtTime(f.check_out_at || f.submitted_at),
+                gpsText(f.check_in_gps, f.latitude ?? f.location_lat, f.longitude ?? f.location_lng) || '-',
+                gpsText(f.check_out_gps) || '-',
+                csvStamp(f.check_in_at),
+                csvStamp(f.check_out_at),
+                visitMinutes(f) ?? '',
                 responsesStr
             ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(',');
         });
@@ -320,6 +319,12 @@ export default function WorkActivitiesPage() {
         a.href = url;
         a.download = `Kinematic_WorkActivities_${dateFrom}_to_${dateTo}.csv`;
         a.click();
+
+        // The server caps one response, so a big window is exported in part: say so instead of looking complete.
+        const matching = Number(res?.data?.pagination?.total) || 0;
+        if (matching > fullData.length) {
+          toast.message(`Exported the first ${fullData.length} of ${matching} records`, { description: 'Narrow the date range or filters to export the rest.' });
+        }
     } catch (err) {
         console.error('Report Error:', err);
     } finally {
@@ -460,18 +465,12 @@ export default function WorkActivitiesPage() {
              </div>
         ) : groupedData.map((group, idx) => {
             const first = group[0];
-            const last = group[group.length - 1];
-            
-            // Calculate the earliest possible start and latest possible end for the visit
-            const allStarts = group.flatMap(f => [f.check_in_at, f.submitted_at]).filter(Boolean).map(t => new Date(t!).getTime());
-            const allEnds = group.flatMap(f => [f.check_out_at, f.submitted_at]).filter(Boolean).map(t => new Date(t!).getTime());
-            
-            const startLimit = allStarts.length ? new Date(Math.min(...allStarts)).toISOString() : first.submitted_at;
-            const endLimit = allEnds.length ? new Date(Math.max(...allEnds)).toISOString() : (last.check_out_at || last.submitted_at);
-            
-            const checkIn = startLimit;
-            const checkOut = endLimit;
-            const duration = calcDuration(checkIn, checkOut);
+
+            // Only the forms' REAL check-in / check-out count here — never the submission time. The visit's time
+            // is the SUM of the time spent on each form; a form with no check-in/out adds nothing (and "—" when none has).
+            const checkIn = earliestCheckIn(group);
+            const checkOut = latestCheckOut(group);
+            const spent = sumMinutes(group);
             const isExpanded = expandedOutlet === `${idx}`;
 
             // Activity bifurcation heading — shown whenever the activity changes
@@ -510,18 +509,21 @@ export default function WorkActivitiesPage() {
                         </div>
 
                         <div style={{ textAlign: 'right', minWidth: '140px' }}>
-                            <div style={{ fontSize: '10px', fontWeight: 800, color: C.accent, marginBottom: '4px' }}>VISIT DURATION</div>
-                            <div style={{ fontSize: '16px', fontWeight: 900, color: C.green }}>{duration || 'Processing'}</div>
+                            <div style={{ fontSize: '10px', fontWeight: 800, color: C.accent, marginBottom: '4px' }}>TIME SPENT</div>
+                            <div data-testid="wa-group-spent" style={{ fontSize: '16px', fontWeight: 900, color: spent.total == null ? C.textSec : C.green }}>{fmtMinutes(spent.total)}</div>
+                            {spent.total != null && spent.counted < group.length && (
+                              <div style={{ fontSize: '10px', color: C.textSec, marginTop: '2px' }}>{spent.counted} of {group.length} forms</div>
+                            )}
                         </div>
 
                         <div style={{ display: 'flex', gap: '16px', textAlign: 'right', borderLeft: `1px solid ${C.border}`, paddingLeft: '32px' }}>
                             <div>
                                 <div style={{ fontSize: '9px', color: C.textSec }}>CHECK IN</div>
-                                <div style={{ fontWeight: 700 }}>{fmtTime(checkIn)}</div>
+                                <div data-testid="wa-group-in" style={{ fontWeight: 700 }}>{fmtClock(checkIn)}</div>
                             </div>
                             <div>
                                 <div style={{ fontSize: '9px', color: C.textSec }}>LAST OUT</div>
-                                <div style={{ fontWeight: 700 }}>{fmtTime(checkOut)}</div>
+                                <div data-testid="wa-group-out" style={{ fontWeight: 700 }}>{fmtClock(checkOut)}</div>
                             </div>
                         </div>
 
@@ -538,12 +540,24 @@ export default function WorkActivitiesPage() {
                              <div style={{ display: 'grid', gap: '16px' }}>
                                 {group.map((f, fIdx) => (
                                     <div key={f.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', background: C.card, borderRadius: '12px', border: `1px solid ${C.border}` }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                                            <div style={{ width: '8px', height: '8px', background: C.accent, borderRadius: '50%' }} />
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: 1, minWidth: 0 }}>
+                                            <div style={{ width: '8px', height: '8px', background: C.accent, borderRadius: '50%', flexShrink: 0 }} />
                                             <div>
                                                 <div style={{ fontWeight: 700, fontSize: '14px' }}>{f.builder_forms?.title || f.activities?.name || 'Form Submission'}</div>
                                                 <div style={{ fontSize: '11px', color: C.textSec }}>Captured at {fmtTime(f.submitted_at)}</div>
                                             </div>
+                                        </div>
+                                        <div data-testid="wa-form-times" style={{ display: 'flex', gap: '24px', textAlign: 'right', marginRight: '24px' }}>
+                                            {([
+                                                ['CHECK IN', fmtClock(f.check_in_at), 'in'],
+                                                ['CHECK OUT', fmtClock(f.check_out_at), 'out'],
+                                                ['TIME SPENT', fmtMinutes(visitMinutes(f)), 'spent'],
+                                            ] as const).map(([label, value, key]) => (
+                                                <div key={key}>
+                                                    <div style={{ fontSize: '9px', color: C.textSec }}>{label}</div>
+                                                    <div data-testid={`wa-form-${key}`} style={{ fontWeight: 700, fontSize: '13px', color: value === '—' ? C.textSec : C.text }}>{value}</div>
+                                                </div>
+                                            ))}
                                         </div>
                                         <button
                                             onClick={async (e) => {
@@ -616,12 +630,24 @@ export default function WorkActivitiesPage() {
                           <div style={{ fontWeight: 700, fontSize: '12px' }}>{detailedSub.address || 'GPS Only'}</div>
                       </div>
                       <div style={{ padding: '16px', background: C.bg, borderRadius: '12px' }}>
+                          <div style={{ fontSize: '10px', color: C.accent, fontWeight: 800 }}>CHECK-IN</div>
+                          <div data-testid="wa-modal-in" style={{ fontWeight: 700 }}>{fmtStamp(detailedSub.check_in_at)}</div>
+                      </div>
+                      <div style={{ padding: '16px', background: C.bg, borderRadius: '12px' }}>
+                          <div style={{ fontSize: '10px', color: C.accent, fontWeight: 800 }}>CHECK-OUT</div>
+                          <div data-testid="wa-modal-out" style={{ fontWeight: 700 }}>{fmtStamp(detailedSub.check_out_at)}</div>
+                      </div>
+                      <div style={{ padding: '16px', background: C.bg, borderRadius: '12px' }}>
+                          <div style={{ fontSize: '10px', color: C.accent, fontWeight: 800 }}>TIME SPENT</div>
+                          <div data-testid="wa-modal-spent" style={{ fontWeight: 700 }}>{fmtMinutes(visitMinutes(detailedSub))}</div>
+                      </div>
+                      <div style={{ padding: '16px', background: C.bg, borderRadius: '12px' }}>
                           <div style={{ fontSize: '10px', color: C.accent, fontWeight: 800 }}>CHECK-IN GPS</div>
-                          <div style={{ fontWeight: 700, fontSize: '11px' }}>{detailedSub.check_in_gps || detailedSub.latitude + ',' + detailedSub.longitude || '—'}</div>
+                          <div style={{ fontWeight: 700, fontSize: '11px' }}>{gpsText(detailedSub.check_in_gps, detailedSub.latitude ?? detailedSub.location_lat, detailedSub.longitude ?? detailedSub.location_lng) || '—'}</div>
                       </div>
                       <div style={{ padding: '16px', background: C.bg, borderRadius: '12px' }}>
                           <div style={{ fontSize: '10px', color: C.accent, fontWeight: 800 }}>CHECK-OUT GPS</div>
-                          <div style={{ fontWeight: 700, fontSize: '11px' }}>{detailedSub.check_out_gps || 'Same as entry'}</div>
+                          <div style={{ fontWeight: 700, fontSize: '11px' }}>{gpsText(detailedSub.check_out_gps) || '—'}</div>
                       </div>
                   </div>
 

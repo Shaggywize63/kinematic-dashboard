@@ -185,6 +185,7 @@ export default function ApprovalsPage() {
         <RemarkDialog title={rejecting.length === 1 ? 'Reject this claim' : `Reject ${rejecting.length} claims`} confirmLabel="Reject" busy={busy} label="Reason for rejecting"
           placeholder="Say what is wrong and what to fix, e.g. “Receipt missing for the hotel bill.”"
           intro={rejecting.length === 1 ? 'The claimant sees this remark in their app and can fix the claim and resubmit it.' : 'The same remark goes to every claimant. To explain each one separately, open the claims individually.'}
+          footnote={rejecting.length === 1 ? 'The claimant is notified with this reason and can edit and resubmit.' : 'Each claimant is notified with this reason and can edit and resubmit.'}
           onCancel={() => setRejecting(null)} onConfirm={(remark) => reject(rejecting, remark)} />
       )}
 

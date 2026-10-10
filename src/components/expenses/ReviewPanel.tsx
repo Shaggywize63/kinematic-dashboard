@@ -113,6 +113,7 @@ export default function ReviewPanel({ claim, rules, onDone }: { claim: ExpenseCl
         <RemarkDialog title="Reject this claim" confirmLabel="Reject claim" busy={busy} label="Reason for rejecting"
           placeholder="Tell them what is wrong and what to fix, e.g. “Receipt is unreadable — please upload a clearer photo.”"
           intro={<>{claim.user_name || 'The claimant'} will see this remark in the app and can fix the claim and resubmit it.</>}
+          footnote="The claimant is notified with this reason and can edit and resubmit."
           onCancel={() => setRejecting(false)} onConfirm={(remark) => send('rejected', remark)} />
       )}
     </Panel>

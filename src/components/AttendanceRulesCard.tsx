@@ -2,8 +2,8 @@
 /**
  * Settings → Operational rules → "Attendance & shift rules".
  *
- * Per-client rules (shift window, late grace, weekly offs, offline check-in) stored by the backend at
- * clients.settings.attendance_rules. Self-contained: loads GET /org-settings/attendance-rules, saves with PATCH,
+ * Per-client rules (shift window, late grace, weekly offs, offline check-in, selfie, form check-in/out) stored by
+ * the backend at clients.settings.attendance_rules. Self-contained: loads GET /org-settings/attendance-rules, saves with PATCH,
  * and reloads whenever the global client picker changes (the rules belong to one client, so an org-wide view
  * has nothing to show and the API answers 400 "Select a client first").
  *
@@ -26,13 +26,21 @@ const DAYS = [
 ];
 
 // Used only if the server omits `defaults` / `bounds` (it should not): the contract's resolved defaults.
-const FALLBACK_DEFAULTS: AttendanceRules = { shift_start: '09:30', shift_end: '18:00', grace_minutes: 15, weekly_off: [0], allow_offline_checkin: false };
+const FALLBACK_DEFAULTS: AttendanceRules = {
+  shift_start: '09:30', shift_end: '18:00', grace_minutes: 15, weekly_off: [0], allow_offline_checkin: false,
+  selfie_required: true, form_checkin_required: false,
+};
 const FALLBACK_BOUNDS = { min: 0, max: 120 };
 
 type Phase = 'loading' | 'ready' | 'needs-client' | 'error';
 
 /** What the form edits. Grace is text so a half-typed number is not forced back into range mid-keystroke. */
-interface Draft { shift_start: string; shift_end: string; grace: string; weekly_off: number[]; allow_offline_checkin: boolean }
+interface Draft {
+  shift_start: string; shift_end: string; grace: string; weekly_off: number[];
+  allow_offline_checkin: boolean; selfie_required: boolean; form_checkin_required: boolean;
+}
+/** What the card holds after a load / save. `flags` = the server knows the selfie / form check-in rules (see readPayload). */
+type Loaded = AttendanceRulesPayload & { flags: boolean };
 
 const sortedDays = (d: number[]) => [...d].sort((a, b) => a - b);
 const toDraft = (r: AttendanceRules): Draft => ({
@@ -41,18 +49,25 @@ const toDraft = (r: AttendanceRules): Draft => ({
   grace: String(r.grace_minutes ?? ''),
   weekly_off: sortedDays(Array.isArray(r.weekly_off) ? r.weekly_off : []),
   allow_offline_checkin: !!r.allow_offline_checkin,
+  // A selfie is required unless the client turned it off; an unknown value reads as required.
+  selfie_required: r.selfie_required !== false,
+  form_checkin_required: r.form_checkin_required === true,
 });
 const sameDraft = (a: Draft, b: Draft) =>
   a.shift_start === b.shift_start && a.shift_end === b.shift_end && a.grace.trim() === b.grace.trim()
   && a.allow_offline_checkin === b.allow_offline_checkin
+  && a.selfie_required === b.selfie_required && a.form_checkin_required === b.form_checkin_required
   && sortedDays(a.weekly_off).join(',') === sortedDays(b.weekly_off).join(',');
 
 /** Accepts `{success, data:{…}}` (what the API sends) or the bare payload. */
-function readPayload(res: any): AttendanceRulesPayload | null {
+function readPayload(res: any): Loaded | null {
   const d = res?.data && typeof res.data === 'object' && 'rules' in res.data ? res.data : res;
   if (!d || typeof d !== 'object' || !d.rules || typeof d.rules !== 'object') return null;
   const grace = d.bounds?.grace_minutes;
   return {
+    // A server that predates the selfie / form check-in rules does not send them — and rejects a PATCH that
+    // names a key it does not know. So the two switches only appear (and are only sent) when the server sent them.
+    flags: typeof d.rules.selfie_required === 'boolean' || typeof d.rules.form_checkin_required === 'boolean',
     configured: !!d.configured,
     rules: { ...FALLBACK_DEFAULTS, ...d.rules },
     defaults: { ...FALLBACK_DEFAULTS, ...(d.defaults || {}) },
@@ -69,11 +84,39 @@ const isNoClient = (e: unknown, anyBadRequest: boolean) => {
 
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
+/** A labelled on/off switch (role="switch"); the label and hint are what assistive tech announces. */
+function SwitchRow({ id, checked, disabled, onChange, label, hint }: {
+  id: string; checked: boolean; disabled?: boolean; onChange: (v: boolean) => void; label: string; hint: string;
+}) {
+  return (
+    <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+      <button
+        type="button" role="switch" aria-checked={checked}
+        aria-labelledby={`${id}-label`} aria-describedby={`${id}-hint`}
+        onClick={() => onChange(!checked)}
+        style={{
+          flexShrink: 0, width: 38, height: 22, marginTop: 1, padding: 2, borderRadius: 999, boxSizing: 'border-box',
+          border: `1px solid ${checked ? T.info : T.borderStrong}`,
+          background: checked ? T.info : T.card,
+          cursor: disabled ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center',
+          justifyContent: checked ? 'flex-end' : 'flex-start', transition: 'background .12s ease',
+        }}
+      >
+        <span style={{ width: 16, height: 16, borderRadius: 999, background: checked ? '#FFFFFF' : T.mute }} />
+      </button>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <div id={`${id}-label`} style={{ fontSize: 13.5, fontWeight: 500, color: T.text }}>{label}</div>
+        <div id={`${id}-hint`} style={{ fontSize: 12, color: T.mute }}>{hint}</div>
+      </div>
+    </div>
+  );
+}
+
 export default function AttendanceRulesCard() {
   const { selectedClientId } = useClient();
   const [phase, setPhase] = useState<Phase>('loading');
   const [loadError, setLoadError] = useState('');
-  const [payload, setPayload] = useState<AttendanceRulesPayload | null>(null);
+  const [payload, setPayload] = useState<Loaded | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
@@ -116,22 +159,31 @@ export default function AttendanceRulesCard() {
   const valid = !!draft && !graceError && !startError && !endError;
   const dirty = !!draft && !!payload && !sameDraft(draft, toDraft(payload.rules));
   const configured = !!payload?.configured;
-  // An unconfigured client may save the defaults as they are — that is what switches rule-based late marking on.
-  const canSave = valid && (dirty || !configured) && !saving;
+  // Only a change can be saved: the form shows the defaults for a client that stored nothing, and showing a default
+  // is not choosing it (saving it would write the shift keys, which is what switches rule-based late marking on).
+  const canSave = valid && dirty && !saving;
 
   const patch = (p: Partial<Draft>) => setDraft((d) => (d ? { ...d, ...p } : d));
   const toggleDay = (n: number) =>
     setDraft((d) => (d ? { ...d, weekly_off: d.weekly_off.includes(n) ? d.weekly_off.filter((x) => x !== n) : sortedDays([...d.weekly_off, n]) } : d));
 
   const save = async () => {
-    if (!draft || !canSave) return;
-    const body: AttendanceRules = {
-      shift_start: draft.shift_start,
-      shift_end: draft.shift_end,
-      grace_minutes: graceNum,
-      weekly_off: sortedDays(draft.weekly_off),
-      allow_offline_checkin: draft.allow_offline_checkin,
-    };
+    if (!draft || !payload || !canSave) return;
+    // Send ONLY what the admin changed, compared with the rules the server resolved. Writing a shift key is what
+    // turns on rule-based late marking for a client, so switching e.g. the selfie rule must not also write a shift
+    // window nobody chose — and a default the form merely displays is not a change.
+    const base = toDraft(payload.rules);
+    const body: Partial<AttendanceRules> = {};
+    if (draft.shift_start !== base.shift_start) body.shift_start = draft.shift_start;
+    if (draft.shift_end !== base.shift_end) body.shift_end = draft.shift_end;
+    if (draft.grace.trim() !== base.grace.trim()) body.grace_minutes = graceNum;
+    if (sortedDays(draft.weekly_off).join(',') !== sortedDays(base.weekly_off).join(',')) body.weekly_off = sortedDays(draft.weekly_off);
+    if (draft.allow_offline_checkin !== base.allow_offline_checkin) body.allow_offline_checkin = draft.allow_offline_checkin;
+    if (payload.flags) {
+      if (draft.selfie_required !== base.selfie_required) body.selfie_required = draft.selfie_required;
+      if (draft.form_checkin_required !== base.form_checkin_required) body.form_checkin_required = draft.form_checkin_required;
+    }
+    if (Object.keys(body).length === 0) return; // nothing changed: nothing to send
     const id = reqId.current;
     setSaving(true);
     setSaveError('');
@@ -140,7 +192,7 @@ export default function AttendanceRulesCard() {
       toast.success('Attendance rules saved');
       if (id !== reqId.current) return; // the client changed while saving: this answer is for the old one
       const p = readPayload(res);
-      const next: AttendanceRulesPayload = p ?? { ...(payload as AttendanceRulesPayload), configured: true, rules: body };
+      const next: Loaded = p ?? { ...payload, configured: true, rules: { ...payload.rules, ...body } };
       setPayload(next);
       setDraft(toDraft(next.rules));
     } catch (e) {
@@ -169,7 +221,7 @@ export default function AttendanceRulesCard() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <Eyebrow>Attendance & shift rules</Eyebrow>
-          <div style={{ fontSize: 13, color: T.dim }}>Shift window, late grace and weekly offs for the selected client.</div>
+          <div style={{ fontSize: 13, color: T.dim }}>Shift window, late grace, weekly offs and check-in options for the selected client.</div>
         </div>
         {phase === 'ready' && (
           <Badge tone={configured ? 'ok' : 'neutral'} dot>{configured ? 'Configured' : 'Using defaults'}</Badge>
@@ -201,7 +253,7 @@ export default function AttendanceRulesCard() {
             {!configured && (
               <div role="status" style={{ background: T.infoWash, borderRadius: 8, padding: '10px 12px', fontSize: 12.5, color: T.dim, lineHeight: 1.5 }}>
                 <span style={{ color: T.text, fontWeight: 600 }}>Not configured yet — using defaults</span> ({defaultsText}).
-                Saving these rules turns on rule-based late marking for this client.
+                Changing and saving the shift window, grace or weekly offs turns on rule-based late marking for this client. The check-in options below can be saved on their own, without it.
               </div>
             )}
 
@@ -245,25 +297,28 @@ export default function AttendanceRulesCard() {
               <div style={{ fontSize: 12, color: T.mute }}>These days are not counted as working days in the monthly attendance summary.</div>
             </div>
 
-            <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-              <button
-                type="button" role="switch" aria-checked={draft.allow_offline_checkin}
-                aria-labelledby="att-offline-label" aria-describedby="att-offline-hint"
-                onClick={() => patch({ allow_offline_checkin: !draft.allow_offline_checkin })}
-                style={{
-                  flexShrink: 0, width: 38, height: 22, marginTop: 1, padding: 2, borderRadius: 999, boxSizing: 'border-box',
-                  border: `1px solid ${draft.allow_offline_checkin ? T.info : T.borderStrong}`,
-                  background: draft.allow_offline_checkin ? T.info : T.card,
-                  cursor: saving ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center',
-                  justifyContent: draft.allow_offline_checkin ? 'flex-end' : 'flex-start', transition: 'background .12s ease',
-                }}
-              >
-                <span style={{ width: 16, height: 16, borderRadius: 999, background: draft.allow_offline_checkin ? '#FFFFFF' : T.mute }} />
-              </button>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <div id="att-offline-label" style={{ fontSize: 13.5, fontWeight: 500, color: T.text }}>Allow offline check-in</div>
-                <div id="att-offline-hint" style={{ fontSize: 12, color: T.mute }}>Reps can check in without network; the time of the tap is used</div>
-              </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <SwitchRow
+                id="att-offline" checked={draft.allow_offline_checkin} disabled={saving}
+                onChange={(v) => patch({ allow_offline_checkin: v })}
+                label="Allow offline check-in" hint="Reps can check in without network; the time of the tap is used"
+              />
+              {payload?.flags && (
+                <SwitchRow
+                  id="att-selfie" checked={draft.selfie_required} disabled={saving}
+                  onChange={(v) => patch({ selfie_required: v })}
+                  label="Selfie required for check-in / check-out"
+                  hint="Off = reps check in and out with one tap and their GPS location, no camera"
+                />
+              )}
+              {payload?.flags && (
+                <SwitchRow
+                  id="att-form-checkin" checked={draft.form_checkin_required} disabled={saving}
+                  onChange={(v) => patch({ form_checkin_required: v })}
+                  label="Check-in and check-out on every form"
+                  hint="Reps check in before filling a form and check out when they submit; the time spent shows in Work Activities"
+                />
+              )}
             </div>
 
             {saveError && (

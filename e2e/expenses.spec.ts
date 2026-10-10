@@ -290,3 +290,237 @@ test.describe('Expenses — policies', () => {
     expect(seen.requests.some((r) => r.method === 'POST' && r.path === '/policies')).toBe(false);
   });
 });
+
+// ── GPS distance (policy rule `gps_distance`) + rejection hint ────────────────
+// With vehicle rates and `gps_distance: true`, a mileage line is the day's GPS-measured distance: no odometer
+// readings or photos, a "Fill from my GPS route for this date" button, the amount worked out from the vehicle's
+// rate. Policies without the rule are untouched.
+
+const VEHICLE_RULES = { ...rules, vehicle_rates: [{ id: 'two_wheeler', label: 'Two-wheeler', rate_per_km: 4 }], odometer_photos_required: true };
+const GPS_POLICY = { ...MY_POLICY, rules: { ...VEHICLE_RULES, gps_distance: true } };
+const ODO_POLICY = { ...MY_POLICY, rules: VEHICLE_RULES };
+
+const TRAVEL_23 = {
+  date: '2026-10-10', user_id: SEED_USER.id, attendance_id: 'att-1', started_at: '2026-10-10T03:42:00Z', ended_at: '2026-10-10T12:35:00Z', in_progress: false,
+  total_km: 23.4, method: 'gps_trail', legs: [{ index: 0 }, { index: 1 }, { index: 2 }], stops: [], points_used: 120, points_excluded: 3,
+};
+
+/** Answers GET /attendance/travel (outside /expenses, so it needs its own route) and records the dates asked for. */
+async function mockTravel(page: Page, data: Record<string, unknown> | ((date: string) => Record<string, unknown>) = TRAVEL_23) {
+  const dates: string[] = [];
+  await page.route(/\/api\/v1\/attendance\/travel/, async (route) => {
+    const date = new URL(route.request().url()).searchParams.get('date') ?? '';
+    dates.push(date);
+    await route.fulfill({ json: { success: true, data: typeof data === 'function' ? data(date) : data } });
+  });
+  return dates;
+}
+
+/** Expense endpoints a new-claim page needs when the policy is `policy`. */
+const claimPageHandlers = (policy: unknown) => async (route: Route, path: string, method: string) => {
+  const ok = (data: unknown) => route.fulfill({ json: { success: true, data } }).then(() => true);
+  if (method === 'GET' && path === '/policy') return ok(policy);
+  if (method === 'GET' && path === '/odometer-history') return ok([]);
+  if (method === 'POST' && path === '/claims/check') return ok({ policy, total: 0, violations: [], blocking: false, would_auto_approve: false });
+  if (method === 'POST' && path === '/claims') return ok({ ...REJECTED, id: 'new-1', status: 'draft' });
+  if (method === 'GET' && path === '/claims/new-1') return ok({ ...REJECTED, id: 'new-1', status: 'draft', review_note: null, items: [] });
+  return false;
+};
+
+async function newMileageLine(page: Page) {
+  await page.goto('/dashboard/expenses/new');
+  await expect(page.getByText('Your policy')).toBeVisible();
+  await page.getByLabel('Category').selectOption('mileage');
+}
+
+test.describe('Expenses — claim distance from GPS', () => {
+  test('a GPS-distance policy asks for a distance, not odometer readings, and fills it from the day\'s route', async ({ page }) => {
+    const seen = await setup(page, claimPageHandlers(GPS_POLICY));
+    const dates = await mockTravel(page);
+    await newMileageLine(page);
+
+    await expect(page.getByLabel('Distance (km)')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Fill from my GPS route for this date' })).toBeVisible();
+    await expect(page.getByText('Odometer before the trip')).toHaveCount(0);
+    await expect(page.getByText('Odometer after the trip')).toHaveCount(0);
+    await expect(page.getByText('Add odometer photo')).toHaveCount(0);
+    await expect(page.getByText('Mileage is claimed from your GPS route — no odometer readings or photos.')).toBeVisible();
+    // Nothing typed yet: no distance, no amount.
+    await expect(page.getByText('Measured from your GPS route')).toBeVisible();
+
+    const date = await page.getByLabel('Date').inputValue();
+    await page.getByRole('button', { name: 'Fill from my GPS route for this date' }).click();
+
+    await expect(page.getByLabel('Distance (km)')).toHaveValue('23.4');
+    expect(dates).toEqual([date]);
+    await expect(page.getByText(/23\.4 km over 3 legs from your GPS route/)).toBeVisible();
+    // 23.4 km x ₹4 / km, priced from the policy's only vehicle (nobody has to pick it).
+    await expect(page.getByText(/₹93\.60/).first()).toBeVisible();
+
+    // The live policy check is sent the same GPS line (so it is judged the way it will be saved).
+    await expect.poll(() => seen.requests.filter((r) => r.path === '/claims/check').pop()?.body).toMatchObject({
+      items: [{ category: 'mileage', vehicle_type: 'two_wheeler', distance_km: 23.4 }],
+    });
+
+    await page.getByRole('button', { name: 'Save as draft' }).click();
+    await expect.poll(() => seen.requests.find((r) => r.method === 'POST' && r.path === '/claims')?.body).toMatchObject({
+      items: [{
+        category: 'mileage', item_date: date, vehicle_type: 'two_wheeler', distance_km: 23.4, amount: null,
+        odometer_start: null, odometer_end: null, odometer_start_photo_url: null, odometer_end_photo_url: null,
+      }],
+    });
+  });
+
+  test('no GPS travel that day: it says so and leaves the distance empty', async ({ page }) => {
+    await setup(page, claimPageHandlers(GPS_POLICY));
+    await mockTravel(page, { ...TRAVEL_23, total_km: 0, method: 'none', legs: [] });
+    await newMileageLine(page);
+    await page.getByRole('button', { name: 'Fill from my GPS route for this date' }).click();
+    await expect(page.getByText('No GPS travel was recorded for that day').first()).toBeVisible();
+    await expect(page.getByLabel('Distance (km)')).toHaveValue('');
+  });
+
+  test('no attendance that day: it says so instead of filling 0', async ({ page }) => {
+    await setup(page, claimPageHandlers(GPS_POLICY));
+    await mockTravel(page, { ...TRAVEL_23, attendance_id: null, total_km: 0, method: 'none', legs: [] });
+    await newMileageLine(page);
+    await page.getByRole('button', { name: 'Fill from my GPS route for this date' }).click();
+    await expect(page.getByText('You have no attendance for that day, so there is no route to measure').first()).toBeVisible();
+    await expect(page.getByLabel('Distance (km)')).toHaveValue('');
+  });
+
+  test('an open shift fills what there is so far and tells the rep to fill again after checking out', async ({ page }) => {
+    await setup(page, claimPageHandlers(GPS_POLICY));
+    await mockTravel(page, { ...TRAVEL_23, in_progress: true, total_km: 6.5, legs: [{ index: 0 }] });
+    await newMileageLine(page);
+    await page.getByRole('button', { name: 'Fill from my GPS route for this date' }).click();
+    await expect(page.getByLabel('Distance (km)')).toHaveValue('6.5');
+    await expect(page.getByText(/your shift is still open, so fill this again after you check out/)).toBeVisible();
+  });
+
+  test('a line without a distance cannot be saved, and the message points at the GPS button', async ({ page }) => {
+    const seen = await setup(page, claimPageHandlers(GPS_POLICY));
+    await newMileageLine(page);
+    await page.getByPlaceholder('Starting point').fill('Office'); // something typed, but no distance
+    await page.getByRole('button', { name: 'Save as draft' }).click();
+    await expect(page.getByText(/needs the distance — use “Fill from my GPS route” or type it/)).toBeVisible();
+    expect(seen.requests.some((r) => r.method === 'POST' && r.path === '/claims')).toBe(false);
+  });
+
+  test('a policy without the rule still asks for odometer readings (nothing changes for it)', async ({ page }) => {
+    await setup(page, claimPageHandlers(ODO_POLICY));
+    await newMileageLine(page);
+    await expect(page.getByText('Odometer before the trip')).toBeVisible();
+    await expect(page.getByText('Odometer after the trip')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Fill from my GPS route for this date' })).toHaveCount(0);
+    await expect(page.getByLabel('Distance (km)')).toHaveCount(0);
+  });
+
+  test('a saved line that already has odometer readings keeps its odometer form on a GPS policy', async ({ page }) => {
+    const odoClaim = {
+      ...REJECTED, id: CLAIM_ID, status: 'draft', review_note: null, approvals: [],
+      items: [{ id: ITEM_A, claim_id: CLAIM_ID, category: 'mileage', item_date: '2026-10-01', description: null, amount: 80, distance_km: 20, from_location: null, to_location: null,
+        merchant: null, receipt_url: null, vehicle_type: 'two_wheeler', odometer_start: 1000, odometer_end: 1020, ai_extracted: null, flagged: false, flag_reason: null }],
+    };
+    await setup(page, async (route, path, method) => {
+      if (method === 'GET' && path === `/claims/${CLAIM_ID}`) { await route.fulfill({ json: { success: true, data: odoClaim } }); return true; }
+      return claimPageHandlers(GPS_POLICY)(route, path, method);
+    });
+    await page.goto(`/dashboard/expenses/${CLAIM_ID}/edit`);
+    await expect(page.getByText('Odometer before the trip')).toBeVisible();
+    await expect(page.getByLabel('Odometer before the trip')).toHaveValue('1000');
+    await expect(page.getByRole('button', { name: 'Fill from my GPS route for this date' })).toHaveCount(0);
+  });
+
+  test('the claim page labels a GPS line, with no odometer shown', async ({ page }) => {
+    const gpsClaim = {
+      ...TO_REVIEW,
+      items: [{ id: REV_A, claim_id: REVIEW_ID, category: 'mileage', item_date: '2026-10-04', description: null, amount: 93.6, distance_km: 23.4, from_location: null, to_location: null,
+        merchant: null, receipt_url: null, vehicle_type: 'two_wheeler', odometer_start: null, odometer_end: null, ai_extracted: null, flagged: false, flag_reason: null, decision: null, decision_note: null }],
+    };
+    await setup(page, async (route, path, method) => {
+      if (method === 'GET' && path === `/claims/${REVIEW_ID}`) { await route.fulfill({ json: { success: true, data: gpsClaim } }); return true; }
+      return false;
+    });
+    await page.goto(`/dashboard/expenses/${REVIEW_ID}`);
+    await expect(page.getByText('Two wheeler · GPS distance')).toBeVisible();
+    await expect(page.getByText(/23\.4 km/).first()).toBeVisible();
+    await expect(page.getByText(/Odometer/)).toHaveCount(0);
+  });
+});
+
+test.describe('Expenses — policy editor: GPS distance switch', () => {
+  const gpsSwitch = (page: Page) => page.getByRole('switch', { name: 'Claim distance from GPS (no odometer)' });
+  const withPolicy = (policy: unknown) => async (route: Route, path: string, method: string) => {
+    if (method === 'GET' && path === `/policies/${POLICY_ID}`) { await route.fulfill({ json: { success: true, data: policy } }); return true; }
+    if (method === 'PUT' && path === `/policies/${POLICY_ID}`) { await route.fulfill({ json: { success: true, data: policy } }); return true; }
+    return false;
+  };
+
+  test('with vehicle types it can be switched on, and the save carries gps_distance', async ({ page }) => {
+    const seen = await setup(page, withPolicy({ ...POLICY, rules: VEHICLE_RULES }));
+    await page.goto(`/dashboard/expenses/policies/${POLICY_ID}`);
+    await expect(gpsSwitch(page)).toBeEnabled();
+    await expect(gpsSwitch(page)).toHaveAttribute('aria-checked', 'false');
+    await gpsSwitch(page).click();
+    await expect(gpsSwitch(page)).toHaveAttribute('aria-checked', 'true');
+    await page.getByRole('button', { name: 'Save policy' }).click();
+    await expect.poll(() => seen.requests.find((r) => r.method === 'PUT' && r.path === `/policies/${POLICY_ID}`)?.body).toMatchObject({
+      rules: { gps_distance: true, vehicle_rates: [{ id: 'two_wheeler', label: 'Two-wheeler', rate_per_km: 4 }] },
+    });
+  });
+
+  test('a policy that has it on shows it on, and switching it off is saved as off', async ({ page }) => {
+    const seen = await setup(page, withPolicy({ ...POLICY, rules: { ...VEHICLE_RULES, gps_distance: true } }));
+    await page.goto(`/dashboard/expenses/policies/${POLICY_ID}`);
+    await expect(gpsSwitch(page)).toHaveAttribute('aria-checked', 'true');
+    await gpsSwitch(page).click();
+    await page.getByRole('button', { name: 'Save policy' }).click();
+    await expect.poll(() => seen.requests.find((r) => r.method === 'PUT')?.body).toMatchObject({ rules: { gps_distance: false } });
+  });
+
+  test('with no vehicle type it is off and cannot be switched on', async ({ page }) => {
+    await setup(page, withPolicy(POLICY));
+    await page.goto(`/dashboard/expenses/policies/${POLICY_ID}`);
+    await expect(gpsSwitch(page)).toBeDisabled();
+    await expect(gpsSwitch(page)).toHaveAttribute('aria-checked', 'false');
+    await expect(page.getByText('Add a vehicle type first.', { exact: true })).toBeVisible();
+  });
+
+  test('a new policy sends gps_distance: false unless it is switched on', async ({ page }) => {
+    const seen = await setup(page, async (route, path, method) => {
+      if (method === 'POST' && path === '/policies') { await route.fulfill({ status: 201, json: { success: true, data: { ...POLICY, id: 'new-1' } } }); return true; }
+      return false;
+    });
+    await page.goto('/dashboard/expenses/policies/new');
+    await page.getByLabel('Policy name', { exact: false }).fill('Plain');
+    await page.getByRole('button', { name: 'Create policy' }).click();
+    await expect.poll(() => seen.requests.find((r) => r.method === 'POST' && r.path === '/policies')?.body).toMatchObject({ rules: { gps_distance: false } });
+  });
+});
+
+test.describe('Expenses — rejecting tells the claimant what happens', () => {
+  const HINT = 'The claimant is notified with this reason and can edit and resubmit.';
+
+  test('the reject dialog on a claim says the claimant is notified and can resubmit', async ({ page }) => {
+    await setup(page);
+    await page.goto(`/dashboard/expenses/${REVIEW_ID}`);
+    await page.getByRole('button', { name: 'Reject claim' }).click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog.getByTestId('remark-footnote')).toHaveText(HINT);
+    // It sits under the reason box: the textbox comes first in the dialog.
+    const order = await dialog.evaluate((el) => {
+      const t = el.querySelector('textarea');
+      const f = el.querySelector('[data-testid="remark-footnote"]');
+      return !!t && !!f && !!(t.compareDocumentPosition(f) & Node.DOCUMENT_POSITION_FOLLOWING);
+    });
+    expect(order).toBe(true);
+  });
+
+  test('so does the quick reject in the approvals queue', async ({ page }) => {
+    await setup(page);
+    await page.goto('/dashboard/expenses/approvals');
+    await page.getByRole('button', { name: 'Reject', exact: true }).first().click();
+    await expect(page.getByRole('dialog').getByTestId('remark-footnote')).toHaveText(HINT);
+  });
+});

@@ -1,4 +1,4 @@
-import api from './api';
+import api, { type AttendanceTravel } from './api';
 
 // Typed client for the Expenses API (backend base path /api/v1/expenses, bearer +
 // X-Client-Id auto-attached by ./api). Every JSON response is { success, data }.
@@ -56,6 +56,11 @@ export interface PolicyRules {
   single_line?: boolean;
   /** true = the odometer photo is camera-only and the reading is read from it (reading stays editable). Default false. */
   odometer_camera_only?: boolean;
+  /**
+   * true (with vehicle rates) = a mileage line is claimed from the GPS-measured distance of the day — no odometer
+   * readings or photos. The server re-checks the distance against the claimant's trail and prices it. Default false.
+   */
+  gps_distance?: boolean;
   receipt_required_over: number;
   max_claim_amount: number | null;
   submit_within_days: number | null;
@@ -383,6 +388,11 @@ export const expensesApi = {
   },
   mileage: (fromISO: string, toISO: string, userId?: string) =>
     api.get<Wrapped<MileageResult>>(`${BASE}/mileage${qs({ from: fromISO, to: toISO, user_id: userId })}`),
+  /**
+   * My distance for one IST day (YYYY-MM-DD): check-in → each form visit → check-out, from GET /attendance/travel.
+   * What a GPS-distance policy prices a mileage line from. Never cached (an open shift keeps growing).
+   */
+  travelFor: (date: string): Promise<Wrapped<AttendanceTravel>> => api.getAttendanceTravel(date),
 
   /** Odometer readings from claim lines, newest first. Own entries by default; approvers can pass `all` / `user_id`. */
   odometerHistory: (p: OdometerHistoryParams = {}) =>
@@ -428,6 +438,7 @@ export interface FormRules {
   route_fields?: boolean;
   single_line?: boolean;
   odometer_camera_only?: boolean;
+  gps_distance?: boolean;
   vehicle_rates?: Array<{ id?: string }>;
 }
 type RulesIn = FormRules | null | undefined;
@@ -489,6 +500,16 @@ export const lineVehicle = (current: string | null | undefined, vs: VehicleRate[
 export const vehicleFlowOn = (r: RulesIn): boolean => (r?.vehicle_rates?.length ?? 0) > 0;
 /** Odometer photo is camera-only and the reading is read from it. Only meaningful with the vehicle flow. */
 export const odometerCameraOnly = (r: RulesIn): boolean => r?.odometer_camera_only === true && vehicleFlowOn(r);
+/**
+ * Mileage is claimed from the GPS-measured distance of the day, no odometer. Only meaningful with the vehicle flow
+ * (the server prices by vehicle rate, and ignores the rule when the policy has no vehicles).
+ */
+export const gpsDistanceOn = (r: RulesIn): boolean => r?.gps_distance === true && vehicleFlowOn(r);
+
+/** A mileage line that carries a vehicle and a distance but no odometer data — i.e. one claimed from GPS. */
+export const isGpsDistanceLine = (it: Pick<ClaimItem, 'category' | 'vehicle_type' | 'distance_km' | 'odometer_start' | 'odometer_end' | 'odometer_start_photo_url' | 'odometer_end_photo_url'>): boolean =>
+  it.category === 'mileage' && !!it.vehicle_type && Number(it.distance_km) > 0
+  && it.odometer_start == null && it.odometer_end == null && !it.odometer_start_photo_url && !it.odometer_end_photo_url;
 
 /**
  * One set of category rules for a screen that spans several policies (All claims): a category counts as in use

@@ -10,7 +10,7 @@ import { Camera, Eye, FileText, MapPin, Plus, ShieldCheck, Trash2, Upload, X } f
 import { Badge, Button, Card, FormGrid, IconButton, Input, Select, T, useIsCompact } from '../ui';
 import {
   CATEGORIES, ClaimItem, ClaimItemInput, ClaimCheck, ExpenseClaim, ItemCategory, MyPolicy,
-  VehicleRate, categoryLabel, enabledCategories, expensesApi, lineVehicle, odometerCameraOnly, policyVehicles, routeFieldsOn, singleCategory,
+  VehicleRate, categoryLabel, enabledCategories, expensesApi, gpsDistanceOn, lineVehicle, odometerCameraOnly, policyVehicles, routeFieldsOn, singleCategory,
   singleLineOn, soleVehicleId,
 } from '../../lib/expensesApi';
 import {
@@ -48,6 +48,8 @@ interface Line {
   uploading?: boolean;
   suggesting?: boolean;
   scanNote?: string | null;
+  // GPS-distance policies: what the last "Fill from my GPS route" found (leg count, still-open shift).
+  gpsNote?: string | null;
 }
 
 type OdoNote = 'read' | 'unread' | null;
@@ -86,27 +88,39 @@ const blank = (key: number, category: ItemCategory = 'food'): Line => ({
 const retag = (ls: Line[], cat: ItemCategory): Line[] =>
   (ls.some((l) => !isFilled(l) && l.category !== cat) ? ls.map((l) => (!isFilled(l) && l.category !== cat ? { ...l, category: cat } : l)) : ls);
 
+/** Any odometer data on the line (a reading or a photo). A line with some keeps the odometer form, whatever the policy says. */
+const hasOdo = (l: Line) => !!(l.odo_start.trim() || l.odo_end.trim() || l.odo_start_url || l.odo_end_url);
+/** A mileage line claimed from the day's GPS distance: the policy asks for it, vehicles are on, and the line has no odometer data. */
+const isGpsLine = (l: Line, gps: boolean, vf: boolean) => gps && vf && l.category === 'mileage' && !hasOdo(l);
+
 const isFilled = (l: Line) => !!(l.amount.trim() || l.distance_km.trim() || l.merchant.trim() || l.description.trim() || l.receipt_url || l.from_location.trim() || l.to_location.trim()
   || l.vehicle_type || l.odo_start.trim() || l.odo_end.trim() || l.odo_start_url || l.odo_end_url);
 // `vf` = the policy prices mileage by vehicle. A saved draft only needs *something* to go on there
 // (the rest is enforced at submit and shown live by the policy check), unlike a flat-rate line.
 // `vehicles` = that policy's vehicles: with exactly one, every mileage line already carries it (lineVehicle).
-const isValid = (l: Line, vf = false, vehicles: VehicleRate[] = []) => (l.category === 'mileage'
-  ? (vf ? !!lineVehicle(l.vehicle_type, vehicles) || reading(l.odo_start) || reading(l.odo_end) : pos(l.amount) || pos(l.distance_km))
+// `gps` = the policy claims distance from GPS: such a line is valid once it has a distance (the vehicle is checked live).
+const isValid = (l: Line, vf = false, vehicles: VehicleRate[] = [], gps = false) => (l.category === 'mileage'
+  ? (isGpsLine(l, gps, vf) ? pos(l.distance_km)
+    : vf ? !!lineVehicle(l.vehicle_type, vehicles) || reading(l.odo_start) || reading(l.odo_end) : pos(l.amount) || pos(l.distance_km))
   : pos(l.amount));
 
-function toInput(l: Line, vf = false, vehicles: VehicleRate[] = []): ClaimItemInput {
+function toInput(l: Line, vf = false, vehicles: VehicleRate[] = [], gps = false): ClaimItemInput {
   const mileage = l.category === 'mileage';
   const byVehicle = mileage && vf;
+  const fromGps = isGpsLine(l, gps, vf);
   return {
     ...(l.id ? { id: l.id } : {}),
     category: l.category,
     item_date: l.item_date || null,
     description: l.description.trim() || null,
-    // By vehicle, the server works out distance and amount from the odometer readings.
+    // By vehicle, the server works out distance and amount from the odometer readings; from GPS, it re-checks the
+    // typed distance against the trail and prices it. Either way the amount is never typed.
     amount: byVehicle ? null : pos(l.amount) ? n(l.amount) : null,
-    distance_km: byVehicle ? null : mileage && pos(l.distance_km) ? n(l.distance_km) : null,
-    ...(byVehicle ? {
+    distance_km: fromGps ? (pos(l.distance_km) ? n(l.distance_km) : null) : byVehicle ? null : mileage && pos(l.distance_km) ? n(l.distance_km) : null,
+    ...(fromGps ? {
+      vehicle_type: lineVehicle(l.vehicle_type, vehicles) || null,
+      odometer_start: null, odometer_end: null, odometer_start_photo_url: null, odometer_end_photo_url: null,
+    } : byVehicle ? {
       vehicle_type: lineVehicle(l.vehicle_type, vehicles) || null,
       odometer_start: reading(l.odo_start) ? n(l.odo_start) : null,
       odometer_end: reading(l.odo_end) ? n(l.odo_end) : null,
@@ -175,6 +189,7 @@ export default function ClaimEditor({ claimId }: { claimId?: string }) {
   const defaultCat: ItemCategory = only ?? 'food';
   const oneLine = singleLineOn(rules);
   const cameraOnly = odometerCameraOnly(rules);
+  const gpsOn = gpsDistanceOn(rules);
 
   // ── lines ──
   const patch = useCallback((key: number, p: Partial<Line>) => setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...p } : l))), []);
@@ -208,17 +223,17 @@ export default function ClaimEditor({ claimId }: { claimId?: string }) {
   }, [vf, claimId]);
   const lineAmount = (l: Line) => {
     if (vf && l.category === 'mileage') {
-      const km = odoKm(l);
+      const km = isGpsLine(l, gpsOn, vf) ? (pos(l.distance_km) ? round2(n(l.distance_km)) : null) : odoKm(l);
       const perKm = vehicles.find((v) => v.id === lineVehicle(l.vehicle_type, vehicles))?.rate_per_km;
       return km != null && perKm != null ? round2(km * perKm) : 0;
     }
     return pos(l.amount) ? n(l.amount) : l.category === 'mileage' && pos(l.distance_km) ? Math.round(n(l.distance_km) * rate * 100) / 100 : 0;
   };
-  const total = useMemo(() => lines.reduce((s, l) => s + lineAmount(l), 0), [lines, rate, vf, policy]); // eslint-disable-line react-hooks/exhaustive-deps
+  const total = useMemo(() => lines.reduce((s, l) => s + lineAmount(l), 0), [lines, rate, vf, gpsOn, policy]); // eslint-disable-line react-hooks/exhaustive-deps
   const filled = useMemo(() => lines.filter(isFilled), [lines]);
 
   // ── live policy check ──
-  const checkKey = useMemo(() => JSON.stringify(filled.filter((l) => isValid(l, vf, vehicles)).map((l) => toInput(l, vf, vehicles))), [filled, vf, vehicles]);
+  const checkKey = useMemo(() => JSON.stringify(filled.filter((l) => isValid(l, vf, vehicles, gpsOn)).map((l) => toInput(l, vf, vehicles, gpsOn))), [filled, vf, vehicles, gpsOn]);
   const checkSeq = useRef(0);
   useEffect(() => {
     const items: ClaimItemInput[] = JSON.parse(checkKey);
@@ -235,7 +250,7 @@ export default function ClaimEditor({ claimId }: { claimId?: string }) {
   }, [checkKey]);
 
   // Findings are indexed by position among the lines that were checked.
-  const checkedKeys = useMemo(() => filled.filter((l) => isValid(l, vf, vehicles)).map((l) => l.key), [filled, vf, vehicles]);
+  const checkedKeys = useMemo(() => filled.filter((l) => isValid(l, vf, vehicles, gpsOn)).map((l) => l.key), [filled, vf, vehicles, gpsOn]);
   const findingsFor = (key: number) => {
     const idx = checkedKeys.indexOf(key);
     return idx < 0 ? [] : (check?.violations ?? []).filter((v) => v.item_id === String(idx));
@@ -313,19 +328,41 @@ export default function ClaimEditor({ claimId }: { claimId?: string }) {
     }
   };
 
+  // GPS-distance policies: the day's distance from the attendance travel endpoint (check-in → visits → check-out).
+  const fillFromRoute = async (l: Line) => {
+    if (!l.item_date) { toast.error('Pick the date first'); return; }
+    patch(l.key, { suggesting: true, gpsNote: null });
+    try {
+      const { data: t } = await expensesApi.travelFor(l.item_date);
+      const km = round2(Number(t?.total_km) || 0);
+      if (!t?.attendance_id) { patch(l.key, { suggesting: false }); toast.message('You have no attendance for that day, so there is no route to measure'); return; }
+      if (km <= 0) { patch(l.key, { suggesting: false }); toast.message('No GPS travel was recorded for that day'); return; }
+      const legs = t.legs?.length ?? 0;
+      patch(l.key, {
+        suggesting: false, distance_km: String(km), description: l.description || `${km} km from your GPS route`,
+        gpsNote: `${km} km over ${legs} ${legs === 1 ? 'leg' : 'legs'} from your GPS route${t.in_progress ? ' — your shift is still open, so fill this again after you check out' : ''}. Change it if it looks wrong; it is checked against your trail when you save.`,
+      });
+      toast.success(`${km} km from your GPS route`);
+    } catch (e) {
+      patch(l.key, { suggesting: false });
+      toast.error(errText(e, 'Could not load your GPS route'));
+    }
+  };
+
   // ── save / submit ──
   const persist = async (): Promise<string | null> => {
     if (!filled.length) { toast.error('Add at least one expense'); return null; }
-    const bad = lines.findIndex((l) => isFilled(l) && !isValid(l, vf, vehicles));
+    const bad = lines.findIndex((l) => isFilled(l) && !isValid(l, vf, vehicles, gpsOn));
     if (bad >= 0) {
       const byVehicle = vf && lines[bad].category === 'mileage';
-      toast.error(byVehicle ? `Expense ${bad + 1} needs a vehicle and the odometer readings` : `Expense ${bad + 1} needs an amount${lines[bad].category === 'mileage' ? ' or a distance' : ''}`);
+      toast.error(isGpsLine(lines[bad], gpsOn, vf) ? `Expense ${bad + 1} needs the distance — use “Fill from my GPS route” or type it`
+        : byVehicle ? `Expense ${bad + 1} needs a vehicle and the odometer readings` : `Expense ${bad + 1} needs an amount${lines[bad].category === 'mileage' ? ' or a distance' : ''}`);
       return null;
     }
     const wrongOrder = lines.findIndex((l) => vf && l.category === 'mileage' && reading(l.odo_start) && reading(l.odo_end) && n(l.odo_end) < n(l.odo_start));
     if (wrongOrder >= 0) { toast.error(`Expense ${wrongOrder + 1}: the reading after the trip is lower than the reading before it`); return null; }
     if (lines.some((l) => l.uploading || l.odoUploading)) { toast.error('Wait for the photo to finish uploading'); return null; }
-    const body = { title: title.trim() || null, items: filled.map((l) => toInput(l, vf, vehicles)) };
+    const body = { title: title.trim() || null, items: filled.map((l) => toInput(l, vf, vehicles, gpsOn)) };
     if (savedId.current) { await expensesApi.updateClaim(savedId.current, body); return savedId.current; }
     const r = await expensesApi.createClaim(body);
     savedId.current = r.data.id;
@@ -418,7 +455,7 @@ export default function ClaimEditor({ claimId }: { claimId?: string }) {
               lastReading={lastReading} findings={findingsFor(l.key)}
               onChange={(p) => patch(l.key, p)} onRemove={() => removeLine(l.key)}
               onAttach={(f) => attach(l.key, f)} onClearReceipt={() => clearReceipt(l.key)} onView={(u) => setViewing(u)}
-              onSuggest={() => suggestMileage(l)}
+              onSuggest={() => suggestMileage(l)} onFillRoute={() => fillFromRoute(l)}
               onAttachOdo={(which, f) => attachOdo(l.key, which, f)} onClearOdo={(which) => clearOdo(l.key, which)} />
           ))}
 
@@ -438,12 +475,12 @@ export default function ClaimEditor({ claimId }: { claimId?: string }) {
 }
 
 // ── one expense line ────────────────────────────────────────────────────────
-function LineCard({ index, line: l, policy, currency, removable, lastReading, findings, onChange, onRemove, onAttach, onClearReceipt, onView, onSuggest, onAttachOdo, onClearOdo }: {
+function LineCard({ index, line: l, policy, currency, removable, lastReading, findings, onChange, onRemove, onAttach, onClearReceipt, onView, onSuggest, onFillRoute, onAttachOdo, onClearOdo }: {
   index: number; line: Line; policy: MyPolicy | null; currency: string; removable: boolean;
   lastReading: { km: number; date: string | null } | null;
   findings: ClaimCheck['violations'];
   onChange: (p: Partial<Line>) => void; onRemove: () => void; onAttach: (f: File) => void; onClearReceipt: () => void;
-  onView: (url: string) => void; onSuggest: () => void;
+  onView: (url: string) => void; onSuggest: () => void; onFillRoute: () => void;
   onAttachOdo: (which: 'start' | 'end', f: File) => void; onClearOdo: (which: 'start' | 'end') => void;
 }) {
   const wide = !useIsCompact(640);
@@ -454,8 +491,10 @@ function LineCard({ index, line: l, policy, currency, removable, lastReading, fi
   const soleVehicle = soleVehicleId(vehicles);
   const vehicle = lineVehicle(l.vehicle_type, vehicles);
   const byVehicle = mileage && vehicles.length > 0;
+  // GPS-distance policy: no odometer form (unless this line already carries odometer data from before).
+  const fromGps = isGpsLine(l, gpsDistanceOn(policy?.rules), vehicles.length > 0);
   const photosRequired = policy?.rules?.odometer_photos_required !== false;
-  const km = odoKm(l);
+  const km = fromGps ? (pos(l.distance_km) ? round2(n(l.distance_km)) : null) : odoKm(l);
   const perKm = vehicles.find((v) => v.id === vehicle)?.rate_per_km;
   const rules = policy?.rules;
   const allowed = CATEGORIES.filter((c) => c === l.category || enabledCategories(rules).includes(c));
@@ -483,7 +522,33 @@ function LineCard({ index, line: l, policy, currency, removable, lastReading, fi
       </div>
 
       <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
-        {byVehicle ? (
+        {fromGps ? (
+          <>
+            <FormGrid narrow={!wide}>
+              {route && <Field label="From"><Input value={l.from_location} onChange={(e) => onChange({ from_location: e.target.value })} placeholder="Starting point" /></Field>}
+              {route && <Field label="To"><Input value={l.to_location} onChange={(e) => onChange({ to_location: e.target.value })} placeholder="Destination" /></Field>}
+              <Field label="Vehicle" required>
+                <Select value={vehicle} onChange={(e) => onChange({ vehicle_type: e.target.value })}>
+                  {!soleVehicle && <option value="">Choose a vehicle…</option>}
+                  {vehicles.map((v) => <option key={v.id} value={v.id}>{v.label} · {money(v.rate_per_km, currency)} / km</option>)}
+                </Select>
+              </Field>
+              <Field label="Distance (km)" required>
+                <Input inputMode="decimal" value={l.distance_km} placeholder="0"
+                  onChange={(e) => onChange({ distance_km: e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1'), gpsNote: null })} />
+              </Field>
+            </FormGrid>
+            <div><Button size="sm" icon={<MapPin size={14} strokeWidth={1.7} />} disabled={l.suggesting} onClick={onFillRoute}>{l.suggesting ? 'Reading your route…' : 'Fill from my GPS route for this date'}</Button></div>
+            {l.gpsNote && <div style={{ fontSize: 12.5, color: T.info }}>{l.gpsNote}</div>}
+            <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', padding: '10px 14px', background: T.panel, border: `1px solid ${T.border}`, borderRadius: T.radius.md, fontVariantNumeric: 'tabular-nums' }}>
+              <div><div style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: T.mute }}>Distance</div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: T.text }}>{km != null ? `${km} km` : '—'}</div></div>
+              <div><div style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: T.mute }}>Amount</div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: T.text }}>{km != null && perKm != null ? money(round2(km * perKm), currency) : '—'}</div></div>
+              <div style={{ fontSize: 12.5, color: T.mute, alignSelf: 'center' }}>Measured from your GPS route — distance × the vehicle’s rate. No odometer needed.</div>
+            </div>
+          </>
+        ) : byVehicle ? (
           <>
             <FormGrid narrow={!wide}>
               {route && <Field label="From"><Input value={l.from_location} onChange={(e) => onChange({ from_location: e.target.value })} placeholder="Starting point" /></Field>}
@@ -654,6 +719,7 @@ function PolicyCard({ policy, currency }: { policy: MyPolicy | null; currency: s
           </div>
         )}
         {off.length > 0 && <div style={{ fontSize: 12.5, color: T.mute, marginTop: 4 }}>Not reimbursed: {off.map((c) => categoryLabel(rules, c, caps)).join(', ')}.</div>}
+        {gpsDistanceOn(policy.rules) && <div style={{ fontSize: 12.5, color: T.mute, marginTop: 4 }}>Mileage is claimed from your GPS route — no odometer readings or photos.</div>}
         {policy.rules?.enforcement === 'block' && <div style={{ fontSize: 12.5, color: T.warn, marginTop: 4 }}>A claim that breaks these rules can’t be submitted.</div>}
       </div>
     </Panel>

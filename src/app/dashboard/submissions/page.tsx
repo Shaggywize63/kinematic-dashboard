@@ -4,6 +4,7 @@ import api from '../../../lib/api';
 import SignedImage from '@/components/shared/SignedImage';
 import { extractImageUrls } from '../../../lib/utils';
 import { useTableSort, SortLabel } from '../../../lib/tableSort';
+import { fmtClock, fmtMinutes, fmtStamp, stampMs, visitMinutes } from '../../../lib/visitTime';
 
 const C = { red:'#E01E2C',green:'#00D97E',yellow:'#FFB800',blue:'#3E9EFF',purple:'#9B6EFF',gray:'#7A8BA0',grayd:'#2E445E',s2:'#131B2A',border:'#1E2D45',white:'#FFFFFF' };
 
@@ -18,10 +19,12 @@ interface Submission {
   activities?: { name: string };
   form_templates?: { name: string };
   checkin_photo?: string;
-  check_in_at?: string;
-  check_out_at?: string;
-  check_in_gps?: string;
-  check_out_gps?: string;
+  // Real check-in / check-out of the form (null when the rep recorded none) and the stored time spent, in minutes.
+  check_in_at?: string | null;
+  check_out_at?: string | null;
+  check_in_gps?: string | null;
+  check_out_gps?: string | null;
+  duration_minutes?: number | null;
 }
 
 interface PaginatedResult {
@@ -32,7 +35,7 @@ interface PaginatedResult {
 }
 
 // Type-aware column sorting reads the raw submission value per column key
-// (duration is derived to minutes so it compares numerically, not as text).
+// (check-in / check-out / time spent are derived to numbers so they compare chronologically / numerically, not as text).
 const submissionVal = (s: Submission, key: string): unknown => {
   switch (key) {
     case 'user': return s.users?.name;
@@ -41,15 +44,9 @@ const submissionVal = (s: Submission, key: string): unknown => {
     case 'activity': return s.activities?.name;
     case 'tff': return s.is_converted;
     case 'time': return s.submitted_at;
-    case 'duration': {
-      const dm = (s as unknown as { duration_minutes?: number }).duration_minutes;
-      if (dm != null) return Number(dm);
-      if (s.check_in_at && s.check_out_at) {
-        const diff = Math.floor((new Date(s.check_out_at).getTime() - new Date(s.check_in_at).getTime()) / 60000);
-        return diff > 0 ? diff : null;
-      }
-      return null;
-    }
+    case 'checkin': return stampMs(s.check_in_at);
+    case 'checkout': return stampMs(s.check_out_at);
+    case 'duration': return visitMinutes(s);
     default: return (s as unknown as Record<string, unknown>)[key];
   }
 };
@@ -75,8 +72,11 @@ export default function SubmissionsPage() {
       const qs = new URLSearchParams(params).toString();
       const res = await api.get<PaginatedResult>(`/api/v1/forms/admin/submissions?${qs}`);
       const d = res as any;
-      setSubmissions(d.data || d.submissions || (Array.isArray(d) ? d : []));
-      setTotal(d.total || d.count || 0);
+      // The API answers { success, data: { data: [rows], pagination } }; older/other shapes carry the rows
+      // directly. Take the first one that is actually a list — an object here would crash the table.
+      const rows = [d?.data?.data, d?.data, d?.submissions, d].find(Array.isArray) as Submission[] | undefined;
+      setSubmissions(rows ?? []);
+      setTotal(d?.data?.pagination?.total || d?.pagination?.total || d?.total || d?.count || 0);
       setError('');
     } catch (e: any) {
       setError(e.message || 'Failed to load submissions');
@@ -209,7 +209,9 @@ export default function SubmissionsPage() {
                     { h: 'Activity', k: 'activity' },
                     { h: 'TFF', k: 'tff' },
                     { h: 'Time', k: 'time' },
-                    { h: 'Duration', k: 'duration' },
+                    { h: 'Check-in', k: 'checkin' },
+                    { h: 'Check-out', k: 'checkout' },
+                    { h: 'Time spent', k: 'duration' },
                     { h: 'Details', k: null },
                   ] as { h: string; k: string | null }[]).map(col => (
                     <th key={col.h} style={{ padding:'10px 16px', textAlign:'left', fontSize:11, fontWeight:700, color:C.grayd, letterSpacing:'0.8px', textTransform:'uppercase' }}>
@@ -239,11 +241,10 @@ export default function SubmissionsPage() {
                     <td style={{ padding:'12px 16px', fontSize:12, color:C.grayd }}>
                       {new Date(s.submitted_at).toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' })}
                     </td>
-                    <td style={{ padding:'12px 16px', fontSize:13, fontWeight:700, color:C.green }}>
-                      {s.duration_minutes ? `${s.duration_minutes}m` : (s.check_in_at && s.check_out_at) ? (() => {
-                        const diff = Math.floor((new Date(s.check_out_at).getTime() - new Date(s.check_in_at).getTime()) / 60000);
-                        return diff > 0 ? `${diff}m` : '—';
-                      })() : '—'}
+                    <td data-testid="sub-checkin" style={{ padding:'12px 16px', fontSize:12, color: s.check_in_at ? C.white : C.grayd, whiteSpace:'nowrap' }}>{fmtClock(s.check_in_at)}</td>
+                    <td data-testid="sub-checkout" style={{ padding:'12px 16px', fontSize:12, color: s.check_out_at ? C.white : C.grayd, whiteSpace:'nowrap' }}>{fmtClock(s.check_out_at)}</td>
+                    <td data-testid="sub-spent" style={{ padding:'12px 16px', fontSize:13, fontWeight:700, color: visitMinutes(s) == null ? C.grayd : C.green, whiteSpace:'nowrap' }}>
+                      {fmtMinutes(visitMinutes(s))}
                     </td>
                     <td style={{ padding:'12px 16px' }}>
                       <div style={{ display:'flex', gap:4 }}>
@@ -301,8 +302,9 @@ export default function SubmissionsPage() {
                   ['Outlet', (selected as any).store_name || selected.outlet_name],
                   ['Form', selected.form_templates?.name],
                   ['Timestamp', new Date(selected.submitted_at).toLocaleString('en-IN')],
-                  ['Check-in', selected.check_in_at ? new Date(selected.check_in_at).toLocaleTimeString('en-IN') : '—'],
-                  ['Check-out', selected.check_out_at ? new Date(selected.check_out_at).toLocaleTimeString('en-IN') : '—'],
+                  ['Check-in', fmtStamp(selected.check_in_at)],
+                  ['Check-out', fmtStamp(selected.check_out_at)],
+                  ['Time spent', fmtMinutes(visitMinutes(selected))],
                 ].map(([k,v]) => (
                   <div key={String(k)}>
                     <div style={{ fontSize:11, color:C.gray, textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:4 }}>{String(k)}</div>
@@ -311,15 +313,15 @@ export default function SubmissionsPage() {
                 ))}
               </div>
 
-              {selected.check_in_at && selected.check_out_at && (
+              {selected.check_in_at && selected.check_out_at && visitMinutes(selected) != null && (
                 <div style={{ marginBottom: 32, padding: '14px 20px', background: 'rgba(0,217,126,0.06)', border: `1px solid ${C.green}30`, borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div>
                     <div style={{ fontSize: 10, color: C.green, fontWeight: 800, textTransform: 'uppercase', marginBottom: 2 }}>Activity Session Duration</div>
                     <div style={{ fontSize: 20, fontWeight: 900, color: C.green, fontFamily: "'Syne', sans-serif" }}>
                       {(() => {
-                        const start = new Date(selected.check_in_at).getTime();
-                        const end = new Date(selected.check_out_at).getTime();
-                        const diff = Math.floor((end - start) / 1000);
+                        const start = stampMs(selected.check_in_at) ?? 0;
+                        const end = stampMs(selected.check_out_at) ?? start;
+                        const diff = Math.max(0, Math.floor((end - start) / 1000));
                         const h = Math.floor(diff / 3600);
                         const m = Math.floor((diff % 3600) / 60);
                         const s = diff % 60;
@@ -338,7 +340,6 @@ export default function SubmissionsPage() {
                 </div>
               )}
 
-               /* Check-in Details removed as per simplified UI requirements */
               <div style={{ borderTop: `1.5px solid ${C.border}`, paddingTop: 24 }}>
                 <h4 style={{ fontSize:15, fontWeight:800, marginBottom:16, color:C.blue }}>Form Responses</h4>
                 {loadingDetails ? (
