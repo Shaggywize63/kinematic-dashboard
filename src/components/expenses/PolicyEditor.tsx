@@ -28,6 +28,8 @@ interface Form {
   categories: Record<ItemCategory, CatForm>;
   // Travel allowance by vehicle — empty list = the flat mileage rate applies as before.
   vehicles: VehicleForm[]; odometer_photos_required: boolean;
+  // With vehicles: claim the day's GPS distance instead of odometer readings.
+  gps_distance: boolean;
   // Claim form: own names for the categories (blank = the built-in name), and three on/off choices.
   category_labels: Record<ItemCategory, string>;
   route_fields: boolean; single_line: boolean; odometer_camera_only: boolean;
@@ -62,6 +64,7 @@ const withRules = (f: Form, r: PolicyRules): Form => ({
   enforcement: r.enforcement, categories: catForms(r.categories),
   vehicles: (r.vehicle_rates ?? []).map((v) => ({ id: v.id, label: v.label, rate: String(v.rate_per_km) })),
   odometer_photos_required: r.odometer_photos_required !== false,
+  gps_distance: r.gps_distance === true,
   category_labels: labelForms(r.category_labels),
   route_fields: r.route_fields !== false,
   single_line: r.single_line === true,
@@ -73,7 +76,7 @@ const EMPTY: Form = {
   everyone: true, roles: [], org_role_ids: [], user_ids: [], effective_from: '', effective_to: '',
   mileage_rate: '12', receipt_required_over: '500', max_claim_amount: '', submit_within_days: '', auto_approve_under: '0', escalate_over: '',
   enforcement: 'flag', categories: catForms(),
-  vehicles: [], odometer_photos_required: true,
+  vehicles: [], odometer_photos_required: true, gps_distance: false,
   category_labels: labelForms(), route_fields: true, single_line: false, odometer_camera_only: false, loadedRules: {},
 };
 
@@ -109,6 +112,8 @@ function toInput(f: Form): PolicyInput {
         .filter((v) => v.label.trim() && num(v.rate) != null)
         .map((v) => ({ ...(v.id ? { id: v.id } : {}), label: v.label.trim(), rate_per_km: num(v.rate)! })),
       odometer_photos_required: f.odometer_photos_required,
+      // Always sent, like the other switches, so turning it back off sticks.
+      gps_distance: f.gps_distance,
       // Claim form. Always sent (an empty names object / a plain true or false clears a setting) so turning one
       // back off sticks — the same reason vehicle_rates is always sent.
       category_labels: customLabels(f),
@@ -368,6 +373,15 @@ export default function PolicyEditor({ policyId }: { policyId?: string }) {
               Require a photo of the odometer before and after the trip
             </label>
           )}
+          <div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13.5, color: hasVehicles ? T.text : T.mute }}>
+              <Switch checked={form.gps_distance} disabled={!hasVehicles} onChange={(v) => set({ gps_distance: v })} label="Claim distance from GPS (no odometer)" />
+              Claim distance from GPS (no odometer)
+            </label>
+            {hasVehicles
+              ? <div style={{ fontSize: 12.5, color: T.mute, marginTop: 4, marginLeft: 48, lineHeight: 1.45 }}>Reps add the day’s travel as a mileage line: no odometer readings or photos. The distance is checked against their recorded GPS route and the amount is distance × the vehicle’s rate.</div>
+              : <div style={{ fontSize: 12.5, color: T.mute, marginTop: 4, marginLeft: 48 }}>Add a vehicle type first.</div>}
+          </div>
         </Section>
       </Card>
 

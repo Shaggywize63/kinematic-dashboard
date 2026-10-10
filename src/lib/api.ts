@@ -297,6 +297,10 @@ export interface AttendanceRules {
   grace_minutes: number;
   weekly_off: number[];           // 0 = Sunday .. 6 = Saturday
   allow_offline_checkin: boolean;
+  /** Reps must take a selfie to check in / out (server default true). Absent from a server that predates the rule. */
+  selfie_required?: boolean;
+  /** Reps check in before and out after every form they fill (server default false). Absent from an older server. */
+  form_checkin_required?: boolean;
 }
 export interface AttendanceRulesPayload {
   /** True once the client has saved an `attendance_rules` object at all. */
@@ -307,6 +311,48 @@ export interface AttendanceRulesPayload {
 }
 /** Present on an attendance record only when the client has configured rules. */
 export interface AttendanceLate { is_late: boolean; minutes_late: number }
+
+// ── Distance travelled in a day (GET /attendance/travel) ─────────────────────
+// Travel between check-in, each form visit and check-out. Time spent AT a form is not travel, so it is not in a leg.
+export type AttendanceTravelMethod = 'gps_trail' | 'straight_line' | 'mixed' | 'none';
+export interface AttendanceTravelPoint {
+  kind: 'checkin' | 'form_checkout' | 'form_checkin' | 'checkout' | 'now';
+  at: string;
+  /** null when that point has no coordinates (the leg then counts 0 km). */
+  lat: number | null;
+  lng: number | null;
+  label: string;
+}
+export interface AttendanceTravelLeg {
+  index: number;
+  km: number;
+  method: Exclude<AttendanceTravelMethod, 'mixed'>;
+  from: AttendanceTravelPoint;
+  to: AttendanceTravelPoint;
+}
+export interface AttendanceTravelStop {
+  submission_id: string;
+  label: string;
+  check_in_at: string;
+  check_out_at: string;
+  minutes: number;
+}
+export interface AttendanceTravel {
+  date: string;
+  user_id: string;
+  /** null = no attendance that day: nothing to measure (total 0, no legs). */
+  attendance_id: string | null;
+  started_at: string | null;
+  ended_at: string | null;
+  /** True while the shift is still open: the last leg runs to "now" and the total can still grow. */
+  in_progress: boolean;
+  total_km: number;
+  method: AttendanceTravelMethod;
+  legs: AttendanceTravelLeg[];
+  stops: AttendanceTravelStop[];
+  points_used: number;
+  points_excluded: number;
+}
 export interface AttendanceSummaryRow {
   user_id: string;
   name: string;
@@ -1029,9 +1075,22 @@ class ApiClient {
       '/api/v1/org-settings/attendance-rules', { noCache: true } as RequestInit,
     );
   }
-  /** Body is any subset of the five rule keys; the server rejects the whole request if any value is invalid. */
+  /** Body is any subset of the rule keys; the server rejects the whole request if any value (or key) is invalid. */
   updateAttendanceRules(patch: Partial<AttendanceRules>) {
     return this.patch<{ success: boolean; data: AttendanceRulesPayload }>('/api/v1/org-settings/attendance-rules', patch);
+  }
+  /**
+   * Distance travelled by one person on one IST day (YYYY-MM-DD; default today), split into legs between check-in,
+   * form visits and check-out. `userId` omitted = the caller's own; someone else's needs manager / admin scope (403).
+   * noCache: an open shift keeps growing, so a cached answer would be wrong.
+   */
+  getAttendanceTravel(date?: string, userId?: string) {
+    const q: Record<string, string> = {};
+    if (date) q.date = date;
+    if (userId) q.user_id = userId;
+    return this.get<{ success: boolean; data: AttendanceTravel }>(
+      `/api/v1/attendance/travel${this.sanitizeParams(q)}`, { noCache: true } as RequestInit,
+    );
   }
   /** Per-employee Present / Late / Half-day / Leave / Absent over [from, to] (YYYY-MM-DD, at most 62 days). */
   getAttendanceSummary(params: { from: string; to: string; user_id?: string }) {

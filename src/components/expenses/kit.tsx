@@ -12,7 +12,7 @@ import { Badge, Button, Card, Field as BaseField, PageHeader, Textarea, T, Tone,
 import { Modal } from '../finance/ui';
 import {
   CLAIM_STATUS_LABEL, ExpenseClaim, ExpenseFlag, ClaimApproval, ClaimItem, ClaimStatus, FormRules, ItemCategory,
-  categoryLabel, expensesApi, flagLabel, routeFieldsOn, vehicleFlowOn,
+  categoryLabel, expensesApi, flagLabel, isGpsDistanceLine, routeFieldsOn, vehicleFlowOn,
 } from '../../lib/expensesApi';
 
 // ── formatting ──────────────────────────────────────────────────────────────
@@ -276,8 +276,10 @@ export function Field({ children, htmlFor, ...rest }: { label?: ReactNode; requi
 
 // ── remark dialog ───────────────────────────────────────────────────────────
 /** Collects the remark that a rejection requires. The primary action stays disabled until one is written. */
-export function RemarkDialog({ title, intro, label = 'Remark', placeholder, confirmLabel, required = true, busy, onCancel, onConfirm }: {
+export function RemarkDialog({ title, intro, label = 'Remark', placeholder, confirmLabel, required = true, busy, footnote, onCancel, onConfirm }: {
   title: string; intro?: ReactNode; label?: string; placeholder?: string; confirmLabel: string; required?: boolean; busy?: boolean;
+  /** One line under the remark box (e.g. what happens to the person who gets it). */
+  footnote?: ReactNode;
   onCancel: () => void; onConfirm: (remark: string) => void;
 }) {
   const [text, setText] = useState('');
@@ -290,6 +292,7 @@ export function RemarkDialog({ title, intro, label = 'Remark', placeholder, conf
         <Field label={label} required={required} hint={required ? 'The person who filed the claim will see this in their app.' : undefined}>
           <Textarea autoFocus value={text} onChange={(e) => setText(e.target.value)} placeholder={placeholder} maxLength={1000} />
         </Field>
+        {footnote && <div data-testid="remark-footnote" style={{ fontSize: 12.5, color: T.dim, lineHeight: 1.45, marginTop: -6 }}>{footnote}</div>}
       </div>
     </Modal>
   );
@@ -403,6 +406,8 @@ export function LineSummary({ item, currency, rules, also }: { item: ClaimItem; 
           <div style={{ fontSize: 13, color: T.dim, marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>
             {[
               item.vehicle_type ? vehicleName(item.vehicle_type) : null,
+              // Claimed from the day's GPS-measured distance: there is no odometer to show.
+              isGpsDistanceLine(item) ? 'GPS distance' : null,
               item.odometer_start != null || item.odometer_end != null ? `Odometer ${item.odometer_start ?? '—'} → ${item.odometer_end ?? '—'}` : null,
             ].filter(Boolean).join(' · ')}
           </div>

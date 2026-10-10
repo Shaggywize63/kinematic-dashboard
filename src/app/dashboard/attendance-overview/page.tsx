@@ -5,6 +5,7 @@ import { parseISO, isValid } from 'date-fns';
 import { CalendarDays, Check, Download, ExternalLink, Eye, Loader2, Pencil, Plus, RefreshCw, Search, Upload, UserX, X } from 'lucide-react';
 import api, { type AttendanceLate } from '../../../lib/api';
 import MonthlySummary from './MonthlySummary';
+import DayTravel from '../../../components/attendance/DayTravel';
 import SignedImage, { openSignedUrl } from '@/components/shared/SignedImage';
 import Modal from '../../../components/crm/shared/Modal';
 import { useAuth } from '../../../hooks/useAuth';
@@ -1343,6 +1344,17 @@ function AttendanceContent() {
                     ) : <div />}
                   </div>
                 </div>
+              )}
+
+              {/* Distance travelled that day (check-in → forms → check-out). Fetched only now that the modal is open; an
+                  absent / virtual row has no shift to measure. Never blocks the rest of the modal. */}
+              {!detail._virtual && detail.checkin_at && !!detail.user_id && (
+                <DayTravel
+                  key={`${detail.user_id}|${toISTDate(detail.date || detail.checkin_at)}`}
+                  userId={detail.user_id}
+                  date={toISTDate(detail.date || detail.checkin_at)}
+                  refreshKey={detail.checkout_at || ''}
+                />
               )}
 
               {/* Selfie thumbnails */}

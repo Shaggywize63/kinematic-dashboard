@@ -3,20 +3,31 @@ import { demoLogin, mockApi, seedSession, SEED_USER } from './utils';
 
 /**
  * Settings → Operational rules → "Attendance & shift rules" (per-client rules: shift window, late grace, weekly
- * offs, offline check-in). Backed by GET/PATCH /api/v1/org-settings/attendance-rules.
+ * offs, offline check-in, selfie required, check-in/out on every form). Backed by GET/PATCH
+ * /api/v1/org-settings/attendance-rules.
  *
  * Everything runs against an intercepted API (a tiny stateful fake of that endpoint) and asserts on what the
  * page shows and what it SENDS: load, the not-configured state, a save round-trip incl. the PATCH body, the
  * saved / failed toasts, the form being inert while saving, and the "Select a client first" guidance.
  */
 
-const DEFAULTS = { shift_start: '09:30', shift_end: '18:00', grace_minutes: 15, weekly_off: [0], allow_offline_checkin: false };
+// What the server resolves for a client that configured nothing: the original five rules plus the two newer ones.
+const DEFAULTS = {
+  shift_start: '09:30', shift_end: '18:00', grace_minutes: 15, weekly_off: [0], allow_offline_checkin: false,
+  selfie_required: true, form_checkin_required: false,
+};
+/** The five rules the card has always had. Saving the untouched defaults writes exactly these (that turns late marking on). */
+const SHIFT_RULES = {
+  shift_start: '09:30', shift_end: '18:00', grace_minutes: 15, weekly_off: [0], allow_offline_checkin: false,
+};
 const BOUNDS = { grace_minutes: { min: 0, max: 120 } };
 
 interface Seen { method: string; path: string; body: any }
 interface Fake {
   configured: boolean;
-  rules: typeof DEFAULTS;
+  rules: Partial<typeof DEFAULTS>;
+  /** What `defaults` carries; an old server has no selfie / form check-in rules at all. */
+  defaults?: Partial<typeof DEFAULTS>;
   /** Awaited before the PATCH is answered, so a test can look at the page mid-save. */
   patchGate?: Promise<void>;
   patchFail?: { status: number; error: string };
@@ -36,7 +47,7 @@ async function setup(page: Page, init: Partial<Fake> = {}) {
       let body: any = null;
       try { body = route.request().postDataJSON(); } catch { /* not json */ }
       if (method !== 'GET') seen.push({ method, path, body });
-      const payload = () => ({ success: true, data: { configured: fake.configured, rules: fake.rules, defaults: DEFAULTS, bounds: BOUNDS } });
+      const payload = () => ({ success: true, data: { configured: fake.configured, rules: fake.rules, defaults: fake.defaults ?? DEFAULTS, bounds: BOUNDS } });
 
       if (method === 'GET') {
         fake.gets++;
@@ -65,6 +76,8 @@ async function openRules(page: Page) {
 
 const saveBtn = (page: Page) => page.getByRole('button', { name: /Save attendance rules|Saving…/ });
 const offlineSwitch = (page: Page) => page.getByRole('switch', { name: 'Allow offline check-in' });
+const selfieSwitch = (page: Page) => page.getByRole('switch', { name: 'Selfie required for check-in / check-out' });
+const formSwitch = (page: Page) => page.getByRole('switch', { name: 'Check-in and check-out on every form' });
 
 test.describe('Attendance & shift rules (Settings)', () => {
   test('a client with no rules sees the defaults and the "not configured yet" state', async ({ page }) => {
@@ -81,6 +94,9 @@ test.describe('Attendance & shift rules (Settings)', () => {
     await expect(page.getByRole('button', { name: 'Saturday' })).toHaveAttribute('aria-pressed', 'false');
     await expect(offlineSwitch(page)).toHaveAttribute('aria-checked', 'false');
     await expect(page.getByText('Reps can check in without network; the time of the tap is used')).toBeVisible();
+    // Selfie is required unless a client turns it off; form check-in/out is off unless a client turns it on.
+    await expect(selfieSwitch(page)).toHaveAttribute('aria-checked', 'true');
+    await expect(formSwitch(page)).toHaveAttribute('aria-checked', 'false');
     // Nothing decorative is left in this card: the old unsaved sliders are gone.
     await expect(page.getByText('Auto checkout threshold')).toHaveCount(0);
     await expect(page.getByText('Late grace period')).toHaveCount(0);
@@ -126,7 +142,68 @@ test.describe('Attendance & shift rules (Settings)', () => {
     await expect(saveBtn(page)).toBeEnabled();
     await saveBtn(page).click();
     await expect(page.getByText('Attendance rules saved').first()).toBeVisible();
-    expect(seen.filter((r) => r.method === 'PATCH')[0].body).toEqual(DEFAULTS);
+    // The five shift rules, as they are — not the two newer switches, which nobody touched.
+    expect(seen.filter((r) => r.method === 'PATCH')[0].body).toEqual(SHIFT_RULES);
+  });
+
+  test('the selfie and form check-in switches save exactly what changed, and a reload reads them back', async ({ page }) => {
+    const { seen } = await setup(page, { configured: true });
+    await openRules(page);
+    await expect(selfieSwitch(page)).toHaveAttribute('aria-checked', 'true');
+    await expect(formSwitch(page)).toHaveAttribute('aria-checked', 'false');
+    await expect(saveBtn(page)).toBeDisabled();
+
+    await selfieSwitch(page).click();
+    await formSwitch(page).click();
+    await expect(selfieSwitch(page)).toHaveAttribute('aria-checked', 'false');
+    await expect(formSwitch(page)).toHaveAttribute('aria-checked', 'true');
+    await saveBtn(page).click();
+
+    await expect(page.getByText('Attendance rules saved').first()).toBeVisible();
+    const patches = seen.filter((r) => r.method === 'PATCH');
+    expect(patches).toHaveLength(1);
+    expect(patches[0].body).toEqual({ selfie_required: false, form_checkin_required: true });
+    await expect(saveBtn(page)).toBeDisabled(); // nothing left to save
+
+    await page.reload();
+    await page.getByRole('tab', { name: 'Operational rules' }).click();
+    await expect(selfieSwitch(page)).toHaveAttribute('aria-checked', 'false');
+    await expect(formSwitch(page)).toHaveAttribute('aria-checked', 'true');
+  });
+
+  test('turning the selfie off for a client with no rules writes ONLY that rule (no shift window, so no late marking)', async ({ page }) => {
+    const { seen } = await setup(page); // not configured
+    await openRules(page);
+    await selfieSwitch(page).click();
+    await saveBtn(page).click();
+    await expect(page.getByText('Attendance rules saved').first()).toBeVisible();
+    const patches = seen.filter((r) => r.method === 'PATCH');
+    expect(patches).toHaveLength(1);
+    expect(patches[0].body).toEqual({ selfie_required: false });
+  });
+
+  test('switching a flag back before saving leaves nothing to save', async ({ page }) => {
+    const { seen } = await setup(page, { configured: true });
+    await openRules(page);
+    await formSwitch(page).click();
+    await expect(saveBtn(page)).toBeEnabled();
+    await formSwitch(page).click();
+    await expect(saveBtn(page)).toBeDisabled();
+    expect(seen.filter((r) => r.method === 'PATCH')).toHaveLength(0);
+  });
+
+  test('a server that predates the two rules shows no such switches and never sends them', async ({ page }) => {
+    const OLD = { shift_start: '09:30', shift_end: '18:00', grace_minutes: 15, weekly_off: [0], allow_offline_checkin: false };
+    const { seen } = await setup(page, { configured: true, rules: { ...OLD }, defaults: OLD });
+    await openRules(page);
+    await expect(offlineSwitch(page)).toBeVisible();
+    await expect(selfieSwitch(page)).toHaveCount(0);
+    await expect(formSwitch(page)).toHaveCount(0);
+
+    await page.getByLabel('Late grace (minutes)').fill('30');
+    await saveBtn(page).click();
+    await expect(page.getByText('Attendance rules saved').first()).toBeVisible();
+    expect(seen.filter((r) => r.method === 'PATCH')[0].body).toEqual({ grace_minutes: 30 });
   });
 
   test('the form is inert while a save is in flight', async ({ page }) => {
@@ -142,6 +219,8 @@ test.describe('Attendance & shift rules (Settings)', () => {
     await expect(page.getByLabel('Late grace (minutes)')).toBeDisabled();
     await expect(page.getByRole('button', { name: 'Saturday' })).toBeDisabled();
     await expect(offlineSwitch(page)).toBeDisabled();
+    await expect(selfieSwitch(page)).toBeDisabled();
+    await expect(formSwitch(page)).toBeDisabled();
 
     release();
     await expect(page.getByText('Attendance rules saved').first()).toBeVisible();
@@ -203,6 +282,8 @@ test.describe('Attendance & shift rules (Settings)', () => {
     await page.getByRole('tab', { name: 'Operational rules' }).click();
     await expect(page.getByLabel('Shift start')).toHaveValue('09:30');
     await expect(page.getByText('Not configured yet — using defaults')).toBeVisible();
+    await expect(selfieSwitch(page)).toHaveAttribute('aria-checked', 'true');
+    await expect(formSwitch(page)).toHaveAttribute('aria-checked', 'false');
     await saveBtn(page).click();
     await expect(page.getByText('Attendance rules saved').first()).toBeVisible();
     await expect(page).toHaveURL(/\/dashboard\/settings/);
