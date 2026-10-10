@@ -16,10 +16,7 @@ const DEFAULTS = {
   shift_start: '09:30', shift_end: '18:00', grace_minutes: 15, weekly_off: [0], allow_offline_checkin: false,
   selfie_required: true, form_checkin_required: false,
 };
-/** The five rules the card has always had. Saving the untouched defaults writes exactly these (that turns late marking on). */
-const SHIFT_RULES = {
-  shift_start: '09:30', shift_end: '18:00', grace_minutes: 15, weekly_off: [0], allow_offline_checkin: false,
-};
+
 const BOUNDS = { grace_minutes: { min: 0, max: 120 } };
 
 interface Seen { method: string; path: string; body: any }
@@ -136,14 +133,45 @@ test.describe('Attendance & shift rules (Settings)', () => {
     await expect(offlineSwitch(page)).toHaveAttribute('aria-checked', 'true');
   });
 
-  test('an unconfigured client can save the defaults as they are (that is what turns the rules on)', async ({ page }) => {
+  test('a client with no rules has nothing to save until something changes: a displayed default is not a change', async ({ page }) => {
     const { seen } = await setup(page);
     await openRules(page);
-    await expect(saveBtn(page)).toBeEnabled();
+    await expect(page.getByText('Not configured yet — using defaults')).toBeVisible();
+    await expect(saveBtn(page)).toBeDisabled();
+    await page.getByLabel('Late grace (minutes)').fill('15'); // typed, but it is the value already shown
+    await expect(saveBtn(page)).toBeDisabled();
+    expect(seen.filter((r) => r.method === 'PATCH')).toHaveLength(0);
+  });
+
+  test('editing only the shift start sends only that key', async ({ page }) => {
+    const { seen } = await setup(page, { configured: true });
+    await openRules(page);
+    await page.getByLabel('Shift start').fill('10:00');
     await saveBtn(page).click();
     await expect(page.getByText('Attendance rules saved').first()).toBeVisible();
-    // The five shift rules, as they are — not the two newer switches, which nobody touched.
-    expect(seen.filter((r) => r.method === 'PATCH')[0].body).toEqual(SHIFT_RULES);
+    const patches = seen.filter((r) => r.method === 'PATCH');
+    expect(patches).toHaveLength(1);
+    expect(patches[0].body).toEqual({ shift_start: '10:00' });
+  });
+
+  test('on a client with no rules, editing the shift start writes only that key (the rest keep resolving to defaults)', async ({ page }) => {
+    const { seen } = await setup(page);
+    await openRules(page);
+    await page.getByLabel('Shift start').fill('10:00');
+    await saveBtn(page).click();
+    await expect(page.getByText('Attendance rules saved').first()).toBeVisible();
+    expect(seen.filter((r) => r.method === 'PATCH')[0].body).toEqual({ shift_start: '10:00' });
+  });
+
+  test('toggling only the selfie switch sends exactly {"selfie_required": false}', async ({ page }) => {
+    const { seen } = await setup(page, { configured: true });
+    await openRules(page);
+    await selfieSwitch(page).click();
+    await saveBtn(page).click();
+    await expect(page.getByText('Attendance rules saved').first()).toBeVisible();
+    const patches = seen.filter((r) => r.method === 'PATCH');
+    expect(patches).toHaveLength(1);
+    expect(patches[0].body).toEqual({ selfie_required: false });
   });
 
   test('the selfie and form check-in switches save exactly what changed, and a reload reads them back', async ({ page }) => {
@@ -284,6 +312,8 @@ test.describe('Attendance & shift rules (Settings)', () => {
     await expect(page.getByText('Not configured yet — using defaults')).toBeVisible();
     await expect(selfieSwitch(page)).toHaveAttribute('aria-checked', 'true');
     await expect(formSwitch(page)).toHaveAttribute('aria-checked', 'false');
+    await expect(saveBtn(page)).toBeDisabled(); // the displayed defaults are not a change
+    await selfieSwitch(page).click();
     await saveBtn(page).click();
     await expect(page.getByText('Attendance rules saved').first()).toBeVisible();
     await expect(page).toHaveURL(/\/dashboard\/settings/);

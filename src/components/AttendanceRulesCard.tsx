@@ -159,8 +159,9 @@ export default function AttendanceRulesCard() {
   const valid = !!draft && !graceError && !startError && !endError;
   const dirty = !!draft && !!payload && !sameDraft(draft, toDraft(payload.rules));
   const configured = !!payload?.configured;
-  // An unconfigured client may save the defaults as they are — that is what switches rule-based late marking on.
-  const canSave = valid && (dirty || !configured) && !saving;
+  // Only a change can be saved: the form shows the defaults for a client that stored nothing, and showing a default
+  // is not choosing it (saving it would write the shift keys, which is what switches rule-based late marking on).
+  const canSave = valid && dirty && !saving;
 
   const patch = (p: Partial<Draft>) => setDraft((d) => (d ? { ...d, ...p } : d));
   const toggleDay = (n: number) =>
@@ -168,9 +169,9 @@ export default function AttendanceRulesCard() {
 
   const save = async () => {
     if (!draft || !payload || !canSave) return;
-    // Send only what the admin changed. Writing the shift keys is what turns on rule-based late marking, so
-    // switching e.g. the selfie rule must not also write a shift window nobody chose. The one exception is an
-    // unconfigured client saving the defaults as they are: that is exactly how late marking is turned on.
+    // Send ONLY what the admin changed, compared with the rules the server resolved. Writing a shift key is what
+    // turns on rule-based late marking for a client, so switching e.g. the selfie rule must not also write a shift
+    // window nobody chose — and a default the form merely displays is not a change.
     const base = toDraft(payload.rules);
     const body: Partial<AttendanceRules> = {};
     if (draft.shift_start !== base.shift_start) body.shift_start = draft.shift_start;
@@ -182,13 +183,7 @@ export default function AttendanceRulesCard() {
       if (draft.selfie_required !== base.selfie_required) body.selfie_required = draft.selfie_required;
       if (draft.form_checkin_required !== base.form_checkin_required) body.form_checkin_required = draft.form_checkin_required;
     }
-    if (Object.keys(body).length === 0) {
-      body.shift_start = draft.shift_start;
-      body.shift_end = draft.shift_end;
-      body.grace_minutes = graceNum;
-      body.weekly_off = sortedDays(draft.weekly_off);
-      body.allow_offline_checkin = draft.allow_offline_checkin;
-    }
+    if (Object.keys(body).length === 0) return; // nothing changed: nothing to send
     const id = reqId.current;
     setSaving(true);
     setSaveError('');
@@ -258,7 +253,7 @@ export default function AttendanceRulesCard() {
             {!configured && (
               <div role="status" style={{ background: T.infoWash, borderRadius: 8, padding: '10px 12px', fontSize: 12.5, color: T.dim, lineHeight: 1.5 }}>
                 <span style={{ color: T.text, fontWeight: 600 }}>Not configured yet — using defaults</span> ({defaultsText}).
-                Saving the shift window, grace or weekly offs turns on rule-based late marking for this client. The check-in options below can be saved on their own.
+                Changing and saving the shift window, grace or weekly offs turns on rule-based late marking for this client. The check-in options below can be saved on their own, without it.
               </div>
             )}
 
