@@ -60,7 +60,10 @@ jobs:
           echo "install-deps did not complete; continuing (runner likely already has the libs)"
 
       - name: Run E2E tests
-        timeout-minutes: 8
+        # The suite is ~370 specs run serially (workers: 1, one shared dev server) and already took
+        # ~8 min on main, so an 8-minute cap tripped even though every spec passed. 15 leaves headroom
+        # inside the 25-minute job limit.
+        timeout-minutes: 15
         run: npx playwright test --reporter=list
 
       - name: Upload report
