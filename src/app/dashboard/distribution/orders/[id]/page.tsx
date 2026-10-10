@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import api from '../../../../../lib/api';
 import { Card, PageHeader, Pill, Btn, Th, Td, inr, fmtDate, statusColor } from '../../../../../components/distribution/Atoms';
+import { useDistributionNames, shortId } from '../../../../../lib/useDistributionNames';
 
 export default function OrderDetailPage() {
   const params = useParams();
@@ -11,6 +12,8 @@ export default function OrderDetailPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // The order row carries ids; the distributor name is embedded by GET /orders/:id, outlet + salesman are looked up.
+  const names = useDistributionNames({ salesmen: true, outlets: true });
 
   const load = async () => {
     try { const r: any = await api.getDistOrder(id); setOrder(r?.data || r); } catch (e: any) { setErr(e.message); }
@@ -98,9 +101,9 @@ export default function OrderDetailPage() {
             <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 12 }}>Status</div>
             <Pill color={statusColor(order.status)}>{order.status}</Pill>
             <div style={{ marginTop: 14, fontSize: 12, color: 'var(--text-dim)', display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <div>Outlet: {order.outlet_id?.slice(0, 8)}…</div>
-              <div>Distributor: {order.distributor_id?.slice(0, 8)}…</div>
-              <div>Salesman: {order.salesman_id?.slice(0, 8)}…</div>
+              <div title={order.outlet_id}>Outlet: {names.outletName(order.outlet_id) || shortId(order.outlet_id)}</div>
+              <div title={order.distributor_id}>Distributor: {order.distributor?.name || shortId(order.distributor_id)}</div>
+              <div title={order.salesman_id}>Salesman: {names.salesmanName(order.salesman_id) || shortId(order.salesman_id)}</div>
               <div>Geofence: {order.geofence_passed === false ? <Pill color="red">{order.geofence_distance_m}m off</Pill> : <Pill color="green">in fence</Pill>}</div>
               <div>Place of supply: {order.place_of_supply || '—'}</div>
               <div>Price list v{order.price_list_version}</div>

@@ -1105,6 +1105,28 @@ export function matchDemoMock<T>(rawPath: string, method: string, body?: unknown
     }
     if (path === '/users')                      return mockUsers() as unknown as T;
     if (path === '/attendance/team')            return mockAttendanceTeam() as unknown as T;
+    // Per-client attendance rules (Settings) — an unconfigured client; saving is acknowledged by the generic PATCH mock.
+    if (path === '/org-settings/attendance-rules') {
+      const d = { shift_start: '09:30', shift_end: '18:00', grace_minutes: 15, weekly_off: [0], allow_offline_checkin: false };
+      return wrap({ configured: false, rules: d, defaults: d, bounds: { grace_minutes: { min: 0, max: 120 } } }) as unknown as T;
+    }
+    // Monthly attendance summary: deterministic numbers for the demo team over the requested range.
+    if (path === '/attendance/summary') {
+      const from = query.get('from') || '';
+      const to = query.get('to') || '';
+      const span = Math.max(0, Math.round((Date.parse(to) - Date.parse(from)) / 86400000) + 1);
+      const workingDays = Math.max(0, span - Math.floor(span / 7));
+      const team = (mockUsers().data as Array<{ id: string; name: string; role?: string }>) || [];
+      const field = team.filter((u) => /executive|supervisor/i.test(u.role || ''));
+      const rows = (field.length ? field : team).slice(0, 12).map((u, i) => {
+        const absent = Math.min(workingDays, i % 4);
+        const halfDay = i % 3 === 0 ? 1 : 0;
+        const onLeave = i % 6 === 0 ? 1 : 0;
+        const present = Math.max(0, workingDays - absent - halfDay - onLeave);
+        return { user_id: u.id, name: u.name, working_days: workingDays, present, late: Math.min(i % 5, present), half_day: halfDay, on_leave: onLeave, absent };
+      });
+      return wrap({ from, to, working_days: workingDays, rows }) as unknown as T;
+    }
     if (path === '/zones')                      return mockZones() as unknown as T;
     if (path === '/clients')                    return mockClients() as unknown as T;
     if (path === '/inventory' || path === '/skus') return mockInventory() as unknown as T;
