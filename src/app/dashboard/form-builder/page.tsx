@@ -178,11 +178,154 @@ const inpStyle:React.CSSProperties = {
   outline:'none', width:'100%', colorScheme:'dark' as any,
 };
 
+/* ─── Who may manage what ────────────────────────────────────────────────── */
+// Deleting a FIELD is plain editing: anyone who can open the form may do it. The form list is org-wide (every
+// client of the org sees it), so a client's own admin ('client' role) may delete a whole FORM only when it is linked
+// to one of their own activities — the activity list the API returns is already scoped to their client. Activities
+// are client-scoped on the server too, so a client admin may rename / delete the ones they can see.
+function useBuilderAccess() {
+  const { user } = useAuth();
+  const role = user?.role;
+  const isClientRole = role === 'client';
+  const isPlatformAdmin = role === 'super_admin' || role === 'admin';
+  const scopeWide = user?.org_role_data_scope === 'team' || user?.org_role_data_scope === 'all';
+  return {
+    canManageActivities: isPlatformAdmin || scopeWide || isClientRole,
+    canDeleteForm: (f:BForm, activities:Array<{id:string}>) =>
+      !isClientRole || (!!f.activity_id && activities.some(a => a.id === f.activity_id)),
+  };
+}
+
+type BActivity = { id:string; name:string; [k:string]:any };
+
+/* Linked-activity options for the signed-in scope, plus rename / delete. Same endpoint and scope the list always used. */
+function useActivities(selectedClientId?:string|null) {
+  const [activities, setActivities] = useState<BActivity[]>([]);
+  useEffect(() => {
+    const qs = selectedClientId ? `?client_id=${selectedClientId}` : '';
+    api.get<any>(`/api/v1/activities${qs}`).then(r => {
+      const d = Array.isArray(r?.data?.data) ? r.data.data
+              : Array.isArray(r?.data)       ? r.data
+              : [];
+      setActivities(d);
+    }).catch(()=>{});
+  }, [selectedClientId]);
+  const rename = async (a:BActivity, name:string) => {
+    await api.patch(`/api/v1/activities/${a.id}`, { name });
+    setActivities(prev => prev.map(x => x.id === a.id ? { ...x, name } : x));
+  };
+  // Forms linked to it are kept: builder_forms.activity_id is ON DELETE SET NULL.
+  const remove = async (a:BActivity) => {
+    await api.delete(`/api/v1/activities/${a.id}`);
+    setActivities(prev => prev.filter(x => x.id !== a.id));
+  };
+  return { activities, rename, remove };
+}
+
+/* Small "type a new name" dialog, used for forms and activities. */
+function RenameModal({ title, label, initial, onSave, onClose }:{ title:string; label:string; initial:string; onSave:(name:string)=>Promise<void>; onClose:()=>void }) {
+  const [name, setName] = useState(initial);
+  const [busy, setBusy] = useState(false);
+  const [err,  setErr]  = useState('');
+  const trimmed = name.trim();
+  const submit = async () => {
+    if (!trimmed || busy) return;
+    if (trimmed === initial.trim()) { onClose(); return; }
+    setBusy(true); setErr('');
+    try { await onSave(trimmed); onClose(); }
+    catch (e:any) { setErr(e?.message || 'Could not save the new name'); setBusy(false); }
+  };
+  const btn:React.CSSProperties = { padding:'9px 18px', borderRadius:10, fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" };
+  return (
+    <div onClick={e => { e.stopPropagation(); if (e.target === e.currentTarget && !busy) onClose(); }}
+      style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.78)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:20, backdropFilter:'blur(6px)' }}>
+      <div role="dialog" aria-label={title} style={{ background:C.s2, border:`1px solid ${C.border}`, borderRadius:20, padding:28, width:'100%', maxWidth:420 }}>
+        <div style={{ fontFamily:"'Syne',sans-serif", fontSize:18, fontWeight:800, color:C.white, marginBottom:16 }}>{title}</div>
+        <label style={{ fontSize:12, color:C.gray, display:'block', marginBottom:6 }}>{label}</label>
+        <input autoFocus aria-label={label} style={inpStyle} value={name} maxLength={120}
+          onChange={e => setName(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') submit(); if (e.key === 'Escape' && !busy) onClose(); }}/>
+        {err && <div role="alert" style={{ fontSize:12, color:C.red, marginTop:8 }}>{err}</div>}
+        <div style={{ display:'flex', gap:10, marginTop:20, justifyContent:'flex-end' }}>
+          <button onClick={onClose} disabled={busy} style={{ ...btn, background:C.s3, border:`1px solid ${C.border}`, color:C.gray }}>Cancel</button>
+          <button onClick={submit} disabled={!trimmed || busy} style={{ ...btn, background:C.red, border:'none', color:'#fff', opacity:(!trimmed || busy) ? 0.6 : 1 }}>{busy ? 'Saving…' : 'Save'}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* The form's linked activity: pick it, and — for people who manage activities — rename or delete it. */
+function ActivityLinkField({ form, activities, busy, canManage, onLink, onRename, onDelete }:{
+  form:BForm; activities:BActivity[]; busy?:boolean; canManage:boolean;
+  onLink:(activityId:string)=>void;
+  onRename:(a:BActivity, name:string)=>Promise<void>;
+  onDelete:(a:BActivity)=>Promise<void>;
+}) {
+  const [renaming, setRenaming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const current = form.activity_id ? activities.find(a => a.id === form.activity_id) : undefined;
+  const iconBtn = (danger:boolean):React.CSSProperties => ({
+    flexShrink:0, width:32, height:32, display:'flex', alignItems:'center', justifyContent:'center',
+    background:C.s3, border:`1px solid ${danger ? C.redB : C.border}`, borderRadius:8,
+    color: danger ? C.red : C.gray, cursor:'pointer', fontSize:13,
+  });
+  const confirmDelete = async () => {
+    if (!current) return;
+    setDeleteBusy(true);
+    try { await onDelete(current); setDeleting(false); }
+    catch (e:any) { alert('Could not delete the activity: ' + (e?.message || 'unknown error')); }
+    finally { setDeleteBusy(false); }
+  };
+  return (
+    // Stops clicks from reaching a form card behind it (the card opens the editor).
+    <div onClick={e => e.stopPropagation()}>
+      <label style={{ fontSize:10, color:C.grayd, fontWeight:700, textTransform:'uppercase', letterSpacing:0.4, display:'block', marginBottom:4 }}>Linked Activity</label>
+      <div style={{ display:'flex', gap:6, alignItems:'center' }}>
+        <select
+          aria-label="Linked activity"
+          value={form.activity_id || ''}
+          disabled={busy}
+          onClick={e => e.stopPropagation()}
+          onChange={e => { e.stopPropagation(); onLink(e.target.value); }}
+          style={{ ...inpStyle, padding:'7px 10px', fontSize:12, appearance:'none' as any, cursor: busy ? 'wait':'pointer', opacity: busy ? 0.6 : 1, flex:1, minWidth:0 }}
+        >
+          <option value="">None (any activity)</option>
+          {form.activity_id && !current && (
+            <option value={form.activity_id}>Current activity</option>
+          )}
+          {activities.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+        </select>
+        {canManage && current && (
+          <>
+            <button type="button" title="Rename activity" aria-label="Rename activity" onClick={() => setRenaming(true)} style={iconBtn(false)}>✏️</button>
+            <button type="button" title="Delete activity" aria-label="Delete activity" onClick={() => setDeleting(true)} style={iconBtn(true)}>🗑</button>
+          </>
+        )}
+      </div>
+      {renaming && current && (
+        <RenameModal title="Rename activity" label="Activity name" initial={current.name}
+          onSave={name => onRename(current, name)} onClose={() => setRenaming(false)}/>
+      )}
+      <ConfirmModal
+        show={deleting && !!current}
+        onClose={() => setDeleting(false)}
+        onConfirm={confirmDelete}
+        title="Delete Activity"
+        message="Forms linked to it are kept but become unlinked, and field executives lose this activity. Are you sure you want to delete the activity"
+        itemName={current?.name}
+        loading={deleteBusy}
+      />
+    </div>
+  );
+}
+
 /* ══════════════════════════════════════════════════════════════════════════
    FORM LIST VIEW
 ══════════════════════════════════════════════════════════════════════════ */
 function FormList({ onOpen, onCreate }:{ onOpen:(f:BForm)=>void; onCreate:()=>void }) {
-  const { user } = useAuth();
+  const { canManageActivities, canDeleteForm } = useBuilderAccess();
   const { selectedClientId } = useClient();
   const [forms,   setForms]   = useState<BForm[]>([]);
   const [loading, setLoading] = useState(true);
@@ -193,8 +336,9 @@ function FormList({ onOpen, onCreate }:{ onOpen:(f:BForm)=>void; onCreate:()=>vo
   // straight from the list — not only at creation. Loaded via the shared `api`
   // client (scope headers) exactly like CreateFormModal, and refetched when the
   // client scope changes.
-  const [activities, setActivities] = useState<any[]>([]);
+  const { activities, rename: renameActivity, remove: removeActivity } = useActivities(selectedClientId);
   const [linkingId, setLinkingId] = useState<string | null>(null);
+  const [renamingForm, setRenamingForm] = useState<BForm | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -207,16 +351,6 @@ function FormList({ onOpen, onCreate }:{ onOpen:(f:BForm)=>void; onCreate:()=>vo
   }, []);
 
   useEffect(() => { load(); }, [load]);
-
-  useEffect(() => {
-    const qs = selectedClientId ? `?client_id=${selectedClientId}` : '';
-    api.get<any>(`/api/v1/activities${qs}`).then(r => {
-      const d = Array.isArray(r?.data?.data) ? r.data.data
-              : Array.isArray(r?.data)       ? r.data
-              : [];
-      setActivities(d);
-    }).catch(()=>{});
-  }, [selectedClientId]);
 
   // Link (or unlink) an existing form to an activity. Optimistic: patch the row
   // locally, then persist via the same builder PATCH the create flow already uses.
@@ -237,6 +371,17 @@ function FormList({ onOpen, onCreate }:{ onOpen:(f:BForm)=>void; onCreate:()=>vo
   };
 
   // Original del function logic removed in favor of `showDeleteModal` and `confirmDelete`
+
+  const renameForm = async (f:BForm, title:string) => {
+    await apiFetch(`/api/v1/builder/forms/${f.id}`, { method:'PATCH', body: JSON.stringify({ title }) });
+    setForms(prev => prev.map(x => x.id === f.id ? { ...x, title } : x));
+  };
+
+  // Deleting an activity unlinks its forms (ON DELETE SET NULL); mirror that locally.
+  const deleteActivity = async (a:BActivity) => {
+    await removeActivity(a);
+    setForms(prev => prev.map(x => x.activity_id === a.id ? { ...x, activity_id: null } : x));
+  };
 
 
   const duplicate = async (f:BForm, e:React.MouseEvent) => {
@@ -354,40 +499,42 @@ function FormList({ onOpen, onCreate }:{ onOpen:(f:BForm)=>void; onCreate:()=>vo
                   <div style={{ fontSize:28 }}>{f.icon||'📋'}</div>
                   <Tag label={f.status} color={STATUS_COLOR[f.status]||C.gray}/>
                 </div>
-                <div style={{ fontFamily:"'Syne',sans-serif", fontSize:16, fontWeight:800, color:C.white, marginBottom:4, lineHeight:1.3 }}>{f.title}</div>
+                <div style={{ display:'flex', alignItems:'flex-start', gap:6, marginBottom:4 }}>
+                  <div style={{ fontFamily:"'Syne',sans-serif", fontSize:16, fontWeight:800, color:C.white, lineHeight:1.3, flex:1, minWidth:0 }}>{f.title}</div>
+                  <button type="button" title="Rename form" aria-label={`Rename form ${f.title}`}
+                    onClick={e => { e.stopPropagation(); setRenamingForm(f); }}
+                    style={{ flexShrink:0, background:'none', border:'none', color:C.gray, cursor:'pointer', fontSize:13, padding:'2px 4px', borderRadius:6 }}>✏️</button>
+                </div>
                 {f.description && <div style={{ fontSize:12, color:C.gray, marginBottom:10, lineHeight:1.5, display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflow:'hidden' }}>{f.description}</div>}
                 <div style={{ fontSize:11, color:C.grayd, marginBottom:14 }}>v{f.version} · {new Date(f.created_at).toLocaleDateString('en-IN',{ day:'2-digit', month:'short', year:'numeric' })}</div>
                 {/* Link this existing form to an activity — persists via PATCH so it
                     can be set or changed any time after the form was created. */}
-                <div onClick={e => e.stopPropagation()} style={{ marginBottom:14 }}>
-                  <label style={{ fontSize:10, color:C.grayd, fontWeight:700, textTransform:'uppercase', letterSpacing:0.4, display:'block', marginBottom:4 }}>Linked Activity</label>
-                  <select
-                    value={f.activity_id || ''}
-                    disabled={linkingId===f.id}
-                    onClick={e => e.stopPropagation()}
-                    onChange={e => { e.stopPropagation(); linkActivity(f, e.target.value); }}
-                    style={{ ...inpStyle, padding:'7px 10px', fontSize:12, appearance:'none' as any, cursor: linkingId===f.id ? 'wait':'pointer', opacity: linkingId===f.id ? 0.6 : 1 }}
-                  >
-                    <option value="">None (any activity)</option>
-                    {f.activity_id && !activities.some(a => a.id === f.activity_id) && (
-                      <option value={f.activity_id}>Current activity</option>
-                    )}
-                    {activities.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-                  </select>
+                <div style={{ marginBottom:14 }}>
+                  <ActivityLinkField
+                    form={f} activities={activities} busy={linkingId===f.id} canManage={canManageActivities}
+                    onLink={id => linkActivity(f, id)}
+                    onRename={renameActivity}
+                    onDelete={deleteActivity}
+                  />
                 </div>
                 <div style={{ display:'flex', gap:8 }}>
                   <button onClick={e => { e.stopPropagation(); onOpen(f); }} style={{ flex:1, padding:'8px', background:C.s3, border:`1px solid ${C.border}`, borderRadius:8, color:C.white, fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
                     ✏️ Edit
                   </button>
                   <button onClick={e => duplicate(f, e)} style={{ padding:'8px 10px', background:C.s3, border:`1px solid ${C.border}`, borderRadius:8, color:C.gray, fontSize:12, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }} title="Duplicate">⧉</button>
-                  {user?.role !== 'client' && (
-                    <button onClick={e => showDeleteModal(f, e)} style={{ padding:'8px 10px', background:C.s3, border:`1px solid ${C.redB}`, borderRadius:8, color:C.red, fontSize:12, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }} title="Delete">🗑</button>
+                  {canDeleteForm(f, activities) && (
+                    <button onClick={e => showDeleteModal(f, e)} style={{ padding:'8px 10px', background:C.s3, border:`1px solid ${C.redB}`, borderRadius:8, color:C.red, fontSize:12, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }} title="Delete form" aria-label={`Delete form ${f.title}`}>🗑</button>
                   )}
                 </div>
               </div>
             </div>
           ))}
         </div>
+      )}
+
+      {renamingForm && (
+        <RenameModal title="Rename form" label="Form name" initial={renamingForm.title}
+          onSave={title => renameForm(renamingForm, title)} onClose={() => setRenamingForm(null)}/>
       )}
 
       <ConfirmModal
@@ -722,7 +869,6 @@ function CreateFormModal({ onCreated, onClose }:{ onCreated:(f:BForm)=>void; onC
    QUESTION PROPERTIES PANEL
 ══════════════════════════════════════════════════════════════════════════ */
 function PropertiesPanel({ q, allQs, onChange, onDelete }:{ q:BQuestion; allQs:BQuestion[]; onChange:(q:BQuestion)=>void; onDelete:()=>void }) {
-  const { user } = useAuth();
   const hasOptions = ['radio','checkbox','dropdown'].includes(q.qtype);
   const [newOpt, setNewOpt] = useState('');
 
@@ -740,9 +886,8 @@ function PropertiesPanel({ q, allQs, onChange, onDelete }:{ q:BQuestion; allQs:B
         <div style={{ fontSize:13, fontWeight:700, color:C.white, display:'flex', alignItems:'center', gap:7 }}>
           <span>{typeInfo(q.qtype).icon}</span> {typeInfo(q.qtype).label}
         </div>
-        {user?.role !== 'client' && (
-          <button onClick={onDelete} style={{ background:'none', border:'none', color:C.red, cursor:'pointer', fontSize:13, padding:'2px 6px', borderRadius:6 }}>🗑</button>
-        )}
+        <button onClick={onDelete} title="Delete this field" aria-label="Delete field"
+          style={{ background:`${C.red}12`, border:`1px solid ${C.red}40`, color:C.red, cursor:'pointer', fontSize:12, fontWeight:700, padding:'4px 10px', borderRadius:8, fontFamily:"'DM Sans',sans-serif" }}>🗑 Delete field</button>
       </div>
 
       <div style={{ padding:'14px 16px', display:'flex', flexDirection:'column', gap:14, flex:1 }}>
@@ -897,8 +1042,14 @@ function PropertiesPanel({ q, allQs, onChange, onDelete }:{ q:BQuestion; allQs:B
 /* ══════════════════════════════════════════════════════════════════════════
    QUESTION CARD (Canvas)
 ══════════════════════════════════════════════════════════════════════════ */
-function QuestionCard({ q, qNumber, isSelected, onSelect, onMoveUp, onMoveDown, isFirst, isLast, dragHandleProps }:{ q:BQuestion; qNumber:number|null; isSelected:boolean; onSelect:()=>void; onMoveUp:()=>void; onMoveDown:()=>void; isFirst:boolean; isLast:boolean, dragHandleProps?: any }) {
+function QuestionCard({ q, qNumber, isSelected, onSelect, onMoveUp, onMoveDown, onDelete, isFirst, isLast, dragHandleProps }:{ q:BQuestion; qNumber:number|null; isSelected:boolean; onSelect:()=>void; onMoveUp:()=>void; onMoveDown:()=>void; onDelete?:()=>void; isFirst:boolean; isLast:boolean, dragHandleProps?: any }) {
   const ti = typeInfo(q.qtype);
+  // Always on the card, so a field added by mistake can be removed without hunting for the side panel.
+  const deleteBtn = onDelete ? (
+    <button type="button" title="Delete field" aria-label={`Delete field ${q.label}`}
+      onClick={e => { e.stopPropagation(); onDelete(); }}
+      style={{ background:'transparent', border:`1px solid ${isSelected ? `${C.red}60` : C.border}`, borderRadius:6, color:C.red, cursor:'pointer', fontSize:11, padding:'1px 6px', opacity:isSelected ? 1 : 0.7 }}>🗑</button>
+  ) : null;
 
   const renderPreview = () => {
     switch (q.qtype) {
@@ -932,7 +1083,8 @@ function QuestionCard({ q, qNumber, isSelected, onSelect, onMoveUp, onMoveDown, 
       <div {...dragHandleProps} style={{ position:'absolute', left:-4, top:'50%', transform:'translateY(-50%)', padding:'10px 4px', cursor:'grab', color:C.grayd, opacity:isSelected?1:0.3 }}>
         ⠿
       </div>
-      <div style={{ fontFamily:"'Syne',sans-serif", fontSize:15, fontWeight:800, color:isSelected?C.red:C.white, marginLeft:12 }}>{q.label}</div>
+      {deleteBtn && <div style={{ position:'absolute', top:8, right:10 }}>{deleteBtn}</div>}
+      <div style={{ fontFamily:"'Syne',sans-serif", fontSize:15, fontWeight:800, color:isSelected?C.red:C.white, marginLeft:12, paddingRight:40 }}>{q.label}</div>
       {q.helper_text && <div style={{ fontSize:12, color:C.gray, marginTop:2, marginLeft:12 }}>{q.helper_text}</div>}
     </div>
   );
@@ -958,11 +1110,12 @@ function QuestionCard({ q, qNumber, isSelected, onSelect, onMoveUp, onMoveDown, 
               {!isLast  && <button onClick={e=>{e.stopPropagation();onMoveDown();}} style={{ background:C.s4, border:`1px solid ${C.border}`, borderRadius:4, color:C.gray, cursor:'pointer', fontSize:11, padding:'1px 6px' }}>↓</button>}
             </div>
           )}
+          {deleteBtn && <div style={{ marginLeft:6 }}>{deleteBtn}</div>}
         </div>
         {/* Label */}
         <div style={{ display:'flex', alignItems:'center', gap:7, marginBottom:8 }}>
           {qNumber != null && <span style={{ fontSize:12, fontWeight:800, color:isSelected?C.red:C.white }}>Q{qNumber}</span>}
-          <span style={{ fontSize:14, fontWeight:700, color:C.white, paddingRight:80 }}>{q.label}</span>
+          <span style={{ fontSize:14, fontWeight:700, color:C.white, paddingRight:120 }}>{q.label}</span>
           {q.is_required && <span style={{ fontSize:10, color:C.red, fontWeight:800 }}>*</span>}
         </div>
         {q.helper_text && <div style={{ fontSize:11, color:C.gray, marginBottom:8 }}>{q.helper_text}</div>}
@@ -1053,7 +1206,15 @@ function CanvasDroppable({ id, children, isDraggingNew }: { id: string; children
    FORM BUILDER (Editor)
 ══════════════════════════════════════════════════════════════════════════ */
 function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void }) {
+  const { canManageActivities, canDeleteForm } = useBuilderAccess();
+  const { selectedClientId } = useClient();
+  const { activities, rename: renameActivity, remove: removeActivity } = useActivities(selectedClientId);
   const [form,      setForm]     = useState<BForm>(initialForm);
+  // The title as last saved, so a rename is persisted once (on blur) and an emptied name is put back, never saved.
+  const [savedTitle, setSavedTitle] = useState(initialForm.title);
+  const [linking, setLinking] = useState(false);
+  const [deleteFormOpen, setDeleteFormOpen] = useState(false);
+  const [deletingForm, setDeletingForm] = useState(false);
   const [pages,     setPages]    = useState<BPage[]>([]);
   const [questions, setQs]       = useState<BQuestion[]>([]);
   const [selPage,   setSelPage]  = useState<string|null>(null);
@@ -1274,8 +1435,59 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
   const saveForm = async () => {
     setSaving(true); setSaved(false);
     await apiFetch(`/api/v1/builder/forms/${form.id}`, { method:'PATCH', body: JSON.stringify({ title:form.title, description:form.description, status:form.status }) }).catch(()=>{});
+    setSavedTitle(form.title);
     setSaving(false); setSaved(true);
     setTimeout(() => setSaved(false), 3000);
+  };
+
+  /* Rename the form from the title box: saved as soon as you leave it */
+  const saveTitle = async () => {
+    const t = form.title.trim();
+    if (!t) { setForm(p => ({...p, title:savedTitle})); return; }
+    if (t === savedTitle) { if (t !== form.title) setForm(p => ({...p, title:t})); return; }
+    try {
+      await apiFetch(`/api/v1/builder/forms/${form.id}`, { method:'PATCH', body: JSON.stringify({ title:t }) });
+      setSavedTitle(t);
+      setForm(p => ({...p, title:t}));
+    } catch (e:any) {
+      setForm(p => ({...p, title:savedTitle}));
+      alert('Could not rename the form: ' + (e?.message || 'unknown error'));
+    }
+  };
+
+  /* Link / unlink the form's activity */
+  const linkActivity = async (activityId:string) => {
+    const next = activityId || null;
+    const prev = form.activity_id ?? null;
+    if (prev === next) return;
+    setLinking(true);
+    setForm(p => ({...p, activity_id: next}));
+    try {
+      await apiFetch(`/api/v1/builder/forms/${form.id}`, { method:'PATCH', body: JSON.stringify({ activity_id: next }) });
+    } catch (e:any) {
+      setForm(p => ({...p, activity_id: prev}));
+      alert('Could not update the linked activity: ' + (e?.message || 'unknown error'));
+    } finally { setLinking(false); }
+  };
+
+  // Deleting an activity unlinks this form if it was linked to it (ON DELETE SET NULL).
+  const deleteActivity = async (a:BActivity) => {
+    await removeActivity(a);
+    setForm(p => p.activity_id === a.id ? {...p, activity_id: null} : p);
+  };
+
+  /* Delete the whole form, then go back to the list */
+  const doDeleteForm = async () => {
+    setDeletingForm(true);
+    try {
+      await apiFetch(`/api/v1/builder/forms/${form.id}`, { method:'DELETE' });
+      setDeletingForm(false);
+      setDeleteFormOpen(false);
+      onBack();
+    } catch (e:any) {
+      setDeletingForm(false);
+      alert('Delete failed: ' + (e?.message || 'unknown error'));
+    }
   };
 
   /* Publish / unpublish */
@@ -1295,8 +1507,13 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
           ← Back
         </button>
         <div style={{ flex:1 }}>
-          <input style={{ background:'transparent', border:'none', color:C.white, fontFamily:"'Syne',sans-serif", fontSize:17, fontWeight:800, outline:'none', width:'100%', caretColor:C.red }}
-            value={form.title} onChange={e => setForm(p => ({...p, title:e.target.value}))}/>
+          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+            <input aria-label="Form name" title="Click to rename this form"
+              style={{ background:'transparent', border:'none', borderBottom:`1px dashed ${C.border}`, color:C.white, fontFamily:"'Syne',sans-serif", fontSize:17, fontWeight:800, outline:'none', width:'100%', caretColor:C.red }}
+              value={form.title} onChange={e => setForm(p => ({...p, title:e.target.value}))}
+              onBlur={saveTitle} onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}/>
+            <span aria-hidden style={{ fontSize:12, opacity:.5 }}>✏️</span>
+          </div>
         </div>
         {/* Tabs */}
         <div style={{ display:'flex', gap:2, background:C.s3, borderRadius:9, padding:3, border:`1px solid ${C.border}` }}>
@@ -1316,6 +1533,10 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
           style={{ padding:'7px 16px', background:C.red, border:'none', borderRadius:8, color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", opacity:saving?0.6:1, display:'flex', alignItems:'center', gap:6 }}>
           {saving?<><Spin size={12}/>Saving…</>:saved?'✓ Saved':'Save'}
         </button>
+        {canDeleteForm(form, activities) && (
+          <button onClick={() => setDeleteFormOpen(true)} title="Delete this form" aria-label="Delete form"
+            style={{ padding:'7px 12px', background:C.s3, border:`1px solid ${C.redB}`, borderRadius:8, color:C.red, fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>🗑 Delete form</button>
+        )}
       </div>
 
       {/* Builder layout */}
@@ -1388,6 +1609,7 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
                             onSelect={() => setSelQ(q.id)}
                             onMoveUp={() => moveQ(q.id, 'up')}
                             onMoveDown={() => moveQ(q.id, 'down')}
+                            onDelete={() => setDeleteQModal({show:true, id:q.id, label:q.label})}
                             isFirst={i===0} isLast={i===currentPageQs.length-1}/>
                         )); })()}
                       </div>
@@ -1442,6 +1664,16 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
         loading={deletingQ}
       />
 
+      <ConfirmModal
+        show={deleteFormOpen}
+        onClose={() => setDeleteFormOpen(false)}
+        onConfirm={doDeleteForm}
+        title="Delete Form"
+        message="Are you sure you want to delete the form? This will permanently remove all associated pages, questions, and submissions."
+        itemName={form.title}
+        loading={deletingForm}
+      />
+
       {/* Settings tab */}
       {tab==='settings' && (
         <div style={{ flex:1, overflowY:'auto', padding:'28px 40px' }}>
@@ -1450,6 +1682,10 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
             <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
               <div><label style={{ fontSize:12, color:C.gray, display:'block', marginBottom:6 }}>Form Title</label><input style={inpStyle} value={form.title} onChange={e => setForm(p => ({...p,title:e.target.value}))}/></div>
               <div><label style={{ fontSize:12, color:C.gray, display:'block', marginBottom:6 }}>Description</label><textarea style={{ ...inpStyle, resize:'none' as any }} rows={3} value={form.description||''} onChange={e => setForm(p => ({...p,description:e.target.value}))}/></div>
+              <ActivityLinkField
+                form={form} activities={activities} busy={linking} canManage={canManageActivities}
+                onLink={linkActivity} onRename={renameActivity} onDelete={deleteActivity}
+              />
               <div>
                 <label style={{ fontSize:12, color:C.gray, display:'block', marginBottom:6 }}>Status</label>
                 <select style={{ ...inpStyle, appearance:'none' as any }} value={form.status} onChange={e => setForm(p => ({...p,status:e.target.value}))}>
@@ -1471,6 +1707,12 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
               <button onClick={saveForm} disabled={saving} style={{ padding:'11px', background:C.red, border:'none', borderRadius:10, color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
                 {saving?<><Spin/>Saving…</>:saved?'✓ Saved':'Save Settings'}
               </button>
+              {canDeleteForm(form, activities) && (
+                <div style={{ marginTop:12, padding:'14px 16px', border:`1px solid ${C.redB}`, borderRadius:12, display:'flex', justifyContent:'space-between', alignItems:'center', gap:12 }}>
+                  <div><div style={{ fontSize:13, fontWeight:700, color:C.white }}>Delete this form</div><div style={{ fontSize:11, color:C.grayd, marginTop:2 }}>Removes the form with its pages, fields and submissions. This cannot be undone.</div></div>
+                  <button onClick={() => setDeleteFormOpen(true)} style={{ flexShrink:0, padding:'8px 14px', background:C.s3, border:`1px solid ${C.redB}`, borderRadius:8, color:C.red, fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>🗑 Delete form</button>
+                </div>
+              )}
             </div>
           </div>
         </div>
