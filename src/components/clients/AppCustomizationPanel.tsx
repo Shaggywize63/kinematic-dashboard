@@ -1,6 +1,6 @@
 'use client';
 import React from 'react';
-import { APP_CUSTOMIZATION_SECTIONS, isItemVisible, labelFor, type AppCustomization, type AppItem, type AppUiSection } from '../../lib/appCustomization';
+import { APP_CUSTOMIZATION_SECTIONS, FEATURE_ITEMS, isFeatureEnabled, isItemVisible, labelFor, withFeature, type AppCustomization, type AppItem, type AppUiSection } from '../../lib/appCustomization';
 
 // Per-client "App Customization" panel for the Client Management editor.
 // Renders, per customizable item (side menu / bottom tab / Home card / Settings
@@ -9,6 +9,10 @@ import { APP_CUSTOMIZATION_SECTIONS, isItemVisible, labelFor, type AppCustomizat
 // ON (default) defers to the app's built-in gate. A non-empty rename overrides the
 // item's display name in both apps. Persists as `app_ui` on the client save
 // (clients.settings.app_ui → /auth/me `app_ui_config`).
+//
+// The "Features" card is the exception: its switches are OPT-IN. They are OFF
+// unless the stored value is exactly `true`, and turning one off deletes the key
+// (see FEATURES in lib/appCustomization.ts) rather than writing `false`.
 
 const wrap: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 16 };
 const sectionCard: React.CSSProperties = {
@@ -59,6 +63,43 @@ function Chip({ item, on, onToggle }: { item: AppItem; on: boolean; onToggle: ()
   );
 }
 
+/** An opt-in feature switch: OFF unless the stored value is exactly `true`. */
+function FeatureSwitch({ item, on, onToggle }: { item: AppItem; on: boolean; onToggle: () => void }) {
+  const switchId = `app-feature-${item.id}`;
+  const noteId = `${switchId}-note`;
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+      <button
+        type="button"
+        id={switchId}
+        role="switch"
+        aria-checked={on}
+        aria-describedby={item.note ? noteId : undefined}
+        onClick={onToggle}
+        title={on ? 'On — click to turn off' : 'Off — click to turn on'}
+        style={{
+          position: 'relative', width: 38, height: 22, borderRadius: 999, flexShrink: 0, padding: 0,
+          cursor: 'pointer', marginTop: 1,
+          border: `1px solid ${on ? 'var(--primary)' : 'var(--border)'}`,
+          background: on ? 'var(--primary)' : 'var(--s2)',
+          transition: 'background .15s, border-color .15s',
+        }}
+      >
+        <span style={{
+          position: 'absolute', top: 2, left: on ? 18 : 2, width: 16, height: 16, borderRadius: '50%',
+          background: on ? '#fff' : 'var(--textTert)', transition: 'left .15s, background .15s',
+        }} />
+      </button>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+        <label htmlFor={switchId} style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text)', cursor: 'pointer' }}>
+          {item.label}
+        </label>
+        {item.note && <span id={noteId} style={{ fontSize: 10.5, color: 'var(--textTert)' }}>{item.note}</span>}
+      </div>
+    </div>
+  );
+}
+
 export default function AppCustomizationPanel({
   value,
   onChange,
@@ -90,6 +131,27 @@ export default function AppCustomizationPanel({
         Turn an item <strong>off</strong> to hide it in the mobile apps for this client, or type a
         name to <strong>rename</strong> it. Items left on follow the app’s normal rules (a screen still
         needs its module/package enabled to appear). Applies to both Android and iOS on next login.
+      </div>
+      {/* Opt-in features — the opposite default to the cards below: OFF until switched on. */}
+      <div style={sectionCard}>
+        <div style={sectionHead}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
+            <span>Features</span>
+            <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 600, color: 'var(--textTert)' }}>
+              off until switched on
+            </span>
+          </div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {FEATURE_ITEMS.map((it) => (
+            <FeatureSwitch
+              key={it.id}
+              item={it}
+              on={isFeatureEnabled(value, it.id)}
+              onToggle={() => onChange(withFeature(value, it.id, !isFeatureEnabled(value, it.id)))}
+            />
+          ))}
+        </div>
       </div>
       {APP_CUSTOMIZATION_SECTIONS.map(({ key, label, items }) => {
         const hiddenCount = items.filter((it) => !isItemVisible(value, key, it.id)).length;

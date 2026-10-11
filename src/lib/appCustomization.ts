@@ -16,8 +16,17 @@
 // non-empty label in `labels[section][id]` renames the item in the apps.
 //
 // BACKWARD COMPAT: visibility stays a plain boolean map per section (old app
-// builds keep decoding it); `home`, `settings` and `labels` are additive — an
-// older build simply ignores the sections/labels it doesn't know.
+// builds keep decoding it); `home`, `settings`, `labels` and `features` are
+// additive — an older build simply ignores the sections/labels it doesn't know.
+//
+// FEATURES — the one OPT-IN section (the opposite default to everything above):
+//   feature_enabled(id) = (config.features[id] === true)
+// A feature is OFF unless the stored value is exactly `true`; absent, false or any
+// other value means off. It is NOT an `AppUiSection` (no hide-only semantics, no
+// rename, no Show all / Hide all), so it lives beside the sections, never in them.
+// Switching one off deletes its key (and `features` itself once empty) instead of
+// storing `false`, so a legacy client's stored config only changes when an admin
+// actually touches a feature. The Android app reads `features.rate_prompt`.
 //
 // KEEP-IN-SYNC: every id below must be mirrored at the matching render site in
 //   Kinematic-App  → ui/entitlements/Entitlements.kt (menuVisible/tabVisible/crmMoreVisible/homeVisible/settingsVisible/labelFor)
@@ -104,6 +113,17 @@ export const SETTINGS_ITEMS: AppItem[] = [
   { id: 'about',           label: 'About (version / build)' },
 ];
 
+/** Opt-in app features, switched on per client. Unlike the sections above these
+ *  are OFF by default — see FEATURES in the header. `note` is the description
+ *  shown under the switch. */
+export const FEATURE_ITEMS: AppItem[] = [
+  {
+    id: 'rate_prompt',
+    label: 'Ask users to rate the app on Google Play',
+    note: 'Android only. Shown after a few days of use, at most 3 times.',
+  },
+];
+
 export interface AppCustomization {
   menu?: Record<string, boolean>;
   tabs?: Record<string, boolean>;
@@ -112,6 +132,9 @@ export interface AppCustomization {
   settings?: Record<string, boolean>;
   /** Optional per-item display-name overrides, keyed by section then id. */
   labels?: Partial<Record<AppUiSection, Record<string, string>>>;
+  /** Opt-in feature flags (e.g. `rate_prompt`). A feature is on ONLY when its
+   *  value is exactly `true`; the key is removed (not set to false) when off. */
+  features?: Record<string, boolean>;
 }
 
 export const APP_CUSTOMIZATION_SECTIONS: Array<{ key: AppUiSection; label: string; items: AppItem[] }> = [
@@ -125,6 +148,24 @@ export const APP_CUSTOMIZATION_SECTIONS: Array<{ key: AppUiSection; label: strin
 /** True unless the client explicitly hid this id (config value === false). */
 export function isItemVisible(cfg: AppCustomization | null | undefined, section: AppUiSection, id: string): boolean {
   return cfg?.[section]?.[id] !== false;
+}
+
+/** True ONLY when the client explicitly enabled this feature (value === true).
+ *  Opt-in: absent, false or any non-boolean value is off. */
+export function isFeatureEnabled(cfg: AppCustomization | null | undefined, id: string): boolean {
+  return cfg?.features?.[id] === true;
+}
+
+/** Returns a copy of `cfg` with one feature switched on or off. On stores
+ *  `features[id] = true`; off DELETES the key and drops `features` entirely when
+ *  nothing else is left in it. Every other section, label and feature key is
+ *  carried over untouched. */
+export function withFeature(cfg: AppCustomization, id: string, on: boolean): AppCustomization {
+  const { features: current, ...rest } = cfg;
+  const features: Record<string, boolean> =
+    current && typeof current === 'object' && !Array.isArray(current) ? { ...current } : {};
+  if (on) features[id] = true; else delete features[id];
+  return Object.keys(features).length ? { ...rest, features } : rest;
 }
 
 /** The admin's custom label for an item, if set and non-empty; else the default. */
