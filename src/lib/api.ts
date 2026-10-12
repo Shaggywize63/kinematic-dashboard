@@ -289,6 +289,16 @@ export function extractApiError(data: any): string {
 export type ApiError = Error & { status?: number };
 const httpError = (message: string, status: number): ApiError => Object.assign(new Error(message), { status });
 
+/** A unique Idempotency-Key for a POST that must be a safe no-op on retry
+ *  (closing-stock save, collection-target save). Prefers crypto.randomUUID,
+ *  falling back to a timestamp+random string where it isn't available. */
+function genIdempotencyKey(): string {
+  try {
+    if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
+  } catch { /* ignore */ }
+  return `idem-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 // ── Attendance rules (per client) + monthly summary ─────────────────────────
 // Mirror GET/PATCH /org-settings/attendance-rules and GET /attendance/summary.
 export interface AttendanceRules {
@@ -1407,6 +1417,37 @@ class ApiClient {
   }
   getStockMovements(params?: Record<string, string>) { return this.get(`/api/v1/distribution/stock/movements${this.sanitizeParams(params)}`); }
   adjustStock(data: object) { return this.post('/api/v1/distribution/stock/adjust', data); }
+
+  // ── Distribution: Closing Stock (daily physical count + discrepancy) ─────────
+  // Org-scoped (no client id). The worksheet lists every stocked SKU for a
+  // distributor on a date with its system vs physical qty + variance/status;
+  // saveClosingStock posts only the rows the admin counted (Idempotency-Key so a
+  // retried submit is a safe no-op); approveClosingStock adjusts system → count.
+  getClosingStockWorksheet(distributorId: string, date?: string) {
+    const params: Record<string, string> = { distributor_id: distributorId };
+    if (date) params.date = date;
+    return this.get(`/api/v1/distribution/closing-stock${this.sanitizeParams(params)}`);
+  }
+  saveClosingStock(body: { distributor_id: string; stock_date?: string; counts: Array<{ sku_id: string; physical_qty: number; note?: string }> }) {
+    return this.post('/api/v1/distribution/closing-stock', body, { headers: { 'Idempotency-Key': genIdempotencyKey() } });
+  }
+  approveClosingStock(id: string) { return this.post(`/api/v1/distribution/closing-stock/${id}/approve`, {}); }
+  getClosingStockReport(distributorId: string, from: string, to: string) {
+    return this.get(`/api/v1/distribution/closing-stock/report${this.sanitizeParams({ distributor_id: distributorId, from, to })}`);
+  }
+
+  // ── Distribution: Collection Targets (monthly ₹ target vs achievement) ───────
+  // Org-scoped. getCollectionTargets returns every eligible user for the month
+  // with their target, actual collected, balance, achievement % and band;
+  // saveCollectionTarget upserts one user's target (Idempotency-Key); delete
+  // removes an existing target row.
+  getCollectionTargets(month: string) {
+    return this.get(`/api/v1/distribution/collection-targets${this.sanitizeParams({ month })}`);
+  }
+  saveCollectionTarget(body: { user_id: string; month: string; target_amount: number; note?: string }) {
+    return this.post('/api/v1/distribution/collection-targets', body, { headers: { 'Idempotency-Key': genIdempotencyKey() } });
+  }
+  deleteCollectionTarget(id: string) { return this.delete(`/api/v1/distribution/collection-targets/${id}`); }
 
   // ── Distribution: Batch & Expiry / FIFO-FEFO + Receiving ─────────────
   // (modules distribution_batches / distribution_receiving). Batches are the
