@@ -65,6 +65,9 @@ function Stat({ label, value, color, onClick, active }: { label: string; value: 
       onClick={onClick}
       role={clickable ? 'button' : undefined}
       tabIndex={clickable ? 0 : undefined}
+      // Accessible name combines label + value (e.g. "Failed (2)") so screen readers
+      // announce the metric meaningfully and the tile is findable as a named control.
+      aria-label={clickable ? `${label} (${value})` : undefined}
       aria-pressed={clickable ? !!active : undefined}
       title={clickable ? (active ? 'Clear this filter' : 'Filter the recipients below') : undefined}
       onKeyDown={clickable ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick!(); } } : undefined}
