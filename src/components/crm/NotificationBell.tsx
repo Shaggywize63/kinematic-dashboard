@@ -106,6 +106,53 @@ export default function NotificationBell() {
   }, []);
   const ref = useRef<HTMLDivElement>(null);
 
+  // ── New-notification alerting (sound + desktop notification) ───────────────
+  // The web bell used to refresh only while open and never made a sound, so a
+  // reminder coming due produced no visible or audible cue on the web (the web
+  // user has no FCM/APNs token, so the mobile push path doesn't reach them).
+  // We now background-poll while the tab is visible (below) and, when a NEW
+  // unread feed item arrives, play a short chime and — if the user granted
+  // permission — raise a desktop notification.
+  const seenNotifIds = useRef<Set<string>>(new Set());
+  const bootstrapped = useRef(false);
+  const audioCtx = useRef<AudioContext | null>(null);
+
+  // Short two-note chime via WebAudio — no asset to ship, and silent-safe when
+  // the browser hasn't unlocked audio yet (resumed on the first user gesture).
+  const playChime = () => {
+    try {
+      const AC: typeof AudioContext | undefined =
+        (window as unknown as { AudioContext?: typeof AudioContext; webkitAudioContext?: typeof AudioContext }).AudioContext
+        || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!AC) return;
+      const ctx = audioCtx.current || (audioCtx.current = new AC());
+      if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+      const t0 = ctx.currentTime;
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(880, t0);
+      o.frequency.setValueAtTime(1174.7, t0 + 0.11);
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(0.18, t0 + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.4);
+      o.connect(g); g.connect(ctx.destination);
+      o.start(t0); o.stop(t0 + 0.42);
+    } catch { /* audio not available — stay silent */ }
+  };
+
+  // Desktop notification — only when the user has granted permission (requested
+  // on the first bell click, a user gesture). Clicking it deep-links the item.
+  const showDesktop = (n: FeedNotif) => {
+    try {
+      if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+      const note = new Notification(n.title || 'Kinematic', {
+        body: n.body || '', tag: `kin-${n.id}`, icon: '/logo-k-light.png',
+      });
+      note.onclick = () => { try { window.focus(); } catch { /* ignore */ } window.location.href = notifHref(n); note.close(); };
+    } catch { /* ignore */ }
+  };
+
   // Click-outside to close.
   useEffect(() => {
     const onDoc = (e: MouseEvent) => {
@@ -137,32 +184,64 @@ export default function NotificationBell() {
       if (nRes.status === 'fulfilled') {
         const raw: any = nRes.value;
         const list: FeedNotif[] = Array.isArray(raw) ? raw : (raw?.data || []);
-        setNotifs(Array.isArray(list) ? list : []);
+        const incoming = Array.isArray(list) ? list : [];
+        // Alert on NEW unread items only. Seed silently on the first successful
+        // load so we don't chime for the existing backlog, then chime +
+        // desktop-notify when fresh unread items appear on a later poll.
+        if (!bootstrapped.current) {
+          incoming.forEach((n) => n.id && seenNotifIds.current.add(n.id));
+          bootstrapped.current = true;
+        } else {
+          const fresh = incoming.filter((n) => n.id && !n.is_read && !seenNotifIds.current.has(n.id));
+          incoming.forEach((n) => n.id && seenNotifIds.current.add(n.id));
+          if (fresh.length) {
+            playChime();
+            fresh.slice(0, 2).forEach(showDesktop);
+          }
+        }
+        setNotifs(incoming);
       } else {
         setNotifs([]);
       }
     } finally { setLoading(false); }
   };
 
-  // Single load on mount so the badge count is accurate, then poll only while
-  // the dropdown is open AND the tab is visible.
-  useEffect(() => { load(); }, []);
-
+  // Load on mount, then BACKGROUND-poll every 60s while the tab is visible —
+  // even when the dropdown is closed — so the badge stays live and a newly
+  // arrived reminder can chime / raise a desktop notification without the panel
+  // being open. (Previously it only polled while open, so reminders produced no
+  // cue on the web at all.)
   useEffect(() => {
-    if (!open) return;
-    load(); // refresh immediately on open
+    load();
     let t: number | null = null;
-    const start = () => {
-      if (t == null) t = window.setInterval(load, 60_000);
+    const start = () => { if (t == null) t = window.setInterval(load, 60_000); };
+    const stop = () => { if (t != null) { window.clearInterval(t); t = null; } };
+    if (typeof document === 'undefined' || document.visibilityState === 'visible') start();
+    const onVis = () => {
+      if (document.visibilityState === 'visible') { load(); start(); } else { stop(); }
     };
-    const stop = () => {
-      if (t != null) { window.clearInterval(t); t = null; }
-    };
-    if (document.visibilityState === 'visible') start();
-    const onVis = () => { document.visibilityState === 'visible' ? start() : stop(); };
     document.addEventListener('visibilitychange', onVis);
-    return () => { stop(); document.removeEventListener('visibilitychange', onVis); };
-  }, [open]);
+    // Unlock WebAudio on the first user gesture so the chime can play later —
+    // browsers suspend audio until the page has been interacted with.
+    const unlock = () => {
+      try {
+        const AC = (window as unknown as { AudioContext?: typeof AudioContext; webkitAudioContext?: typeof AudioContext }).AudioContext
+          || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+        if (AC) { audioCtx.current = audioCtx.current || new AC(); audioCtx.current?.resume?.().catch(() => {}); }
+      } catch { /* ignore */ }
+    };
+    window.addEventListener('pointerdown', unlock, { once: true });
+    return () => {
+      stop();
+      document.removeEventListener('visibilitychange', onVis);
+      window.removeEventListener('pointerdown', unlock);
+    };
+    // load is stable enough for our purposes; we intentionally run this once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Refresh immediately whenever the panel is opened.
+  useEffect(() => { if (open) load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [open]);
 
   const sortedActivities = useMemo(() => {
     return [...activities].sort((a: any, b: any) => {

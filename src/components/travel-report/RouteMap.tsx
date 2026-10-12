@@ -7,7 +7,7 @@
  * The map never blocks the report: with no key, no network or no route it says so in its own box and the timeline
  * below is unaffected.
  */
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   applyMapTheme, baseMapOptions, circleSymbol, fitToPoints, infoHtml, MAP_COLORS, useDocumentTheme, useGoogleMaps, type GMaps,
 } from '../../lib/googleMaps';
@@ -37,7 +37,7 @@ export default function RouteMap({ path, markers, start, end, height = 360 }: Ro
   const mapInst = useRef<GMaps>(null);
   const infoRef = useRef<GMaps>(null);
   const overlays = useRef<GMaps[]>([]);
-  const { maps, error } = useGoogleMaps(['maps']);
+  const { maps, error } = useGoogleMaps(['maps', 'routes']);
   const theme = useDocumentTheme();
 
   useEffect(() => {
@@ -49,6 +49,55 @@ export default function RouteMap({ path, markers, start, end, height = 360 }: Ro
 
   useEffect(() => { applyMapTheme(mapInst.current, theme); }, [theme]);
 
+  // Road-snap the raw GPS pings through the Directions SDK so the line follows
+  // the actual roads the rep took — the SAME approach and parameters as Live
+  // Trailing (DRIVING mode, origin + ≤23 waypoints + destination, 60 m span
+  // guard, graceful straight-segment fallback). Without this the ~10-min
+  // heartbeat pings are joined by long straight chords that cut across roads,
+  // which is why the report showed "straight lines" instead of the path.
+  const [snappedPath, setSnappedPath] = useState<LatLng[] | null>(null);
+  useEffect(() => {
+    if (!maps || !maps.DirectionsService || path.length < 2) { setSnappedPath(null); return; }
+    const lats = path.map((p) => p.lat);
+    const lngs = path.map((p) => p.lng);
+    const spanM = Math.max(
+      (Math.max(...lats) - Math.min(...lats)) * 111_000,
+      (Math.max(...lngs) - Math.min(...lngs)) * 111_000 * Math.cos((lats[0] * Math.PI) / 180),
+    );
+    // A near-stationary day has no meaningful route — don't spend a Directions call.
+    if (spanM < 60) { setSnappedPath(null); return; }
+    // Directions allows origin + destination + up to 23 waypoints: sample the
+    // pings down evenly, preserving order and both endpoints.
+    const MAX = 25;
+    let pts = path;
+    if (pts.length > MAX) {
+      const step = (pts.length - 1) / (MAX - 1);
+      pts = Array.from({ length: MAX }, (_, i) => path[Math.round(i * step)]);
+    }
+    const origin = { lat: pts[0].lat, lng: pts[0].lng };
+    const destination = { lat: pts[pts.length - 1].lat, lng: pts[pts.length - 1].lng };
+    const waypoints = pts.slice(1, -1).map((p) => ({ location: { lat: p.lat, lng: p.lng }, stopover: false }));
+    let cancelled = false;
+    try {
+      const svc = new maps.DirectionsService();
+      svc.route(
+        { origin, destination, waypoints, travelMode: maps.TravelMode.DRIVING, optimizeWaypoints: false },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (res: any, status: any) => {
+          if (cancelled) return;
+          if (status === 'OK' && res?.routes?.[0]?.overview_path?.length) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            setSnappedPath(res.routes[0].overview_path.map((p: any) => ({ lat: p.lat(), lng: p.lng() })));
+          } else {
+            setSnappedPath(null); // fall back to straight segments
+          }
+        },
+      );
+    } catch { setSnappedPath(null); }
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [maps, path]);
+
   useEffect(() => {
     const map = mapInst.current;
     if (!maps || !map) return;
@@ -58,10 +107,13 @@ export default function RouteMap({ path, markers, start, end, height = 360 }: Ro
     const c = MAP_COLORS[theme];
 
     // The route: a soft wide line under a crisp one, like the Live Trailing trail.
-    if (path.length >= 2) {
+    // Draw the road-snapped path when available, else the raw pings (straight
+    // segments) — identical fallback to Live Trailing.
+    const line = snappedPath && snappedPath.length >= 2 ? snappedPath : path;
+    if (line.length >= 2) {
       overlays.current.push(
-        new maps.Polyline({ map, path, strokeColor: c.red, strokeOpacity: 0.18, strokeWeight: 8, zIndex: 5 }),
-        new maps.Polyline({ map, path, strokeColor: c.red, strokeOpacity: 0.95, strokeWeight: 4, zIndex: 6 }),
+        new maps.Polyline({ map, path: line, strokeColor: c.red, strokeOpacity: 0.18, strokeWeight: 8, zIndex: 5 }),
+        new maps.Polyline({ map, path: line, strokeColor: c.red, strokeOpacity: 0.95, strokeWeight: 4, zIndex: 6 }),
       );
     }
 
@@ -88,7 +140,7 @@ export default function RouteMap({ path, markers, start, end, height = 360 }: Ro
     }
 
     fitToPoints(maps, map, [...path, ...markers.map((m) => m.at), ...(start ? [start] : []), ...(end ? [end] : [])], { padding: 40, maxZoom: 16 });
-  }, [maps, path, markers, start, end, theme]);
+  }, [maps, path, markers, start, end, theme, snappedPath]);
 
   const nothing = path.length < 2 && markers.length === 0 && !start && !end;
   return (
