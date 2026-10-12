@@ -722,8 +722,15 @@ export interface EmailCampaign {
 }
 export interface EmailCampaignRecipient {
   id: string; campaign_id: string; email: string; first_name: string | null;
-  status: 'queued' | 'sending' | 'sent' | 'failed' | 'skipped';
+  // null only for engagement-driven rows (opened/clicked/…) sourced from the logs,
+  // where the recipient's delivery status may be unknown.
+  status: 'queued' | 'sending' | 'sent' | 'failed' | 'skipped' | null;
   skip_reason: string | null; error: string | null; sent_at: string | null; created_at: string;
+  // Engagement from the linked crm_email_logs row (opt-in by data; 0/false/null
+  // when the recipient has no log yet — e.g. still queued, skipped or failed).
+  opened?: boolean; clicked?: boolean; open_count?: number; click_count?: number;
+  engagement_status?: string | null;
+  opened_at?: string | null; clicked_at?: string | null;
 }
 export interface EmailCampaignPreview {
   count: number;
@@ -756,7 +763,8 @@ export const crmEmailCampaigns = {
   recipients: (id: string, params?: Record<string, string | number | boolean | undefined | null>) =>
     api.get<Wrapped<EmailCampaignRecipient[]>>(`${BASE}/email-campaigns/${id}/recipients${qs(params)}`),
   analytics: (id: string) => api.get<Wrapped<EmailCampaignAnalytics>>(`${BASE}/email-campaigns/${id}/analytics`),
-  csvPath: (id: string) => `${BASE}/email-campaigns/${id}/recipients.csv`,
+  csvPath: (id: string, params?: Record<string, string | number | boolean | undefined | null>) =>
+    `${BASE}/email-campaigns/${id}/recipients.csv${qs(params)}`,
   preview: (body: { audience: EmailAudience; template_id?: string | null; subject?: string; body_html?: string }) =>
     api.post<Wrapped<EmailCampaignPreview>>(`${BASE}/email-campaigns/preview`, body),
   create: (body: CreateEmailCampaignBody) => api.post<Wrapped<EmailCampaign>>(`${BASE}/email-campaigns`, body),
