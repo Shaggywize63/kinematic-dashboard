@@ -188,7 +188,8 @@ export default function Sidebar(p: Props) {
                     width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                     padding: '14px 22px 6px', background: 'transparent', border: 'none', cursor: 'pointer',
                     fontFamily: T.mono, fontSize: 10.5, letterSpacing: '0.08em', textTransform: 'uppercase',
-                    color: T.mute, fontWeight: 500,
+                    // Section headings (Field Force, Business, Planogram, …) highlighted in brand red.
+                    color: T.red, fontWeight: 700,
                   }}
                 >
                   <span>{g.label}</span>
