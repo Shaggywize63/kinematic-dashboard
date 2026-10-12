@@ -663,6 +663,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       { href: '/dashboard/distribution/van-loads',        label: 'Van Sales',    icon: 'truck', module: 'distribution_van' },
       { href: '/dashboard/distribution/claims',           label: 'Claims',       icon: 'claims', module: 'distribution_claims' },
       { href: '/dashboard/distribution/reconciliation',   label: 'Reconciliation', icon: 'swap', module: 'distribution_reconciliation' },
+      // Reports hub — sales, collections, receivables, stock and target reports for the Distribution module.
+      // Gated on the `reports` module (field reps omit it; admins/supervisors and super-admins have it).
+      { href: '/dashboard/distribution/reports',          label: 'Reports',      icon: 'fileText', module: 'reports' },
       { href: '/dashboard/distribution/secondary-sales',  label: 'Consumer',     icon: 'store', module: 'distribution_consumer' },
       // Last-mile dashboards (Phase 1): retailer → consumer visibility.
       { href: '/dashboard/distribution/last-mile',                  label: 'Last Mile',          icon: 'route', module: 'distribution_consumer' },
@@ -684,6 +687,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       { href: '/dashboard/distribution/stock',       label: 'Distributor Stock', icon: 'packageCheck', module: 'distribution_stock' },
       { href: '/dashboard/distribution/batches',     label: 'Batch & Expiry', icon: 'timer', module: 'distribution_batches' },
       { href: '/dashboard/distribution/damage',      label: 'Damaged / Expiry', icon: 'packageX', module: 'distribution_damage' },
+      // Same Reports hub (it covers the stock & inventory reports too), surfaced in Supply Chain for discoverability.
+      { href: '/dashboard/distribution/reports',     label: 'Stock Reports', icon: 'fileText', module: 'reports' },
     ]},
     { label: 'Business', package: 'business', items: [
       { href: '/dashboard/clients',                  label: 'Clients',   icon: 'briefcase', module: 'clients' },
