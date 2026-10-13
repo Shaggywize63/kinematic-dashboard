@@ -51,7 +51,7 @@ export const KINEMATIC_ORG_ID = '11111111-1111-4111-8111-111111111111';
  * BMW and then PASA are folded in. Gate every steel-dealer-specific surface
  * on membership in this set rather than a bare `=== TATA_TISCON_CLIENT_ID`
  * so all three tenants stay in sync. */
-const STEEL_DEALER_CLIENT_IDS = [TATA_TISCON_CLIENT_ID, BMW_CLIENT_ID, PASA_CLIENT_ID];
+export const STEEL_DEALER_CLIENT_IDS = [TATA_TISCON_CLIENT_ID, BMW_CLIENT_ID, PASA_CLIENT_ID];
 
 type AnyUser = {
   client_id?: string | null;
