@@ -454,6 +454,27 @@ export interface WinRatePoint { bucket: string; won: number; lost: number; rate:
 // Per-rep KPI roll-up for the Team Performance report. The backend
 // returns `{ total, rows }` where `total` is the aggregated header row
 // across the caller's hierarchy subtree.
+// Telecaller "Call Tracker" performance — one row per telecaller, plus a
+// per-day series. Mirrors the backend analytics.telecallerPerformance payload.
+export interface TelecallerPerfRow {
+  user_id: string;
+  user_name: string;
+  calls: number;
+  connected: number;
+  interested: number;
+  not_interested: number;
+  follow_ups: number;
+  scheme_amount: number;
+  leads_assigned: number;
+}
+export interface TelecallerPerfDaily {
+  date: string;
+  calls: number;
+  connected: number;
+  interested: number;
+  scheme_amount: number;
+}
+
 export interface TeamPerformanceRow {
   user_id: string | null;
   name: string;
