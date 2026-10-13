@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import Link from 'next/link';
 import SignedImage, { openSignedUrl } from '@/components/shared/SignedImage';
 import { toast } from 'sonner';
@@ -24,6 +24,40 @@ const STATUS_COLORS: Record<string, string> = {
   open: '#6366f1', planned: '#6366f1', in_progress: '#f59e0b',
   completed: '#10b981', done: '#10b981', cancelled: '#9ca3af',
 };
+
+// Friendly labels for the telecaller call-feedback custom fields (phase 1 +
+// phase 2 campaigns) so the captured feedback reads well on the timeline;
+// any other key falls back to a humanised form.
+const ACT_FIELD_LABELS: Record<string, string> = {
+  app_download_date: 'App Download Date', digigold_explained: 'DigiGold Explained',
+  gold_scheme_explained: 'Gold Scheme Explained', app_rating: 'App Rating',
+  bugs_reported: 'Issues / Bugs', feature_requests: 'Feature Requests',
+  product_satisfaction: 'Product Satisfaction', staff_behaviour: 'Staff Behaviour',
+  billing_experience: 'Billing Experience', after_sales_service: 'After-Sales Service',
+  customer_rating: 'Customer Rating', complaint: 'Complaint / Issue',
+  complaint_priority: 'Complaint Priority', resolution_required: 'Resolution Required',
+  next_purchase_interest: 'Next Purchase Interest', referral_potential: 'Referral Potential',
+};
+const humanizeKey = (k: string) => k.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+
+// Render an activity's custom_fields (the telecaller campaign feedback) as a
+// compact label/value grid. Skips empty values and nested objects.
+function ActivityFields({ cf }: { cf: unknown }) {
+  if (!cf || typeof cf !== 'object') return null;
+  const entries = Object.entries(cf as Record<string, unknown>)
+    .filter(([, v]) => v !== null && v !== undefined && v !== '' && typeof v !== 'object');
+  if (!entries.length) return null;
+  return (
+    <div style={{ marginTop: 6, display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '3px 12px', fontSize: 11 }}>
+      {entries.map(([k, v]) => (
+        <Fragment key={k}>
+          <span style={{ color: 'var(--text-dim)', fontWeight: 700 }}>{ACT_FIELD_LABELS[k] || humanizeKey(k)}</span>
+          <span style={{ color: 'var(--text)' }}>{typeof v === 'boolean' ? (v ? 'Yes' : 'No') : String(v)}</span>
+        </Fragment>
+      ))}
+    </div>
+  );
+}
 
 interface Props {
   activities: Activity[];
@@ -110,7 +144,15 @@ export default function ActivityTimeline({ activities, onChange, addHref }: Prop
                       </span>
                     )}
                   </div>
+                  {(a as any).outcome && (
+                    <div style={{ marginTop: 4 }}>
+                      <span style={{ fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 999, background: 'var(--s2)', color: 'var(--primary)', letterSpacing: 0.3 }}>
+                        {(a as any).outcome}
+                      </span>
+                    </div>
+                  )}
                   {a.body && <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4 }}>{a.body}</div>}
+                  <ActivityFields cf={(a as any).custom_fields} />
                   {a.image_url && (
                     /* Thumbnail click → opens full-size in a new tab. No URL
                        text shown — the image IS the visible affordance. */
