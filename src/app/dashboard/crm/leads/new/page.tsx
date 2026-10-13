@@ -16,6 +16,7 @@ import { InlineLeadVoiceCapture } from '../../../../../components/crm/VoiceCaptu
 import ClientScopeField from '../../../../../components/ClientScopeField';
 import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides, type FieldScope } from '../../../../../lib/crmFieldOverrides';
 import { extractLeadStatuses, type LeadStatusOption } from '../../../../../lib/crmLeadStatuses';
+import { STEEL_DEALER_CLIENT_IDS } from '../../../../../lib/clientFeatures';
 import {
   DEFAULT_LEAD_FORM, extractLeadForm, localDateTimeToIso, offersScheduleVisit, segmentName, segmentToggleLabel, showsAddress,
   type LeadFormConfig,
@@ -46,11 +47,11 @@ function isFirstSiteVisit(cf: Record<string, unknown> | null | undefined): boole
   });
 }
 
-// Tata Tiscon is consumer-only — never offer the B2B lead option. BMW is
-// folded in as the second steel-dealer tenant and is likewise strictly B2C.
-const TATA_TISCON_CLIENT_ID = 'a1f67468-526e-4734-be3a-2cb132cc2804';
-const BMW_CLIENT_ID = '2ee5e03a-3a56-41c9-aaa0-16468920f871';
-const STEEL_DEALER_CLIENT_IDS = [TATA_TISCON_CLIENT_ID, BMW_CLIENT_ID];
+// Steel-dealer tenants (Tata Tiscon / SRS, BMW, PASA) are consumer-only — never
+// offer the B2B lead option — and they get the Site Visit auto-log on lead
+// create. Sourced from the single canonical STEEL_DEALER_CLIENT_IDS in
+// clientFeatures.ts so a newly onboarded steel-dealer tenant (e.g. PASA) can't
+// be missed on this form the way it was before.
 // The parent Kinematic tenant runs an inside-sales CRM, not a field-force
 // one — GPS lead-tagging is irrelevant there, so location capture is hidden
 // and never required for it.

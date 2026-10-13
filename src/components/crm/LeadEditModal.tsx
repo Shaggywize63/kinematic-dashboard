@@ -13,7 +13,7 @@ import UserSearchSelect, { type UserOption } from './shared/UserSearchSelect';
 import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '../../lib/crmFieldOverrides';
 import { extractLeadStatuses, type LeadStatusOption } from '../../lib/crmLeadStatuses';
 import { DEFAULT_LEAD_FORM, extractLeadForm, segmentName, segmentToggleLabel, showsAddress, type LeadFormConfig } from '../../lib/crmLeadForm';
-import { isKinematicTenant } from '../../lib/clientFeatures';
+import { isKinematicTenant, STEEL_DEALER_CLIENT_IDS } from '../../lib/clientFeatures';
 import { useAuth } from '../../hooks/useAuth';
 import { useLeadOwnerAccess } from '../../lib/leadOwnerAccess';
 import { LocateFixed } from 'lucide-react';
@@ -21,11 +21,10 @@ import { Button, Field, Input, Segmented, Select, Textarea, eyebrowStyle, labelS
 
 interface Props { lead: Lead; open: boolean; onClose: () => void; onSaved: (updated: Lead) => void; }
 
-const TATA_TISCON_CLIENT_ID = 'a1f67468-526e-4734-be3a-2cb132cc2804';
-// BMW — the second steel-dealer tenant; shares Tata's consumer-only flow
-// and the "Also log as Site Visit" affordance.
-const BMW_CLIENT_ID = '2ee5e03a-3a56-41c9-aaa0-16468920f871';
-const STEEL_DEALER_CLIENT_IDS = [TATA_TISCON_CLIENT_ID, BMW_CLIENT_ID];
+// Steel-dealer tenants (Tata Tiscon / SRS, BMW, PASA) share the consumer-only
+// flow and the "Also log as Site Visit" affordance. Sourced from the single
+// canonical STEEL_DEALER_CLIENT_IDS in clientFeatures.ts so a newly onboarded
+// steel-dealer tenant (e.g. PASA) is never missed on this form.
 const KINEMATIC_CLIENT_ID = '7ecd47d7-9268-4ea2-a8ce-384978c13667';
 
 // True when ANY custom field on the lead matches the "first site visit"

@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { crmLeads, crmProducts } from '../../lib/crmApi';
 import { useClient } from '../../context/ClientContext';
 import type { Product } from '../../types/crm';
+import { STEEL_DEALER_CLIENT_IDS } from '../../lib/clientFeatures';
 
 interface Props {
   leadId: string;
@@ -22,13 +23,11 @@ interface Props {
 //   - Multiple product line items — pick several products, enter
 //     pieces (preferred) or kg per row; the modal auto-computes the
 //     row subtotal and the deal total.
-// Bespoke for the steel-dealer tenants (Tata Tiscon's TMT bar sold by
-// metric tonne, and BMW folded in as the second such tenant); no other
-// client sells by mass so the line-item section is gated to those
-// client_ids to keep the form clean for everyone else.
-const TATA_TISCON_CLIENT_ID = 'a1f67468-526e-4734-be3a-2cb132cc2804';
-const BMW_CLIENT_ID = '2ee5e03a-3a56-41c9-aaa0-16468920f871';
-const STEEL_DEALER_CLIENT_IDS = [TATA_TISCON_CLIENT_ID, BMW_CLIENT_ID];
+// Bespoke for the steel-dealer tenants (Tata Tiscon / SRS's TMT bar sold by
+// metric tonne, plus BMW and PASA); no other client sells by mass, so the
+// line-item section is gated to STEEL_DEALER_CLIENT_IDS — the single canonical
+// set in clientFeatures.ts, so a newly onboarded steel-dealer tenant is never
+// missed here — to keep the form clean for everyone else.
 
 type LineItem = {
   // Stable per-row id so React keys + remove() don't trip over
