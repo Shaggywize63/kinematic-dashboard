@@ -2,6 +2,8 @@
 import { useState, useEffect, useCallback, useMemo, Fragment } from 'react';
 import api from '../../../lib/api';
 import { useClient } from '../../../context/ClientContext';
+import { useAuth } from '../../../hooks/useAuth';
+import { isRajkamalActive } from '../../../lib/clientFeatures';
 import { extractImageUrls } from '../../../lib/utils';
 import { toast } from 'sonner';
 import { csvStamp, earliestCheckIn, fmtClock, fmtMinutes, fmtStamp, gpsText, latestCheckOut, sumMinutes, visitMinutes } from '../../../lib/visitTime';
@@ -174,6 +176,12 @@ function dateToInclusive(iso: string): string {
 /* ── Activity View Wrap ───────────────────────────────────────── */
 export default function WorkActivitiesPage() {
   const { selectedClientId } = useClient();
+  const { user } = useAuth();
+  // Rajkamal does its field work as GPS-only visits, not timed check-in/out
+  // shifts, so the check-in/out stamps, time-spent and the separate
+  // check-in/out GPS are noise for them — hide those and show only the captured
+  // location (address + GPS). Honours the super-admin client picker.
+  const hideVisitTracking = isRajkamalActive(user as never);
   // Insights tab is demo-only for now (served from client-side fixtures). Real
   // tenants keep the submissions-only view until the backend aggregation lands.
   const [tab, setTab] = useState<'submissions' | 'insights'>('submissions');
@@ -508,6 +516,8 @@ export default function WorkActivitiesPage() {
                             </div>
                         </div>
 
+                        {!hideVisitTracking && (
+                        <>
                         <div style={{ textAlign: 'right', minWidth: '140px' }}>
                             <div style={{ fontSize: '10px', fontWeight: 800, color: C.accent, marginBottom: '4px' }}>TIME SPENT</div>
                             <div data-testid="wa-group-spent" style={{ fontSize: '16px', fontWeight: 900, color: spent.total == null ? C.textSec : C.green }}>{fmtMinutes(spent.total)}</div>
@@ -526,6 +536,8 @@ export default function WorkActivitiesPage() {
                                 <div data-testid="wa-group-out" style={{ fontWeight: 700 }}>{fmtClock(checkOut)}</div>
                             </div>
                         </div>
+                        </>
+                        )}
 
                         <div style={{ fontSize: '24px', transform: isExpanded ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.4s' }}>⌄</div>
                     </div>
@@ -547,6 +559,7 @@ export default function WorkActivitiesPage() {
                                                 <div style={{ fontSize: '11px', color: C.textSec }}>Captured at {fmtTime(f.submitted_at)}</div>
                                             </div>
                                         </div>
+                                        {!hideVisitTracking && (
                                         <div data-testid="wa-form-times" style={{ display: 'flex', gap: '24px', textAlign: 'right', marginRight: '24px' }}>
                                             {([
                                                 ['CHECK IN', fmtClock(f.check_in_at), 'in'],
@@ -559,6 +572,7 @@ export default function WorkActivitiesPage() {
                                                 </div>
                                             ))}
                                         </div>
+                                        )}
                                         <button
                                             onClick={async (e) => {
                                                 e.stopPropagation();
@@ -629,6 +643,8 @@ export default function WorkActivitiesPage() {
                           <div style={{ fontSize: '10px', color: C.accent, fontWeight: 800 }}>ADDRESS</div>
                           <div style={{ fontWeight: 700, fontSize: '12px' }}>{detailedSub.address || 'GPS Only'}</div>
                       </div>
+                      {!hideVisitTracking && (
+                        <>
                       <div style={{ padding: '16px', background: C.bg, borderRadius: '12px' }}>
                           <div style={{ fontSize: '10px', color: C.accent, fontWeight: 800 }}>CHECK-IN</div>
                           <div data-testid="wa-modal-in" style={{ fontWeight: 700 }}>{fmtStamp(detailedSub.check_in_at)}</div>
@@ -641,14 +657,18 @@ export default function WorkActivitiesPage() {
                           <div style={{ fontSize: '10px', color: C.accent, fontWeight: 800 }}>TIME SPENT</div>
                           <div data-testid="wa-modal-spent" style={{ fontWeight: 700 }}>{fmtMinutes(visitMinutes(detailedSub))}</div>
                       </div>
+                        </>
+                      )}
                       <div style={{ padding: '16px', background: C.bg, borderRadius: '12px' }}>
-                          <div style={{ fontSize: '10px', color: C.accent, fontWeight: 800 }}>CHECK-IN GPS</div>
+                          <div style={{ fontSize: '10px', color: C.accent, fontWeight: 800 }}>{hideVisitTracking ? 'GPS' : 'CHECK-IN GPS'}</div>
                           <div style={{ fontWeight: 700, fontSize: '11px' }}>{gpsText(detailedSub.check_in_gps, detailedSub.latitude ?? detailedSub.location_lat, detailedSub.longitude ?? detailedSub.location_lng) || '—'}</div>
                       </div>
+                      {!hideVisitTracking && (
                       <div style={{ padding: '16px', background: C.bg, borderRadius: '12px' }}>
                           <div style={{ fontSize: '10px', color: C.accent, fontWeight: 800 }}>CHECK-OUT GPS</div>
                           <div style={{ fontWeight: 700, fontSize: '11px' }}>{gpsText(detailedSub.check_out_gps) || '—'}</div>
                       </div>
+                      )}
                   </div>
 
                   <h3 style={{ fontSize: '12px', letterSpacing: '2px', color: C.textSec, marginBottom: '20px' }}>
