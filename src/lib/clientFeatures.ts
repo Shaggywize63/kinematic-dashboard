@@ -80,6 +80,18 @@ export function isConsumerChampion(user: AnyUser): boolean {
 }
 
 /**
+ * A telecaller is a phone agent whose org-role designation is "Telecaller".
+ * Match the org_role.name (or the flat `org_role_name` the API also exposes),
+ * case-insensitively and tolerant of spacing/underscores/dashes, so edited
+ * names like "Tele Caller" / "Senior Telecaller" still resolve. Used to gate
+ * the Telecaller Performance report.
+ */
+export function isTelecaller(user: AnyUser): boolean {
+  const name = (user?.org_role?.name ?? user?.org_role_name ?? '').toString().toLowerCase().replace(/[\s_-]+/g, '');
+  return name.includes('telecaller');
+}
+
+/**
  * Read the active tenant id the user is operating against — falls back
  * to the user's bound client_id, then to the super-admin client picker
  * value in localStorage. Returns null when none of these resolve.
@@ -138,6 +150,15 @@ export function isRajkamalActive(user: AnyUser): boolean {
  * Widen this when another tenant adopts marketing visits.
  */
 export function canViewFieldVisits(user: AnyUser): boolean {
+  return isRajkamalActive(user);
+}
+
+/**
+ * Gate for the Telecaller Performance report. Client-scoped; today only
+ * Rajkamal runs the telecaller "Call Tracker" flow that feeds it. Widen this
+ * when another tenant adopts telecallers.
+ */
+export function canViewTelecallerReport(user: AnyUser): boolean {
   return isRajkamalActive(user);
 }
 

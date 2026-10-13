@@ -2,10 +2,10 @@
 import Link from 'next/link';
 import {
   Activity, BarChart3, CalendarDays, CalendarRange, ChevronRight, ClipboardList, Clock, Filter, FlaskConical, Footprints, Hammer,
-  Hourglass, LineChart, Mail, MapPin, Route, Scale, Timer, TrendingUp, Trophy, Users,
+  Hourglass, LineChart, Mail, MapPin, Phone, Route, Scale, Timer, TrendingUp, Trophy, Users,
 } from 'lucide-react';
 import { useAuth } from '../../../../hooks/useAuth';
-import { isConsumerChampion, canDownloadSrsReport, canViewFieldVisits, leadReportLabel } from '../../../../lib/clientFeatures';
+import { isConsumerChampion, canDownloadSrsReport, canViewFieldVisits, canViewTelecallerReport, leadReportLabel } from '../../../../lib/clientFeatures';
 import { Badge, Eyebrow, PageHeader, T, useIsCompact } from '../../../../components/ui';
 import { usePageTitle } from '../../../../lib/pageTitle';
 
@@ -23,6 +23,9 @@ type ReportEntry = {
   /** When true, this report only shows for tenants running the ad-hoc
    *  Marketing Visit flow (see canViewFieldVisits — currently Rajkamal). */
   fieldVisitsOnly?: boolean;
+  /** When true, this report only shows for tenants running telecallers
+   *  (see canViewTelecallerReport — currently Rajkamal). */
+  telecallerOnly?: boolean;
 };
 
 const I = { size: 18, strokeWidth: 1.6 } as const;
@@ -37,6 +40,7 @@ const REPORTS: ReportEntry[] = [
   { href: '/dashboard/crm/reports/field-visits', title: 'Field Visits', desc: 'Per field-executive rollup of ad-hoc Marketing Visits — total, in-progress, completed, areas covered, last visit.', icon: <Footprints {...I} />, fieldVisitsOnly: true },
   { href: '/dashboard/crm/reports/area-leads', title: 'Area-wise Leads', desc: 'Lead distribution by area (fallback city): total, open and converted leads per area.', icon: <MapPin {...I} />, fieldVisitsOnly: true },
   { href: '/dashboard/crm/reports/team-performance', title: 'Team Performance', desc: 'Won volume, conversion rate, lead ageing and new leads per rep across your hierarchy subtree.', icon: <Users {...I} /> },
+  { href: '/dashboard/crm/reports/telecaller-performance', title: 'Telecaller Performance', desc: 'Per-telecaller calls, connected, interested, follow-ups and scheme ₹ — with a daily trend. Replaces the Excel Call Tracker.', icon: <Phone {...I} />, telecallerOnly: true },
   { href: '/dashboard/crm/reports/lead-tracker', title: 'Lead Tracker', desc: 'Monthly new-lead bar chart plus today / week / month summaries for your team.', icon: <BarChart3 {...I} />, championHidden: true },
   { href: '/dashboard/crm/reports/team-daily', title: 'Team Daily Activity', desc: 'Per-rep attendance, visits achieved vs scheduled, and leads added — for any chosen day.', icon: <CalendarDays {...I} />, championHidden: true },
   { href: '/dashboard/crm/reports/rep-leaderboard', title: 'Rep Leaderboard', desc: 'Revenue, deals won, win rate and average cycle by sales rep.', icon: <Trophy {...I} />, championHidden: true },
@@ -68,6 +72,7 @@ export default function ReportsIndex() {
   const champion = isConsumerChampion(user as any);
   const srs = canDownloadSrsReport(user as any);
   const fieldVisits = canViewFieldVisits(user as any);
+  const telecaller = canViewTelecallerReport(user as any);
   // The field lead-report tile is named for the tenant (BMW sees "BMW Lead
   // Report"); the CSV format is identical. Keep in sync with the report page.
   const SRS_REPORT_HREF = '/dashboard/crm/reports/srs-lead-report';
@@ -87,7 +92,8 @@ export default function ReportsIndex() {
     ? REPORTS.filter((r) => CHAMPION_HREFS.has(r.href))
     : REPORTS
   ).filter((r) => !r.srsOnly || srs)
-   .filter((r) => !r.fieldVisitsOnly || fieldVisits);
+   .filter((r) => !r.fieldVisitsOnly || fieldVisits)
+   .filter((r) => !r.telecallerOnly || telecaller);
 
   const tools = visible.filter((r) => r.highlight);
   const reports = visible.filter((r) => !r.highlight);

@@ -6,7 +6,7 @@ import type {
   LeadSource, AssignmentRule, Territory, Automation, CustomField,
   ImportJob, LeadScore, NextBestAction, WinProbability,
   AnalyticsSummary, FunnelPoint, PipelineValuePoint, WinRatePoint, ForecastPoint,
-  TeamPerformanceRow, LeadTrackerPayload, TeamDailyCard,
+  TeamPerformanceRow, TelecallerPerfRow, TelecallerPerfDaily, LeadTrackerPayload, TeamDailyCard,
   ActivityHeatPoint, SourceROIRow, ScoreDistributionPoint, StateCount,
   KiniContext, KiniCard, UpdateSuggestion,
   CrmSettings, BusinessType,
@@ -883,6 +883,17 @@ export const crmAnalytics = {
       total: TeamPerformanceRow;
       rows: TeamPerformanceRow[];
     }>>(`${BASE}/analytics/team-performance${qs({ ...range })}`),
+  // Telecaller "Call Tracker" roll-up: per telecaller calls / connected /
+  // interested / follow-ups + scheme ₹, plus a per-day series. Drives the
+  // Telecaller Performance report.
+  telecallerPerformance: (range?: DateRangeParams) =>
+    api.get<Wrapped<{
+      rows: TelecallerPerfRow[];
+      daily: TelecallerPerfDaily[];
+      totals: Omit<TelecallerPerfRow, 'user_id' | 'user_name'>;
+      from: string;
+      to: string;
+    }>>(`${BASE}/analytics/telecaller-performance${qs({ ...range })}`),
   // Monthly new-lead bar chart + today/week/month summaries for the
   // caller's hierarchy subtree.
   leadTracker: (months = 6) =>
