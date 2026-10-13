@@ -391,12 +391,13 @@ export default function ClientManagement() {
 
       {/* Table */}
       <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 16, overflow: 'hidden' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.3fr 1.3fr 140px 190px', padding: '12px 20px', borderBottom: `1px solid ${C.border}`, gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.3fr 1.3fr 140px 150px 190px', padding: '12px 20px', borderBottom: `1px solid ${C.border}`, gap: 12 }}>
           {([
             { h: 'Client Name', k: 'name' },
             { h: 'Contact Person', k: 'contact_person' },
             { h: 'Email / Phone', k: 'email' },
             { h: 'Module Access', k: 'modules' },
+            { h: 'Trial', k: null },
             { h: 'Actions', k: null },
           ] as { h: string; k: string | null }[]).map(col => (
             <div key={col.h} style={{ fontSize: 11, fontWeight: 700, color: C.grayd, letterSpacing: '0.8px', textTransform: 'uppercase' }}>
@@ -419,24 +420,13 @@ export default function ClientManagement() {
           const expanded = expandedId === c.id;
           return (
           <div key={c.id} style={{ borderBottom: i < sorted.length - 1 ? `1px solid ${C.border}` : 'none' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.3fr 1.3fr 140px 190px', padding: '16px 20px', gap: 12, alignItems: 'center' }}
+            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.3fr 1.3fr 140px 150px 190px', padding: '16px 20px', gap: 12, alignItems: 'center' }}
               onMouseEnter={e => e.currentTarget.style.background = C.s3}
               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
             >
               <div>
                 <div style={{ fontWeight: 700, fontSize: 15, color: C.white }}>{c.name}</div>
                 <div style={{ fontSize: 11, color: C.grayd, marginTop: 4 }}>ID: {c.id.split('-')[0]}...</div>
-                {(() => {
-                  const t = clientTrial(c);
-                  if (!t?.end_date) return null;
-                  const left = daysUntil(t.end_date);
-                  const expired = left !== null && left < 0;
-                  return (
-                    <div style={{ display: 'inline-block', marginTop: 6, fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 6, background: expired ? 'rgba(224,30,44,0.12)' : 'rgba(0,217,126,0.12)', color: expired ? C.red : C.green, border: `1px solid ${expired ? 'rgba(224,30,44,0.25)' : 'rgba(0,217,126,0.25)'}` }}>
-                      {expired ? `Trial ended ${fmtDate(t.end_date)}` : `Trial · ${left}d left · ends ${fmtDate(t.end_date)}`}
-                    </div>
-                  );
-                })()}
               </div>
               <div style={{ fontSize: 13, color: C.white }}>{c.contact_person || '—'}</div>
               <div style={{ fontSize: 13, color: C.gray }}>
@@ -448,6 +438,23 @@ export default function ClientManagement() {
                 <div style={{ fontSize: 10, color: C.grayd, marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {c.modules?.map(m => MODULES.find(mod => mod.id === m)?.label).filter(Boolean).join(', ') || 'No access granted'}
                 </div>
+              </div>
+              {/* Trial end date + status (—) when none set. */}
+              <div style={{ fontSize: 13 }}>
+                {(() => {
+                  const t = clientTrial(c);
+                  if (!t?.end_date) return <span style={{ color: C.grayd }}>—</span>;
+                  const left = daysUntil(t.end_date);
+                  const expired = left !== null && left < 0;
+                  return (
+                    <>
+                      <div style={{ fontWeight: 700, color: expired ? C.red : C.white }}>{fmtDate(t.end_date)}</div>
+                      <div style={{ fontSize: 11, marginTop: 2, fontWeight: 600, color: expired ? C.red : C.green }}>
+                        {expired ? `Ended ${Math.abs(left!)}d ago` : `${left}d left`}
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
               <div style={{ display: 'flex', gap: 6 }}>
                 {canLogin && (
