@@ -66,9 +66,22 @@ interface Props {
   // prefilled for this record (e.g. /dashboard/crm/activities/new?lead_id=X).
   // Lets users log an activity straight from the timeline.
   addHref?: string;
+  // Telecaller phase 3 — the owning lead's campaign tag, used as the fallback
+  // campaign label for a call activity that carries no metadata.campaign of its
+  // own (app-logged calls). Imported calls carry metadata.campaign directly.
+  // When set, each call row shows which campaign it belongs to.
+  leadCampaign?: string | null;
 }
 
-export default function ActivityTimeline({ activities, onChange, addHref }: Props) {
+// Each telecaller call belongs to a campaign: its own metadata.campaign
+// (set on imported calls) or, failing that, the owning lead's campaign tag.
+function activityCampaign(a: Activity, leadCampaign?: string | null): string | null {
+  const m = (a as any).metadata as Record<string, unknown> | null | undefined;
+  const own = m && typeof m.campaign === 'string' ? m.campaign.trim() : '';
+  return own || (leadCampaign ? String(leadCampaign) : null);
+}
+
+export default function ActivityTimeline({ activities, onChange, addHref, leadCampaign }: Props) {
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const addBtn = addHref ? (
@@ -144,11 +157,18 @@ export default function ActivityTimeline({ activities, onChange, addHref }: Prop
                       </span>
                     )}
                   </div>
-                  {(a as any).outcome && (
-                    <div style={{ marginTop: 4 }}>
-                      <span style={{ fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 999, background: 'var(--s2)', color: 'var(--primary)', letterSpacing: 0.3 }}>
-                        {(a as any).outcome}
-                      </span>
+                  {((a as any).outcome || (a.type === 'call' && activityCampaign(a, leadCampaign))) && (
+                    <div style={{ marginTop: 4, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      {(a as any).outcome && (
+                        <span style={{ fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 999, background: 'var(--s2)', color: 'var(--primary)', letterSpacing: 0.3 }}>
+                          {(a as any).outcome}
+                        </span>
+                      )}
+                      {a.type === 'call' && activityCampaign(a, leadCampaign) && (
+                        <span style={{ fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 999, background: 'var(--s2)', color: 'var(--text-dim)', letterSpacing: 0.3 }}>
+                          {activityCampaign(a, leadCampaign)}
+                        </span>
+                      )}
                     </div>
                   )}
                   {a.body && <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4 }}>{a.body}</div>}
