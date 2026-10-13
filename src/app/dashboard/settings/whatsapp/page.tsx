@@ -57,7 +57,9 @@ export default function WhatsappSettingsPage() {
     setLoading(true);
     try {
       const r: any = await api.get('/api/v1/crm/whatsapp/connection');
-      const c: Conn | null = r?.data ?? r ?? null;
+      // The API answers { success, data }, with data null until a connection is saved.
+      // Falling back to the wrapper here made an unsaved page look configured.
+      const c: Conn | null = r && typeof r === 'object' && 'data' in r ? r.data ?? null : r ?? null;
       setConn(c);
       if (c) setF((prev) => ({
         ...prev,
