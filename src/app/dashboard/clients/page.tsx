@@ -86,7 +86,36 @@ const NEW_CLIENT_DEFAULT_MODULES = ALL_MODULES
   .filter(m => m.group === 'CRM' && !NEW_CLIENT_EXCLUDED_MODULES.includes(m.id))
   .map(m => m.id);
 
-const BLANK = { name: '', contact_person: '', email: '', phone: '', password: '', is_active: true, modules: [] as string[], login_org_id: '', data_project_key: '', data_client_id: '', max_active_users: '' as number | '', app_ui: {} as AppCustomization };
+const BLANK = { name: '', contact_person: '', email: '', phone: '', password: '', is_active: true, modules: [] as string[], login_org_id: '', data_project_key: '', data_client_id: '', max_active_users: '' as number | '', app_ui: {} as AppCustomization, trial_start_date: '', trial_days: '' as number | '' };
+
+// Trial period helpers: end date = start date + N calendar days (mirrors the
+// server's computeTrial). Returns '' when either input is missing/invalid.
+const computeTrialEnd = (startISO: string, days: number | ''): string => {
+  if (!startISO || days === '' || !Number.isFinite(Number(days)) || Number(days) <= 0) return '';
+  const d = new Date(`${startISO}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return '';
+  d.setDate(d.getDate() + Math.round(Number(days)));
+  return d.toISOString().slice(0, 10);
+};
+const fmtDate = (iso?: string | null): string => {
+  if (!iso) return '—';
+  const d = new Date(`${String(iso).slice(0, 10)}T00:00:00`);
+  return Number.isNaN(d.getTime()) ? String(iso) : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+};
+// Whole days from today (local) to an ISO date; negative = already past.
+const daysUntil = (iso?: string | null): number | null => {
+  if (!iso) return null;
+  const end = new Date(`${String(iso).slice(0, 10)}T00:00:00`);
+  if (Number.isNaN(end.getTime())) return null;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  return Math.round((end.getTime() - today.getTime()) / 86400000);
+};
+// Read the trial record off a client row (API returns it at top-level and/or under settings).
+type TrialRec = { start_date?: string; days?: number; end_date?: string };
+const clientTrial = (c: unknown): TrialRec | null => {
+  const o = c as { trial?: TrialRec; settings?: { trial?: TrialRec } } | null;
+  return (o?.trial ?? o?.settings?.trial) ?? null;
+};
 
 const Spinner = () => <div style={{ width: 15, height: 15, border: '2.5px solid rgba(255,255,255,0.18)', borderTopColor: '#fff', borderRadius: '50%', animation: 'kspin .65s linear infinite', flexShrink: 0 }} />;
 const Label = ({ t, req }: { t: string; req?: boolean }) => <div style={{ fontSize: 11, fontWeight: 700, color: C.gray, letterSpacing: '0.7px', textTransform: 'uppercase', marginBottom: 7 }}>{t}{req && <span style={{ color: C.red }}> *</span>}</div>;
@@ -220,6 +249,9 @@ export default function ClientManagement() {
       app_ui: ((c as { app_ui?: AppCustomization }).app_ui
         || (c as { settings?: { app_ui?: AppCustomization } }).settings?.app_ui
         || {}) as AppCustomization,
+      // Trial-period record (top-level or under settings.trial).
+      trial_start_date: clientTrial(c)?.start_date || '',
+      trial_days: (typeof clientTrial(c)?.days === 'number' ? clientTrial(c)!.days! : '') as number | '',
     });
     setFErr('');
     setProvisionMode(false); setProvisionResult(null);
@@ -233,7 +265,14 @@ export default function ClientManagement() {
     // Final verification: ensure we only send recognized module IDs to the API
     const finalForm = {
       ...form,
-      modules: form.modules.filter(m => MODULES.some(mod => mod.id === m))
+      modules: form.modules.filter(m => MODULES.some(mod => mod.id === m)),
+      // Trial-period record. Send the object when both fields are set (server
+      // recomputes end_date); null clears it. Sent only when the admin touched
+      // it — otherwise leave `trial` undefined so an untouched save never wipes
+      // an existing record. (Both empty on an edit that HAD a trial = clear.)
+      trial: (form.trial_start_date && form.trial_days)
+        ? { start_date: form.trial_start_date, days: Number(form.trial_days) }
+        : (editing && clientTrial(editing) ? null : undefined),
     };
 
     try {
@@ -387,6 +426,17 @@ export default function ClientManagement() {
               <div>
                 <div style={{ fontWeight: 700, fontSize: 15, color: C.white }}>{c.name}</div>
                 <div style={{ fontSize: 11, color: C.grayd, marginTop: 4 }}>ID: {c.id.split('-')[0]}...</div>
+                {(() => {
+                  const t = clientTrial(c);
+                  if (!t?.end_date) return null;
+                  const left = daysUntil(t.end_date);
+                  const expired = left !== null && left < 0;
+                  return (
+                    <div style={{ display: 'inline-block', marginTop: 6, fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 6, background: expired ? 'rgba(224,30,44,0.12)' : 'rgba(0,217,126,0.12)', color: expired ? C.red : C.green, border: `1px solid ${expired ? 'rgba(224,30,44,0.25)' : 'rgba(0,217,126,0.25)'}` }}>
+                      {expired ? `Trial ended ${fmtDate(t.end_date)}` : `Trial · ${left}d left · ends ${fmtDate(t.end_date)}`}
+                    </div>
+                  );
+                })()}
               </div>
               <div style={{ fontSize: 13, color: C.white }}>{c.contact_person || '—'}</div>
               <div style={{ fontSize: 13, color: C.gray }}>
@@ -528,6 +578,46 @@ export default function ClientManagement() {
                 Caps how many <b>active</b> users this client&apos;s org can have. New/activated users
                 beyond the limit are blocked. Blank = no limit. Staff domains (kinematicapp.com,
                 horizontechstudio.com, kinematic.com, kaiyotechnologylabs.com) don&apos;t count toward it.
+              </div>
+            </div>
+
+            <div style={{ marginBottom: 28 }}>
+              <Label t="Trial Period (optional)" />
+              <div style={{ background: C.s3, borderRadius: 16, padding: 16, border: `1px solid ${C.border}` }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14 }}>
+                  <div>
+                    <Label t="Start Date" />
+                    <input type="date" style={inp} value={form.trial_start_date}
+                      onChange={e => setForm(p => ({ ...p, trial_start_date: e.target.value }))} />
+                  </div>
+                  <div>
+                    <Label t="Trial Days" />
+                    <input type="number" min={1} style={inp} placeholder="e.g. 14"
+                      value={form.trial_days === '' ? '' : String(form.trial_days)}
+                      onChange={e => { const v = e.target.value.trim(); setForm(p => ({ ...p, trial_days: v === '' ? '' : Math.max(1, parseInt(v, 10) || 0) })); }} />
+                  </div>
+                  <div>
+                    <Label t="End Date (auto)" />
+                    <input style={{ ...inp, background: C.s4, color: C.gray, cursor: 'not-allowed' }} readOnly tabIndex={-1}
+                      value={computeTrialEnd(form.trial_start_date, form.trial_days) ? fmtDate(computeTrialEnd(form.trial_start_date, form.trial_days)) : '—'} />
+                  </div>
+                </div>
+                {(() => {
+                  const end = computeTrialEnd(form.trial_start_date, form.trial_days);
+                  if (!end) return (
+                    <div style={{ fontSize: 11, color: C.grayd, marginTop: 10 }}>
+                      Enter a start date and the number of trial days — the end date is calculated automatically (start date + days). Leave both blank for no trial.
+                    </div>
+                  );
+                  const left = daysUntil(end);
+                  const expired = left !== null && left < 0;
+                  return (
+                    <div style={{ fontSize: 12, color: expired ? C.red : C.green, fontWeight: 600, marginTop: 10 }}>
+                      Trial: {fmtDate(form.trial_start_date)} → {fmtDate(end)} ({form.trial_days} days){left !== null ? (expired ? ` · ended ${Math.abs(left)}d ago` : ` · ${left}d left`) : ''}
+                      <span onClick={() => setForm(p => ({ ...p, trial_start_date: '', trial_days: '' }))} style={{ color: C.blue, cursor: 'pointer', fontWeight: 600, marginLeft: 8 }}>Clear</span>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
 
