@@ -604,7 +604,40 @@ export default function LeadDetailPage() {
               onAdded={() => { reload(); setNba(null); }}
             />
           </Section>
-          <Section title="Activity"><ActivityTimeline activities={activities} addHref={`/dashboard/crm/activities/new?lead_id=${id}`} /></Section>
+          <Section title="Activity">
+            {(() => {
+              // Telecaller phase 3 — "Engaged campaigns": every campaign this
+              // customer has been worked under = the lead's campaign tag ∪ each
+              // call's campaign (metadata.campaign, falling back to the lead's
+              // tag). Flags a customer touched by more than one campaign. Renders
+              // nothing when there is no campaign data (non-telecaller leads).
+              const leadCampaign = (lead?.custom_fields as Record<string, unknown> | null)?.campaign;
+              const set = new Set<string>();
+              if (typeof leadCampaign === 'string' && leadCampaign.trim()) set.add(leadCampaign.trim());
+              for (const a of activities) {
+                if ((a as any).type !== 'call') continue;
+                const m = (a as any).metadata as Record<string, unknown> | null | undefined;
+                const c = (m && typeof m.campaign === 'string' && m.campaign.trim())
+                  ? m.campaign.trim()
+                  : (typeof leadCampaign === 'string' ? leadCampaign.trim() : '');
+                if (c) set.add(c);
+              }
+              const camps = Array.from(set);
+              if (camps.length === 0) return null;
+              return (
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 12 }}>
+                  <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.6 }}>Engaged campaigns</span>
+                  {camps.map((c) => (
+                    <span key={c} style={{ fontSize: 12, fontWeight: 700, background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 999, padding: '3px 10px', color: 'var(--text)' }}>{c}</span>
+                  ))}
+                  {camps.length > 1 && (
+                    <span style={{ fontSize: 11, fontWeight: 800, background: '#F59E0B22', color: '#F59E0B', borderRadius: 999, padding: '3px 10px' }}>Multiple campaigns</span>
+                  )}
+                </div>
+              );
+            })()}
+            <ActivityTimeline activities={activities} addHref={`/dashboard/crm/activities/new?lead_id=${id}`} leadCampaign={(lead?.custom_fields as Record<string, unknown> | null)?.campaign as string | null | undefined} />
+          </Section>
         </div>
 
         <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 20 }}>

@@ -8,7 +8,7 @@ import api, { EXPORT_TIMEOUT_MS } from '../../../../lib/api';
 import { downloadBlob } from '../../../../lib/financeFormat';
 import { getStoredUser } from '../../../../lib/auth';
 import { useLeadOwnerAccess } from '../../../../lib/leadOwnerAccess';
-import { isTataTiscon } from '../../../../lib/clientFeatures';
+import { isTataTiscon, canViewTelecallerReport } from '../../../../lib/clientFeatures';
 import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
 import type { Lead, LeadSource } from '../../../../types/crm';
 import LeadsTable, { LEAD_COLUMNS } from '../../../../components/crm/LeadsTable';
@@ -50,6 +50,12 @@ export default function LeadsListPage() {
   const [showAssignMenu, setShowAssignMenu] = useState(false);
   const [usersLoading, setUsersLoading] = useState(false);
   const [isB2C, setIsB2C] = useState(false);
+  // Telecaller phase 3 — per-campaign section switcher (Rajkamal only). null =
+  // "All"; otherwise a campaign custom-field value sent as ?campaign= so the
+  // list becomes that campaign's section. All three sections are views of the
+  // same shared lead set (the lead profile links a customer across campaigns).
+  const campaignSections = canViewTelecallerReport(getStoredUser());
+  const [campaignSection, setCampaignSection] = useState<string | null>(null);
   // Clients that set lead_form.owner_assignment='admin_only' let only an admin choose an owner: no "Assign to me" /
   // "Assign to…" on a selection, no inline owner picker on a row (the owner column is plain text for everyone else)
   // and no Owner filter in the filter bar.
@@ -260,6 +266,7 @@ export default function LeadsListPage() {
       if (filters.source)   params.source_id = filters.source;
       if (filters.owner)    params.owner_id  = filters.owner;
       if (filters.grade)    params.score_grade = filters.grade;
+      if (campaignSection)  params.campaign  = campaignSection;
       // Free-text search (name / email / phone / company) — server-side so it
       // matches across all pages. Debounced to avoid a refetch per keystroke.
       if (debouncedQ)       params.q          = debouncedQ;
@@ -329,6 +336,7 @@ export default function LeadsListPage() {
     range.from, range.to,
     filters.state, filters.city, filters.district, filters.block,
     filters.status?.join(','), approvalFilter, filters.source, filters.owner, filters.grade,
+    campaignSection,
     debouncedQ,
     page, pageSize, sort.key, sort.order,
     smartParams,
@@ -345,6 +353,7 @@ export default function LeadsListPage() {
     range.from, range.to,
     filters.state, filters.city, filters.district, filters.block,
     filters.status?.join(','), approvalFilter, filters.source, filters.owner, filters.grade,
+    campaignSection,
     debouncedQ,
     pageSize, sort.key, sort.order,
     smartParams,
@@ -565,6 +574,23 @@ export default function LeadsListPage() {
       {/* Toolbar — one wrapping row: KINI smart filter, free-text search, the
           server-side selects, and the sort order. The smart-filter chips /
           "Interpreted as" line drop to their own line below (order: 10). */}
+      {campaignSections && (
+        /* Telecaller phase 3 — campaign sections. Each is a view of the same
+           shared lead set (filtered by the lead's campaign tag); a lead opened
+           from any section shows its full cross-campaign call history. */
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <Segmented
+            value={campaignSection ?? ''}
+            onChange={(v: string) => setCampaignSection(v || null)}
+            options={[
+              { value: '', label: 'All campaigns' },
+              { value: 'General Calls', label: 'General' },
+              { value: 'App & DigiGold', label: 'App & DigiGold' },
+              { value: 'After-Sales', label: 'After-Sales' },
+            ]}
+          />
+        </div>
+      )}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         <SmartFilterBar
           query={smartQuery}
