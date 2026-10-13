@@ -116,9 +116,13 @@ export default function NotificationBell() {
   const seenNotifIds = useRef<Set<string>>(new Set());
   const bootstrapped = useRef(false);
   const audioCtx = useRef<AudioContext | null>(null);
+  const chimeBuffer = useRef<AudioBuffer | null>(null);
 
-  // Short two-note chime via WebAudio — no asset to ship, and silent-safe when
-  // the browser hasn't unlocked audio yet (resumed on the first user gesture).
+  // Plays the branded notification tone (public/kinematic_notification.wav) —
+  // the SAME sound the iOS and Android apps use, so the alert is consistent
+  // across platforms. Routed through WebAudio (not a bare <audio>) so it can be
+  // unlocked on the first user gesture (bell click requests notification
+  // permission), and silent-safe when the browser hasn't unlocked audio yet.
   const playChime = () => {
     try {
       const AC: typeof AudioContext | undefined =
@@ -127,17 +131,20 @@ export default function NotificationBell() {
       if (!AC) return;
       const ctx = audioCtx.current || (audioCtx.current = new AC());
       if (ctx.state === 'suspended') ctx.resume().catch(() => {});
-      const t0 = ctx.currentTime;
-      const o = ctx.createOscillator();
-      const g = ctx.createGain();
-      o.type = 'sine';
-      o.frequency.setValueAtTime(880, t0);
-      o.frequency.setValueAtTime(1174.7, t0 + 0.11);
-      g.gain.setValueAtTime(0.0001, t0);
-      g.gain.exponentialRampToValueAtTime(0.18, t0 + 0.02);
-      g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.4);
-      o.connect(g); g.connect(ctx.destination);
-      o.start(t0); o.stop(t0 + 0.42);
+      const play = (buf: AudioBuffer) => {
+        const src = ctx.createBufferSource();
+        src.buffer = buf;
+        const g = ctx.createGain();
+        g.gain.value = 0.9;
+        src.connect(g); g.connect(ctx.destination);
+        src.start();
+      };
+      if (chimeBuffer.current) { play(chimeBuffer.current); return; }
+      fetch('/kinematic_notification.wav')
+        .then((r) => r.arrayBuffer())
+        .then((ab) => ctx.decodeAudioData(ab))
+        .then((buf) => { chimeBuffer.current = buf; play(buf); })
+        .catch(() => { /* asset/decoding unavailable — stay silent */ });
     } catch { /* audio not available — stay silent */ }
   };
 
