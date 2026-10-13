@@ -6,7 +6,7 @@ import type {
   LeadSource, AssignmentRule, Territory, Automation, CustomField,
   ImportJob, LeadScore, NextBestAction, WinProbability,
   AnalyticsSummary, FunnelPoint, PipelineValuePoint, WinRatePoint, ForecastPoint,
-  TeamPerformanceRow, TelecallerPerfRow, TelecallerPerfDaily, LeadTrackerPayload, TeamDailyCard,
+  TeamPerformanceRow, TelecallerPerfRow, TelecallerPerfDaily, CampaignInsightsPayload, LeadTrackerPayload, TeamDailyCard,
   ActivityHeatPoint, SourceROIRow, ScoreDistributionPoint, StateCount,
   KiniContext, KiniCard, UpdateSuggestion,
   CrmSettings, BusinessType,
@@ -894,6 +894,10 @@ export const crmAnalytics = {
       from: string;
       to: string;
     }>>(`${BASE}/analytics/telecaller-performance${qs({ ...range })}`),
+  // Per-campaign roll-up (General / App & DigiGold / After-Sales) of the
+  // telecaller's leads + logged calls. Drives the Campaign Insights report.
+  campaignInsights: (range?: DateRangeParams) =>
+    api.get<Wrapped<CampaignInsightsPayload>>(`${BASE}/analytics/campaign-insights${qs({ ...range })}`),
   // Monthly new-lead bar chart + today/week/month summaries for the
   // caller's hierarchy subtree.
   leadTracker: (months = 6) =>

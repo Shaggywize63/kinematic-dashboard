@@ -475,6 +475,24 @@ export interface TelecallerPerfDaily {
   scheme_amount: number;
 }
 
+// Campaign Insights (telecaller phase 2) — per-campaign roll-up.
+export interface CampaignMetric { label: string; value: string }
+export interface CampaignBucket { label: string; count: number }
+export interface CampaignBlock {
+  campaign: 'General Calls' | 'App & DigiGold' | 'After-Sales';
+  leads: number;
+  calls: number;
+  connected: number;
+  connect_rate: number;
+  status_breakdown: CampaignBucket[];
+  metrics: CampaignMetric[];
+}
+export interface CampaignInsightsPayload {
+  campaigns: CampaignBlock[];
+  from: string;
+  to: string;
+}
+
 export interface TeamPerformanceRow {
   user_id: string | null;
   name: string;
