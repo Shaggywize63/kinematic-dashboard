@@ -160,6 +160,35 @@ interface BPage { id:string; form_id:string; title:string; description?:string; 
 interface BQuestion { id:string; form_id:string; page_id?:string; qtype:string; label:string; placeholder?:string; helper_text?:string; is_required:boolean; q_order:number; options:any[]; validation:any; logic:any[]; prefill_key?:string; media_config:any; keyboard_type?:string; image_count?:number; camera_only?:boolean; depends_on_id?:string; depends_on_value?:string; is_consent?:boolean; }
 interface BSubmission { id:string; form_id:string; submitted_by?:string; status:string; submitted_at:string; answers:any; }
 
+/* ─── Option-value safeguard ─────────────────────────────────────────────────
+   Every choice option persists a { label, value }. The apps (iOS/Android) match
+   a tapped choice by its VALUE, so two options sharing a value — e.g. "App" and
+   "Cash" both resolving to "cash" — silently collapse onto the first match
+   (tapping Cash would select App). This normalizes an options array so every
+   value is non-empty AND unique: a distinct non-empty value is left untouched
+   (historical submissions keep matching), a blank one is filled from the label
+   slug, and any collision is rebuilt from the label slug, then a numeric suffix
+   as a last resort. Applied centrally in updateQ so no edit path can persist a
+   duplicate or blank option value. */
+const optSlug = (s:string) => (s||'').trim().toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'');
+function normalizeOptionValues(options:any[]):any[] {
+  if (!Array.isArray(options)) return options;
+  const used = new Set<string>();
+  return options.map((opt:any, i:number) => {
+    if (opt == null || typeof opt !== 'object') return opt;
+    const labelSlug = optSlug(opt.label);
+    let v = typeof opt.value === 'string' ? opt.value.trim() : '';
+    if (!v || used.has(v)) {
+      const base = labelSlug || v || `option_${i+1}`;
+      v = base;
+      let n = 2;
+      while (!v || used.has(v)) v = `${base}_${n++}`;
+    }
+    used.add(v);
+    return { ...opt, value:v };
+  });
+}
+
 /* ─── Atoms ──────────────────────────────────────────────────────────────── */
 const Spin = ({ size=16 }:{size?:number}) => (
   <div style={{ width:size, height:size, border:`2px solid ${C.border}`, borderTopColor:C.blue, borderRadius:'50%', animation:'fbspin .6s linear infinite', flexShrink:0 }}/>
@@ -1389,9 +1418,12 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
 
   /* Update question locally + save */
   const updateQ = async (updated:BQuestion) => {
-    setQs(p => p.map(q => q.id===updated.id ? updated : q));
-    setSelQ(updated.id);
-    await apiFetch(`/api/v1/builder/questions/${updated.id}`, { method:'PATCH', body: JSON.stringify(updated) }).catch(()=>{});
+    const safe = Array.isArray(updated.options) && updated.options.length
+      ? { ...updated, options: normalizeOptionValues(updated.options) }
+      : updated;
+    setQs(p => p.map(q => q.id===safe.id ? safe : q));
+    setSelQ(safe.id);
+    await apiFetch(`/api/v1/builder/questions/${safe.id}`, { method:'PATCH', body: JSON.stringify(safe) }).catch(()=>{});
   };
 
   /* Delete question */
