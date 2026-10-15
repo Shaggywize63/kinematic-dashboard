@@ -4,7 +4,8 @@ import api from '../../../lib/api';
 import * as demoMocks from '../../../lib/demoMocks';
 import { getStoredUser } from '../../../lib/auth';
 import { getStoredIndustryScope } from '../../../context/IndustryScopeContext';
-import { LowBatteryKpi, LowBatteryAlert, LowBatteryFilter } from '../../../components/live-tracking/LowBattery';
+import { LowBatteryAlert, LowBatteryFilter } from '../../../components/live-tracking/LowBattery';
+import { Input, Select } from '../../../components/ui';
 import { escapeHtml } from '../../../lib/googleMaps';
 import { usePlaceName, useSeen, getPlaceName, peekPlaceName, formatLatLng, formatLatLngShort, googleMapsUrl, type PlaceName } from '../../../lib/placeName';
 
@@ -61,12 +62,8 @@ interface Warehouse {
 interface Zone { id: string; name: string; city?: string; }
 interface TrailPoint { lat: number; lng: number; battery_percentage?: number; captured_at: string; activity_type?: string; }
 
-/* ── Layer config ── */
-// Live Trailing is field-executive-only: Supervisors / Outlets / Warehouses
-// layers were removed on request, so the map + side list show FEs alone.
-const LAYERS = [
-  { id:'fe',         label:'Field Executives', icon:'👤', color:C.green  },
-];
+/* Live Trailing is field-executive-only: Supervisors / Outlets / Warehouses
+ * layers were removed on request, so the map + side list show FEs alone. */
 
 const STATUS_COLOR: Record<string, string> = {
   active:      C.green,
@@ -74,6 +71,20 @@ const STATUS_COLOR: Record<string, string> = {
   checked_out: C.blue,
   absent:      C.grayd,
 };
+
+/** Status filter chips (the old KPI tiles + status dropdown in one): the count on each chip is the
+ *  number of reps in that state, and clicking it filters the list and the map. */
+const STATUS_CHIPS: { id: string; label: string; color: string }[] = [
+  { id: 'all',         label: 'All',         color: C.white  },
+  { id: 'active',      label: 'Active',      color: C.green  },
+  { id: 'on_break',    label: 'On break',    color: C.yellow },
+  { id: 'checked_out', label: 'Checked out', color: C.blue   },
+  { id: 'absent',      label: 'Absent',      color: C.grayd  },
+];
+
+/** A translucent wash of any CSS colour. `${'var(--green)'}20` is invalid CSS (you can't append a hex
+ *  alpha to a var()), so tints go through color-mix, which takes var() and hex alike. */
+const tint = (color: string, pct = 14) => `color-mix(in srgb, ${color} ${pct}%, transparent)`;
 
 /* ── Location-off helper ──
  * The device reports its permission/services state to the backend (there is no
@@ -208,9 +219,9 @@ const Dot = ({ color, size=8 }: { color:string; size?:number }) => (
   </div>
 );
 
-function downloadTrailCsv(fe: FELoc | null | undefined, trail: TrailPoint[]) {
+/** `date` is the IST day the trail was drawn for (it names the file) — not necessarily today. */
+function downloadTrailCsv(fe: FELoc | null | undefined, trail: TrailPoint[], date: string = istDay(0)) {
   if (!fe || !trail.length) return;
-  const date = istDay(0);
   const safeName = (fe.name || 'fe').replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').toLowerCase() || 'fe';
   const filename = `${safeName}-trail-${date}.csv`;
 
@@ -378,14 +389,19 @@ interface PopupEntry { m: any; build: PopupBuild; lat: number; lng: number; kind
 function LiveMap({
   fes, supervisors, outlets, warehouses,
   activeLayers, selectedId, onSelect,
-  mapLoaded, trail, trailColor,
+  mapLoaded, trail, trailColor, fitBottomInset = 0,
 }: {
   fes: FELoc[]; supervisors: FELoc[]; outlets: Outlet[]; warehouses: Warehouse[];
   activeLayers: Set<string>; selectedId: string|null; onSelect:(id:string,type:string)=>void;
   mapLoaded: boolean;
   trail?: TrailPoint[];
   trailColor?: string;
+  /** Pixels at the bottom of the map that a floating card covers, so framing a trail keeps it clear of
+   *  the card. Read through a ref: changing it must not rebuild the pins. */
+  fitBottomInset?: number;
 }) {
+  const insetRef = useRef(fitBottomInset);
+  insetRef.current = fitBottomInset;
   const mapRef   = useRef<HTMLDivElement>(null);
   const mapInst  = useRef<any>(null);
   const infoWin  = useRef<any>(null);
@@ -528,6 +544,23 @@ function LiveMap({
       window.removeEventListener('orientationchange', onResize);
       clearTimeout(t);
     };
+  }, [mapLoaded]);
+
+  // The window-resize nudge above misses size changes that don't resize the window: hiding the rep list,
+  // or taking the map fullscreen. Watching the container itself covers every case.
+  useEffect(() => {
+    const el = mapRef.current;
+    if (!mapLoaded || !el || typeof ResizeObserver === 'undefined') return;
+    let raf = 0;
+    const ro = new ResizeObserver(() => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const g = (window as any).google;
+        if (mapInst.current) g?.maps?.event?.trigger(mapInst.current, 'resize');
+      });
+    });
+    ro.observe(el);
+    return () => { ro.disconnect(); cancelAnimationFrame(raf); };
   }, [mapLoaded]);
 
   // Trail overlay: a subtle wide glow polyline under a solid main polyline, plus small clickable dots at
@@ -697,7 +730,9 @@ function LiveMap({
         map.setCenter(bounds.getCenter());
         if ((map.getZoom() ?? 0) < 15) map.setZoom(15);
       } else {
-        map.fitBounds(bounds, 60);
+        // Keep the framed trail clear of the floating rep card (capped so a short map isn't all padding).
+        const inset = Math.min(insetRef.current, Math.round((mapRef.current?.clientHeight ?? 0) * 0.4));
+        map.fitBounds(bounds, inset > 0 ? { top: 60, right: 60, left: 60, bottom: 60 + inset } : 60);
       }
     }
 
@@ -771,8 +806,8 @@ function LocationBlock({ fe }: { fe: FELoc }) {
   };
 
   return (
-    <div style={{ flexBasis:'100%', background:C.s3, border:`1px solid ${C.border}`, borderRadius:12,
-      padding:'10px 14px', display:'flex', gap:18, flexWrap:'wrap', alignItems:'flex-start' }}>
+    <div style={{ width:'100%', background:C.s3, border:`1px solid ${C.border}`, borderRadius:12,
+      padding:'10px 14px', display:'flex', gap:'8px 18px', flexWrap:'wrap', alignItems:'flex-start' }}>
       <div style={{ flex:'1 1 280px', minWidth:0 }}>
         <div style={{ fontSize:9, fontWeight:700, letterSpacing:'0.7px', textTransform:'uppercase', color:C.grayd }}>
           {fresh ? 'Current location' : 'Last known location'}
@@ -840,7 +875,8 @@ export default function LiveTrackingPage() {
   const [search,       setSearch]       = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [zoneFilter,   setZoneFilter]   = useState('all');
-  const [activeLayers, setActiveLayers] = useState<Set<string>>(new Set(['fe']));
+  // Field executives are the only layer left (supervisor / outlet / warehouse layers were removed).
+  const [activeLayers] = useState<Set<string>>(() => new Set(['fe']));
 
   const [selectedId,   setSelectedId]   = useState<string|null>(null);
   const [selectedType, setSelectedType] = useState<string|null>(null);
@@ -850,6 +886,66 @@ export default function LiveTrackingPage() {
 
   const [lowBatteryFilter,    setLowBatteryFilter]    = useState(false);
   const [lowBatteryDismissed, setLowBatteryDismissed] = useState(false);
+
+  // Layout. The map is the point of this page, so it gets everything left over: the rep list can be
+  // hidden (map spans the full width), the map column can go fullscreen (its overlays travel with it),
+  // and the rep card floats over the map instead of pushing it up — it can also be collapsed.
+  const [listOpen, setListOpen] = useState(true);
+  const [cardMin,  setCardMin]  = useState(false);
+  const [isFs,     setIsFs]     = useState(false);
+  const [canFs,    setCanFs]    = useState(false);
+  const [isNarrow, setIsNarrow] = useState(false);
+  const [pageH,    setPageH]    = useState<number | null>(null);
+  const pageRef   = useRef<HTMLDivElement>(null);
+  const mapColRef = useRef<HTMLDivElement>(null);
+
+  // Size the page to the space left under its own top edge. The dashboard shell pads pages by 40px at
+  // the bottom, so leave that (otherwise the shell scrolls). Measuring — rather than a fixed `100vh - N`
+  // — also absorbs the impersonation / acting-as banners above the page. `scrollY` is added back so a
+  // scrolled shell doesn't read as extra room. Phones scroll instead (see `.lt-page` under the media query).
+  useEffect(() => {
+    const fit = () => {
+      const el = pageRef.current;
+      if (!el) return;
+      const top = el.getBoundingClientRect().top + window.scrollY;
+      setPageH(Math.max(480, Math.round(window.innerHeight - top - 40)));
+    };
+    fit();
+    window.addEventListener('resize', fit);
+    window.addEventListener('orientationchange', fit);
+    return () => { window.removeEventListener('resize', fit); window.removeEventListener('orientationchange', fit); };
+  }, []);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 768px)');
+    const on = () => setIsNarrow(mq.matches);
+    on();
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, []);
+
+  // Fullscreen applies to the whole map column (map + overlays + rep card). Safari still wants the
+  // webkit-prefixed API on some versions, and iPhone Safari has no element fullscreen at all — there
+  // `canFs` stays false and the button is simply not shown.
+  useEffect(() => {
+    const d = document as any;
+    setCanFs(!!(d.fullscreenEnabled || d.webkitFullscreenEnabled));
+    const sync = () => setIsFs((d.fullscreenElement || d.webkitFullscreenElement) === mapColRef.current);
+    document.addEventListener('fullscreenchange', sync);
+    document.addEventListener('webkitfullscreenchange', sync);
+    return () => { document.removeEventListener('fullscreenchange', sync); document.removeEventListener('webkitfullscreenchange', sync); };
+  }, []);
+  const toggleFullscreen = () => {
+    const d = document as any;
+    const el = mapColRef.current as any;
+    if (!el) return;
+    try {
+      const p = (d.fullscreenElement || d.webkitFullscreenElement)
+        ? (d.exitFullscreen || d.webkitExitFullscreen)?.call(d)
+        : (el.requestFullscreen || el.webkitRequestFullscreen)?.call(el);
+      p?.catch?.(() => { /* the browser refused — the map just stays inline */ });
+    } catch { /* same */ }
+  };
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -1015,35 +1111,46 @@ export default function LiveTrackingPage() {
     return matchSearch;
   });
 
-  const toggleLayer = (id: string) => {
-    setActiveLayers(prev => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
+  const selectRep = (id: string) => {
+    setSelectedId(id);
+    setSelectedType('fe');
+    setCardMin(false);
+    // On a phone the map sits above the list — bring it into view so the tap visibly does something.
+    if (isNarrow) {
+      try { mapColRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch { /* ignore */ }
+    }
   };
 
-  const activeCount  = fes.filter(f => f.status === 'active').length;
-  const breakCount   = fes.filter(f => f.status === 'on_break').length;
-  const outCount     = fes.filter(f => f.status === 'checked_out').length;
-  const absentCount  = fes.filter(f => f.status === 'absent').length;
+  const statusCount: Record<string, number> = {
+    all:         fes.length,
+    active:      fes.filter(f => f.status === 'active').length,
+    on_break:    fes.filter(f => f.status === 'on_break').length,
+    checked_out: fes.filter(f => f.status === 'checked_out').length,
+    absent:      fes.filter(f => f.status === 'absent').length,
+  };
   const flaggedCount = fes.filter(f => f.is_mock || f.is_suspect).length;
+  const lowBatteryCount = fes.filter(fe => fe.battery_percentage != null && fe.battery_percentage < 20).length;
 
   const selFE  = selectedType === 'fe'         ? fes.find(f => f.id === selectedId)
                : selectedType === 'supervisor'  ? supervisors.find(s => s.id === selectedId) : null;
-  const selOut = selectedType === 'outlet'      ? outlets.find(o => o.id === selectedId) : null;
-  const selWH  = selectedType === 'warehouse'   ? warehouses.find(w => w.id === selectedId) : null;
-
-  const inp: React.CSSProperties = {
-    padding:'8px 12px', borderRadius:10, border:`1.5px solid ${C.border}`,
-    background:C.s3, color:C.white, fontSize:12, fontFamily:"'DM Sans',sans-serif",
-    outline:'none', colorScheme:'dark' as any,
-  };
 
   // Trail time-window quick options — IST calendar days, matching the trail
   // endpoint's day window.
   const todayISO     = istDay(0);
   const yesterdayISO = istDay(1);
+
+  // Small building blocks shared by the map overlays below.
+  const overlay: React.CSSProperties = {
+    background:'var(--s1)', border:`1px solid ${C.border}`, borderRadius:10,
+    boxShadow:'0 4px 14px rgba(0,0,0,.3)', fontFamily:"'DM Sans',sans-serif",
+  };
+  const overlayBtn: React.CSSProperties = {
+    ...overlay, padding:'7px 11px', fontSize:11, fontWeight:600, color:C.gray, cursor:'pointer',
+    display:'flex', alignItems:'center', gap:7,
+  };
+  const trailDayLabel = trailDate === todayISO ? 'Today' : trailDate === yesterdayISO ? 'Yesterday'
+    : new Date(`${trailDate}T12:00:00+05:30`).toLocaleDateString('en-IN', { day:'numeric', month:'short', timeZone:IST });
+  const closeCard = () => { setSelectedId(null); setSelectedType(null); };
 
   return (
     <>
@@ -1051,47 +1158,65 @@ export default function LiveTrackingPage() {
         @keyframes km-fadein { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
         @keyframes kspin     { to{transform:rotate(360deg)} }
         @keyframes kpulse    { 0%,100%{opacity:1} 50%{opacity:.2} }
-        .lt-row:hover        { background:${C.s4} !important; }
+        .lt-row:hover  { background:${C.s4} !important; }
+        .lt-btn        { transition:border-color .15s, background .15s, color .15s; }
+        .lt-btn:hover  { border-color:var(--border-l) !important; color:var(--text) !important; }
+        .lt-chip:hover { border-color:var(--border-l) !important; }
 
-        /* Mobile (<= 768px): stack the FE-list sidebar above the map so
-           the page actually fits on a phone. Sidebar becomes a short
-           horizontal-scroll list cap; map takes the rest. KPI strip
-           becomes a horizontal scroller so all six tiles stay legible. */
+        /* The rep card floats over the map's bottom-left corner, so the map keeps its full height
+           whether or not anyone is selected. */
+        .lt-detail { position:absolute; left:12px; bottom:12px; z-index:6;
+                     width:min(480px, calc(100% - 76px)); max-height:calc(100% - 64px); overflow-y:auto;
+                     background:var(--s1); border:1px solid var(--border); border-radius:14px;
+                     box-shadow:0 10px 30px rgba(0,0,0,.4); padding:12px 14px;
+                     display:flex; flex-direction:column; gap:10px; }
+        .lt-collapsed { display:none !important; }
+
+        /* Fullscreen is taken on the whole map column so the overlays and the rep card come along. */
+        .lt-mapcol:fullscreen { padding:0; background:var(--bg); }
+        .lt-mapcol:fullscreen .lt-mapbox { border-radius:0; border:none; }
+        .lt-mapcol:-webkit-full-screen { padding:0; background:var(--bg); }
+        .lt-mapcol:-webkit-full-screen .lt-mapbox { border-radius:0; border:none; }
+
+        /* Mobile (<= 768px): the map comes first and gets most of the screen; the rep list sits
+           under it and the page scrolls. The rep card drops below the map instead of covering it. */
         @media (max-width: 768px) {
-          .lt-page       { height: auto !important; min-height: calc(100vh - 80px); }
-          .lt-title      { font-size: 20px !important; }
-          .lt-subtitle   { font-size: 11px !important; }
-          .lt-kpis       { flex-wrap: nowrap !important; overflow-x: auto;
-                           -webkit-overflow-scrolling: touch; padding-bottom: 4px; }
-          .lt-kpis > div { min-width: 110px; flex: 0 0 auto !important; }
-          .lt-filters    { gap: 6px !important; }
-          .lt-shell      { flex-direction: column !important; gap: 12px !important; }
-          .lt-sidebar    { width: 100% !important; max-height: 38vh; }
-          .lt-mapcol     { min-height: 50vh; }
-          .lt-detail     { padding: 12px !important; gap: 10px !important; }
-          .lt-detail > * { font-size: 12px !important; }
-        }
-        @media (max-width: 480px) {
-          .lt-layer-pill { font-size: 11px !important; padding: 5px 9px !important; }
-          .lt-kpi-val    { font-size: 17px !important; }
-          .lt-sidebar    { max-height: 32vh; }
+          .lt-page        { height:auto !important; min-height:calc(100vh - 80px); }
+          .lt-title       { font-size:20px !important; }
+          .lt-subtitle    { display:none; }
+          .lt-controls    { width:100%; }
+          .lt-shell       { flex-direction:column !important; gap:12px !important; }
+          .lt-mapcol      { order:1; flex:none !important; scroll-margin-top:68px; /* stop below the sticky app bar */ }
+          .lt-mapbox      { flex:none !important; height:62vh; min-height:340px; }
+          .lt-sidebar     { order:2; width:100% !important; max-height:46vh; }
+          .lt-collapsed   { display:flex !important; }
+          .lt-detail      { position:static; width:auto; max-height:none; margin-top:10px; box-shadow:none; }
+          .lt-hide-mobile { display:none !important; }
         }
       `}</style>
 
-      <div className="lt-page" style={{ display:'flex', flexDirection:'column', height:'calc(100vh - 80px)', gap:16, animation:'km-fadein .3s ease' }}>
+      <div ref={pageRef} className="lt-page" style={{ display:'flex', flexDirection:'column', height: pageH ?? 'calc(100vh - 120px)', gap:12, animation:'km-fadein .3s ease' }}>
 
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-end', flexWrap:'wrap', gap:12, flexShrink:0 }}>
-          <div>
-            <div className="lt-title" style={{ fontFamily:"'Syne',sans-serif", fontSize:24, fontWeight:800, color:C.white, letterSpacing:'-0.3px' }}>
+        <div className="lt-head" style={{ display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:10, flexShrink:0 }}>
+          <div style={{ display:'flex', alignItems:'baseline', gap:12, flexWrap:'wrap', minWidth:0 }}>
+            <div className="lt-title" style={{ fontFamily:"'Syne',sans-serif", fontSize:22, fontWeight:800, color:C.white, letterSpacing:'-0.3px' }}>
               Live Trailing
             </div>
-            <div className="lt-subtitle" style={{ fontSize:12, color:C.gray, marginTop:3 }}>
+            <div className="lt-subtitle" style={{ fontSize:12, color:C.gray }}>
               Real-time field-executive visibility &amp; trailing
             </div>
           </div>
-          <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+          <div className="lt-controls" style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
+            {zones.length > 0 && (
+              <Select value={zoneFilter} onChange={e => setZoneFilter(e.target.value)} aria-label="Filter by zone"
+                style={{ width:150, height:32, fontSize:12 }}>
+                <option value="all">All Zones</option>
+                {zones.map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
+              </Select>
+            )}
+            <LowBatteryFilter active={lowBatteryFilter} onToggle={() => setLowBatteryFilter(v => !v)} count={lowBatteryCount} />
             {lastSync && <span style={{ fontSize:11, color:C.grayd }}>Last sync: {lastSync}</span>}
-            <button onClick={fetchAll} style={{ padding:'8px 14px', background:C.s2, border:`1px solid ${C.border}`, borderRadius:10, color:C.gray, fontSize:12, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", display:'flex', alignItems:'center', gap:6 }}>
+            <button className="lt-btn" onClick={fetchAll} style={{ padding:'7px 14px', background:C.s2, border:`1px solid ${C.border}`, borderRadius:10, color:C.gray, fontSize:12, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", display:'flex', alignItems:'center', gap:6 }}>
               {loading ? <Spin/> : '↺'} Refresh
             </button>
           </div>
@@ -1106,64 +1231,47 @@ export default function LiveTrackingPage() {
 
         <LowBatteryAlert fes={fes} dismissed={lowBatteryDismissed} onDismiss={() => setLowBatteryDismissed(true)} />
 
-        <div className="lt-kpis" style={{ display:'flex', gap:10, flexShrink:0 }}>
-          {[
-            { l:'Active',      v:activeCount, c:C.green  },
-            { l:'On Break',    v:breakCount,  c:C.yellow },
-            { l:'Checked Out', v:outCount,    c:C.blue   },
-            { l:'Absent',      v:absentCount, c:C.grayd  },
-            // GPS-integrity flag — only surfaced when at least one rep is flagged.
-            ...(flaggedCount > 0 ? [{ l:'⚠ Flagged GPS', v:flaggedCount, c:C.red }] : []),
-          ].map((s,i) => (
-            <div key={i} style={{ background:C.s2, border:`1px solid ${C.border}`, borderRadius:12, padding:'10px 16px', textAlign:'center', flex:1 }}>
-              <div className="lt-kpi-val" style={{ fontFamily:"'Syne',sans-serif", fontSize:20, fontWeight:800, color:s.c }}>{loading?'—':s.v}</div>
-              <div style={{ fontSize:10, color:C.gray, marginTop:2 }}>{s.l}</div>
+        <div className="lt-shell" style={{ flex:1, display:'flex', gap:12, minHeight:0 }}>
+
+          <div className={`lt-sidebar${listOpen ? '' : ' lt-collapsed'}`} style={{ width:280, flexShrink:0, display:'flex', flexDirection:'column', gap:0,
+            background:C.s2, border:`1px solid ${C.border}`, borderRadius:14, overflow:'hidden' }}>
+
+            <div style={{ padding:'12px 12px 10px', borderBottom:`1px solid ${C.border}`, display:'flex', flexDirection:'column', gap:10, flexShrink:0 }}>
+              <div style={{ position:'relative' }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"
+                  style={{ position:'absolute', left:11, top:'50%', transform:'translateY(-50%)', color:C.grayd, pointerEvents:'none' }}>
+                  <circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>
+                </svg>
+                <Input placeholder="Search field executives…" aria-label="Search field executives" value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  style={{ paddingLeft:32, fontSize:13 }}/>
+              </div>
+              <div role="group" aria-label="Filter by status" style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
+                {STATUS_CHIPS.map(ch => {
+                  const on = statusFilter === ch.id;
+                  return (
+                    <button key={ch.id} className="lt-chip" aria-pressed={on}
+                      onClick={() => setStatusFilter(on && ch.id !== 'all' ? 'all' : ch.id)}
+                      style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'4px 10px', borderRadius:20, cursor:'pointer',
+                        fontSize:11, fontWeight:600, fontFamily:"'DM Sans',sans-serif", transition:'all .15s',
+                        border:`1px solid ${on ? ch.color : C.border}`,
+                        background: on ? tint(ch.color, 16) : C.s3,
+                        color: on ? C.white : C.gray }}>
+                      {ch.id !== 'all' && <span style={{ width:7, height:7, borderRadius:'50%', background:ch.color, flexShrink:0 }}/>}
+                      {ch.label}
+                      <span style={{ fontWeight:800, color: on ? ch.color : C.white }}>{loading && !fes.length ? '–' : statusCount[ch.id]}</span>
+                    </button>
+                  );
+                })}
+                {flaggedCount > 0 && (
+                  <span title="Reps whose last fix looks spoofed (mock GPS or an impossible-speed jump)"
+                    style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'4px 10px', borderRadius:20, fontSize:11, fontWeight:700,
+                      color:C.red, background:C.redD, border:`1px solid ${C.redB}` }}>
+                    ⚠ {flaggedCount} flagged GPS
+                  </span>
+                )}
+              </div>
             </div>
-          ))}
-          <LowBatteryKpi fes={fes} loading={loading} />
-        </div>
-
-        <div className="lt-filters" style={{ display:'flex', gap:10, flexWrap:'wrap', flexShrink:0 }}>
-          <div style={{ position:'relative', flex:1, minWidth:200 }}>
-            <span style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', fontSize:13, color:C.grayd }}>🔍</span>
-            <input placeholder="Search field executives…" value={search}
-              onChange={e => setSearch(e.target.value)}
-              style={{ ...inp, width:'100%', paddingLeft:30 }}/>
-          </div>
-          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
-            style={{ ...inp, minWidth:130 }}>
-            <option value="all">All Statuses</option>
-            <option value="active">Active</option>
-            <option value="on_break">On Break</option>
-            <option value="checked_out">Checked Out</option>
-            <option value="absent">Absent</option>
-          </select>
-          <select value={zoneFilter} onChange={e => setZoneFilter(e.target.value)}
-            style={{ ...inp, minWidth:140 }}>
-            <option value="all">All Zones</option>
-            {zones.map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
-          </select>
-          <LowBatteryFilter active={lowBatteryFilter} onToggle={() => setLowBatteryFilter(v => !v)} count={fes.filter(fe => fe.battery_percentage != null && fe.battery_percentage < 20).length} />
-          <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
-            {LAYERS.map(l => (
-              <button key={l.id} onClick={() => toggleLayer(l.id)} className="lt-layer-pill"
-                style={{ padding:'6px 12px', borderRadius:20, cursor:'pointer',
-                  border:`1.5px solid ${activeLayers.has(l.id) ? l.color : C.border}`,
-                  background: activeLayers.has(l.id) ? `${l.color}18` : C.s3,
-                  color: activeLayers.has(l.id) ? l.color : C.gray,
-                  fontSize:12, fontWeight:600, fontFamily:"'DM Sans',sans-serif",
-                  display:'flex', alignItems:'center', gap:5, transition:'all .15s' }}>
-                <span>{l.icon}</span>
-                <span>{l.label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="lt-shell" style={{ flex:1, display:'flex', gap:16, minHeight:0 }}>
-
-          <div className="lt-sidebar" style={{ width:280, flexShrink:0, display:'flex', flexDirection:'column', gap:0,
-            background:C.s2, border:`1px solid ${C.border}`, borderRadius:16, overflow:'hidden' }}>
 
             <div style={{ flex:1, overflowY:'auto' }}>
 
@@ -1175,13 +1283,13 @@ export default function LiveTrackingPage() {
                   </div>
                   {filteredFEs.map(fe => (
                     <div key={fe.id} className="lt-row"
-                      onClick={() => { setSelectedId(fe.id); setSelectedType('fe'); }}
+                      onClick={() => selectRep(fe.id)}
                       style={{ display:'flex', gap:10, padding:'10px 14px', cursor:'pointer',
                         borderBottom:`1px solid ${C.border}`, transition:'background .13s',
                         background: selectedId===fe.id ? C.s3 : 'transparent',
                         borderLeft: selectedId===fe.id ? `3px solid ${STATUS_COLOR[fe.status]||C.grayd}` : '3px solid transparent' }}>
                       <div style={{ width:32, height:32, borderRadius:'50%', flexShrink:0,
-                        background:`${STATUS_COLOR[fe.status]||C.grayd}20`,
+                        background:tint(STATUS_COLOR[fe.status]||C.grayd, 14),
                         border:`2px solid ${STATUS_COLOR[fe.status]||C.grayd}`,
                         display:'flex', alignItems:'center', justifyContent:'center',
                         fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:13,
@@ -1352,9 +1460,9 @@ export default function LiveTrackingPage() {
             </div>
           </div>
 
-          <div className="lt-mapcol" style={{ flex:1, display:'flex', flexDirection:'column', gap:0, minWidth:0 }}>
+          <div ref={mapColRef} className="lt-mapcol" style={{ flex:1, position:'relative', display:'flex', flexDirection:'column', minWidth:0 }}>
 
-            <div style={{ flex:1, position:'relative', background:C.s3, borderRadius:selectedId?'16px 16px 0 0':16, overflow:'hidden', border:`1px solid ${C.border}` }}>
+            <div className="lt-mapbox" style={{ flex:1, position:'relative', background:C.s3, borderRadius:14, overflow:'hidden', border:`1px solid ${C.border}`, minHeight:0 }}>
               <LiveMap
                 fes={filteredFEs}
                 supervisors={filteredSups}
@@ -1366,36 +1474,83 @@ export default function LiveTrackingPage() {
                 mapLoaded={mapLoaded}
                 trail={selectedType === 'fe' ? selectedTrail : undefined}
                 trailColor={'#E01E2C'}
+                fitBottomInset={!isNarrow && selectedType === 'fe' && selectedId && !cardMin ? 230 : 0}
               />
 
-              {selectedType === 'fe' && selectedId && (
-                <div style={{ position:'absolute', top:12, right:12, zIndex:5,
-                  background:'var(--s1)', border:`1px solid ${C.border}`, borderRadius:10,
-                  padding:'6px 8px', display:'flex', alignItems:'center', gap:6,
-                  fontFamily:"'DM Sans',sans-serif" }}>
-                  <span style={{ fontSize:11, color:C.gray, fontWeight:600 }}>Trail day</span>
-                  {[{ l:'Today', v:todayISO }, { l:'Yesterday', v:yesterdayISO }].map(d => {
-                    const on = trailDate === d.v;
-                    return (
-                      <button key={d.v} onClick={() => setTrailDate(d.v)}
-                        style={{ padding:'4px 9px', borderRadius:7, cursor:'pointer', fontSize:11, fontWeight:600,
-                          border:`1px solid ${on ? C.blue : C.border}`,
-                          background: on ? `${C.blue}18` : 'transparent',
-                          color: on ? C.blue : C.gray, fontFamily:"'DM Sans',sans-serif" }}>
-                        {d.l}
-                      </button>
-                    );
-                  })}
-                  <input type="date" value={trailDate} max={todayISO}
-                    onChange={e => { if (e.target.value) setTrailDate(e.target.value); }}
-                    style={{ padding:'4px 6px', borderRadius:7, border:`1px solid ${C.border}`,
-                      background:C.s3, color:C.white, fontSize:11, fontFamily:"'DM Sans',sans-serif",
-                      outline:'none', colorScheme:'dark' as any }}/>
+              {/* Top bar: list toggle + trail download on the left; trail day + fullscreen on the right.
+                  It wraps on narrow maps, and only its buttons take pointer events so the map stays draggable. */}
+              <div style={{ position:'absolute', top:10, left:10, right:10, zIndex:5, display:'flex',
+                justifyContent:'space-between', alignItems:'flex-start', gap:8, flexWrap:'wrap', pointerEvents:'none' }}>
+                <div style={{ display:'flex', gap:8, flexWrap:'wrap', pointerEvents:'auto' }}>
+                  <button className="lt-btn lt-hide-mobile" onClick={() => setListOpen(v => !v)} aria-pressed={!listOpen}
+                    title={listOpen ? 'Hide the rep list to give the map the full width' : 'Show the rep list'}
+                    style={overlayBtn}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                      <rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/>
+                    </svg>
+                    {listOpen ? 'Hide list' : 'Show list'}
+                  </button>
+
+                  {selectedType === 'fe' && selectedTrail.length > 1 && (
+                    <button className="lt-btn"
+                      onClick={() => downloadTrailCsv(selFE as FELoc | null, selectedTrail, trailDate)}
+                      title="Download this day's trail as CSV (opens in Excel)"
+                      style={{ ...overlayBtn, padding:'6px 10px 6px 12px', fontWeight:500, gap:8 }}>
+                      <svg width="20" height="3" style={{ flexShrink:0 }}>
+                        <line x1="0" y1="1.5" x2="20" y2="1.5" stroke="#E01E2C" strokeWidth="3" strokeDasharray="4 3" strokeLinecap="round" />
+                      </svg>
+                      <span>{trailDate === todayISO ? "Today's trail" : `Trail · ${trailDayLabel}`} · {selectedTrail.length} pings</span>
+                      <span style={{ marginLeft:4, padding:'2px 6px', borderRadius:6, background:tint(C.blue, 14), color:C.blue,
+                        fontSize:10, fontWeight:700, display:'inline-flex', alignItems:'center', gap:3 }}>
+                        ↓ CSV
+                      </span>
+                    </button>
+                  )}
                 </div>
-              )}
+
+                <div style={{ display:'flex', gap:8, flexWrap:'wrap', justifyContent:'flex-end', pointerEvents:'auto' }}>
+                  {selectedType === 'fe' && selectedId && (
+                    <div style={{ ...overlay, padding:'5px 8px', display:'flex', alignItems:'center', gap:6 }}>
+                      {[{ l:'Today', v:todayISO }, { l:'Yesterday', v:yesterdayISO }].map(d => {
+                        const on = trailDate === d.v;
+                        return (
+                          <button key={d.v} onClick={() => setTrailDate(d.v)} aria-pressed={on}
+                            style={{ padding:'4px 9px', borderRadius:7, cursor:'pointer', fontSize:11, fontWeight:600,
+                              border:`1px solid ${on ? C.blue : C.border}`,
+                              background: on ? tint(C.blue, 14) : 'transparent',
+                              color: on ? C.blue : C.gray, fontFamily:"'DM Sans',sans-serif" }}>
+                            {d.l}
+                          </button>
+                        );
+                      })}
+                      <input type="date" value={trailDate} max={todayISO} aria-label="Trail date"
+                        onChange={e => { if (e.target.value) setTrailDate(e.target.value); }}
+                        style={{ padding:'4px 6px', borderRadius:7, border:`1px solid ${C.border}`,
+                          background:C.s3, color:C.white, fontSize:11, fontFamily:"'DM Sans',sans-serif",
+                          outline:'none' }}/>
+                    </div>
+                  )}
+
+                  {canFs && (
+                    <button className="lt-btn lt-hide-mobile" onClick={toggleFullscreen}
+                      title={isFs ? 'Exit fullscreen' : 'Fullscreen map'} aria-label={isFs ? 'Exit fullscreen' : 'Fullscreen map'}
+                      style={{ ...overlayBtn, padding:'7px 9px' }}>
+                      {isFs ? (
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <path d="M9 3v4a2 2 0 0 1-2 2H3M21 9h-4a2 2 0 0 1-2-2V3M3 15h4a2 2 0 0 1 2 2v4M15 21v-4a2 2 0 0 1 2-2h4"/>
+                        </svg>
+                      ) : (
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <path d="M3 9V5a2 2 0 0 1 2-2h4M15 3h4a2 2 0 0 1 2 2v4M21 15v4a2 2 0 0 1-2 2h-4M9 21H5a2 2 0 0 1-2-2v-4"/>
+                        </svg>
+                      )}
+                    </button>
+                  )}
+                </div>
+              </div>
 
               {!loading && fes.length > 0 && fes.every(f => !f.lat || !f.lng) && (
-                <div style={{ position:'absolute', top:12, left:'50%', transform:'translateX(-50%)',
+                <div style={{ position:'absolute', top:56, left:'50%', transform:'translateX(-50%)', zIndex:5,
                   background:'var(--s1)', border:`1px solid ${C.yellow}40`,
                   borderRadius:10, padding:'8px 14px', fontSize:12, color:C.yellow,
                   display:'flex', alignItems:'center', gap:7, pointerEvents:'none', whiteSpace:'nowrap' }}>
@@ -1403,130 +1558,95 @@ export default function LiveTrackingPage() {
                 </div>
               )}
 
-              {selectedType === 'fe' && selectedTrail.length > 1 && (
-                <button
-                  onClick={() => downloadTrailCsv(selFE as FELoc | null, selectedTrail)}
-                  title="Download today's trail as CSV (opens in Excel)"
-                  style={{ position:'absolute', top:12, left:12,
-                    background:'var(--s1)', border:`1px solid ${C.border}`,
-                    borderRadius:10, padding:'6px 10px 6px 12px', fontSize:11, color:C.gray,
-                    display:'flex', alignItems:'center', gap:8, cursor:'pointer',
-                    fontFamily:"'DM Sans',sans-serif" }}>
-                  <svg width="20" height="3" style={{ flexShrink:0 }}>
-                    <line x1="0" y1="1.5" x2="20" y2="1.5"
-                      stroke="#E01E2C"
-                      strokeWidth="3" strokeDasharray="4 3" strokeLinecap="round" />
-                  </svg>
-                  <span>Today&apos;s trail · {selectedTrail.length} pings</span>
-                  <span style={{ marginLeft:4, padding:'2px 6px', borderRadius:6,
-                    background:`${C.blue}18`, color:C.blue, fontSize:10, fontWeight:700,
-                    display:'inline-flex', alignItems:'center', gap:3 }}>
-                    ↓ CSV
-                  </span>
-                </button>
-              )}
-
-              <div style={{ position:'absolute', bottom:12, left:12,
-                background:'var(--s1)', border:`1px solid ${C.border}`,
-                borderRadius:10, padding:'8px 12px', display:'flex', gap:10, flexWrap:'wrap' }}>
-                {LAYERS.filter(l => activeLayers.has(l.id)).map(l => (
-                  <div key={l.id} style={{ display:'flex', alignItems:'center', gap:5, fontSize:11, color:C.gray }}>
-                    <div style={{ width:8, height:8, borderRadius:'50%', background:l.color }}/>
-                    {l.label}
+              {/* Colour key for the pins — shown until a rep is picked, then the rep card takes the corner. */}
+              {!selectedId && (
+                <div style={{ ...overlay, position:'absolute', left:10, bottom:10, zIndex:5, maxWidth:'calc(100% - 76px)',
+                  padding:'7px 12px', display:'flex', gap:'6px 12px', flexWrap:'wrap', fontSize:11, color:C.gray }}>
+                  {STATUS_CHIPS.filter(c => c.id !== 'all').map(c => (
+                    <div key={c.id} style={{ display:'flex', alignItems:'center', gap:5 }}>
+                      <span style={{ width:8, height:8, borderRadius:'50%', background:c.color }}/>{c.label}
+                    </div>
+                  ))}
+                  <div title="The device's location is off — the pin is the last known fix, not a live position"
+                    style={{ display:'flex', alignItems:'center', gap:5 }}>
+                    <span style={{ width:8, height:8, borderRadius:'50%', border:`1.5px solid ${C.grayd}`, opacity:.6 }}/>Location off
                   </div>
-                ))}
-              </div>
+                </div>
+              )}
             </div>
 
-            {(selFE || selOut || selWH) && (
-              <div className="lt-detail" style={{ background:C.s2, border:`1px solid ${C.border}`, borderTop:'none',
-                borderRadius:'0 0 16px 16px', padding:'14px 18px',
-                display:'flex', gap:16, alignItems:'center', flexWrap:'wrap' }}>
-                <button onClick={() => { setSelectedId(null); setSelectedType(null); }}
-                  style={{ background:'transparent', border:`1px solid ${C.border}`, borderRadius:8,
-                    width:28, height:28, cursor:'pointer', color:C.gray, fontSize:14, flexShrink:0,
-                    display:'flex', alignItems:'center', justifyContent:'center' }}>✕</button>
-
-                {selFE && (
-                  <>
-                    <div style={{ width:40, height:40, borderRadius:'50%', flexShrink:0,
-                      background:`${STATUS_COLOR[selFE.status]||C.grayd}20`,
-                      border:`2px solid ${STATUS_COLOR[selFE.status]||C.grayd}`,
-                      display:'flex', alignItems:'center', justifyContent:'center',
-                      fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:17,
-                      color:STATUS_COLOR[selFE.status]||C.grayd }}>
-                      {(selFE.name||'?')[0]}
+            {selFE && (
+              <div className="lt-detail">
+                <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                  <div style={{ width:38, height:38, borderRadius:'50%', flexShrink:0,
+                    background:tint(STATUS_COLOR[selFE.status]||C.grayd, 16),
+                    border:`2px solid ${STATUS_COLOR[selFE.status]||C.grayd}`,
+                    display:'flex', alignItems:'center', justifyContent:'center',
+                    fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:16,
+                    color:STATUS_COLOR[selFE.status]||C.grayd }}>
+                    {(selFE.name||'?')[0]}
+                  </div>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
+                      <span style={{ fontFamily:"'Syne',sans-serif", fontSize:15, fontWeight:800, color:C.white }}>{selFE.name}</span>
+                      <span style={{ padding:'2px 8px', borderRadius:20, fontSize:10, fontWeight:700, textTransform:'capitalize',
+                        color:STATUS_COLOR[selFE.status]||C.gray, background:tint(STATUS_COLOR[selFE.status]||C.grayd, 16) }}>
+                        {selFE.status.replace('_',' ')}
+                      </span>
+                      {selFE.battery_percentage != null && (
+                        <span style={{ fontSize:11, fontWeight:600, color:selFE.battery_percentage < 20 ? C.red : C.gray }}>
+                          🔋 {selFE.battery_percentage}%
+                        </span>
+                      )}
                     </div>
-                    <div style={{ flex:1 }}>
-                      <div style={{ fontFamily:"'Syne',sans-serif", fontSize:15, fontWeight:800, color:C.white, display:'flex', alignItems:'center', gap:8 }}>
-                        {selFE.name}
-                        {selFE.battery_percentage != null && (
-                          <span style={{ fontSize:11, color:selFE.battery_percentage < 20 ? C.red : C.gray, fontWeight:600 }}>
-                            🔋 {selFE.battery_percentage}%
-                          </span>
-                        )}
-                      </div>
+                    <div style={{ fontSize:11, color:C.gray, marginTop:2, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+                      {selFE.employee_id ? `${selFE.employee_id} · ` : ''}{selFE.zone_name||'No zone'}
                       {(selFE.device_model || selFE.os_version) && (
-                        <div style={{ fontSize:10, color:C.grayd, marginTop:1, display:'flex', alignItems:'center', gap:4 }}>
-                          📱 {selFE.device_brand ? selFE.device_brand + ' ' : ''}{selFE.device_model || 'Device'}
-                          {selFE.os_version && <span> · Android {selFE.os_version}</span>}
-                        </div>
+                        <span style={{ color:C.grayd }}>
+                          {' · '}📱 {selFE.device_brand ? selFE.device_brand + ' ' : ''}{selFE.device_model || 'Device'}
+                          {selFE.os_version && <> · Android {selFE.os_version}</>}
+                        </span>
                       )}
-                      {(selFE.is_mock || selFE.is_suspect) && (
-                        <div style={{ fontSize:11, color:C.red, marginTop:4, fontWeight:600, display:'flex', alignItems:'center', gap:5 }}>
-                          ⚠ {selFE.is_mock ? 'Mock/simulated GPS on the last fix' : 'Impossible-speed jump vs the previous fix'}
-                          {selFE.suspect_reason && <span style={{ color:C.gray, fontWeight:500 }}>· {selFE.suspect_reason}</span>}
-                        </div>
-                      )}
-                      <div style={{ fontSize:11, color:C.gray, marginTop:2 }}>{selFE.employee_id||''} · {selFE.zone_name||'No zone'}</div>
                     </div>
-                    {[
-                      { l:'Status',    v: selFE.status.replace('_',' '), c: STATUS_COLOR[selFE.status]||C.gray },
-                      { l:'Check-in',  v: selFE.checkin_at ? new Date(selFE.checkin_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : '—', c: C.white },
-                      { l: (getStoredIndustryScope() === 'insurance' ? 'Meetings Today' : 'TFF Today'), v: String(selFE.today_tff ?? '—'), c: C.green },
-                      { l:'Trail',     v: selectedTrail.length > 0 ? `${selectedTrail.length} pings` : '—', c: selectedTrail.length > 0 ? '#E01E2C' : C.gray },
-                    ].map((s,i) => (
-                      <div key={i} style={{ textAlign:'center' }}>
-                        <div style={{ fontFamily:"'Syne',sans-serif", fontSize:16, fontWeight:800, color:s.c, textTransform:'capitalize' }}>{s.v}</div>
-                        <div style={{ fontSize:10, color:C.grayd, marginTop:2 }}>{s.l}</div>
-                      </div>
-                    ))}
-                    {selectedTrail.length > 0 && (
-                      <button onClick={() => downloadTrailCsv(selFE as FELoc | null, selectedTrail)}
-                        title="Download today's trail as CSV (opens in Excel)"
-                        style={{ background:`${C.blue}18`, border:`1px solid ${C.blue}40`,
-                          color:C.blue, padding:'8px 14px', borderRadius:10, fontSize:12,
-                          fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif",
-                          display:'flex', alignItems:'center', gap:6, flexShrink:0 }}>
-                        ↓ Download trail (Excel)
-                      </button>
-                    )}
+                  </div>
+                  <button className="lt-btn" onClick={() => setCardMin(v => !v)} aria-expanded={!cardMin}
+                    aria-label={cardMin ? 'Expand details' : 'Collapse details'} title={cardMin ? 'Expand details' : 'Collapse details'}
+                    style={{ background:'transparent', border:`1px solid ${C.border}`, borderRadius:8, width:28, height:28, cursor:'pointer',
+                      color:C.gray, flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
+                      style={{ transform: cardMin ? 'rotate(180deg)' : 'none', transition:'transform .15s' }}>
+                      <path d="M6 9l6 6 6-6"/>
+                    </svg>
+                  </button>
+                  <button className="lt-btn" onClick={closeCard} aria-label="Close details" title="Close"
+                    style={{ background:'transparent', border:`1px solid ${C.border}`, borderRadius:8, width:28, height:28, cursor:'pointer',
+                      color:C.gray, fontSize:14, flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center' }}>✕</button>
+                </div>
+
+                {(selFE.is_mock || selFE.is_suspect) && (
+                  <div style={{ fontSize:11, color:C.red, fontWeight:600, display:'flex', alignItems:'center', gap:5, flexWrap:'wrap' }}>
+                    ⚠ {selFE.is_mock ? 'Mock/simulated GPS on the last fix' : 'Impossible-speed jump vs the previous fix'}
+                    {selFE.suspect_reason && <span style={{ color:C.gray, fontWeight:500 }}>· {selFE.suspect_reason}</span>}
+                  </div>
+                )}
+
+                {!cardMin && (
+                  <>
+                    <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                      {[
+                        { l:'Check-in', v: selFE.checkin_at ? new Date(selFE.checkin_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : '—', c: C.white },
+                        { l: (getStoredIndustryScope() === 'insurance' ? 'Meetings Today' : 'TFF Today'), v: String(selFE.today_tff ?? '—'), c: C.green },
+                        { l:'Trail', v: selectedTrail.length > 0 ? `${selectedTrail.length} pings` : '—', c: selectedTrail.length > 0 ? '#E01E2C' : C.gray },
+                      ].map((s,i) => (
+                        <div key={i} style={{ flex:'1 1 90px', background:C.s3, border:`1px solid ${C.border}`, borderRadius:10,
+                          padding:'7px 10px', textAlign:'center' }}>
+                          <div style={{ fontFamily:"'Syne',sans-serif", fontSize:15, fontWeight:800, color:s.c }}>{s.v}</div>
+                          <div style={{ fontSize:10, color:C.grayd, marginTop:1 }}>{s.l}</div>
+                        </div>
+                      ))}
+                    </div>
                     {!selFE.lat && <div style={{ fontSize:11, color:C.yellow, padding:'4px 10px', background:C.yellowD, borderRadius:8 }}>⚠️ No GPS</div>}
                     <LocationBlock fe={selFE}/>
-                  </>
-                )}
-
-                {selOut && (
-                  <>
-                    <div style={{ width:40, height:40, borderRadius:10, background:`${C.yellow}18`, border:`1px solid ${C.yellow}40`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:20 }}>🏪</div>
-                    <div style={{ flex:1 }}>
-                      <div style={{ fontFamily:"'Syne',sans-serif", fontSize:15, fontWeight:800, color:C.white }}>{selOut.name}</div>
-                      <div style={{ fontSize:11, color:C.gray, marginTop:2 }}>{selOut.store_type||''} · {selOut.zone_name||'No zone'}</div>
-                      {selOut.address && <div style={{ fontSize:10, color:C.grayd, marginTop:2 }}>📍 {selOut.address}</div>}
-                    </div>
-                    {!selOut.lat && <div style={{ fontSize:11, color:C.yellow, padding:'4px 10px', background:C.yellowD, borderRadius:8 }}>⚠️ No GPS — add lat/lng in Outlet Management</div>}
-                  </>
-                )}
-
-                {selWH && (
-                  <>
-                    <div style={{ width:40, height:40, borderRadius:10, background:`${C.purple}18`, border:`1px solid ${C.purple}40`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:20 }}>🏭</div>
-                    <div style={{ flex:1 }}>
-                      <div style={{ fontFamily:"'Syne',sans-serif", fontSize:15, fontWeight:800, color:C.white }}>{selWH.name}</div>
-                      <div style={{ fontSize:11, color:C.gray, marginTop:2 }}>{selWH.type||''} · {selWH.city||''}</div>
-                      {selWH.address && <div style={{ fontSize:10, color:C.grayd, marginTop:2 }}>📍 {selWH.address}</div>}
-                    </div>
-                    {!selWH.latitude && <div style={{ fontSize:11, color:C.yellow, padding:'4px 10px', background:C.yellowD, borderRadius:8 }}>⚠️ No GPS — add coordinates in Warehouse</div>}
                   </>
                 )}
               </div>
