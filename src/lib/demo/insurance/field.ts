@@ -439,8 +439,6 @@ const ROUTE_PLANS = (() => {
     const missed = status === 'pending' ? 0 : total - visited;
     const completion = Math.round((visited / total) * 100);
     const planDate = new Date(Date.now() - (i - 2) * 86400000).toISOString().slice(0, 10);
-    const co2Planned = +(total * 4.8 * 0.072 * (i % 3 === 0 ? 2.4 : 1)).toFixed(2);
-    const co2Actual = +(visited * 4.8 * 0.072 * (i % 3 === 0 ? 2.4 : 1)).toFixed(2);
 
     const outlets = Array.from({ length: total }, (_, j) => {
       const outletStatus = j < visited ? 'visited' : j === visited && status === 'in_progress' ? 'in_progress' : 'pending';
@@ -488,8 +486,6 @@ const ROUTE_PLANS = (() => {
       zone_name: fe.zone,
       city_name: fe.city,
       vehicle_type: vehicles[i],
-      co2_kg_planned: co2Planned,
-      co2_kg_actual: co2Actual,
       outlets,
     };
   });

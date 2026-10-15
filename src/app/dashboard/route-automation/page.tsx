@@ -36,7 +36,7 @@ type Policy = {
   vehicle_types?: string[];
 };
 type FeDraft = {
-  user_id: string; user_name: string; total_km: number; est_co2_kg: number;
+  user_id: string; user_name: string; total_km: number;
   start_source: string; stops: Array<{ store_id: string; store_name: string; visit_order: number; reason: string }>;
 };
 type PreviewResult = {
@@ -412,7 +412,7 @@ export default function RouteAutomationPage() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                       <span style={{ fontSize: 14, fontWeight: 700, color: C.text }}>{fe.user_name}</span>
                       <span style={{ fontSize: 12, color: C.sec }}>{fe.stops.length} stop{fe.stops.length === 1 ? '' : 's'}</span>
-                      <span style={{ fontSize: 12, color: C.tert }}>· {fe.total_km} km · {fe.est_co2_kg} kg CO₂</span>
+                      <span style={{ fontSize: 12, color: C.tert }}>· {fe.total_km} km</span>
                       <span style={{ marginLeft: 'auto', fontSize: 11, color: C.tert }}>start: {fe.start_source.replace(/_/g, ' ')}</span>
                     </div>
                     <div style={{ fontSize: 12, color: C.tert, marginTop: 6, lineHeight: 1.6 }}>
