@@ -100,18 +100,17 @@ export const DEMO_AUTOPLAN_METHODS: AutoPlanMethodMeta[] = [
   },
 ];
 
-/** kg CO₂ per km — the same eight vehicle types the real backend offers. */
-export const DEMO_VEHICLE_FACTORS: Record<string, number> = {
-  '2w_petrol': 0.072,
-  '2w_ev': 0.022,
-  '4w_petrol': 0.145,
-  '4w_diesel': 0.171,
-  '4w_ev': 0.045,
-  'public_bus': 0.082,
-  'auto_rickshaw': 0.108,
-  'walking': 0,
-};
-export const DEMO_VEHICLE_TYPES = Object.keys(DEMO_VEHICLE_FACTORS);
+/** The same eight vehicle types the real backend offers. */
+export const DEMO_VEHICLE_TYPES = [
+  '2w_petrol',
+  '2w_ev',
+  '4w_petrol',
+  '4w_diesel',
+  '4w_ev',
+  'public_bus',
+  'auto_rickshaw',
+  'walking',
+];
 export const AUTO_NOTE_PREFIX = 'Auto-assigned';
 
 const isMethod = (v: unknown): v is AutoPlanMethodId =>
@@ -345,7 +344,7 @@ export interface DraftStop {
   reason: string; priority: string; lat: number; lng: number;
 }
 export interface FeDraft {
-  user_id: string; user_name: string; total_km: number; est_co2_kg: number;
+  user_id: string; user_name: string; total_km: number;
   start_source: string; stops: DraftStop[];
 }
 export interface TeamPlanResult {
@@ -393,7 +392,6 @@ export function buildDemoTeamPlan(users: DemoUser[], opts: TeamPlanOptions): Tea
   const planDate = opts.plan_date || todayIso();
   const cap = eff.params.max_outlets_per_fe;
   const radius = eff.params.max_radius_km;
-  const factor = DEMO_VEHICLE_FACTORS[eff.params.vehicle_type] ?? 0;
 
   const fes = loadFes(users);
   const { pool: fullPool, considered, skippedNoGeo } = dueOutlets();
@@ -508,7 +506,7 @@ export function buildDemoTeamPlan(users: DemoUser[], opts: TeamPlanOptions): Tea
     for (const s of stops) { if (prev) km += haversineKm(prev, s); prev = s; }
     const total_km = round(km * ROAD_FACTOR, 1);
     return {
-      user_id: f.user_id, user_name: f.name, total_km, est_co2_kg: round(total_km * factor, 2),
+      user_id: f.user_id, user_name: f.name, total_km,
       start_source: f.start ? f.start_source : 'first_outlet',
       stops: stops.map((s, i) => ({
         store_id: s.store_id, store_name: s.store_name, store_code: s.store_code, visit_order: i + 1,
@@ -568,7 +566,7 @@ export function runDemoTeamPlan(
       frequency: 'daily', territory_label: `Auto Plan · ${label}`,
       fe_name: d.user_name, fe_employee_id: String(u?.employee_id ?? ''), fe_mobile: String(u?.mobile ?? ''),
       zone_name: String(u?.zones?.name ?? ''), city_name: String(u?.city ?? ''),
-      vehicle_type: result.vehicle_type, co2_kg_planned: d.est_co2_kg, co2_kg_actual: 0,
+      vehicle_type: result.vehicle_type,
       outlets: d.stops.map((s) => ({
         id: `${id}-stop-${s.visit_order}`, visit_order: s.visit_order, target_type: 'general', status: 'pending',
         planned_duration_min: 25, store_id: s.store_id, store_name: s.store_name, store_code: s.store_code,

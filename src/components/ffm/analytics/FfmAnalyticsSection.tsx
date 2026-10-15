@@ -575,7 +575,7 @@ function pickShape(type: FfmWidgetType, rows: any[]): {
     case 'distance':
       return {
         series: rows.map((r: any) => ({ name: r.day, value: r.km_total })),
-        tableRows: rows.map((r: any) => ({ Day: r.day, 'Km total': r.km_total, 'CO₂ kg': r.co2_kg })),
+        tableRows: rows.map((r: any) => ({ Day: r.day, 'Km total': r.km_total })),
       };
     case 'off_route':
       return {
