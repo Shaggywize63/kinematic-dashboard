@@ -5,6 +5,7 @@ import { parseISO, isValid } from 'date-fns';
 import { CalendarDays, Check, Download, ExternalLink, Eye, Loader2, Pencil, Plus, RefreshCw, Search, Upload, UserX, X } from 'lucide-react';
 import api, { type AttendanceLate } from '../../../lib/api';
 import MonthlySummary from './MonthlySummary';
+import { RangePresetPicker, presetRange } from '../../../components/attendance/RangePresets';
 import DayTravel from '../../../components/attendance/DayTravel';
 import { modeText } from '../../../lib/travelReport';
 import SignedImage, { openSignedUrl } from '@/components/shared/SignedImage';
@@ -266,8 +267,10 @@ function AttendanceContent() {
   const [delRec,     setDelRec]     = useState<AttendanceRecord | null>(null);
 
   /* export */
-  const [expFrom,    setExpFrom]    = useState(() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0]; });
-  const [expTo,      setExpTo]      = useState(() => new Date().toISOString().split('T')[0]);
+  // Default to this calendar month-to-date (IST) — the same range the picker's
+  // "This month" preset produces, so the modal opens with that tab active.
+  const [expFrom,    setExpFrom]    = useState(() => presetRange('month').from);
+  const [expTo,      setExpTo]      = useState(() => presetRange('month').to);
   const [expGroupBy, setExpGroupBy] = useState<'city'|'role'|'executive'>('city');
   const [expLoading, setExpLoading] = useState(false);
   const [expErr,     setExpErr]     = useState('');
@@ -1421,11 +1424,8 @@ function AttendanceContent() {
       >
         {expErr && errorBox(expErr)}
 
-        <Section eyebrow="Date range" hint="Up to 62 days per export." first>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <Field label="From"><Input type="date" value={expFrom} onChange={e => setExpFrom(e.target.value)} /></Field>
-            <Field label="To"><Input type="date" value={expTo} onChange={e => setExpTo(e.target.value)} /></Field>
-          </div>
+        <Section eyebrow="Date range" hint="This week, 14 days, this month, or a custom range — up to 62 days per export." first>
+          <RangePresetPicker from={expFrom} to={expTo} onChange={(f, t) => { setExpFrom(f); setExpTo(t); }} idPrefix="exp" />
         </Section>
 
         <Section eyebrow="What's included" hint="Two sections, separated by headers in the CSV." style={{ paddingBottom: 0 }}>

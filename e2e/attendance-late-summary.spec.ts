@@ -7,7 +7,7 @@ import { demoLogin, mockApi, seedSession, SEED_USER } from './utils';
  * records carry `late: { is_late, minutes_late }` — and the page shows a "Late 12 min" chip, a Late tile and a
  * Late filter; a legacy client (no `late` key on its records) keeps the old behaviour exactly (no chip, no tile,
  * the fixed 09:30 on-time heuristic). (2) A "Monthly summary" view backed by GET /attendance/summary: per-employee
- * Present / Late / Half-day / Leave / Absent, totals row, sortable, month picker, CSV export.
+ * Present / Late / Half-day / Leave / Absent, totals row, sortable, range presets, CSV export.
  *
  * Everything runs against an intercepted API and asserts on what the page shows and SENDS.
  */
@@ -201,18 +201,20 @@ test.describe('Attendance — monthly summary', () => {
     await expect(page.getByTestId('summary-total')).toHaveCount(1);
   });
 
-  test('changing the month refetches that month', async ({ page }) => {
+  test('changing the range refetches that range', async ({ page }) => {
     const seen = await setup(page, { team: [], summary });
     await openSummary(page);
     await expect(page.getByTestId('summary-row')).toHaveCount(3);
 
-    await page.getByLabel('Month', { exact: true }).fill(LAST_MONTH);
+    // Pick last month as a custom From–To range.
+    await page.getByLabel('From', { exact: true }).fill(`${LAST_MONTH}-01`);
+    await page.getByLabel('To', { exact: true }).fill(lastDay(LAST_MONTH));
     await expect(page.getByTestId('summary-row')).toHaveCount(1);
     await expect(page.getByTestId('summary-row').first()).toContainText('Ravi Kumar');
 
     const last = seen.filter((r) => r.path === '/api/v1/attendance/summary').pop()!;
     expect(last.query.get('from')).toBe(`${LAST_MONTH}-01`);
-    expect(last.query.get('to')).toBe(lastDay(LAST_MONTH)); // a finished month is asked for in full
+    expect(last.query.get('to')).toBe(lastDay(LAST_MONTH));
     await expect(page.getByTestId('summary-total').locator('td')).toHaveText(['Total', '—', '24', '6', '0', '0', '2']);
   });
 
@@ -226,7 +228,7 @@ test.describe('Attendance — monthly summary', () => {
       page.waitForEvent('download'),
       page.getByRole('button', { name: 'Export CSV' }).click(),
     ]);
-    expect(download.suggestedFilename()).toMatch(new RegExp(`^attendance-summary-${THIS_MONTH}-\\d{4}-\\d{2}-\\d{2}\\.csv$`));
+    expect(download.suggestedFilename()).toMatch(/^attendance-summary-\d{4}-\d{2}-\d{2}_to_\d{4}-\d{2}-\d{2}-\d{4}-\d{2}-\d{2}\.csv$/);
     const csv = readFileSync((await download.path())!, 'utf8').split('\n');
     expect(csv).toEqual([
       'Employee,Working days,Present,Late,Half day,Leave,Absent',

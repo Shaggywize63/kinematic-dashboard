@@ -1,15 +1,18 @@
 'use client';
 /**
  * Attendance → "Monthly summary": one row per employee with their Present / Late / Half-day / Leave / Absent
- * counts for a calendar month, from GET /api/v1/attendance/summary?from&to. Late is a subset of Present
- * (a late arrival is still a present day). Sortable (worst offenders first by default) and exportable as CSV.
+ * counts for a chosen date range, from GET /api/v1/attendance/summary?from&to. The range is picked with the
+ * shared presets (This week / 14 days / This month / Custom); it defaults to this calendar month-to-date. Late
+ * is a subset of Present (a late arrival is still a present day). Sortable (worst offenders first by default)
+ * and exportable as CSV.
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { CalendarDays, Download, RefreshCw } from 'lucide-react';
 import api, { type AttendanceSummaryRow } from '../../../lib/api';
 import { downloadCsv } from '../../../lib/exportCsv';
 import { SortLabel, type SortState } from '../../../lib/tableSort';
-import { Button, Card, EmptyState, Eyebrow, Field, IconButton, Input, T } from '../../../components/ui';
+import { Button, Card, EmptyState, Eyebrow, IconButton, T } from '../../../components/ui';
+import { RangePresetPicker, presetRange, istToday } from '../../../components/attendance/RangePresets';
 
 const th: CSSProperties = { padding: '12px 14px', textAlign: 'left', fontFamily: T.mono, fontSize: 10.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: T.mute, fontWeight: 500, borderBottom: `1px solid ${T.border}`, whiteSpace: 'nowrap' };
 const td: CSSProperties = { padding: '12px 14px', fontSize: 13.5, color: T.text, borderBottom: `1px solid ${T.border}`, verticalAlign: 'middle' };
@@ -25,21 +28,14 @@ const COLUMNS: Array<{ key: SortKey; label: string; csv: string }> = [
   { key: 'absent', label: 'Absent', csv: 'Absent' },
 ];
 
-const istToday = () => new Date(Date.now() + 5.5 * 3600000).toISOString().slice(0, 10);
-
-/** First day of the month, and the last day we ask for: the month's end, but never past today (IST). */
-function monthRange(month: string): { from: string; to: string; label: string; partial: boolean } | null {
-  const m = /^(\d{4})-(\d{2})$/.exec(month);
-  if (!m) return null;
-  const y = Number(m[1]);
-  const mo = Number(m[2]);
-  if (mo < 1 || mo > 12) return null;
-  const from = `${month}-01`;
-  const today = istToday();
-  if (from > today) return null; // the month has not started
-  const monthEnd = `${month}-${String(new Date(Date.UTC(y, mo, 0)).getUTCDate()).padStart(2, '0')}`;
-  const label = new Date(Date.UTC(y, mo - 1, 1)).toLocaleDateString('en-IN', { month: 'long', year: 'numeric', timeZone: 'UTC' });
-  return { from, to: monthEnd > today ? today : monthEnd, label, partial: monthEnd > today };
+/** Human label for a from..to range, e.g. "1 Oct – 16 Oct 2026". */
+function rangeLabel(from: string, to: string): string {
+  const parse = (s: string) => new Date(s + 'T00:00:00Z');
+  const base: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short', timeZone: 'UTC' };
+  const f = parse(from);
+  const t = parse(to);
+  if (from === to) return `${f.toLocaleDateString('en-IN', base)} ${t.getUTCFullYear()}`;
+  return `${f.toLocaleDateString('en-IN', base)} – ${t.toLocaleDateString('en-IN', { ...base, year: 'numeric' })}`;
 }
 
 const n = (v: unknown) => (Number.isFinite(Number(v)) ? Number(v) : 0);
@@ -53,8 +49,9 @@ const normalise = (r: any): AttendanceSummaryRow => ({
 const csvText = (v: string) => (/^[=+\-@\t\r]/.test(v) ? `'${v}` : v);
 
 export default function MonthlySummary({ clientId }: { clientId: string }) {
-  const currentMonth = istToday().slice(0, 7);
-  const [month, setMonth] = useState(currentMonth);
+  // Default to this calendar month-to-date; the user can switch to any preset or a custom range.
+  const [from, setFrom] = useState(() => presetRange('month').from);
+  const [to, setTo] = useState(() => presetRange('month').to);
   const [rows, setRows] = useState<AttendanceSummaryRow[]>([]);
   const [workingDays, setWorkingDays] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -63,10 +60,6 @@ export default function MonthlySummary({ clientId }: { clientId: string }) {
   const [sort, setSort] = useState<SortState>({ key: 'absent', dir: 'desc' });
   const reqId = useRef(0);
 
-  const range = useMemo(() => monthRange(month), [month]);
-  const from = range?.from;
-  const to = range?.to;
-
   const load = useCallback(async () => {
     const id = ++reqId.current;
     if (!from || !to) { setRows([]); setWorkingDays(null); setError(''); setLoading(false); return; }
@@ -74,7 +67,7 @@ export default function MonthlySummary({ clientId }: { clientId: string }) {
     setError('');
     try {
       const res: any = await api.getAttendanceSummary({ from, to });
-      if (id !== reqId.current) return; // a newer month / client has been asked for since
+      if (id !== reqId.current) return; // a newer range / client has been asked for since
       const d = res?.data && typeof res.data === 'object' && 'rows' in res.data ? res.data : res;
       setRows((Array.isArray(d?.rows) ? d.rows : []).map(normalise));
       setWorkingDays(Number.isFinite(Number(d?.working_days)) && d?.working_days != null ? Number(d.working_days) : null);
@@ -82,13 +75,13 @@ export default function MonthlySummary({ clientId }: { clientId: string }) {
       if (id !== reqId.current) return;
       setRows([]);
       setWorkingDays(null);
-      setError((e as Error)?.message || 'Failed to load the monthly summary');
+      setError((e as Error)?.message || 'Failed to load the summary');
     } finally {
       if (id === reqId.current) setLoading(false);
     }
   }, [from, to]);
 
-  // Refetch when the month changes AND when the global client picker changes (summary is per client).
+  // Refetch when the range changes AND when the global client picker changes (summary is per client).
   useEffect(() => { load(); }, [load, clientId]);
 
   const sorted = useMemo(() => {
@@ -112,28 +105,28 @@ export default function MonthlySummary({ clientId }: { clientId: string }) {
   const toggleSort = (k: string) => setSort((s) => (s.key === k ? { key: k, dir: s.dir === 'desc' ? 'asc' : 'desc' } : { key: k, dir: k === 'name' ? 'asc' : 'desc' }));
 
   const exportCsv = () => {
-    if (!range || sorted.length === 0) return;
+    if (sorted.length === 0) return;
     const cols = ['Employee', ...COLUMNS.map((c) => c.csv)];
     const body: Array<Record<string, unknown>> = sorted.map((r) => ({
       Employee: csvText(r.name), 'Working days': r.working_days, Present: r.present, Late: r.late,
       'Half day': r.half_day, Leave: r.on_leave, Absent: r.absent,
     }));
     body.push({ Employee: 'Total', 'Working days': '', Present: totals.present, Late: totals.late, 'Half day': totals.half_day, Leave: totals.on_leave, Absent: totals.absent });
-    downloadCsv(`attendance-summary-${month}`, body, cols);
+    downloadCsv(`attendance-summary-${from}_to_${to}`, body, cols);
   };
 
-  const inProgress = !!range?.partial;
+  const label = rangeLabel(from, to);
+  const inProgress = to === istToday();
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-        <Field label="Month" htmlFor="att-summary-month" style={{ width: 190 }}>
-          <Input id="att-summary-month" type="month" value={month} max={currentMonth} onChange={(e) => setMonth(e.target.value)} />
-        </Field>
+        <div style={{ flex: 1, minWidth: 280 }}>
+          <RangePresetPicker from={from} to={to} onChange={(f, t) => { setFrom(f); setTo(t); }} idPrefix="msum" />
+        </div>
         <IconButton label="Refresh monthly summary" onClick={load} style={{ marginBottom: 2 }}>
           <RefreshCw size={16} strokeWidth={1.6} style={loading ? { animation: 'kspin 1s linear infinite' } : undefined} />
         </IconButton>
-        <div style={{ flex: 1 }} />
         <Button onClick={exportCsv} disabled={loading || sorted.length === 0} icon={<Download size={16} strokeWidth={1.6} />}>Export CSV</Button>
       </div>
 
@@ -143,7 +136,7 @@ export default function MonthlySummary({ clientId }: { clientId: string }) {
 
       <Card padding={0} style={{ overflow: 'hidden' }}>
         <div style={{ padding: '14px 16px', borderBottom: `1px solid ${T.border}`, display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <Eyebrow>{range ? range.label : 'Monthly summary'}</Eyebrow>
+          <Eyebrow>{label}</Eyebrow>
           <div style={{ fontSize: 12.5, color: T.dim }}>
             {workingDays != null ? <><span style={{ fontFamily: T.mono }}>{workingDays}</span> working days{inProgress ? ' so far' : ''} · </> : null}
             Late arrivals are counted within Present. Absent = a working day with no check-in and no approved leave.
@@ -161,13 +154,13 @@ export default function MonthlySummary({ clientId }: { clientId: string }) {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={COLUMNS.length + 1} style={{ ...td, borderBottom: 0, textAlign: 'center', color: T.mute, padding: 32 }}>Loading monthly summary…</td></tr>
+                <tr><td colSpan={COLUMNS.length + 1} style={{ ...td, borderBottom: 0, textAlign: 'center', color: T.mute, padding: 32 }}>Loading summary…</td></tr>
               ) : sorted.length === 0 ? (
                 <tr><td colSpan={COLUMNS.length + 1} style={{ ...td, borderBottom: 0, padding: 0 }}>
                   <EmptyState
                     icon={<CalendarDays size={20} strokeWidth={1.6} />}
-                    title={range ? `No attendance data for ${range.label}` : 'Pick a month that has started'}
-                    description={range ? 'Employees appear here once the month has working days to count.' : 'The summary only covers months up to today.'}
+                    title={`No attendance data for ${label}`}
+                    description="Employees appear here once the range has working days to count."
                   />
                 </td></tr>
               ) : sorted.map((r) => (
