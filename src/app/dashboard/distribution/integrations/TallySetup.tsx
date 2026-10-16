@@ -27,6 +27,13 @@ interface Master {
   status: 'new' | 'matched' | 'imported' | 'ignored'; match_method: string | null;
 }
 
+type AutoKey = 'sync_orders' | 'auto_create_ledgers' | 'auto_create_stock_items';
+const AUTO_OPTIONS: Array<{ key: AutoKey; label: string; help: string }> = [
+  { key: 'sync_orders', label: 'Send approved orders to Tally', help: 'Approved orders appear as Sales Orders. Their products must be linked first (Pull from Tally). Tally does not close the order when the invoice is raised.' },
+  { key: 'auto_create_ledgers', label: 'Create new dealers in Tally', help: 'A dealer added in Kinematic becomes a Sundry Debtor ledger. Existing dealers are not pushed.' },
+  { key: 'auto_create_stock_items', label: 'Create new products in Tally', help: 'A product added in Kinematic becomes a stock item. Existing products are not pushed.' },
+];
+
 const ICON = { ok: '✅', warn: '⚠️', fail: '❌' } as const;
 const DOWNLOAD_URL = `${API_BASE_URL}/api/v1/integrations/tally/agent/download`;
 
@@ -82,6 +89,11 @@ export function SetupModal({ integration, onClose, onChanged }: { integration: T
   const [reviewing, setReviewing] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [company, setCompany] = useState('');
+  const [flags, setFlags] = useState<Record<AutoKey, boolean>>({
+    sync_orders: integration.config?.sync_orders === true,
+    auto_create_ledgers: integration.config?.auto_create_ledgers === true,
+    auto_create_stock_items: integration.config?.auto_create_stock_items === true,
+  });
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const refresh = useCallback(async () => {
@@ -109,6 +121,15 @@ export function SetupModal({ integration, onClose, onChanged }: { integration: T
     integration.config = { ...integration.config, company_name: company };
     onChanged();
   }, 'Company saved');
+
+  const toggleFlag = (key: AutoKey, value: boolean) => act(`flag-${key}`, async () => {
+    // PATCH replaces the whole config object, so send it merged with the existing settings.
+    const next = { ...integration.config, [key]: value };
+    await api.patch(`${BASE}/${integration.id}`, { config: next });
+    integration.config = next;
+    setFlags(f => ({ ...f, [key]: value }));
+    onChanged();
+  }, value ? 'Switched on' : 'Switched off');
 
   const agentFailing = health ? health.checks.find(c => c.key === 'agent')?.status === 'fail' : false;
   const companyCheck = health?.checks.find(c => c.key === 'company');
@@ -187,6 +208,22 @@ export function SetupModal({ integration, onClose, onChanged }: { integration: T
             </div>
             <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 8 }}>
               Dealers already in Kinematic are matched by GSTIN (or an exact name) automatically; nothing is created until you click Import.
+            </div>
+          </section>
+
+          <section>
+            <div style={sectionTitle}>Automatic sending (all off by default)</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {AUTO_OPTIONS.map(o => (
+                <label key={o.key} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', fontSize: 12, color: 'var(--text)', cursor: health.ready ? 'pointer' : 'not-allowed', opacity: health.ready ? 1 : 0.6 }}>
+                  <input type="checkbox" checked={flags[o.key]} disabled={!health.ready || busy === `flag-${o.key}`}
+                    onChange={e => toggleFlag(o.key, e.target.checked)} style={{ marginTop: 2 }} />
+                  <span><strong>{o.label}</strong><br /><span style={{ color: 'var(--text-dim)' }}>{o.help}</span></span>
+                </label>
+              ))}
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 8 }}>
+              {health.ready ? 'Only items created after you switch one on are sent. Invoices, payments and returns always send.' : 'Available once the checklist above is green.'}
             </div>
           </section>
 
