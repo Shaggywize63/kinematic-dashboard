@@ -58,6 +58,7 @@ export const MENU_ITEMS: AppItem[] = [
   { id: 'emergency_sos',     label: 'Emergency SOS' },
   { id: 'expenses',          label: 'Expenses', note: 'needs the field_expenses module' },
   { id: 'leave',             label: 'Leave' },
+  { id: 'timeline',          label: 'Timeline', note: 'needs the timeline module' },
   { id: 'planogram',         label: 'Planogram' },
   { id: 'my_orders',         label: 'My Orders', note: 'needs the distribution package' },
   { id: 'van_load',          label: 'Van Load', note: 'needs distribution_van' },

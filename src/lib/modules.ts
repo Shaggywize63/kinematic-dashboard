@@ -51,6 +51,10 @@ export const ALL_MODULES: ModuleEntry[] = [
   // Per-client toggle (OFF by default): face-recognition selfie verification
   // for attendance check-in/out. Backend module id 'face_attendance'.
   { id: 'face_attendance', l: 'Face Attendance',  group: 'FieldForce', package: 'field_force' },
+  // Per-client toggle (OFF by default): the mobile apps' Timeline — a day's check-in, travel,
+  // visits, halts and check-out (own day for field executives, team for managers). Backend module
+  // id 'timeline'. The web Daily Travel Report stays under 'attendance'; this only gates the apps' menu.
+  { id: 'timeline',        l: 'Timeline',         group: 'FieldForce', package: 'field_force' },
   { id: 'analytics',       l: 'Analytics',        group: 'FieldForce', package: 'field_force' },
   { id: 'ffm_analytics',   l: 'FFM Analytics',    group: 'FieldForce', package: 'field_force' },
   // FFM Reports hub — attendance, visit coverage, hours & idle, route
