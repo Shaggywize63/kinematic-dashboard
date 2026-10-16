@@ -9,6 +9,7 @@ import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
 import { useCityScope } from '../../../../context/CityScopeContext';
 import { useClient } from '../../../../context/ClientContext';
 import PinnedOverviewSection from '../../../../components/crm/analytics/PinnedOverviewSection';
+import TelecallerOverviewStrip from '../../../../components/crm/analytics/TelecallerOverviewStrip';
 import { getStoredUser, canAccess } from '../../../../lib/auth';
 import { DEFAULT_LEAD_FORM, extractLeadForm, segmentPlural, type LeadFormConfig } from '../../../../lib/crmLeadForm';
 import { isItemVisible } from '../../../../lib/appCustomization';
@@ -340,6 +341,9 @@ export default function CrmDashboardPage() {
           and the per-chart deep-dive grid. Renders nothing when no widgets
           are pinned, so the layout collapses cleanly. */}
       <PinnedOverviewSection />
+
+      {/* Telecaller KPI strip — Rajkamal only; renders nothing for other tenants. */}
+      <TelecallerOverviewStrip />
 
       {visibleChartCount > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(420px, 100%), 1fr))', gap: 12 }}>

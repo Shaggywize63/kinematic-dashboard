@@ -466,6 +466,7 @@ export interface TelecallerPerfRow {
   follow_ups: number;
   scheme_amount: number;
   leads_assigned: number;
+  conversions: number;
 }
 export interface TelecallerPerfDaily {
   date: string;
