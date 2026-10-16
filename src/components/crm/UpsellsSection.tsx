@@ -46,8 +46,8 @@ export default function UpsellsSection({ dealId, leadId }: { dealId?: string; le
     if (!dealId && !leadId) return;
     setLoading(true);
     try {
-      const data = await crmUpsells.list({ deal_id: dealId, lead_id: leadId });
-      setRows(Array.isArray(data) ? data : []);
+      const res = await crmUpsells.list({ deal_id: dealId, lead_id: leadId });
+      setRows(Array.isArray(res?.data) ? res.data : []);
     } catch {
       setRows([]);
     } finally {

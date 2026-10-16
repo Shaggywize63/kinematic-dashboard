@@ -206,11 +206,12 @@ export interface UpsellInput {
   note?: string | null;
   occurred_at?: string | null;
 }
+// Responses pass through the /crm router's envelope override → {success, data}.
 export const crmUpsells = {
   list: (params: { deal_id?: string; lead_id?: string }) =>
-    api.get<Upsell[]>(`${BASE}/upsells${qs(params)}`),
-  create: (body: UpsellInput) => api.post<Upsell>(`${BASE}/upsells`, body),
-  remove: (id: string) => api.delete<{ ok: true }>(`${BASE}/upsells/${id}`),
+    api.get<Wrapped<Upsell[]>>(`${BASE}/upsells${qs(params)}`),
+  create: (body: UpsellInput) => api.post<Wrapped<Upsell>>(`${BASE}/upsells`, body),
+  remove: (id: string) => api.delete<Wrapped<{ ok: true }>>(`${BASE}/upsells/${id}`),
 };
 
 export const crmContacts = {
