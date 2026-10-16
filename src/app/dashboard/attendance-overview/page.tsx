@@ -627,7 +627,13 @@ function AttendanceContent() {
       for (let i = 0; i < dates.length; i += 7) {
         const chunk = dates.slice(i, i + 7);
         const results = await Promise.all(
-          chunk.map(d => api.get<any>(`/api/v1/attendance/team?date=${d}`))
+          // The /attendance/team endpoint filters by a `from`/`to` date RANGE and has
+          // no `date` param — passing `date=` was silently ignored, so every day's
+          // request fell back to today's data (parseAppDate(undefined) → dbToday()).
+          // That made the export repeat today's single record across the whole range
+          // (identical check-in time and hours on every row). Scope each fetch to the
+          // one day with from=to=d, which the backend honors.
+          chunk.map(d => api.get<any>(`/api/v1/attendance/team?from=${d}&to=${d}`))
         );
         chunk.forEach((d, idx) => {
           const pick = (r: any): any[] => {
@@ -698,90 +704,35 @@ function AttendanceContent() {
       u.avgHoursPerDay = u.presentDays > 0 ? u.totalHours / u.presentDays : 0;
     });
 
-    const allUsers = Object.values(userMap);
+    const allUsers = Object.values(userMap).sort((a, b) => a.name.localeCompare(b.name));
     const tabs: { name: string; csvContent: string }[] = [];
 
-    // ══ SHEET 1: Summary by user ══
-    const summaryHeader = ['Name','Employee ID','Role','City','Zone','Supervisor','Working Days','Present','Half Days','On Leave','Absent','Total Hours','Avg Hrs/Day'];
+    // Lean attendance report: just two sections — a per-person summary and a
+    // day-by-day log. Organisational columns (employee id, role, city, zone,
+    // supervisor) and the old City/Role/Policy sheets were dropped so the file
+    // shows attendance facts and nothing else.
+
+    // ══ SECTION 1: Summary by person ══
+    const summaryHeader = ['Name','Present','Half Days','On Leave','Absent','Total Hours'];
     const summaryRows = allUsers.map(u => [
-      q(u.name), q(u.employee_id), q(u.role), q(u.city), q(u.zone), q(u.supervisor),
-      u.totalDays, u.presentDays,
-      u.halfDays > 0 ? `⚠ ${u.halfDays}` : '0',
-      u.onLeaveDays, u.absentDays, fmtHrs(u.totalHours), fmtHrs(u.avgHoursPerDay),
+      q(u.name), u.presentDays, u.halfDays, u.onLeaveDays, u.absentDays, fmtHrs(u.totalHours),
     ]);
     tabs.push({ name: 'Summary', csvContent: [summaryHeader.map(q).join(','), ...summaryRows.map(r => r.join(','))].join('\n') });
 
-    // ══ SHEET 2: City-wise summary ══
-    const cities = Array.from(new Set(allUsers.map(u => u.city || 'Unknown'))).sort();
-    const cityHeader = ['City','Total Execs','Present','Half Days','Absent','Total Hours','Avg Hrs/Exec'];
-    const cityRows = cities.map(city => {
-      const cu = allUsers.filter(u => (u.city || 'Unknown') === city);
-      const present  = cu.reduce((a,u) => a + u.presentDays, 0);
-      const half     = cu.reduce((a,u) => a + u.halfDays, 0);
-      const absent   = cu.reduce((a,u) => a + u.absentDays, 0);
-      const hours    = cu.reduce((a,u) => a + u.totalHours, 0);
-      return [q(city), cu.length, present, half > 0 ? `⚠ ${half}` : '0', absent, fmtHrs(hours), cu.length ? fmtHrs(hours / cu.length) : '0h 0m'];
-    });
-    tabs.push({ name: 'City Wise', csvContent: [cityHeader.map(q).join(','), ...cityRows.map(r => r.join(','))].join('\n') });
-
-    // ══ SHEET 3: Role-wise summary ══
-    const roles = Array.from(new Set(allUsers.map(u => u.role || 'unknown'))).sort();
-    const roleHeader = ['Role','Count','Present Days','Half Days','Absent Days','Total Hours'];
-    const roleRows = roles.map(role => {
-      const ru = allUsers.filter(u => u.role === role);
-      return [
-        q(role), ru.length,
-        ru.reduce((a,u) => a+u.presentDays, 0),
-        ru.reduce((a,u) => a+u.halfDays,    0),
-        ru.reduce((a,u) => a+u.absentDays,  0),
-        fmtHrs(ru.reduce((a,u) => a+u.totalHours,  0)),
-      ];
-    });
-    tabs.push({ name: 'Role Wise', csvContent: [roleHeader.map(q).join(','), ...roleRows.map(r => r.join(','))].join('\n') });
-
-    // ══ SHEET 4: Day-by-day detail ══
-    const detailHeader = ['Date','Name','Employee ID','Role','City','Zone','Check-in','Check-out','Hours','Break(min)','Status','Midnight Crossover?','Override Reason'];
-    const detailRows = records.map(r => {
-      const ci = r.checkin_at ? new Date(r.checkin_at).getTime() : null;
-      const co = r.checkout_at ? new Date(r.checkout_at).getTime() : null;
-      const isCrossover = ci && co && co < ci;
-      const hrs = calcHours(r);
-      return [
+    // ══ SECTION 2: Day-by-day attendance ══
+    const fmtTime = (iso?: string) => iso ? new Date(iso).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '—';
+    const detailHeader = ['Date','Name','Check-in','Check-out','Hours','Status'];
+    const detailRows = [...records]
+      .sort((a, b) => (a._date).localeCompare(b._date) || (a.users?.name || '').localeCompare(b.users?.name || ''))
+      .map(r => [
         q(r._date),
         q(r.users?.name || ''),
-        q(r.users?.employee_id || ''),
-        q((r.users as any)?.role || ''),
-        q((r.users as any)?.city || r.users?.zones?.name || ''),
-        q(r.users?.zones?.name || ''),
-        q(r.checkin_at  ? new Date(r.checkin_at).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) : '—'),
-        q(r.checkout_at ? new Date(r.checkout_at).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) : '—'),
-        fmtHrs(hrs),
-        r.break_minutes || 0,
+        q(fmtTime(r.checkin_at)),
+        q(fmtTime(r.checkout_at)),
+        fmtHrs(calcHours(r)),
         q(classifyDay(r)),
-        isCrossover ? q('YES — checkout next day, +24h applied') : q('No'),
-        q(r.override_reason || ''),
-      ];
-    });
+      ]);
     tabs.push({ name: 'Day Detail', csvContent: [detailHeader.map(q).join(','), ...detailRows.map(r => r.join(','))].join('\n') });
-
-    // ══ SHEET 5: Midnight crossover explanation ══
-    const crossoverNote = [
-      ['MIDNIGHT CROSSOVER POLICY — How working hours are calculated'],
-      [''],
-      ['Scenario', 'Example', 'Calculation', 'Result'],
-      ['Normal shift',       'Check-in 09:00  Check-out 18:00', '18:00 − 09:00',          '9h 0m'],
-      ['Midnight crossover', 'Check-in 21:00  Check-out 02:00', '02:00 + 24h − 21:00',    '5h 0m'],
-      [''],
-      ['Rule: If checkout_at < checkin_at (same attendance record), the system assumes the shift crossed midnight.'],
-      ['A full 24 hours is added to the checkout timestamp before calculating the difference.'],
-      ['The result is capped at 24 hours to guard against data entry errors.'],
-      [''],
-      ['Half Day Rule: Any shift < 4 hours is automatically classified as a Half Day, regardless of status field.'],
-      [''],
-      ['This report was generated on', new Date().toLocaleString('en-IN')],
-      ['Date range', `${expFrom} to ${expTo}`],
-    ].map(row => row.map(c => q(c ?? '')).join(','));
-    tabs.push({ name: 'Policy Notes', csvContent: crossoverNote.join('\n') });
 
     // Since we can't generate multi-sheet XLSX without a lib, we produce a ZIP-like multi-file CSV
     // but for simplicity, concatenate all sheets in one CSV with clear section headers
@@ -1457,7 +1408,7 @@ function AttendanceContent() {
         open={showExport}
         onClose={() => setShowExport(false)}
         title="Export attendance"
-        subtitle="Downloads a CSV with city-wise, role-wise and executive-wise breakdowns."
+        subtitle="Downloads a CSV with a per-person summary and a day-by-day log."
         width={520}
         footer={
           <>
@@ -1477,14 +1428,11 @@ function AttendanceContent() {
           </div>
         </Section>
 
-        <Section eyebrow="What's included" hint="Five sheets, separated by section headers in the CSV.">
+        <Section eyebrow="What's included" hint="Two sections, separated by headers in the CSV." style={{ paddingBottom: 0 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {[
-              { title: 'Summary',      desc: 'Per-executive: total days, present, half days, hours worked' },
-              { title: 'City wise',    desc: 'Grouped by city — total execs, attendance rates, total hours' },
-              { title: 'Role wise',    desc: 'Executives vs supervisors vs city managers breakdown' },
-              { title: 'Day detail',   desc: 'Every record with check-in/out times, hours, midnight flag' },
-              { title: 'Policy notes', desc: 'Midnight crossover & half-day calculation rules documented' },
+              { title: 'Summary',    desc: 'Per person — present, half days, on leave, absent, total hours' },
+              { title: 'Day detail', desc: 'One row per person per day — check-in, check-out, hours, status' },
             ].map((s, i) => (
               <div key={s.title} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', padding: '8px 12px', background: T.raised, borderRadius: 8 }}>
                 <span style={{ fontFamily: T.mono, fontSize: 11, color: T.mute, marginTop: 2, minWidth: 14 }}>{i + 1}</span>
@@ -1494,12 +1442,6 @@ function AttendanceContent() {
                 </div>
               </div>
             ))}
-          </div>
-        </Section>
-
-        <Section eyebrow="Midnight crossover" hint="How working hours are calculated." style={{ paddingBottom: 0 }}>
-          <div style={{ background: T.warnWash, borderRadius: 8, padding: '10px 12px', fontSize: 12.5, color: T.warn, lineHeight: 1.6 }}>
-            If checkout is earlier than check-in on the same record (in at 9 PM, out at 2 AM), 24 hours are added to the checkout before calculating duration. These records are flagged &quot;YES — checkout next day&quot; in the Day detail sheet and capped at 24h. Any shift under 4 hours is auto-classified as a half day.
           </div>
         </Section>
       </Modal>
