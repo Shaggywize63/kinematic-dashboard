@@ -173,6 +173,46 @@ export const crmTelephony = {
     api.post<ClickToCallResult>(`${BASE}/telephony/click-to-call`, body),
 };
 
+// ── Upsells ──────────────────────────────────────────────────────────
+// Additional revenue logged against an existing deal and/or lead. Rendered
+// as the "Upsells" section on both the deal- and lead-detail pages. The
+// backend returns a bare array / object (not the Wrapped envelope).
+export type UpsellStatus = 'proposed' | 'won' | 'lost';
+export interface Upsell {
+  id: string;
+  deal_id: string | null;
+  lead_id: string | null;
+  amount: number;
+  currency: string;
+  quantity: number | null;
+  product_id: string | null;
+  product_name: string | null;
+  status: UpsellStatus;
+  note: string | null;
+  occurred_at: string | null;
+  created_by: string | null;
+  created_by_name: string | null;
+  created_at: string;
+}
+export interface UpsellInput {
+  deal_id?: string | null;
+  lead_id?: string | null;
+  amount: number | string;
+  currency?: string;
+  quantity?: number | string | null;
+  product_name?: string | null;
+  product_id?: string | null;
+  status?: UpsellStatus;
+  note?: string | null;
+  occurred_at?: string | null;
+}
+export const crmUpsells = {
+  list: (params: { deal_id?: string; lead_id?: string }) =>
+    api.get<Upsell[]>(`${BASE}/upsells${qs(params)}`),
+  create: (body: UpsellInput) => api.post<Upsell>(`${BASE}/upsells`, body),
+  remove: (id: string) => api.delete<{ ok: true }>(`${BASE}/upsells/${id}`),
+};
+
 export const crmContacts = {
   ...crud<Contact>(`${BASE}/contacts`),
   activities: (id: string) => api.get<Wrapped<Activity[]>>(`${BASE}/contacts/${id}/activities`),

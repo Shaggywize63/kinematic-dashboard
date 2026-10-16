@@ -14,6 +14,7 @@ import CallButton from '../../../../../components/crm/shared/CallButton';
 import ActivityTimeline from '../../../../../components/crm/ActivityTimeline';
 import DealEditModal from '../../../../../components/crm/DealEditModal';
 import CustomFieldsDetailCard from '../../../../../components/crm/CustomFieldsDetailCard';
+import UpsellsSection from '../../../../../components/crm/UpsellsSection';
 import AddToPipelineModal from '../../../../../components/crm/AddToPipelineModal';
 import LogoSpinner from '../../../../../components/shared/LogoSpinner';
 import { formatINR, formatKg, type DashboardUnit } from '../../../../../lib/formatCurrency';
@@ -705,6 +706,10 @@ export default function DealDetailPage() {
 
           <SafeRender label="activities">
             <Card title={`Activities (${activities.length})`}><ActivityTimeline activities={activities} addHref={`/dashboard/crm/activities/new?deal_id=${id}`} /></Card>
+          </SafeRender>
+
+          <SafeRender label="upsells">
+            <UpsellsSection dealId={id} />
           </SafeRender>
 
           <SafeRender label="history">
