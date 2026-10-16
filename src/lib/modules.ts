@@ -86,6 +86,9 @@ export const ALL_MODULES: ModuleEntry[] = [
   { id: 'crm_products',       l: 'CRM Products',     group: 'CRM', package: 'crm' },
   { id: 'crm_activities',     l: 'CRM Activities',   group: 'CRM', package: 'crm' },
   { id: 'crm_conversation_intel', l: 'Conversation Analysis', group: 'CRM', package: 'crm' },
+  // Per-client toggle (OFF by default): the "IVR Call" button (recorded click-to-call
+  // through the org's IVR provider, CallerDesk). Backend module id 'ivr_call'.
+  { id: 'ivr_call',           l: 'IVR Call',         group: 'CRM', package: 'crm' },
   { id: 'crm_tasks',          l: 'CRM Tasks',        group: 'CRM', package: 'crm' },
   { id: 'crm_whatsapp',       l: 'CRM WhatsApp',     group: 'CRM', package: 'crm' },
   { id: 'crm_email',          l: 'CRM Email',        group: 'CRM', package: 'crm' },

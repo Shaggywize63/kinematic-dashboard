@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { crmTelephony } from '../../../lib/crmApi';
 import { useAuth } from '../../../hooks/useAuth';
+import { userHasModule } from '../../../lib/auth';
 
 interface Props {
   leadId: string;
@@ -10,10 +11,9 @@ interface Props {
   size?: 'sm' | 'md';
 }
 
-// Limited-trial gate: recorded calling is enabled for a single operator while
-// the telephony provider is validated end to end (mirrors the server-side
-// email gate on POST /crm/telephony/click-to-call). When the trial rolls out
-// org-wide, drop this constant and the `enabled` check.
+// Recorded / IVR calling shows for the original trial operator OR any user whose
+// client holds the `ivr_call` module (the per-client gate the apps use too, and
+// the same OR-gate the backend enforces on POST /crm/telephony/click-to-call).
 const TRIAL_EMAIL = 's@kinematicapp.com';
 
 /**
@@ -30,7 +30,7 @@ export default function RecordedCallButton({ leadId, phone, size = 'sm' }: Props
   const { user } = useAuth();
   const [busy, setBusy] = useState(false);
 
-  const enabled = (user?.email || '').toLowerCase() === TRIAL_EMAIL;
+  const enabled = (user?.email || '').toLowerCase() === TRIAL_EMAIL || userHasModule(user, 'ivr_call');
   if (!enabled || !phone) return null;
 
   const dim = size === 'sm' ? { pad: '4px 9px', fs: 11, ic: 12 } : { pad: '8px 14px', fs: 13, ic: 14 };
@@ -56,7 +56,7 @@ export default function RecordedCallButton({ leadId, phone, size = 'sm' }: Props
       type="button"
       onClick={onClick}
       disabled={busy}
-      title="Place a recorded call — flows into Conversation Analysis"
+      title="Place a recorded IVR call — your phone rings first, then the lead; recording flows into Conversation Analysis"
       style={{
         display: 'inline-flex',
         alignItems: 'center',
@@ -77,7 +77,7 @@ export default function RecordedCallButton({ leadId, phone, size = 'sm' }: Props
         <path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24c1.12.37 2.33.57 3.57.57a1 1 0 011 1V20a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.24.2 2.45.57 3.57a1 1 0 01-.25 1.02l-2.2 2.2z" />
         <circle cx="18" cy="6" r="3" fill="#EF4444" />
       </svg>
-      {busy ? 'Calling…' : 'Call (recorded)'}
+      {busy ? 'Calling…' : 'IVR Call'}
     </button>
   );
 }
