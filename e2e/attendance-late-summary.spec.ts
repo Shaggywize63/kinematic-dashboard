@@ -285,3 +285,54 @@ test.describe('Attendance — monthly summary', () => {
     await expect(page.getByRole('button', { name: 'Export CSV' })).toBeEnabled();
   });
 });
+
+// ── Export to Excel (daily view) ──────────────────────────────────────────────
+test.describe('Attendance — Excel export', () => {
+  const WITH_SELFIES = [
+    {
+      id: 'att-a', user_id: 'u-asha', date: TODAY, status: 'checked_out',
+      checkin_at: `${TODAY}T09:15:00+05:30`, checkout_at: `${TODAY}T18:00:00+05:30`, total_hours: 8.75,
+      checkin_selfie_url: 'https://img.example/checkin-asha.jpg',
+      checkout_selfie_url: 'https://img.example/checkout-asha.jpg',
+      users: { name: 'Asha Menon', role: 'field_executive', employee_id: 'E-u-asha', zones: { name: 'Zone A' } },
+    },
+    {
+      id: 'att-r', user_id: 'u-ravi', date: TODAY, status: 'checked_out',
+      checkin_at: `${TODAY}T10:00:00+05:30`, checkout_at: `${TODAY}T14:00:00+05:30`, total_hours: 4,
+      users: { name: 'Ravi Kumar', role: 'field_executive', employee_id: 'E-u-ravi', zones: { name: 'Zone A' } },
+    },
+  ];
+
+  test('downloads a two-sheet .xls workbook with total hours and selfie image links', async ({ page }) => {
+    await setup(page, { team: WITH_SELFIES });
+    await goDaily(page);
+
+    await page.getByRole('button', { name: 'Export' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Export attendance' });
+    await expect(dialog).toBeVisible();
+
+    // One day so each rep is a single Details row.
+    await dialog.getByLabel('From', { exact: true }).fill(TODAY);
+    await dialog.getByLabel('To', { exact: true }).fill(TODAY);
+
+    const [download] = await Promise.all([
+      page.waitForEvent('download'),
+      dialog.getByRole('button', { name: 'Download Excel' }).click(),
+    ]);
+    expect(download.suggestedFilename()).toMatch(/^kinematic_attendance_\d{4}-\d{2}-\d{2}_to_\d{4}-\d{2}-\d{2}\.xls$/);
+
+    const xml = readFileSync((await download.path())!, 'utf8');
+    // Two real worksheet tabs.
+    expect(xml).toContain('ss:Name="Summary"');
+    expect(xml).toContain('ss:Name="Details"');
+    // Details sheet has the image-link columns…
+    expect(xml).toContain('Check-in Image');
+    expect(xml).toContain('Check-out Image');
+    // …and the selfie URLs are written as clickable hyperlinks.
+    expect(xml).toContain('ss:HRef="https://img.example/checkin-asha.jpg"');
+    expect(xml).toContain('ss:HRef="https://img.example/checkout-asha.jpg"');
+    // Both reps are present in the Details sheet.
+    expect(xml).toContain('Asha Menon');
+    expect(xml).toContain('Ravi Kumar');
+  });
+});

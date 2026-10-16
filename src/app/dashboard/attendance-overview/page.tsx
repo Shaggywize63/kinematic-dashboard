@@ -664,10 +664,6 @@ function AttendanceContent() {
   };
 
   const generateExcel = (records: (AttendanceRecord & { _date: string })[], dates: string[]) => {
-    // ── helpers ──
-    const esc = (v: any) => String(v ?? '').replace(/"/g, '""');
-    const q   = (v: any) => `"${esc(v)}"`;
-
     // Build user summary map
     interface UserSummary {
       name: string; employee_id: string; role: string;
@@ -708,46 +704,65 @@ function AttendanceContent() {
     });
 
     const allUsers = Object.values(userMap).sort((a, b) => a.name.localeCompare(b.name));
-    const tabs: { name: string; csvContent: string }[] = [];
+    // ── Excel 2003 SpreadsheetML (.xls) so the file opens with real worksheet
+    //    tabs — a Summary sheet and a Details sheet — without pulling in a heavy
+    //    xlsx dependency. The Details sheet carries the selfie image links as
+    //    clickable hyperlinks. ──
+    const xesc = (v: any) => String(v ?? '')
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+    const strCell = (v: any) => `<Cell><Data ss:Type="String">${xesc(v)}</Data></Cell>`;
+    const numCell = (v: number) => `<Cell><Data ss:Type="Number">${Number.isFinite(v) ? v : 0}</Data></Cell>`;
+    const hdrCell = (v: any) => `<Cell ss:StyleID="hdr"><Data ss:Type="String">${xesc(v)}</Data></Cell>`;
+    // A clickable hyperlink cell (the URL both shows and links); "—" when absent.
+    const linkCell = (url?: string) => url
+      ? `<Cell ss:HRef="${xesc(url)}"><Data ss:Type="String">${xesc(url)}</Data></Cell>`
+      : strCell('—');
+    const row = (cells: string[]) => `<Row>${cells.join('')}</Row>`;
+    const sheet = (name: string, header: string[], bodyRows: string[]) =>
+      `<Worksheet ss:Name="${xesc(name)}"><Table>${row(header.map(hdrCell))}${bodyRows.join('')}</Table></Worksheet>`;
 
-    // Lean attendance report: just two sections — a per-person summary and a
-    // day-by-day log. Organisational columns (employee id, role, city, zone,
-    // supervisor) and the old City/Role/Policy sheets were dropped so the file
-    // shows attendance facts and nothing else.
-
-    // ══ SECTION 1: Summary by person ══
-    const summaryHeader = ['Name','Present','Half Days','On Leave','Absent','Total Hours'];
-    const summaryRows = allUsers.map(u => [
-      q(u.name), u.presentDays, u.halfDays, u.onLeaveDays, u.absentDays, fmtHrs(u.totalHours),
-    ]);
-    tabs.push({ name: 'Summary', csvContent: [summaryHeader.map(q).join(','), ...summaryRows.map(r => r.join(','))].join('\n') });
-
-    // ══ SECTION 2: Day-by-day attendance ══
     const fmtTime = (iso?: string) => iso ? new Date(iso).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '—';
-    const detailHeader = ['Date','Name','Check-in','Check-out','Hours','Status'];
-    const detailRows = [...records]
-      .sort((a, b) => (a._date).localeCompare(b._date) || (a.users?.name || '').localeCompare(b.users?.name || ''))
-      .map(r => [
-        q(r._date),
-        q(r.users?.name || ''),
-        q(fmtTime(r.checkin_at)),
-        q(fmtTime(r.checkout_at)),
-        fmtHrs(calcHours(r)),
-        q(classifyDay(r)),
-      ]);
-    tabs.push({ name: 'Day Detail', csvContent: [detailHeader.map(q).join(','), ...detailRows.map(r => r.join(','))].join('\n') });
 
-    // Since we can't generate multi-sheet XLSX without a lib, we produce a ZIP-like multi-file CSV
-    // but for simplicity, concatenate all sheets in one CSV with clear section headers
-    const combined = tabs.map(t =>
-      `"=== ${t.name.toUpperCase()} ==="\n${t.csvContent}\n\n`
-    ).join('');
+    // ══ SHEET 1: per-person summary ══
+    const summarySheet = sheet(
+      'Summary',
+      ['Name', 'Present', 'Half Days', 'On Leave', 'Absent', 'Total Hours'],
+      allUsers.map(u => row([
+        strCell(u.name), numCell(u.presentDays), numCell(u.halfDays),
+        numCell(u.onLeaveDays), numCell(u.absentDays), strCell(fmtHrs(u.totalHours)),
+      ])),
+    );
 
-    const filename = `kinematic_attendance_${expFrom}_to_${expTo}.csv`;
+    // ══ SHEET 2: one row per person per day, with total hours and selfie links ══
+    const detailSheet = sheet(
+      'Details',
+      ['Date', 'Name', 'Check-in', 'Check-out', 'Total Hours', 'Status', 'Check-in Image', 'Check-out Image'],
+      [...records]
+        .sort((a, b) => a._date.localeCompare(b._date) || (a.users?.name || '').localeCompare(b.users?.name || ''))
+        .map(r => row([
+          strCell(r._date), strCell(r.users?.name || ''),
+          strCell(fmtTime(r.checkin_at)), strCell(fmtTime(r.checkout_at)),
+          strCell(fmtHrs(calcHours(r))), strCell(classifyDay(r)),
+          linkCell(r.checkin_selfie_url), linkCell(r.checkout_selfie_url),
+        ])),
+    );
+
+    const workbook =
+      '<?xml version="1.0"?>\n<?mso-application progid="Excel.Sheet"?>\n' +
+      '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">' +
+      '<Styles><Style ss:ID="hdr"><Font ss:Bold="1"/></Style></Styles>' +
+      summarySheet + detailSheet +
+      '</Workbook>';
+
+    const filename = `kinematic_attendance_${expFrom}_to_${expTo}.xls`;
+    const blob = new Blob([workbook], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(combined);
+    a.href = url;
     a.download = filename;
     a.click();
+    URL.revokeObjectURL(url);
     setShowExport(false);
   };
 
@@ -1411,13 +1426,13 @@ function AttendanceContent() {
         open={showExport}
         onClose={() => setShowExport(false)}
         title="Export attendance"
-        subtitle="Downloads a CSV with a per-person summary and a day-by-day log."
+        subtitle="Downloads an Excel workbook: a Summary sheet and a Details sheet with times, total hours and selfie links."
         width={520}
         footer={
           <>
             <Button onClick={() => setShowExport(false)}>Cancel</Button>
             <Button variant="primary" onClick={runExport} disabled={expLoading || !expFrom || !expTo} icon={expLoading ? <Spinner /> : <Download size={16} strokeWidth={1.6} />}>
-              {expLoading ? 'Fetching data…' : 'Download CSV'}
+              {expLoading ? 'Fetching data…' : 'Download Excel'}
             </Button>
           </>
         }
@@ -1428,11 +1443,11 @@ function AttendanceContent() {
           <RangePresetPicker from={expFrom} to={expTo} onChange={(f, t) => { setExpFrom(f); setExpTo(t); }} idPrefix="exp" />
         </Section>
 
-        <Section eyebrow="What's included" hint="Two sections, separated by headers in the CSV." style={{ paddingBottom: 0 }}>
+        <Section eyebrow="What's included" hint="Two worksheet tabs in one Excel file." style={{ paddingBottom: 0 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {[
-              { title: 'Summary',    desc: 'Per person — present, half days, on leave, absent, total hours' },
-              { title: 'Day detail', desc: 'One row per person per day — check-in, check-out, hours, status' },
+              { title: 'Summary sheet', desc: 'Per person — present, half days, on leave, absent, total hours' },
+              { title: 'Details sheet', desc: 'Per person per day — check-in, check-out, total hours, status, and check-in/out image links' },
             ].map((s, i) => (
               <div key={s.title} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', padding: '8px 12px', background: T.raised, borderRadius: 8 }}>
                 <span style={{ fontFamily: T.mono, fontSize: 11, color: T.mute, marginTop: 2, minWidth: 14 }}>{i + 1}</span>
