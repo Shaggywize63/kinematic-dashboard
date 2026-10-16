@@ -22,6 +22,7 @@ import CopyButton from '../../../../../components/crm/shared/CopyButton';
 import LeadEditModal from '../../../../../components/crm/LeadEditModal';
 import InlineEditText from '../../../../../components/crm/InlineEditText';
 import LeadDetailsPanel from '../../../../../components/crm/LeadDetailsPanel';
+import UpsellsSection from '../../../../../components/crm/UpsellsSection';
 import ScoreBoostSuggestions from '../../../../../components/crm/ScoreBoostSuggestions';
 import { formatINR } from '../../../../../lib/formatCurrency';
 import { useAuth } from '../../../../../hooks/useAuth';
@@ -638,6 +639,8 @@ export default function LeadDetailPage() {
             })()}
             <ActivityTimeline activities={activities} addHref={`/dashboard/crm/activities/new?lead_id=${id}`} leadCampaign={(lead?.custom_fields as Record<string, unknown> | null)?.campaign as string | null | undefined} />
           </Section>
+
+          <UpsellsSection leadId={id} />
         </div>
 
         <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 20 }}>
