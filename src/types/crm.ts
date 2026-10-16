@@ -466,6 +466,7 @@ export interface TelecallerPerfRow {
   follow_ups: number;
   scheme_amount: number;
   leads_assigned: number;
+  conversions: number;
 }
 export interface TelecallerPerfDaily {
   date: string;
@@ -478,8 +479,12 @@ export interface TelecallerPerfDaily {
 // Campaign Insights (telecaller phase 2) — per-campaign roll-up.
 export interface CampaignMetric { label: string; value: string }
 export interface CampaignBucket { label: string; count: number }
+// The telecaller calling campaigns (lead `custom_fields.campaign`). Mirrors the
+// backend TELECALLER_CAMPAIGNS canon and the Android TelecallerCampaign enum.
+export type TelecallerCampaign =
+  | 'General Calls' | 'Gold Scheme' | 'Gold Order' | 'App & DigiGold' | 'After-Sales';
 export interface CampaignBlock {
-  campaign: 'General Calls' | 'App & DigiGold' | 'After-Sales';
+  campaign: TelecallerCampaign;
   leads: number;
   calls: number;
   connected: number;
@@ -491,6 +496,64 @@ export interface CampaignInsightsPayload {
   campaigns: CampaignBlock[];
   from: string;
   to: string;
+}
+
+// ── After-Sales Feedback module (telecaller Phase 1) ──────────────────────
+export interface AfterSalesTelecaller { id: string; name: string; email: string | null }
+export interface AfterSalesConfig {
+  telecaller_id: string | null;
+  round_robin_pool: string[];
+  // Present on GET /after-sales/assignment: the directory for the picker.
+  telecallers?: AfterSalesTelecaller[];
+}
+/** Admin-entered after-sales customer record (manual form or one CSV/XLSX row). */
+export interface AfterSalesRecordInput {
+  name?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  city?: string | null;
+  state?: string | null;
+  product?: string | null;
+  purchase_date?: string | null;
+  invoice_no?: string | null;
+  purchase_amount?: number | string | null;
+  product_satisfaction?: string | null;
+  staff_behaviour?: string | null;
+  billing_experience?: string | null;
+  after_sales_service?: string | null;
+  customer_rating?: string | null;
+  complaint?: string | null;
+  complaint_priority?: string | null;
+  resolution_required?: boolean | string | null;
+  next_purchase_interest?: string | null;
+  referral_potential?: string | null;
+  notes?: string | null;
+}
+export interface AfterSalesImportRowError { row: number; phone: string | null; reason: string }
+export interface AfterSalesImportResult {
+  total: number;
+  created: number;
+  skipped: number;
+  failed: number;
+  errors: AfterSalesImportRowError[];
+  unassigned: boolean;
+}
+export interface AfterSalesRecordRow {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  phone: string | null;
+  email: string | null;
+  city: string | null;
+  state: string | null;
+  status: string | null;
+  owner_id: string | null;
+  owner_name?: string | null;
+  custom_fields: Record<string, unknown> | null;
+  created_at: string;
+  last_activity_at: string | null;
 }
 
 export interface TeamPerformanceRow {

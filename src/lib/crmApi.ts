@@ -14,6 +14,7 @@ import type {
   Product, ProductCategory, DealLineItem,
   WhatsappTemplate, WhatsappLog,
   TargetKind, TargetType, TargetProgress, TargetEntry, TargetEntryInput, TargetEntryQuery, RupeeLeaderboard,
+  AfterSalesTelecaller, AfterSalesConfig, AfterSalesRecordInput, AfterSalesImportResult, AfterSalesRecordRow,
 } from '../types/crm';
 import type { Integration, InboundEvent, IntegrationProvider } from '../types/integrations';
 
@@ -1133,9 +1134,35 @@ export const crmMarketingVisits = {
     api.get<Wrapped<MarketingVisit[]>>(`${BASE}/marketing-visits${qs(params)}`),
 };
 
+// After-Sales Feedback module (telecaller Phase 1): admin data entry + bulk
+// import + the auto-assignment target. All endpoints are admin-gated and
+// client-scoped server-side; responses ride the shared {success,data} envelope.
+export const crmAfterSales = {
+  // Telecaller directory for the assignment picker.
+  telecallers: () => api.get<Wrapped<AfterSalesTelecaller[]>>(`${BASE}/after-sales/telecallers`),
+  // Current assignment config + the telecaller directory (one round-trip).
+  getAssignment: () => api.get<Wrapped<AfterSalesConfig>>(`${BASE}/after-sales/assignment`),
+  // Partial update — only the keys you send change.
+  setAssignment: (body: { telecaller_id?: string | null; round_robin_pool?: string[] }) =>
+    api.put<Wrapped<AfterSalesConfig>>(`${BASE}/after-sales/assignment`, body),
+  // Manual single-record create (201, or 409 when the phone already exists).
+  createRecord: (body: AfterSalesRecordInput) =>
+    api.post<Wrapped<{ lead: Lead; owner_id: string | null; assigned: boolean }>>(`${BASE}/after-sales/records`, body),
+  // Bulk CSV / Excel upload — rides api.postForm so it carries the same auth +
+  // tenant + city scope as every other request.
+  importRecords: (file: File) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    return api.postForm<Wrapped<AfterSalesImportResult>>(`${BASE}/after-sales/import`, fd);
+  },
+  // Admin list of after-sales records (newest first).
+  listRecords: (params?: { limit?: number; search?: string }) =>
+    api.get<Wrapped<AfterSalesRecordRow[]>>(`${BASE}/after-sales/records${qs(params)}`),
+};
+
 const crmApi = {
   leads: crmLeads, contacts: crmContacts, accounts: crmAccounts, deals: crmDeals,
-  consent: crmConsent, marketingVisits: crmMarketingVisits,
+  consent: crmConsent, marketingVisits: crmMarketingVisits, afterSales: crmAfterSales,
   lineItems: crmLineItems, pipelines: crmPipelines, stages: crmStages,
   activities: crmActivities, notes: crmNotes, tasks: crmTasks,
   emailTemplates: crmEmailTemplates, emails: crmEmails,
