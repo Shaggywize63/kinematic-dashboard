@@ -55,6 +55,10 @@ interface Outlet {
   store_type?:string; is_active:boolean; zone_id?:string; city_id?:string;
   client_id?:string;
   created_at?:string;
+  // Outlet approval: a rep's proposed outlet is 'pending' until a manager approves it.
+  approval_status?: 'pending'|'approved'|'rejected';
+  rejection_reason?: string;
+  trade_type?: 'on_trade'|'off_trade'|null;
   zones?: { name:string };
   cities?: { name:string };
 }
@@ -95,6 +99,14 @@ export default function OutletManagementPage() {
   const [clients,  setClients]  = useState<any[]>([]);
   const { user, isPlatformAdmin, token } = useAuth();
   const { selectedClientId } = useClient();
+  // Only these roles can approve or reject a rep's proposed outlet (mirrors the backend).
+  const canApproveOutlets = ['super_admin','admin','main_admin','sub_admin','city_manager'].includes(user?.role?.toLowerCase() || '');
+  const [pendingOutlets, setPendingOutlets] = useState<Outlet[]>([]);
+  const [showReview, setShowReview] = useState(false);
+  const [rejectTarget, setRejectTarget] = useState<Outlet|null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [reviewBusy, setReviewBusy] = useState<string|null>(null);
+  const [reviewErr, setReviewErr] = useState<string|null>(null);
   const [loading,  setLoading]  = useState(true);
   const [error,    setError]    = useState<string|null>(null);
 
@@ -111,7 +123,7 @@ export default function OutletManagementPage() {
 
   const emptyForm = {
     name:'', store_code:'', owner_name:'', phone:'', address:'',
-    store_type:'', zone_id:'', city_id:'', lat:'', lng:'',
+    store_type:'', trade_type:'', zone_id:'', city_id:'', lat:'', lng:'',
     client_id: '',
   };
   const [form,    setForm]    = useState(emptyForm);
@@ -138,11 +150,15 @@ export default function OutletManagementPage() {
     try {
       const qs = selectedClientId ? `?client_id=${selectedClientId}` : '';
       const headers = { Authorization:`Bearer ${token}` };
-      const [oRes, zRes, cRes, clRes] = await Promise.allSettled([
+      const [oRes, zRes, cRes, clRes, pRes] = await Promise.allSettled([
         api.get<any>(`/api/v1/stores${qs}`, { headers }),
         api.get<any>(`/api/v1/zones${qs}`,  { headers }),
         api.get<any>(`/api/v1/cities${qs}`, { headers }),
         isPlatformAdmin ? api.get<any>('/api/v1/misc/clients', { headers }) : Promise.resolve(null),
+        // Outlets reps have proposed that still wait for a decision (approvers only; others get nothing extra).
+        canApproveOutlets
+          ? api.get<any>(`/api/v1/stores${qs ? `${qs}&` : '?'}approval_status=pending`, { headers })
+          : Promise.resolve(null),
       ]);
 
       const pick = (v: any) => {
@@ -157,9 +173,11 @@ export default function OutletManagementPage() {
       if (zRes.status === 'fulfilled') setZones(pick(zRes.value));
       if (cRes.status === 'fulfilled') setCities(pick(cRes.value));
       if (clRes.status === 'fulfilled') setClients(pick(clRes.value));
+      // Filter again client-side: a non-approver's request ignores the filter and returns their own list.
+      if (pRes.status === 'fulfilled') setPendingOutlets(pick(pRes.value).filter((o: Outlet) => o.approval_status === 'pending'));
     } catch(e:any) { setError(e?.message || 'Failed to load'); }
     finally { setLoading(false); }
-  }, [token, isPlatformAdmin, selectedClientId]);
+  }, [token, isPlatformAdmin, canApproveOutlets, selectedClientId]);
 
   useEffect(() => {
     if (selectedClientId && !form.client_id && !showEdit) {
@@ -329,6 +347,8 @@ export default function OutletManagementPage() {
           zone_id:  form.zone_id  || null,
           city_id:  form.city_id  || null,
           store_type: form.store_type || null,
+          // Only sent when chosen, so an outlet can still be saved before the trade_type column exists.
+          ...(form.trade_type ? { trade_type: form.trade_type } : {}),
           client_id: form.client_id || selectedClientId || null,
         }),
       });
@@ -346,7 +366,7 @@ export default function OutletManagementPage() {
     setForm({
       name: o.name || '', store_code: o.store_code || '',
       owner_name: o.owner_name || '', phone: o.phone || '',
-      address: o.address || '', store_type: o.store_type || '',
+      address: o.address || '', store_type: o.store_type || '', trade_type: o.trade_type || '',
       zone_id: o.zone_id || '', city_id: o.city_id || '',
       lat: o.lat?.toString() || '', lng: o.lng?.toString() || '',
       client_id: o.client_id || '',
@@ -372,6 +392,8 @@ export default function OutletManagementPage() {
           zone_id:  form.zone_id  || null,
           city_id:  form.city_id  || null,
           store_type: form.store_type || null,
+          // Only sent when chosen, so an outlet can still be saved before the trade_type column exists.
+          ...(form.trade_type ? { trade_type: form.trade_type } : {}),
           client_id: form.client_id || selectedClientId || null,
         }),
       });
@@ -381,6 +403,22 @@ export default function OutletManagementPage() {
       setTimeout(() => { setSaveOk(false); setShowEdit(false); setSelOutlet(null); fetchAll(); }, 1400);
     } catch(e:any) { setSaveErr(e.message); }
     finally { setSaving(false); }
+  };
+
+  /* ── Approve / reject a rep's proposed outlet ── */
+  const decide = async (o: Outlet, status: 'approved'|'rejected', reason?: string) => {
+    setReviewBusy(o.id); setReviewErr(null);
+    try {
+      const res = await fetch(`${apiBase}/api/v1/stores/${o.id}/approval`, {
+        method:'PATCH', headers:authH,
+        body: JSON.stringify(status === 'rejected' ? { status, reason } : { status }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || json.message || 'Could not save the decision');
+      setRejectTarget(null); setRejectReason('');
+      await fetchAll();
+    } catch (e:any) { setReviewErr(e.message); }
+    finally { setReviewBusy(null); }
   };
 
   /* ── Toggle active ── */
@@ -471,6 +509,15 @@ export default function OutletManagementPage() {
       {F('owner_name',  'Owner / Contact Name')}
       {F('phone',       'Phone Number', 'tel')}
       {F('store_type',  'Outlet Type', 'text', OUTLET_TYPES)}
+      <div>
+        <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>Trade Channel</div>
+        <select style={inp} value={form.trade_type}
+          onChange={e => setForm(p => ({ ...p, trade_type: e.target.value }))}>
+          <option value="">Not set</option>
+          <option value="on_trade">On-trade (bars, restaurants)</option>
+          <option value="off_trade">Off-trade (retail shops)</option>
+        </select>
+      </div>
       {/* Zone select */}
       <div>
         <div style={{ fontSize:12, color:C.gray, marginBottom:5 }}>Zone</div>
@@ -544,6 +591,82 @@ export default function OutletManagementPage() {
             </button>
           </div>
         </div>
+
+        {/* ── Outlets proposed by reps, waiting for a decision ── */}
+        {canApproveOutlets && pendingOutlets.length > 0 && (
+          <Card style={{ padding:'14px 18px', border:`1px solid ${C.yellow}55`, background:C.yellowD }}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, flexWrap:'wrap' }}>
+              <div>
+                <div style={{ fontSize:13, fontWeight:700, color:C.white }}>
+                  {pendingOutlets.length} outlet{pendingOutlets.length === 1 ? '' : 's'} waiting for approval
+                </div>
+                <div style={{ fontSize:11, color:C.gray, marginTop:2 }}>
+                  Added by field reps. They cannot take orders or collections until you approve them.
+                </div>
+              </div>
+              <button onClick={() => { setShowReview(v => !v); setReviewErr(null); }}
+                style={{ padding:'8px 14px', background:C.yellow, border:'none', borderRadius:10, color:'#000',
+                  fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
+                {showReview ? 'Hide' : 'Review'}
+              </button>
+            </div>
+            {reviewErr && <div style={{ fontSize:12, color:C.red, marginTop:10 }}>⚠ {reviewErr}</div>}
+            {showReview && (
+              <div style={{ marginTop:12, display:'flex', flexDirection:'column', gap:8 }}>
+                {pendingOutlets.map(o => (
+                  <div key={o.id} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:12,
+                    flexWrap:'wrap', background:C.s2, border:`1px solid ${C.border}`, borderRadius:12, padding:'12px 14px' }}>
+                    <div style={{ minWidth:220 }}>
+                      <div style={{ fontSize:13, fontWeight:700, color:C.white }}>
+                        {o.name} {o.store_code && <span style={{ fontFamily:'monospace', fontSize:11, color:C.gray }}>· {o.store_code}</span>}
+                      </div>
+                      <div style={{ fontSize:11, color:C.gray, marginTop:3 }}>
+                        {[o.owner_name, o.phone, o.trade_type === 'on_trade' ? 'On-trade' : o.trade_type === 'off_trade' ? 'Off-trade' : null, o.store_type]
+                          .filter(Boolean).join(' · ') || 'No contact details'}
+                      </div>
+                      {o.address && <div style={{ fontSize:10, color:C.grayd, marginTop:2 }}>📍 {o.address}</div>}
+                    </div>
+                    <div style={{ display:'flex', gap:8 }}>
+                      <button disabled={reviewBusy === o.id} onClick={() => decide(o, 'approved')}
+                        style={{ padding:'7px 14px', background:C.green, border:'none', borderRadius:9, color:'#000',
+                          fontSize:12, fontWeight:700, cursor:'pointer', opacity: reviewBusy === o.id ? 0.6 : 1 }}>
+                        ✓ Approve
+                      </button>
+                      <button disabled={reviewBusy === o.id} onClick={() => { setRejectTarget(o); setRejectReason(''); setReviewErr(null); }}
+                        style={{ padding:'7px 14px', background:'transparent', border:`1px solid ${C.red}`, borderRadius:9,
+                          color:C.red, fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                        ✕ Reject
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        )}
+
+        {rejectTarget && (
+          <div onClick={() => setRejectTarget(null)} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.6)', zIndex:999,
+            display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}>
+            <div onClick={e => e.stopPropagation()} style={{ background:C.s2, border:`1px solid ${C.border}`, borderRadius:16,
+              padding:22, maxWidth:420, width:'100%' }}>
+              <div style={{ fontSize:15, fontWeight:800, color:C.white }}>Reject “{rejectTarget.name}”?</div>
+              <div style={{ fontSize:12, color:C.gray, margin:'6px 0 12px' }}>The rep will see this reason.</div>
+              <textarea value={rejectReason} onChange={e => setRejectReason(e.target.value)} rows={3}
+                placeholder="For example: duplicate of an existing outlet"
+                style={{ ...inp, resize:'vertical' }} />
+              <div style={{ display:'flex', gap:8, marginTop:14, justifyContent:'flex-end' }}>
+                <button onClick={() => setRejectTarget(null)} style={{ ...btnS, flex:'unset', padding:'9px 16px' }}>Cancel</button>
+                <button disabled={!rejectReason.trim() || reviewBusy === rejectTarget.id}
+                  onClick={() => decide(rejectTarget, 'rejected', rejectReason.trim())}
+                  style={{ padding:'9px 16px', background:C.red, border:'none', borderRadius:10, color:'#fff',
+                    fontSize:13, fontWeight:700, cursor:'pointer', opacity: !rejectReason.trim() ? 0.5 : 1 }}>
+                  Reject outlet
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ── KPI row ── */}
         <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12 }}>
