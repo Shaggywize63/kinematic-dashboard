@@ -250,6 +250,20 @@ function ConnectTallyModal({ onClose, onCreated }: { onClose: () => void; onCrea
   const [igstLedger, setIgstLedger]     = useState('IGST');
   const [creditLedger, setCreditLedger] = useState('Sales Returns');
   const [submitting, setSubmitting]     = useState(false);
+  // Which Kinematic company this Tally company belongs to. Only asked when the org has more than one.
+  const [orgCompanies, setOrgCompanies] = useState<{ id: string; name: string }[]>([]);
+  const [clientId, setClientId]         = useState('');
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      try {
+        const r: any = await api.get('/api/v1/companies/all');
+        const list = (r?.data || r || []) as { id: string; name: string }[];
+        if (live && Array.isArray(list)) setOrgCompanies(list);
+      } catch { /* single-company orgs / older backend: no picker */ }
+    })();
+    return () => { live = false; };
+  }, []);
 
   const submit = async () => {
     if (!label.trim()) { toast.error('Give this connection a name'); return; }
@@ -260,6 +274,7 @@ function ConnectTallyModal({ onClose, onCreated }: { onClose: () => void; onCrea
         provider: 'tally',
         label: label.trim(),
         config: {
+          ...(clientId ? { client_id: clientId } : {}),
           company_name:            companyName.trim(),
           sales_ledger_name:       salesLedger.trim(),
           cash_ledger_name:        cashLedger.trim(),
@@ -283,6 +298,15 @@ function ConnectTallyModal({ onClose, onCreated }: { onClose: () => void; onCrea
         <Field label="Connection name" hint="Helps you identify it if a distributor has multiple Tally companies.">
           <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="e.g. Mahalakshmi Trading — Mumbai Tally" autoFocus style={input} />
         </Field>
+
+        {orgCompanies.length > 1 && (
+          <Field label="Kinematic company" hint="Only this company's invoices, payments and returns are sent to this Tally company. Connect each company separately.">
+            <select value={clientId} onChange={(e) => setClientId(e.target.value)} style={input}>
+              <option value="">All companies (no filter)</option>
+              {orgCompanies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </Field>
+        )}
 
         <Field label="Tally company name (optional now)" hint="Leave blank to pick it from the companies the connector finds in Tally. Must match Tally exactly.">
           <input value={companyName} onChange={(e) => setCompanyName(e.target.value)} placeholder="e.g. Mahalakshmi Trading Company Pvt Ltd" style={input} />
