@@ -26,6 +26,7 @@ const GROUPS: Group[] = [
     reports: [
       { label: 'Order Register',          sub: 'Every order — outlet, salesman, value, status, date range', href: '/dashboard/distribution/orders' },
       { label: 'Invoice / GST Sales Register', sub: 'Issued invoices with taxable value, CGST/SGST/IGST, grand total', href: '/dashboard/distribution/invoices' },
+      { label: 'Company-wise Summary',     sub: 'Orders, invoices, collections and returns per company, with an all-company total', href: '/dashboard/distribution/reports/companies' },
       { label: 'Daily Salesman Challan (DSR)', sub: 'Beat sales, van stock and collection for a salesman-day', href: '/dashboard/distribution/reports/dsr' },
       { label: 'Returns Register',         sub: 'Sales returns / credit notes by outlet and reason', href: '/dashboard/distribution/returns' },
       { label: 'Sales by SKU / brand / category', sub: 'Quantity and value, grouped and ranked', planned: true },
