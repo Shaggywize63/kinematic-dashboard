@@ -141,6 +141,13 @@ export default function FieldExecutivesPage() {
   const [showBulk,  setShowBulk] = useState(false);
   const [editTarget,setEditT]   = useState<FieldExecutive|null>(null);
 
+  // Companies (clients) in this organisation, and which of them the executive being edited may sell for.
+  // The section only appears when the org has more than one company and the lookups work (a tenant without
+  // the feature simply never shows it).
+  const [orgCompanies, setOrgCompanies] = useState<{id:string; name:string}[]>([]);
+  const [companyIds,   setCompanyIds]   = useState<string[]>([]);
+  const [companiesOk,  setCompaniesOk]  = useState(false);
+
   const [form,    setForm]   = useState<FormData>(EMPTY_FORM);
   const [saving,  setSaving] = useState(false);
   const [formErr, setFErr]   = useState('');
@@ -220,6 +227,18 @@ export default function FieldExecutivesPage() {
       base_lng: fe.base_lng != null ? String(fe.base_lng) : '',
       geofence_radius_m: fe.geofence_radius_m != null ? String(fe.geofence_radius_m) : '' });
     setFErr(''); setShowEdit(true);
+    setCompaniesOk(false); setOrgCompanies([]); setCompanyIds([]);
+    (async () => {
+      try {
+        const [all, mine] = await Promise.all([
+          api.get<any>('/api/v1/companies/all'),
+          api.get<any>(`/api/v1/companies/users/${fe.id}`),
+        ]);
+        const list: {id:string; name:string}[] = all?.data ?? all ?? [];
+        const ids: string[] = (mine?.data ?? mine)?.client_ids ?? [];
+        if (Array.isArray(list) && list.length > 1) { setOrgCompanies(list); setCompanyIds(ids); setCompaniesOk(true); }
+      } catch { /* not available for this account: leave the section hidden */ }
+    })();
   };
   const handleEdit = async () => {
     if (!editTarget) return;
@@ -232,6 +251,7 @@ export default function FieldExecutivesPage() {
         base_lat: Number.isFinite(baseLat as number) ? baseLat : null,
         base_lng: Number.isFinite(baseLng as number) ? baseLng : null,
         geofence_radius_m: Number.isFinite(radius as number) ? radius : null });
+      if (companiesOk) await api.put(`/api/v1/companies/users/${editTarget.id}`, { client_ids: companyIds });
       setShowEdit(false); setEditT(null); setSelected(null); fetchData();
     } catch(e:any){ setFErr(e.message||'Failed'); } finally{ setSaving(false); }
   };
@@ -604,6 +624,25 @@ export default function FieldExecutivesPage() {
                 <div style={{position:'absolute',top:3,left:editTarget.is_active?21:3,width:20,height:20,borderRadius:'50%',background:'#fff',transition:'left 0.2s',boxShadow:'0 1px 4px rgba(0,0,0,0.3)'}}/>
               </div>
             </div>
+            {/* ── Companies this person can sell for (only when the org has several) ── */}
+            {companiesOk && (
+              <div style={{background:C.s3,border:`1px solid ${C.border}`,borderRadius:11,padding:'14px',marginBottom:16}}>
+                <div style={{fontSize:13,fontWeight:600,marginBottom:4}}>Companies they can sell for</div>
+                <div style={{fontSize:11,color:C.gray,marginBottom:10}}>
+                  In the app they pick one before each order, collection or return. Leave all unticked to keep them on their own company only.
+                </div>
+                {orgCompanies.map(c => {
+                  const on = companyIds.includes(c.id);
+                  return (
+                    <label key={c.id} style={{display:'flex',alignItems:'center',gap:10,padding:'6px 0',fontSize:13,cursor:'pointer'}}>
+                      <input type="checkbox" checked={on}
+                        onChange={() => setCompanyIds(p => on ? p.filter(x => x !== c.id) : [...p, c.id])}/>
+                      {c.name}
+                    </label>
+                  );
+                })}
+              </div>
+            )}
             {/* ── Home-base geofence (attendance check-in) ──
                 When lat/lng + radius are set, the FE can only check in within
                 `radius` metres of this point. Leave all three blank to fall back
