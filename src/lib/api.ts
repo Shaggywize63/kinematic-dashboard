@@ -1372,6 +1372,7 @@ class ApiClient {
   // ── Distribution: PMC DELTA reports ──────────────────────────────────
   getGodownReport(params?: Record<string, string>) { return this.get(`/api/v1/distribution/reports/godown${this.sanitizeParams(params)}`); }
   getTargetReport(params?: Record<string, string>) { return this.get(`/api/v1/distribution/reports/targets${this.sanitizeParams(params)}`); }
+  getCompanyReport(params?: Record<string, string>) { return this.get(`/api/v1/companies/report${this.sanitizeParams(params)}`); }
   getDsrList() { return this.get('/api/v1/distribution/reports/dsr'); }
   getDsr(salesmanId: string, date: string) { return this.get(`/api/v1/distribution/reports/dsr${this.sanitizeParams({ salesman_id: salesmanId, date })}`); }
 
