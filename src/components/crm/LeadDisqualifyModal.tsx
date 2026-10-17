@@ -9,7 +9,8 @@
  */
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { crmLeads } from '../../lib/crmApi';
+import { crmLeads, crmSettings } from '../../lib/crmApi';
+import { extractLostReasons, type LostReasonOption } from '../../lib/crmLostReasons';
 
 export const UNQUALIFIED_REASONS = [
   'Not ready to buy',
@@ -46,6 +47,8 @@ export default function LeadDisqualifyModal({
   const [reason, setReason] = useState('');
   const [other, setOther] = useState('');
   const [busy, setBusy] = useState(false);
+  // Per-client Lost reasons (config.lost_reasons); null → use hardcoded defaults.
+  const [lostReasons, setLostReasons] = useState<LostReasonOption[] | null>(null);
 
   useEffect(() => {
     if (open) {
@@ -53,16 +56,33 @@ export default function LeadDisqualifyModal({
       setReason('');
       setOther('');
       setBusy(false);
+      // Load the client's configured Lost reasons (best-effort; falls back to
+      // the hardcoded list on any failure).
+      crmSettings.get()
+        .then((s) => setLostReasons(extractLostReasons(s)))
+        .catch(() => setLostReasons(null));
     }
   }, [open, initialOutcome]);
 
   if (!open) return null;
 
-  const reasonList = outcome === 'lost' ? LOST_LEAD_REASONS : UNQUALIFIED_REASONS;
+  const lostLabels: readonly string[] =
+    outcome === 'lost' && lostReasons && lostReasons.length
+      ? lostReasons.map((r) => r.label)
+      : LOST_LEAD_REASONS;
+  const reasonList = outcome === 'lost' ? lostLabels : UNQUALIFIED_REASONS;
+  // A free-text box is required for the built-in "Other" or any configured
+  // reason flagged requires_comment.
+  const needsComment =
+    reason === 'Other' ||
+    (outcome === 'lost' && !!lostReasons?.find((r) => r.label === reason)?.requires_comment);
 
   const submit = async () => {
     if (!reason) { toast.error('Please pick a reason'); return; }
-    const finalReason = reason === 'Other' ? (other.trim() || 'Other') : reason;
+    if (needsComment && !other.trim()) { toast.error('Please add a comment for this reason'); return; }
+    const finalReason = reason === 'Other'
+      ? other.trim()
+      : (needsComment && other.trim() ? `${reason} — ${other.trim()}` : reason);
     setBusy(true);
     try {
       await crmLeads.disqualify(leadId, { status: outcome, lost_reason: finalReason });
@@ -118,7 +138,7 @@ export default function LeadDisqualifyModal({
             <option value="">— Select a reason —</option>
             {reasonList.map((r) => <option key={r} value={r}>{r}</option>)}
           </select>
-          {reason === 'Other' && (
+          {needsComment && (
             <input value={other} onChange={(e) => setOther(e.target.value)}
               placeholder="Describe the reason…" style={inputStyle} />
           )}
