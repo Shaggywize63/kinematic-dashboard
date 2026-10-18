@@ -559,7 +559,7 @@ export default function LeadDetailPage() {
           )}
 
           {!hideConversations && conversations.length > 0 && (
-            <Section title="Conversations" count={conversations.length}>
+            <Section title="Call Insights" count={conversations.length}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {conversations.map((c) => {
                   const sm = statusMeta(c.status);

@@ -149,7 +149,7 @@ export default function ConversationAnalysisPage() {
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
         <div>
-          <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', margin: 0 }}>Conversation Analysis</h1>
+          <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', margin: 0 }}>Call Insights</h1>
           <div style={{ fontSize: 12.5, color: 'var(--text-dim)', marginTop: 4 }}>
             Consented calls recorded by Consumer Champions — transcribed, diarized and analysed for intent, sentiment and coaching.
           </div>
@@ -211,7 +211,7 @@ export default function ConversationAnalysisPage() {
       <div style={card}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, gap: 8 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
-            Conversations ({filtered.length})
+            Call Insights ({filtered.length})
             {selectedCity && <span style={{ fontWeight: 500, color: 'var(--text-dim)' }}> · {selectedCity}</span>}
           </div>
           <button
