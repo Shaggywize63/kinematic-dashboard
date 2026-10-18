@@ -41,7 +41,7 @@ export default function RecordedCallButton({ leadId, phone, size = 'sm' }: Props
     try {
       const r = await crmTelephony.clickToCall({ lead_id: leadId });
       toast.success(
-        `Calling ${r.to} — your phone (${r.from}) will ring first, then we bridge the lead. Recording → Conversation Analysis.`,
+        `Calling ${r.to} — your phone (${r.from}) will ring first, then we bridge the lead. Recording → Call Insights.`,
       );
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Could not place the recorded call';
@@ -56,7 +56,7 @@ export default function RecordedCallButton({ leadId, phone, size = 'sm' }: Props
       type="button"
       onClick={onClick}
       disabled={busy}
-      title="Place a recorded IVR call — your phone rings first, then the lead; recording flows into Conversation Analysis"
+      title="Place a recorded IVR call — your phone rings first, then the lead; recording flows into Call Insights"
       style={{
         display: 'inline-flex',
         alignItems: 'center',

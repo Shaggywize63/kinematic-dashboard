@@ -602,7 +602,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       // managers review consented sales / service calls (transcript +
       // diarization + AI insights). Gated by crm_conversation_intel; hidden
       // for the Kaiyo/TATA org.
-      { href: '/dashboard/crm/conversations',    label: 'Conversation Analysis', icon: 'mic', module: 'crm_conversation_intel', hiddenForTata: true },
+      { href: '/dashboard/crm/conversations',    label: 'Call Insights', icon: 'mic', module: 'crm_conversation_intel', hiddenForTata: true },
       { href: '/dashboard/crm/market-intelligence', label: 'Market Intelligence', icon: 'trending', module: 'crm_lead_analytics' },
       { href: '/dashboard/crm/contacts',         label: 'Contacts',       icon: 'contact', module: 'crm_contacts', hiddenForTata: true },
       // Address book for dealers / influencers / referrers — per-client,
