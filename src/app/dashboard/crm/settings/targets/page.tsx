@@ -4,10 +4,11 @@ import { toast } from 'sonner';
 import api from '../../../../../lib/api';
 import { crmTargets } from '../../../../../lib/crmApi';
 import { useAuth } from '../../../../../hooks/useAuth';
-import { isConsumerChampion } from '../../../../../lib/clientFeatures';
+import { isConsumerChampion, canViewTelecallerReport } from '../../../../../lib/clientFeatures';
 import { useTargetTypes } from '../../../../../lib/useTargetTypes';
 import { Segmented } from '../../../../../components/ui';
 import RupeeTargets from '../../../../../components/crm/RupeeTargets';
+import CallsTargets from '../../../../../components/crm/CallsTargets';
 
 interface U {
   id: string; name: string; role: string;
@@ -22,8 +23,11 @@ export default function TargetsSettingsPage() {
   // Sales / Collection rupee targets are opt-in per client: with none configured (or the call failing) `types`
   // stays empty and this page is exactly the weekly lead target it always was.
   const { types: rupeeTypes } = useTargetTypes();
-  const [mode, setMode] = useState<'lead' | 'sales' | 'collection'>('lead');
-  const rupee = mode === 'lead' ? undefined : rupeeTypes.find((t) => t.key === mode);
+  // The telecaller calls target is its own metric, shown only for telecaller-flow
+  // tenants (Rajkamal today) — mirrors the Telecaller Performance report gate.
+  const showCalls = canViewTelecallerReport(user as any);
+  const [mode, setMode] = useState<'lead' | 'sales' | 'collection' | 'calls'>('lead');
+  const rupee = mode === 'lead' || mode === 'calls' ? undefined : rupeeTypes.find((t) => t.key === mode);
   const [users, setUsers] = useState<U[]>([]);
   const [levels, setLevels] = useState<Level[]>([]);
   const [defaultTarget, setDefaultTarget] = useState<number>(0);
@@ -182,21 +186,27 @@ export default function TargetsSettingsPage() {
       <p style={{ fontSize: 13, color: 'var(--text-dim)', margin: '0 0 18px' }}>
         {rupee
           ? `Set the monthly ${rupee.label.toLowerCase()} in rupees for each hierarchy level. Everyone at that level inherits it. You can override individuals below. Progress is what your team logs each month.`
-          : 'Set the weekly lead target for each hierarchy level (e.g. Consumer Champion, Area Sales Officer). Everyone at that level inherits it. You can override individuals below. FEs see their target as a dashboard ticker.'}
+          : mode === 'calls'
+            ? 'Set the daily calls target for each hierarchy level. Everyone at that level inherits it. You can override individuals below. Telecallers see their target against today’s logged calls.'
+            : 'Set the weekly lead target for each hierarchy level (e.g. Consumer Champion, Area Sales Officer). Everyone at that level inherits it. You can override individuals below. FEs see their target as a dashboard ticker.'}
       </p>
 
-      {/* Only for clients with Sales / Collection targets switched on. */}
-      {rupeeTypes.length > 0 && (
+      {/* Shown when the client has Sales / Collection targets and/or the
+          telecaller calls target switched on. */}
+      {(rupeeTypes.length > 0 || showCalls) && (
         <div style={{ margin: '0 0 16px', overflowX: 'auto' }}>
-          <Segmented value={rupee ? rupee.key : 'lead'} onChange={setMode} options={[
+          <Segmented value={rupee ? rupee.key : mode} onChange={setMode} options={[
             { value: 'lead' as const, label: 'Lead target' },
             ...rupeeTypes.map((t) => ({ value: t.key as 'sales' | 'collection', label: t.label })),
+            ...(showCalls ? [{ value: 'calls' as const, label: 'Calls / day' }] : []),
           ]} />
         </div>
       )}
 
       {rupee ? (
         <RupeeTargets key={rupee.key} type={rupee} users={users} levels={levels.map((l) => ({ id: l.id, name: l.name }))} baseLoading={loading} narrow={narrow} />
+      ) : mode === 'calls' ? (
+        <CallsTargets users={users} levels={levels.map((l) => ({ id: l.id, name: l.name }))} baseLoading={loading} narrow={narrow} />
       ) : (<>
       {/* Per-hierarchy-level targets — the primary control */}
       <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 16 }}>
