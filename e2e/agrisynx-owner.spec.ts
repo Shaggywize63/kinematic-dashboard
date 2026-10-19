@@ -200,6 +200,8 @@ test.describe('Admin-only lead owner — create', () => {
 
 // ── edit modal (opened from the list) ───────────────────────────────────────
 async function openEdit(page: Page) {
+  // The row actions float over the row and only take pointer events while it is hovered / focused — hover first, like a user.
+  await page.locator('tr.lead-row').first().hover();
   await page.getByRole('button', { name: 'Edit lead' }).click();
   await expect(page.getByText('Edit lead', { exact: true })).toBeVisible();
   await expect(page.getByText('Assignment', { exact: true })).toBeVisible();
