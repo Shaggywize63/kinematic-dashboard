@@ -15,6 +15,11 @@ function monthToDate(): { from: string; to: string } {
   return { from: iso(first), to: iso(today) };
 }
 
+function todayRange(): { from: string; to: string } {
+  const d = new Date().toISOString().slice(0, 10);
+  return { from: d, to: d };
+}
+
 /**
  * Compact telecaller KPI strip for the CRM dashboard overview — calls, connect
  * rate, follow-ups, conversions and scheme ₹ for the current month. Shown only
@@ -25,20 +30,29 @@ function monthToDate(): { from: string; to: string } {
 export default function TelecallerOverviewStrip() {
   const [show, setShow] = useState(false);
   const [totals, setTotals] = useState<Totals | null>(null);
+  const [todayCalls, setTodayCalls] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!canViewTelecallerReport(getStoredUser() as any)) { setShow(false); return; }
     setShow(true);
     let cancelled = false;
-    crmAnalytics.telecallerPerformance(monthToDate())
-      .then((r) => {
+    const readTotals = (r: unknown): Totals | null => {
+      // Rides the shared {success,data} envelope; tolerate a bare payload too.
+      const p = r as { totals?: Totals; data?: { totals?: Totals } };
+      return p.data?.totals ?? p.totals ?? null;
+    };
+    // Month-to-date for the headline KPIs + a separate today-only pull so the
+    // admin sees how many calls were logged TODAY at a glance.
+    Promise.all([
+      crmAnalytics.telecallerPerformance(monthToDate()).then(readTotals).catch(() => null),
+      crmAnalytics.telecallerPerformance(todayRange()).then(readTotals).catch(() => null),
+    ])
+      .then(([month, today]) => {
         if (cancelled) return;
-        // Rides the shared {success,data} envelope; tolerate a bare payload too.
-        const p = r as unknown as { totals?: Totals; data?: { totals?: Totals } };
-        setTotals(p.data?.totals ?? p.totals ?? null);
+        setTotals(month);
+        setTodayCalls(today ? today.calls : null);
       })
-      .catch(() => { /* best-effort tile; stays blank on error */ })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, []);
@@ -47,7 +61,8 @@ export default function TelecallerOverviewStrip() {
 
   const connectRate = totals && totals.calls > 0 ? Math.round((totals.connected / totals.calls) * 100) : 0;
   const items = [
-    { label: 'Calls', value: totals ? String(totals.calls) : '—', accent: '#3E9EFF' },
+    { label: 'Calls today', value: todayCalls != null ? String(todayCalls) : '—', accent: '#22C55E' },
+    { label: 'Calls (month)', value: totals ? String(totals.calls) : '—', accent: '#3E9EFF' },
     { label: 'Connect Rate', value: totals ? `${connectRate}%` : '—', accent: '#06B6D4' },
     { label: 'Follow-ups', value: totals ? String(totals.follow_ups) : '—', accent: '#F59E0B' },
     { label: 'Conversions', value: totals ? String(totals.conversions) : '—', accent: '#A855F7' },
