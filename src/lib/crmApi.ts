@@ -410,6 +410,13 @@ export const crmTargets = {
   getLeaderboardRole: () => api.get<Wrapped<{ role_id: string | null }>>(`${BASE}/targets/leaderboard-role`),
   setLeaderboardRole: (role_id: string | null) =>
     api.put<Wrapped<{ role_id: string | null }>>(`${BASE}/targets/leaderboard-role`, { role_id }),
+  // Telecaller daily calls-count target — a separate metric from the lead /
+  // rupee targets. Managers read/set a daily "N calls" goal (per user, per role
+  // or org default); a telecaller reads their own progress via `callsMine`.
+  callsGet: () => api.get<Wrapped<TargetsState>>(`${BASE}/targets/calls`),
+  callsSet: (body: { user_id?: string | null; org_role_id?: string | null; hierarchy_level_id?: string | null; target_value: number; all?: boolean }) =>
+    api.put<Wrapped<unknown>>(`${BASE}/targets/calls`, body),
+  callsMine: () => api.get<Wrapped<MyTarget>>(`${BASE}/targets/calls/me`),
 };
 
 export const crmNotes = crud<Note>(`${BASE}/notes`);
