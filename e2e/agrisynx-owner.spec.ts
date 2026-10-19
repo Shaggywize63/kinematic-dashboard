@@ -325,7 +325,11 @@ test.describe('Admin-only lead owner — leads list', () => {
 // ── list filters ────────────────────────────────────────────────────────────
 // The Owner filter is an owner control like any other: a client that reserves ownership for admins gives
 // everybody else no Owner dropdown on Leads and no assignee filter on Activities.
+// The filters live in the "Filters" side panel on the redesigned Leads list — open it first.
+const openLeadFilters = async (page: Page) => { await page.getByRole('button', { name: /^Filters/ }).click(); await expect(page.getByRole('dialog', { name: 'Filters' })).toBeVisible(); };
 const leadsOwnerFilter = (page: Page) => page.locator('select:has(option:text-is("All Owners"))');
+// "Mine" is an owner filter in one tap, so it follows the same rule as the Owner dropdown.
+const mineViewChip = (page: Page) => page.getByRole('button', { name: /^Mine/ });
 const activitiesAssigneeFilter = (page: Page) => page.getByPlaceholder('Filter by FE / assignee…');
 
 test.describe('Admin-only lead owner — list filters', () => {
@@ -333,7 +337,9 @@ test.describe('Admin-only lead owner — list filters', () => {
     await setup(page, { user: REP, adminOnly: true });
     await settled(page, () => page.goto('/dashboard/crm/leads'));
     await expect(page.getByText('Ramesh Sharma')).toBeVisible();
-    await expect(page.locator('select:has(option:text-is("All Sources"))')).toBeVisible(); // the rest of the bar is there
+    await expect(mineViewChip(page)).toHaveCount(0);
+    await openLeadFilters(page);
+    await expect(page.locator('select:has(option:text-is("All Sources"))')).toBeVisible(); // the rest of the panel is there
     await expect(leadsOwnerFilter(page)).toHaveCount(0);
   });
 
@@ -342,6 +348,8 @@ test.describe('Admin-only lead owner — list filters', () => {
     const asked: string[] = [];
     page.on('request', (r) => { if (r.url().includes('/api/v1/crm/leads?')) asked.push(r.url()); });
     await settled(page, () => page.goto('/dashboard/crm/leads'));
+    await expect(mineViewChip(page)).toBeVisible();
+    await openLeadFilters(page);
     await expect(leadsOwnerFilter(page)).toBeVisible();
     await leadsOwnerFilter(page).selectOption('u-asha');
     await expect.poll(() => asked.some((u) => u.includes('owner_id=u-asha'))).toBe(true);
@@ -350,6 +358,7 @@ test.describe('Admin-only lead owner — list filters', () => {
   test('a rep on a client WITHOUT the flag keeps the Owner filter on Leads', async ({ page }) => {
     await setup(page, { user: REP, adminOnly: false });
     await settled(page, () => page.goto('/dashboard/crm/leads'));
+    await openLeadFilters(page);
     await expect(leadsOwnerFilter(page)).toBeVisible();
   });
 
@@ -357,6 +366,8 @@ test.describe('Admin-only lead owner — list filters', () => {
     await setupCtl(page, { user: REP, adminOnly: false, settingsFault: 'http' });
     await settled(page, () => page.goto('/dashboard/crm/leads'));
     await expect(page.getByText('Ramesh Sharma')).toBeVisible();
+    await expect(mineViewChip(page)).toHaveCount(0);
+    await openLeadFilters(page);
     await expect(leadsOwnerFilter(page)).toHaveCount(0);
   });
 

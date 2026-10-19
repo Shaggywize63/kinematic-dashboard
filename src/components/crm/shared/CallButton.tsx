@@ -13,6 +13,8 @@ interface Props {
   accountId?: string;
   size?: 'sm' | 'md';
   label?: string;
+  /** Compact square icon (row hover actions); same dial + log-the-call behaviour. */
+  iconOnly?: boolean;
 }
 
 /**
@@ -35,6 +37,7 @@ export default function CallButton({
   accountId,
   size = 'sm',
   label,
+  iconOnly = false,
 }: Props) {
   const router = useRouter();
   const normalized = normalize(phone);
@@ -45,18 +48,32 @@ export default function CallButton({
     // Keep tel:<phone> as the href so right-click "Copy" / cmd-click /
     // assistive tech all see it as a phone link. We just additionally hop
     // into the composer afterwards.
-    const params = new URLSearchParams();
-    params.set('type', 'call');
-    params.set('subject', prefillSubject);
-    if (leadId) params.set('lead_id', leadId);
-    if (contactId) params.set('contact_id', contactId);
-    if (dealId) params.set('deal_id', dealId);
-    if (accountId) params.set('account_id', accountId);
+    const url = callComposerUrl({ subject: prefillSubject, leadId, contactId, dealId, accountId });
     // Tiny defer so the browser's tel: handler grabs the click first.
-    window.setTimeout(() => router.push(`/dashboard/crm/activities/new?${params.toString()}`), 50);
+    window.setTimeout(() => router.push(url), 50);
     // Don't preventDefault — the browser must still handle tel:.
     void e;
   };
+
+  if (iconOnly) {
+    return (
+      <a
+        href={`tel:${normalized}`}
+        onClick={onClick}
+        title="Call and log the activity"
+        aria-label="Call"
+        className="km-iconbtn"
+        style={{
+          width: 28, height: 28, borderRadius: 7, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ok)', textDecoration: 'none',
+        }}
+      >
+        <svg width={14} height={14} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+          <path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24c1.12.37 2.33.57 3.57.57a1 1 0 011 1V20a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.24.2 2.45.57 3.57a1 1 0 01-.25 1.02l-2.2 2.2z" />
+        </svg>
+      </a>
+    );
+  }
 
   return (
     <a
@@ -83,6 +100,23 @@ export default function CallButton({
       {label ?? 'Call'}
     </a>
   );
+}
+
+/** The "log this call" composer, pre-filled for the record the call was made from. */
+export function callComposerUrl(o: { subject: string; leadId?: string; contactId?: string; dealId?: string; accountId?: string }): string {
+  const params = new URLSearchParams();
+  params.set('type', 'call');
+  params.set('subject', o.subject);
+  if (o.leadId) params.set('lead_id', o.leadId);
+  if (o.contactId) params.set('contact_id', o.contactId);
+  if (o.dealId) params.set('deal_id', o.dealId);
+  if (o.accountId) params.set('account_id', o.accountId);
+  return `/dashboard/crm/activities/new?${params.toString()}`;
+}
+
+/** Digits-only (keeps a leading +) dial string, or null when there is no plausible number. */
+export function dialableNumber(phone?: string | null): string | null {
+  return normalize(phone);
 }
 
 /**
