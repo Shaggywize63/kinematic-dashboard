@@ -1,13 +1,17 @@
 'use client';
-import { useState, useEffect, useCallback, useMemo, Fragment } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, type ReactNode } from 'react';
+import { ClipboardList, Clock, Download, Search, Store, Users, X } from 'lucide-react';
 import api from '../../../lib/api';
 import { useClient } from '../../../context/ClientContext';
 import { useAuth } from '../../../hooks/useAuth';
 import { isRajkamalActive } from '../../../lib/clientFeatures';
 import { extractImageUrls } from '../../../lib/utils';
 import { toast } from 'sonner';
-import { csvStamp, earliestCheckIn, fmtClock, fmtMinutes, fmtStamp, gpsText, latestCheckOut, sumMinutes, visitMinutes } from '../../../lib/visitTime';
+import { csvStamp, fmtMinutes, fmtStamp, gpsText, sumMinutes, visitMinutes } from '../../../lib/visitTime';
 import SignedImage, { openSignedUrl, resolveSignedUrl } from '../../../components/shared/SignedImage';
+import { Badge, Button, Card, EmptyState, Eyebrow, IconButton, Input, PageHeader, Segmented, Select, T, labelStyle, useIsCompact } from '../../../components/ui';
+import VisitCard from '../../../components/work-activities/VisitCard';
+import { DEFAULT_PRESET, PRESET_LABELS, groupVisits, matchPreset, presetRange, storeName, type RangePreset } from '../../../lib/workActivities';
 import dynamic from 'next/dynamic';
 
 // Lazy-load the charts bundle (recharts) so it stays out of the main Work
@@ -16,21 +20,6 @@ const FormInsights = dynamic(() => import('../../../components/work-activities/F
   ssr: false,
   loading: () => <div style={{ padding: '80px', textAlign: 'center', color: 'var(--text-dim)' }}>Loading insights…</div>,
 });
-
-// design tokens
-const C = {
-  bg: 'var(--bg)',
-  card: 'var(--s1)',
-  cardH: 'var(--s2)',
-  border: 'var(--border)',
-  accent: 'var(--primary)',
-  accentD: 'rgba(224, 30, 44, 0.1)',
-  text: 'var(--text)',
-  textSec: 'var(--text-dim)',
-  textTert: 'var(--text-dim)',
-  green: 'var(--green)',
-  red: 'var(--primary)',
-};
 
 // Derive a sensible download filename from a stored object URL (last path
 // segment with an extension), falling back to a generic name.
@@ -173,10 +162,45 @@ function dateToInclusive(iso: string): string {
   return d.toISOString().slice(0, 10);
 }
 
-/* ── Activity View Wrap ───────────────────────────────────────── */
+/* ── Small building blocks ─────────────────────────────────────── */
+function SummaryTile({ icon, label, value, hint, testId }: { icon: ReactNode; label: string; value: string; hint?: string; testId: string }) {
+  return (
+    <div className="wa-tile" style={{ flex: '1 1 200px', minWidth: 0, display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', background: T.card, border: `1px solid ${T.border}`, borderRadius: T.radius.lg }}>
+      <span aria-hidden style={{ width: 40, height: 40, borderRadius: 10, flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: T.redWash, color: T.red }}>{icon}</span>
+      <div style={{ minWidth: 0 }}>
+        <Eyebrow>{label}</Eyebrow>
+        <div data-testid={testId} style={{ fontFamily: T.mono, fontSize: 22, fontWeight: 700, letterSpacing: '-0.02em', color: T.text, lineHeight: 1.25 }}>{value}</div>
+        {hint && <div style={{ fontSize: 11.5, color: T.mute, marginTop: 1 }}>{hint}</div>}
+      </div>
+    </div>
+  );
+}
+
+function FilterChip({ label, onClear }: { label: string; onClear: () => void }) {
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, height: 26, padding: '0 4px 0 10px', borderRadius: T.radius.pill, background: T.raised, color: T.text, fontSize: 12.5, fontWeight: 500 }}>
+      {label}
+      <button type="button" onClick={onClear} aria-label={`Remove filter: ${label}`} className="wa-x" style={{ width: 20, height: 20, borderRadius: 999, border: 0, background: 'transparent', color: T.dim, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>
+        <X size={13} aria-hidden />
+      </button>
+    </span>
+  );
+}
+
+function InfoTile({ label, children, testId, mono }: { label: string; children: ReactNode; testId?: string; mono?: boolean }) {
+  return (
+    <div style={{ flex: '1 1 210px', minWidth: 0, padding: '12px 14px', background: T.canvas, border: `1px solid ${T.border}`, borderRadius: T.radius.lg }}>
+      <Eyebrow>{label}</Eyebrow>
+      <div data-testid={testId} style={{ marginTop: 4, fontSize: 13.5, fontWeight: 600, color: T.text, overflowWrap: 'anywhere', fontFamily: mono ? T.mono : 'inherit' }}>{children}</div>
+    </div>
+  );
+}
+
+/* ── Work Activities ───────────────────────────────────────────── */
 export default function WorkActivitiesPage() {
   const { selectedClientId } = useClient();
   const { user } = useAuth();
+  const compact = useIsCompact(900);
   // Rajkamal does its field work as GPS-only visits, not timed check-in/out
   // shifts, so the check-in/out stamps, time-spent and the separate
   // check-in/out GPS are noise for them — hide those and show only the captured
@@ -187,7 +211,8 @@ export default function WorkActivitiesPage() {
   const [tab, setTab] = useState<'submissions' | 'insights'>('submissions');
   const [isDemo, setIsDemo] = useState(false);
   useEffect(() => { setIsDemo(api.isDemoAccount()); }, []);
-  const [loading, setLoading] = useState(false);
+  // Starts true: the first request waits for the date range, which is set after mount (see below).
+  const [loading, setLoading] = useState(true);
   const [data, setData] = useState<FormActivity[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -198,24 +223,21 @@ export default function WorkActivitiesPage() {
   const [cities, setCities] = useState<City[]>([]);
   const [activities, setActivities] = useState<any[]>([]);
 
-  // Filters
+  // Filters — `search` is the debounced value that drives the request, `searchInput` what the box shows.
+  const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [userFilter, setUserFilter] = useState('');
   const [cityFilter, setCityFilter] = useState('');
-  
-  // Default to showing last 3 days to ensure April 9th is visible
-  const [dateFrom, setDateFrom] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 2);
-    return d.toISOString().split('T')[0];
-  });
-  const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0]);
+  // "Today" depends on the viewer's clock and time zone, so the range is filled in after mount: computing it while
+  // rendering made the server HTML (UTC) and the browser (IST) disagree for hours every day (a hydration mismatch).
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  useEffect(() => { const r = presetRange(DEFAULT_PRESET); setDateFrom(r.from); setDateTo(r.to); }, []);
   const [activityFilter, setActivityFilter] = useState('');
 
   // UI State
-  const [expandedOutlet, setExpandedOutlet] = useState<string | null>(null);
+  const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [detailedSub, setDetailedSub] = useState<any>(null);
-  const [viewingId, setViewingId] = useState<string | null>(null);
   const [reportLoading, setReportLoading] = useState(false);
   const [lightbox, setLightbox] = useState<{ urls: string[]; index: number } | null>(null);
 
@@ -227,8 +249,16 @@ export default function WorkActivitiesPage() {
     api.getActivities({ client_id: cid }).then((r: any) => setActivities(Array.isArray(r) ? r : (r?.data || []))).catch(() => {});
   }, [selectedClientId]);
 
-  // Main Load
+  // Typing in the search box must not fire a request per keystroke.
+  useEffect(() => {
+    const id = setTimeout(() => setSearch(searchInput.trim()), 300);
+    return () => clearTimeout(id);
+  }, [searchInput]);
+
+  // Main Load. Filters change quickly (presets, typing), so only the newest request may write the list.
+  const reqId = useRef(0);
   const loadData = useCallback(async (p = 1) => {
+    const mine = ++reqId.current;
     setLoading(true);
     try {
       const params: any = {
@@ -243,38 +273,73 @@ export default function WorkActivitiesPage() {
         activity_id: activityFilter
       };
       const res: any = await api.getAdminSubmissions(params);
+      if (mine !== reqId.current) return;
       // Backend returns { success: true, data: { data: [], pagination: {} } }
       const rows = res?.data?.data || res?.data || res?.submissions || [];
       setData(Array.isArray(rows) ? rows : []);
       setTotal(res?.data?.pagination?.total || rows.length || 0);
       setPage(p);
+      setExpandedKey(null);
     } catch {
+      if (mine !== reqId.current) return;
       setData([]);
+      setTotal(0);
     } finally {
-      setLoading(false);
+      if (mine === reqId.current) setLoading(false);
     }
   }, [selectedClientId, dateFrom, dateTo, search, userFilter, cityFilter, activityFilter]);
 
-  useEffect(() => { loadData(1); }, [loadData]);
+  useEffect(() => { if (dateFrom && dateTo) loadData(1); }, [loadData, dateFrom, dateTo]);
 
-  // Grouping Logic: bifurcated by ACTIVITY, then (Outlet + User + Date).
-  // The activity is part of the group key so every visit card is single-activity,
-  // and the groups are ordered so all of an activity's visits are contiguous —
-  // the render inserts an activity heading whenever the activity changes, giving
-  // the requested per-activity split (e.g. Purchase / Store Visit sections).
-  const groupedData = useMemo(() => {
-    const map = new Map<string, FormActivity[]>();
-    data.forEach(item => {
-      const datePart = item.submitted_at?.split('T')[0] || '1970-01-01';
-      const activity = item.activities?.name || 'Other';
-      const key = `${activity}__${item.outlet_name || 'Individual'}_${item.user_id}_${datePart}`;
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(item);
-    });
-    return Array.from(map.values()).sort((a, b) =>
-      (a[0]?.activities?.name || 'Other').localeCompare(b[0]?.activities?.name || 'Other')
-    );
+  // One card per activity + store + rep + day; submissions with no store are split by the form filled in.
+  const visits = useMemo(() => groupVisits(data), [data]);
+  const sections = useMemo(() => {
+    const out: Array<{ activity: string; visits: typeof visits; forms: number }> = [];
+    for (const v of visits) {
+      const last = out[out.length - 1];
+      if (last && last.activity === v.activity) { last.visits.push(v); last.forms += v.items.length; }
+      else out.push({ activity: v.activity, visits: [v], forms: v.items.length });
+    }
+    return out;
+  }, [visits]);
+
+  const stats = useMemo(() => {
+    const spent = sumMinutes(data);
+    return { reps: new Set(data.map((d) => d.user_id)).size, minutes: spent.total, timed: spent.counted };
   }, [data]);
+
+  const preset = matchPreset(dateFrom, dateTo);
+  const applyPreset = (p: RangePreset) => { const r = presetRange(p); setDateFrom(r.from); setDateTo(r.to); };
+  const filtersActive = !!(search || searchInput || cityFilter || userFilter || activityFilter) || (!!dateFrom && preset !== DEFAULT_PRESET);
+  const clearFilters = () => {
+    setSearchInput(''); setSearch(''); setCityFilter(''); setUserFilter(''); setActivityFilter('');
+    applyPreset(DEFAULT_PRESET);
+  };
+  const partial = !loading && total > data.length;
+
+  const openDetail = async (f: FormActivity) => {
+    // Open immediately with the list row so the modal is responsive; then fetch the joined detail (which the
+    // backend builds with supabaseAdmin and includes the full form_responses array) and merge it in. The
+    // Next.js enrichment path couldn't read form_responses via RLS because the dashboard's JWT isn't a
+    // Supabase Auth token, so the modal always showed "No form responses recorded".
+    setDetailedSub(f);
+    try {
+      const detail: any = await api.getSubmission(f.id);
+      const merged = detail?.data ?? detail;
+      if (merged && typeof merged === 'object') setDetailedSub({ ...f, ...merged });
+    } catch { /* keep the list row */ }
+  };
+
+  // Escape closes the dialog (or the lightbox on top of it).
+  useEffect(() => {
+    if (!detailedSub && !lightbox) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (lightbox) setLightbox(null); else setDetailedSub(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [detailedSub, lightbox]);
 
   const downloadReport = async () => {
     if (!data.length) return;
@@ -293,13 +358,13 @@ export default function WorkActivitiesPage() {
         };
         const res: any = await api.getAdminSubmissions(params);
         const fullData = res?.data?.data || res?.data || [];
-        
+
         // Check-in / Check-out are the REAL stamps of each form (date + time), blank when the rep recorded none —
         // never the submission time. Time spent is whole minutes.
         const headers = ['Date', 'Client', 'Executive', 'Employee ID', 'Outlet', 'Activity', 'Address', 'Check In GPS', 'Check Out GPS', 'Check-in', 'Check-out', 'Time spent (min)', 'Responses'];
-        
+
         const csvRows = fullData.map((f: any) => {
-            const responsesStr = (f.form_responses || []).map((r: any) => 
+            const responsesStr = (f.form_responses || []).map((r: any) =>
                 `${r.builder_questions?.label || 'Q'}: ${r.value_text || r.value_number || r.value_bool || '—'}`
             ).join(' | ');
 
@@ -340,380 +405,234 @@ export default function WorkActivitiesPage() {
     }
   };
 
+  const pages = Math.max(1, Math.ceil(total / LIMIT));
+  const activeFilterChips: Array<{ key: string; label: string; clear: () => void }> = [];
+  if (cityFilter) activeFilterChips.push({ key: 'city', label: `City: ${cities.find((c) => c.id === cityFilter)?.name || 'Selected'}`, clear: () => setCityFilter('') });
+  if (userFilter) activeFilterChips.push({ key: 'user', label: `Executive: ${users.find((u) => u.id === userFilter)?.name || 'Selected'}`, clear: () => setUserFilter('') });
+  if (activityFilter) activeFilterChips.push({ key: 'activity', label: `Activity: ${activities.find((a) => a.id === activityFilter)?.name || 'Selected'}`, clear: () => setActivityFilter('') });
+  if (search) activeFilterChips.push({ key: 'search', label: `Store: ${search}`, clear: () => { setSearchInput(''); setSearch(''); } });
+
   return (
-    <div style={{ padding: '32px', minHeight: '100vh', background: C.bg, color: C.text, fontFamily: "var(--font-dm-sans)" }}>
-      
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: isDemo ? '20px' : '32px' }}>
-        <div>
-          <h1 style={{ fontSize: '32px', fontWeight: 800, margin: 0, letterSpacing: '-1px', fontFamily: 'var(--font-syne)' }}>Work Activities</h1>
-          <p style={{ color: C.textSec, marginTop: '8px', fontSize: '14px' }}>
-            {tab === 'insights'
-              ? 'Aggregate what field teams capture — preferred products, sentiment and objections from form responses.'
-              : 'Analyze field submissions grouped by outlet visits and track duration.'}
-          </p>
-        </div>
-        {tab === 'submissions' && (
-          <button
-            onClick={downloadReport}
-            disabled={reportLoading}
-            style={{ padding: '12px 24px', background: reportLoading ? C.card : C.accent, borderRadius: '12px', color: C.text, border: 'none', fontWeight: 700, cursor: reportLoading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 10px 20px rgba(62,158,255,0.2)' }}
-          >
-            <span>↓</span> {reportLoading ? 'Preparing Report...' : 'Download Report'}
-          </button>
-        )}
-      </div>
+    <div style={{ padding: compact ? '20px 16px 48px' : '28px 32px 56px', minHeight: '100vh', background: T.canvas, color: T.text, display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+      <PageHeader
+        compact
+        eyebrow="Field force"
+        title="Work Activities"
+        description={tab === 'insights'
+          ? 'Aggregate what field teams capture — preferred products, sentiment and objections from form responses.'
+          : 'Every form your field team submits, grouped into visits — with time spent and where it happened.'}
+        actions={tab === 'submissions' ? (
+          <Button variant="primary" onClick={downloadReport} disabled={reportLoading || !data.length}>
+            <Download size={15} aria-hidden /> {reportLoading ? 'Preparing Report…' : 'Download Report'}
+          </Button>
+        ) : undefined}
+      />
 
       {/* Tab switcher — Insights is demo-only today */}
       {isDemo && (
-        <div style={{ display: 'inline-flex', gap: '4px', background: C.card, border: `1px solid ${C.border}`, borderRadius: '12px', padding: '4px', marginBottom: '28px' }}>
-          {([['submissions', 'Submissions'], ['insights', 'Insights']] as const).map(([key, lbl]) => (
-            <button
-              key={key}
-              onClick={() => setTab(key)}
-              style={{
-                padding: '8px 18px', borderRadius: '9px', border: 'none', cursor: 'pointer',
-                fontWeight: 700, fontSize: '13px',
-                background: tab === key ? C.accent : 'transparent',
-                color: tab === key ? '#fff' : C.textSec,
-                transition: 'all 0.2s',
-              }}
-            >
-              {lbl}
-            </button>
-          ))}
-        </div>
+        <Segmented
+          value={tab}
+          onChange={setTab}
+          style={{ alignSelf: 'flex-start' }}
+          options={[{ value: 'submissions', label: 'Submissions' }, { value: 'insights', label: 'Insights' }]}
+        />
       )}
 
       {tab === 'insights' ? <FormInsights /> : (
       <>
-      {/* Universal Sticky Filter Bar */}
-      <div style={{ position: 'sticky', top: '16px', zIndex: 100, background: 'color-mix(in srgb, var(--s1) 82%, transparent)', backdropFilter: 'blur(20px)', border: `1px solid ${C.border}`, borderRadius: '20px', padding: '16px 24px', display: 'flex', gap: '20px', alignItems: 'center', marginBottom: '32px', boxShadow: '0 20px 40px rgba(0,0,0,0.18)' }}>
-        
-        <div style={{ flex: 1 }}>
-          <label style={{ display: 'block', fontSize: '10px', fontWeight: 800, color: C.accent, textTransform: 'uppercase', marginBottom: '6px' }}>Date Window</label>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={{ background: 'transparent', border: `1px solid ${C.border}`, color: C.text, padding: '4px 8px', borderRadius: '8px', fontSize: '12px' }} />
-            <span style={{ color: C.textTert }}>to</span>
-            <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} style={{ background: 'transparent', border: `1px solid ${C.border}`, color: C.text, padding: '4px 8px', borderRadius: '8px', fontSize: '12px' }} />
-          </div>
-        </div>
-
-        <div style={{ width: '150px' }}>
-          <label style={{ display: 'block', fontSize: '10px', fontWeight: 800, color: C.accent, textTransform: 'uppercase', marginBottom: '6px' }}>City</label>
-          <select value={cityFilter} onChange={e => setCityFilter(e.target.value)} style={{ width: '100%', background: 'transparent', border: `1px solid ${C.border}`, color: C.text, padding: '4px', borderRadius: '8px', fontSize: '12px', outline: 'none' }}>
-            <option value="">All Cities</option>
-            {cities.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-        </div>
-
-        <div style={{ width: '150px' }}>
-          <label style={{ display: 'block', fontSize: '10px', fontWeight: 800, color: C.accent, textTransform: 'uppercase', marginBottom: '6px' }}>Executive</label>
-          <select value={userFilter} onChange={e => setUserFilter(e.target.value)} style={{ width: '100%', background: 'transparent', border: `1px solid ${C.border}`, color: C.text, padding: '4px', borderRadius: '8px', fontSize: '12px', outline: 'none' }}>
-            <option value="">All Executives</option>
-            {users.filter((u: any) => u.role === 'executive' || u.role === 'field_executive' || u.org_role?.data_scope === 'own').map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-          </select>
-        </div>
-
-        <div style={{ width: '150px' }}>
-          <label style={{ display: 'block', fontSize: '10px', fontWeight: 800, color: C.accent, textTransform: 'uppercase', marginBottom: '6px' }}>Activity Type</label>
-          <select value={activityFilter} onChange={e => setActivityFilter(e.target.value)} style={{ width: '100%', background: 'transparent', border: `1px solid ${C.border}`, color: C.text, padding: '4px', borderRadius: '8px', fontSize: '12px', outline: 'none' }}>
-            <option value="">All Activities</option>
-            {activities.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-          </select>
-        </div>
-
-        <div style={{ width: '180px' }}>
-          <label style={{ display: 'block', fontSize: '10px', fontWeight: 800, color: C.accent, textTransform: 'uppercase', marginBottom: '6px' }}>Search Store</label>
-          <input 
-            placeholder="Search store..." 
-            value={search} 
-            onChange={e => setSearch(e.target.value)} 
-            style={{ width: '100%', background: 'transparent', border: `1px solid ${C.border}`, color: C.text, padding: '6px 12px', borderRadius: '8px', fontSize: '12px', outline: 'none' }} 
-          />
-        </div>
-
-        {selectedClientId === 'Kinematic' && (
-           <div style={{ borderLeft: `1px solid ${C.border}`, paddingLeft: '20px' }}>
-             <span style={{ padding: '6px 12px', background: C.red, borderRadius: '8px', fontSize: '10px', fontWeight: 900 }}>GLOBAL VIEW</span>
-           </div>
+      {/* At a glance */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+        <SummaryTile testId="wa-sum-submissions" icon={<ClipboardList size={19} />} label="Submissions" value={loading && !data.length ? '—' : String(total)} hint={partial ? `showing the latest ${data.length}` : 'in this window'} />
+        <SummaryTile testId="wa-sum-visits" icon={<Store size={19} />} label="Visits" value={loading && !data.length ? '—' : String(visits.length)} hint="store or form, per rep per day" />
+        <SummaryTile testId="wa-sum-reps" icon={<Users size={19} />} label="Field reps" value={loading && !data.length ? '—' : String(stats.reps)} hint="active in this window" />
+        {!hideVisitTracking && (
+          <SummaryTile testId="wa-sum-time" icon={<Clock size={19} />} label="Time on visits" value={loading && !data.length ? '—' : fmtMinutes(stats.minutes)} hint={stats.timed ? `${stats.timed} timed ${stats.timed === 1 ? 'form' : 'forms'}` : 'no check-in / out recorded'} />
         )}
       </div>
 
-      <div style={{ marginBottom: '16px', fontSize: '11px', color: C.textSec, background: C.card, padding: '8px 16px', borderRadius: '10px', display: 'flex', gap: '16px', border: `1px solid ${C.border}` }}>
-          <span><b>ACTIVE FILTERS:</b></span>
-          <span>Date: {dateFrom} to {dateTo}</span>
-          {cityFilter && <span>City: {cities.find(c => c.id === cityFilter)?.name || cityFilter}</span>}
-          {userFilter && <span>Exec: {users.find(u => u.id === userFilter)?.name || userFilter} ({userFilter.slice(0, 6)})</span>}
-          {search && <span>Store: {search}</span>}
-          <span style={{ marginLeft: 'auto', color: C.accent }}>Records: {total}</span>
+      {/* Filters */}
+      <Card padding={compact ? 14 : 16} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <div role="group" aria-label="Date range" style={{ display: 'inline-flex', flexWrap: 'wrap', gap: 6 }}>
+            {PRESET_LABELS.map((p) => {
+              const on = preset === p.value;
+              return (
+                <button key={p.value} type="button" className="wa-preset" aria-pressed={on} onClick={() => applyPreset(p.value)} style={{
+                  height: 30, padding: '0 12px', borderRadius: T.radius.pill, fontFamily: 'inherit', fontSize: 12.5, fontWeight: 600, cursor: 'pointer',
+                  border: `1px solid ${on ? T.text : T.border}`, background: on ? T.text : T.card, color: on ? T.canvas : T.dim,
+                }}>{p.label}</button>
+              );
+            })}
+          </div>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <Input type="date" aria-label="From date" value={dateFrom} max={dateTo || undefined} onChange={(e) => setDateFrom(e.target.value)} style={{ width: 148 }} />
+            <span style={{ color: T.mute, fontSize: 13 }}>to</span>
+            <Input type="date" aria-label="To date" value={dateTo} min={dateFrom || undefined} onChange={(e) => setDateTo(e.target.value)} style={{ width: 148 }} />
+          </div>
+          {filtersActive && (
+            <Button variant="ghost" size="sm" onClick={clearFilters} style={{ marginLeft: 'auto' }}>Reset filters</Button>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+          {([
+            ['City', cityFilter, setCityFilter, 'All cities', cities.map((c) => ({ id: c.id, name: c.name }))],
+            ['Executive', userFilter, setUserFilter, 'All executives', users.filter((u: any) => u.role === 'executive' || u.role === 'field_executive' || u.org_role?.data_scope === 'own').map((u) => ({ id: u.id, name: u.name }))],
+            ['Activity type', activityFilter, setActivityFilter, 'All activities', activities.map((a) => ({ id: a.id, name: a.name }))],
+          ] as Array<[string, string, (v: string) => void, string, Array<{ id: string; name: string }>]>).map(([label, value, set, all, options]) => (
+            <label key={label} style={{ flex: '1 1 170px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 5 }}>
+              <span style={labelStyle}>{label}</span>
+              <Select aria-label={label} value={value} onChange={(e) => set(e.target.value)}>
+                <option value="">{all}</option>
+                {options.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+              </Select>
+            </label>
+          ))}
+          <label style={{ flex: '2 1 240px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 5 }}>
+            <span style={labelStyle}>Search store</span>
+            <span style={{ position: 'relative', display: 'block' }}>
+              <Search size={15} aria-hidden style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: T.mute, pointerEvents: 'none' }} />
+              <Input aria-label="Search store" placeholder="Store or outlet name" value={searchInput} onChange={(e) => setSearchInput(e.target.value)} style={{ paddingLeft: 32 }} />
+            </span>
+          </label>
+        </div>
+      </Card>
+
+      {/* Result line + applied filter chips */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', minHeight: 26 }}>
+        <span style={{ fontSize: 13, color: T.dim }} aria-live="polite">
+          {loading && !data.length ? 'Loading visits…' : (
+            <><b style={{ color: T.text }}>{visits.length}</b> {visits.length === 1 ? 'visit' : 'visits'} · <b style={{ color: T.text }}>{data.length}</b> {data.length === 1 ? 'submission' : 'submissions'}
+            {partial && <> (latest of {total} — page {page} of {pages})</>}
+            {' '}· {dateFrom === dateTo ? fmtDate(dateFrom) : `${fmtDate(dateFrom)} – ${fmtDate(dateTo)}`}</>
+          )}
+        </span>
+        {activeFilterChips.map((c) => <FilterChip key={c.key} label={c.label} onClear={c.clear} />)}
       </div>
 
-      {/* Main Grid: Outlet Visits */}
-      <div style={{ display: 'grid', gap: '24px' }}>
-        {loading ? (
-             <div style={{ padding: '100px', textAlign: 'center', color: C.textSec }}>Loading visit logs...</div>
-        ) : groupedData.length === 0 ? (
-             <div style={{ padding: '100px', textAlign: 'center', background: C.card, border: `1px dashed ${C.border}`, borderRadius: '24px', color: C.textSec }}>
-                <div style={{ fontSize: '48px', marginBottom: '16px' }}>📂</div>
-                <div style={{ fontSize: '18px', fontWeight: 700, color: C.text }}>No Visits Found</div>
-                <div style={{ color: C.textSec, marginTop: '8px', maxWidth: '300px', margin: '8px auto' }}>
-                  No submissions found for the selected filters. {dateFrom === dateTo ? `Checking ${fmtDate(dateFrom)} only.` : `Checking from ${fmtDate(dateFrom)} to ${fmtDate(dateTo)}.`}
-                </div>
-                <button 
-                  onClick={() => {
-                    setSearch(''); setCityFilter(''); setUserFilter(''); setActivityFilter('');
-                    const d = new Date(); d.setDate(d.getDate() - 2); setDateFrom(d.toISOString().split('T')[0]);
-                    setDateTo(new Date().toISOString().split('T')[0]);
-                  }}
-                  style={{ marginTop: '20px', padding: '8px 20px', background: 'transparent', border: `1px solid ${C.accent}`, borderRadius: '8px', color: C.accent, cursor: 'pointer', fontWeight: 600 }}
-                >
-                  Clear All Filters
-                </button>
-             </div>
-        ) : groupedData.map((group, idx) => {
-            const first = group[0];
-
-            // Only the forms' REAL check-in / check-out count here — never the submission time. The visit's time
-            // is the SUM of the time spent on each form; a form with no check-in/out adds nothing (and "—" when none has).
-            const checkIn = earliestCheckIn(group);
-            const checkOut = latestCheckOut(group);
-            const spent = sumMinutes(group);
-            const isExpanded = expandedOutlet === `${idx}`;
-
-            // Activity bifurcation heading — shown whenever the activity changes
-            // between consecutive (activity-ordered) groups, splitting the list
-            // into per-activity sections.
-            const activityName = first.activities?.name || 'Other';
-            const showActivityHeading = idx === 0
-              || (groupedData[idx - 1]?.[0]?.activities?.name || 'Other') !== activityName;
-
-            return (
-                <Fragment key={idx}>
-                {showActivityHeading && (
-                  <div style={{ margin: idx === 0 ? '0 0 14px' : '30px 0 14px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <span style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: C.accent }}>{activityName}</span>
-                    <span style={{ flex: 1, height: '1px', background: C.border }} />
-                  </div>
-                )}
-                <div
-                  key={idx}
-                  style={{ background: C.card, borderRadius: '24px', border: `1px solid ${isExpanded ? C.accent : C.border}`, overflow: 'hidden', transition: 'all 0.3s cubic-bezier(0.16,1,0.3,1)' }}
-                >
-                    {/* Outlet Header */}
-                    <div 
-                      onClick={() => setExpandedOutlet(isExpanded ? null : `${idx}`)}
-                      style={{ padding: '24px 32px', display: 'flex', alignItems: 'center', gap: '32px', cursor: 'pointer' }}
-                    >
-                        <div style={{ width: '56px', height: '56px', background: C.accentD, color: C.accent, borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', flexShrink: 0 }}>🏪</div>
-                        
-                        <div style={{ flex: 1 }}>
-                            <div style={{ fontSize: '20px', fontWeight: 800 }}>{first.outlet_name || 'Individual Visit'}</div>
-                            <div style={{ color: C.textSec, fontSize: '13px', marginTop: '4px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                                <span>👤 {first.users?.name}</span>
-                                <span>📅 {fmtDate(first.submitted_at)}</span>
-                                <span style={{ opacity: 0.8 }}>📍 {first.address || 'Location Saved'}</span>
-                            </div>
-                        </div>
-
-                        {!hideVisitTracking && (
-                        <>
-                        <div style={{ textAlign: 'right', minWidth: '140px' }}>
-                            <div style={{ fontSize: '10px', fontWeight: 800, color: C.accent, marginBottom: '4px' }}>TIME SPENT</div>
-                            <div data-testid="wa-group-spent" style={{ fontSize: '16px', fontWeight: 900, color: spent.total == null ? C.textSec : C.green }}>{fmtMinutes(spent.total)}</div>
-                            {spent.total != null && spent.counted < group.length && (
-                              <div style={{ fontSize: '10px', color: C.textSec, marginTop: '2px' }}>{spent.counted} of {group.length} forms</div>
-                            )}
-                        </div>
-
-                        <div style={{ display: 'flex', gap: '16px', textAlign: 'right', borderLeft: `1px solid ${C.border}`, paddingLeft: '32px' }}>
-                            <div>
-                                <div style={{ fontSize: '9px', color: C.textSec }}>CHECK IN</div>
-                                <div data-testid="wa-group-in" style={{ fontWeight: 700 }}>{fmtClock(checkIn)}</div>
-                            </div>
-                            <div>
-                                <div style={{ fontSize: '9px', color: C.textSec }}>LAST OUT</div>
-                                <div data-testid="wa-group-out" style={{ fontWeight: 700 }}>{fmtClock(checkOut)}</div>
-                            </div>
-                        </div>
-                        </>
-                        )}
-
-                        <div style={{ fontSize: '24px', transform: isExpanded ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.4s' }}>⌄</div>
-                    </div>
-
-                    {/* Expandable Form Details */}
-                    {isExpanded && (
-                        <div style={{ background: C.bg, padding: '32px', borderTop: `1px solid ${C.border}` }}>
-                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
-                                <h4 style={{ margin: 0, textTransform: 'uppercase', fontSize: '12px', letterSpacing: '2px', color: C.textSec }}>Submissions ({group.length})</h4>
-                             </div>
-                             
-                             <div style={{ display: 'grid', gap: '16px' }}>
-                                {group.map((f, fIdx) => (
-                                    <div key={f.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', background: C.card, borderRadius: '12px', border: `1px solid ${C.border}` }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: 1, minWidth: 0 }}>
-                                            <div style={{ width: '8px', height: '8px', background: C.accent, borderRadius: '50%', flexShrink: 0 }} />
-                                            <div>
-                                                <div style={{ fontWeight: 700, fontSize: '14px' }}>{f.builder_forms?.title || f.activities?.name || 'Form Submission'}</div>
-                                                <div style={{ fontSize: '11px', color: C.textSec }}>Captured at {fmtTime(f.submitted_at)}</div>
-                                            </div>
-                                        </div>
-                                        {!hideVisitTracking && (
-                                        <div data-testid="wa-form-times" style={{ display: 'flex', gap: '24px', textAlign: 'right', marginRight: '24px' }}>
-                                            {([
-                                                ['CHECK IN', fmtClock(f.check_in_at), 'in'],
-                                                ['CHECK OUT', fmtClock(f.check_out_at), 'out'],
-                                                ['TIME SPENT', fmtMinutes(visitMinutes(f)), 'spent'],
-                                            ] as const).map(([label, value, key]) => (
-                                                <div key={key}>
-                                                    <div style={{ fontSize: '9px', color: C.textSec }}>{label}</div>
-                                                    <div data-testid={`wa-form-${key}`} style={{ fontWeight: 700, fontSize: '13px', color: value === '—' ? C.textSec : C.text }}>{value}</div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                        )}
-                                        <button
-                                            onClick={async (e) => {
-                                                e.stopPropagation();
-                                                setViewingId(f.id);
-                                                // Open immediately with the list row so the modal is
-                                                // responsive; then fetch the joined detail (which the
-                                                // backend builds with supabaseAdmin and includes the
-                                                // full form_responses array) and merge it in. The
-                                                // Next.js enrichment path couldn't read form_responses
-                                                // via RLS because the dashboard's JWT isn't a Supabase
-                                                // Auth token, so the modal always showed "No form
-                                                // responses recorded".
-                                                setDetailedSub(f);
-                                                try {
-                                                    const detail: any = await api.getSubmission(f.id);
-                                                    const merged = detail?.data ?? detail;
-                                                    if (merged && typeof merged === 'object') {
-                                                        setDetailedSub({ ...f, ...merged });
-                                                    }
-                                                } catch { /* keep the list row */ }
-                                            }}
-                                            style={{ padding: '6px 12px', background: 'transparent', border: `1px solid ${C.accent}`, borderRadius: '6px', color: C.accent, fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
-                                        >
-                                            View Data
-                                        </button>
-                                    </div>
-                                ))}
-                             </div>
-                        </div>
-                    )}
-                </div>
-                </Fragment>
-            )
-        })}
+      {/* Visits, one section per activity */}
+      <div style={{ opacity: loading && data.length ? 0.55 : 1, pointerEvents: loading && data.length ? 'none' : 'auto', transition: 'opacity .15s ease', display: 'flex', flexDirection: 'column', gap: 26 }} aria-busy={loading}>
+        {loading && !data.length ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {[0, 1, 2].map((i) => <div key={i} className="km-skel" style={{ height: 84, borderRadius: T.radius.lg }} />)}
+          </div>
+        ) : !visits.length ? (
+          <Card padding={0}>
+            <EmptyState
+              icon={<ClipboardList size={20} />}
+              title="No visits found"
+              description={`No submissions match these filters for ${dateFrom === dateTo ? fmtDate(dateFrom) : `${fmtDate(dateFrom)} – ${fmtDate(dateTo)}`}. Try a wider date range or clear the filters.`}
+              action={<Button onClick={clearFilters}>Reset filters</Button>}
+            />
+          </Card>
+        ) : sections.map((sec) => (
+          <section key={sec.activity} aria-label={sec.activity} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <h2 style={{ margin: 0, fontFamily: T.heading, fontSize: 13, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: T.text }}>{sec.activity}</h2>
+              <Badge mono>{sec.visits.length} {sec.visits.length === 1 ? 'visit' : 'visits'} · {sec.forms} {sec.forms === 1 ? 'form' : 'forms'}</Badge>
+              <span style={{ flex: 1, height: 1, background: T.border }} />
+            </div>
+            {sec.visits.map((v) => (
+              <VisitCard
+                key={v.key}
+                group={v}
+                expanded={expandedKey === v.key}
+                onToggle={() => setExpandedKey(expandedKey === v.key ? null : v.key)}
+                onView={openDetail}
+                hideVisitTracking={hideVisitTracking}
+                compact={compact}
+              />
+            ))}
+          </section>
+        ))}
       </div>
 
       {/* Pagination */}
       {total > LIMIT && (
-          <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', marginTop: '48px' }}>
-              <button disabled={page === 1} onClick={() => loadData(page - 1)} style={{ padding: '10px 20px', background: C.card, borderRadius: '10px', border: `1px solid ${C.border}`, color: page === 1 ? C.textTert : C.text, cursor: page === 1 ? 'default' : 'pointer' }}>Previous</button>
-              <div style={{ alignSelf: 'center', fontSize: '14px', fontWeight: 600 }}>Page {page} of {Math.ceil(total / LIMIT)}</div>
-              <button disabled={page >= Math.ceil(total / LIMIT)} onClick={() => loadData(page + 1)} style={{ padding: '10px 20px', background: C.card, borderRadius: '10px', border: `1px solid ${C.border}`, color: page >= Math.ceil(total / LIMIT) ? C.textTert : C.text, cursor: page >= Math.ceil(total / LIMIT) ? 'default' : 'pointer' }}>Next</button>
-          </div>
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 12, marginTop: 8 }}>
+          <Button disabled={page === 1 || loading} onClick={() => loadData(page - 1)}>Previous</Button>
+          <span style={{ fontSize: 13, fontWeight: 600, color: T.dim }}>Page {page} of {pages}</span>
+          <Button disabled={page >= pages || loading} onClick={() => loadData(page + 1)}>Next</Button>
+        </div>
       )}
-
       </>
       )}
 
       {/* detail modal */}
       {detailedSub && (
-          <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(5px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px' }} onClick={() => { setDetailedSub(null); setViewingId(null); }}>
-              <div style={{ background: C.card, width: '100%', maxWidth: '800px', maxHeight: '90vh', overflowY: 'auto', borderRadius: '24px', border: `1px solid ${C.border}`, padding: '40px' }} onClick={e => e.stopPropagation()}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '32px' }}>
-                      <h2 style={{ margin: 0, fontSize: '24px', fontWeight: 800 }}>Submission Details</h2>
-                      <button onClick={() => { setDetailedSub(null); setViewingId(null); }} style={{ background: 'transparent', border: 'none', color: C.textSec, cursor: 'pointer', fontSize: '24px' }}>×</button>
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '40px' }}>
-                      <div style={{ padding: '16px', background: C.bg, borderRadius: '12px' }}>
-                          <div style={{ fontSize: '10px', color: C.accent, fontWeight: 800 }}>EXECUTIVE</div>
-                          <div style={{ fontWeight: 700 }}>{detailedSub.users?.name || 'FE'}</div>
-                      </div>
-                      <div style={{ padding: '16px', background: C.bg, borderRadius: '12px' }}>
-                          <div style={{ fontSize: '10px', color: C.accent, fontWeight: 800 }}>OUTLET</div>
-                          <div style={{ fontWeight: 700 }}>{detailedSub.outlet_name || 'Individual'}</div>
-                      </div>
-                      <div style={{ padding: '16px', background: C.bg, borderRadius: '12px' }}>
-                          <div style={{ fontSize: '10px', color: C.accent, fontWeight: 800 }}>ADDRESS</div>
-                          <div style={{ fontWeight: 700, fontSize: '12px' }}>{detailedSub.address || 'GPS Only'}</div>
-                      </div>
-                      {!hideVisitTracking && (
-                        <>
-                      <div style={{ padding: '16px', background: C.bg, borderRadius: '12px' }}>
-                          <div style={{ fontSize: '10px', color: C.accent, fontWeight: 800 }}>CHECK-IN</div>
-                          <div data-testid="wa-modal-in" style={{ fontWeight: 700 }}>{fmtStamp(detailedSub.check_in_at)}</div>
-                      </div>
-                      <div style={{ padding: '16px', background: C.bg, borderRadius: '12px' }}>
-                          <div style={{ fontSize: '10px', color: C.accent, fontWeight: 800 }}>CHECK-OUT</div>
-                          <div data-testid="wa-modal-out" style={{ fontWeight: 700 }}>{fmtStamp(detailedSub.check_out_at)}</div>
-                      </div>
-                      <div style={{ padding: '16px', background: C.bg, borderRadius: '12px' }}>
-                          <div style={{ fontSize: '10px', color: C.accent, fontWeight: 800 }}>TIME SPENT</div>
-                          <div data-testid="wa-modal-spent" style={{ fontWeight: 700 }}>{fmtMinutes(visitMinutes(detailedSub))}</div>
-                      </div>
-                        </>
-                      )}
-                      <div style={{ padding: '16px', background: C.bg, borderRadius: '12px' }}>
-                          <div style={{ fontSize: '10px', color: C.accent, fontWeight: 800 }}>{hideVisitTracking ? 'GPS' : 'CHECK-IN GPS'}</div>
-                          <div style={{ fontWeight: 700, fontSize: '11px' }}>{gpsText(detailedSub.check_in_gps, detailedSub.latitude ?? detailedSub.location_lat, detailedSub.longitude ?? detailedSub.location_lng) || '—'}</div>
-                      </div>
-                      {!hideVisitTracking && (
-                      <div style={{ padding: '16px', background: C.bg, borderRadius: '12px' }}>
-                          <div style={{ fontSize: '10px', color: C.accent, fontWeight: 800 }}>CHECK-OUT GPS</div>
-                          <div style={{ fontWeight: 700, fontSize: '11px' }}>{gpsText(detailedSub.check_out_gps) || '—'}</div>
-                      </div>
-                      )}
-                  </div>
-
-                  <h3 style={{ fontSize: '12px', letterSpacing: '2px', color: C.textSec, marginBottom: '20px' }}>
-                      {detailedSub.builder_forms?.title ? `FORM: ${detailedSub.builder_forms.title}` : 'FORM RESPONSES'}
-                  </h3>
-                  <div style={{ display: 'grid', gap: '12px' }}>
-                      {(detailedSub.answers && detailedSub.answers.length > 0)
-                          ? detailedSub.answers
-                              .filter((a: FormAnswer) => a.qtype !== 'section_header')
-                              .map((a: FormAnswer, idx: number) => {
-                                  const rendered = renderAnswerValue(a, (urls, i) => setLightbox({ urls, index: i }));
-                                  if (rendered === null) return null;
-                                  return (
-                                      <div key={idx} style={{ padding: '20px', background: C.bg, borderRadius: '16px', border: `1px solid ${C.border}` }}>
-                                          <div style={{ fontSize: '13px', fontWeight: 600, color: C.textSec, marginBottom: '8px' }}>{a.label || 'Question'}</div>
-                                          <div style={{ fontWeight: 700, fontSize: '15px' }}>{rendered}</div>
-                                      </div>
-                                  );
-                              })
-                           : (detailedSub.form_responses && detailedSub.form_responses.length > 0)
-                           ? detailedSub.form_responses.map((r: any, idx: number) => {
-                               // photo_url first so image/signature fields render their attachments —
-                               // value_text is empty for those rows and the renderer needs a URL to
-                               // hand to <img>. Without this branch every image field showed "—".
-                               const fallbackValue = r.photo_url ?? r.value_text ?? r.value_number ?? r.value_bool ?? null;
-                               const answer: FormAnswer = {
-                                   label: r.builder_questions?.label || 'Question',
-                                   qtype: r.builder_questions?.qtype || r.qtype || 'text',
-                                   value: fallbackValue,
-                                   display: (fallbackValue ?? '—').toString()
-                               };
-                               const rendered = renderAnswerValue(answer, (urls, i) => setLightbox({ urls, index: i }));
-                               if (rendered === null) return null;
-                               return (
-                                   <div key={idx} style={{ padding: '20px', background: C.bg, borderRadius: '16px', border: `1px solid ${C.border}` }}>
-                                       <div style={{ fontSize: '13px', fontWeight: 600, color: C.textSec, marginBottom: '8px' }}>{answer.label}</div>
-                                       <div style={{ fontWeight: 700, fontSize: '15px' }}>{rendered}</div>
-                                   </div>
-                               );
-                           })
-                          : <div style={{ padding: '20px', color: C.textSec, fontSize: '13px', textAlign: 'center' }}>No form responses recorded.</div>
-                      }
-                  </div>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(8,10,16,0.72)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: compact ? 12 : 32 }} onClick={() => setDetailedSub(null)}>
+          <div role="dialog" aria-modal="true" aria-labelledby="wa-detail-title" style={{ background: T.card, width: '100%', maxWidth: 820, maxHeight: '92vh', overflowY: 'auto', borderRadius: 16, border: `1px solid ${T.border}`, boxShadow: '0 24px 80px rgba(0,0,0,.35)' }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ position: 'sticky', top: 0, zIndex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, padding: compact ? '16px 16px 12px' : '20px 24px 14px', background: T.card, borderBottom: `1px solid ${T.border}` }}>
+              <div style={{ minWidth: 0 }}>
+                <h2 id="wa-detail-title" style={{ margin: 0, fontFamily: T.heading, fontSize: 20, fontWeight: 700, letterSpacing: '-0.01em' }}>Submission Details</h2>
+                <div style={{ marginTop: 3, fontSize: 13, color: T.dim, overflowWrap: 'anywhere' }}>
+                  {detailedSub.builder_forms?.title || detailedSub.activities?.name || 'Form submission'} · {fmtDate(detailedSub.submitted_at)}, {fmtTime(detailedSub.submitted_at)}
+                </div>
               </div>
+              <IconButton label="Close" onClick={() => setDetailedSub(null)}><X size={18} aria-hidden /></IconButton>
+            </div>
+
+            <div style={{ padding: compact ? 16 : 24, display: 'flex', flexDirection: 'column', gap: 22 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                <InfoTile label="Executive">{detailedSub.users?.name || 'FE'}</InfoTile>
+                <InfoTile label="Store">{storeName(detailedSub.outlet_name) || 'No store linked'}</InfoTile>
+                <InfoTile label="Address">{detailedSub.address || 'GPS only'}</InfoTile>
+                {!hideVisitTracking && (
+                  <>
+                    <InfoTile label="Check-in" testId="wa-modal-in" mono>{fmtStamp(detailedSub.check_in_at)}</InfoTile>
+                    <InfoTile label="Check-out" testId="wa-modal-out" mono>{fmtStamp(detailedSub.check_out_at)}</InfoTile>
+                    <InfoTile label="Time spent" testId="wa-modal-spent" mono>{fmtMinutes(visitMinutes(detailedSub))}</InfoTile>
+                  </>
+                )}
+                <InfoTile label={hideVisitTracking ? 'GPS' : 'Check-in GPS'} mono>{gpsText(detailedSub.check_in_gps, detailedSub.latitude ?? detailedSub.location_lat, detailedSub.longitude ?? detailedSub.location_lng) || '—'}</InfoTile>
+                {!hideVisitTracking && <InfoTile label="Check-out GPS" mono>{gpsText(detailedSub.check_out_gps) || '—'}</InfoTile>}
+              </div>
+
+              <div>
+                <Eyebrow style={{ marginBottom: 10 }}>{detailedSub.builder_forms?.title ? `Form: ${detailedSub.builder_forms.title}` : 'Form responses'}</Eyebrow>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {(detailedSub.answers && detailedSub.answers.length > 0)
+                    ? detailedSub.answers
+                        .filter((a: FormAnswer) => a.qtype !== 'section_header')
+                        .map((a: FormAnswer, idx: number) => {
+                          const rendered = renderAnswerValue(a, (urls, i) => setLightbox({ urls, index: i }));
+                          if (rendered === null) return null;
+                          return (
+                            <div key={idx} style={{ padding: '12px 14px', background: T.canvas, borderRadius: T.radius.lg, border: `1px solid ${T.border}` }}>
+                              <div style={{ fontSize: 12.5, fontWeight: 500, color: T.dim, marginBottom: 4 }}>{a.label || 'Question'}</div>
+                              <div style={{ fontWeight: 600, fontSize: 14.5, overflowWrap: 'anywhere' }}>{rendered}</div>
+                            </div>
+                          );
+                        })
+                    : (detailedSub.form_responses && detailedSub.form_responses.length > 0)
+                    ? detailedSub.form_responses.map((r: any, idx: number) => {
+                        // photo_url first so image/signature fields render their attachments —
+                        // value_text is empty for those rows and the renderer needs a URL to
+                        // hand to <img>. Without this branch every image field showed "—".
+                        const fallbackValue = r.photo_url ?? r.value_text ?? r.value_number ?? r.value_bool ?? null;
+                        const answer: FormAnswer = {
+                          label: r.builder_questions?.label || 'Question',
+                          qtype: r.builder_questions?.qtype || r.qtype || 'text',
+                          value: fallbackValue,
+                          display: (fallbackValue ?? '—').toString()
+                        };
+                        const rendered = renderAnswerValue(answer, (urls, i) => setLightbox({ urls, index: i }));
+                        if (rendered === null) return null;
+                        return (
+                          <div key={idx} style={{ padding: '12px 14px', background: T.canvas, borderRadius: T.radius.lg, border: `1px solid ${T.border}` }}>
+                            <div style={{ fontSize: 12.5, fontWeight: 500, color: T.dim, marginBottom: 4 }}>{answer.label}</div>
+                            <div style={{ fontWeight: 600, fontSize: 14.5, overflowWrap: 'anywhere' }}>{rendered}</div>
+                          </div>
+                        );
+                      })
+                    : <div style={{ padding: 20, color: T.dim, fontSize: 13, textAlign: 'center' }}>No form responses recorded.</div>
+                  }
+                </div>
+              </div>
+            </div>
           </div>
+        </div>
       )}
 
       {/* Lightbox */}
@@ -737,6 +656,7 @@ export default function WorkActivitiesPage() {
           {/* Close */}
           <button
             onClick={() => setLightbox(null)}
+            aria-label="Close image"
             style={{ position: 'absolute', top: '20px', right: '28px', background: 'rgba(255,255,255,0.12)', border: 'none', color: '#fff', fontSize: '28px', cursor: 'pointer', borderRadius: '50%', width: '44px', height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}
           >×</button>
 
@@ -751,6 +671,7 @@ export default function WorkActivitiesPage() {
           {lightbox.urls.length > 1 && (
             <button
               onClick={(e) => { e.stopPropagation(); setLightbox(lb => lb ? { ...lb, index: (lb.index - 1 + lb.urls.length) % lb.urls.length } : null); }}
+              aria-label="Previous image"
               style={{ position: 'absolute', left: '20px', background: 'rgba(255,255,255,0.12)', border: 'none', color: '#fff', fontSize: '28px', cursor: 'pointer', borderRadius: '50%', width: '52px', height: '52px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             >‹</button>
           )}
@@ -767,6 +688,7 @@ export default function WorkActivitiesPage() {
           {lightbox.urls.length > 1 && (
             <button
               onClick={(e) => { e.stopPropagation(); setLightbox(lb => lb ? { ...lb, index: (lb.index + 1) % lb.urls.length } : null); }}
+              aria-label="Next image"
               style={{ position: 'absolute', right: '20px', background: 'rgba(255,255,255,0.12)', border: 'none', color: '#fff', fontSize: '28px', cursor: 'pointer', borderRadius: '50%', width: '52px', height: '52px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             >›</button>
           )}

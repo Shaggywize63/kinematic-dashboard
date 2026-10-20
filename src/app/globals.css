@@ -999,3 +999,16 @@ table.lead-table tbody tr.lead-row.is-open td:first-child { box-shadow: inset 3p
 .att-tile:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--ring); }
 .att-name:hover { text-decoration: underline; text-underline-offset: 3px; }
 .att-name:focus-visible { outline: none; text-decoration: underline; box-shadow: 0 0 0 3px var(--ring); border-radius: 3px; }
+
+/* Work Activities: visit cards, filter presets, summary tiles. */
+.wa-visit { transition: border-color .15s ease, box-shadow .2s ease; }
+.wa-visit:hover { border-color: var(--border-l) !important; }
+.wa-visit-head { transition: background .12s ease; }
+.wa-visit-head:hover { background: var(--s3); }
+.wa-visit-head:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--ring); }
+.wa-row { transition: border-color .12s ease; }
+.wa-row:hover { border-color: var(--border-l) !important; }
+.wa-preset { transition: background .12s ease, color .12s ease, border-color .12s ease; }
+.wa-preset:hover:not([aria-pressed="true"]) { background: var(--s3) !important; color: var(--text) !important; }
+.wa-preset:focus-visible, .wa-x:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--ring); }
+.wa-x:hover { background: var(--s4) !important; color: var(--text) !important; }
