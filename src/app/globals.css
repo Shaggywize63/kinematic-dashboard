@@ -983,3 +983,19 @@ table.lead-table tbody tr.lead-row.is-open td:first-child { box-shadow: inset 3p
 /* The row is focusable for the keyboard preview path; a mouse click shouldn't leave a ring behind. */
 .lead-row:focus { outline: none; }
 .lead-row:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+
+/* Lead detail: KPI tiles, tab strip and a small spinner. */
+.ld-tile { transition: background .12s ease; }
+.ld-tile:hover { background: var(--s3) !important; }
+.ld-tile:focus-visible, .ld-tab:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--ring); }
+.ld-tab:hover { color: var(--text) !important; }
+@keyframes kmSpin { to { transform: rotate(360deg); } }
+.km-spin { animation: kmSpin .9s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .km-spin { animation: none; } }
+
+/* Attendance: tiles that double as filters, and names that open a person's days. */
+.att-tile { transition: border-color .12s ease, box-shadow .12s ease, background .12s ease; }
+.att-tile:hover { background: var(--s3); }
+.att-tile:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--ring); }
+.att-name:hover { text-decoration: underline; text-underline-offset: 3px; }
+.att-name:focus-visible { outline: none; text-decoration: underline; box-shadow: 0 0 0 3px var(--ring); border-radius: 3px; }
