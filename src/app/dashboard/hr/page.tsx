@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../../../lib/api';
 import CitySelect from '../../../components/CitySelect';
+import { safeHref } from '../../../lib/safeUrl';
 
 const C = {
   bg: 'var(--bg)', 
@@ -201,10 +202,11 @@ function CandidateDetail({ candidate, zones, onClose, onRefresh, token }:{
   const saveInfo = async () => {
     setSaving(true);
     try {
-      await fetch(`${apiBase}/api/v1/candidates/${candidate.id}`, {
+      const r = await fetch(`${apiBase}/api/v1/candidates/${candidate.id}`, {
         method:'PATCH', headers:authH,
         body: JSON.stringify({ stage, notes }),
       });
+      if (!r.ok) throw new Error(String(r.status));
       setSaveMsg('Saved!'); setTimeout(()=>setSaveMsg(''), 2000);
       onRefresh();
     } catch { setSaveMsg('Error saving'); }
@@ -218,15 +220,17 @@ function CandidateDetail({ candidate, zones, onClose, onRefresh, token }:{
       const existing = docs.find(d => d.doc_type === docType);
       if (existing) {
         // Update via PATCH — we'll use a direct supabase call via backend
-        await fetch(`${apiBase}/api/v1/candidates/${candidate.id}/documents/${existing.id}`, {
+        const r = await fetch(`${apiBase}/api/v1/candidates/${candidate.id}/documents/${existing.id}`, {
           method:'PATCH', headers:authH,
           body: JSON.stringify({ doc_value: value || null, file_url: fileUrl || existing.file_url, file_name: fileName || existing.file_name }),
         });
+        if (!r.ok) throw new Error(String(r.status));
       } else {
-        await fetch(`${apiBase}/api/v1/candidates/${candidate.id}/documents`, {
+        const r = await fetch(`${apiBase}/api/v1/candidates/${candidate.id}/documents`, {
           method:'POST', headers:authH,
           body: JSON.stringify({ doc_type: docType, doc_label: docLabel, doc_value: value || null, file_url: fileUrl || null, file_name: fileName || null }),
         });
+        if (!r.ok) throw new Error(String(r.status));
       }
       setDocMsg('Saved!'); setTimeout(()=>setDocMsg(''), 2000);
       setEditingDoc(null);
@@ -240,24 +244,26 @@ function CandidateDetail({ candidate, zones, onClose, onRefresh, token }:{
     if (!customDocLabel.trim()) return;
     setSavingCustom(true);
     try {
-      await fetch(`${apiBase}/api/v1/candidates/${candidate.id}/documents`, {
+      const r = await fetch(`${apiBase}/api/v1/candidates/${candidate.id}/documents`, {
         method:'POST', headers:authH,
         body: JSON.stringify({ doc_type: `custom_${Date.now()}`, doc_label: customDocLabel.trim(), doc_value: customDocValue || null }),
       });
+      if (!r.ok) throw new Error(String(r.status));
       setCustomDocLabel(''); setCustomDocValue(''); setShowAddCustom(false);
       fetchDocs();
-    } catch {}
+    } catch { setDocMsg('Error saving'); setTimeout(()=>setDocMsg(''), 3000); }
     finally { setSavingCustom(false); }
   };
 
   /* ── Delete a doc ── */
   const deleteDoc = async (docId: string) => {
     try {
-      await fetch(`${apiBase}/api/v1/candidates/${candidate.id}/documents/${docId}`, {
+      const r = await fetch(`${apiBase}/api/v1/candidates/${candidate.id}/documents/${docId}`, {
         method:'DELETE', headers:authH,
       });
+      if (!r.ok) throw new Error(String(r.status));
       fetchDocs();
-    } catch {}
+    } catch { setDocMsg('Could not delete'); setTimeout(()=>setDocMsg(''), 3000); }
   };
 
   /* ── Convert to FE ── */
@@ -495,7 +501,7 @@ function CandidateDetail({ candidate, zones, onClose, onRefresh, token }:{
                           {/* Action buttons */}
                           <div style={{ display:'flex', gap:5, flexShrink:0 }}>
                             {existing?.file_url && (
-                              <a href={existing.file_url} target="_blank" rel="noreferrer"
+                              <a href={safeHref(existing.file_url)} target="_blank" rel="noreferrer"
                                 style={{ padding:'4px 9px', borderRadius:7, background:C.blueD,
                                   border:`1px solid ${C.blue}30`, fontSize:10, color:C.blue,
                                   fontWeight:700, textDecoration:'none' }}>View</a>
@@ -584,7 +590,7 @@ function CandidateDetail({ candidate, zones, onClose, onRefresh, token }:{
                           </div>
                           <div style={{ display:'flex', gap:5 }}>
                             {doc.file_url && (
-                              <a href={doc.file_url} target="_blank" rel="noreferrer"
+                              <a href={safeHref(doc.file_url)} target="_blank" rel="noreferrer"
                                 style={{ padding:'4px 9px', borderRadius:7, background:C.blueD,
                                   border:`1px solid ${C.blue}30`, fontSize:10, color:C.blue,
                                   fontWeight:700, textDecoration:'none' }}>View</a>
@@ -1502,7 +1508,7 @@ function TrainingSection({ token }:{ token:string }) {
                   {m.material_type||m.type||'PDF'}
                 </span>
                 {m.file_url && (
-                  <a href={m.file_url} target="_blank" rel="noreferrer"
+                  <a href={safeHref(m.file_url)} target="_blank" rel="noreferrer"
                     style={{ padding:'4px 10px', borderRadius:8, background:C.blueD, border:`1px solid ${C.blue}30`,
                       fontSize:11, color:C.blue, fontWeight:700, textDecoration:'none' }}>
                     View

@@ -12,6 +12,7 @@ import CustomFieldsDetailCard from '../../../../../components/crm/CustomFieldsDe
 import CallButton from '../../../../../components/crm/shared/CallButton';
 import { formatINR } from '../../../../../lib/formatCurrency';
 import Breadcrumbs from '../../../../../components/crm/shared/Breadcrumbs';
+import { safeHref } from '../../../../../lib/safeUrl';
 
 export default function AccountDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -96,7 +97,7 @@ export default function AccountDetailPage() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
             <div>
               <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)' }}>{a.name}</div>
-              {a.website && <a href={a.website} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: 'var(--accent, var(--primary))' }}>{a.website}</a>}
+              {a.website && <a href={safeHref(a.website)} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: 'var(--accent, var(--primary))' }}>{a.website}</a>}
             </div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <button onClick={() => setEditOpen(true)} style={{ background: 'var(--primary)', border: 'none', color: '#fff', padding: '8px 14px', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>Edit</button>
