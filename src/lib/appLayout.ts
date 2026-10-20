@@ -259,3 +259,37 @@ export function resetLayout(cfg: AppCustomization): AppCustomization {
   if (next.tabs && 'expenses' in next.tabs) { delete next.tabs.expenses; if (!Object.keys(next.tabs).length) delete next.tabs; }
   return next;
 }
+
+// ── Labels (rename a screen from the preview) ──────────────────────────────────────────────────────────────────
+
+const SECTION_ITEMS: Record<AppUiSection, AppItem[]> = {
+  menu: MENU_ITEMS, tabs: TAB_ITEMS, crm_more: CRM_MORE_ITEMS, home: HOME_ITEMS, settings: SETTINGS_ITEMS,
+};
+
+/** The app's built-in name for a screen. */
+export const defaultLabelOf = (section: AppUiSection, id: string): string =>
+  SECTION_ITEMS[section].find((i) => i.id === id)?.label ?? id;
+
+/** The name the app shows: the admin's rename if set, else the built-in one. */
+export const labelOf = (cfg: AppCustomization, section: AppUiSection, id: string): string =>
+  labelFor(cfg, section, id, defaultLabelOf(section, id));
+
+/** Rename a screen (`labels[section][id]`); an empty name removes the rename. Everything else is carried over. */
+export function setLabel(cfg: AppCustomization, section: AppUiSection, id: string, text: string): AppCustomization {
+  const next = clone(cfg) as AppCustomization;
+  const labels = { ...(next.labels ?? {}) } as Record<string, Record<string, string>>;
+  const sec = { ...(labels[section] ?? {}) };
+  const t = text.trim();
+  if (t) sec[id] = t; else delete sec[id];
+  if (Object.keys(sec).length) labels[section] = sec; else delete labels[section];
+  if (Object.keys(labels).length) next.labels = labels as AppCustomization['labels']; else delete next.labels;
+  return next;
+}
+
+/** Which zone a screen currently sits in (for screens of the field-force board). */
+export function zoneOfItem(board: Board, id: string): Zone | null {
+  if (board.bar.includes(id)) return 'bar';
+  if (board.hidden.includes(id)) return 'hidden';
+  if (board.menu.includes(id)) return 'menu';
+  return null;
+}

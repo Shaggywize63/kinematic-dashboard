@@ -516,7 +516,7 @@ export default function ClientManagement() {
       {/* Modal */}
       {showModal && (
         <Overlay onClose={() => setShowModal(false)}>
-          <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 24, padding: 32, width: '100%', maxWidth: 800, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 40px rgba(0,0,0,0.4)', position:'relative' }}>
+          <div style={{ background: C.s2, border: `1px solid ${C.border}`, borderRadius: 24, padding: 32, width: '100%', maxWidth: 1240, maxHeight: '92vh', overflowY: 'auto', boxShadow: '0 20px 40px rgba(0,0,0,0.4)', position:'relative' }}>
             {/* Close Button (X) */}
             <button onClick={() => setShowModal(false)} style={{ position:'absolute', top:22, right:22, width:36, height:36, borderRadius:12, border:'none', background:C.s3, color:C.gray, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}
               onMouseEnter={e => { e.currentTarget.style.color = C.white; e.currentTarget.style.background = C.border; }}
@@ -719,6 +719,7 @@ export default function ClientManagement() {
                   value={form.app_ui}
                   onChange={(next) => setForm(p => ({ ...p, app_ui: next }))}
                   modules={form.modules}
+                  title={form.name || editing?.name}
                 />
               </div>
             </div>
