@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { crmCustomFields, crmLookup } from '../../lib/crmApi';
 import type { CustomField } from '../../types/crm';
+import { safeHref } from '../../lib/safeUrl';
 
 /**
  * Read-only "Custom Fields" card for the deal / contact / account detail
@@ -174,7 +175,7 @@ function formatValue(v: unknown, type: CustomField['field_type']): React.ReactNo
   if (type === 'currency') return `₹${Number(v).toLocaleString('en-IN')}`;
   if (type === 'number') return Number(v).toLocaleString('en-IN');
   if (type === 'url' || type === 'file') return (
-    <a href={String(v)} target="_blank" rel="noreferrer"
+    <a href={safeHref(v)} target="_blank" rel="noreferrer"
       style={{ color: 'var(--primary)', textDecoration: 'none' }}>
       {type === 'file' ? 'View attached file' : String(v)} ↗
     </a>

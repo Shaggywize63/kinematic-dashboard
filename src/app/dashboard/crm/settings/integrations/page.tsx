@@ -1,7 +1,8 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
+import { QRCodeCanvas } from 'qrcode.react';
 import { crmIntegrations } from '../../../../../lib/crmApi';
 import type { Integration, IntegrationProvider, IntegrationStatus } from '../../../../../types/integrations';
 
@@ -661,9 +662,17 @@ function SuccessModal({ integration, onClose }: { integration: Integration; onCl
       return `${u.protocol}//${u.host}/f/${integrationId}?key=${encodeURIComponent(key)}`;
     } catch { return ''; }
   })();
-  const qrUrl = hostedFormUrl
-    ? `https://api.qrserver.com/v1/create-qr-code/?size=180x180&margin=10&data=${encodeURIComponent(hostedFormUrl)}`
-    : '';
+  // Drawn in the browser: the hosted-form link carries the integration's secret key, so it must never be sent to
+  // an outside QR service (that used to put it in their request logs).
+  const qrCanvasRef = useRef<HTMLDivElement | null>(null);
+  const downloadQr = () => {
+    const canvas = qrCanvasRef.current?.querySelector('canvas');
+    if (!canvas) return;
+    const a = document.createElement('a');
+    a.href = canvas.toDataURL('image/png');
+    a.download = 'kinematic-form-qr.png';
+    a.click();
+  };
 
   // Includes `city` because city-scoped reps (the default for non-admin
   // users) won't see leads with a null city — backend filters them out
@@ -955,14 +964,16 @@ function SuccessModal({ integration, onClose }: { integration: Integration; onCl
                   </a>
                 </div>
               </div>
-              {qrUrl && (
+              {hostedFormUrl && (
                 <div style={{ textAlign: 'center' }}>
                   <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.5, marginBottom: 4 }}>QR code</div>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={qrUrl} alt="Form QR code" width={140} height={140}
-                       style={{ borderRadius: 8, background: '#fff', padding: 6, border: '1px solid var(--border)' }} />
+                  <div ref={qrCanvasRef} role="img" aria-label="Form QR code"
+                       style={{ display: 'inline-block', borderRadius: 8, background: '#fff', padding: 6, border: '1px solid var(--border)', lineHeight: 0 }}>
+                    <QRCodeCanvas value={hostedFormUrl} size={140} level="M" includeMargin={false} />
+                  </div>
                   <div style={{ marginTop: 4 }}>
-                    <a href={qrUrl} download="kinematic-form-qr.png" style={{ fontSize: 11, color: 'var(--text-dim)' }}>Download PNG</a>
+                    <button type="button" onClick={downloadQr}
+                            style={{ fontSize: 11, color: 'var(--text-dim)', background: 'none', border: 'none', padding: 0, cursor: 'pointer', textDecoration: 'underline' }}>Download PNG</button>
                   </div>
                 </div>
               )}

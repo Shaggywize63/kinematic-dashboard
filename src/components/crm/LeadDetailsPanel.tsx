@@ -7,6 +7,7 @@ import { evaluateClientFormula } from './CustomFieldsSection';
 import { PRODUCT_LINE_KEYS } from './ProductLinesSection';
 import InlineEditText from './InlineEditText';
 import type { FieldHelpers } from '../../lib/crmFieldOverrides';
+import { safeHref } from '../../lib/safeUrl';
 
 interface LeadWithCustomFields extends Lead {
   custom_fields?: Record<string, unknown> | null;
@@ -505,7 +506,7 @@ function formatCustomValue(v: unknown, type: CustomField['field_type']): React.R
   if (type === 'currency') return `₹${Number(v).toLocaleString('en-IN')}`;
   if (type === 'number') return Number(v).toLocaleString('en-IN');
   if (type === 'url') return (
-    <a href={String(v)} target="_blank" rel="noreferrer"
+    <a href={safeHref(v)} target="_blank" rel="noreferrer"
       style={{ color: 'var(--accent)', textDecoration: 'none' }}>
       {String(v)} ↗
     </a>
