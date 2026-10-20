@@ -992,3 +992,10 @@ table.lead-table tbody tr.lead-row.is-open td:first-child { box-shadow: inset 3p
 @keyframes kmSpin { to { transform: rotate(360deg); } }
 .km-spin { animation: kmSpin .9s linear infinite; }
 @media (prefers-reduced-motion: reduce) { .km-spin { animation: none; } }
+
+/* Attendance: tiles that double as filters, and names that open a person's days. */
+.att-tile { transition: border-color .12s ease, box-shadow .12s ease, background .12s ease; }
+.att-tile:hover { background: var(--s3); }
+.att-tile:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--ring); }
+.att-name:hover { text-decoration: underline; text-underline-offset: 3px; }
+.att-name:focus-visible { outline: none; text-decoration: underline; box-shadow: 0 0 0 3px var(--ring); border-radius: 3px; }

@@ -7,11 +7,11 @@
  * and exportable as CSV.
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { CalendarDays, Download, RefreshCw } from 'lucide-react';
+import { CalendarDays, Download, RefreshCw, Search } from 'lucide-react';
 import api, { type AttendanceSummaryRow } from '../../../lib/api';
 import { downloadCsv } from '../../../lib/exportCsv';
 import { SortLabel, type SortState } from '../../../lib/tableSort';
-import { Button, Card, EmptyState, Eyebrow, IconButton, T } from '../../../components/ui';
+import { Button, Card, EmptyState, Eyebrow, IconButton, Input, T } from '../../../components/ui';
 import { RangePresetPicker, presetRange, istToday } from '../../../components/attendance/RangePresets';
 
 const th: CSSProperties = { padding: '12px 14px', textAlign: 'left', fontFamily: T.mono, fontSize: 10.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: T.mute, fontWeight: 500, borderBottom: `1px solid ${T.border}`, whiteSpace: 'nowrap' };
@@ -38,6 +38,18 @@ function rangeLabel(from: string, to: string): string {
   return `${f.toLocaleDateString('en-IN', base)} – ${t.toLocaleDateString('en-IN', { ...base, year: 'numeric' })}`;
 }
 
+/** A thin stacked bar of how the person's working days went — present / half / leave / absent. Decorative: the numbers are in the row. */
+function MixBar({ r }: { r: AttendanceSummaryRow }) {
+  const total = r.present + r.half_day + r.on_leave + r.absent;
+  if (total <= 0) return null;
+  const seg = (v: number, color: string) => (v > 0 ? <span style={{ width: `${(v / total) * 100}%`, background: color }} /> : null);
+  return (
+    <span aria-hidden title={`${r.present} present · ${r.half_day} half day · ${r.on_leave} leave · ${r.absent} absent`} style={{ display: 'flex', height: 4, borderRadius: 2, overflow: 'hidden', marginTop: 5, maxWidth: 150, background: 'var(--s4)' }}>
+      {seg(r.present, 'var(--ok)')}{seg(r.half_day, 'var(--warn)')}{seg(r.on_leave, 'var(--info)')}{seg(r.absent, 'var(--red)')}
+    </span>
+  );
+}
+
 const n = (v: unknown) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 const normalise = (r: any): AttendanceSummaryRow => ({
   user_id: String(r?.user_id ?? ''),
@@ -48,7 +60,10 @@ const normalise = (r: any): AttendanceSummaryRow => ({
 /** A name that starts with = + - @ would run as a formula when the CSV is opened in a spreadsheet. */
 const csvText = (v: string) => (/^[=+\-@\t\r]/.test(v) ? `'${v}` : v);
 
-export default function MonthlySummary({ clientId }: { clientId: string }) {
+/** Opens one person's day-by-day view (a calendar plus times) for the range on screen. */
+export interface PersonRequest { userId: string; name: string; from: string; to: string }
+
+export default function MonthlySummary({ clientId, onOpenPerson }: { clientId: string; onOpenPerson?: (p: PersonRequest) => void }) {
   // Default to this calendar month-to-date; the user can switch to any preset or a custom range.
   const [from, setFrom] = useState(() => presetRange('month').from);
   const [to, setTo] = useState(() => presetRange('month').to);
@@ -56,6 +71,7 @@ export default function MonthlySummary({ clientId }: { clientId: string }) {
   const [workingDays, setWorkingDays] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [q, setQ] = useState('');
   // Worst first: the people with the most absences lead the table until the user picks another column.
   const [sort, setSort] = useState<SortState>({ key: 'absent', dir: 'desc' });
   const reqId = useRef(0);
@@ -87,19 +103,22 @@ export default function MonthlySummary({ clientId }: { clientId: string }) {
   const sorted = useMemo(() => {
     const mul = sort.dir === 'asc' ? 1 : -1;
     const key = (sort.key || 'absent') as SortKey;
+    const needle = q.trim().toLowerCase();
     return rows
+      .filter((r) => !needle || r.name.toLowerCase().includes(needle))
       .map((r, i) => [r, i] as const)
       .sort(([a, ai], [b, bi]) => {
         const c = key === 'name' ? a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true }) : a[key] - b[key];
         return c !== 0 ? c * mul : ai - bi;
       })
       .map(([r]) => r);
-  }, [rows, sort]);
+  }, [rows, sort, q]);
 
-  const totals = useMemo(() => rows.reduce(
+  // The totals row follows what is listed, so a search narrows it too.
+  const totals = useMemo(() => sorted.reduce(
     (t, r) => ({ present: t.present + r.present, late: t.late + r.late, half_day: t.half_day + r.half_day, on_leave: t.on_leave + r.on_leave, absent: t.absent + r.absent }),
     { present: 0, late: 0, half_day: 0, on_leave: 0, absent: 0 },
-  ), [rows]);
+  ), [sorted]);
 
   // First click on a number column = biggest first; on the name column = A to Z. Clicking the active column flips it.
   const toggleSort = (k: string) => setSort((s) => (s.key === k ? { key: k, dir: s.dir === 'desc' ? 'asc' : 'desc' } : { key: k, dir: k === 'name' ? 'asc' : 'desc' }));
@@ -124,6 +143,10 @@ export default function MonthlySummary({ clientId }: { clientId: string }) {
         <div style={{ flex: 1, minWidth: 280 }}>
           <RangePresetPicker from={from} to={to} onChange={(f, t) => { setFrom(f); setTo(t); }} idPrefix="msum" />
         </div>
+        <div style={{ position: 'relative', width: 220, marginBottom: 2 }}>
+          <Search size={15} strokeWidth={1.6} aria-hidden style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: T.mute, pointerEvents: 'none' }} />
+          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search employees…" aria-label="Search employees" style={{ paddingLeft: 34 }} />
+        </div>
         <IconButton label="Refresh monthly summary" onClick={load} style={{ marginBottom: 2 }}>
           <RefreshCw size={16} strokeWidth={1.6} style={loading ? { animation: 'kspin 1s linear infinite' } : undefined} />
         </IconButton>
@@ -139,7 +162,7 @@ export default function MonthlySummary({ clientId }: { clientId: string }) {
           <Eyebrow>{label}</Eyebrow>
           <div style={{ fontSize: 12.5, color: T.dim }}>
             {workingDays != null ? <><span style={{ fontFamily: T.mono }}>{workingDays}</span> working days{inProgress ? ' so far' : ''} · </> : null}
-            Late arrivals are counted within Present. Absent = a working day with no check-in and no approved leave.
+            Late arrivals are counted within Present. Absent = a working day with no check-in and no approved leave.{onOpenPerson ? ' Click a name to see their days.' : ''}
           </div>
         </div>
         <div style={{ overflowX: 'auto' }}>
@@ -159,13 +182,18 @@ export default function MonthlySummary({ clientId }: { clientId: string }) {
                 <tr><td colSpan={COLUMNS.length + 1} style={{ ...td, borderBottom: 0, padding: 0 }}>
                   <EmptyState
                     icon={<CalendarDays size={20} strokeWidth={1.6} />}
-                    title={`No attendance data for ${label}`}
-                    description="Employees appear here once the range has working days to count."
+                    title={q.trim() && rows.length > 0 ? 'No employee matches your search' : `No attendance data for ${label}`}
+                    description={q.trim() && rows.length > 0 ? 'Try another name.' : 'Employees appear here once the range has working days to count.'}
                   />
                 </td></tr>
               ) : sorted.map((r) => (
                 <tr key={r.user_id || r.name} data-testid="summary-row">
-                  <td style={{ ...td, fontWeight: 500 }}>{r.name}</td>
+                  <td style={{ ...td, fontWeight: 500 }}>
+                    {onOpenPerson && r.user_id ? (
+                      <button type="button" className="att-name" onClick={() => onOpenPerson({ userId: r.user_id, name: r.name, from, to })} title="See this person's days" style={{ background: 'none', border: 0, padding: 0, font: 'inherit', fontWeight: 500, color: T.text, cursor: 'pointer', textAlign: 'left' }}>{r.name}</button>
+                    ) : r.name}
+                    <MixBar r={r} />
+                  </td>
                   <td style={{ ...num, color: T.dim }}>{r.working_days}</td>
                   <td style={num}>{r.present}</td>
                   <td style={{ ...num, color: r.late > 0 ? T.warn : T.mute }}>{r.late}</td>
