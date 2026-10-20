@@ -983,3 +983,12 @@ table.lead-table tbody tr.lead-row.is-open td:first-child { box-shadow: inset 3p
 /* The row is focusable for the keyboard preview path; a mouse click shouldn't leave a ring behind. */
 .lead-row:focus { outline: none; }
 .lead-row:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+
+/* Lead detail: KPI tiles, tab strip and a small spinner. */
+.ld-tile { transition: background .12s ease; }
+.ld-tile:hover { background: var(--s3) !important; }
+.ld-tile:focus-visible, .ld-tab:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--ring); }
+.ld-tab:hover { color: var(--text) !important; }
+@keyframes kmSpin { to { transform: rotate(360deg); } }
+.km-spin { animation: kmSpin .9s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .km-spin { animation: none; } }
