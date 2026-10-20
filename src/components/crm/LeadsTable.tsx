@@ -1,13 +1,12 @@
 'use client';
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
-import { ArrowDown, ArrowRight, ArrowUp, ArrowUpDown, Check, Hourglass, Pencil, Star, X } from 'lucide-react';
+import { ArrowDown, ArrowRight, ArrowUp, ArrowUpDown, ArrowUpRight, Check, Hourglass, Pencil, Star, X } from 'lucide-react';
 import type { Lead } from '../../types/crm';
 import type { LeadStatusOption } from '../../lib/crmLeadStatuses';
 import type { FieldHelpers } from '../../lib/crmFieldOverrides';
 import OwnerAvatar from './shared/OwnerAvatar';
 import InlineOwnerAssign from './shared/InlineOwnerAssign';
-import CallButton from './shared/CallButton';
 import WhatsAppButton from './shared/WhatsAppButton';
 import LeadAvatar, { leadDisplayName } from './leads/LeadAvatar';
 import ScoreMeter from './leads/ScoreMeter';
@@ -396,6 +395,16 @@ const LeadRow = memo(function LeadRow({
           decision is pending) so it never costs a column of its own. */}
       <td data-label="" style={{ ...tdStyle, padding: 0, width: 0, position: 'relative' }} data-nopreview>
         <div className={`row-actions${isPending && onApprove ? ' always' : ''}`}>
+          {/* One click to the full lead — always offered, even when the Actions column is hidden or a decision is pending. */}
+          <Link
+            href={`/dashboard/crm/leads/${l.id}`}
+            title="Open lead"
+            aria-label="Open lead"
+            className="km-iconbtn"
+            style={{ width: 28, height: 28, borderRadius: 7, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${T.border}`, background: T.card, color: T.text, textDecoration: 'none' }}
+          >
+            <ArrowUpRight size={15} strokeWidth={2} />
+          </Link>
           {isPending && onApprove && (
             <>
               <Button
@@ -423,7 +432,7 @@ const LeadRow = memo(function LeadRow({
           )}
           {!hidden.has('action') && !isPending && (
             <>
-              <CallButton phone={l.phone} prefillSubject={`Call with ${fullName}`} leadId={l.id} iconOnly />
+              {/* Call lives in the quick preview and on the lead page; the row keeps the web-friendly shortcut. */}
               <WhatsAppButton phone={l.phone} iconOnly />
             </>
           )}

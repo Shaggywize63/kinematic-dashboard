@@ -45,6 +45,34 @@ test.describe('Leads list (demo mode)', () => {
     await expect(page).toHaveURL(/\/dashboard\/crm\/leads\/demo-lead-1/);
   });
 
+  test('hovering a row offers "Open lead": one click to the full lead, no preview in between', async ({ page }) => {
+    const row = page.locator('tr.lead-row').filter({ hasText: 'Vikram Reddy' });
+    await row.hover();
+    const open = row.getByRole('link', { name: 'Open lead' });
+    await expect(open).toBeVisible();
+    await expect(open).toHaveAttribute('href', '/dashboard/crm/leads/demo-lead-1');
+    await open.click();
+    await expect(page).toHaveURL(/\/dashboard\/crm\/leads\/demo-lead-1$/);
+  });
+
+  test('the row actions are Open, WhatsApp, Edit and Convert — Call is in the preview and on the lead page', async ({ page }) => {
+    const row = page.locator('tr.lead-row').filter({ hasText: 'Vikram Reddy' });
+    await row.hover();
+    await expect(row.getByRole('link', { name: 'Open lead' })).toBeVisible();
+    await expect(row.getByRole('button', { name: 'Edit lead' })).toBeVisible();
+    await expect(row.getByRole('link', { name: 'Convert to deal' })).toBeVisible();
+    await expect(row.getByRole('link', { name: 'Call' })).toHaveCount(0);
+  });
+
+  // A cell with no link or button in it (the owner / source columns), so it is the row itself that is clicked.
+  const plainCell = (page: import('@playwright/test').Page) => page.locator('tr.lead-row').filter({ hasText: 'Vikram Reddy' }).locator('td').nth(5);
+
+  test('a single click on a row is still the quick preview (it does not navigate)', async ({ page }) => {
+    await plainCell(page).click({ position: { x: 8, y: 8 } });
+    await expect(page.getByRole('complementary', { name: 'Lead preview' })).toBeVisible();
+    await expect(page).toHaveURL(/\/dashboard\/crm\/leads$/);
+  });
+
   test('"New lead" navigates to the create form', async ({ page }) => {
     // The header CTA is a lucide "+" icon followed by "New lead".
     await page.getByRole('link', { name: /new lead/i }).first().click();
