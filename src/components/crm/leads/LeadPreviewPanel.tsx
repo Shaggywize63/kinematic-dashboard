@@ -186,7 +186,13 @@ export default function LeadPreviewPanel({
         <LeadAvatar lead={lead} size={52} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <h3 style={{ margin: 0, fontFamily: T.heading, fontSize: 18, fontWeight: 800, letterSpacing: '-0.02em', color: T.text, overflowWrap: 'anywhere' }}>{name}</h3>
-          {headline && <div style={{ marginTop: 2, fontSize: 12.5, color: T.dim, overflowWrap: 'anywhere' }}>{headline}</div>}
+          {/* Imported data can put a whole URL + legal name in "company" — clamp it to two lines (full text on hover) so it can't push the header around. */}
+          {headline && (
+            <div
+              title={headline.length > 60 ? headline : undefined}
+              style={{ marginTop: 2, fontSize: 12.5, color: T.dim, overflowWrap: 'anywhere', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
+            >{headline}</div>
+          )}
           {!hid('status') && lead.status && (
             <div style={{ marginTop: 7 }}>
               <Badge tone={statusTone(lead.status)} dot style={{ textTransform: 'capitalize', ...statusStyle }}>{statusMeta?.label ?? String(lead.status).replace(/_/g, ' ')}</Badge>
@@ -246,7 +252,7 @@ export default function LeadPreviewPanel({
           {orderedDetails.map((d) => (
             <div key={d.k} style={{ background: T.card, padding: '9px 11px', minWidth: 0, gridColumn: d.wide ? '1 / -1' : undefined }}>
               <div style={{ ...eyebrowStyle, fontSize: 9.5 }}>{d.label}</div>
-              <div style={{ marginTop: 2, fontSize: 13, fontWeight: 600, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: d.k === 'phone' ? T.mono : 'inherit' }} title={d.value}>{d.value}</div>
+              <div style={{ marginTop: 2, fontSize: 13, fontWeight: 600, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: d.k === 'phone' ? T.mono : 'inherit' }} title={d.value.length > 24 ? d.value : undefined}>{d.value}</div>
             </div>
           ))}
         </div>

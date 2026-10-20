@@ -89,9 +89,9 @@ export default function LeadsListPage() {
   // "Assign to…" on a selection, no inline owner picker on a row (the owner column is plain text for everyone else)
   // and no Owner filter in the filter bar.
   const ownerAccess = useLeadOwnerAccess();
-  // With the Owner filter gone for this viewer, a value left in it must not keep narrowing the list.
+  // With the Owner filter gone for this viewer, a value left in it (an owner, or "unassigned only") must not keep narrowing the list.
   useEffect(() => {
-    if (ownerAccess.ready && !ownerAccess.canAssign) setFilters((f) => (f.owner ? { ...f, owner: undefined } : f));
+    if (ownerAccess.ready && !ownerAccess.canAssign) setFilters((f) => (f.owner || f.unassigned ? { ...f, owner: undefined, unassigned: undefined } : f));
   }, [ownerAccess.ready, ownerAccess.canAssign]);
   // AI Smart Filters
   const [smartQuery, setSmartQuery] = useState('');
@@ -363,7 +363,7 @@ export default function LeadsListPage() {
   const [counts, setCounts] = useState<{ all: number | null; status: Record<string, number>; views: Record<string, number> }>({ all: null, status: {}, views: {} });
   const viewDefs = useMemo(
     () => QUICK_VIEWS
-      .filter((v) => !(v.needsMe && !(ownerAccess.ready && ownerAccess.canAssign)))
+      .filter((v) => !((v.needsMe || v.needsAssign) && !(ownerAccess.ready && ownerAccess.canAssign)))
       .map((v) => ({ v, patch: resolvePatch(v, myId) }))
       .filter((x): x is { v: typeof x.v; patch: NonNullable<typeof x.patch> } => !!x.patch),
     [ownerAccess.ready, ownerAccess.canAssign, myId],

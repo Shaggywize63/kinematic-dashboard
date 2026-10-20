@@ -170,12 +170,22 @@ export default function LeadFilterDrawer({
 
           {showOwner && (
             <Group title="Owner">
-              <Select aria-label="Owner" value={value.owner || ''} onChange={(e) => set({ owner: e.target.value || undefined })}>
+              <Select aria-label="Owner" value={value.owner || ''} onChange={(e) => set({ owner: e.target.value || undefined, ...(e.target.value ? { unassigned: undefined } : {}) })}>
                 <option value="">All Owners</option>
                 {owners.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
               </Select>
+              {/* "No owner" is the opposite of picking one, so choosing it drops the owner above. */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                <Opt on={!!value.unassigned} onClick={() => set({ unassigned: value.unassigned ? undefined : true, owner: undefined })}>Unassigned only</Opt>
+              </div>
             </Group>
           )}
+
+          <Group title="Follow-ups">
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              <Opt on={!!value.followupDue} onClick={() => set({ followupDue: value.followupDue ? undefined : true })} title="An open follow-up whose due time has arrived">Due or overdue</Opt>
+            </div>
+          </Group>
 
           {states.length > 0 && (
             <Group title="Location">
