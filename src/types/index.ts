@@ -6,7 +6,9 @@ export interface AuthUser {
   mobile?: string;
   client_id?: string; // Optional: only if user belongs to a client
   permissions?: string[]; // legacy per-user grants (user_module_permissions)
-  enabled_modules?: string[]; // per-client SKU entitlements (source: client_modules + universal)
+  enabled_modules?: string[]; // per-client entitlements (source: client_modules, i.e. exactly what Client Management ticked)
+  /** True when enabled_modules is the complete list: empty means nothing, not "unknown, show everything". */
+  entitlements_strict?: boolean;
   enabled_packages?: string[]; // package SKUs the client owns: field_force | distribution | crm | business | system | people | audit
   assigned_cities?: string[];
   // Resolved city NAMES (from user_city_assignments → cities.name). Used

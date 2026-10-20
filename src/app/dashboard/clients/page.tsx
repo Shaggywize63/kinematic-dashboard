@@ -7,6 +7,7 @@ import { ALL_MODULES, MODULE_GROUPS, MODULE_GROUP_LABELS, type ModuleGroup } fro
 import { type AppCustomization } from '../../../lib/appCustomization';
 import AppCustomizationPanel from '../../../components/clients/AppCustomizationPanel';
 import ClientNotificationsPanel from '../../../components/clients/ClientNotificationsPanel';
+import AppLayoutEditor from '../../../components/clients/AppLayoutEditor';
 import api, { setActingAs } from '../../../lib/api';
 import { getStoredProjectKey, DEFAULT_PROJECT, setStoredProjectKey } from '../../../lib/projects';
 import { useTableSort, SortLabel } from '../../../lib/tableSort';
@@ -85,9 +86,15 @@ const NEW_CLIENT_EXCLUDED_MODULES = ['crm_conversation_intel', 'crm_people_direc
 // Derived from the module catalog so any CRM module added later is included
 // automatically, and a non-empty grant means the nav never falls open to
 // "show everything" for a freshly-created client.
-const NEW_CLIENT_DEFAULT_MODULES = ALL_MODULES
-  .filter(m => m.group === 'CRM' && !NEW_CLIENT_EXCLUDED_MODULES.includes(m.id))
-  .map(m => m.id);
+// A new client also starts with the basics every workspace needs. No module is always-on any more (a client sees exactly
+// what is ticked), so these are pre-ticked here — visibly, and the admin can untick any of them.
+const NEW_CLIENT_BASELINE_MODULES = ['users', 'settings', 'reports'];
+const NEW_CLIENT_DEFAULT_MODULES = Array.from(new Set([
+  ...ALL_MODULES
+    .filter(m => m.group === 'CRM' && !NEW_CLIENT_EXCLUDED_MODULES.includes(m.id))
+    .map(m => m.id),
+  ...NEW_CLIENT_BASELINE_MODULES,
+]));
 
 const BLANK = { name: '', contact_person: '', email: '', phone: '', password: '', is_active: true, modules: [] as string[], login_org_id: '', data_project_key: '', data_client_id: '', max_active_users: '' as number | '', app_ui: {} as AppCustomization, trial_start_date: '', trial_days: '' as number | '' };
 
@@ -702,6 +709,17 @@ export default function ClientManagement() {
                     </div>
                   );
                 })}
+              </div>
+            </div>
+
+            <div style={{ marginBottom: 28 }}>
+              <Label t="App Layout" />
+              <div style={{ background: C.s3, borderRadius: 16, padding: 16, border: `1px solid ${C.border}` }}>
+                <AppLayoutEditor
+                  value={form.app_ui}
+                  onChange={(next) => setForm(p => ({ ...p, app_ui: next }))}
+                  modules={form.modules}
+                />
               </div>
             </div>
 

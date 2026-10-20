@@ -60,6 +60,8 @@ export const MENU_ITEMS: AppItem[] = [
   { id: 'leave',             label: 'Leave' },
   { id: 'timeline',          label: 'Timeline', note: 'needs the timeline module' },
   { id: 'planogram',         label: 'Planogram' },
+  { id: 'book_order',        label: 'Book Order', note: 'needs distribution_orders' },
+  { id: 'collect_payment',  label: 'Collect Payment', note: 'needs distribution_payments' },
   { id: 'my_orders',         label: 'My Orders', note: 'needs the distribution package' },
   { id: 'van_load',          label: 'Van Load', note: 'needs distribution_van' },
   { id: 'distributor_stock', label: 'Distributor Stock', note: 'needs distribution_stock' },
@@ -101,6 +103,7 @@ export const HOME_ITEMS: AppItem[] = [
   { id: 'visited',      label: 'Visited', note: 'visited-today tile' },
   { id: 'forms',        label: 'Forms', note: 'forms-submitted-today tile' },
   { id: 'todays_route', label: "Today's Route / Session", note: 'route-plan or session preview on Home' },
+  { id: 'my_targets',   label: 'My Targets', note: 'targets progress card' },
   { id: 'open_volume',  label: 'Open Volume', note: 'CRM home tile with the open pipeline volume (the web dashboard hides the volume on its Open Pipeline tile)' },
 ];
 
@@ -126,6 +129,11 @@ export const FEATURE_ITEMS: AppItem[] = [
 ];
 
 export interface AppCustomization {
+  /**
+   * The drag-and-drop layout (see lib/appLayout.ts): the order of each container and which screens sit in the bottom bar.
+   * Optional and additive — absent = the apps' default order. Ids are the same ids the hide maps below use.
+   */
+  layout?: Partial<Record<AppUiSection, string[]>>;
   menu?: Record<string, boolean>;
   tabs?: Record<string, boolean>;
   crm_more?: Record<string, boolean>;
