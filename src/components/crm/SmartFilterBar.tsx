@@ -1,5 +1,6 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { Sparkles } from 'lucide-react';
 
 /**
  * AI Smart Filter bar for the leads list — plain-English → validated filter
@@ -84,22 +85,25 @@ export default function SmartFilterBar({
   }, [showTypewriter]);
 
   const runChip = (text: string) => { setQuery(text); onRun(text); };
+  // Example starters only while the box is focused and empty — a calm toolbar by
+  // default, discoverable the moment someone clicks in.
+  const showChips = !explanation && focused && !query;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0, flex: '1 1 320px' }}>
       {/* Input row */}
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
         <div
           style={{
-            position: 'relative', flex: 1, minWidth: 240, display: 'flex', alignItems: 'center',
+            position: 'relative', flex: 1, minWidth: 0, display: 'flex', alignItems: 'center',
             background: 'var(--s3)',
-            border: `1px solid ${focused ? 'var(--primary)' : 'var(--border)'}`,
-            borderRadius: 10,
+            border: `1px solid ${focused ? 'var(--primary)' : 'color-mix(in srgb, var(--primary) 38%, var(--border))'}`,
+            borderRadius: 8, height: 36,
             boxShadow: focused ? '0 0 0 3px color-mix(in srgb, var(--primary) 22%, transparent)' : 'none',
             transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
           }}
         >
-          <span aria-hidden style={{ position: 'absolute', left: 11, fontSize: 15, pointerEvents: 'none', opacity: 0.9 }}>✨</span>
+          <span aria-hidden style={{ position: 'absolute', left: 11, display: 'inline-flex', color: 'var(--primary)', pointerEvents: 'none' }}><Sparkles size={15} strokeWidth={1.8} /></span>
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -109,8 +113,8 @@ export default function SmartFilterBar({
             placeholder={focused ? 'Describe the leads you want — e.g. hot leads in Mumbai added this week' : ''}
             aria-label="Smart Filter — describe the leads you want in plain English"
             style={{
-              flex: 1, width: '100%', background: 'transparent', border: 'none', outline: 'none',
-              color: 'var(--text)', padding: '10px 12px 10px 34px', borderRadius: 10, fontSize: 13,
+              flex: 1, width: '100%', minWidth: 0, background: 'transparent', border: 'none', outline: 'none',
+              color: 'var(--text)', padding: '0 12px 0 34px', height: '100%', borderRadius: 8, fontSize: 13,
             }}
           />
           {/* Typewriter overlay — sits over the empty input, never blocks clicks. */}
@@ -122,7 +126,7 @@ export default function SmartFilterBar({
                 color: 'var(--textSec)', fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
               }}
             >
-              <span style={{ opacity: 0.7 }}>Try: </span>{typed}<span className="sf-caret" style={{ height: 14 }} />
+              <span style={{ opacity: 0.7 }}>Ask KINI: </span>{typed}<span className="sf-caret" style={{ height: 14 }} />
             </div>
           )}
         </div>
@@ -131,26 +135,28 @@ export default function SmartFilterBar({
           disabled={loading}
           className={loading ? undefined : 'sf-run'}
           style={{
-            background: 'var(--primary)', border: 'none', color: '#fff', padding: '10px 18px',
-            borderRadius: 10, fontSize: 13, fontWeight: 700, opacity: loading ? 0.65 : 1,
+            background: 'var(--primary)', border: 'none', color: '#fff', padding: '0 14px', height: 36,
+            borderRadius: 8, fontSize: 13, fontWeight: 600, opacity: loading ? 0.65 : 1,
             whiteSpace: 'nowrap', cursor: loading ? 'default' : 'pointer', display: 'inline-flex',
             alignItems: 'center', gap: 7,
           }}
         >
           {loading
             ? (<><span style={{ display: 'inline-block', width: 13, height: 13, border: '2px solid rgba(255,255,255,0.5)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />Thinking…</>)
-            : (<>✨ Smart Filter</>)}
+            : (<><Sparkles size={14} strokeWidth={1.8} aria-hidden />Smart Filter</>)}
         </button>
       </div>
 
       {/* Example starter chips */}
-      {!explanation && (
+      {showChips && (
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
           <span style={{ fontSize: 11, color: 'var(--textSec)', fontWeight: 600, opacity: 0.8 }}>Try:</span>
           {CHIP_EXAMPLES.map((ex) => (
             <button
               key={ex}
               className="sf-chip"
+              // Keep focus in the input so the chips don't vanish before the click lands.
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => runChip(ex)}
               disabled={loading}
               style={{
@@ -165,7 +171,7 @@ export default function SmartFilterBar({
       {/* Result — "Interpreted as …" with resolved param chips */}
       {explanation && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 12, color: 'var(--textSec)', background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 10, padding: '8px 10px' }}>
-          <span style={{ fontSize: 14 }}>✨</span>
+          <Sparkles size={14} strokeWidth={1.8} aria-hidden style={{ color: 'var(--primary)' }} />
           <span>Interpreted as: <strong style={{ color: 'var(--text)' }}>{explanation}</strong></span>
           {Object.entries(params).map(([k, v]) => (
             <span key={k} style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 6, padding: '1px 7px', fontSize: 11, color: 'var(--text)', fontWeight: 600 }}>

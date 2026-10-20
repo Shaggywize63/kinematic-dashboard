@@ -2,24 +2,39 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Download, Loader2, MapPin, Plus, RefreshCw, Trash2, Upload, UserCheck, UserPlus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Loader2, Plus, RefreshCw, Search, SlidersHorizontal, Upload } from 'lucide-react';
 import { crmLeads, crmLeadSources, crmSettings, type Pagination } from '../../../../lib/crmApi';
-import api, { EXPORT_TIMEOUT_MS } from '../../../../lib/api';
+import api, { EXPORT_TIMEOUT_MS, getRequestClientId } from '../../../../lib/api';
 import { downloadBlob } from '../../../../lib/financeFormat';
 import { getStoredUser } from '../../../../lib/auth';
 import { useLeadOwnerAccess } from '../../../../lib/leadOwnerAccess';
 import { isTataTiscon, canViewTelecallerReport } from '../../../../lib/clientFeatures';
 import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
+import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '../../../../lib/crmFieldOverrides';
+import { activeFilterCount, leadFilterParams, type ApprovalFilter } from '../../../../lib/crm/leadListParams';
+import {
+  filtersEqual, isViewActive, loadSavedViews, MAX_SAVED_VIEWS, persistSavedViews, QUICK_VIEWS, resolvePatch, toggleView, viewFilters,
+  type SavedView,
+} from '../../../../lib/crm/leadViews';
 import type { Lead, LeadSource } from '../../../../types/crm';
 import LeadsTable, { LEAD_COLUMNS } from '../../../../components/crm/LeadsTable';
 import LeadEditModal from '../../../../components/crm/LeadEditModal';
-import LeadFilters, { type LeadFiltersValue } from '../../../../components/crm/LeadFilters';
+import { STATUS_OPTIONS, type LeadFiltersValue } from '../../../../components/crm/LeadFilters';
 import { extractLeadStatuses, type LeadStatusOption } from '../../../../lib/crmLeadStatuses';
 import SmartFilterBar from '../../../../components/crm/SmartFilterBar';
 import ViewCustomizer from '../../../../components/crm/shared/ViewCustomizer';
+import LeadsPipeline, { type PipelineTab } from '../../../../components/crm/leads/LeadsPipeline';
+import LeadQuickViews, { type QuickViewChip } from '../../../../components/crm/leads/LeadQuickViews';
+import LeadFilterChips, { buildAppliedChips } from '../../../../components/crm/leads/LeadFilterChips';
+import LeadFilterDrawer from '../../../../components/crm/leads/LeadFilterDrawer';
+import LeadBulkBar from '../../../../components/crm/leads/LeadBulkBar';
+import LeadPreviewPanel from '../../../../components/crm/leads/LeadPreviewPanel';
+import LeadCardStack from '../../../../components/crm/leads/LeadCardStack';
+import ScoreBreakdownModal from '../../../../components/crm/leads/ScoreBreakdownModal';
+import { LeadsFirstRun, LeadsNoResults } from '../../../../components/crm/leads/LeadsStates';
 import { useViewPrefs } from '../../../../lib/crmViewPrefs';
 import { usePageTitle } from '../../../../lib/pageTitle';
-import { Badge, Button, Card, IconButton, PageHeader, Segmented, Select, T, useIsCompact } from '../../../../components/ui';
+import { Badge, Button, Card, IconButton, Input, PageHeader, Segmented, Select, T, buttonStyle, useIsCompact } from '../../../../components/ui';
 
 type UserOption = { id: string; name: string };
 
@@ -27,6 +42,12 @@ type UserOption = { id: string; name: string };
 // server's `listLeadsWithCount` cap so larger values silently clamp.
 const PAGE_SIZE_OPTIONS = [25, 50, 100, 200] as const;
 const DEFAULT_PAGE_SIZE = 50;
+
+// Dot / bar colour per built-in status in the pipeline strip. A per-client
+// custom status set brings its own colour; anything else falls back to dim.
+const STATUS_COLOR: Record<string, string> = {
+  new: T.info, working: T.warn, qualified: T.ok, converted: T.ok, unqualified: T.mute, lost: T.red,
+};
 
 export default function LeadsListPage() {
   usePageTitle('Leads');
@@ -37,7 +58,7 @@ export default function LeadsListPage() {
   const [leadStatuses, setLeadStatuses] = useState<LeadStatusOption[] | null>(null);
   // Manager approval quick-filter: '' = all, 'pending' = awaiting sign-off,
   // 'rejected' = declined. Applied server-side via ?approval_status.
-  const [approvalFilter, setApprovalFilter] = useState<'' | 'pending' | 'rejected'>('');
+  const [approvalFilter, setApprovalFilter] = useState<ApprovalFilter>('');
   // Debounced copy of the free-text search, sent to the backend so a search
   // (incl. phone number) finds matches on ANY page — not just the loaded one.
   const [debouncedQ, setDebouncedQ] = useState('');
@@ -47,9 +68,17 @@ export default function LeadsListPage() {
   // the row's Edit button so a rep can edit one record without leaving the list.
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
   const [users, setUsers] = useState<UserOption[]>([]);
-  const [showAssignMenu, setShowAssignMenu] = useState(false);
   const [usersLoading, setUsersLoading] = useState(false);
   const [isB2C, setIsB2C] = useState(false);
+  // Built-in field overrides (Settings → Custom Fields). The table / preview /
+  // cards gate every built-in column through these; the rows wait for the first
+  // settings read so a field the admin hid never flashes.
+  const [overrides, setOverrides] = useState<FieldOverrides>({});
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
+  // Quick preview + score breakdown + filters drawer.
+  const [previewId, setPreviewId] = useState<string | null>(null);
+  const [scoreLead, setScoreLead] = useState<Lead | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   // Telecaller phase 3 — per-campaign section switcher (Rajkamal only). null =
   // "All"; otherwise a campaign custom-field value sent as ?campaign= so the
   // list becomes that campaign's section. All three sections are views of the
@@ -116,11 +145,6 @@ export default function LeadsListPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
   const [pagination, setPagination] = useState<Pagination | null>(null);
-  // Count of leads still in the "new" status (unworked), shown as a chip in the
-  // header and clickable to filter down to them. Fetched independently of the
-  // page's active filters so it always reflects the tenant-wide new-lead
-  // backlog, not the current view. Refreshed on every reload().
-  const [newLeadsCount, setNewLeadsCount] = useState<number | null>(null);
   // Server-side sort. `recent` (default) keeps the latest-update-first order;
   // every other key maps to a backend column via ?sort=&order=.
   // Default sort: "Date added (newest)" is the resting order for everyone —
@@ -136,12 +160,44 @@ export default function LeadsListPage() {
   );
   const view = useViewPrefs('leads');
   const hiddenSet = useMemo(() => new Set(view.prefs.hidden), [view.prefs.hidden]);
-  // Phone-width flag — drives the floating "+ New Lead" CTA below. At 640px
-  // the header action cluster wraps and the New Lead button can end up
-  // below the fold, so a sticky FAB keeps the primary action one tap away.
+  // Phone-width flag — drives the card stack and the floating "+ New Lead"
+  // CTA below. At 640px the header action cluster wraps and the New Lead
+  // button can end up below the fold, so a sticky FAB keeps the primary
+  // action one tap away.
   const isCompact = useIsCompact(640);
   // Tablet-and-below flag for the header / toolbar wrapping.
   const narrow = useIsCompact(900);
+  // Below this width the preview panel slides over the list instead of docking beside it.
+  const overlayPreview = useIsCompact(1440);
+  const useStack = isCompact || view.prefs.mode === 'cards';
+  const datePreset = useCrmDateRange((s) => s.preset);
+  const setDatePreset = useCrmDateRange((s) => s.setPreset);
+  const range = useCrmDateRange((s) => ({ from: s.from, to: s.to }));
+
+  const myId = useMemo(() => getStoredUser()?.id ?? null, []);
+
+  // Statuses offered by the pipeline strip, the drawer and the applied chips.
+  const statusOptions = useMemo(
+    () => (leadStatuses && leadStatuses.length ? leadStatuses : STATUS_OPTIONS) as Array<{ value: string; label: string; color?: string }>,
+    [leadStatuses],
+  );
+  const fieldHelpers = useMemo(() => buildFieldHelpers(overrides, 'lead', isB2C ? 'b2c' : 'b2b'), [overrides, isB2C]);
+
+  // ONE param set, three consumers: the list fetch, the pipeline / view counters and the CSV
+  // export. Keyed on the filter VALUES (not object identity) so unrelated re-renders don't refetch.
+  const filtersKey = JSON.stringify({ ...filters, q: undefined });
+  const baseParams = useMemo(() => {
+    const p: Record<string, string | number> = leadFilterParams(filters, { q: debouncedQ, approval: approvalFilter, campaign: campaignSection });
+    if (range.from) p.from = range.from;
+    if (range.to)   p.to   = range.to;
+    // AI Smart Filter params (plain-English → validated filters) win over the manual
+    // controls — the NL query is the active intent. They cover extra keys the manual UI
+    // doesn't expose (score_gte/lte, is_b2c, status_in, created_within_days,
+    // not_contacted_days, …). Server applies + scopes.
+    Object.assign(p, smartParams);
+    return p;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtersKey, debouncedQ, approvalFilter, campaignSection, range.from, range.to, smartParams]);
 
   // CSV download — calls the backend export endpoint with the same
   // server-side filters the list is already using, then triggers a
@@ -149,12 +205,12 @@ export default function LeadsListPage() {
   // enforced server-side so the export can never leak rows the user
   // isn't allowed to see.
   //
-  // Filter parity (see CLAUDE.md golden rule #6): every list-side filter
-  // MUST be forwarded to /export, otherwise picking "Status: working +
-  // Owner: Nandan" on the list and clicking Export silently returns the
-  // full org-wide CSV. Reps were reporting this as "export not working"
-  // — they were filtering, exporting, and getting tens of thousands of
-  // rows they couldn't reconcile against the on-screen view.
+  // Filter parity (see CLAUDE.md golden rule #6): the export sends EXACTLY the
+  // list's params (same builder), otherwise picking "Status: working + Owner:
+  // Nandan" on the list and clicking Export silently returns the full org-wide
+  // CSV. Reps were reporting this as "export not working" — they were filtering,
+  // exporting, and getting tens of thousands of rows they couldn't reconcile
+  // against the on-screen view.
   const handleExport = async () => {
     setExporting(true);
     setExportElapsed(0);
@@ -164,19 +220,8 @@ export default function LeadsListPage() {
     }, 1000);
     try {
       const qs = new URLSearchParams();
-      if (range.from)         qs.set('from', range.from);
-      if (range.to)           qs.set('to',   range.to);
-      if (filters.state)      qs.set('state',     filters.state);
-      if (filters.city)       qs.set('city',      filters.city);
-      if (filters.district)   qs.set('district',  filters.district);
-      if (filters.block)      qs.set('block',     filters.block);
-      // The list-side filters that were silently dropped before:
-      if (filters.status?.length) qs.set('status_in', filters.status.join(','));
-      if (approvalFilter)     qs.set('approval_status', approvalFilter);
-      if (filters.source)     qs.set('source_id',   filters.source);
-      if (filters.owner)      qs.set('owner_id',    filters.owner);
-      if (filters.grade)      qs.set('score_grade', filters.grade);
-      if (debouncedQ)         qs.set('q',           debouncedQ);
+      for (const [k, v] of Object.entries(baseParams)) if (v !== undefined && v !== '') qs.set(k, String(v));
+      if (sort.key !== 'recent') { qs.set('sort', sort.key); qs.set('order', sort.order); }
       // Demo-account short-circuit — raw fetch() bypasses api.ts's
       // demo intercept, so we'd otherwise hit the real backend with a
       // demo token and 401. Build the CSV from the in-memory rows
@@ -234,48 +279,12 @@ export default function LeadsListPage() {
       setExportElapsed(0);
     }
   };
-  const assignMenuRef = useRef<HTMLDivElement>(null);
-  const range = useCrmDateRange((s) => ({ from: s.from, to: s.to }));
 
   const reload = async () => {
     setLoading(true);
-    // New-leads backlog counter — deliberately independent of the page's active
-    // filters (status/owner/source/etc.) so it always reflects the tenant-wide
-    // count of unworked leads, not the current view. The global city scope is
-    // still applied automatically in api.ts, so it tracks the selected city.
-    // Fire-and-forget: it never blocks or fails the main list load.
-    crmLeads
-      .list({ status: 'new', limit: 1 })
-      .then((r) => setNewLeadsCount(r.pagination?.total ?? (r.data?.length ?? 0)))
-      .catch(() => {});
     try {
-      const params: Record<string, string | number> = { page, limit: pageSize };
-      if (range.from)      params.from     = range.from;
-      if (range.to)        params.to       = range.to;
-      // All known filters are now server-side so the row count and
-      // page math match the *filtered* result, not the org-wide one.
-      // Only `q` (free-text search) stays client-side as "find within
-      // page" — it's responsive while typing and the backend's q-OR
-      // search would force a page reload on every keystroke.
-      if (filters.state)    params.state     = filters.state;
-      if (filters.city)     params.city      = filters.city;
-      if (filters.district) params.district  = filters.district;
-      if (filters.block)    params.block     = filters.block;
-      if (filters.status?.length) params.status_in = filters.status.join(',');
-      if (approvalFilter)   params.approval_status = approvalFilter;
-      if (filters.source)   params.source_id = filters.source;
-      if (filters.owner)    params.owner_id  = filters.owner;
-      if (filters.grade)    params.score_grade = filters.grade;
-      if (campaignSection)  params.campaign  = campaignSection;
-      // Free-text search (name / email / phone / company) — server-side so it
-      // matches across all pages. Debounced to avoid a refetch per keystroke.
-      if (debouncedQ)       params.q          = debouncedQ;
+      const params: Record<string, string | number> = { page, limit: pageSize, ...baseParams };
       if (sort.key !== 'recent') { params.sort = sort.key; params.order = sort.order; }
-      // AI Smart Filter params (plain-English → validated filters) win over the
-      // manual controls — the NL query is the active intent. They cover extra
-      // keys the manual UI doesn't expose (score_gte/lte, is_b2c, status_in,
-      // created_within_days, not_contacted_days, …). Server applies + scopes.
-      Object.assign(params, smartParams);
       const [l, s] = await Promise.allSettled([crmLeads.list(params), crmLeadSources.list()]);
       if (l.status === 'fulfilled') {
         setLeads(l.value.data || []);
@@ -321,10 +330,6 @@ export default function LeadsListPage() {
   };
   const clearSmartFilter = () => { setSmartQuery(''); setSmartParams({}); setSmartExplain(''); };
 
-  // Reload on filter / range / page / page-size change. Server-side
-  // pagination means changing the row-count'd filter set must also
-  // reset to page 1, or we'd request page 5 of a 3-page result and
-  // get nothing.
   // Debounce the free-text search into debouncedQ (350ms) so the server
   // refetch fires once the user pauses typing, not on every keystroke.
   useEffect(() => {
@@ -332,53 +337,91 @@ export default function LeadsListPage() {
     return () => clearTimeout(t);
   }, [filters.q]);
 
-  useEffect(() => { reload(); /* eslint-disable-next-line */ }, [
-    range.from, range.to,
-    filters.state, filters.city, filters.district, filters.block,
-    filters.status?.join(','), approvalFilter, filters.source, filters.owner, filters.grade,
-    campaignSection,
-    debouncedQ,
-    page, pageSize, sort.key, sort.order,
-    smartParams,
-  ]);
+  // Reload on filter / range / page / page-size / sort change. Server-side
+  // pagination means changing the row-count'd filter set must also
+  // reset to page 1, or we'd request page 5 of a 3-page result and
+  // get nothing.
+  useEffect(() => { reload(); /* eslint-disable-next-line */ }, [baseParams, page, pageSize, sort.key, sort.order]);
+  useEffect(() => { setPage(1); /* eslint-disable-next-line */ }, [baseParams, pageSize, sort.key, sort.order]);
 
-  // Load the user list up front so the Owner filter dropdown is populated
-  // (loadUsers also backs the bulk-assign menu; it's a no-op once loaded).
+  // Load the user list up front so the Owner filter + chip names are populated
+  // (loadUsers also backs the bulk-assign popover; it's a no-op once loaded).
   useEffect(() => { loadUsers(); /* eslint-disable-next-line */ }, []);
-
-  // Reset to page 1 whenever any server-side filter changes. Without
-  // this, picking a stricter filter while on page 5 would render an
-  // empty page until the user manually clicks "first".
-  useEffect(() => { setPage(1); /* eslint-disable-next-line */ }, [
-    range.from, range.to,
-    filters.state, filters.city, filters.district, filters.block,
-    filters.status?.join(','), approvalFilter, filters.source, filters.owner, filters.grade,
-    campaignSection,
-    debouncedQ,
-    pageSize, sort.key, sort.order,
-    smartParams,
-  ]);
 
   useEffect(() => {
     crmSettings.get().then((r) => {
       if (r.data?.business_type === 'b2c') setIsB2C(true);
       setLeadStatuses(extractLeadStatuses(r.data));
-    }).catch(() => {});
+      setOverrides(extractFieldOverrides(r.data));
+    }).catch(() => {}).finally(() => setSettingsLoaded(true));
   }, []);
 
+  // ── Pipeline + quick-view counters ────────────────────────────────────
+  // One cheap `limit=1` query per status card / view chip, all honouring every
+  // OTHER active filter (so the cards add up to "All"). They only refetch when
+  // the non-status filters change — not on paging, sorting or a status pick.
+  const [counts, setCounts] = useState<{ all: number | null; status: Record<string, number>; views: Record<string, number> }>({ all: null, status: {}, views: {} });
+  const viewDefs = useMemo(
+    () => QUICK_VIEWS
+      .filter((v) => !(v.needsMe && !(ownerAccess.ready && ownerAccess.canAssign)))
+      .map((v) => ({ v, patch: resolvePatch(v, myId) }))
+      .filter((x): x is { v: typeof x.v; patch: NonNullable<typeof x.patch> } => !!x.patch),
+    [ownerAccess.ready, ownerAccess.canAssign, myId],
+  );
+  const statusValues = useMemo(() => statusOptions.map((o) => o.value), [statusOptions]);
+  const countsKey = JSON.stringify([
+    (() => { const { status_in: _s, status: _t, ...rest } = baseParams as Record<string, string | number>; return rest; })(),
+    statusValues,
+    viewDefs.map((d) => d.patch),
+  ]);
   useEffect(() => {
-    if (!showAssignMenu) return;
-    const handleClick = (e: MouseEvent) => {
-      if (assignMenuRef.current && !assignMenuRef.current.contains(e.target as Node)) setShowAssignMenu(false);
-    };
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [showAssignMenu]);
+    let cancelled = false;
+    const { status_in: _s, status: _t, ...base } = baseParams as Record<string, string | number>;
+    const total = (p: Record<string, string | number>) =>
+      crmLeads.list({ ...p, limit: 1 }).then((r) => r.pagination?.total ?? (r.data?.length ?? 0));
+    const smartRest = (() => { const { status_in: _a, status: _b, ...rest } = smartParams; return rest; })();
+    total(base).then((n) => { if (!cancelled) setCounts((c) => ({ ...c, all: n })); }).catch(() => {});
+    for (const v of statusValues) {
+      total({ ...base, status: v }).then((n) => { if (!cancelled) setCounts((c) => ({ ...c, status: { ...c.status, [v]: n } })); }).catch(() => {});
+    }
+    for (const { v, patch } of viewDefs) {
+      const p: Record<string, string | number> = {
+        ...leadFilterParams({ ...filters, status: undefined, ...patch }, { q: debouncedQ, approval: approvalFilter, campaign: campaignSection }),
+      };
+      if (range.from) p.from = range.from;
+      if (range.to) p.to = range.to;
+      Object.assign(p, smartRest);
+      total(p).then((n) => { if (!cancelled) setCounts((c) => ({ ...c, views: { ...c.views, [v.id]: n } })); }).catch(() => {});
+    }
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [countsKey]);
 
-  // Status/source/owner/grade are applied server-side (see params in
-  // reload()) so they're already absent from `leads`. Only `q` stays
-  // client-side as "find within the current page" — keeps typing snappy
-  // and means we don't page-reset on every keystroke.
+  // ── Saved views (per user + client, this browser) ─────────────────────
+  const [savedViews, setSavedViews] = useState<SavedView[]>([]);
+  useEffect(() => { setSavedViews(loadSavedViews(myId, getRequestClientId())); }, [myId]);
+  const saveView = (name: string) => {
+    const v: SavedView = { id: `v_${Date.now().toString(36)}`, name, filters: viewFilters(filters), sort };
+    const next = [...savedViews, v];
+    setSavedViews(next);
+    persistSavedViews(myId, getRequestClientId(), next);
+    toast.success(`Saved view “${name}”`);
+  };
+  const removeView = (id: string) => {
+    const next = savedViews.filter((v) => v.id !== id);
+    setSavedViews(next);
+    persistSavedViews(myId, getRequestClientId(), next);
+  };
+  const applyView = (v: SavedView) => {
+    if (filtersEqual(v.filters, filters)) { setFilters((f) => ({ q: f.q })); return; }
+    setFilters((f) => ({ ...v.filters, q: f.q }));
+    if (v.sort) setSort(v.sort);
+  };
+
+  // Status/source/owner/grade are applied server-side (see baseParams) so
+  // they're already absent from `leads`. Only `q` stays client-side as "find
+  // within the current page" — keeps typing snappy and means we don't
+  // page-reset on every keystroke.
   const filtered = useMemo(() => {
     const q = (filters.q || '').toLowerCase();
     if (!q) return leads;
@@ -427,7 +470,6 @@ export default function LeadsListPage() {
       await crmLeads.bulkAssign({ lead_ids: Array.from(selected), owner_id: userId });
       toast.success(`Assigned ${selected.size} leads to ${userName}`);
       setSelected(new Set());
-      setShowAssignMenu(false);
       reload();
     } catch (e: any) { toast.error(e.message || 'Bulk assign failed'); }
   };
@@ -455,12 +497,9 @@ export default function LeadsListPage() {
     reload();
   };
 
-  // Row count: server's total matches all current filters
-  // (state/city/district/block/status/source/owner/grade).
-  // `filtered.length` is the subset visible on this page after
-  // the client-side q (text-search) filter.
+  // Row count: server's total matches all current filters. `filtered.length`
+  // is the subset visible on this page after the client-side q (text-search) filter.
   const totalCount = pagination ? pagination.total : filtered.length;
-  const locationCrumb = [filters.block, filters.district, filters.city, filters.state].filter(Boolean).join(' › ');
   // Manager approval quick-filter. Only shown when approval is actually in
   // use — some non-approved lead is present, or the filter is already
   // active. The workflow is opt-in per org (off by default), so tenants
@@ -468,17 +507,65 @@ export default function LeadsListPage() {
   // control: their leads page is unchanged.
   const showApproval = approvalFilter !== '' || leads.some((l) => (l.approval_status ?? 'approved') !== 'approved');
 
+  // ── Pipeline strip ────────────────────────────────────────────────────
+  const tabs: PipelineTab[] = [
+    { value: null, label: 'All', count: counts.all, color: T.info },
+    ...statusOptions.map((o) => ({ value: o.value, label: o.label, count: counts.status[o.value] ?? null, color: o.color || STATUS_COLOR[o.value] || T.dim })),
+  ];
+  const activeTab = filters.status?.length === 1 ? filters.status[0] : null;
+
+  // ── Quick views ───────────────────────────────────────────────────────
+  const viewChips: QuickViewChip[] = [
+    ...viewDefs.map(({ v, patch }) => ({
+      id: v.id,
+      label: v.label,
+      title: v.hint,
+      count: counts.views[v.id] ?? null,
+      active: isViewActive(patch, filters),
+      onClick: () => setFilters((f) => toggleView(patch, f)),
+    })),
+    ...savedViews.map((sv) => ({
+      id: sv.id,
+      label: sv.name,
+      active: filtersEqual(sv.filters, filters),
+      onClick: () => applyView(sv),
+      onRemove: () => removeView(sv.id),
+    })),
+  ];
+
+  // ── Applied chips + empty states ──────────────────────────────────────
+  const appliedChips = buildAppliedChips({
+    filters,
+    onChange: setFilters,
+    statusLabel: (v) => statusOptions.find((o) => o.value === v)?.label ?? v,
+    sourceName: (id) => sources.find((s) => s.id === id)?.name ?? 'Selected source',
+    ownerName: (id) => users.find((u) => u.id === id)?.name ?? 'Selected user',
+    showOwner: ownerAccess.canAssign,
+  });
+  const smartActive = Object.keys(smartParams).length > 0;
+  const filtersActive = appliedChips.length > 0 || !!debouncedQ || !!approvalFilter || smartActive;
+  const clearAll = () => { setFilters({}); setApprovalFilter(''); clearSmartFilter(); };
+  const emptyState = !loading && totalCount === 0 && !filtersActive && !campaignSection && datePreset === 'all'
+    ? <LeadsFirstRun />
+    : (
+      <LeadsNoResults
+        chips={appliedChips}
+        search={debouncedQ}
+        onClearAll={filtersActive ? clearAll : undefined}
+        onWidenDates={datePreset !== 'all' ? () => setDatePreset('all') : undefined}
+      />
+    );
+
+  const previewLead = useMemo(() => (previewId ? leads.find((l) => l.id === previewId) ?? null : null), [previewId, leads]);
+  const showPreview = !!previewLead && !useStack;
+  const dockPreview = showPreview && !overlayPreview;
+  const nFilters = activeFilterCount(filters);
+
+  // On a phone the secondary actions collapse to icons (the header can't wrap them — it sizes to its
+  // content and would clip "New lead"); desktop / tablet keep the labelled buttons.
+  const iconBtn: React.CSSProperties = { width: 34, padding: 0 };
   const headerActions = (
     <>
-      <ViewCustomizer
-        entityLabel="Leads"
-        columns={LEAD_COLUMNS as unknown as { key: string; label: string; locked?: boolean }[]}
-        hidden={view.prefs.hidden}
-        mode={view.prefs.mode}
-        onToggle={view.toggleHidden}
-        onSetMode={view.setMode}
-        onReset={view.reset}
-      />
       {/* Update all scores — recomputes every non-terminal lead's AI score
           (org-wide, or the selected client when a city scope is active). Admin
           only; runs detached server-side. */}
@@ -488,10 +575,11 @@ export default function LeadsListPage() {
           onClick={handleRescoreAll}
           disabled={rescoring}
           title="Recompute the AI score for every open lead in view"
+          aria-label={isCompact ? 'Update scores' : undefined}
           icon={<RefreshCw size={16} strokeWidth={1.8} style={rescoring ? { animation: 'spin 0.8s linear infinite' } : undefined} />}
-          style={{ cursor: rescoring ? 'wait' : undefined }}
+          style={{ cursor: rescoring ? 'wait' : undefined, ...(isCompact ? iconBtn : {}) }}
         >
-          {rescoring ? 'Starting…' : 'Update scores'}
+          {isCompact ? null : rescoring ? 'Starting…' : 'Update scores'}
         </Button>
       )}
       {/* Export — the server doesn't stream per-row counts, so the button
@@ -502,68 +590,30 @@ export default function LeadsListPage() {
         onClick={handleExport}
         disabled={exporting}
         title="Download leads as CSV (current filters apply)"
+        aria-label={isCompact ? 'Export' : undefined}
         icon={exporting ? <Loader2 size={16} strokeWidth={1.8} style={{ animation: 'spin 0.8s linear infinite' }} /> : <Download size={16} strokeWidth={1.8} />}
-        style={{ cursor: exporting ? 'wait' : undefined }}
+        style={{ cursor: exporting ? 'wait' : undefined, ...(isCompact ? iconBtn : {}) }}
       >
-        {exporting ? <span style={{ fontFamily: T.mono, fontSize: 12.5 }}>Exporting… {exportElapsed}s</span> : 'Export'}
+        {isCompact ? null : exporting ? <span style={{ fontFamily: T.mono, fontSize: 12.5 }}>Exporting… {exportElapsed}s</span> : 'Export'}
       </Button>
-      <Button href="/dashboard/crm/leads/import" icon={<Upload size={16} strokeWidth={1.8} />}>Import</Button>
+      {isCompact ? (
+        <Link href="/dashboard/crm/leads/import" aria-label="Import" title="Import leads" className="km-btn" data-variant="secondary" style={{ ...buttonStyle('secondary', 'md'), ...iconBtn }}>
+          <Upload size={16} strokeWidth={1.8} />
+        </Link>
+      ) : (
+        <Button href="/dashboard/crm/leads/import" icon={<Upload size={16} strokeWidth={1.8} />}>Import</Button>
+      )}
       <Button href="/dashboard/crm/leads/new" variant="primary" icon={<Plus size={16} strokeWidth={2} />}>New lead</Button>
     </>
   );
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <PageHeader
         title={
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             Leads
             <Badge mono style={{ fontSize: 11.5 }}>{totalCount.toLocaleString()} leads</Badge>
-            {/* New-leads counter — the tenant-wide backlog of unworked ("new")
-                leads. Clickable: filtering the list to status=new. Hidden when
-                zero (or still loading) so it never shows a "0 new" chip. */}
-            {newLeadsCount != null && newLeadsCount > 0 && (
-              <button
-                type="button"
-                onClick={() => {
-                  // Toggle a "new only" quick-filter on/off. Sets the status
-                  // multi-select to exactly [new], or clears it if it was
-                  // already just [new].
-                  setFilters((f) => {
-                    const onlyNew = f.status?.length === 1 && f.status[0] === 'new';
-                    return { ...f, status: onlyNew ? undefined : ['new'] };
-                  });
-                  setPage(1);
-                }}
-                title="Show new (unworked) leads"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 5,
-                  padding: '2px 9px',
-                  borderRadius: 999,
-                  border: '1px solid var(--info-border, #93c5fd)',
-                  background: (filters.status?.length === 1 && filters.status[0] === 'new') ? 'var(--info, #2563eb)' : 'var(--info-bg, #eff6ff)',
-                  color: (filters.status?.length === 1 && filters.status[0] === 'new') ? '#fff' : 'var(--info-fg, #1d4ed8)',
-                  fontSize: 11.5,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  lineHeight: 1.6,
-                }}
-              >
-                <span
-                  aria-hidden
-                  style={{
-                    width: 6,
-                    height: 6,
-                    borderRadius: 999,
-                    background: (filters.status?.length === 1 && filters.status[0] === 'new') ? '#fff' : 'var(--info, #2563eb)',
-                    display: 'inline-block',
-                  }}
-                />
-                {newLeadsCount.toLocaleString()} new
-              </button>
-            )}
           </span>
         }
         description="Track and qualify prospects, then convert the best ones to contacts, accounts and deals."
@@ -571,9 +621,6 @@ export default function LeadsListPage() {
         compact={narrow}
       />
 
-      {/* Toolbar — one wrapping row: KINI smart filter, free-text search, the
-          server-side selects, and the sort order. The smart-filter chips /
-          "Interpreted as" line drop to their own line below (order: 10). */}
       {campaignSections && (
         /* Telecaller phase 3 — campaign sections. Each is a view of the same
            shared lead set (filtered by the lead's campaign tag); a lead opened
@@ -591,7 +638,21 @@ export default function LeadsListPage() {
           />
         </div>
       )}
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+
+      <LeadsPipeline
+        tabs={tabs}
+        active={activeTab}
+        allActive={!filters.status?.length}
+        onSelect={(v) => setFilters((f) => ({ ...f, status: v ? [v] : undefined }))}
+      />
+
+      <LeadQuickViews chips={viewChips} />
+
+      {/* Toolbar — one wrapping row: KINI smart filter, free-text search, the
+          Filters drawer trigger, the approval toggle, the sort order and the
+          column customiser. The smart-filter chips / "Interpreted as" line sit
+          under the KINI box. */}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-start' }}>
         <SmartFilterBar
           query={smartQuery}
           setQuery={setSmartQuery}
@@ -601,7 +662,27 @@ export default function LeadsListPage() {
           explanation={smartExplain}
           params={smartParams}
         />
-        <LeadFilters value={filters} onChange={setFilters} sources={sources.map((s) => ({ id: s.id, name: s.name }))} owners={users} showOwner={ownerAccess.canAssign} statusOptions={leadStatuses} />
+        <div style={{ position: 'relative', flex: '1 1 220px', minWidth: 180 }}>
+          <Search size={15} strokeWidth={1.8} aria-hidden style={{ position: 'absolute', left: 11, top: 10.5, color: T.mute, pointerEvents: 'none' }} />
+          <Input
+            value={filters.q || ''}
+            onChange={(e) => setFilters((f) => ({ ...f, q: e.target.value || undefined }))}
+            placeholder="Search name, email, company..."
+            aria-label="Search leads"
+            style={{ paddingLeft: 33 }}
+          />
+        </div>
+        <Button
+          onClick={() => setDrawerOpen(true)}
+          aria-haspopup="dialog"
+          icon={<SlidersHorizontal size={15} strokeWidth={1.8} />}
+          style={{ height: 36 }}
+        >
+          Filters
+          {nFilters > 0 && (
+            <span style={{ minWidth: 18, height: 18, padding: '0 5px', borderRadius: 999, background: T.info, color: '#fff', fontFamily: T.mono, fontSize: 10.5, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{nFilters}</span>
+          )}
+        </Button>
         {showApproval && (
           <Segmented
             value={approvalFilter}
@@ -632,117 +713,164 @@ export default function LeadsListPage() {
             <option value="status:asc">Sort: Status</option>
           </Select>
         </div>
+        <ViewCustomizer
+          entityLabel="Leads"
+          columns={LEAD_COLUMNS as unknown as { key: string; label: string; locked?: boolean }[]}
+          hidden={view.prefs.hidden}
+          mode={view.prefs.mode}
+          onToggle={view.toggleHidden}
+          onSetMode={view.setMode}
+          onReset={view.reset}
+        />
       </div>
 
-      <Card padding={0} style={{ overflow: 'hidden' }}>
-        {/* Context strip — only when there's something to say: a client-side
-            search narrowing the page, an active location scope, or a
-            selection with bulk actions. */}
-        {(selected.size > 0 || locationCrumb || (filters.q && pagination && filtered.length !== leads.length)) && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '10px 16px', borderBottom: `1px solid ${T.border}`, background: 'var(--s3)', minHeight: 48 }}>
-            {selected.size > 0 ? (
-              <>
-                <span style={{ fontSize: 13, color: T.text, fontWeight: 500 }}>
-                  <span style={{ fontFamily: T.mono }}>{selected.size}</span> selected
-                </span>
-                {ownerAccess.canAssign && <Button size="sm" onClick={bulkAssignToMe} disabled={bulkBusy} icon={<UserCheck size={14} strokeWidth={1.8} />}>Assign to me</Button>}
-                {ownerAccess.canAssign && <div ref={assignMenuRef} style={{ position: 'relative' }}>
-                  <Button size="sm" onClick={() => { setShowAssignMenu((m) => !m); loadUsers(); }} disabled={bulkBusy} icon={<UserPlus size={14} strokeWidth={1.8} />}>Assign to…</Button>
-                  {showAssignMenu && (
-                    <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, background: T.card, border: `1px solid ${T.border}`, borderRadius: T.radius.md, boxShadow: 'var(--shadow-pop)', zIndex: 200, minWidth: 200, maxHeight: 240, overflowY: 'auto', padding: 4 }}>
-                      {usersLoading && <div style={{ padding: '8px 10px', fontSize: 12.5, color: T.dim }}>Loading users…</div>}
-                      {!usersLoading && users.length === 0 && <div style={{ padding: '8px 10px', fontSize: 12.5, color: T.dim }}>No users found</div>}
-                      {users.map((u) => (
-                        <button
-                          key={u.id}
-                          type="button"
-                          onClick={() => bulkAssignTo(u.id, u.name)}
-                          className="km-navrow"
-                          style={{ width: '100%', display: 'block', padding: '7px 10px', background: 'transparent', border: 'none', borderRadius: 6, color: T.text, textAlign: 'left', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit' }}
-                        >
-                          {u.name}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>}
-                <Button size="sm" variant="danger" onClick={bulkDelete} disabled={bulkBusy} title="Soft-delete the selected leads" icon={<Trash2 size={14} strokeWidth={1.8} />}>
-                  {bulkBusy ? 'Deleting…' : `Delete ${selected.size}`}
-                </Button>
-              </>
+      <LeadFilterChips chips={appliedChips} onClearAll={clearAll} />
+
+      <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <Card padding={0} style={{ overflow: 'hidden' }}>
+            {useStack ? (
+              <LeadCardStack
+                leads={filtered}
+                selected={selected}
+                onToggle={toggle}
+                loading={loading || !settingsLoaded}
+                isB2C={isB2C}
+                statusOptions={leadStatuses}
+                fieldHelpers={settingsLoaded ? fieldHelpers : undefined}
+                onEdit={setEditingLead}
+                emptyState={emptyState}
+              />
             ) : (
-              <span style={{ fontSize: 12.5, color: T.dim, display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                {filters.q && pagination && filtered.length !== leads.length && (
-                  <span><span style={{ fontFamily: T.mono, color: T.text }}>{filtered.length}</span> match “{filters.q}” on this page</span>
-                )}
-                {locationCrumb && (
-                  <Badge tone="info" style={{ gap: 5 }}><MapPin size={12} strokeWidth={1.8} />{locationCrumb}</Badge>
-                )}
-              </span>
+              <LeadsTable
+                leads={filtered}
+                selected={selected}
+                onToggle={toggle}
+                onToggleAll={toggleAll}
+                loading={loading || !settingsLoaded}
+                isB2C={isB2C}
+                hiddenColumns={hiddenSet}
+                statusOptions={leadStatuses}
+                sort={sort}
+                // Header click: switch to this column asc, or flip asc↔desc if it's
+                // already the active sort. Feeds the same server-side `sort` state the
+                // "Sort by" dropdown uses, so both stay in lock-step and refetch.
+                onSort={(key) => setSort((s) => s.key === key ? { key, order: s.order === 'asc' ? 'desc' : 'asc' } : { key, order: 'asc' })}
+                onAssign={ownerAccess.canAssign ? async (leadId, userId) => {
+                  await crmLeads.update(leadId, { owner_id: userId } as any);
+                  toast.success(userId ? 'Lead reassigned' : 'Lead unassigned');
+                  reload();
+                } : undefined}
+                onEdit={setEditingLead}
+                onPreview={(l) => setPreviewId((cur) => (cur === l.id ? null : l.id))}
+                previewId={showPreview ? previewId : null}
+                onScoreClick={setScoreLead}
+                slim={dockPreview}
+                fieldHelpers={settingsLoaded ? fieldHelpers : undefined}
+                emptyState={emptyState}
+                onApprove={async (leadId, decision) => {
+                  try {
+                    await crmLeads.decideApproval(leadId, { decision });
+                    toast.success(decision === 'approved' ? 'Lead approved' : 'Lead rejected');
+                    reload();
+                  } catch (e: any) {
+                    toast.error(e?.message || 'Could not update approval');
+                  }
+                }}
+                onToggleImportant={async (lead) => {
+                  const next = !((lead.custom_fields as { __important?: unknown } | null | undefined)?.__important);
+                  // Optimistic: flip __important on the local row so the star updates
+                  // immediately, then persist. Revert if the API call fails.
+                  const patch = (rows: Lead[]) => rows.map((r) => r.id === lead.id
+                    ? { ...r, custom_fields: { ...(r.custom_fields || {}), __important: next } }
+                    : r);
+                  const unpatch = (rows: Lead[]) => rows.map((r) => {
+                    if (r.id !== lead.id) return r;
+                    const cf = { ...(r.custom_fields || {}) } as Record<string, unknown>;
+                    if (next) delete cf.__important; else cf.__important = true;
+                    return { ...r, custom_fields: cf };
+                  });
+                  setLeads(patch);
+                  try {
+                    await crmLeads.setImportant(lead.id, next);
+                    toast.success(next ? 'Marked important' : 'Removed important');
+                  } catch (e: any) {
+                    setLeads(unpatch);
+                    toast.error(e?.message || 'Could not update lead');
+                  }
+                }}
+              />
             )}
-          </div>
+            <PaginationBar
+              pagination={pagination}
+              pageSize={pageSize}
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+              loading={loading}
+            />
+          </Card>
+        </div>
+
+        {dockPreview && previewLead && (
+          <LeadPreviewPanel
+            lead={previewLead}
+            mode="dock"
+            isB2C={isB2C}
+            statusOptions={leadStatuses}
+            fieldHelpers={settingsLoaded ? fieldHelpers : undefined}
+            onClose={() => setPreviewId(null)}
+            onEdit={setEditingLead}
+            onOpenScore={setScoreLead}
+          />
         )}
-        <LeadsTable
-          leads={filtered}
-          selected={selected}
-          onToggle={toggle}
-          onToggleAll={toggleAll}
-          loading={loading}
-          isB2C={isB2C}
-          hiddenColumns={hiddenSet}
-          statusOptions={leadStatuses}
-          viewMode={view.prefs.mode}
-          sort={sort}
-          // Header click: switch to this column asc, or flip asc↔desc if it's
-          // already the active sort. Feeds the same server-side `sort` state the
-          // "Sort by" dropdown uses, so both stay in lock-step and refetch.
-          onSort={(key) => setSort((s) => s.key === key ? { key, order: s.order === 'asc' ? 'desc' : 'asc' } : { key, order: 'asc' })}
-          onAssign={ownerAccess.canAssign ? async (leadId, userId) => {
-            await crmLeads.update(leadId, { owner_id: userId } as any);
-            toast.success(userId ? 'Lead reassigned' : 'Lead unassigned');
-            reload();
-          } : undefined}
-          onEdit={setEditingLead}
-          onApprove={async (leadId, decision) => {
-            try {
-              await crmLeads.decideApproval(leadId, { decision });
-              toast.success(decision === 'approved' ? 'Lead approved' : 'Lead rejected');
-              reload();
-            } catch (e: any) {
-              toast.error(e?.message || 'Could not update approval');
-            }
-          }}
-          onToggleImportant={async (lead) => {
-            const next = !((lead.custom_fields as { __important?: unknown } | null | undefined)?.__important);
-            // Optimistic: flip __important on the local row so the star updates
-            // immediately, then persist. Revert if the API call fails.
-            const patch = (rows: Lead[]) => rows.map((r) => r.id === lead.id
-              ? { ...r, custom_fields: { ...(r.custom_fields || {}), __important: next } }
-              : r);
-            const unpatch = (rows: Lead[]) => rows.map((r) => {
-              if (r.id !== lead.id) return r;
-              const cf = { ...(r.custom_fields || {}) } as Record<string, unknown>;
-              if (next) delete cf.__important; else cf.__important = true;
-              return { ...r, custom_fields: cf };
-            });
-            setLeads(patch);
-            try {
-              await crmLeads.setImportant(lead.id, next);
-              toast.success(next ? 'Marked important' : 'Removed important');
-            } catch (e: any) {
-              setLeads(unpatch);
-              toast.error(e?.message || 'Could not update lead');
-            }
-          }}
-        />
-        <PaginationBar
-          pagination={pagination}
-          pageSize={pageSize}
-          onPageChange={setPage}
-          onPageSizeChange={setPageSize}
-          loading={loading}
-        />
-      </Card>
+      </div>
+
+      {showPreview && !dockPreview && previewLead && (
+        <>
+          <div onClick={() => setPreviewId(null)} aria-hidden style={{ position: 'fixed', inset: 0, background: 'rgba(10,14,26,0.35)', zIndex: 1000 }} />
+          <LeadPreviewPanel
+            lead={previewLead}
+            mode="overlay"
+            isB2C={isB2C}
+            statusOptions={leadStatuses}
+            fieldHelpers={settingsLoaded ? fieldHelpers : undefined}
+            onClose={() => setPreviewId(null)}
+            onEdit={setEditingLead}
+            onOpenScore={setScoreLead}
+          />
+        </>
+      )}
+
+      <LeadBulkBar
+        count={selected.size}
+        canAssign={ownerAccess.canAssign}
+        busy={bulkBusy}
+        users={users}
+        usersLoading={usersLoading}
+        myId={myId}
+        onLoadUsers={loadUsers}
+        onAssignToMe={bulkAssignToMe}
+        onAssignTo={bulkAssignTo}
+        onDelete={bulkDelete}
+        onClear={() => setSelected(new Set())}
+      />
+
+      <LeadFilterDrawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        value={filters}
+        onChange={setFilters}
+        sources={sources.map((s) => ({ id: s.id, name: s.name }))}
+        owners={users}
+        showOwner={ownerAccess.canAssign}
+        statusOptions={statusOptions}
+        total={totalCount}
+        loading={loading}
+        onReset={clearAll}
+        onSaveView={saveView}
+        savedCount={savedViews.length}
+        maxSaved={MAX_SAVED_VIEWS}
+      />
 
       {/* Phone-only floating "New lead" CTA. The header version is still
           rendered above for desktop / tablet, but on a 360-560 px screen the
@@ -774,16 +902,29 @@ export default function LeadsListPage() {
           onSaved={() => { setEditingLead(null); reload(); }}
         />
       )}
+
+      {scoreLead && <ScoreBreakdownModal lead={scoreLead} onClose={() => setScoreLead(null)} />}
     </div>
   );
 }
 
+// Page numbers to show around the current page: 1 … 4 5 6 … 20
+function pageWindow(current: number, total: number): Array<number | '…'> {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const keep = new Set<number>([1, total, current - 1, current, current + 1]);
+  if (current <= 3) { keep.add(2); keep.add(3); keep.add(4); }
+  if (current >= total - 2) { keep.add(total - 1); keep.add(total - 2); keep.add(total - 3); }
+  const nums = Array.from(keep).filter((n) => n >= 1 && n <= total).sort((a, b) => a - b);
+  const out: Array<number | '…'> = [];
+  nums.forEach((n, i) => { if (i > 0 && n - nums[i - 1] > 1) out.push('…'); out.push(n); });
+  return out;
+}
+
 /**
- * Pagination footer: page-size picker on the left, current-page
- * indicator + first/prev/next/last on the right. Sits inside the table
- * card (hairline above). Renders even when pagination is null so the
- * layout doesn't jump on the very first render — controls are just
- * disabled.
+ * Pagination footer: range + page-size picker on the left, numbered pages on
+ * the right. Sits inside the table card (hairline above). Renders even when
+ * pagination is null so the layout doesn't jump on the very first render —
+ * controls are just disabled.
  */
 function PaginationBar({
   pagination, pageSize, onPageChange, onPageSizeChange, loading,
@@ -807,32 +948,49 @@ function PaginationBar({
 
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 16px', borderTop: `1px solid ${T.border}`, flexWrap: 'wrap', gap: 10 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12.5, color: T.dim }}>
-        <span>Rows per page</span>
-        <div style={{ width: 84 }}>
-          <Select
-            aria-label="Rows per page"
-            value={pageSize}
-            onChange={(e) => onPageSizeChange(Number(e.target.value))}
-            disabled={disabled}
-            style={{ height: 30, fontSize: 12.5, paddingLeft: 9 }}
-          >
-            {PAGE_SIZE_OPTIONS.map((n) => <option key={n} value={n}>{n}</option>)}
-          </Select>
-        </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, fontSize: 12.5, color: T.dim, flexWrap: 'wrap' }}>
         <span style={{ fontFamily: T.mono, fontSize: 12, color: T.mute }}>
-          {total === 0 ? 'No results' : `${start.toLocaleString()}–${end.toLocaleString()} of ${total.toLocaleString()}`}
+          {total === 0 ? 'No results' : <>Showing <span style={{ color: T.text }}>{start.toLocaleString()}–{end.toLocaleString()}</span> of <span style={{ color: T.text }}>{total.toLocaleString()}</span></>}
+        </span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+          <span>Rows per page</span>
+          <div style={{ width: 84 }}>
+            <Select
+              aria-label="Rows per page"
+              value={pageSize}
+              onChange={(e) => onPageSizeChange(Number(e.target.value))}
+              disabled={disabled}
+              style={{ height: 30, fontSize: 12.5, paddingLeft: 9 }}
+            >
+              {PAGE_SIZE_OPTIONS.map((n) => <option key={n} value={n}>{n}</option>)}
+            </Select>
+          </div>
         </span>
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-        <IconButton label="First page" onClick={() => onPageChange(1)} disabled={!canPrev}><ChevronsLeft size={16} strokeWidth={1.6} /></IconButton>
+      <nav aria-label="Pagination" style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
         <IconButton label="Previous page" onClick={() => onPageChange(currentPage - 1)} disabled={!canPrev}><ChevronLeft size={16} strokeWidth={1.6} /></IconButton>
-        <span style={{ fontSize: 12.5, color: T.dim, padding: '0 8px', fontFamily: T.mono }}>
-          <span style={{ color: T.text }}>{currentPage}</span> / {totalPages}
-        </span>
+        {pageWindow(currentPage, totalPages).map((n, i) => n === '…'
+          ? <span key={`gap${i}`} aria-hidden style={{ width: 24, textAlign: 'center', color: T.mute, fontSize: 12.5 }}>…</span>
+          : (
+            <button
+              key={n}
+              type="button"
+              aria-label={`Page ${n}`}
+              aria-current={n === currentPage ? 'page' : undefined}
+              disabled={disabled || n === currentPage}
+              onClick={() => onPageChange(n)}
+              className="km-iconbtn"
+              style={{
+                minWidth: 30, height: 30, padding: '0 6px', borderRadius: T.radius.sm, fontFamily: T.mono, fontSize: 12.5,
+                border: `1px solid ${n === currentPage ? T.borderStrong : 'transparent'}`,
+                background: n === currentPage ? 'var(--s3)' : 'transparent',
+                color: n === currentPage ? T.text : T.dim, fontWeight: n === currentPage ? 700 : 500,
+                cursor: n === currentPage || disabled ? 'default' : 'pointer',
+              }}
+            >{n}</button>
+          ))}
         <IconButton label="Next page" onClick={() => onPageChange(currentPage + 1)} disabled={!canNext}><ChevronRight size={16} strokeWidth={1.6} /></IconButton>
-        <IconButton label="Last page" onClick={() => onPageChange(totalPages)} disabled={!canNext}><ChevronsRight size={16} strokeWidth={1.6} /></IconButton>
-      </div>
+      </nav>
     </div>
   );
 }

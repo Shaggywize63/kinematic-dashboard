@@ -1,15 +1,18 @@
 'use client';
-import { memo, useCallback, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { ArrowDown, ArrowRight, ArrowUp, ArrowUpDown, Check, Hourglass, Pencil, Star, X } from 'lucide-react';
 import type { Lead } from '../../types/crm';
 import type { LeadStatusOption } from '../../lib/crmLeadStatuses';
-import LeadScoreBadge from './LeadScoreBadge';
-import { breakdownFactors, llmAdjustmentOf } from '../../lib/crm/scoreFactors';
+import type { FieldHelpers } from '../../lib/crmFieldOverrides';
 import OwnerAvatar from './shared/OwnerAvatar';
 import InlineOwnerAssign from './shared/InlineOwnerAssign';
-import LogoSpinner from '../shared/LogoSpinner';
-import { Badge, Button, EmptyState, Eyebrow, IconButton, T, type Tone } from '../ui';
+import CallButton from './shared/CallButton';
+import WhatsAppButton from './shared/WhatsAppButton';
+import LeadAvatar, { leadDisplayName } from './leads/LeadAvatar';
+import ScoreMeter from './leads/ScoreMeter';
+import { LeadsSkeleton } from './leads/LeadsStates';
+import { Badge, Button, IconButton, T, type Tone } from '../ui';
 
 interface Props {
   leads: Lead[];
@@ -20,7 +23,6 @@ interface Props {
   isB2C?: boolean;
   onAssign?: (leadId: string, userId: string | null) => Promise<void>;
   hiddenColumns?: Set<string>;
-  viewMode?: 'table' | 'cards';
   // Server-side sort. `sort.key` is the backend sort key (see the
   // column→key mapping in the header); `onSort(key)` asks the parent to
   // toggle/switch the active sort and refetch. Undefined = non-sortable UI.
@@ -30,8 +32,8 @@ interface Props {
   // list, so a rep can fix one lead without opening its detail page.
   onEdit?: (lead: Lead) => void;
   // Manager approval: when provided, a lead whose approval_status is 'pending'
-  // shows Approve / Reject buttons in the Action column and a "Pending
-  // approval" badge by its name. Backend enforces who may actually decide.
+  // shows Approve / Reject buttons and a "Pending approval" badge by its name.
+  // Backend enforces who may actually decide.
   onApprove?: (leadId: string, decision: 'approved' | 'rejected') => Promise<void>;
   // Mark-important: when provided, a star toggle next to each lead's name
   // flips crm_leads.custom_fields.__important. The parent owns the optimistic
@@ -41,6 +43,19 @@ interface Props {
   // colours + raw-value labels (no change for existing tenants). When set, a
   // row's status badge renders the matching option's label + colour.
   statusOptions?: LeadStatusOption[] | null;
+  // Quick preview: clicking a row (outside its links / controls) opens it.
+  onPreview?: (lead: Lead) => void;
+  previewId?: string | null;
+  // Opens the full score breakdown (the score cell is a button).
+  onScoreClick?: (lead: Lead) => void;
+  // Narrow layout used while the preview panel is docked beside the list:
+  // keeps Lead / Status / Score and drops the secondary columns.
+  slim?: boolean;
+  // Built-in field overrides (Settings → Custom Fields). Every built-in column /
+  // sub-line below is gated through these — see the contract in CLAUDE.md.
+  fieldHelpers?: FieldHelpers;
+  // Rendered in place of the rows when there is nothing to show (no-results / first-run).
+  emptyState?: ReactNode;
 }
 
 // Table header cell — mono eyebrow, 12px vertical padding, hairline below.
@@ -49,7 +64,7 @@ const thStyle: React.CSSProperties = {
   fontFamily: T.mono, fontSize: 10.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: T.mute, fontWeight: 500,
   borderBottom: `1px solid ${T.border}`, background: T.card,
 };
-const tdStyle: React.CSSProperties = { padding: '12px 14px', fontSize: 13.5, color: T.text, borderBottom: `1px solid ${T.border}`, verticalAlign: 'middle' };
+const tdStyle: React.CSSProperties = { padding: '11px 14px', fontSize: 13.5, color: T.text, borderBottom: `1px solid ${T.border}`, verticalAlign: 'middle' };
 
 // Lead status → badge tone. Unknown statuses fall back to neutral.
 function statusTone(status?: string | null): Tone {
@@ -98,6 +113,8 @@ function SortTh({ label, sortKey, sort, onSort, align = 'left' }: {
 // Column keys are stable identifiers used by the View Customizer to
 // persist column visibility per-user. Renaming a key here would orphan
 // any saved preference, so treat the strings below as a public API.
+// (Company + Phone no longer have columns of their own: they are the sub-line
+// under each lead's name, and these toggles still show / hide them.)
 export const LEAD_COLUMNS = [
   { key: 'name', label: 'Name', locked: true },
   { key: 'company', label: 'Company' },
@@ -117,15 +134,23 @@ export const LEAD_COLUMNS = [
   { key: 'action', label: 'Action' },
 ] as const;
 
+const SLIM_HIDDEN = new Set(['latest_update', 'source', 'owner', 'created_by', 'created_at']);
+
 /**
  * Leads list table. Renders bare (no card) so the page can wrap it in a
- * `Card padding={0}` together with its selection strip and pagination
- * footer. Keeps the `responsive-cards` / `cards-view` classes + `data-label`s
- * that globals.css uses for the phone card-stack layout.
+ * `Card padding={0}` together with its pagination footer. Keeps the
+ * `responsive-cards` class + `data-label`s that globals.css uses for the
+ * tablet card-stack layout (phones get the dedicated LeadCardStack instead).
  */
-export default function LeadsTable({ leads, selected, onToggle, onToggleAll, loading, isB2C = false, onAssign, hiddenColumns, viewMode = 'table', sort, onSort, onEdit, onApprove, onToggleImportant, statusOptions = null }: Props) {
-  const [scorePopup, setScorePopup] = useState<Lead | null>(null);
+export default function LeadsTable({
+  leads, selected, onToggle, onToggleAll, loading, isB2C = false, onAssign, hiddenColumns, sort, onSort, onEdit, onApprove,
+  onToggleImportant, statusOptions = null, onPreview, previewId = null, onScoreClick, slim = false, fieldHelpers, emptyState,
+}: Props) {
   const allSelected = leads.length > 0 && leads.every((l) => selected.has(l.id));
+  const someSelected = !allSelected && leads.some((l) => selected.has(l.id));
+  const headCheck = useRef<HTMLInputElement>(null);
+  useEffect(() => { if (headCheck.current) headCheck.current.indeterminate = someSelected; }, [someSelected]);
+
   // Stable value→option lookup for the status cell. Null when no custom set is
   // configured, so LeadRow keeps the built-in tone/label path. Memoised so the
   // memo()'d rows don't re-render on unrelated parent updates.
@@ -136,89 +161,91 @@ export default function LeadsTable({ leads, selected, onToggle, onToggleAll, loa
     return m;
   }, [statusOptions]);
 
-  const hidden = hiddenColumns ?? new Set<string>();
+  const hidden = useMemo(() => {
+    const h = new Set(hiddenColumns ?? []);
+    if (slim) SLIM_HIDDEN.forEach((k) => h.add(k));
+    return h;
+  }, [hiddenColumns, slim]);
+  const hid = (key: string) => !!fieldHelpers?.isHidden(key);
+  const label = (key: string, fallback: string) => fieldHelpers?.labelFor(key, fallback) ?? fallback;
   const isVisible = (key: string) => !hidden.has(key);
-  // B2C deals don't use Company; treat it as implicitly hidden so the
-  // user can't accidentally un-hide an empty column.
-  const showCompany = !isB2C && isVisible('company');
-  const tableClass = `responsive-cards${viewMode === 'cards' ? ' cards-view' : ''}`;
+  const showStatus = isVisible('status') && !hid('status');
+  const showScore = isVisible('score') && !hid('score');
+  const showSource = isVisible('source') && !hid('source_id');
+  const showOwner = isVisible('owner') && !hid('owner_id');
 
-  // Count visible cells for the empty/loading row colSpan.
-  let colCount = 1; // checkbox
-  if (true)                   colCount += 1; // name (locked)
-  if (showCompany)            colCount += 1;
-  if (isVisible('phone'))     colCount += 1;
-  if (isVisible('status'))    colCount += 1;
-  if (isVisible('score'))     colCount += 1;
+  // Cells before the last: checkbox, lead, [status], [score], … + the zero-width actions anchor.
+  let colCount = 3;
+  if (showStatus) colCount += 1;
+  if (showScore) colCount += 1;
   if (isVisible('latest_update')) colCount += 1;
-  if (isVisible('source'))    colCount += 1;
-  if (isVisible('owner'))     colCount += 1;
+  if (showSource) colCount += 1;
+  if (showOwner) colCount += 1;
   if (isVisible('created_by')) colCount += 1;
   if (isVisible('created_at')) colCount += 1;
-  if (isVisible('action'))    colCount += 1;
 
   return (
-    <>
-      <div style={{ overflowX: 'auto' }}>
-        <table className={tableClass} style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr>
-              <th style={{ ...thStyle, width: 40, paddingRight: 0 }}>
-                <input type="checkbox" checked={allSelected} onChange={onToggleAll} aria-label="Select all on this page" style={{ width: 15, height: 15, display: 'block' }} />
-              </th>
-              <SortTh label="Name" sortKey="name" sort={sort} onSort={onSort} />
-              {showCompany && <SortTh label="Company" sortKey="company" sort={sort} onSort={onSort} />}
-              {isVisible('phone') && <th style={thStyle}>Phone</th>}
-              {isVisible('status') && <SortTh label="Status" sortKey="status" sort={sort} onSort={onSort} />}
-              {isVisible('score') && <SortTh label="Score" sortKey="score" sort={sort} onSort={onSort} />}
-              {isVisible('latest_update') && <th style={thStyle}>Latest update</th>}
-              {isVisible('source') && <th style={thStyle}>Source</th>}
-              {isVisible('owner') && <th style={thStyle}>Owner</th>}
-              {isVisible('created_by') && <th style={thStyle}>Uploaded by</th>}
-              {/* created_at column → backend sort key 'created' (leads whitelist maps created→created_at). */}
-              {isVisible('created_at') && <SortTh label="Uploaded on" sortKey="created" sort={sort} onSort={onSort} />}
-              {isVisible('action') && <th style={{ ...thStyle, textAlign: 'right' }}>Action</th>}
-            </tr>
-          </thead>
-          <tbody>
-            {loading && (
-              <tr><td colSpan={colCount} style={{ ...tdStyle, textAlign: 'center', borderBottom: 0 }} data-label=""><div style={{ display: 'flex', justifyContent: 'center', padding: '32px 0' }}><LogoSpinner size={38} label="Loading leads…" /></div></td></tr>
-            )}
-            {!loading && leads.length === 0 && (
-              <tr><td colSpan={colCount} style={{ ...tdStyle, padding: 0, borderBottom: 0 }} data-label="">
-                <EmptyState title="No leads match" description="Try widening the date range or clearing a filter. New leads land here as soon as they're captured." />
-              </td></tr>
-            )}
-            {leads.map((l) => (
-              <LeadRow
-                key={l.id}
-                lead={l}
-                isSelected={selected.has(l.id)}
-                onToggle={onToggle}
-                onScoreClick={setScorePopup}
-                onAssign={onAssign}
-                onEdit={onEdit}
-                onApprove={onApprove}
-                onToggleImportant={onToggleImportant}
-                isB2C={isB2C}
-                hidden={hidden}
-                statusLookup={statusLookup}
-              />
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {scorePopup && <ScoreBreakdownModal lead={scorePopup} onClose={() => setScorePopup(null)} />}
-    </>
+    <div style={{ overflowX: 'auto' }}>
+      <table className="responsive-cards lead-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <thead>
+          <tr>
+            <th style={{ ...thStyle, width: 40, paddingRight: 0 }}>
+              <input ref={headCheck} type="checkbox" checked={allSelected} onChange={onToggleAll} aria-label="Select all on this page" style={{ width: 15, height: 15, display: 'block' }} />
+            </th>
+            <SortTh label="Lead" sortKey="name" sort={sort} onSort={onSort} />
+            {showStatus && <SortTh label="Status" sortKey="status" sort={sort} onSort={onSort} />}
+            {showScore && <SortTh label={label('score', 'Score')} sortKey="score" sort={sort} onSort={onSort} />}
+            {isVisible('latest_update') && <th style={thStyle}>Latest update</th>}
+            {showSource && <th style={thStyle}>{label('source_id', 'Source')}</th>}
+            {showOwner && <th style={thStyle}>{label('owner_id', 'Owner')}</th>}
+            {isVisible('created_by') && <th style={thStyle}>Uploaded by</th>}
+            {/* created_at column → backend sort key 'created' (leads whitelist maps created→created_at). */}
+            {isVisible('created_at') && <SortTh label="Uploaded on" sortKey="created" sort={sort} onSort={onSort} />}
+            <th aria-label="Actions" style={{ ...thStyle, width: 0, padding: 0 }} />
+          </tr>
+        </thead>
+        <tbody>
+          {loading && leads.length === 0 && (
+            <tr><td colSpan={colCount} style={{ ...tdStyle, padding: 0, borderBottom: 0 }} data-label=""><LeadsSkeleton /></td></tr>
+          )}
+          {!loading && leads.length === 0 && (
+            <tr><td colSpan={colCount} style={{ ...tdStyle, padding: 0, borderBottom: 0 }} data-label="">{emptyState}</td></tr>
+          )}
+          {leads.map((l) => (
+            <LeadRow
+              key={l.id}
+              lead={l}
+              isSelected={selected.has(l.id)}
+              isOpen={previewId === l.id}
+              dim={!!loading}
+              onToggle={onToggle}
+              onPreview={onPreview}
+              onScoreClick={onScoreClick}
+              onAssign={onAssign}
+              onEdit={onEdit}
+              onApprove={onApprove}
+              onToggleImportant={onToggleImportant}
+              isB2C={isB2C}
+              hidden={hidden}
+              statusLookup={statusLookup}
+              fieldHelpers={fieldHelpers}
+            />
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
 interface LeadRowProps {
   lead: Lead;
   isSelected: boolean;
+  isOpen: boolean;
+  /** Refetching: keep the previous rows visible but faded so the page doesn't flash empty. */
+  dim: boolean;
   onToggle: (id: string) => void;
-  onScoreClick: (lead: Lead) => void;
+  onPreview?: (lead: Lead) => void;
+  onScoreClick?: (lead: Lead) => void;
   onAssign?: (leadId: string, userId: string | null) => Promise<void>;
   onEdit?: (lead: Lead) => void;
   onApprove?: (leadId: string, decision: 'approved' | 'rejected') => Promise<void>;
@@ -226,14 +253,23 @@ interface LeadRowProps {
   isB2C: boolean;
   hidden: Set<string>;
   statusLookup: Map<string, LeadStatusOption> | null;
+  fieldHelpers?: FieldHelpers;
 }
 
-const LeadRow = memo(function LeadRow({ lead: l, isSelected, onToggle, onScoreClick, onAssign, onEdit, onApprove, onToggleImportant, isB2C, hidden, statusLookup }: LeadRowProps) {
-  const fullName = l.full_name || `${l.first_name || ''} ${l.last_name || ''}`.trim() || '—';
+const LeadRow = memo(function LeadRow({
+  lead: l, isSelected, isOpen, dim, onToggle, onPreview, onScoreClick, onAssign, onEdit, onApprove, onToggleImportant, isB2C, hidden, statusLookup, fieldHelpers,
+}: LeadRowProps) {
+  const fullName = leadDisplayName(l);
   const handleToggle = useCallback(() => onToggle(l.id), [onToggle, l.id]);
-  const handleScore  = useCallback(() => onScoreClick(l), [onScoreClick, l]);
   const handleAssign = useCallback((uid: string | null) => onAssign?.(l.id, uid) ?? Promise.resolve(), [onAssign, l.id]);
-  const showCompany = !isB2C && !hidden.has('company');
+  const hid = (key: string) => !!fieldHelpers?.isHidden(key);
+  const showCompany = !isB2C && !hidden.has('company') && !hid('company');
+  const showTitle = !hid('title');
+  const showPhone = !hidden.has('phone') && !hid('phone');
+  const showStatus = !hidden.has('status') && !hid('status');
+  const showScore = !hidden.has('score') && !hid('score');
+  const showSource = !hidden.has('source') && !hid('source_id');
+  const showOwner = !hidden.has('owner') && !hid('owner_id');
   const isPending = l.approval_status === 'pending';
   const [deciding, setDeciding] = useState<null | 'approved' | 'rejected'>(null);
   const decide = useCallback(async (decision: 'approved' | 'rejected') => {
@@ -242,57 +278,66 @@ const LeadRow = memo(function LeadRow({ lead: l, isSelected, onToggle, onScoreCl
     try { await onApprove(l.id, decision); } finally { setDeciding(null); }
   }, [onApprove, l.id, deciding]);
 
+  const important = !!(l.custom_fields as { __important?: unknown } | null | undefined)?.__important;
+  const subline = [showCompany ? l.company : null, showCompany && l.company ? null : (showTitle ? l.title : null)].filter(Boolean).join(' · ');
+  const onRowClick = (e: React.MouseEvent) => {
+    if (!onPreview) return;
+    const t = e.target as HTMLElement;
+    if (t.closest('a,button,input,select,textarea,label,[role="button"],[data-nopreview]')) return;
+    onPreview(l);
+  };
+
   return (
-    <tr className="km-row" style={isSelected ? { background: 'var(--s3)' } : undefined}>
-      <td style={{ ...tdStyle, paddingRight: 0 }} data-label=""><input type="checkbox" checked={isSelected} onChange={handleToggle} aria-label={`Select ${fullName}`} style={{ width: 15, height: 15, display: 'block' }} /></td>
-      <td style={tdStyle} data-label="Name">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          {/* Mark-important star. Filled/gold when custom_fields.__important is
-              set; click toggles it. Rendered before the name so the flagged
-              state reads at a glance down the column. */}
-          {onToggleImportant && (() => {
-            const important = !!(l.custom_fields as { __important?: unknown } | null | undefined)?.__important;
-            return (
-              <button
-                type="button"
-                onClick={() => onToggleImportant(l)}
-                title={important ? 'Unmark as important' : 'Mark as important'}
-                aria-label={important ? 'Unmark as important' : 'Mark as important'}
-                aria-pressed={important}
-                className="km-iconbtn"
-                style={{ background: 'transparent', border: 'none', padding: 2, cursor: 'pointer', color: important ? '#f5a623' : T.mute, lineHeight: 0, flexShrink: 0, borderRadius: 4, display: 'inline-flex' }}
-              >
-                <Star size={14} strokeWidth={1.8} fill={important ? '#f5a623' : 'none'} />
-              </button>
-            );
-          })()}
-          <Link href={`/dashboard/crm/leads/${l.id}`} className="km-entity-link" title="Open lead detail">{fullName}</Link>
-          {/* Always-visible inline-edit pencil so the edit affordance is
-              discoverable without scrolling to the Action column. */}
-          {onEdit && (
-            <button
-              type="button"
-              onClick={() => onEdit(l)}
-              title="Edit this lead"
-              aria-label="Edit lead"
-              className="km-iconbtn"
-              style={{ background: 'transparent', border: 'none', padding: 2, cursor: 'pointer', color: T.mute, lineHeight: 0, flexShrink: 0, borderRadius: 4, display: 'inline-flex' }}
-            >
-              <Pencil size={13} strokeWidth={1.8} />
-            </button>
-          )}
-        </div>
-        {l.title && <div style={{ fontSize: 12, color: T.dim, marginTop: 1 }}>{l.title}</div>}
-        {isPending && (
-          <div style={{ marginTop: 4 }}><Badge tone="warn" style={{ gap: 4 }}><Hourglass size={11} strokeWidth={1.8} />Pending approval</Badge></div>
-        )}
-        {l.approval_status === 'rejected' && (
-          <div style={{ marginTop: 4 }}><Badge tone="red">Rejected</Badge></div>
-        )}
+    <tr
+      className={`km-row lead-row${isOpen ? ' is-open' : ''}${isPending ? ' has-pending' : ''}`}
+      onClick={onRowClick}
+      // Keyboard path to the quick preview: focus the row, press Enter / Space.
+      tabIndex={onPreview ? 0 : undefined}
+      onKeyDown={onPreview ? (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) { e.preventDefault(); onPreview(l); } } : undefined}
+      style={{ ...(isSelected ? { background: 'var(--s3)' } : undefined), ...(dim ? { opacity: 0.6, transition: 'opacity .15s ease' } : undefined), cursor: onPreview ? 'pointer' : undefined }}
+    >
+      <td style={{ ...tdStyle, paddingRight: 0 }} data-label="" data-nopreview>
+        <input type="checkbox" checked={isSelected} onChange={handleToggle} aria-label={`Select ${fullName}`} style={{ width: 15, height: 15, display: 'block' }} />
       </td>
-      {showCompany && <td style={tdStyle} data-label="Company">{l.company || <Dash />}</td>}
-      {!hidden.has('phone') && <td style={{ ...tdStyle, fontFamily: T.mono, fontSize: 12.5, whiteSpace: 'nowrap' }} data-label="Phone">{l.phone || <Dash />}</td>}
-      {!hidden.has('status') && (
+
+      <td style={{ ...tdStyle, minWidth: 230 }} data-label="Name">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+          <LeadAvatar lead={l} />
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+              <Link href={`/dashboard/crm/leads/${l.id}`} className="km-entity-link" title="Open lead detail" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{fullName}</Link>
+              {/* Mark-important star. Filled/gold when custom_fields.__important is
+                  set; click toggles it. Sits right after the name (an
+                  unset star only appears on hover) so names stay aligned down
+                  the column while a flagged lead still reads at a glance. */}
+              {onToggleImportant && (
+                <button
+                  type="button"
+                  onClick={() => onToggleImportant(l)}
+                  title={important ? 'Unmark as important' : 'Mark as important'}
+                  aria-label={important ? 'Unmark as important' : 'Mark as important'}
+                  aria-pressed={important}
+                  className={`km-iconbtn lead-star${important ? ' on' : ''}`}
+                  style={{ background: 'transparent', border: 'none', padding: 2, cursor: 'pointer', color: important ? '#f5a623' : T.mute, lineHeight: 0, flexShrink: 0, borderRadius: 4, display: 'inline-flex' }}
+                >
+                  <Star size={14} strokeWidth={1.8} fill={important ? '#f5a623' : 'none'} />
+                </button>
+              )}
+              {isPending && <Badge tone="warn" style={{ gap: 4, height: 20, fontSize: 11, flexShrink: 0 }}><Hourglass size={11} strokeWidth={1.8} />Pending approval</Badge>}
+              {l.approval_status === 'rejected' && <Badge tone="red" style={{ height: 20, fontSize: 11, flexShrink: 0 }}>Rejected</Badge>}
+            </div>
+            {(subline || (showPhone && l.phone)) && (
+              <div style={{ marginTop: 2, fontSize: 12, color: T.dim, display: 'flex', gap: 6, minWidth: 0, whiteSpace: 'nowrap' }}>
+                {subline && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{subline}</span>}
+                {subline && showPhone && l.phone && <span aria-hidden style={{ color: T.mute }}>·</span>}
+                {showPhone && l.phone && <span style={{ fontFamily: T.mono, fontSize: 11.5, flexShrink: 0 }}>{l.phone}</span>}
+              </div>
+            )}
+          </div>
+        </div>
+      </td>
+
+      {showStatus && (
         <td style={tdStyle} data-label="Status">
           {l.status ? (() => {
             const meta = statusLookup?.get(String(l.status).toLowerCase());
@@ -307,17 +352,19 @@ const LeadRow = memo(function LeadRow({ lead: l, isSelected, onToggle, onScoreCl
           })() : <Dash />}
         </td>
       )}
-      {!hidden.has('score') && (
+
+      {showScore && (
         <td style={tdStyle} data-label="Score">
-          <button type="button" onClick={handleScore} title="Click to see score breakdown" style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', display: 'inline-flex' }}>
-            <LeadScoreBadge score={l.score} grade={l.score_grade} />
+          <button type="button" onClick={() => onScoreClick?.(l)} title="Click to see score breakdown" style={{ background: 'transparent', border: 'none', padding: 0, cursor: onScoreClick ? 'pointer' : 'default', display: 'inline-flex' }}>
+            <ScoreMeter score={l.score} grade={l.score_grade} />
           </button>
         </td>
       )}
+
       {!hidden.has('latest_update') && <LatestUpdateCell lead={l} />}
-      {!hidden.has('source') && <td style={{ ...tdStyle, color: T.dim }} data-label="Source">{l.source_name || <Dash />}</td>}
-      {!hidden.has('owner') && (
-        <td style={tdStyle} data-label="Owner">
+      {showSource && <td style={{ ...tdStyle, color: T.dim }} data-label="Source">{l.source_name || <Dash />}</td>}
+      {showOwner && (
+        <td style={{ ...tdStyle, whiteSpace: 'nowrap' }} data-label="Owner">
           {onAssign ? (
             <InlineOwnerAssign currentOwnerId={l.owner_id} currentOwnerName={l.owner_name} onAssign={handleAssign} />
           ) : (
@@ -343,50 +390,61 @@ const LeadRow = memo(function LeadRow({ lead: l, isSelected, onToggle, onScoreCl
           ) : <Dash />}
         </td>
       )}
-      {!hidden.has('action') && (
-        <td style={{ ...tdStyle, textAlign: 'right', whiteSpace: 'nowrap' }} data-label="Action">
-          <div style={{ display: 'inline-flex', gap: 6, alignItems: 'center', justifyContent: 'flex-end' }}>
-            {/* Manager approval — approve / reject a lead awaiting sign-off.
-                Only rendered while the lead is pending AND the parent wired an
-                onApprove handler (the backend still enforces who may decide). */}
-            {isPending && onApprove && (
-              <>
-                <Button
-                  size="sm"
-                  disabled={!!deciding}
-                  onClick={() => decide('approved')}
-                  title="Approve this lead"
-                  icon={<Check size={14} strokeWidth={2} />}
-                  style={{ background: T.okWash, color: T.ok, borderColor: 'transparent', opacity: deciding && deciding !== 'approved' ? 0.5 : undefined }}
-                >
-                  {deciding === 'approved' ? '…' : 'Approve'}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="danger"
-                  disabled={!!deciding}
-                  onClick={() => decide('rejected')}
-                  title="Reject this lead"
-                  icon={<X size={14} strokeWidth={2} />}
-                  style={{ opacity: deciding && deciding !== 'rejected' ? 0.5 : undefined }}
-                >
-                  {deciding === 'rejected' ? '…' : 'Reject'}
-                </Button>
-              </>
-            )}
-            {/* Inline edit — opens the edit modal in place so a rep can fix a
-                single record without navigating into its detail page. */}
-            {onEdit && (
-              <Button size="sm" onClick={() => onEdit(l)} title="Edit this lead">Edit</Button>
-            )}
-            {l.status === 'converted' ? (
-              <Badge tone="ok" style={{ gap: 4 }}><Check size={12} strokeWidth={2} />Converted</Badge>
-            ) : (
-              <Button size="sm" variant="primary" href={`/dashboard/crm/leads/${l.id}?convert=1`} title="Convert this lead to a deal" icon={<ArrowRight size={14} strokeWidth={2} />}>Deal</Button>
-            )}
-          </div>
-        </td>
-      )}
+
+      {/* Zero-width anchor: the action cluster floats over the row's right edge
+          (revealed on hover / keyboard focus; always shown while an approval
+          decision is pending) so it never costs a column of its own. */}
+      <td data-label="" style={{ ...tdStyle, padding: 0, width: 0, position: 'relative' }} data-nopreview>
+        <div className={`row-actions${isPending && onApprove ? ' always' : ''}`}>
+          {isPending && onApprove && (
+            <>
+              <Button
+                size="sm"
+                disabled={!!deciding}
+                onClick={() => decide('approved')}
+                title="Approve this lead"
+                icon={<Check size={14} strokeWidth={2} />}
+                style={{ background: T.okWash, color: T.ok, borderColor: 'transparent', opacity: deciding && deciding !== 'approved' ? 0.5 : undefined }}
+              >
+                {deciding === 'approved' ? '…' : 'Approve'}
+              </Button>
+              <Button
+                size="sm"
+                variant="danger"
+                disabled={!!deciding}
+                onClick={() => decide('rejected')}
+                title="Reject this lead"
+                icon={<X size={14} strokeWidth={2} />}
+                style={{ opacity: deciding && deciding !== 'rejected' ? 0.5 : undefined }}
+              >
+                {deciding === 'rejected' ? '…' : 'Reject'}
+              </Button>
+            </>
+          )}
+          {!hidden.has('action') && !isPending && (
+            <>
+              <CallButton phone={l.phone} prefillSubject={`Call with ${fullName}`} leadId={l.id} iconOnly />
+              <WhatsAppButton phone={l.phone} iconOnly />
+            </>
+          )}
+          {onEdit && (
+            <IconButton label="Edit lead" onClick={() => onEdit(l)} style={{ width: 28, height: 28, border: `1px solid ${T.border}`, background: T.card }}>
+              <Pencil size={13} strokeWidth={1.8} />
+            </IconButton>
+          )}
+          {!hidden.has('action') && !isPending && l.status !== 'converted' && (
+            <Link
+              href={`/dashboard/crm/leads/${l.id}?convert=1`}
+              title="Convert this lead to a deal"
+              aria-label="Convert to deal"
+              className="km-iconbtn"
+              style={{ width: 28, height: 28, borderRadius: 7, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${T.border}`, background: T.card, color: T.dim, textDecoration: 'none' }}
+            >
+              <ArrowRight size={14} strokeWidth={2} />
+            </Link>
+          )}
+        </div>
+      </td>
     </tr>
   );
 });
@@ -408,7 +466,7 @@ function LatestUpdateCell({ lead }: { lead: Lead }) {
   const text = (l.latest_update ?? '') as string;
   const at = (l.latest_update_at ?? null) as string | null;
   if (!text) {
-    return <td style={tdStyle} data-label="Latest Update"><Dash /></td>;
+    return <td style={tdStyle} data-label="Latest Update"><span style={{ color: T.mute, fontStyle: 'italic', fontSize: 12.5 }}>No update yet</span></td>;
   }
   const rel = at ? formatRelativeTime(at) : '';
   const tooltip = at ? `${text}\n\n${new Date(at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}` : text;
@@ -425,7 +483,7 @@ function LatestUpdateCell({ lead }: { lead: Lead }) {
   );
 }
 
-function formatRelativeTime(iso: string): string {
+export function formatRelativeTime(iso: string): string {
   const then = new Date(iso).getTime();
   const sec = Math.max(0, Math.floor((Date.now() - then) / 1000));
   if (sec < 45) return 'just now';
@@ -437,92 +495,4 @@ function formatRelativeTime(iso: string): string {
   const day = Math.floor(hr / 24);
   if (day < 3) return `${day}d ago`;
   return new Date(iso).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short' });
-}
-
-function ScoreBreakdownModal({ lead, onClose }: { lead: Lead; onClose: () => void }) {
-  const breakdown = (lead as any).score_breakdown as Record<string, number> | null | undefined;
-  const score = lead.score ?? 0;
-  const grade = lead.score_grade;
-
-  // Label dict + sorting moved to lib/crm/scoreFactors.ts so the leads-
-  // table popup and the dashboard map popup stay in lock-step. The v2
-  // keys this PR originally introduced are already in that catalog
-  // (`source_quality`, `whatsapp_30d`, `bant_signals_in_updates`,
-  // `contact_complete`, etc.), so no manual labels dict is needed here.
-  const factors = breakdownFactors(breakdown);
-  const llmAdjustment = llmAdjustmentOf(breakdown);
-  const scoreColor = score >= 70 ? T.ok : score >= 40 ? T.warn : T.red;
-
-  return (
-    <div
-      onClick={onClose}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(10,14,26,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}
-    >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label="Lead score explanation"
-        onClick={(e) => e.stopPropagation()}
-        style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: T.radius.lg, boxShadow: 'var(--shadow-pop)', maxWidth: 480, width: '100%', maxHeight: '85vh', overflowY: 'auto' }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, padding: '16px 20px', borderBottom: `1px solid ${T.border}` }}>
-          <div style={{ minWidth: 0 }}>
-            <Eyebrow>Lead score</Eyebrow>
-            <div style={{ fontFamily: T.heading, fontSize: 17, fontWeight: 700, letterSpacing: '-0.01em', color: T.text, marginTop: 4 }}>{lead.full_name || `${lead.first_name || ''} ${lead.last_name || ''}`.trim() || lead.email || 'Lead'}</div>
-          </div>
-          <IconButton label="Close" onClick={onClose}><X size={18} strokeWidth={1.6} /></IconButton>
-        </div>
-
-        <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: 14, background: 'var(--s3)', borderRadius: T.radius.md }}>
-            <div style={{ fontFamily: T.heading, fontSize: 34, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1, color: scoreColor, fontVariantNumeric: 'tabular-nums' }}>{score}</div>
-            <div>
-              <Eyebrow>Total score / 100</Eyebrow>
-              {grade && <div style={{ fontSize: 13, color: T.text, marginTop: 4 }}>Grade <span style={{ fontFamily: T.mono }}>{grade}</span></div>}
-            </div>
-          </div>
-
-          <div style={{ fontSize: 12.5, color: T.dim, lineHeight: 1.5 }}>
-            Score is computed from a heuristic model that weighs key lead attributes. Higher scores indicate hotter leads worth prioritising first.
-          </div>
-
-          {factors.length === 0 ? (
-            <div style={{ padding: 16, background: 'var(--s3)', borderRadius: T.radius.md, fontSize: 13, color: T.dim, textAlign: 'center' }}>
-              No detailed breakdown available yet. Click <em>Rescore</em> on the lead detail page to compute one.
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {factors.map(({ key, label, value }) => {
-                const max = Math.max(20, ...factors.map((f) => f.value));
-                const pct = Math.max(0, Math.min(100, (value / max) * 100));
-                const color = value >= 15 ? T.ok : value >= 8 ? T.warn : T.info;
-                return (
-                  <div key={key} style={{ background: 'var(--s3)', borderRadius: T.radius.md, padding: '10px 12px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                      <span style={{ fontSize: 13, color: T.text }}>{label}</span>
-                      <span style={{ fontSize: 12, color, fontFamily: T.mono }}>+{value}</span>
-                    </div>
-                    <div style={{ height: 5, background: T.rule, borderRadius: 3, overflow: 'hidden' }}>
-                      <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: 3 }} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {llmAdjustment != null && llmAdjustment !== 0 && (
-            <div style={{ fontSize: 12.5, color: T.dim, display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--s3)', borderRadius: T.radius.md }}>
-              <span>AI rerank adjustment</span>
-              <span style={{ fontFamily: T.mono, color: llmAdjustment > 0 ? T.ok : T.red }}>{llmAdjustment > 0 ? '+' : ''}{llmAdjustment}</span>
-            </div>
-          )}
-
-          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <Button variant="primary" href={`/dashboard/crm/leads/${lead.id}`} icon={<ArrowRight size={16} strokeWidth={2} />}>View lead</Button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
 }
