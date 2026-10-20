@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Client } from '../../../types';
 import ConfirmModal from '../../../components/ConfirmModal';
 import { useAuth } from '../../../hooks/useAuth';
@@ -144,6 +144,8 @@ export default function ClientManagement() {
   const [err, setErr] = useState('');
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
+  // Section the Edit modal should scroll to once it is open (the App Layout button on a client card sets it).
+  const jumpRef = useRef<string | null>(null);
   const [editing, setEditing] = useState<Client | null>(null);
   const [form, setForm] = useState({ ...BLANK });
   const [saving, setSaving] = useState(false);
@@ -175,6 +177,15 @@ export default function ClientManagement() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+  // Open the Edit modal at a given section (the App layout button on a client card).
+  useEffect(() => {
+    if (!showModal || !jumpRef.current) return;
+    const t = setTimeout(() => {
+      const id = jumpRef.current; jumpRef.current = null;
+      if (id) document.getElementById(id)?.scrollIntoView({ block: 'start' });
+    }, 0);
+    return () => clearTimeout(t);
+  }, [showModal]);
 
   // One-shot: does this deployment support provisioning a dedicated project per
   // client? (super-admin only; a plain 403/400 just leaves the toggle hidden.)
@@ -237,7 +248,8 @@ export default function ClientManagement() {
       alert(e?.response?.data?.error || e?.message || 'Login failed');
     }
   };
-  const openEdit = (c: Client) => { 
+  const openEdit = (c: Client, jumpTo?: string) => { 
+    jumpRef.current = jumpTo ?? null;
     // Filter out any legacy module IDs that might exist in the database (e.g. master_data)
     // but are not part of the new 20-module granular architecture.
     const validIds = (c.modules || []).filter(m => MODULES.some(mod => mod.id === m));
@@ -472,6 +484,11 @@ export default function ClientManagement() {
                     Envs {expanded ? '▴' : '▾'}
                   </button>
                 )}
+                <button onClick={() => openEdit(c, 'client-section-app-layout')} title="App layout" aria-label="App layout" style={{ width: 32, height: 32, border: `1px solid ${C.border}`, borderRadius: 10, background: 'transparent', cursor: 'pointer', color: C.gray, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = C.blue; e.currentTarget.style.color = C.blue; }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.gray; }}>
+                  <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M10 18h4M9 6h6"/></svg>
+                </button>
                 <button onClick={() => openEdit(c)} title="Edit client" style={{ width: 32, height: 32, border: `1px solid ${C.border}`, borderRadius: 10, background: 'transparent', cursor: 'pointer', color: C.gray, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                   onMouseEnter={e => { e.currentTarget.style.borderColor = C.blue; e.currentTarget.style.color = C.blue; }}
                   onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.gray; }}>
@@ -712,7 +729,7 @@ export default function ClientManagement() {
               </div>
             </div>
 
-            <div style={{ marginBottom: 28 }}>
+            <div id="client-section-app-layout" style={{ marginBottom: 28, scrollMarginTop: 12 }}>
               <Label t="App Layout" />
               <div style={{ background: C.s3, borderRadius: 16, padding: 16, border: `1px solid ${C.border}` }}>
                 <AppLayoutEditor

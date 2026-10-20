@@ -120,6 +120,7 @@ test.describe('Client Management — live app preview', () => {
   });
 
   test('drag a screen inside the phone: reorder the bar, and move one from the side menu into it', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 1300 }); // the whole phone in view: nothing scrolls mid-drag
     const { patches } = await open(page);
     // Reorder: Activity dropped on the left half of Attendance.
     const att = phone(page).getByRole('button', { name: 'Preview Attendance' });
@@ -198,6 +199,48 @@ test.describe('Client Management — live app preview', () => {
     await expect(zone(page, 'Hidden').getByRole('listitem').filter({ hasText: 'Leave' })).toBeVisible();
     await save(page, patches);
     expect(patches[0].app_ui!.menu.leave).toBe(false);
+  });
+
+  test('dropping a side-menu screen on a full bar is refused with the reason; with room it lands (drag events dispatched directly)', async ({ page }) => {
+    const { patches } = await open(page);
+    await page.getByRole('tab', { name: 'Side menu' }).click();
+    const drag = async (from: string, to: string) => {
+      const dt = await page.evaluateHandle(() => new DataTransfer());
+      const src = phone(page).getByRole('button', { name: `Preview ${from}` });
+      const dst = phone(page).getByRole('button', { name: `Preview ${to}` });
+      const b = (await dst.boundingBox())!;
+      const pt = { clientX: b.x + 2, clientY: b.y + b.height / 2, dataTransfer: dt };
+      await src.dispatchEvent('dragstart', { dataTransfer: dt });
+      await dst.dispatchEvent('dragover', pt);
+      await dst.dispatchEvent('drop', pt);
+      await src.dispatchEvent('dragend', { dataTransfer: dt });
+    };
+    await drag('Leave', 'Attendance');
+    await expect(page.getByRole('alert').filter({ hasText: 'holds Home plus 4' })).toBeVisible();
+    await expect(zone(page, 'Bottom bar').getByRole('listitem').filter({ hasText: 'Leave' })).toHaveCount(0);
+
+    await page.getByLabel('Move New Form to').selectOption('hidden');
+    await drag('Leave', 'Attendance');
+    expect((await barLabels(page))[0]).toBe('Leave'); // dropped on the left edge of the first bar item
+    await save(page, patches);
+    expect(patches[0].app_ui!.layout.tabs[0]).toBe('leave');
+  });
+
+  test('the App layout button on a client card opens the editor straight at the layout section', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const patches: Body[] = [];
+    const client = { id: 'cl-preview-1', name: 'Preview Client', is_active: true, modules: FF, created_at: '2026-01-01T00:00:00Z', app_ui: {} };
+    await seedSession(page, SEED_USER);
+    await mockApi(page, { onRequest: async (route, url, method) => {
+      if (method === 'GET' && new URL(url).pathname === '/api/v1/clients') { await route.fulfill({ json: { success: true, data: [client] } }); return true; }
+      return false;
+    } });
+    await page.goto('/dashboard/clients');
+    await page.getByTitle('App layout').click();
+    await expect(page.getByText('Update configurations for Preview Client')).toBeVisible();
+    await expect(zone(page, 'Bottom bar')).toBeInViewport();
+    await expect(phone(page)).toBeInViewport();
+    expect(patches).toEqual([]);
   });
 
   test('the modal is wide enough for the editor and the phone side by side', async ({ page }) => {

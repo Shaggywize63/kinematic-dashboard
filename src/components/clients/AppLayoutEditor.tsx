@@ -382,8 +382,8 @@ export default function AppLayoutEditor({ value, onChange, modules, title }: Pro
     return (
       <div
         style={isFull
-          ? { flex: '0 0 auto', maxWidth: '100%', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12, paddingBottom: 8 }
-          : { flex: '0 0 auto', maxWidth: '100%', position: 'sticky', top: 0, alignSelf: 'flex-start', display: 'flex', flexDirection: 'column', gap: 10 }}
+          ? { flex: '0 0 auto', width: phoneW + 18 + 290, maxWidth: '100%', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12, paddingBottom: 8 }
+          : { flex: '0 0 auto', width: phoneW + 14 + 250, maxWidth: '100%', position: 'sticky', top: 0, alignSelf: 'flex-start', display: 'flex', flexDirection: 'column', gap: 10 }}
       >
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
           <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--textTert)' }}>Live preview</div>
@@ -465,7 +465,7 @@ export default function AppLayoutEditor({ value, onChange, modules, title }: Pro
 
   return (
     <div style={{ display: 'flex', gap: 22, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-      <div style={{ flex: '1 1 460px', minWidth: 0 }}>{renderControls()}</div>
+      <div style={{ flex: '1 1 420px', minWidth: 0 }}>{renderControls()}</div>
       {renderPreview(false)}
     </div>
   );

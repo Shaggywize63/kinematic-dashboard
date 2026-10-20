@@ -1,5 +1,5 @@
 'use client';
-import { useState, type CSSProperties, type DragEvent } from 'react';
+import { useRef, useState, type CSSProperties, type DragEvent } from 'react';
 import {
   BarChart3, Banknote, Bell, BookOpen, Boxes, Briefcase, Building2, CalendarCheck, CalendarDays, Camera, ClipboardList,
   Clock, FileText, Home, Info, Kanban, LayoutDashboard, Layers, Lock, LogOut, Megaphone, Menu as MenuIcon, MapPin,
@@ -81,21 +81,24 @@ export default function AppPreview({ value, modules, screen, platform, scale, se
   const ios = platform === 'ios';
   const isSel = (section: AppUiSection, id: string) => selected?.section === section && selected.id === id;
 
+  // The dragged id lives in a ref as well as state: dragover / drop must see it the instant the drag starts, not after the
+  // next render (state only drives the dimmed look of the dragged screen).
+  const dragRef = useRef<string | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
   const [overZone, setOverZone] = useState<'bar' | 'menu' | null>(null);
-  const endDrag = () => { setDragId(null); setOverZone(null); };
+  const endDrag = () => { dragRef.current = null; setDragId(null); setOverZone(null); };
   const dndOf = (id: string) => (onMove ? {
     dragging: dragId === id,
-    onStart: (e: DragEvent) => { e.dataTransfer.setData('text/plain', id); e.dataTransfer.effectAllowed = 'move'; setDragId(id); },
+    onStart: (e: DragEvent) => { e.dataTransfer.setData('text/plain', id); e.dataTransfer.effectAllowed = 'move'; dragRef.current = id; setDragId(id); },
     onEnd: endDrag,
   } : undefined);
   // Drop target for a container of draggable screens: the index is read from where the pointer is among its items.
   const dropOn = (zone: 'bar' | 'menu') => (onMove ? {
-    onDragOver: (e: DragEvent) => { if (!dragId) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setOverZone(zone); },
+    onDragOver: (e: DragEvent) => { if (!dragRef.current) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setOverZone(zone); },
     onDragLeave: (e: DragEvent) => { if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) setOverZone((z) => (z === zone ? null : z)); },
     onDrop: (e: DragEvent) => {
       e.preventDefault();
-      const id = dragId;
+      const id = dragRef.current;
       const kids = Array.from((e.currentTarget as HTMLElement).querySelectorAll<HTMLElement>('[data-item-id]')).filter((k) => k.dataset.itemId !== id);
       let at = kids.length;
       for (let i = 0; i < kids.length; i++) {
