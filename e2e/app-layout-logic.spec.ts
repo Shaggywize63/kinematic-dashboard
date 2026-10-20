@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import {
   heldFrom, boardOf, moveItem, applyOrder, listOf, setListOrder, setListHidden, resetLayout,
-  TAB_CAPABLE, MAX_EXTRA_TABS, APP_ITEM_NEEDS, needMet,
+  TAB_CAPABLE, MAX_EXTRA_TABS, APP_ITEM_NEEDS, needMet, setLabel, labelOf, defaultLabelOf, zoneOfItem,
 } from '../src/lib/appLayout';
 import { ALL_MODULES } from '../src/lib/modules';
 import type { AppCustomization } from '../src/lib/appCustomization';
@@ -141,5 +141,34 @@ test.describe('ordered lists and reset', () => {
     expect(cfg.menu).toEqual({ leave: false });
     expect(cfg.labels).toEqual({ menu: { leave: 'X' } });
     expect(cfg.tabs).toBeUndefined();
+  });
+});
+
+test.describe('renaming a screen from the preview', () => {
+  test('setLabel stores a trimmed rename, labelOf reads it, an empty name removes it', () => {
+    expect(defaultLabelOf('menu', 'leave')).toBe('Leave');
+    let cfg: AppCustomization = setLabel({}, 'menu', 'leave', '  Time off ');
+    expect(cfg.labels).toEqual({ menu: { leave: 'Time off' } });
+    expect(labelOf(cfg, 'menu', 'leave')).toBe('Time off');
+    cfg = setLabel(cfg, 'menu', 'leave', '   ');
+    expect(cfg.labels).toBeUndefined();
+    expect(labelOf(cfg, 'menu', 'leave')).toBe('Leave');
+  });
+  test('it keeps other renames, other sections and everything else in the config', () => {
+    const base: AppCustomization = { labels: { menu: { leave: 'Time off' }, settings: { about: 'About us' } }, menu: { timeline: false }, layout: { tabs: ['leave'] } };
+    const cfg = setLabel(base, 'menu', 'broadcast', 'Announcements');
+    expect(cfg.labels).toEqual({ menu: { leave: 'Time off', broadcast: 'Announcements' }, settings: { about: 'About us' } });
+    expect(cfg.menu).toEqual({ timeline: false });
+    expect(cfg.layout).toEqual({ tabs: ['leave'] });
+    expect(base.labels).toEqual({ menu: { leave: 'Time off' }, settings: { about: 'About us' } }); // input not mutated
+    const cleared = setLabel(setLabel(base, 'settings', 'about', ''), 'menu', 'leave', '');
+    expect(cleared.labels).toBeUndefined();
+  });
+  test('zoneOfItem says where a screen sits', () => {
+    const b = boardOf({ menu: { timeline: false } }, held);
+    expect(zoneOfItem(b, 'attendance')).toBe('bar');
+    expect(zoneOfItem(b, 'leave')).toBe('menu');
+    expect(zoneOfItem(b, 'timeline')).toBe('hidden');
+    expect(zoneOfItem(b, 'learning_hub')).toBeNull();
   });
 });
