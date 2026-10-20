@@ -342,7 +342,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     // module keeps the legacy "empty = allow" behaviour for un-provisioned
     // sessions.) This stops SCM leaking in by default.
     const isSellableDist = m === 'distribution' || m.startsWith('distribution_');
-    const entitled = isSellableDist
+    // `entitlements_strict`: the list is complete (exactly what Client Management ticked), so empty means nothing.
+    const strictList = (user as any)?.entitlements_strict === true;
+    const entitled = isSellableDist || strictList
       ? enabledModules.includes(m)
       : (enabledModules.length === 0 || enabledModules.includes(m));
     if (!entitled) return false;

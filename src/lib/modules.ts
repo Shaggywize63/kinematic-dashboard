@@ -8,9 +8,10 @@
 //   FieldForce   → package: field_force
 //   CRM          → package: crm
 //   Distribution → package: distribution
-//   Business     → package: business (universal)
-//   System       → package: system   (universal, per-toggle)
-//   People       → package: people   (universal)
+//   Business     → package: business
+//   System       → package: system
+//   People       → package: people
+// No module is always-on: every module here is a tick in Client Management and a client sees exactly what was ticked.
 //   Finance      → package: finance  (invoicing; master admin today, per-client grant later)
 //   Audit        → package: audit    (super-admin only)
 
@@ -40,7 +41,7 @@ export interface ModuleEntry {
   l: string;
   group: ModuleGroup;
   package: ModulePackage;
-  /** Universal modules are always available regardless of which package the client purchased. */
+  /** Legacy flag (no module is universal any more; kept so older callers still type-check). */
   universal?: boolean;
 }
 
@@ -122,33 +123,38 @@ export const ALL_MODULES: ModuleEntry[] = [
   { id: 'distribution_claims',         l: 'Claims',       group: 'Distribution', package: 'distribution' },
   { id: 'distribution_reconciliation', l: 'Reconciliation', group: 'Distribution', package: 'distribution' },
 
-  // Supply Chain — core inventory masters (universal, always-on) grouped with
-  // the stock/batch modules above so the whole SCM surface reads as one area.
-  // These stay package:'business' universal, so no tenant loses access.
-  { id: 'inventory', l: 'Warehouse',      group: 'SupplyChain', package: 'business', universal: true },
-  { id: 'skus',      l: 'SKU Management', group: 'SupplyChain', package: 'business', universal: true },
-  { id: 'assets',    l: 'Asset Mgmt',     group: 'SupplyChain', package: 'business', universal: true },
+  // Supply Chain — core inventory masters, grouped with the stock/batch modules
+  // above so the whole SCM surface reads as one area.
+  { id: 'inventory', l: 'Warehouse',      group: 'SupplyChain', package: 'business' },
+  { id: 'skus',      l: 'SKU Management', group: 'SupplyChain', package: 'business' },
+  { id: 'assets',    l: 'Asset Mgmt',     group: 'SupplyChain', package: 'business' },
 
-  // Business (universal — every client gets these)
-  { id: 'clients',   l: 'Clients',        group: 'Business', package: 'business', universal: true },
+  // Business
+  { id: 'clients',   l: 'Clients',        group: 'Business', package: 'business' },
 
-  // System (universal but per-toggle per client)
-  { id: 'cities',          l: 'Cities',          group: 'System', package: 'system', universal: true },
-  { id: 'zones',           l: 'Zones',           group: 'System', package: 'system', universal: true },
-  { id: 'stores',          l: 'Outlets',         group: 'System', package: 'system', universal: true },
-  { id: 'security_alerts', l: 'Security Alerts', group: 'System', package: 'system', universal: true },
-  { id: 'settings',        l: 'Settings',        group: 'System', package: 'system', universal: true },
+  // System
+  { id: 'cities',          l: 'Cities',          group: 'System', package: 'system' },
+  { id: 'zones',           l: 'Zones',           group: 'System', package: 'system' },
+  { id: 'stores',          l: 'Outlets',         group: 'System', package: 'system' },
+  { id: 'security_alerts', l: 'Security Alerts', group: 'System', package: 'system' },
+  { id: 'settings',        l: 'Settings',        group: 'System', package: 'system' },
 
-  // People (universal subset)
-  { id: 'users',      l: 'Manpower',     group: 'People', package: 'people', universal: true },
-  { id: 'broadcast',    l: 'Broadcast',     group: 'People', package: 'people', universal: true },
-  { id: 'notifications', l: 'Notifications', group: 'People', package: 'people', universal: true },
-  { id: 'hr',         l: 'HR & Payroll', group: 'People', package: 'people', universal: true },
-  { id: 'leave',      l: 'Leave',        group: 'People', package: 'people', universal: true },
+  // People
+  // Sections of the mobile apps that used to have no module of their own (Learning Hub, Leaderboard, Activity Feed,
+  // Emergency SOS). Ticking one is what shows that screen in the app.
+  { id: 'learning',      l: 'Learning Hub',   group: 'People',     package: 'people' },
+  { id: 'leaderboard',   l: 'Leaderboard',    group: 'People',     package: 'people' },
+  { id: 'activity_feed', l: 'Activity Feed',  group: 'FieldForce', package: 'field_force' },
+  { id: 'emergency_sos', l: 'Emergency SOS',  group: 'People',     package: 'people' },
+  { id: 'users',      l: 'Manpower',     group: 'People', package: 'people' },
+  { id: 'broadcast',    l: 'Broadcast',     group: 'People', package: 'people' },
+  { id: 'notifications', l: 'Notifications', group: 'People', package: 'people' },
+  { id: 'hr',         l: 'HR & Payroll', group: 'People', package: 'people' },
+  { id: 'leave',      l: 'Leave',        group: 'People', package: 'people' },
   { id: 'field_expenses', l: 'Field Expenses', group: 'People', package: 'people' },
-  { id: 'grievances', l: 'Grievances',   group: 'People', package: 'people', universal: true },
-  { id: 'reports',    l: 'Reports',      group: 'People', package: 'people', universal: true },
-  { id: 'visit_logs', l: 'Visit Logs',   group: 'People', package: 'people', universal: true },
+  { id: 'grievances', l: 'Grievances',   group: 'People', package: 'people' },
+  { id: 'reports',    l: 'Reports',      group: 'People', package: 'people' },
+  { id: 'visit_logs', l: 'Visit Logs',   group: 'People', package: 'people' },
 
   // Finance (invoicing: customers, items, quotes, invoices, payments, reports).
   // Non-universal and never implied: master admin today; shared with a client by
@@ -179,9 +185,9 @@ export const PACKAGE_LABELS: Record<ModulePackage, string> = {
   field_force:  'Field Force',
   crm:          'Lead Management',
   distribution: 'Supply Chain & Distribution',
-  business:     'Business (always-on)',
-  system:       'System (always-on)',
-  people:       'People & Support (always-on)',
+  business:     'Business',
+  system:       'System',
+  people:       'People & Support',
   finance:      'Finance (Invoicing)',
   audit:        'Audit (super-admin only)',
 };

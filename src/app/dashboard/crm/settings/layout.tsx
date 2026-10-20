@@ -38,7 +38,7 @@ export default function CrmSettingsLayout({ children }: { children: React.ReactN
         const u = fresh?.data ?? fresh;
         const perms: string[] = Array.isArray(u?.permissions) ? u.permissions : [];
         const entitled: string[] = Array.isArray(u?.enabled_modules) ? u.enabled_modules : [];
-        const entitledOk = entitled.length === 0 || entitled.includes('crm_settings');
+        const entitledOk = (entitled.length === 0 && u?.entitlements_strict !== true) || entitled.includes('crm_settings');
         const permOk = perms.length === 0 || perms.includes('crm_settings');
         if (cancelled) return;
         if (entitledOk && permOk) setState('allowed');

@@ -46,7 +46,12 @@ export default function ClientNotificationsPanel({ clientId }: { clientId: strin
     let alive = true;
     setLoading(true); setErr(''); setNote('');
     api.get(`/api/v1/clients/${clientId}/notifications`, { noCache: true } as RequestInit)
-      .then(r => { if (alive) apply(unwrap(r)); })
+      .then(r => {
+        if (!alive) return;
+        const v = unwrap(r);
+        if (!v || !Array.isArray(v.catalog)) throw new Error('Notification settings are unavailable for this client.');
+        apply(v);
+      })
       .catch((e: any) => { if (alive) setErr(e?.response?.data?.error || e?.message || 'Could not load notification settings'); })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
@@ -70,7 +75,9 @@ export default function ClientNotificationsPanel({ clientId }: { clientId: strin
     setSaving(true); setErr(''); setNote('');
     try {
       const r = await api.put(`/api/v1/clients/${clientId}/notifications`, { enabled_kinds: [...selected] });
-      apply(unwrap(r));
+      const v = unwrap(r);
+      if (!v || !Array.isArray(v.catalog)) throw new Error('Unexpected response while saving notification settings.');
+      apply(v);
       setNote('Saved. Takes effect within a minute.');
     } catch (e: any) {
       setErr(e?.response?.data?.error || e?.message || 'Could not save notification settings');
