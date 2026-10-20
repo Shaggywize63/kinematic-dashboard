@@ -31,6 +31,8 @@ export function buildAppliedChips(args: {
   if (f.grade) chips.push({ key: 'grade', label: 'Grade', value: f.grade, onRemove: () => set({ grade: undefined }) });
   if (f.source) chips.push({ key: 'source', label: 'Source', value: sourceName(f.source), onRemove: () => set({ source: undefined }) });
   if (f.owner && showOwner) chips.push({ key: 'owner', label: 'Owner', value: ownerName(f.owner), onRemove: () => set({ owner: undefined }) });
+  if (f.unassigned && showOwner) chips.push({ key: 'unassigned', label: 'Owner', value: 'Unassigned', onRemove: () => set({ unassigned: undefined }) });
+  if (f.followupDue) chips.push({ key: 'followup', label: 'Follow-up', value: 'due or overdue', onRemove: () => set({ followupDue: undefined }) });
   const loc = [f.block, f.district, f.city, f.state].filter(Boolean).join(' › ');
   if (loc) chips.push({ key: 'loc', label: 'Location', value: loc, onRemove: () => set({ state: undefined, city: undefined, district: undefined, block: undefined }) });
   if (f.quietDays) chips.push({ key: 'quiet', label: 'Quiet', value: `${f.quietDays}d+`, onRemove: () => set({ quietDays: undefined }) });

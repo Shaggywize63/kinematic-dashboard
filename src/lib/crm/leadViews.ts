@@ -5,11 +5,10 @@ import type { LeadFiltersValue } from '../../components/crm/LeadFilters';
  * the page's filter state, so it composes with everything else (applied chips,
  * the Filters drawer, the export) instead of being a parallel mechanism.
  *
- * Only views the backend can actually answer are listed: grade, owner,
- * no_activity_days and created_within_days are all supported by listLeads().
- * "Unassigned" and "Follow-up due" need new server filters and are NOT here
- * until those exist — a chip that silently returned every lead would be worse
- * than no chip.
+ * Every view maps to a filter listLeads() really applies (grade, owner,
+ * unassigned, followup_due, no_activity_days, created_within_days) — a chip
+ * the server ignored would silently show every lead, so a new view only
+ * ships together with its backend filter.
  */
 export interface QuickView {
   id: string;
@@ -19,10 +18,17 @@ export interface QuickView {
   patch: Partial<LeadFiltersValue>;
   /** Needs the viewer's id (the "Mine" owner filter). */
   needsMe?: boolean;
+  /**
+   * An owner control like the Owner dropdown: withheld from anyone who may not assign owners
+   * (clients on lead_form.owner_assignment = 'admin_only'). The unowned queue is the assigner's worklist.
+   */
+  needsAssign?: boolean;
 }
 
 export const QUICK_VIEWS: QuickView[] = [
   { id: 'hot', label: 'Hot leads', hint: 'Score grade A', patch: { grade: 'A' } },
+  { id: 'followup', label: 'Follow-up due', hint: 'An open follow-up that is due or overdue', patch: { followupDue: true } },
+  { id: 'unassigned', label: 'Unassigned', hint: 'Leads with no owner yet', patch: { unassigned: true }, needsAssign: true },
   { id: 'mine', label: 'Mine', hint: 'Leads you own', patch: {}, needsMe: true },
   { id: 'quiet', label: 'Gone quiet 7d+', hint: 'No logged activity in the last 7 days', patch: { quietDays: 7 } },
   { id: 'fresh', label: 'Added this week', hint: 'Created in the last 7 days', patch: { addedDays: 7 } },
@@ -46,7 +52,12 @@ export function toggleView(patch: Partial<LeadFiltersValue>, f: LeadFiltersValue
     for (const k of Object.keys(patch) as Array<keyof LeadFiltersValue>) delete next[k];
     return next;
   }
-  return { ...f, ...patch };
+  const next = { ...f, ...patch };
+  // "Mine" (an owner) and "Unassigned" (no owner) contradict each other — picking one drops the other
+  // rather than leaving a filter that can only ever match nothing.
+  if (patch.owner) delete next.unassigned;
+  if (patch.unassigned) delete next.owner;
+  return next;
 }
 
 // ── Saved views ───────────────────────────────────────────────────────────

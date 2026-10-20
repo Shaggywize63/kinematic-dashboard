@@ -20,6 +20,10 @@ export interface LeadFiltersValue {
   quietDays?: number;
   // "Added recently": created in the last N days → `created_within_days`.
   addedDays?: number;
+  // Leads nobody owns yet → `unassigned=true` (owner_id IS NULL).
+  unassigned?: boolean;
+  // Leads with an open follow-up that is due or overdue → `followup_due=true`.
+  followupDue?: boolean;
 }
 
 // The lead statuses that can be filtered on. Mirrors the LeadStatus enum minus

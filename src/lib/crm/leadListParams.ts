@@ -30,6 +30,8 @@ export function leadFilterParams(f: LeadFiltersValue, o: LeadParamOptions = {}):
   if (f.source)   p.source_id = f.source;
   if (f.owner)    p.owner_id = f.owner;
   if (f.grade)    p.score_grade = f.grade;
+  if (f.unassigned) p.unassigned = 'true';
+  if (f.followupDue) p.followup_due = 'true';
   if (f.quietDays && f.quietDays > 0) p.no_activity_days = String(f.quietDays);
   if (f.addedDays && f.addedDays > 0) p.created_within_days = String(f.addedDays);
   if (o.campaign) p.campaign = o.campaign;
@@ -37,13 +39,14 @@ export function leadFilterParams(f: LeadFiltersValue, o: LeadParamOptions = {}):
   return p;
 }
 
-/** Number of drawer-managed filters currently narrowing the list (status, grade, source, owner, location, quiet, added). */
+/** Number of filters currently narrowing the list (status, grade, source, owner / unassigned, location, follow-up, quiet, added). */
 export function activeFilterCount(f: LeadFiltersValue): number {
   let n = 0;
   if (f.status?.length) n += 1;
   if (f.grade) n += 1;
   if (f.source) n += 1;
-  if (f.owner) n += 1;
+  if (f.owner || f.unassigned) n += 1;
+  if (f.followupDue) n += 1;
   if (f.state || f.city || f.district || f.block) n += 1;
   if (f.quietDays) n += 1;
   if (f.addedDays) n += 1;
