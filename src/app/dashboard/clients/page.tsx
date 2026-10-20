@@ -6,6 +6,7 @@ import { useAuth } from '../../../hooks/useAuth';
 import { ALL_MODULES, MODULE_GROUPS, MODULE_GROUP_LABELS, type ModuleGroup } from '../../../lib/modules';
 import { type AppCustomization } from '../../../lib/appCustomization';
 import AppCustomizationPanel from '../../../components/clients/AppCustomizationPanel';
+import ClientNotificationsPanel from '../../../components/clients/ClientNotificationsPanel';
 import api, { setActingAs } from '../../../lib/api';
 import { getStoredProjectKey, DEFAULT_PROJECT, setStoredProjectKey } from '../../../lib/projects';
 import { useTableSort, SortLabel } from '../../../lib/tableSort';
@@ -74,9 +75,11 @@ const MODULES: { id: string; label: string; group: ModuleGroup }[] = ALL_MODULES
 // The customer only gets them switched on when they explicitly ask. These are:
 // Conversation Analysis (crm_conversation_intel), People Directory
 // (crm_people_directory), Market Intelligence (crm_lead_analytics) and Email
-// (crm_email). Existing clients are unaffected — this only seeds the "Add client"
+// (crm_email), plus IVR Call. Existing clients are unaffected — this only seeds the "Add client"
 // form default.
-const NEW_CLIENT_EXCLUDED_MODULES = ['crm_conversation_intel', 'crm_people_directory', 'crm_lead_analytics', 'crm_email'];
+// IVR Call is a deliberate per-client switch (its own card in the form) and is OFF for a new client too.
+const IVR_MODULE = 'ivr_call';
+const NEW_CLIENT_EXCLUDED_MODULES = ['crm_conversation_intel', 'crm_people_directory', 'crm_lead_analytics', 'crm_email', IVR_MODULE];
 // A brand-new client starts with the standard CRM working set pre-selected
 // (every CRM module except the excluded four above) rather than a blank grant.
 // Derived from the module catalog so any CRM module added later is included
@@ -629,10 +632,48 @@ export default function ClientManagement() {
             </div>
 
             <div style={{ marginBottom: 28 }}>
+              <Label t="IVR Calling" />
+              <div style={{ background: C.s3, borderRadius: 16, padding: 16, border: `1px solid ${C.border}` }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                  <button
+                    type="button" id="client-ivr-switch" role="switch" aria-checked={form.modules.includes(IVR_MODULE)}
+                    aria-describedby="client-ivr-note" onClick={() => toggleModule(IVR_MODULE)}
+                    title={form.modules.includes(IVR_MODULE) ? 'On — click to turn off' : 'Off — click to turn on'}
+                    style={{
+                      position: 'relative', width: 38, height: 22, borderRadius: 999, flexShrink: 0, padding: 0, cursor: 'pointer', marginTop: 1,
+                      border: `1px solid ${form.modules.includes(IVR_MODULE) ? 'var(--primary)' : C.border}`,
+                      background: form.modules.includes(IVR_MODULE) ? 'var(--primary)' : C.s2, transition: 'background .15s, border-color .15s',
+                    }}
+                  >
+                    <span style={{ position: 'absolute', top: 2, left: form.modules.includes(IVR_MODULE) ? 18 : 2, width: 16, height: 16, borderRadius: '50%', background: form.modules.includes(IVR_MODULE) ? '#fff' : C.grayd, transition: 'left .15s, background .15s' }} />
+                  </button>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    <label htmlFor="client-ivr-switch" style={{ fontSize: 13, fontWeight: 700, color: C.white, cursor: 'pointer' }}>Show IVR Call to this client</label>
+                    <span id="client-ivr-note" style={{ fontSize: 11, color: C.grayd }}>
+                      Adds the recorded &ldquo;IVR Call&rdquo; button on leads in the dashboard and apps, and allows the server to place the call. Off = hidden for
+                      everyone, including platform admins viewing this client, and calls are refused. The IVR provider itself is configured under CRM → Integrations.
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ marginBottom: 28 }}>
+              <Label t="Notifications" />
+              {editing && !provisionMode
+                ? <ClientNotificationsPanel key={editing.id} clientId={editing.id} />
+                : (
+                  <div style={{ background: C.s3, borderRadius: 16, padding: 16, border: `1px solid ${C.border}`, fontSize: 12, color: C.grayd }}>
+                    A new client starts with <b>no notifications</b>. Create the client, then reopen it to choose which notifications it receives.
+                  </div>
+                )}
+            </div>
+
+            <div style={{ marginBottom: 28 }}>
               <Label t="Module Access Control" />
               <div style={{ display: 'flex', flexDirection: 'column', gap: 18, background: C.s3, borderRadius: 16, padding: 16, border: `1px solid ${C.border}` }}>
                 {GRANTABLE_GROUPS.map(group => {
-                  const groupModules = MODULES.filter(m => m.group === group);
+                  const groupModules = MODULES.filter(m => m.group === group && m.id !== IVR_MODULE);
                   if (!groupModules.length) return null;
                   const groupIds = groupModules.map(m => m.id);
                   const allOn = groupIds.every(id => form.modules.includes(id));

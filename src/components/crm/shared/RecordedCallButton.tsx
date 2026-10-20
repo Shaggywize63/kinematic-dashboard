@@ -1,20 +1,40 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { crmTelephony } from '../../../lib/crmApi';
 import { useAuth } from '../../../hooks/useAuth';
 import { userHasModule } from '../../../lib/auth';
+import api from '../../../lib/api';
 
 interface Props {
   leadId: string;
   phone?: string | null;
+  /** The lead's client. Decides whether IVR is on when the viewer is a platform admin (who sees every client's leads). */
+  clientId?: string | null;
   size?: 'sm' | 'md';
 }
 
-// Recorded / IVR calling shows for the original trial operator OR any user whose
-// client holds the `ivr_call` module (the per-client gate the apps use too, and
-// the same OR-gate the backend enforces on POST /crm/telephony/click-to-call).
+// Recorded / IVR calling is a per-client switch (Client Management → IVR Calling = the `ivr_call` module). A user who belongs
+// to a client is governed by that client's entitlement. A platform admin has no client of their own and bypasses the module
+// list, so for them the LEAD's client decides — otherwise IVR would show on every client's leads. The original trial operator
+// and leads with no client keep the old rule. The server enforces the same thing on POST /crm/telephony/click-to-call.
 const TRIAL_EMAIL = 's@kinematicapp.com';
+const IVR_MODULE = 'ivr_call';
+const CACHE_MS = 60_000;
+
+const clientIvr = new Map<string, { at: number; p: Promise<boolean> }>();
+function clientHasIvr(clientId: string): Promise<boolean> {
+  const hit = clientIvr.get(clientId);
+  if (hit && Date.now() - hit.at < CACHE_MS) return hit.p;
+  const p = api.get(`/api/v1/clients/${clientId}/modules`, { noCache: true } as RequestInit)
+    .then((r: any) => {
+      const d = r?.data ?? r;
+      return Array.isArray(d?.enabled_modules) && d.enabled_modules.includes(IVR_MODULE);
+    })
+    .catch(() => false);
+  clientIvr.set(clientId, { at: Date.now(), p });
+  return p;
+}
 
 /**
  * "Call (recorded)" pill. Placing the call bridges the rep and the lead on the
@@ -26,11 +46,24 @@ const TRIAL_EMAIL = 's@kinematicapp.com';
  * Self-gating: renders nothing unless the signed-in user is the trial operator
  * and the lead has a phone number — same self-hiding contract as CallButton.
  */
-export default function RecordedCallButton({ leadId, phone, size = 'sm' }: Props) {
+export default function RecordedCallButton({ leadId, phone, clientId, size = 'sm' }: Props) {
   const { user } = useAuth();
   const [busy, setBusy] = useState(false);
+  const [clientOn, setClientOn] = useState<boolean | null>(null);
 
-  const enabled = (user?.email || '').toLowerCase() === TRIAL_EMAIL || userHasModule(user, 'ivr_call');
+  const ownRule = (user?.email || '').toLowerCase() === TRIAL_EMAIL || userHasModule(user, IVR_MODULE);
+  // A platform admin (no client of their own) looking at a client's lead: that client's switch decides.
+  const byLeadClient = !!user && !(user as { client_id?: string | null }).client_id && !!clientId;
+
+  useEffect(() => {
+    if (!byLeadClient || !clientId) { setClientOn(null); return; }
+    let alive = true;
+    setClientOn(null);
+    clientHasIvr(clientId).then(on => { if (alive) setClientOn(on); });
+    return () => { alive = false; };
+  }, [byLeadClient, clientId]);
+
+  const enabled = byLeadClient ? clientOn === true : ownRule;
   if (!enabled || !phone) return null;
 
   const dim = size === 'sm' ? { pad: '4px 9px', fs: 11, ic: 12 } : { pad: '8px 14px', fs: 13, ic: 14 };

@@ -99,7 +99,7 @@ export default function ContactCard({
               />
               <CopyButton value={lead.phone} title="Copy mobile number" size="sm" />
               <CallButton phone={lead.phone} prefillSubject={`Call with ${displayName}`} leadId={lead.id} size="sm" />
-              <RecordedCallButton leadId={lead.id} phone={lead.phone} size="sm" />
+              <RecordedCallButton leadId={lead.id} phone={lead.phone} clientId={(lead as { client_id?: string | null }).client_id ?? null} size="sm" />
               <WhatsAppButton phone={lead.phone} prefillText={waPrefill} size="sm" />
             </div>
           </Fact>
