@@ -305,20 +305,27 @@ test.describe('Daily Travel Report — Employee day', () => {
     expect(items.map((i) => i.marker)).toEqual([null, null, 1, null, 2, 3, null, null]);
   });
 
-  test('the map draws the route and numbered markers for visits and halts, with dots for check-in / check-out', async ({ page }) => {
+  test('the map draws the route and numbered markers for visits and halts, with S / E markers for check-in / check-out', async ({ page }) => {
     await setup(page);
     await openDay(page);
+    // 3 numbered stops + the Start (S) and End (E) endpoint markers.
     await expect.poll(() => gm<number>(page, 'window.__gm.markers.filter(m => !m.removed).length')).toBe(5);
 
-    const labelled = await gm<Array<{ n: string; title: string }>>(page,
-      `window.__gm.markers.filter(m => !m.removed && m.o.label).map(m => ({ n: m.o.label.text, title: m.o.title })).sort((a, b) => a.n - b.n)`);
-    expect(labelled).toEqual([
+    // The numbered stops (labels are the timeline numbers 1, 2, 3).
+    const stops = await gm<Array<{ n: string; title: string }>>(page,
+      `window.__gm.markers.filter(m => !m.removed && m.o.label && /^\\d+$/.test(m.o.label.text)).map(m => ({ n: m.o.label.text, title: m.o.title })).sort((a, b) => a.n - b.n)`);
+    expect(stops).toEqual([
       { n: '1', title: '1. Visit — Customer Visit' },
       { n: '2', title: '2. Halt' },
       { n: '3', title: '3. Visit — Dealer Visit' },
     ]);
-    const dots = await gm<string[]>(page, `window.__gm.markers.filter(m => !m.removed && !m.o.label).map(m => m.o.title).sort()`);
-    expect(dots).toEqual(['Check-in', 'Check-out']);
+    // Start and end are now distinct labelled markers: a green "S" (check-in) and a red "E" (check-out).
+    const endpoints = await gm<Array<{ label: string; title: string }>>(page,
+      `window.__gm.markers.filter(m => !m.removed && m.o.label && !/^\\d+$/.test(m.o.label.text)).map(m => ({ label: m.o.label.text, title: m.o.title })).sort((a, b) => a.label < b.label ? -1 : 1)`);
+    expect(endpoints).toEqual([
+      { label: 'E', title: 'End (check-out)' },
+      { label: 'S', title: 'Start (check-in)' },
+    ]);
 
     // The route: the soft line + the crisp line, both through every GPS point the API sent.
     expect(await gm<number>(page, 'window.__gm.polylines.filter(p => !p.removed).length')).toBe(2);
@@ -518,6 +525,7 @@ test.describe('Daily Travel Report — navigation and demo mode', () => {
     await page.getByTestId('team-row').first().click();
     await expect(page.getByTestId('tile-km-value')).toHaveText('23.6 km', { timeout: 30_000 });
     expect(await kinds(page)).toEqual(EXPECTED_KINDS);
-    await expect.poll(() => gm<number>(page, 'window.__gm.markers.filter(m => !m.removed && m.o.label).length')).toBe(3);
+    // 3 numbered stops on the day (the Start/End endpoint markers carry non-numeric S / E labels).
+    await expect.poll(() => gm<number>(page, 'window.__gm.markers.filter(m => !m.removed && m.o.label && /^\\d+$/.test(m.o.label.text)).length')).toBe(3);
   });
 });
