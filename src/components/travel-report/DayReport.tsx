@@ -221,7 +221,7 @@ export default function DayReport({ date, userId, onDateChange, onBack, clientId
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', alignItems: 'baseline' }}>
               <Eyebrow>Route</Eyebrow>
               <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', fontSize: 12, color: T.dim }}>
-                {[['Check-in', T.ok], ['Visit', T.info], ['Halt', T.warn], ['Check-out', T.mute]].map(([l, c]) => (
+                {[['Start', T.ok], ['Visit', T.info], ['Halt', T.warn], ['End', '#ef4444']].map(([l, c]) => (
                   <span key={l} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
                     <span aria-hidden style={{ width: 9, height: 9, borderRadius: 999, background: c }} />{l}
                   </span>
@@ -231,7 +231,7 @@ export default function DayReport({ date, userId, onDateChange, onBack, clientId
             <RouteMap path={path} markers={markers} start={start} end={end} height={narrow ? 260 : 380} />
             <div style={{ fontSize: 12, color: T.mute }}>
               {report.route.points.length >= 2
-                ? `Route drawn from ${report.route.points.length} GPS points${report.route.thinned ? ' (thinned for display)' : ''}. Numbers match the timeline.`
+                ? `Route drawn from ${report.route.points.length} GPS points${report.route.thinned ? ' (thinned for display)' : ''}. Green “S” is the start, red “E” the end; arrows show the direction of travel. Numbers match the timeline.`
                 : path.length >= 2
                   ? 'No GPS trail for this day — the stops are joined by straight lines.'
                   : 'No GPS trail recorded for this day.'}
