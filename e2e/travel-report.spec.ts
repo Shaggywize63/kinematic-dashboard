@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { readFileSync } from 'fs';
 import { demoLogin, mockApi, seedSession, SEED_USER } from './utils';
 import { FAKE_MAPS } from './fakeMaps';
-import { buildTimeline, readDailyReport, timelinePlaces } from '../src/lib/travelReport';
+import { buildTimeline, readDailyReport, routeEndpoints, timelinePlaces } from '../src/lib/travelReport';
 
 /**
  * Field Force → "Daily Travel Report" (/dashboard/travel-report), backed by GET /api/v1/attendance/daily-report/team
@@ -303,6 +303,31 @@ test.describe('Daily Travel Report — Employee day', () => {
     expect(items.map((i) => i.kind)).toEqual(EXPECTED_KINDS);
     expect(items.map((i) => i.seq)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
     expect(items.map((i) => i.marker)).toEqual([null, null, 1, null, 2, 3, null, null]);
+  });
+
+  test('routeEndpoints resolves start/end from the check-in leg, the GPS trail, or the leg ends — so S/E always show when the day moved', async () => {
+    // 1. Legs tagged check-in / check-out → use those coordinates.
+    expect(routeEndpoints(readDailyReport(DAY)!)).toEqual({ start: P.home, end: P.home });
+
+    // 2. Legs NOT tagged check-in / check-out (the common real-data case) → fall back to the GPS-trail ends.
+    const untagged = {
+      ...DAY,
+      travel: {
+        ...DAY.travel,
+        legs: DAY.travel.legs.map((l) => ({ ...l, from: { ...l.from, kind: 'gps_trail' }, to: { ...l.to, kind: 'gps_trail' } })),
+      },
+    };
+    expect(routeEndpoints(readDailyReport(untagged)!)).toEqual({
+      start: { lat: ROUTE[0].lat, lng: ROUTE[0].lng },
+      end: { lat: ROUTE[ROUTE.length - 1].lat, lng: ROUTE[ROUTE.length - 1].lng },
+    });
+
+    // 3. No GPS trail and untagged legs → fall back to the first / last leg endpoint.
+    const noTrail = { ...untagged, route: { points: [], thinned: false } };
+    expect(routeEndpoints(readDailyReport(noTrail)!)).toEqual({ start: P.home, end: P.home });
+
+    // 4. No attendance → nothing to place.
+    expect(routeEndpoints(readDailyReport(NO_ATTENDANCE)!)).toEqual({ start: null, end: null });
   });
 
   test('the map draws the route and numbered markers for visits and halts, with S / E markers for check-in / check-out', async ({ page }) => {

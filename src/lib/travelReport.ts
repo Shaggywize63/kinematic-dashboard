@@ -261,6 +261,34 @@ export function routePath(report: DailyReport): LatLng[] {
   return out.length >= 2 ? out : [];
 }
 
+/**
+ * Where the map's start ("S", check-in) and end ("E", check-out / last seen) markers go.
+ *
+ * The check-in / check-out location the legs carry is preferred, but real days often don't
+ * tag the first/last leg as check-in/check-out (or have no legs at all), which used to leave
+ * both markers null so only the numbered stops drew. So fall back, in order, to: the ends of
+ * the GPS trail (route points are time-ordered, check-in first / check-out last), then the
+ * first/last leg endpoint. This way the start and end show whenever the day has any located
+ * movement, not only when a leg is explicitly kind-tagged.
+ */
+export function routeEndpoints(report: DailyReport): { start: LatLng | null; end: LatLng | null } {
+  if (!report.shift.attendance_id) return { start: null, end: null };
+  const legs = report.travel.legs;
+  const firstLeg = legs[0];
+  const lastLeg = legs[legs.length - 1];
+  const pts = report.route.points;
+  const firstPt = pts.length ? point(pts[0].lat, pts[0].lng) : null;
+  const lastPt = pts.length ? point(pts[pts.length - 1].lat, pts[pts.length - 1].lng) : null;
+
+  const checkinAt = firstLeg?.from?.kind === 'checkin' ? point(firstLeg.from.lat, firstLeg.from.lng) : null;
+  const checkoutAt = lastLeg?.to?.kind === 'checkout' ? point(lastLeg.to.lat, lastLeg.to.lng) : null;
+
+  return {
+    start: checkinAt ?? firstPt ?? point(firstLeg?.from?.lat, firstLeg?.from?.lng),
+    end: checkoutAt ?? lastPt ?? point(lastLeg?.to?.lat, lastLeg?.to?.lng),
+  };
+}
+
 /** Every distinct place a name could be looked up for (timeline points), in row order. */
 export function timelinePlaces(items: TimelineItem[]): LatLng[] {
   const seen = new Set<string>();
