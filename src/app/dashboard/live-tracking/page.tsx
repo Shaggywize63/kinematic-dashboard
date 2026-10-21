@@ -286,6 +286,10 @@ function placeBlockHtml(lat: number, lng: number, place: PlaceName | null, resol
 }
 
 /** Popup for a rep's pin. `fe.lat/lng` must be set. */
+/** "city_manager" → "City Manager" (the popup and the Supervisors list say what the person actually is). */
+const roleLabel = (role?: string | null): string =>
+  String(role || '').replace(/[_-]+/g, ' ').trim().replace(/\b\w/g, (c) => c.toUpperCase());
+
 function popupHtml(
   fe: FELoc, role: string, color: string,
   off: { label: string; since: string } | null,
@@ -673,7 +677,7 @@ function LiveMap({
           : circleIcon(C.blue, 12, '#1b1b1b', 2);
         const label = { text: sup.name?.[0] || '?', color: supOff ? C.grayd : '#fff', fontSize: '12px', fontWeight: '800' };
         addMarker(sup.lat!, sup.lng!, icon, label,
-          (place, resolved) => popupHtml(sup, 'Supervisor', c, supOff, place, resolved),
+          (place, resolved) => popupHtml(sup, roleLabel(sup.role) || 'Supervisor', c, supOff, place, resolved),
           sup.id, 'supervisor', 25, true);
       });
     }
@@ -741,10 +745,11 @@ function LiveMap({
     // popup the user already has open follows its marker through the refresh.
     const prev = openPopup.current;
     if (!selectedId) lastAutoOpen.current = null;
-    if (selectedId && selEntry?.kind === 'fe' && lastAutoOpen.current !== selectedId) {
+    const isPerson = (k?: string) => k === 'fe' || k === 'supervisor';
+    if (selectedId && isPerson(selEntry?.kind) && lastAutoOpen.current !== selectedId) {
       lastAutoOpen.current = selectedId;
       showPopup(selectedId);
-    } else if (prev && popups.has(prev.id) && (prev.kind !== 'fe' || prev.id === selectedId)) {
+    } else if (prev && popups.has(prev.id) && (!isPerson(prev.kind) || prev.id === selectedId)) {
       showPopup(prev.id);
     } else {
       infoWin.current?.close();
@@ -876,7 +881,9 @@ export default function LiveTrackingPage() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [zoneFilter,   setZoneFilter]   = useState('all');
   // Field executives are the only layer left (supervisor / outlet / warehouse layers were removed).
-  const [activeLayers] = useState<Set<string>>(() => new Set(['fe']));
+  // Field reps and their supervisors / city managers are shown; the Supervisors pill in the toolbar hides the latter.
+  const [activeLayers, setActiveLayers] = useState<Set<string>>(() => new Set(['fe', 'supervisor']));
+  const toggleLayer = (id: string) => setActiveLayers((prev) => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
   const [selectedId,   setSelectedId]   = useState<string|null>(null);
   const [selectedType, setSelectedType] = useState<string|null>(null);
@@ -1111,9 +1118,9 @@ export default function LiveTrackingPage() {
     return matchSearch;
   });
 
-  const selectRep = (id: string) => {
+  const selectRep = (id: string, type: 'fe' | 'supervisor' = 'fe') => {
     setSelectedId(id);
-    setSelectedType('fe');
+    setSelectedType(type);
     setCardMin(false);
     // On a phone the map sits above the list — bring it into view so the tap visibly does something.
     if (isNarrow) {
@@ -1213,6 +1220,15 @@ export default function LiveTrackingPage() {
                 <option value="all">All Zones</option>
                 {zones.map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
               </Select>
+            )}
+            {supervisors.length > 0 && (
+              <button type="button" className="lt-btn" aria-pressed={activeLayers.has('supervisor')} onClick={() => toggleLayer('supervisor')}
+                title="Show or hide supervisors and city managers on the map and in the list"
+                style={{ height:32, padding:'0 12px', borderRadius:10, cursor:'pointer', fontSize:12, fontWeight:700, fontFamily:"'DM Sans',sans-serif", display:'flex', alignItems:'center', gap:6,
+                  background: activeLayers.has('supervisor') ? tint(C.blue, 16) : C.s2, color: activeLayers.has('supervisor') ? C.blue : C.gray,
+                  border: `1px solid ${activeLayers.has('supervisor') ? C.blue : C.border}` }}>
+                👔 Supervisors <span style={{ opacity:0.8 }}>{supervisors.length}</span>
+              </button>
             )}
             <LowBatteryFilter active={lowBatteryFilter} onToggle={() => setLowBatteryFilter(v => !v)} count={lowBatteryCount} />
             {lastSync && <span style={{ fontSize:11, color:C.grayd }}>Last sync: {lastSync}</span>}
@@ -1348,7 +1364,7 @@ export default function LiveTrackingPage() {
                   </div>
                   {filteredSups.map(s => (
                     <div key={s.id} className="lt-row"
-                      onClick={() => { setSelectedId(s.id); setSelectedType('supervisor'); }}
+                      onClick={() => selectRep(s.id, 'supervisor')}
                       style={{ display:'flex', gap:10, padding:'10px 14px', cursor:'pointer',
                         borderBottom:`1px solid ${C.border}`, transition:'background .13s',
                         background: selectedId===s.id ? C.s3 : 'transparent',
@@ -1371,7 +1387,7 @@ export default function LiveTrackingPage() {
                           ) : null; })()}
                         </div>
                         <div style={{ fontSize:10, color:C.grayd, marginTop:1 }}>
-                          {s.zone_name||'No zone'}
+                          {roleLabel(s.role) ? `${roleLabel(s.role)} · ` : ''}{s.zone_name||'No zone'}
                           {(() => { const o = locationOff(s); return o
                             ? <span style={{ marginLeft:6, color:C.red }}>• off{o.since ? ` ${o.since}` : ''}</span>
                             : (s.last_location_updated_at && (
