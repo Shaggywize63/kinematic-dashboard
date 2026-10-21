@@ -14,7 +14,7 @@ import { ArrowLeft, Download, Printer, RefreshCw, UserX } from 'lucide-react';
 import api, { type DailyReport } from '../../lib/api';
 import { downloadCsv } from '../../lib/exportCsv';
 import {
-  buildTimeline, fmtDay, fmtHours, fmtKm, isYmd, istToday, modeText, readDailyReport, routePath, slug, timeRange,
+  buildTimeline, fmtDay, fmtHours, fmtKm, isYmd, istToday, modeText, readDailyReport, routeEndpoints, routePath, slug, timeRange,
   timelineCsvRows, timelinePlaces, TIMELINE_CSV_COLUMNS, type TimelineItem, type TimelineKind,
 } from '../../lib/travelReport';
 import { fmtClock, fmtMinutes } from '../../lib/visitTime';
@@ -104,8 +104,9 @@ export default function DayReport({ date, userId, onDateChange, onBack, clientId
       title: i.kind === 'visit' ? `${i.marker}. Visit — ${i.detail}` : `${i.marker}. Halt`,
       lines: [timeRange(i), fmtMinutes(i.minutes)],
     })), [items]);
-  const start = useMemo(() => items.find((i) => i.kind === 'checkin')?.at ?? null, [items]);
-  const end = useMemo(() => items.find((i) => i.kind === 'checkout')?.at ?? null, [items]);
+  // The check-in / check-out map markers. Resolved robustly (leg tag → GPS-trail ends → leg
+  // endpoints) so "S" and "E" show even when the legs aren't kind-tagged check-in/check-out.
+  const { start, end } = useMemo(() => (report ? routeEndpoints(report) : { start: null, end: null }), [report]);
 
   const hasShift = !!report?.shift.attendance_id;
   const dayLabel = fmtDay(report?.date || date);
