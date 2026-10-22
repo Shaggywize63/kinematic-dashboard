@@ -515,6 +515,9 @@ export interface OrderCartLineInput { sku_id: string; qty: number; uom?: string 
 export interface OrderCartInput {
   outlet_id: string;
   distributor_id?: string;
+  // Admin/dashboard only: assign the order to a field user. Ignored by the
+  // backend for a field_executive (who always books in their own name).
+  salesman_id?: string;
   items: OrderCartLineInput[];
   notes?: string;
   client_total?: number;
@@ -1342,6 +1345,11 @@ class ApiClient {
 
   // ── Distribution: Orders (admin) ─────────────────────────────────────
   getDistOrders(params?: Record<string, string>) { return this.get(`/api/v1/distribution/orders${this.sanitizeParams(params)}`); }
+  // Orders report download (CSV). Shares the list filters; returns a Blob via the
+  // authenticated download path (so the org/client/project headers are sent).
+  downloadOrdersReport(params?: Record<string, string>) {
+    return this.download(`/api/v1/distribution/orders/report${this.sanitizeParams({ ...(params || {}), format: 'csv' })}`, { timeoutMs: 60000 });
+  }
   getDistOrder(id: string) { return this.get(`/api/v1/distribution/orders/${id}`); }
   approveDistOrder(id: string) { return this.post(`/api/v1/distribution/orders/${id}/approve`, {}); }
   cancelDistOrder(id: string, reason?: string) { return this.post(`/api/v1/distribution/orders/${id}/cancel`, { reason }); }

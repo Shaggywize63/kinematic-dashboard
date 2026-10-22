@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import api, { OrderCatalogue, OrderCatalogueItem, OrderPreview, OrderCredit } from '../../../../../lib/api';
 import { Card, PageHeader, Pill, Btn, Th, Td, inr } from '../../../../../components/distribution/Atoms';
 import StoreSelect from '../../../../../components/StoreSelect';
+import { useDistributionNames } from '../../../../../lib/useDistributionNames';
 
 // Order-booking cart (dashboard order entry). Picks an outlet, loads its priced
 // catalogue, builds a cart with MOQ-enforced steppers, previews server-side
@@ -33,6 +34,12 @@ export default function NewOrderPage() {
 
   const [outletId, setOutletId] = useState('');
   const [outletLabel, setOutletLabel] = useState('');
+
+  // Assign the order to a field user (the rep who will fulfil/collect). Optional;
+  // when left blank the order books under the creating admin. The field user
+  // gets an "order assigned" push and sees it in their app's My Orders.
+  const [salesmanId, setSalesmanId] = useState('');
+  const { salesmen } = useDistributionNames({ salesmen: true });
 
   const [catalogue, setCatalogue] = useState<OrderCatalogue | null>(null);
   const [catLoading, setCatLoading] = useState(false);
@@ -121,6 +128,7 @@ export default function NewOrderPage() {
 
   const cartBody = () => ({
     outlet_id: outletId,
+    salesman_id: salesmanId || undefined,
     items: Object.entries(cart).map(([sku_id, qty]) => {
       const it = itemMap.get(sku_id);
       return { sku_id, qty, uom: it?.uom };
@@ -182,6 +190,18 @@ export default function NewOrderPage() {
       <Card style={{ marginBottom: 22 }}>
         <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Outlet</div>
         <StoreSelect value={outletId} onChange={onOutletChange} placeholder="Select an outlet to load its catalogue…" />
+
+        <div style={{ fontSize: 11, color: 'var(--text-dim)', margin: '14px 0 6px', textTransform: 'uppercase', letterSpacing: 0.5 }}>Assign to field user</div>
+        <select value={salesmanId} onChange={(e) => setSalesmanId(e.target.value)} style={fieldStyle}>
+          <option value="">— Unassigned (books under me) —</option>
+          {salesmen.map((s) => (
+            <option key={s.id} value={s.id}>{s.name}{s.active === false ? ' (inactive)' : ''}</option>
+          ))}
+        </select>
+        <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 4 }}>
+          The assigned field user gets a notification and sees the order in their app.
+        </div>
+
         {catalogue && (
           <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', fontSize: 12, color: 'var(--text-dim)' }}>
             {catalogue.customer_class && <Pill color="blue">{catalogue.customer_class}</Pill>}

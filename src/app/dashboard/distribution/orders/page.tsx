@@ -8,6 +8,7 @@ import { useTableSort, SortLabel } from '../../../../lib/tableSort';
 import { usePagination } from '../../../../components/shared/Pagination';
 import { useClient } from '../../../../context/ClientContext';
 import { useDistributionNames, shortId } from '../../../../lib/useDistributionNames';
+import { downloadBlob } from '../../../../lib/financeFormat';
 
 const STATUSES = ['', 'placed', 'approved', 'invoiced', 'partially_invoiced', 'cancelled'];
 // The orders endpoint caps `limit` at 200 (default 50). Ask for the most it will give so a date range is not
@@ -100,12 +101,38 @@ export default function OrdersPage() {
   const anyFilter = !!(status || fromDate || toDate || salesmanId || outletId);
   const clearFilters = () => { setStatus(''); setFromDate(''); setToDate(''); setSalesmanId(''); setOutletId(''); };
 
+  // Download the orders report (CSV) using the exact same filters as the list.
+  const [exporting, setExporting] = useState(false);
+  const exportCsv = useCallback(async () => {
+    if (badRange) return;
+    setExporting(true);
+    try {
+      const params: Record<string, string> = {};
+      if (status) params.status = status;
+      if (salesmanId) params.salesman_id = salesmanId;
+      if (outletId) params.outlet_id = outletId;
+      if (fromDate) params.from = `${fromDate}T00:00:00+05:30`;
+      if (toDate) params.to = `${toDate}T23:59:59.999+05:30`;
+      const blob = await api.downloadOrdersReport(params);
+      downloadBlob(blob, `orders-${new Date().toISOString().slice(0, 10)}.csv`);
+    } catch (e: any) {
+      setErr(e?.message || 'Export failed');
+    } finally {
+      setExporting(false);
+    }
+  }, [status, salesmanId, outletId, fromDate, toDate, badRange]);
+
   return (
     <div>
       <PageHeader
         title="Orders"
         subtitle="Captured by FE, dashboard or API"
-        right={<a href="/dashboard/distribution/orders/new"><Btn>+ New order</Btn></a>}
+        right={
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Btn variant="ghost" onClick={exportCsv} disabled={exporting || badRange}>{exporting ? 'Exporting…' : 'Export CSV'}</Btn>
+            <a href="/dashboard/distribution/orders/new"><Btn>+ New order</Btn></a>
+          </div>
+        }
       />
 
       <Card style={{ marginBottom: 22 }}>
