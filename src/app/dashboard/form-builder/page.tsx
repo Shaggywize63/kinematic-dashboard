@@ -1522,12 +1522,23 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
     }
   };
 
-  /* Publish / unpublish */
-  const toggleStatus = async () => {
-    const newStatus = form.status==='published' ? 'draft' : 'published';
-    await apiFetch(`/api/v1/builder/forms/${form.id}`, { method:'PATCH', body: JSON.stringify({ status:newStatus }) }).catch(()=>{});
+  /* Change the form's status (publish / unpublish / archive). Persists to the
+   * backend FIRST and only keeps the new state if the write succeeded — rolling
+   * the optimistic flip back and surfacing the error otherwise. Previously the
+   * PATCH error was swallowed (.catch(()=>{})) while the UI flipped regardless,
+   * so a failed publish showed "Published" yet reverted to Draft on reload. */
+  const setStatus = async (newStatus:string) => {
+    const prev = form.status;
+    if (newStatus === prev) return;
     setForm(p => ({...p, status:newStatus}));
+    try {
+      await apiFetch(`/api/v1/builder/forms/${form.id}`, { method:'PATCH', body: JSON.stringify({ status:newStatus }) });
+    } catch (e:any) {
+      setForm(p => ({...p, status:prev}));
+      alert('Could not change the form status: ' + (e?.message || 'unknown error'));
+    }
   };
+  const toggleStatus = () => setStatus(form.status==='published' ? 'draft' : 'published');
 
   const currentPageQs = questions.filter(q => q.page_id===selPage).sort((a,b) => a.q_order-b.q_order);
   const selectedQ = questions.find(q => q.id===selQ);
@@ -1720,7 +1731,10 @@ function FormEditor({ form: initialForm, onBack }:{ form:BForm; onBack:()=>void 
               />
               <div>
                 <label style={{ fontSize:12, color:C.gray, display:'block', marginBottom:6 }}>Status</label>
-                <select style={{ ...inpStyle, appearance:'none' as any }} value={form.status} onChange={e => setForm(p => ({...p,status:e.target.value}))}>
+                {/* Persist on change (via setStatus) so the picked status sticks
+                    on its own — it no longer needs a separate "Save" click, which
+                    is what let a "Published" pick silently revert to Draft. */}
+                <select style={{ ...inpStyle, appearance:'none' as any }} value={form.status} onChange={e => setStatus(e.target.value)}>
                   <option value="draft">Draft</option>
                   <option value="published">Published</option>
                   <option value="archived">Archived</option>
