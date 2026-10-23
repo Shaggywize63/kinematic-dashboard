@@ -8,7 +8,7 @@ import api, { EXPORT_TIMEOUT_MS, getRequestClientId } from '../../../../lib/api'
 import { downloadBlob } from '../../../../lib/financeFormat';
 import { getStoredUser } from '../../../../lib/auth';
 import { useLeadOwnerAccess } from '../../../../lib/leadOwnerAccess';
-import { isTataTiscon, canViewTelecallerReport } from '../../../../lib/clientFeatures';
+import { isTataTiscon, canViewTelecallerReport, isBmwActive } from '../../../../lib/clientFeatures';
 import { useCrmDateRange } from '../../../../stores/crmDateRangeStore';
 import { buildFieldHelpers, extractFieldOverrides, type FieldOverrides } from '../../../../lib/crmFieldOverrides';
 import { activeFilterCount, leadFilterParams, type ApprovalFilter } from '../../../../lib/crm/leadListParams';
@@ -159,7 +159,22 @@ export default function LeadsListPage() {
     isTataTiscon(getStoredUser()) ? { key: 'recent', order: 'desc' } : { key: 'created', order: 'desc' },
   );
   const view = useViewPrefs('leads');
-  const hiddenSet = useMemo(() => new Set(view.prefs.hidden), [view.prefs.hidden]);
+  // BMW removes the AI score entirely — the Score column + its sort are dropped
+  // and the score surfaces in the table / card-stack / preview are gated via the
+  // wrapped fieldHelpers below.
+  const isBmw = useMemo(() => isBmwActive(getStoredUser()), []);
+  const hiddenSet = useMemo(() => {
+    const s = new Set(view.prefs.hidden);
+    if (isBmw) s.add('score');
+    return s;
+  }, [view.prefs.hidden, isBmw]);
+  // Follow-ups-due deep link: the CRM home "Follow-ups due" card links here with
+  // ?followup_due=true. Read it once on mount (no useSearchParams → no extra
+  // Suspense boundary needed) and fold it into the list fetch.
+  const followupDue = useMemo(() => {
+    if (typeof window === 'undefined') return false;
+    try { return new URLSearchParams(window.location.search).get('followup_due') === 'true'; } catch { return false; }
+  }, []);
   // Phone-width flag — drives the card stack and the floating "+ New Lead"
   // CTA below. At 640px the header action cluster wraps and the New Lead
   // button can end up below the fold, so a sticky FAB keeps the primary
@@ -181,7 +196,14 @@ export default function LeadsListPage() {
     () => (leadStatuses && leadStatuses.length ? leadStatuses : STATUS_OPTIONS) as Array<{ value: string; label: string; color?: string }>,
     [leadStatuses],
   );
-  const fieldHelpers = useMemo(() => buildFieldHelpers(overrides, 'lead', isB2C ? 'b2c' : 'b2b'), [overrides, isB2C]);
+  const fieldHelpers = useMemo(() => {
+    const base = buildFieldHelpers(overrides, 'lead', isB2C ? 'b2c' : 'b2b');
+    // BMW: treat the built-in `score` field as hidden everywhere the helpers
+    // gate it (table column, card stack, preview panel) without touching the
+    // admin's saved overrides.
+    if (!isBmw) return base;
+    return { ...base, isHidden: (key: string) => key === 'score' || base.isHidden(key) };
+  }, [overrides, isB2C, isBmw]);
 
   // ONE param set, three consumers: the list fetch, the pipeline / view counters and the CSV
   // export. Keyed on the filter VALUES (not object identity) so unrelated re-renders don't refetch.
@@ -195,9 +217,12 @@ export default function LeadsListPage() {
     // doesn't expose (score_gte/lte, is_b2c, status_in, created_within_days,
     // not_contacted_days, …). Server applies + scopes.
     Object.assign(p, smartParams);
+    // Follow-ups-due deep link (?followup_due=true) — the backend leads list
+    // narrows to leads whose next_follow_up_date has come due.
+    if (followupDue) p.followup_due = 'true';
     return p;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtersKey, debouncedQ, approvalFilter, campaignSection, range.from, range.to, smartParams]);
+  }, [filtersKey, debouncedQ, approvalFilter, campaignSection, range.from, range.to, smartParams, followupDue]);
 
   // CSV download — calls the backend export endpoint with the same
   // server-side filters the list is already using, then triggers a
@@ -707,15 +732,20 @@ export default function LeadsListPage() {
             <option value="name:asc">Sort: Name (A–Z)</option>
             <option value="name:desc">Sort: Name (Z–A)</option>
             <option value="company:asc">Sort: Company (A–Z)</option>
-            <option value="score:desc">Sort: Score (high–low)</option>
-            <option value="score:asc">Sort: Score (low–high)</option>
+            {/* BMW has no AI score, so the score sort options are dropped. */}
+            {!isBmw && (
+              <>
+                <option value="score:desc">Sort: Score (high–low)</option>
+                <option value="score:asc">Sort: Score (low–high)</option>
+              </>
+            )}
             <option value="updated:desc">Sort: Last updated</option>
             <option value="status:asc">Sort: Status</option>
           </Select>
         </div>
         <ViewCustomizer
           entityLabel="Leads"
-          columns={LEAD_COLUMNS as unknown as { key: string; label: string; locked?: boolean }[]}
+          columns={(isBmw ? LEAD_COLUMNS.filter((c) => c.key !== 'score') : LEAD_COLUMNS) as unknown as { key: string; label: string; locked?: boolean }[]}
           hidden={view.prefs.hidden}
           mode={view.prefs.mode}
           onToggle={view.toggleHidden}

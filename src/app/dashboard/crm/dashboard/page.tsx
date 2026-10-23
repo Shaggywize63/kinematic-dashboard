@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
+import Link from 'next/link';
 import { toast } from 'sonner';
 import { LayoutGrid, X } from 'lucide-react';
 import { crmAnalytics, crmSettings, crmLeads } from '../../../../lib/crmApi';
@@ -111,6 +112,10 @@ export default function CrmDashboardPage() {
   const [forecast, setForecast] = useState<ForecastPoint[]>([]);
   const [scoreDist, setScoreDist] = useState<ScoreDistributionPoint[]>([]);
   const [geoLeads, setGeoLeads] = useState<Array<{ id: string; first_name?: string|null; last_name?: string|null; city?: string|null; state?: string|null; status?: string|null; latitude?: number|null; longitude?: number|null; score?: number|null; score_grade?: 'A'|'B'|'C'|'D'|null; score_breakdown?: Record<string, unknown>|null }>>([]);
+  // BMW-only "Follow-ups due" list (leads whose next_follow_up_date has come
+  // due — the backend leads list supports ?followup_due=true).
+  const [followupLeads, setFollowupLeads] = useState<Array<{ id: string; name: string }>>([]);
+  const [followupCount, setFollowupCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const range = useCrmDateRange((s) => ({ from: s.from, to: s.to }));
   const { selectedCity } = useCityScope();
@@ -163,15 +168,24 @@ export default function CrmDashboardPage() {
     } catch { /* ignore */ }
   }, [allowWeightToggle]);
 
+  // BMW deals carry no rupee amount (volume-only), so the ₹ view would read
+  // ₹0 everywhere. Pin the unit to Weight for BMW and keep the ₹/Weight toggle
+  // hidden (allowWeightToggle stays Tata-only) — effectively "default to Weight,
+  // hide the ₹ option". The weight metrics aggregate volume_kg from line items.
+  useEffect(() => {
+    if (bmwActive && unit !== 'weight') setUnit('weight');
+  }, [bmwActive, unit]);
+
   // When the gate flips off (e.g. platform admin switches off Tata Tiscon
   // via the global picker), force back to INR so the page doesn't keep
-  // rendering kilograms with no way to toggle out.
+  // rendering kilograms with no way to toggle out. BMW is exempt — it is
+  // intentionally pinned to Weight above with no toggle.
   useEffect(() => {
-    if (!allowWeightToggle && unit !== 'inr') {
+    if (!allowWeightToggle && !bmwActive && unit !== 'inr') {
       setUnit('inr');
       try { window.localStorage.removeItem('crm_dashboard_unit'); } catch { /* ignore */ }
     }
-  }, [allowWeightToggle, unit]);
+  }, [allowWeightToggle, bmwActive, unit]);
 
   const setUnitPersisted = (next: DashboardUnit) => {
     if (next === 'weight' && !allowWeightToggle) return; // defensive — toggle isn't rendered
@@ -227,6 +241,25 @@ export default function CrmDashboardPage() {
     })();
     return () => { cancel = true; };
   }, [range.from, range.to, unit, selectedCity]);
+
+  // BMW: load the leads whose follow-up date is due for the home card. Scoped
+  // + city-aware via the api client; refetches when the city scope changes.
+  useEffect(() => {
+    if (!bmwActive) { setFollowupLeads([]); setFollowupCount(0); return; }
+    let cancel = false;
+    crmLeads.list({ followup_due: true, limit: 50 })
+      .then((r) => {
+        if (cancel) return;
+        const rows = (r.data || []).map((l) => ({
+          id: l.id,
+          name: l.full_name || `${l.first_name || ''} ${l.last_name || ''}`.trim() || l.email || l.phone || 'Lead',
+        }));
+        setFollowupLeads(rows);
+        setFollowupCount(r.pagination?.total ?? rows.length);
+      })
+      .catch(() => { if (!cancel) { setFollowupLeads([]); setFollowupCount(0); } });
+    return () => { cancel = true; };
+  }, [bmwActive, selectedCity]);
 
   const fmtPct = (n?: number) => `${(Number(n || 0) * 100).toFixed(1)}%`;
   // KPI cards render the compact form (₹2.4L / ₹2.4Cr) so big numbers
@@ -300,9 +333,41 @@ export default function CrmDashboardPage() {
         }
       />
 
+      {/* BMW home — leads whose follow-up date is due. Names link to each lead;
+          "View all" opens the leads list pre-filtered to follow-ups due. */}
+      {bmwActive && (
+        <Card padding={16}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, marginBottom: 10 }}>
+            <Eyebrow>Follow-ups due{followupCount ? ` · ${followupCount}` : ''}</Eyebrow>
+            <Link href="/dashboard/crm/leads?followup_due=true" style={{ color: T.red, fontSize: 12.5, fontWeight: 600, textDecoration: 'none' }}>View all</Link>
+          </div>
+          {followupLeads.length === 0 ? (
+            <div style={{ fontSize: 13, color: T.dim }}>No follow-ups due right now.</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {followupLeads.slice(0, 8).map((l) => (
+                <Link
+                  key={l.id}
+                  href={`/dashboard/crm/leads/${l.id}`}
+                  className="km-navrow"
+                  style={{ color: T.text, fontSize: 13.5, textDecoration: 'none', padding: '6px 8px', borderRadius: 6 }}
+                >
+                  {l.name}
+                </Link>
+              ))}
+              {followupCount > Math.min(followupLeads.length, 8) && (
+                <Link href="/dashboard/crm/leads?followup_due=true" style={{ color: T.dim, fontSize: 12.5, textDecoration: 'none', padding: '6px 8px' }}>
+                  +{followupCount - Math.min(followupLeads.length, 8)} more
+                </Link>
+              )}
+            </div>
+          )}
+        </Card>
+      )}
+
       {visibleStatCount > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
-          {isVisible('stat_open_pipeline') && (
+          {isVisible('stat_open_pipeline') && !bmwActive && (
             // In weight mode the pipeline aggregates kg from deal line items.
             // When the open deals carry no weighted products the total is a
             // legitimate 0 — surface a hint so it doesn't read as a broken
@@ -321,7 +386,7 @@ export default function CrmDashboardPage() {
           )}
           {isVisible('stat_won') && !bmwActive && <StatTile label="Won (window)" value={fmtMoney(summary?.won_revenue_30d)} valueTitle={fmtMoneyFull(summary?.won_revenue_30d)} hint={`${summary?.won_deals_30d || 0} deals`} tone="ok" loading={loading} />}
           {isVisible('stat_win_rate') && !bmwActive && <StatTile label="Win Rate" value={fmtPct(summary?.win_rate_30d)} loading={loading} />}
-          {isVisible('stat_avg_deal') && <StatTile label="Avg Deal Size" value={fmtMoney(summary?.avg_deal_size)} valueTitle={fmtMoneyFull(summary?.avg_deal_size)} loading={loading} />}
+          {isVisible('stat_avg_deal') && !bmwActive && <StatTile label="Avg Deal Size" value={fmtMoney(summary?.avg_deal_size)} valueTitle={fmtMoneyFull(summary?.avg_deal_size)} loading={loading} />}
           {isVisible('stat_sales_cycle') && <StatTile label="Sales Cycle" value={`${Math.round(summary?.avg_sales_cycle_days || 0)}d`} loading={loading} />}
           {isVisible('stat_new_leads') && <StatTile label="New Leads" value={summary?.new_leads_30d || 0} hint={`${summary?.total_leads || 0} total`} loading={loading} />}
           {/* Clients that named their lead types ("Dealers" / "Farmers") also get the total split by type.
@@ -336,7 +401,7 @@ export default function CrmDashboardPage() {
       )}
 
       {/* Map gets full width so the bubbles + legend + side panel fit cleanly. */}
-      {!kinematicActive && isVisible('chart_geo_map') && (
+      {!kinematicActive && !bmwActive && isVisible('chart_geo_map') && (
         <ChartCard title="Leads on Map" subtitle="Hover or click a city to drill in">
           {geoLeads.length === 0 ? emptyChart : <LeadsGeoMap leads={geoLeads} />}
         </ChartCard>
@@ -353,12 +418,12 @@ export default function CrmDashboardPage() {
 
       {visibleChartCount > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(420px, 100%), 1fr))', gap: 12 }}>
-          {isVisible('chart_funnel') && (
+          {isVisible('chart_funnel') && !bmwActive && (
             <ChartCard title="Pipeline Funnel">
               {funnel.length ? <PipelineFunnelChart data={funnel} /> : emptyChart}
             </ChartCard>
           )}
-          {isVisible('chart_pipeline_value') && (
+          {isVisible('chart_pipeline_value') && !bmwActive && (
             <ChartCard title={unit === 'weight' ? 'Pipeline Volume by Stage' : 'Pipeline Value by Stage'}>
               {pipelineValue.length ? <PipelineValueByStageChart data={pipelineValue} unit={unit} /> : emptyChart}
             </ChartCard>

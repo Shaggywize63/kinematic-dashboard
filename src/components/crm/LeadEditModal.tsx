@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { crmLeads, crmSettings, crmLeadSources } from '../../lib/crmApi';
 import api from '../../lib/api';
+import { orderLeadSources } from '../../lib/leadSourceOrder';
 import type { BusinessType, Lead, LeadStatus, LeadSource } from '../../types/crm';
 import Modal from './shared/Modal';
 import LocationPicker from './LocationPicker';
@@ -390,7 +391,7 @@ export default function LeadEditModal({ lead, open, onClose, onSaved }: Props) {
             {/* Source — list comes from the active lead-sources catalogue. Empty
                 value clears the FK back to NULL; reps can manage the list under
                 CRM Settings → Lead Sources. */}
-            {show('source_id', <SF label={lbl('source_id', 'Source')} value={form.source_id} options={[{ value: '', label: '— Unspecified —' }, ...sources.map((s) => ({ value: s.id, label: s.name }))]} onChange={(v) => setForm({ ...form, source_id: v })} />)}
+            {show('source_id', <SF label={lbl('source_id', 'Source')} value={form.source_id} options={[{ value: '', label: '— Unspecified —' }, ...orderLeadSources(sources).map((s) => ({ value: s.id, label: s.name }))]} onChange={(v) => setForm({ ...form, source_id: v })} />)}
             {/* Owner reassignment — was previously absent from the modal
                 entirely. Hidden when the /users endpoint comes back empty
                 (e.g. client-role users without manpower read access). */}

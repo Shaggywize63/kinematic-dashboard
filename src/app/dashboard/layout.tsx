@@ -10,7 +10,7 @@ import { WHATS_NEW, markSectionSeen } from '../../lib/whatsNew';
 import StagingBoot from './StagingBoot';
 import StagingDeployModal from './StagingDeployModal';
 import { getStoredProjectKey } from '../../lib/projects';
-import { isMasterAdmin } from '../../lib/clientFeatures';
+import { isMasterAdmin, BMW_CLIENT_ID } from '../../lib/clientFeatures';
 import { ClientProvider } from '../../context/ClientContext';
 import { CityScopeProvider } from '../../context/CityScopeContext';
 import { IndustryScopeProvider } from '../../context/IndustryScopeContext';
@@ -420,6 +420,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // bound-client-OR-picker logic as Tata above.
   const KINEMATIC_CLIENT_ID = '7ecd47d7-9268-4ea2-a8ce-384978c13667';
   const kinematicActive = userClientId === KINEMATIC_CLIENT_ID || pickerClientId === KINEMATIC_CLIENT_ID;
+  // BMW — hides the Pipeline (Kanban) CRM surface. Same bound-client-OR-picker
+  // logic as the other tenant hide lists above.
+  const bmwActive = userClientId === BMW_CLIENT_ID || pickerClientId === BMW_CLIENT_ID;
   // PM Corporation — a lean van-sales distribution + field-force demo tenant.
   // Hides Lead Management, Business, People & Support and the Distribution →
   // Integrations item. Driven by PMC's client OR org id (same bound-client-OR-
@@ -470,8 +473,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const visibleAfterTata = visibleAfterDemo.filter((i) => !(i.hiddenForTata && tataHideActive));
     // Parent Kinematic tenant hide list (opt-in via `hiddenForKinematic`).
     const visibleAfterKinematic = visibleAfterTata.filter((i) => !(i.hiddenForKinematic && kinematicActive));
+    // BMW hide list (opt-in via `hiddenForBmw`, e.g. Pipeline / Kanban).
+    const visibleAfterBmw = visibleAfterKinematic.filter((i) => !(i.hiddenForBmw && bmwActive));
     // PM Corporation hide list (opt-in via `hiddenForPMC`, e.g. Integrations).
-    const visibleAfterPmc = visibleAfterKinematic.filter((i) => !(i.hiddenForPMC && pmcHideActive));
+    const visibleAfterPmc = visibleAfterBmw.filter((i) => !(i.hiddenForPMC && pmcHideActive));
     // While acting-as a client (super-admin "Login as"), restrict the nav to
     // the modules granted to that client in Client Management — even though the
     // impersonated account itself may be a full admin in its own project.
@@ -613,7 +618,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       { href: '/dashboard/crm/people-directory', label: 'People Directory', icon: 'book', module: 'crm_people_directory', hiddenForKinematic: true },
       { href: '/dashboard/crm/accounts',         label: 'Accounts',       icon: 'building', module: 'crm_accounts', hiddenForTata: true },
       { href: '/dashboard/crm/deals',            label: 'Deals',          icon: 'rupee', module: 'crm_deals' },
-      { href: '/dashboard/crm/pipeline',         label: 'Pipeline',       icon: 'kanban', module: 'crm_pipeline' },
+      { href: '/dashboard/crm/pipeline',         label: 'Pipeline',       icon: 'kanban', module: 'crm_pipeline', hiddenForBmw: true },
       { href: '/dashboard/crm/products',         label: 'Products',       icon: 'package', module: 'crm_products', hiddenForKinematic: true },
       { href: '/dashboard/crm/activities',       label: 'Activities',     icon: 'clipboardCheck', module: 'crm_activities' },
       { href: '/dashboard/crm/whatsapp',         label: 'WhatsApp',       icon: ICON_WHATSAPP, module: 'crm_whatsapp' },

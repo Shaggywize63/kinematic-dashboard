@@ -397,7 +397,7 @@ export default function LeadDetailPage() {
         }}
         onStatusChange={changeStatus}
         onEdit={() => setEditOpen(true)}
-        onProposal={() => setProposalOpen(true)}
+        onProposal={isBmw ? undefined : () => setProposalOpen(true)}
         onConvert={onConvert}
         converting={tataConverting}
         onReopen={handleReopen}
@@ -492,8 +492,8 @@ export default function LeadDetailPage() {
               />
             </>
           )}
-          {/* Next Best Action — AI manager-tier surface; hidden for the Consumer Champion FE flow since they don't act on it. */}
-          {!isChampion && <NextBestActionCard action={nba} onLoad={loadNba} loading={nbaLoading} leadId={id} />}
+          {/* Next Best Action — AI manager-tier surface; hidden for the Consumer Champion FE flow since they don't act on it, and removed entirely for BMW. */}
+          {!isChampion && !isBmw && <NextBestActionCard action={nba} onLoad={loadNba} loading={nbaLoading} leadId={id} />}
           {/* DPDP §6(4)-(6) — consent status + in-app withdrawal for this lead. */}
           {settingsLoaded && !fields.isHidden('data_consent') && (
             <ConsentCard subjectType="lead" subjectId={id} title={fields.labelFor('data_consent', 'Consent (DPDP)')} />
